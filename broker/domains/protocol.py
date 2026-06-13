@@ -173,12 +173,13 @@ class SkillPack(Protocol):
     ``broker/validators/agent/agent_validator.py``, and analytics
     pipelines. See ``DomainPack`` for full docstrings. Methods:
     ``skill_emotion_metadata``, ``extreme_actions``,
-    ``action_taxonomy``, ``affordability_constraints``.
+    ``action_taxonomy``, ``affordability_constraints``, ``param_specs``.
     """
     def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]: ...
     def extreme_actions(self) -> Set[str]: ...
     def action_taxonomy(self) -> Dict[str, "ActionTaxonomyEntry"]: ...
     def affordability_constraints(self) -> Dict[str, Any]: ...
+    def param_specs(self) -> Dict[str, List["VarSpec"]]: ...
 
 
 @runtime_checkable
@@ -531,6 +532,23 @@ class DomainPack(
         either return a hardcoded mapping or call
         ``broker.interfaces.action_taxonomy.load_action_taxonomy_from_skill_registry``
         to read from the YAML they ship.
+        """
+        ...
+
+    def param_specs(self) -> Dict[str, List["VarSpec"]]:
+        """Phase 6W-B3: per-skill numeric setpoint specs (multi-dimensional actions).
+
+        Returns ``{skill_id: [VarSpec, ...]}`` naming the bounded numeric setpoints
+        each skill authors. The VarSpecs are ordinary coupling-layer specs (one
+        bounds vocabulary — INVARIANTS AR-6); the ParameterBoundsValidator reads
+        them and calls ``VarSpec.range_violation``.
+
+        Default returns ``{}`` (no skill declares numeric params -> single-scalar
+        ``magnitude_pct`` legacy behaviour). Implementations may call
+        ``broker.interfaces.param_spec.load_param_specs_from_skill_registry`` to
+        read a ``param_specs:`` block from the domain's OWN skill_registry.yaml.
+        Per-skill specs MUST live in the domain's own / a variant config, never the
+        frozen paper-3 skill_registry.yaml (md5 58a0da94).
         """
         ...
 
