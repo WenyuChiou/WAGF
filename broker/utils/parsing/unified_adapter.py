@@ -242,6 +242,11 @@ class UnifiedAdapter(ModelAdapter):
 
         # 3. ATTEMPT JSON PARSING
         _magnitude_pct = None  # Optional magnitude for Group D experiments
+        # 6W-B2: full extracted numeric dict. Initialised here (not only inside the
+        # JSON-success block at ~:335) so it is always defined at the constructor,
+        # including the JSON-parse-failed path. Routed to SkillProposal.parameters
+        # only when the agent_type opts in (get_multi_param_enabled), else stays {}.
+        _extracted_numerics = {}
         found_json = False
         data_lowered = None  # Will be set if JSON parsing succeeds
         try:
@@ -889,6 +894,14 @@ class UnifiedAdapter(ModelAdapter):
             parse_confidence=parse_confidence,
             construct_completeness=construct_completeness,
             magnitude_pct=_magnitude_pct,
+            # 6W-B2: stop discarding the multi-field numeric dict the parser already
+            # built. Routed ONLY when this agent_type opts in; frozen domains return
+            # False -> {} -> SkillProposal.to_dict omits the key -> byte-identical.
+            parameters=(
+                dict(_extracted_numerics)
+                if self.agent_config.get_multi_param_enabled(agent_type)
+                else {}
+            ),
         )
 
     def _parse_keywords(self, text: str, agent_type: str, context: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
