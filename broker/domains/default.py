@@ -8,10 +8,13 @@ guarding for ``None``.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from broker.interfaces.action_taxonomy import ActionTaxonomyEntry
 from broker.domains.protocol import BuiltinCheck, EventHandler
+
+if TYPE_CHECKING:  # never imported at runtime — keeps broker.coupling off the default path
+    from broker.coupling.contract import VarSpec
 
 
 class DefaultDomainPack:
@@ -132,6 +135,15 @@ class DefaultDomainPack:
 
     def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
         """Phase 6O-B default — empty mapping (opt-out)."""
+        return {}
+
+    def param_specs(self) -> Dict[str, List["VarSpec"]]:
+        """Phase 6W-B3 default — no skill declares numeric setpoints (opt-out).
+
+        Returning {} (without importing VarSpec) keeps broker.coupling off the
+        frozen default import path. Coupled multi-param domains override this to
+        call load_param_specs_from_skill_registry on their own config.
+        """
         return {}
 
     def memory_policy(self):  # -> Optional[MemoryPolicyBundle]

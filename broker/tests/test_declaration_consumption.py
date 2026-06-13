@@ -48,6 +48,13 @@ DORMANT_HOOKS = {
         "load_action_taxonomy_from_skill_registry; the pack hook awaits its "
         "first consumer (wire or remove when taxonomy goes pack-driven)."
     ),
+    "param_specs": (
+        "Dormant 2026-06-12 (Phase 6W-B3): per-skill numeric setpoint specs load "
+        "from a domain's own skill_registry.yaml via "
+        "load_param_specs_from_skill_registry; the pack hook awaits its consumer, "
+        "the ParameterBoundsValidator (B4). REMOVE this entry when B4 lands and "
+        "reads pack.param_specs() directly."
+    ),
     "credibility_tiers": (
         "No DIRECT production caller 2026-06-10: the only read is the "
         "transitive chain providers.py -> pack.credibility_weight(tier_id) "
