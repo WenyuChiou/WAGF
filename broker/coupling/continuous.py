@@ -123,7 +123,14 @@ class ContinuousBundle(InterfaceBundle):
     def commit_world_delta(self, approved_skill: Any) -> WorldDelta:
         params = getattr(approved_skill, "parameters", None) or {}
         declared = {vs.name for vs in self.contract.inputs}
-        to_apply = {k: float(v) for k, v in params.items() if k in declared}
+        # 6W-B5 (R1): magnitude_fallback is an audit-only bool the B5 bridge
+        # co-locates with the setpoints in ApprovedSkill.parameters; it must never be
+        # coerced through float() / applied as a world setpoint, even if a contract
+        # input were (mis)named "magnitude_fallback".
+        to_apply = {
+            k: float(v) for k, v in params.items()
+            if k in declared and k != "magnitude_fallback"
+        }
         if to_apply and self.sink is None:
             raise ValueError(
                 "ContinuousBundle has no ControlSink (solver lacks set_value?) "

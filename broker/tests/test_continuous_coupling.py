@@ -179,6 +179,44 @@ def test_bmi_control_sink_requires_set_value():
 
 
 # --------------------------------------------------------------------------
+# 6W-B5 — multi-field bridge consumption + R1 mixed-bag (magnitude_fallback) skip
+# --------------------------------------------------------------------------
+def _contract_two_inputs() -> CouplingContract:
+    """A contract whose inputs include a real setpoint AND a (mis-named)
+    'magnitude_fallback' input — the R1 footgun the B5 hardening must defuse."""
+    return CouplingContract(
+        observations=(
+            VarSpec("storage", float, "af", lo=0.0, hi=1e9,
+                    cadence="per_solver_step", observation_reduce="min"),
+        ),
+        inputs=(
+            VarSpec("release", float, "af_per_step", lo=0.0, hi=100.0,
+                    direction="agent_to_world", value_source="proposal"),
+            VarSpec("magnitude_fallback", float, "x", lo=0.0, hi=1.0,
+                    direction="agent_to_world", value_source="proposal"),
+        ),
+        decision_cadence="annual", solver_cadence="sub_step", substeps_per_decision=4,
+    )
+
+
+def test_commit_applies_declared_setpoint_from_bridged_params():
+    """The world side consumes the bridged multi-field ApprovedSkill.parameters."""
+    bundle = ContinuousBundle(contract=_contract_two_inputs(), solver=ToyBmiReservoir())
+    delta = bundle.commit_world_delta(_approved(release=4.0))
+    assert delta.world_changes["release"] == 4.0
+
+
+def test_commit_skips_magnitude_fallback_even_if_declared_input():
+    """6W-B5 (R1): magnitude_fallback (the audit-only bool the bridge co-locates
+    with setpoints) is NEVER coerced through float()/applied as a setpoint — even
+    when a contract mis-declares it as an input."""
+    bundle = ContinuousBundle(contract=_contract_two_inputs(), solver=ToyBmiReservoir())
+    delta = bundle.commit_world_delta(_approved(release=4.0, magnitude_fallback=True))
+    assert delta.world_changes["release"] == 4.0
+    assert "magnitude_fallback" not in delta.world_changes  # skipped, not float(True)=1.0
+
+
+# --------------------------------------------------------------------------
 # Adapter e2e — continuous bundle behind the standard adapter
 # --------------------------------------------------------------------------
 def _adapter(bundle=None):

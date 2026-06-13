@@ -492,6 +492,13 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         the rejection path (clears magnitude_pct, sets magnitude_fallback).
         """
         _params = {}
+        # 6W-B5: multi-field setpoints flow into ApprovedSkill.parameters so the
+        # already-N-capable commit_world_delta consumes them. Applied FIRST; the
+        # legacy magnitude_pct/magnitude_fallback are set LAST so the legacy scalar
+        # still wins those keys (backward path). Frozen domains: parameters=={} ->
+        # this update is a no-op -> _params built byte-identically to pre-6W.
+        if skill_proposal and skill_proposal.parameters:
+            _params.update(skill_proposal.parameters)
         if skill_proposal and skill_proposal.magnitude_pct is not None:
             _params["magnitude_pct"] = skill_proposal.magnitude_pct
             _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
@@ -529,6 +536,14 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 # Don't mutate the original SkillProposal — carry values via _params
                 # (the proposal may be referenced by audit writer, memory, or cache)
                 _params = {"magnitude_pct": None, "magnitude_fallback": True}
+            else:
+                # 6W-B5: a REJECTED proposal must NOT carry live setpoints into the
+                # fallback ApprovedSkill. For a pure multi-param domain (magnitude_pct
+                # is None) the bridge left the setpoint dict in _params; clear it so
+                # "rejection discards setpoints" is self-contained, not reliant on the
+                # caller's non-REJECTED execution guard. Byte-safe: when magnitude_pct
+                # is None, _params was already {} pre-6W for frozen domains.
+                _params = {}
 
             fallout_skill = (
                 skill_proposal.skill_name if not is_generic_fallback
