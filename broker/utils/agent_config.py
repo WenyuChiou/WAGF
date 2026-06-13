@@ -285,6 +285,25 @@ class AgentTypeConfig:
             return False
         return bool(block.get("executed_skill_columns", False))
 
+    def get_audit_param_columns(self) -> bool:
+        """Phase 6W-B6: opt-in PROPOSED-parameter audit columns (default-OFF).
+
+        When ``global_config.audit.param_columns: true``, every trace whose
+        SkillProposal carries multi-field setpoints emits one key-gated
+        ``proposed_param_<name>`` column per declared setpoint (excluding the
+        legacy magnitude scalars). These record the proposal-stage value, kept
+        distinct from the commit-stage ``world_<name>`` columns so the
+        proposed-vs-executed (EXECUTED-ONLY) distinction is preserved.
+
+        OPT-IN, default-OFF by byte-identity necessity (CSV fieldnames derive
+        from row keys): flag-OFF emits no key, and frozen domains carry no
+        parameters anyway, so v21 / paper-3 mock reruns stay byte-identical.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("param_columns", False))
+
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
         # 1. Check Global Config

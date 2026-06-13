@@ -208,6 +208,23 @@ class AuditMixin:
                 "executed_via_fallback": bool(executed_via_fallback),
             }
 
+        # 6W-B6: PROPOSED-parameter columns, OPT-IN via
+        # global_config.audit.param_columns (default OFF). Same key-gated
+        # discipline as executed_extra: flag-OFF (or a proposal with no
+        # parameters, i.e. every frozen domain) emits nothing -> no row key ->
+        # no new CSV fieldname -> byte-identical. proposed_param_<name> is the
+        # PROPOSAL-stage value, kept distinct from the commit-stage world_<name>
+        # columns so EXECUTED-ONLY analysis never conflates them. The legacy
+        # magnitude scalars are skipped (already covered elsewhere).
+        param_extra: Dict[str, Any] = {}
+        get_pflag = getattr(self.config, "get_audit_param_columns", None)
+        if (callable(get_pflag) and get_pflag()
+                and skill_proposal and getattr(skill_proposal, "parameters", None)):
+            for _pk, _pv in skill_proposal.parameters.items():
+                if _pk in ("magnitude_pct", "magnitude_fallback"):
+                    continue
+                param_extra[f"proposed_param_{_pk}"] = _pv
+
         self.audit_writer.write_trace(agent_type_final, {
             "run_id": run_id,
             "step_id": step_id,
@@ -265,6 +282,10 @@ class AuditMixin:
             # accidental named "executed_skill" key above cannot silently
             # shadow them (spread-first would lose that collision).
             **executed_extra,
+            # 6W-B6: proposed-parameter columns, spread last (same rationale).
+            # compute_csv_fieldnames appends these sorted-after-priority, so the
+            # frozen column order is never reordered.
+            **param_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------
