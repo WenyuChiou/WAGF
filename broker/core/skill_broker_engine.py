@@ -258,6 +258,11 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         # Inject proposed magnitude into validation context (activates magnitude_cap_check)
         if skill_proposal and skill_proposal.magnitude_pct is not None:
             validation_context["proposed_magnitude"] = skill_proposal.magnitude_pct
+        # 6W-B4: parallel lift of the multi-field setpoint dict (activates
+        # ParameterBoundsValidator). Frozen domains carry parameters=={} -> key never
+        # added -> validation_context byte-identical; proposed_magnitude path unchanged.
+        if skill_proposal and skill_proposal.parameters:
+            validation_context["proposed_parameters"] = dict(skill_proposal.parameters)
 
         validation_results = self._run_validators(skill_proposal, validation_context)
         all_validation_history = list(validation_results)
@@ -368,6 +373,11 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                         sec_context["proposed_magnitude"] = sec_mag
                     else:
                         sec_context.pop("proposed_magnitude", None)
+                    # 6W-B4: secondary's own setpoint dict (not the primary's, copied above)
+                    if secondary_proposal and secondary_proposal.parameters:
+                        sec_context["proposed_parameters"] = dict(secondary_proposal.parameters)
+                    else:
+                        sec_context.pop("proposed_parameters", None)
                     sec_validation = self._run_validators(
                         secondary_proposal, sec_context
                     )

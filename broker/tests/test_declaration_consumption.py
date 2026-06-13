@@ -51,9 +51,10 @@ DORMANT_HOOKS = {
     "param_specs": (
         "Dormant 2026-06-12 (Phase 6W-B3): per-skill numeric setpoint specs load "
         "from a domain's own skill_registry.yaml via "
-        "load_param_specs_from_skill_registry; the pack hook awaits its consumer, "
-        "the ParameterBoundsValidator (B4). REMOVE this entry when B4 lands and "
-        "reads pack.param_specs() directly."
+        "load_param_specs_from_skill_registry, and the ParameterBoundsValidator "
+        "factory (B4) consumes a spec MAPPING. The pack HOOK itself awaits its "
+        "call-site, the B7 reservoir-multidim wiring that passes pack.param_specs() "
+        "into the factory. REMOVE this entry when B7 lands."
     ),
     "credibility_tiers": (
         "No DIRECT production caller 2026-06-10: the only read is the "
