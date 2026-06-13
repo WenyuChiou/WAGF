@@ -48,14 +48,10 @@ DORMANT_HOOKS = {
         "load_action_taxonomy_from_skill_registry; the pack hook awaits its "
         "first consumer (wire or remove when taxonomy goes pack-driven)."
     ),
-    "param_specs": (
-        "Dormant 2026-06-12 (Phase 6W-B3): per-skill numeric setpoint specs load "
-        "from a domain's own skill_registry.yaml via "
-        "load_param_specs_from_skill_registry, and the ParameterBoundsValidator "
-        "factory (B4) consumes a spec MAPPING. The pack HOOK itself awaits its "
-        "call-site, the B7 reservoir-multidim wiring that passes pack.param_specs() "
-        "into the factory. REMOVE this entry when B7 lands."
-    ),
+    # param_specs: NO LONGER DORMANT as of 6W-B7 — examples/reservoir_control_multidim
+    # (pack + __init__) calls pack.param_specs() and feeds it to
+    # make_parameter_bounds_validator. Entry removed (a consumed hook must not sit in
+    # the dormancy ledger).
     "credibility_tiers": (
         "No DIRECT production caller 2026-06-10: the only read is the "
         "transitive chain providers.py -> pack.credibility_weight(tier_id) "
