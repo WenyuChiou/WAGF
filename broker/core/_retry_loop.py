@@ -281,6 +281,12 @@ class RetryMixin:
                     validation_context["proposed_magnitude"] = skill_proposal.magnitude_pct
                 else:
                     validation_context.pop("proposed_magnitude", None)
+                # 6W-B4: parallel per-attempt lift of the setpoint dict (a retry that
+                # drops it clears the key). Frozen domains: parameters=={} -> popped.
+                if skill_proposal.parameters:
+                    validation_context["proposed_parameters"] = dict(skill_proposal.parameters)
+                else:
+                    validation_context.pop("proposed_parameters", None)
                 validation_results = self._run_validators(skill_proposal, validation_context)
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
