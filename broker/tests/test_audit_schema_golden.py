@@ -212,6 +212,26 @@ def test_world_delta_adds_only_key_gated_world_columns():
     assert set(base_fields) - set(world_fields) == set()
 
 
+def test_proposed_param_columns_are_key_gated_and_sorted_after_priority():
+    """6W-B6: proposed_param_<name> keys (emitted only when the param_columns flag
+    is ON and the proposal carries setpoints) add EXACTLY those columns and never
+    reorder/drop the frozen set. A trace without them == GOLDEN_FIELDNAMES."""
+    trace = _synthetic_trace()
+    param_trace = deepcopy(trace)
+    param_trace["proposed_param_release_cms"] = 12.0
+    param_trace["proposed_param_hydropower_mw"] = 800.0
+
+    base_fields = _fieldnames(trace)
+    param_fields = _fieldnames(param_trace)
+
+    assert base_fields == GOLDEN_FIELDNAMES  # no param keys -> frozen schema intact
+    assert set(param_fields) - set(base_fields) == {
+        "proposed_param_release_cms",
+        "proposed_param_hydropower_mw",
+    }
+    assert set(base_fields) - set(param_fields) == set()  # nothing dropped/reordered out
+
+
 def test_schema_sidecar_matches_csv_header(tmp_path):
     writer = GenericAuditWriter(
         AuditConfig(output_dir=str(tmp_path), experiment_name="schema-golden")

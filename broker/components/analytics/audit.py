@@ -244,6 +244,16 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["executed_skill"] = t.get("executed_skill")
         row["executed_via_fallback"] = bool(t.get("executed_via_fallback"))
 
+    # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
+    # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
+    # is ON and the proposal carries setpoints; surface them into the row so
+    # compute_csv_fieldnames derives the columns. Flag-OFF / frozen traces carry no
+    # such key -> no column -> byte-identical. Shared with the recovery CLI
+    # (Invariant 2), so a recovered CSV matches the live one.
+    for _k, _v in t.items():
+        if isinstance(_k, str) and _k.startswith("proposed_param_"):
+            row[_k] = _v
+
     # 3. Reasoning (TP/CP Appraisal + Audits)
     reasoning = skill_prop.get("reasoning", {})
     if isinstance(reasoning, dict):

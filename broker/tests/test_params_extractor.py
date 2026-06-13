@@ -40,6 +40,14 @@ def test_get_multi_param_enabled_forms():
     assert _cfg({}).get_multi_param_enabled("missing") is False           # agent_type absent
 
 
+def test_get_audit_param_columns_flag():
+    # 6W-B6 audit-column flag (global_config.audit.param_columns), default OFF
+    assert _cfg({"global_config": {"audit": {"param_columns": True}}}).get_audit_param_columns() is True
+    assert _cfg({"global_config": {"audit": {"param_columns": False}}}).get_audit_param_columns() is False
+    assert _cfg({"global_config": {"audit": {}}}).get_audit_param_columns() is False  # key absent
+    assert _cfg({}).get_audit_param_columns() is False                                # block absent
+
+
 # ---- the routing gate (byte-identity critical) ----
 
 def test_off_keeps_parameters_empty_even_with_two_numeric_fields():
