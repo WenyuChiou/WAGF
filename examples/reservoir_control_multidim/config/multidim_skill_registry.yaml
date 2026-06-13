@@ -1,0 +1,46 @@
+# Phase 6W-B7 — reservoir MULTI-DIMENSIONAL control skill registry.
+# The operator sets THREE bounded numeric setpoints in one decision (vs the
+# single-magnitude reservoir_control). The param_specs block is read by
+# broker.interfaces.param_spec.load_param_specs_from_skill_registry and feeds the
+# generic ParameterBoundsValidator (AR-6). This is a SEPARATE file from the frozen
+# paper-3 skill_registry.yaml — multi-dim setpoints never touch a frozen config.
+skills:
+  - skill_id: set_release_multi
+    category: setpoint
+    intensity: continuous
+    reversibility: annual
+    description: "Set release, hydropower, and flood-pool setpoints for the next operating period"
+    eligible_agent_types: ["operator"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+    allowed_state_changes: []
+    implementation_mapping: "set_release_multi"
+    # Multi-field proposal: each setpoint is a named numeric field the LLM emits.
+    output_schema:
+      type: object
+      required: [decision, release_rate_cms, hydropower_target_mw, flood_pool_pct]
+      properties:
+        decision: { type: integer, enum: [1] }
+        release_rate_cms: { type: number }
+        hydropower_target_mw: { type: number }
+        flood_pool_pct: { type: number }
+    # 6W-B3/B4: per-skill bounded setpoints (coupling VarSpecs; one bounds vocabulary).
+    # NOTE: bounds live HERE (validated by ParameterBoundsValidator), NOT in the
+    # response_format numeric field (R3) — so the parser never clamps the raw value.
+    param_specs:
+      - { name: release_rate_cms, unit: cms, lo: 0.0, hi: 850.0 }
+      - { name: hydropower_target_mw, unit: MW, lo: 0.0, hi: 2000.0 }
+      - { name: flood_pool_pct, unit: pct, lo: 0.0, hi: 100.0 }
+    conflicts_with: []
+
+  - skill_id: maintain_release
+    category: maintain
+    intensity: none
+    reversibility: annual
+    description: "Maintain the previously committed setpoints"
+    eligible_agent_types: ["operator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"

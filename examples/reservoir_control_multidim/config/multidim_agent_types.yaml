@@ -1,0 +1,103 @@
+# Phase 6W-B7 — reservoir MULTI-DIMENSIONAL control agent config.
+# Operator emits THREE bounded numeric setpoints per decision. Opts into the
+# multi-dim-action machinery (B1-B6): multi_param_action routes the extracted
+# numerics onto SkillProposal.parameters; audit.param_columns emits the
+# proposed_param_* audit columns. SEPARATE from the frozen reservoir_control config.
+shared:
+  rating_scales:
+    utility:
+      levels: ["L", "M", "H"]
+    generic:
+      levels: ["VL", "L", "M", "H", "VH"]
+  template_vars:
+    - current_year
+    - storage
+    - spill
+    - shortfall
+    - release_actual
+    - inflow_forecast_year
+    - dead_pool
+    - capacity
+    - demand_year
+    - storage_now
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      # Three numeric setpoints. NO min/max here (R3): bounds are enforced by the
+      # ParameterBoundsValidator from param_specs, so the parser passes the raw
+      # value through unclamped (preserving proposed-vs-executed).
+      - { key: "release_rate_cms", type: "numeric", unit: "cms", required: true,
+          description: "REQUIRED number: release rate in cms (e.g. 400)" }
+      - { key: "hydropower_target_mw", type: "numeric", unit: "MW", required: true,
+          description: "REQUIRED number: hydropower target in MW (e.g. 900)" }
+      - { key: "flood_pool_pct", type: "numeric", unit: "pct", required: true,
+          description: "REQUIRED number 0-100: flood-pool allocation as %% (e.g. 20)" }
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (set_release_multi) or 2 (maintain_release)" }
+      - { key: "reasoning", type: "text", required: false }
+
+global_config:
+  coupling:
+    enable: true
+  audit:
+    # 6W-B6: emit proposed_param_<name> columns (the proposed-vs-executed layer).
+    param_columns: true
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 8192
+    num_predict: 1024
+    max_retries: 3
+  governance:
+    domain: reservoir_control_multidim
+    dispatch_domain_physical: true
+    max_retries: 3
+    max_reports_per_retry: 2
+
+operator:
+  agent_type: operator
+  psychological_framework: utility
+  # 6W-B2: opt into routing the full extracted numeric dict onto
+  # SkillProposal.parameters (multi-dimensional setpoints).
+  multi_param_action:
+    enabled: true
+  prompt_template: |
+    ### RESERVOIR OPERATOR (multi-setpoint)
+    Agent ID: {agent_id}
+    Year: {current_year}
+
+    ### LAST WATER YEAR OUTCOMES
+    - End storage: {storage} maf
+    - Spill: {spill} maf
+    - Shortfall: {shortfall} maf
+
+    ### NEXT OPERATING CONTEXT
+    - Forecast annual inflow: {inflow_forecast_year} maf
+    - Dead pool: {dead_pool} maf
+    - Capacity: {capacity} maf
+
+    ### DECISION
+    Set three setpoints for the next period: release rate (cms), hydropower target
+    (MW), and flood-pool allocation (%).
+
+    ### OPTIONS
+    {options_text}
+
+    {response_format}
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    # Fields MUST live on the operator block (the builder prefers operator over shared
+    # and does NOT merge): a delimiters-only stub would shadow shared and render an
+    # empty {response_format}. Same 3 numeric fields (no min/max — R3) + decision + reasoning.
+    fields:
+      - { key: "release_rate_cms", type: "numeric", unit: "cms", required: true,
+          description: "REQUIRED number: release rate in cms (e.g. 400)" }
+      - { key: "hydropower_target_mw", type: "numeric", unit: "MW", required: true,
+          description: "REQUIRED number: hydropower target in MW (e.g. 900)" }
+      - { key: "flood_pool_pct", type: "numeric", unit: "pct", required: true,
+          description: "REQUIRED number 0-100: flood-pool allocation as %% (e.g. 20)" }
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (set_release_multi) or 2 (maintain_release)" }
+      - { key: "reasoning", type: "text", required: false }
