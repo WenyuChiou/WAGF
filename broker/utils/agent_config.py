@@ -1234,6 +1234,28 @@ class AgentTypeConfig:
         normalized.setdefault("secondary_field", "secondary_decision")
         return normalized
 
+    def get_multi_param_enabled(self, agent_type: str) -> bool:
+        """Phase 6W-B2 (default-OFF): whether this agent_type opts into routing the
+        full extracted numeric dict onto ``SkillProposal.parameters`` (multi-dimensional
+        setpoints, e.g. a reservoir operator's {release, hydropower, flood_pool}).
+
+        Frozen domains never declare it -> returns False -> ``parameters`` stays ``{}``
+        -> JSONL/CSV byte-identical, regardless of how many numeric fields the
+        agent_type declares (single_agent declares a secondary_magnitude_pct, so a
+        count-based heuristic would be unsafe; an explicit opt-in is not). Config:
+            <agent_type>:
+              multi_param_action:
+                enabled: true
+        Accepts a bare bool too (``multi_param_action: true``).
+        """
+        cfg = self.get(agent_type)
+        mp = cfg.get("multi_param_action", False)
+        if isinstance(mp, bool):
+            return mp
+        if isinstance(mp, dict):
+            return bool(mp.get("enabled", False))
+        return False
+
     # =========================================================================
     # Task-041: Framework-Aware Rating Scale Support
     # =========================================================================
