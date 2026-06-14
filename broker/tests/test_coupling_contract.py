@@ -38,6 +38,79 @@ def test_varspec_rejects_bad_enums():
         VarSpec("x", float, "m", observation_reduce="median")
 
 
+# --------------------------------------------------------------------------
+# B6 R1-fix-2: is_derived vs value_source build-time guard
+# --------------------------------------------------------------------------
+def test_derived_input_rejects_proposal_value_source_at_construction():
+    """A derived input (computed world-side) MUST NOT also be value_source=
+    'proposal' — that wiring would fail the adapter POST guard mid-run, so it is
+    rejected at CONSTRUCTION rather than as a runtime CouplingViolation."""
+    with pytest.raises(ValueError, match="is_derived"):
+        VarSpec(
+            "release_target", float, "maf_per_month",
+            direction="agent_to_world", value_source="proposal", is_derived=True,
+        )
+
+
+def test_derived_input_with_world_deterministic_is_ok():
+    """The derive pattern (the existing escape hatch) stays valid: a derived
+    input authored world-side declares value_source='world_deterministic'."""
+    vs = VarSpec(
+        "release_target", float, "maf_per_month",
+        direction="agent_to_world", value_source="world_deterministic", is_derived=True,
+    )
+    assert vs.is_derived is True
+    assert vs.value_source == "world_deterministic"
+
+
+def test_direct_proposal_setpoint_not_derived_is_ok():
+    """A direct agent-authored setpoint (proposal field name == world key) is
+    valid with value_source='proposal' as long as it is not marked derived."""
+    vs = VarSpec(
+        "release_rate_cms", float, "m3_per_s",
+        direction="agent_to_world", value_source="proposal",  # is_derived defaults False
+    )
+    assert vs.is_derived is False
+    assert vs.value_source == "proposal"
+
+
+def test_is_derived_excluded_from_repr_keeps_contract_sha_byte_identical():
+    """BYTE-IDENTITY GUARD: the contract provenance sha is sha256(repr(contract))
+    (adapter.get_provenance, the production path). ``is_derived`` is
+    field(repr=False, compare=False), so it must NOT appear in a VarSpec repr and
+    must NOT move the contract sha — an existing contract hashes exactly as before,
+    and even MARKING an input derived leaves the provenance sha untouched. If this
+    fails, every coupled run's contract_sha256 moved."""
+    import hashlib
+
+    vs = VarSpec("release_target", float, "maf_per_month", direction="agent_to_world")
+    assert "is_derived" not in repr(vs)
+    # default-False and explicit-False reprs are identical
+    vs_explicit = VarSpec(
+        "release_target", float, "maf_per_month",
+        direction="agent_to_world", is_derived=False,
+    )
+    assert repr(vs) == repr(vs_explicit)
+
+    # CONTRACT level — the exact production path (adapter.get_provenance computes
+    # sha256(repr(self.contract))): marking an input derived must NOT move the sha.
+    def _sha(c):
+        return hashlib.sha256(repr(c).encode("utf-8")).hexdigest()
+
+    plain = VarSpec(
+        "release_target", float, "maf_per_month",
+        direction="agent_to_world", value_source="world_deterministic",
+    )
+    derived = VarSpec(
+        "release_target", float, "maf_per_month",
+        direction="agent_to_world", value_source="world_deterministic", is_derived=True,
+    )
+    assert _sha(CouplingContract(inputs=(plain,))) == _sha(CouplingContract(inputs=(derived,)))
+    # compare=False: is_derived is annotation-only, not part of VarSpec identity
+    assert plain == derived
+    assert hash(plain) == hash(derived)
+
+
 def test_varspec_numeric_requires_unit():
     with pytest.raises(ValueError):
         VarSpec("loss", float, "")  # numeric must declare a unit

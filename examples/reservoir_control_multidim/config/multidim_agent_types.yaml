@@ -101,3 +101,24 @@ operator:
       - { key: "decision", type: "choice", required: true,
           description: "Numeric ID, choose ONE from: 1 (set_release_multi) or 2 (maintain_release)" }
       - { key: "reasoning", type: "text", required: false }
+  parsing:
+    # Maps the numeric decision ID -> skill name. Without a parsing block,
+    # get_skill_map() returns {} and the parser cannot resolve decision=1.
+    # Keep numbering in lockstep with OPTIONS_TEXT in run_reservoir_multidim.py.
+    decision_keywords: ["decision"]
+    # default_skill is the PARSER-level fallback, reached ONLY when strict_mode is
+    # false. With strict_mode: true (here), a missing/unmappable decision instead
+    # fails the parse -> governance retry -> exhaustion -> REJECTED via the
+    # registry's get_default_skill() (also maintain_release), NOT this field.
+    default_skill: maintain_release
+    strict_mode: true
+    skill_map:
+      "1": set_release_multi
+      "2": maintain_release
+  governance:
+    strict:
+      # set_release_multi is intentionally unconstrained (it commits operator-
+      # authored setpoints, bounds-checked by the ParameterBoundsValidator).
+      documented_unconstrained_skills:
+        - set_release_multi
+        - maintain_release

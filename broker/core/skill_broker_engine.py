@@ -646,6 +646,17 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             output_fields = {}
             if proposal.magnitude_pct is not None:
                 output_fields["magnitude_pct"] = proposal.magnitude_pct
+            # 6W: multi-dimensional setpoints live on proposal.parameters, not as
+            # first-class proposal attributes — surface them so a skill whose
+            # output_schema lists each setpoint as a required field can see them.
+            # Empty {} for frozen single-scalar domains -> output_fields unchanged
+            # -> byte-identical (magnitude_pct path untouched). Reserved scalar keys
+            # are excluded so a setpoint named magnitude_pct/magnitude_fallback can
+            # never clobber the first-class value (mirrors the _audit_helpers
+            # proposed_param_* exclusion).
+            for _pk, _pv in (proposal.parameters or {}).items():
+                if _pk not in ("magnitude_pct", "magnitude_fallback"):
+                    output_fields[_pk] = _pv
             # Reverse-lookup: find which numbered option maps to this skill_name
             # so the 'decision' field expected by output_schema is populated.
             agent_ctx = context.get("agent_state", {})

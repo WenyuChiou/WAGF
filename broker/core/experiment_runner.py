@@ -21,6 +21,34 @@ from ..utils.agent_config import GovernanceAuditor
 from ..utils.logging import logger
 from .efficiency import CognitiveCache
 
+
+def _rebuild_cached_proposal(
+    cached_proposal: Optional[Dict[str, Any]],
+    *,
+    skill_name: str,
+    agent_id: str,
+    reasoning: Dict[str, Any],
+    agent_type: str,
+) -> SkillProposal:
+    """Reconstruct a SkillProposal from a cognitive-cache ``skill_proposal`` dict.
+
+    The legacy inline reconstruction copied only four fields and silently dropped
+    the 6W multi-dimensional ``parameters`` setpoint dict, losing multi-dim actions
+    on every cache-hit replay. This helper threads ``parameters`` back. The remaining
+    fields are passed explicitly because the two cache-hit reconstructions
+    intentionally differ (proposed vs approved skill_name; cached vs current
+    agent_type). ``parameters`` defaults to ``{}`` when the key is absent, so a
+    frozen-domain cached entry (which never carries it) reconstructs byte-identically.
+    """
+    return SkillProposal(
+        skill_name=skill_name,
+        agent_id=agent_id,
+        reasoning=reasoning,
+        agent_type=agent_type,
+        parameters=(cached_proposal or {}).get("parameters", {}),
+    )
+
+
 _HOOK_PROTOCOLS = {
     "pre_year": (PreYearHook, 3),
     "pre_step": (PreYearHook, 3),
@@ -754,11 +782,12 @@ class ExperimentRunner:
 
                     # Restore reasoning metadata to ensure AuditWriter can find appraisals
                     cached_proposal = cached_data.get("skill_proposal") or {}
-                    proposal = SkillProposal(
+                    proposal = _rebuild_cached_proposal(
+                        cached_proposal,
                         skill_name=(cached_proposal.get("skill_name") or self.broker.skill_registry.get_default_skill()),
                         agent_id=agent.id,
                         reasoning=cached_proposal.get("reasoning", {}),
-                        agent_type=cached_proposal.get("agent_type", "default")
+                        agent_type=cached_proposal.get("agent_type", "default"),
                     )
 
                     # Basic reconstruction (Logic here should match SkillBrokerResult structure)
@@ -779,11 +808,15 @@ class ExperimentRunner:
                         retry_count=0
                     )
                     if hasattr(self.broker, "_run_validators"):
-                        cached_proposal_obj = SkillProposal(
+                        # validation re-run intentionally uses the APPROVED skill_name
+                        # + the CURRENT agent's agent_type (not the cached/proposed ones);
+                        # only `parameters` is threaded from the cached proposal.
+                        cached_proposal_obj = _rebuild_cached_proposal(
+                            cached_proposal,
                             skill_name=(cached_data.get("approved_skill", {}).get("skill_name") or self.broker.skill_registry.get_default_skill()),
                             agent_id=agent.id,
-                            reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
-                            agent_type=getattr(agent, 'agent_type', 'default')
+                            reasoning=cached_proposal.get("reasoning", {}),
+                            agent_type=getattr(agent, 'agent_type', 'default'),
                         )
                         # Wrap context the same way process_step() does for custom validators
                         cache_validation_context = {
@@ -938,11 +971,12 @@ class ExperimentRunner:
                 logger.info(f"[Efficiency:Parallel] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
 
                 cached_proposal = cached_data.get("skill_proposal") or {}
-                proposal = SkillProposal(
+                proposal = _rebuild_cached_proposal(
+                    cached_proposal,
                     skill_name=(cached_proposal.get("skill_name") or self.broker.skill_registry.get_default_skill()),
                     agent_id=agent.id,
                     reasoning=cached_proposal.get("reasoning", {}),
-                    agent_type=cached_proposal.get("agent_type", "default")
+                    agent_type=cached_proposal.get("agent_type", "default"),
                 )
 
                 result = SkillBrokerResult(
@@ -962,11 +996,15 @@ class ExperimentRunner:
                     retry_count=0
                 )
                 if hasattr(self.broker, "_run_validators"):
-                    cached_proposal_obj = SkillProposal(
+                    # validation re-run intentionally uses the APPROVED skill_name
+                    # + the CURRENT agent's agent_type (not the cached/proposed ones);
+                    # only `parameters` is threaded from the cached proposal.
+                    cached_proposal_obj = _rebuild_cached_proposal(
+                        cached_proposal,
                         skill_name=(cached_data.get("approved_skill", {}).get("skill_name") or self.broker.skill_registry.get_default_skill()),
                         agent_id=agent.id,
-                        reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
-                        agent_type=getattr(agent, 'agent_type', 'default')
+                        reasoning=cached_proposal.get("reasoning", {}),
+                        agent_type=getattr(agent, 'agent_type', 'default'),
                     )
                     # Wrap context the same way process_step() does for custom validators
                     cache_validation_context = {
