@@ -1,6 +1,8 @@
 """Recovery fidelity tests for JSONL-as-truth audit artifacts."""
 from __future__ import annotations
 
+import csv
+
 from broker.components.analytics.audit import AuditConfig, GenericAuditWriter
 from broker.tools.recover_csv_from_jsonl import recover_csv
 
@@ -99,3 +101,66 @@ def test_recovered_csv_is_byte_identical_to_live_csv(tmp_path):
 
     assert summary["recovery_agent"]["rows_recovered"] == 3
     assert live_csv.read_bytes() == archived_live_csv.read_bytes()
+
+
+def _trace_with_params(step_id: int, raw_output: str, params: dict) -> dict:
+    """Inject top-level proposed_param_<name> keys exactly as _audit_helpers emits
+    them when global_config.audit.param_columns is ON and the proposal carries
+    setpoints (mirrors test_audit_schema_golden.py's _synthetic_trace injection)."""
+    trace = _trace(step_id, raw_output)
+    trace.update(params)
+    return trace
+
+
+def test_proposed_param_columns_roundtrip_through_recovery(tmp_path):
+    """6W deferred: proposed_param_<name> columns must survive the JSONL->CSV
+    rebuild byte-identically.
+
+    The recovery path shares trace_to_csv_row + compute_csv_fieldnames with the
+    live writer, so equality is guaranteed by construction — this test pins it so a
+    future divergence (e.g. a recover-side filter that drops unknown keys) is caught.
+    Beyond byte-identity it asserts the param columns are actually PRESENT with the
+    right values, so the test cannot pass trivially with both CSVs lacking them.
+    """
+    writer = GenericAuditWriter(
+        AuditConfig(output_dir=str(tmp_path), experiment_name="recovery-params")
+    )
+    writer.write_trace(
+        "param_agent",
+        _trace_with_params(1, "out-1", {
+            "proposed_param_release_cms": 12.0,
+            "proposed_param_hydropower_mw": 800.0,
+        }),
+    )
+    writer.write_trace(
+        "param_agent",
+        _trace_with_params(2, "out-2", {
+            "proposed_param_release_cms": 5.5,
+            "proposed_param_hydropower_mw": 400.0,
+        }),
+    )
+    writer.finalize()
+
+    live_csv = tmp_path / "param_agent_governance_audit.csv"
+    archived_live_csv = tmp_path / "param_agent_governance_audit.live.csv"
+    live_csv.replace(archived_live_csv)
+
+    summary = recover_csv(tmp_path)
+
+    assert summary["param_agent"]["rows_recovered"] == 2
+    # byte-identity: recovered == live
+    assert live_csv.read_bytes() == archived_live_csv.read_bytes()
+
+    # ...and the param columns are genuinely present with preserved values.
+    # NOTE: live_csv now holds the RECOVERED csv (the original was moved aside
+    # above); byte-identity already proved they match, so reading either is fine.
+    # DictWriter str-formats float(12.0) as "12.0"; the float() parse is exact.
+    with live_csv.open("r", newline="", encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 2
+    assert "proposed_param_release_cms" in rows[0]
+    assert "proposed_param_hydropower_mw" in rows[0]
+    assert float(rows[0]["proposed_param_release_cms"]) == 12.0
+    assert float(rows[1]["proposed_param_release_cms"]) == 5.5
+    assert float(rows[0]["proposed_param_hydropower_mw"]) == 800.0
+    assert float(rows[1]["proposed_param_hydropower_mw"]) == 400.0

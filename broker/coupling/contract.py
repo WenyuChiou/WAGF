@@ -82,6 +82,20 @@ class VarSpec:
     # an agent-owned value is the execution-sampling bug class).
     # "world_deterministic" (default) = world-side computed, no guard.
     value_source: str = "world_deterministic"
+    # B6 R1-fix-2 (build-time guard): mark an input whose committed value is
+    # DERIVED world-side (e.g. the bundle computes it in commit_world_delta from
+    # another proposal field, like the reservoir deriving release_target from
+    # magnitude_pct) rather than authored verbatim by the agent. A derived input
+    # is incompatible with value_source="proposal" — __post_init__ rejects that
+    # combination at CONSTRUCTION, so the wiring error fails loud at build time
+    # instead of as a runtime CouplingViolation in the adapter POST guard.
+    # Meaningful only for direction="agent_to_world" inputs. repr=False +
+    # compare=False keep it a pure build-time annotation: excluded from the
+    # contract provenance sha (repr-based, see adapter.get_provenance) AND from
+    # VarSpec __eq__/__hash__, so an existing contract that never sets is_derived
+    # hashes and compares exactly as before, and even MARKING an input derived
+    # leaves the provenance sha untouched.
+    is_derived: bool = field(default=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.cadence not in _CADENCES:
@@ -108,6 +122,16 @@ class VarSpec:
             raise ValueError(f"VarSpec[{self.name}]: observation_reduce {self.observation_reduce!r} not in {_REDUCE}")
         if self.value_source not in _VALUE_SOURCES:
             raise ValueError(f"VarSpec[{self.name}]: value_source {self.value_source!r} not in {_VALUE_SOURCES}")
+        if self.is_derived and self.value_source == "proposal":
+            raise ValueError(
+                f"VarSpec[{self.name}]: is_derived=True is incompatible with "
+                "value_source='proposal'. A derived input is computed world-side "
+                "(the bundle derives it in commit_world_delta), so it cannot also "
+                "be an agent-authored setpoint -- the adapter POST guard "
+                "(execution-sampling) would reject it mid-run. Use "
+                "value_source='world_deterministic' for the derive pattern, or "
+                "is_derived=False if the proposal authors this key verbatim."
+            )
         if self.dtype in (int, float):
             if not self.unit:
                 raise ValueError(f"VarSpec[{self.name}]: numeric variable must declare a non-empty unit")

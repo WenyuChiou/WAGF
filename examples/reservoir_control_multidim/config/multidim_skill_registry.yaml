@@ -19,7 +19,12 @@ skills:
     # Multi-field proposal: each setpoint is a named numeric field the LLM emits.
     output_schema:
       type: object
-      required: [decision, release_rate_cms, hydropower_target_mw, flood_pool_pct]
+      # `decision` is parser-ROUTING metadata (the skill is resolved via
+      # parsing.skill_map), NOT semantic output — so the output_schema asserts the
+      # three SETPOINTS (surfaced by the engine from proposal.parameters), not the
+      # routing field. decision stays in properties + response_format so the LLM
+      # still emits it for routing.
+      required: [release_rate_cms, hydropower_target_mw, flood_pool_pct]
       properties:
         decision: { type: integer, enum: [1] }
         release_rate_cms: { type: number }
@@ -44,3 +49,7 @@ skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "noop"
+
+# Generic non-flood default (INVARIANTS I5 rule 4): a rejected proposal falls
+# back to the maintain_release no-op, never the flood-specific 'do_nothing'.
+default_skill: maintain_release
