@@ -62,6 +62,10 @@ def load_seed_data(seed: str) -> pd.DataFrame:
         with open(jsonl_path, encoding="utf-8") as f:
             for line in f:
                 rec = json.loads(line)
+                # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                # older seeds lack; it carries no decision/year -> skip it.
+                if "_metadata" in rec or rec.get("year") is None:
+                    continue
                 sa = rec.get("state_after", {})
                 flood_records.append({
                     "agent_id": rec["agent_id"],

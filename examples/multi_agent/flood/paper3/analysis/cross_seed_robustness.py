@@ -94,7 +94,12 @@ def load_traces(seed, base_dir=None):
                 line = line.strip()
                 if line:
                     try:
-                        traces.append(json.loads(line))
+                        rec = json.loads(line)
+                        # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                        # older seeds lack; it carries no decision/year -> skip it.
+                        if "_metadata" in rec or rec.get("year") is None:
+                            continue
+                        traces.append(rec)
                     except json.JSONDecodeError:
                         pass
     return traces

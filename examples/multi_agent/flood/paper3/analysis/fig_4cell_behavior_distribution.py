@@ -68,6 +68,10 @@ def process_file(path, agent_kind):
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             rec = json.loads(line)
+            # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+            # older seeds lack; it carries no decision/year -> skip it.
+            if "_metadata" in rec or rec.get("year") is None:
+                continue
             year = rec["year"]
             sa = rec["state_after"]
             sb = rec.get("state_before", sa)

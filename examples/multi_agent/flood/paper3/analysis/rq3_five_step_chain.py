@@ -25,6 +25,7 @@ ARM_PATHS = {
     "LEG_Full_42": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_e4b_legacy/seed_42/gemma4_e4b_strict/raw",
     "CLN_Full_42": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_e4b_clean/seed_42/gemma4_e4b_strict/raw",
     "CLN_Full_123": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_e4b_clean/seed_123/gemma4_e4b_strict/raw",
+    "CLN_Full_456": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_e4b_clean/seed_456/gemma4_e4b_strict/raw",
     "CLN_Flat_42": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_ablation_flat_clean/seed_42/gemma4_e4b_strict/raw",
     "CLN_Flat_123": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_ablation_flat_clean/seed_123/gemma4_e4b_strict/raw",
     "CLN_Flat_456": REPO_ROOT / "examples/multi_agent/flood/paper3/results/paper3_gemma4_ablation_flat_clean/seed_456/gemma4_e4b_strict/raw",
@@ -37,7 +38,12 @@ def iter_jsonl(path: Path):
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             if line.strip():
-                yield json.loads(line)
+                rec = json.loads(line)
+                # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                # older seeds lack; it carries no decision/year -> skip it.
+                if "_metadata" in rec or rec.get("year") is None:
+                    continue
+                yield rec
 
 
 def normalized_agent_type(raw: str) -> str:
