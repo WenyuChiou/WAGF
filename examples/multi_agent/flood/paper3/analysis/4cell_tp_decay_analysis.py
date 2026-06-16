@@ -56,6 +56,10 @@ def load_audit_and_traces(seed):
         with open(trace_file, "r", encoding="utf-8") as f:
             for line in f:
                 rec = json.loads(line)
+                # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                # older seeds lack; it carries no decision/year -> skip it.
+                if "_metadata" in rec or rec.get("year") is None:
+                    continue
                 agent_id = rec.get("agent_id")
                 year = rec.get("year")
                 # Get flooded_this_year from state_before

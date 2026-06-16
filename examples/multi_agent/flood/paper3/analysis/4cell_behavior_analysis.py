@@ -55,6 +55,10 @@ def process_file(filepath):
             except json.JSONDecodeError:
                 skipped += 1
                 continue
+            # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+            # older seeds lack; it carries no decision/year -> skip it.
+            if "_metadata" in rec or rec.get("year") is None:
+                continue
 
             agent_id = rec.get("agent_id", "")
             agent_type = rec.get("agent_type", "")

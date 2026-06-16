@@ -56,6 +56,10 @@ def load_flood_data():
             with open(jsonl, encoding="utf-8") as f:
                 for line in f:
                     rec = json.loads(line)
+                    # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                    # older seeds lack; it carries no decision/year -> skip it.
+                    if "_metadata" in rec or rec.get("year") is None:
+                        continue
                     sb = rec.get("state_before", {})
                     records.append({
                         "seed": seed,

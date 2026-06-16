@@ -50,7 +50,12 @@ def iter_household_records(raw_dir: Path):
         with (raw_dir / filename).open("r", encoding="utf-8") as handle:
             for line in handle:
                 if line.strip():
-                    yield json.loads(line)
+                    rec = json.loads(line)
+                    # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                    # older seeds lack; it carries no decision/year -> skip it.
+                    if "_metadata" in rec or rec.get("year") is None:
+                        continue
+                    yield rec
 
 
 def detect_phrase_families(text: str) -> set[str]:

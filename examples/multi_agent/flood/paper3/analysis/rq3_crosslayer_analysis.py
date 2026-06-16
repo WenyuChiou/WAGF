@@ -70,6 +70,10 @@ def load_traces():
                         d = json.loads(line)
                     except json.JSONDecodeError:
                         continue
+                    # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                    # older seeds lack; it carries no decision/year -> skip it.
+                    if "_metadata" in d or d.get("year") is None:
+                        continue
                     sp = d.get("skill_proposal") or {}
                     reasoning_dict = sp.get("reasoning") or {}
 

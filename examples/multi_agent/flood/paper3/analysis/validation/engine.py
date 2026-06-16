@@ -67,7 +67,12 @@ def load_traces(
                 with open(filepath, 'r', encoding='utf-8') as f:
                     for line in f:
                         if line.strip():
-                            result[group_name].append(json.loads(line))
+                            rec = json.loads(line)
+                            # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                            # older seeds lack; it carries no decision/year -> skip it.
+                            if "_metadata" in rec or rec.get("year") is None:
+                                continue
+                            result[group_name].append(rec)
 
     return result[groups[0]], result[groups[1]]
 
@@ -86,7 +91,12 @@ def _load_institutional_traces(traces_dir: Path) -> List[Dict]:
             with open(filepath, 'r', encoding='utf-8') as f:
                 for line in f:
                     if line.strip():
-                        traces.append(json.loads(line))
+                        rec = json.loads(line)
+                        # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                        # older seeds lack; it carries no decision/year -> skip it.
+                        if "_metadata" in rec or rec.get("year") is None:
+                            continue
+                        traces.append(rec)
     # Also check parent directory (audit CSVs pattern)
     if not traces and traces_dir.parent != traces_dir:
         for pattern in _INSTITUTIONAL_TRACE_PATTERNS:
@@ -94,7 +104,12 @@ def _load_institutional_traces(traces_dir: Path) -> List[Dict]:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     for line in f:
                         if line.strip():
-                            traces.append(json.loads(line))
+                            rec = json.loads(line)
+                            # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                            # older seeds lack; it carries no decision/year -> skip it.
+                            if "_metadata" in rec or rec.get("year") is None:
+                                continue
+                            traces.append(rec)
     return traces
 
 

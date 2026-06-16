@@ -115,6 +115,10 @@ def load_traces(seed):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 d = json.loads(line)
+                # Framework >=0.6.0 writes a leading {"_metadata": {...}} provenance line that
+                # older seeds lack; it carries no decision/year -> skip it.
+                if "_metadata" in d or d.get("year") is None:
+                    continue
                 # Extract key fields
                 sp = d.get("skill_proposal") or {}
                 reasoning = sp.get("reasoning") or {}
