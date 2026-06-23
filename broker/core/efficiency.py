@@ -1,7 +1,7 @@
 """Efficiency Hub: Centralized utilities for LLM performance and scaling.
 
-This module houses accelerators like Cognitive Caching, Speculative Drafting,
-and Batch Management to enable large-scale Agent-Based Modeling.
+This module houses accelerators like Cognitive Caching and Batch Management
+to enable large-scale Agent-Based Modeling.
 """
 import hashlib
 import json
@@ -119,9 +119,3 @@ class CognitiveCache:
             logger.info(f"[Efficiency:Load] Loaded {len(self._cache)} cache entries")
         except Exception as e:
             logger.warning(f"[Efficiency:Load] Failed to load cache: {e}")
-
-
-# Future Efficiency Tools
-class SpeculativeDrafter:
-    """Place-holder for future speculative decoding/drafting logic."""
-    pass

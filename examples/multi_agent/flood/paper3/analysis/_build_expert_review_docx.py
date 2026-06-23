@@ -12,16 +12,6 @@ OUTPUT = os.path.join(
     "CV_Module_Expert_Review_2026-02-14.docx"
 )
 
-def set_cell_shading(cell, color_hex):
-    """Set background color for a table cell."""
-    shading = cell._element.get_or_add_tcPr()
-    shading_elem = shading.makeelement(qn('w:shd'), {
-        qn('w:fill'): color_hex,
-        qn('w:val'): 'clear',
-    })
-    shading.append(shading_elem)
-
-
 def add_table_row(table, cells_text, bold=False, header=False):
     """Add a row to a table."""
     row = table.add_row()
