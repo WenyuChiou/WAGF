@@ -137,20 +137,6 @@ def paired_test(group_a, group_b, label_a, label_b, metric_name):
             "mean_a": a.mean(), "mean_b": b.mean(), "median_a": a.median(), "median_b": b.median(),
             "n_a": n_a, "n_b": n_b, "test": "Mann-Whitney U", "U_stat": stat, "p_value": p}
 
-def one_sample_test(values, label, metric_name):
-    """Wilcoxon signed-rank test for delta != 0."""
-    v = values.dropna()
-    n = len(v)
-    non_zero = v[v != 0]
-    if len(non_zero) < 3:
-        return {"metric": metric_name, "group": label,
-                "mean": v.mean() if n else np.nan, "n": n,
-                "test": "insufficient_non_zero", "p_value": np.nan}
-    stat, p = stats.wilcoxon(non_zero)
-    return {"metric": metric_name, "group": label,
-            "mean": v.mean(), "median": v.median(), "n": n,
-            "test": "Wilcoxon signed-rank", "W_stat": stat, "p_value": p}
-
 separator = "=" * 80
 
 # ══════════════════════════════════════════════════════════════════════════════
