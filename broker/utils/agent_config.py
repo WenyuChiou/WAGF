@@ -362,6 +362,63 @@ class AgentTypeConfig:
             return False
         return bool(block.get("advise_columns", False))
 
+    def get_governance_on_retry_exhausted(self) -> str:
+        """What executes when governance retries are exhausted: a MODEL-BUILDER choice.
+
+        ``"default"`` (the default) — execute the registry ``default_skill``. This is
+        the historical, hardcoded behaviour and stays bit-for-bit unchanged.
+
+        ``"keep_proposal"`` — execute the agent's FINAL FAILED PROPOSAL instead.
+
+        Why this is configurable rather than a framework constant: the two shipped
+        water domains want opposite things. The flood study treats a persistent
+        rule-violating choice as the observable it exists to measure, so overwriting
+        it with a default destroys the datum. Irrigation is an enforced-allocation
+        domain that would not converge if agents could keep taking water they were
+        denied, so it wants the default.
+
+        SCOPE. ``keep_proposal`` applies ONLY to ``SkillOutcome.REJECTED`` — a real
+        proposal that failed validation. ``UNCERTAIN`` (the parser never produced a
+        usable proposal) always uses the default: there is no agent choice to
+        preserve, and executing a parser artefact is strictly worse.
+
+        SAFETY, and read this before enabling it. ``keep_proposal`` executes an
+        action that JUST FAILED VALIDATION, unvalidated. That directly trips the
+        revisit trigger of accepted risk AR-1 in ``broker/INVARIANTS.md`` ("any
+        domain configures a substantive, state- or world-mutating fallback"), whose
+        safety argument was that every shipped default is a no-op. Enabling it is
+        therefore a statement that, for THIS domain, the rules that can block are
+        behavioural-theory rules whose violation is incoherent but possible — not
+        world-affordance rules whose violation is impossible. A domain that mixes
+        both must either keep the default policy or guarantee an independent
+        execution-layer guard.
+
+        It is REFUSED outright when the coupling layer is enabled (AR-2): a rejected
+        proposal that reaches ``ControlSink.apply`` / ``commit_world_delta`` would
+        commit a rule-violating value to a physical model with no governance at all,
+        which is the one thing this framework claims it does not allow.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return "default"
+        policy = str(gov.get("on_retry_exhausted", "default")).strip().lower()
+        if policy not in {"default", "keep_proposal"}:
+            raise ValueError(
+                f"global_config.governance.on_retry_exhausted {policy!r} "
+                "not in ['default', 'keep_proposal']"
+            )
+        if policy == "keep_proposal":
+            coupling = self._config.get("global_config", {}).get("coupling", {})
+            if isinstance(coupling, dict) and coupling.get("enable", False):
+                raise ValueError(
+                    "global_config.governance.on_retry_exhausted='keep_proposal' is "
+                    "not permitted while global_config.coupling.enable is true. A "
+                    "rejected proposal would reach the external model's ControlSink "
+                    "ungoverned and commit a rule-violating value to the world "
+                    "(broker/INVARIANTS.md accepted risk AR-2)."
+                )
+        return policy
+
     def get_governance_advise(self) -> Optional[Dict[str, Any]]:
         """P0-1c: the ADVISE arm spec, or None (default) meaning OFF.
 
