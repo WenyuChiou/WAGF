@@ -198,6 +198,13 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     # sub-block) is DISTINCT from the top-level global_config.memory block —
     # both are intentionally listed, one per level.
     "memory",                    # agent_config.get_bridge_importance_config
+    # P0-1c/P0-1d arm-sweep keys. These were consumed before they were registered
+    # here, so every config using them tripped a spurious "unknown key" WARN —
+    # exactly the noise that trains operators to ignore this check.
+    "advise",                    # agent_config.get_governance_advise
+    "intervention_framing",      # agent_config.get_governance_intervention_framing
+    "require_profile",           # agent_config.get_governance_require_profile
+    "on_retry_exhausted",        # agent_config.get_governance_on_retry_exhausted
 }
 
 KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
