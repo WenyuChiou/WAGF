@@ -255,6 +255,20 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["initial_labels"] = t.get("initial_labels", "")
         row["attempt_skills"] = t.get("attempt_skills", "")
 
+    # 2.7c. P0-1c: ADVISORY columns, key-gated the same way. Present only when
+    # global_config.audit.advise_columns is ON. `advisory_llm_calls` and the
+    # `llm_calls` total below are what make sample-matching between the advise and
+    # placebo arms a measured fact rather than a Methods assertion.
+    if "advise_mode" in t:
+        for _k in ("advise_mode", "advisory_fired", "advisory_llm_calls",
+                   "advisory_rules", "advisory_skill_before", "advisory_skill_after",
+                   "advisory_changed_action", "advisory_parse_failed",
+                   "advisory_reports_shown", "advisory_prompt_chars",
+                   "post_advice_rules"):
+            row[_k] = t.get(_k)
+    if "llm_calls" in llm_stats:
+        row["llm_calls"] = llm_stats.get("llm_calls")
+
     # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
     # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
     # is ON and the proposal carries setpoints; surface them into the row so
