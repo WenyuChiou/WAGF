@@ -1034,7 +1034,10 @@ class AgentTypeConfig:
     def get_identity_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get identity/status rules."""
         cfg = self.get(agent_type)
-        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        # Guarded too: this accessor runs on EVERY step, whereas the thinking-rule
+        # accessor is skipped when a proposal's reasoning failed to parse. Guarding
+        # only that one would leave an undeclared profile reachable for a whole run.
+        profile = self._resolve_governance_profile(agent_type, cfg)
 
         # Task 015 fix: Look in both locations for governance rules
         # 1. Top-level governance section: governance.{profile}.{agent_type}.identity_rules
@@ -1109,10 +1112,65 @@ class AgentTypeConfig:
 
         return issues
 
+    def get_governance_require_profile(self) -> bool:
+        """P0-1c: opt-in fail-loud on an undeclared GOVERNANCE_PROFILE (default False).
+
+        ``get_thinking_rules`` silently falls back to the ``default`` profile, and
+        then to agent-type-level rules, when the requested profile is not declared.
+        For ordinary runs that is forgiving; for an experiment sweep it is a trap —
+        a typo'd arm name runs the WRONG RULE SET and the run still looks healthy,
+        producing scientifically wrong data with no error anywhere.
+
+        Set ``global_config.governance.require_profile: true`` in every arm config.
+        Default-OFF so no frozen run changes behaviour.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return False
+        return bool(gov.get("require_profile", False))
+
+    def _resolve_governance_profile(self, agent_type: str, cfg: Dict[str, Any]) -> str:
+        """Resolve GOVERNANCE_PROFILE, failing loudly on an undeclared name (opt-in).
+
+        MUST be called by EVERY rule accessor, not just one. Both
+        ``get_thinking_rules`` and ``get_identity_rules`` silently fall back to the
+        ``default`` profile when the requested one is undeclared, and they are
+        reached by different paths:
+
+        * ``get_identity_rules`` runs UNCONDITIONALLY on every step (skill filtering
+          and ``validate_identity``);
+        * ``get_thinking_rules`` runs only ``if reasoning:`` — and ``reasoning`` is
+          legitimately ``{}`` whenever a small local model's structured reasoning
+          block fails to parse.
+
+        So guarding only the thinking path leaves a real hole: a typo'd profile plus
+        a parse-failure step completes the whole run on the wrong rule set with no
+        error anywhere — the exact silent-wrong-data failure this guard exists to
+        close. Centralised here so a future accessor cannot forget it.
+        """
+        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        if profile == "default" or not self.get_governance_require_profile():
+            return profile
+        # Mirror the resolver's own lookup: the top-level form nests the agent_type
+        # UNDER the profile, so a profile declared for another agent_type must not
+        # count as declared for this one.
+        top_level = self._config.get("governance", {}) or {}
+        declared = {p for p, body in top_level.items()
+                    if isinstance(body, dict) and agent_type in body}
+        declared |= set(cfg.get("governance", {}) or {})
+        if profile not in declared:
+            raise ValueError(
+                f"GOVERNANCE_PROFILE={profile!r} is not declared for agent_type "
+                f"{agent_type!r} (declared: {sorted(declared)}). "
+                "global_config.governance.require_profile is on, so this fails "
+                "rather than silently falling back to the 'default' rule set."
+            )
+        return profile
+
     def get_thinking_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get cognitive/thinking rules."""
         cfg = self.get(agent_type)
-        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        profile = self._resolve_governance_profile(agent_type, cfg)
 
         # Task 015 fix: Look in both locations for governance rules
         # 1. Top-level governance section: governance.{profile}.{agent_type}.thinking_rules
