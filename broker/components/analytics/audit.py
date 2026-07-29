@@ -244,6 +244,17 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["executed_skill"] = t.get("executed_skill")
         row["executed_via_fallback"] = bool(t.get("executed_via_fallback"))
 
+    # 2.7b. P0-1a: FIRST-ATTEMPT proposal columns, key-gated the same way. Only
+    # traces produced with global_config.audit.initial_proposal_columns ON carry
+    # these keys, so legacy/flag-OFF traces keep the frozen column set
+    # byte-identical. Closes the proposal-stage gap: skill_proposal is
+    # reassigned on every governance retry, so proposed_skill records the LAST
+    # attempt and compares equal to final_skill on 100% of shipped rows.
+    if "initial_skill" in t:
+        row["initial_skill"] = t.get("initial_skill")
+        row["initial_labels"] = t.get("initial_labels", "")
+        row["attempt_skills"] = t.get("attempt_skills", "")
+
     # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
     # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
     # is ON and the proposal carries setpoints; surface them into the row so
