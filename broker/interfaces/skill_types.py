@@ -162,11 +162,21 @@ class InterventionReport:
     severity: str = "ERROR"                # ERROR, WARNING
     domain_context: Dict[str, Any] = field(default_factory=dict) # e.g., {"physical_constraint": "cannot elevate twice"}
 
-    def to_prompt_string(self) -> str:
-        """Format the report as a string suitable for injection into an LLM prompt."""
-        s = f"- [{self.severity}] Your proposed action '{self.blocked_skill}' was BLOCKED.\n"
+    def to_prompt_string(self, *, verb: str = "was BLOCKED",
+                         show_suggestion: bool = True) -> str:
+        """Format the report as a string suitable for injection into an LLM prompt.
+
+        P0-1c: ``verb`` and ``show_suggestion`` exist so the advise, placebo and
+        enforce arms can render IDENTICAL text — otherwise the enforce-minus-advise
+        contrast would be confounded by wording ("was BLOCKED" is a disposition
+        disclosure, and telling an advise-arm agent its action was blocked when it
+        was not would be a lie the model can detect). The DEFAULTS reproduce the
+        shipped string byte-for-byte, so every published prompt is unchanged and
+        the golden-string test keeps passing.
+        """
+        s = f"- [{self.severity}] Your proposed action '{self.blocked_skill}' {verb}.\n"
         s += f"  - Reason: {self.violation_summary}\n"
-        if self.suggested_correction:
+        if show_suggestion and self.suggested_correction:
             s += f"  - Suggestion: {self.suggested_correction}\n"
         return s
 
