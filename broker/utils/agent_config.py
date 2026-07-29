@@ -304,6 +304,42 @@ class AgentTypeConfig:
             return False
         return bool(block.get("param_columns", False))
 
+    def get_audit_initial_proposal_columns(self) -> bool:
+        """P0-1a (2026-07-29): opt-in FIRST-ATTEMPT proposal columns (default-OFF).
+
+        When ``global_config.audit.initial_proposal_columns: true``, every
+        trace carries three key-gated columns recording the agent's FIRST
+        proposal, before any governance retry:
+
+        - ``initial_skill``  -- the skill proposed on attempt 0 (``None`` if
+          that attempt failed to parse).
+        - ``initial_labels`` -- the attempt-0 construct labels (the
+          ``*_LABEL`` entries of the proposal's reasoning), pipe-joined as
+          ``KEY=VALUE`` pairs, so appraisal drift across retries is visible.
+        - ``attempt_skills`` -- every attempt's skill in order, pipe-joined
+          (``""`` marks an unparsable attempt).
+
+        WHY THIS EXISTS. ``skill_proposal`` is REASSIGNED on each governance
+        retry (``_retry_loop._governance_retry_loop``), so both the CSV's
+        ``proposed_skill`` and the JSONL's ``skill_proposal`` record the LAST
+        (post-retry) proposal. Measured over the shipped corpus,
+        ``proposed_skill == final_skill`` on 100% of rows in all three
+        reference domains despite heavy retrying, which makes any
+        "governance changed the action" metric defined as
+        proposed != final identically zero. These columns restore the
+        proposal-stage truth that comparison needs; pair them with
+        ``executed_skill_columns`` (F3) to measure initial -> executed.
+
+        OPT-IN, default-OFF by byte-identity necessity, exactly as for
+        ``executed_skill_columns`` and ``param_columns``: CSV fieldnames derive
+        from row keys, so flag-OFF emits no key and frozen-baseline reruns
+        (v21 / paper-3 mock) stay byte-identical. Enable for ALL NEW runs.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("initial_proposal_columns", False))
+
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
         # 1. Check Global Config
