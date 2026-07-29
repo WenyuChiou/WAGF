@@ -458,7 +458,13 @@ class ExperimentRunner:
         try:
             with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
                 json.dump(manifest, f, indent=2)
-        except OSError as e:
+        except (OSError, TypeError, ValueError) as e:
+            # TypeError/ValueError matter as much as OSError here: json.dump raises
+            # TypeError on a non-serialisable value, so a single bad entry anywhere
+            # in `manifest` would abort this block and STARVE the summary save
+            # below — defeating the whole point of splitting these into independent
+            # try/excepts. A duck-typed or Mock broker injecting a Mock into
+            # metadata is exactly that case, and OSError never caught it.
             logger.error(
                 f"[Finalize] reproducibility_manifest.json write "
                 f"failed: {e}. Continuing — summary save is the "
@@ -580,6 +586,38 @@ class ExperimentRunner:
                         t: len(agent_cfg.get_thinking_rules(t))
                         for t in active_types
                     }
+            # P0-1c: pin the ARM identity, not just the profile name. Three fields,
+            # each recording something a reader cannot recover from the YAML alone.
+            #
+            # max_retries_resolved is the load-bearing one: SkillBrokerEngine.__init__
+            # resolves `max_retries if max_retries != 3 else config.get_governance_retries()`,
+            # so an explicit constructor argument SILENTLY beats the YAML — an arm
+            # intended as one-retry can quietly run as three, which would break the
+            # call-matching the enforcement decomposition depends on. Verify arms from
+            # the manifest, never from the config file.
+            # Coerced to plain JSON-safe scalars, and shape-checked before use.
+            # This block runs inside a try/except, but the manifest is serialised
+            # LATER and outside it, so a non-serialisable value here would poison
+            # the ENTIRE manifest rather than just dropping one key. Duck-typed
+            # brokers (tests, alternate hosts) must degrade to a null, never crash
+            # the run's provenance record.
+            spec = getattr(self.broker, "_advise_spec", None)
+            if isinstance(spec, dict) and isinstance(spec.get("rule_ids"), (list, tuple)):
+                metadata["advise_spec_resolved"] = {
+                    "mode": str(spec.get("mode", "off")),
+                    "rule_ids": sorted(str(r) for r in spec["rule_ids"]),
+                }
+            else:
+                metadata["advise_spec_resolved"] = None
+            framing = getattr(self.broker, "_intervention_framing", "legacy")
+            metadata["intervention_framing_resolved"] = (
+                framing if isinstance(framing, str) else "legacy")
+            retries = getattr(self.broker, "max_retries", None)
+            # bool is a subclass of int, so exclude it explicitly: recording
+            # `true` as a retry count would look plausible and be wrong.
+            metadata["max_retries_resolved"] = (
+                retries if isinstance(retries, int) and not isinstance(retries, bool)
+                else None)
         except Exception as exc:
             logger.debug(f"[Integrity] governance-resolution provenance skipped: {exc}")
 
