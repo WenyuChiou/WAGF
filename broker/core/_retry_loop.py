@@ -14,8 +14,14 @@ attempts; same deterministic rule blocks consecutive attempts" clause):
   consecutive retries AND every blocker in that set is deterministic.
   Non-deterministic blockers (e.g., stochastic magnitude rechecks) do not
   trigger early exit because the agent may succeed on a subsequent draw.
-- On termination (exhausted retries OR early exit), the registry default
-  skill executes (maintain_demand for irrigation, do_nothing for flood).
+- On termination (exhausted retries OR early exit), what executes is a
+  MODEL-BUILDER choice, set per domain via
+  ``global_config.governance.on_retry_exhausted``:
+  ``default`` (the default) runs the registry ``default_skill``
+  (maintain_demand for irrigation, do_nothing for flood); ``keep_proposal``
+  runs the agent's own final failed proposal, so a persistently
+  rule-violating choice survives as an observable instead of being
+  overwritten. ``UNCERTAIN`` (no parsable proposal) always uses the default.
 - Every retry, including fallback execution, is recorded in the audit
   trail with status ``REJECTED``, ``REJECTED_FALLBACK``, or ``APPROVED``.
 
@@ -370,11 +376,34 @@ class RetryMixin:
                         reason_text = reason_text.get("reason", str(reason_text))
                     logger.error(f"  - Agent Motivation: {reason_text}")
 
-            fallout_skill = (
-                skill_proposal.skill_name
-                if (skill_proposal and skill_proposal.parse_layer != "default")
-                else self.skill_registry.get_default_skill()
+            # Report what WILL ACTUALLY EXECUTE, not the agent's choice.
+            # Pre-fix this line printed the proposal unconditionally while the engine
+            # executed the registry default, so a domain whose default differed from
+            # the blocked proposal looked correct in the logs and was not. That
+            # mismatch is why the flood/irrigation fallback divergence went unnoticed
+            # for the whole shipped corpus.
+            keeps_proposal = (
+                getattr(self, "_on_retry_exhausted", "default") == "keep_proposal"
+                and skill_proposal is not None
+                and skill_proposal.parse_layer != "default"
+                and self.skill_registry.exists(skill_proposal.skill_name)
             )
-            logger.error(f"  - Action: Proceeding with '{fallout_skill}' (Result: REJECTED)")
+            if keeps_proposal:
+                fallout_skill = skill_proposal.skill_name
+                policy = "keep_proposal"
+            else:
+                policy = "default"
+                try:
+                    fallout_skill = self.skill_registry.get_default_skill()
+                except ValueError:
+                    # get_default_skill() raises when unconfigured (Phase 6J-C).
+                    # A diagnostic line must never be the thing that aborts a run —
+                    # the execution branch raises this properly if it is reached at
+                    # all, and in standalone mode (no simulation engine) it never is.
+                    fallout_skill = "<unconfigured default_skill>"
+            logger.error(
+                f"  - Action: Executing '{fallout_skill}' "
+                f"(policy={policy}, Result: REJECTED)"
+            )
 
         return skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count
