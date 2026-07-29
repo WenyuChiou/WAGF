@@ -663,7 +663,7 @@ def main():
         .with_context_builder(ctx_builder)
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
-        .with_governance("strict", str(agent_config_path))
+        .with_governance(args.governance_mode, str(agent_config_path))
         .with_custom_validators([irrigation_governance_validator])
         .with_exact_output(str(output_dir))
         .with_workers(args.workers)
@@ -750,6 +750,15 @@ def parse_args():
     p.add_argument("--ablation-mode", type=str, default=None,
                    choices=["no_demand_ceiling"],
                    help="Policy counterfactual: disable specific validator (e.g., no_demand_ceiling)")
+    # P0-1d: the governance profile was hardcoded to "strict" at the builder
+    # call below, so the published irrigation corpus has only strict + disabled
+    # arms and no enforcement-gradient condition could be run at all. Named
+    # profiles resolve from agent_types.yaml's governance block; GovernanceProfiles
+    # carries ConfigDict(extra="allow"), so new arm profiles are pure YAML
+    # additions. Default "strict" reproduces every existing run byte-identically.
+    p.add_argument("--governance-mode", type=str, default="strict",
+                   help="Governance profile name from agent_types.yaml "
+                        "(strict | disabled | any custom profile defined there)")
     return p.parse_args()
 
 
