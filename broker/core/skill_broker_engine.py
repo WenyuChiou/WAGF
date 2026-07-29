@@ -55,7 +55,7 @@ from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
 
 from ._retry_loop import RetryMixin
-from ._audit_helpers import AuditMixin
+from ._audit_helpers import AuditMixin, _extract_construct_labels
 from ._skill_filtering import SkillFilterMixin
 
 
@@ -309,6 +309,14 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             if v.valid and hasattr(v, 'warnings') and v.warnings:
                 logger.info(f" [Governance:Warning] {agent_id} | {v.warnings[0]}")
 
+        # P0-1a: snapshot the FIRST proposal before the retry loop reassigns
+        # `skill_proposal`. Cheap and unconditional (two locals); the values are
+        # only written to the trace when the initial_proposal_columns flag is ON,
+        # so flag-OFF runs stay byte-identical.
+        initial_skill = skill_proposal.skill_name if skill_proposal else None
+        initial_labels = _extract_construct_labels(skill_proposal)
+        attempt_skills: List[Optional[str]] = [initial_skill]
+
         # Governance retry loop
         skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count = (
             self._governance_retry_loop(
@@ -320,6 +328,7 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 agent_id=agent_id, agent_type=agent_type,
                 env_context=env_context, raw_output=raw_output,
                 total_llm_stats=total_llm_stats,
+                attempt_skills=attempt_skills,
             )
         )
 
@@ -465,6 +474,9 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 all_validation_history=all_validation_history,
                 executed_skill=executed_skill,
                 executed_via_fallback=executed_via_fallback,
+                initial_skill=initial_skill,
+                initial_labels=initial_labels,
+                attempt_skills=attempt_skills,
             )
 
         return SkillBrokerResult(
