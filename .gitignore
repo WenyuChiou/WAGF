@@ -283,3 +283,6 @@ docs/internal/
 # Manuscript language + multi-agent literature review
 examples/irrigation_abm/analysis/MANUSCRIPT_LANGUAGE.md
 examples/multi_agent/flood/docs/manuscripts/
+
+# Conference submission workspace (unpublished strategy + defect lists; PUBLIC repo)
+AAMAS2027/
