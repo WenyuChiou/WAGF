@@ -189,6 +189,7 @@ class RetryMixin:
         prompt: str, llm_invoke: Callable, context: Dict,
         agent_id: str, agent_type: str, env_context: Optional[Dict],
         raw_output: str, total_llm_stats: Dict,
+        attempt_skills: Optional[List] = None,
     ):
         """Run governance validation retry loop.
 
@@ -204,6 +205,13 @@ class RetryMixin:
         Returns (skill_proposal, raw_output, validation_results,
                  all_validation_history, all_valid, retry_count).
         Mutates total_llm_stats and all_validation_history in-place.
+
+        P0-1a: when ``attempt_skills`` is supplied it is appended to in-place,
+        one entry per RETRY attempt (the caller seeds index 0 with the initial
+        proposal). ``None`` marks an attempt whose output failed to parse.
+        Optional and default-``None`` so existing callers are unaffected; the
+        list is only surfaced when the ``initial_proposal_columns`` audit flag
+        is ON, keeping flag-OFF traces byte-identical.
         """
         retry_count = 0
         prev_blocking_rules = self._extract_blocking_rule_ids(validation_results)
@@ -261,13 +269,25 @@ class RetryMixin:
                 total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
                 total_llm_stats["llm_success"] = stats.get("current_success", True)
 
-            skill_proposal = self.model_adapter.parse_output(raw_output, {
-                **context,
-                "agent_id": agent_id,
-                "agent_type": agent_type,
-                "retry_attempt": retry_count,
-                "current_year": env_context.get("current_year") if env_context else "?",
-            })
+            if isinstance(raw_output, SkillProposal):
+                skill_proposal = raw_output
+            else:
+                skill_proposal = self.model_adapter.parse_output(raw_output, {
+                    **context,
+                    "agent_id": agent_id,
+                    "agent_type": agent_type,
+                    "retry_attempt": retry_count,
+                    "current_year": env_context.get("current_year") if env_context else "?",
+                })
+
+            # P0-1a: record THIS attempt's proposal before it is overwritten by
+            # the next iteration. Appended for parsed and unparsed attempts
+            # alike (None marks unparsable) so the list length always equals
+            # retry_count and attempt N maps to index N.
+            if attempt_skills is not None:
+                attempt_skills.append(
+                    skill_proposal.skill_name if skill_proposal else None
+                )
 
             if skill_proposal:
                 # F5 (2026-06-10 review): re-inject the CURRENT attempt's
