@@ -340,6 +340,121 @@ class AgentTypeConfig:
             return False
         return bool(block.get("initial_proposal_columns", False))
 
+    def get_audit_advise_columns(self) -> bool:
+        """P0-1c: opt-in ADVISORY audit columns + per-decision LLM call counter.
+
+        When ``global_config.audit.advise_columns: true`` every trace carries the
+        advisory payload (``advise_mode``, ``advisory_fired``, ``advisory_llm_calls``,
+        ``advisory_rules``, ``advisory_skill_before`` / ``_after``,
+        ``advisory_changed_action``, ``advisory_parse_failed``,
+        ``advisory_reports_shown``, ``advisory_prompt_chars``, ``post_advice_rules``)
+        plus an ``llm_calls`` entry inside ``llm_stats``.
+
+        ``llm_calls`` is the load-bearing one: sample-matching between the advise and
+        placebo arms is the assumption the whole enforcement decomposition rests on,
+        so it is MEASURED per decision rather than asserted in the Methods.
+
+        OPT-IN, default-OFF by byte-identity necessity, exactly as for
+        ``executed_skill_columns`` and ``initial_proposal_columns``.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("advise_columns", False))
+
+    def get_governance_advise(self) -> Optional[Dict[str, Any]]:
+        """P0-1c: the ADVISE arm spec, or None (default) meaning OFF.
+
+        YAML surface, entire block absent by default::
+
+            global_config:
+              governance:
+                advise:
+                  mode: advise          # advise | placebo | resample | wrapper | off
+                  rule_ids: [rule_a, rule_b]
+                  placebo_text: "A governance rule was triggered by this decision."
+
+        ``rule_ids`` is an explicit ALLOWLIST of rule ids whose blocking results are
+        demoted to non-blocking advisories (see :mod:`broker.core._advise`). It fails
+        CLOSED — an unlisted rule keeps blocking — and it is keyed on rule id rather
+        than validator name so it also reaches domain custom validators.
+
+        Validated eagerly and loudly, because a silently-misspelled arm config would
+        produce a scientifically wrong run that still looks healthy:
+        unknown mode, non-list / empty ``rule_ids``, and any id in
+        :data:`broker.core._advise.ADVISE_DENY` all raise ValueError here.
+
+        Default-OFF by byte-identity necessity: no block -> None -> empty allowlist
+        -> ``demote()`` returns the same list object -> frozen baselines unchanged.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return None
+        spec = gov.get("advise")
+        if spec is None:
+            return None
+        if not isinstance(spec, dict):
+            raise ValueError(
+                f"global_config.governance.advise must be a mapping, got {type(spec).__name__}"
+            )
+        mode = str(spec.get("mode", "advise")).strip().lower()
+        valid_modes = {"advise", "placebo", "resample", "wrapper", "off"}
+        if mode not in valid_modes:
+            raise ValueError(
+                f"global_config.governance.advise.mode {mode!r} not in {sorted(valid_modes)}"
+            )
+        rule_ids = spec.get("rule_ids")
+        if mode != "off":
+            if not isinstance(rule_ids, list) or not rule_ids:
+                raise ValueError(
+                    "global_config.governance.advise.rule_ids must be a non-empty list "
+                    f"when mode={mode!r}; got {rule_ids!r}"
+                )
+            from broker.core._advise import ADVISE_DENY
+            denied = sorted(set(map(str, rule_ids)) & ADVISE_DENY)
+            if denied:
+                raise ValueError(
+                    f"global_config.governance.advise.rule_ids may not contain {denied} "
+                    "— these are hard feasibility gates that must always block."
+                )
+        return {
+            "mode": mode,
+            # mode="off" FORCES an empty allowlist. Without this, an arm authored as
+            # the no-op control by flipping only `mode` while leaving `rule_ids`
+            # populated would still demote those rules at _run_validators -- they
+            # would stop blocking AND the advisory pass would never fire, so the
+            # model would be told nothing. That is precisely the "WARNING has no
+            # channel to the model" defect this whole feature exists to remove,
+            # silently reintroduced inside the control arm.
+            "rule_ids": [] if mode == "off" else [str(r) for r in (rule_ids or [])],
+            "placebo_text": spec.get(
+                "placebo_text", "A governance rule was triggered by this decision."
+            ),
+        }
+
+    def get_governance_intervention_framing(self) -> str:
+        """P0-1c: retry/advisory prompt framing — ``legacy`` (default) or ``neutral``.
+
+        ``legacy`` reproduces the shipped retry prompt byte-for-byte and stays the
+        default forever, so every published arm-C prompt is unchanged.
+
+        ``neutral`` is opt-in and used by the NEW 7-arm runs. It replaces the
+        "was BLOCKED" verb with a disposition-free one and suppresses the optional
+        Suggestion line, so the text an agent sees is IDENTICAL in the advise,
+        placebo and enforce arms — making the enforce-minus-advise contrast pure
+        enforcement with zero wording delta.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return "legacy"
+        framing = str(gov.get("intervention_framing", "legacy")).strip().lower()
+        if framing not in {"legacy", "neutral"}:
+            raise ValueError(
+                f"global_config.governance.intervention_framing {framing!r} "
+                "not in ['legacy', 'neutral']"
+            )
+        return framing
+
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
         # 1. Check Global Config
