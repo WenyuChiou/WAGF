@@ -201,6 +201,7 @@ class AuditMixin:
         initial_skill: Optional[str] = None,
         initial_labels: str = "",
         attempt_skills: Optional[List] = None,
+        advise_info: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -285,6 +286,14 @@ class AuditMixin:
                 ),
             }
 
+        # P0-1c: ADVISORY columns, OPT-IN via global_config.audit.advise_columns
+        # (default OFF). Same key-gated discipline: flag-OFF emits no key -> no row
+        # key -> no new CSV fieldname -> frozen baselines byte-identical.
+        advise_extra: Dict[str, Any] = {}
+        get_aflag = getattr(self.config, "get_audit_advise_columns", None)
+        if callable(get_aflag) and get_aflag() and advise_info:
+            advise_extra = dict(advise_info)
+
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)
         if (callable(get_pflag) and get_pflag()
@@ -357,6 +366,8 @@ class AuditMixin:
             **param_extra,
             # P0-1a: first-attempt columns, spread last (same rationale).
             **initial_extra,
+            # P0-1c: advisory columns, spread last (same rationale).
+            **advise_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

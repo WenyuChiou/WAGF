@@ -56,10 +56,12 @@ from ..utils.logging import logger
 
 from ._retry_loop import RetryMixin
 from ._audit_helpers import AuditMixin, _extract_construct_labels
+from ._advise import demote
+from ._advise_pass import AdviseMixin
 from ._skill_filtering import SkillFilterMixin
 
 
-class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
+class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
     """
     Skill-Governed Broker Engine.
     
@@ -127,6 +129,27 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         self.max_retries = max_retries if max_retries != 3 else self.config.get_governance_retries(max_retries)
         self.max_reports = self.config.get_governance_max_reports()
         self.log_prompt = log_prompt
+
+        # P0-1c: resolve the ADVISE arm spec ONCE into immutable instance state.
+        # getattr-guarded because tests and alternate config objects predate these
+        # getters (same defensive idiom as the audit flags). Never written to during
+        # process_step -- the engine is shared across a ThreadPoolExecutor.
+        _get_advise = getattr(self.config, "get_governance_advise", None)
+        self._advise_spec = _get_advise() if callable(_get_advise) else None
+        self._advise_mode = self._advise_spec["mode"] if self._advise_spec else "off"
+        # Belt-and-braces against the control-arm footgun: the config getter already
+        # forces rule_ids=[] when mode="off", and this re-asserts it here so a
+        # hand-built spec (tests, programmatic callers) cannot demote rules in a
+        # mode that never issues the advisory call -- which would silently strip
+        # enforcement while telling the model nothing.
+        self._advise_rule_ids = (
+            frozenset(self._advise_spec["rule_ids"])
+            if (self._advise_spec and self._advise_mode != "off") else frozenset()
+        )
+        _get_framing = getattr(self.config, "get_governance_intervention_framing", None)
+        self._intervention_framing = _get_framing() if callable(_get_framing) else "legacy"
+        _get_acols = getattr(self.config, "get_audit_advise_columns", None)
+        self._count_llm_calls = bool(_get_acols()) if callable(_get_acols) else False
         
         self.stats = {
             "total": 0,
@@ -317,6 +340,24 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         initial_labels = _extract_construct_labels(skill_proposal)
         attempt_skills: List[Optional[str]] = [initial_skill]
 
+        # P0-1c: the single-shot advisory pass. No-op (returns its inputs, zero LLM
+        # calls) unless an arm config declares global_config.governance.advise. Runs
+        # BEFORE the retry loop so the advisory prompt is built from the same
+        # attempt-0 proposal and the same reports arm C's first retry uses.
+        skill_proposal, raw_output, validation_results, all_valid, advise_info = (
+            self._advisory_pass(
+                all_valid=all_valid, skill_proposal=skill_proposal,
+                validation_results=validation_results,
+                all_validation_history=all_validation_history,
+                validation_context=validation_context,
+                prompt=prompt, llm_invoke=llm_invoke, context=context,
+                agent_id=agent_id, agent_type=agent_type,
+                env_context=env_context, raw_output=raw_output,
+                total_llm_stats=total_llm_stats,
+                attempt_skills=attempt_skills,
+            )
+        )
+
         # Governance retry loop
         skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count = (
             self._governance_retry_loop(
@@ -477,6 +518,7 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 initial_skill=initial_skill,
                 initial_labels=initial_labels,
                 attempt_skills=attempt_skills,
+                advise_info=advise_info,
             )
 
         return SkillBrokerResult(
@@ -715,7 +757,14 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                     logger.debug(f"[Precondition] {proposal.skill_name}: {precond_result.errors}")
                 results.append(precond_result)
 
-        return results
+        # P0-1c: the ADVISE disposition rewrite, applied at this single return so
+        # EVERY validation pass in a decision agrees — the first pass, the retry
+        # loop's re-validation (_retry_loop.py), the multi-skill secondary path, and
+        # the advisory pass's own re-validation. Applying it anywhere earlier would
+        # let the retry loop re-derive the rule UN-demoted and block on it, and would
+        # permanently desync EarlyExit's prev/current blocking-rule comparison.
+        # Flag OFF => empty allowlist => demote() returns this same list object.
+        return demote(results, self._advise_rule_ids)
 
     def _create_result(self, outcome, proposal, approved, execution, errors, format_retries: int = 0) -> SkillBrokerResult:
         return SkillBrokerResult(

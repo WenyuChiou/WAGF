@@ -28,6 +28,7 @@ from ..interfaces.skill_types import (
     SkillProposal, InterventionReport, ValidationResult,
 )
 from ..utils.logging import logger
+from ._advise import build_intervention_reports, render_intervention_prompt
 
 
 class RetryMixin:
@@ -50,11 +51,22 @@ class RetryMixin:
         format_retry_count = 0
         max_initial_attempts = 2
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
+        # P0-1c: per-decision LLM call counter. Sample-matching between the advise
+        # and placebo arms is the load-bearing assumption of the whole decomposition,
+        # so it is MEASURED per row, not asserted in the Methods. Seeded only when the
+        # advise audit flag is on, so the flag-OFF llm_stats dict -- serialised whole
+        # into the trace -- keeps exactly its published key set. Lives in this local
+        # dict and NEVER on self: process_step runs on an engine shared across a
+        # ThreadPoolExecutor.
+        if getattr(self, "_count_llm_calls", False):
+            total_llm_stats["llm_calls"] = 0
 
         while initial_attempts <= max_initial_attempts and not skill_proposal:
             initial_attempts += 1
             try:
                 res = llm_invoke(prompt)
+                if "llm_calls" in total_llm_stats:
+                    total_llm_stats["llm_calls"] += 1
                 if isinstance(res, tuple):
                     raw_output, llm_stats_obj = res
                     total_llm_stats["llm_retries"] += llm_stats_obj.retries
@@ -219,19 +231,12 @@ class RetryMixin:
             retry_count += 1
 
             # Build InterventionReports for explainable governance
-            intervention_reports = []
-            for v in validation_results:
-                if v and hasattr(v, 'errors') and v.errors:
-                    for error_msg in v.errors:
-                        report = InterventionReport(
-                            rule_id=v.metadata.get("rules_hit", ["unknown_rule"])[0] if v.metadata.get("rules_hit") else "unknown_rule",
-                            blocked_skill=skill_proposal.skill_name if skill_proposal else "unknown",
-                            violation_summary=error_msg,
-                            suggested_correction=v.metadata.get("suggestion"),
-                            severity="ERROR" if not v.valid else "WARNING",
-                            domain_context=v.metadata,
-                        )
-                        intervention_reports.append(report)
+            # P0-1c: extracted verbatim into _advise.build_intervention_reports so
+            # the enforce and advisory paths share ONE builder -- a wording or shape
+            # drift between them would land inside the (C-B) contrast.
+            intervention_reports = build_intervention_reports(
+                validation_results, skill_proposal, source="errors",
+            )
 
             if not skill_proposal:
                 errors_to_send = [InterventionReport(
@@ -246,8 +251,17 @@ class RetryMixin:
                     e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors
                 ]
 
-            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send, max_reports=self.max_reports)
+            # P0-1c: framing defaults to "legacy", which delegates to the byte-identical
+            # published prompt. Arms B/B'/C set "neutral" so the enforce arm's text
+            # matches the advisory arms' exactly and (C-B) carries no wording delta.
+            retry_prompt, _reports_shown = render_intervention_prompt(
+                self.model_adapter, prompt, errors_to_send,
+                max_reports=self.max_reports,
+                framing=getattr(self, "_intervention_framing", "legacy"),
+            )
             res = llm_invoke(retry_prompt)
+            if "llm_calls" in total_llm_stats:
+                total_llm_stats["llm_calls"] += 1
 
             if isinstance(res, tuple):
                 raw_output, llm_stats_obj = res
