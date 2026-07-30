@@ -844,12 +844,58 @@ def plot_adaptation_cumulative_state(csv_path: Path, output_dir: Path, agents_co
         print(f"[Plot] Warning: Could not generate adaptation plot: {e}")
 
 
+def _preflight_isolated_root(base_path: Path, script_dir: Path) -> None:
+    """Fail before doing any work if an isolated --config-root is incomplete.
+
+    base_path resolves DATA as well as config (agent profiles, the flood-year schedule,
+    the prompt template), so an isolated root must mirror all of it, not just the YAML.
+    Every one of these files raises loudly on its own when absent, but it raises deep in
+    setup with a bare FileNotFoundError -- a poor way to learn that an experiment arm was
+    misconfigured, and worse when several arms are queued. So the whole set is named here,
+    up front, in one message.
+
+    The prompt template is checked too, and it cannot be hardcoded: its path comes from
+    ``household.prompt_template_file`` in the isolated agent_types.yaml. That costs one
+    extra small YAML parse, incurred only on the isolated path.
+    """
+    structural = ("agent_types.yaml", "skill_registry.yaml",
+                  "agent_initial_profiles.csv", "flood_years.csv")
+    missing = [f for f in structural if not (base_path / f).exists()]
+    if not missing:
+        # agent_types.yaml exists, so the prompt path it names can be resolved and checked.
+        try:
+            with open(base_path / "agent_types.yaml", "r", encoding="utf-8") as fh:
+                prompt_rel = (yaml.safe_load(fh) or {}).get("household", {}).get(
+                    "prompt_template_file", "")
+        except (OSError, yaml.YAMLError) as exc:
+            raise SystemExit(f"--config-root {base_path}: agent_types.yaml is unreadable: {exc}")
+        if prompt_rel and not (base_path / prompt_rel).exists():
+            missing.append(prompt_rel)
+    if missing:
+        raise SystemExit(
+            f"--config-root {base_path} is missing {missing}.\n"
+            "An isolated root must mirror the whole example directory, not just the YAML: "
+            "it also supplies the agent profiles, the flood-year schedule and the prompt "
+            f"template named by agent_types.yaml.\nCopy from {script_dir} (including config/, "
+            "which holds the prompt template)."
+        )
+
+
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
-    
+
     # 1. Load Registry & Prompt Template
-    base_path = Path(__file__).parent
+    # config_root lets a campaign point at an ISOLATED copy of the config files so new
+    # experiment arms never edit the frozen paper configs in examples/. Default: in-tree.
+    # An ordinary parameter, deliberately: a module global would leak across successive
+    # calls, so a batch driver looping over several roots in one process would silently
+    # run arm N with arm N-1's config.
+    script_dir = Path(__file__).parent
+    base_path = Path(config_root).resolve() if config_root else script_dir
+    if config_root:
+        _preflight_isolated_root(base_path, script_dir)
+        print(f" [Config] ISOLATED config root: {base_path}")
     registry_path = base_path / "skill_registry.yaml"
     registry = SkillRegistry()
     registry.register_from_yaml(str(registry_path))
@@ -879,7 +925,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 2. Load Profiles (Survey Mode or CSV Mode)
     if survey_mode:
         # Survey-based initialization from real household data
-        survey_path = base_path.parent / "multi_agent" / "input" / "initial_household data.xlsx"
+        # Anchored to the script, NOT to base_path: this is a shared read-only input dataset
+        # living outside examples/single_agent/, not per-arm config, so an isolated
+        # --config-root must not drag it to a sibling of the isolated directory. Identical to
+        # the previous base_path.parent when no isolated root is set.
+        survey_path = script_dir.parent / "multi_agent" / "input" / "initial_household data.xlsx"
         if not survey_path.exists():
             raise FileNotFoundError(
                 f"Survey file not found: {survey_path}\n"
@@ -1317,6 +1367,10 @@ if __name__ == "__main__":
     parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
     parser.add_argument("--memory-seed", type=int, default=42, help="Random seed for memory engine consolidation/retrieval. Default=42 for experiment alignment.")
+    parser.add_argument("--config-root", type=str, default=None,
+                        help="Isolated directory holding agent_types.yaml + skill_registry.yaml "
+                             "(+ prompts). Lets a campaign run new arms without editing the frozen "
+                             "paper configs. Default: alongside this script.")
     parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled", "strict_no_etb"], help="Governance strictness profile")
     # LLM sampling parameters (None = use Ollama default)
     parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
@@ -1366,6 +1420,7 @@ if __name__ == "__main__":
     random.seed(actual_seed)
     
     run_parity_benchmark(
+        config_root=args.config_root,
         model=args.model,
         years=args.years,
         agents_count=args.agents,
