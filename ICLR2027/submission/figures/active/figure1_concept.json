@@ -1,29 +1,29 @@
 {
   "rendering_mode": "generated_full",
-  "asset": "figures/assets/figure1_architecture_reset_D_final_v3.png",
-  "asset_sha256": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
-  "staged_sha256": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
-  "print_sha256": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
+  "asset": "figures/assets/figure1_architecture_compact_v1.png",
+  "asset_sha256": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
+  "staged_sha256": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
+  "print_sha256": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
   "canvas_px": [
-    1672,
-    941
+    1693,
+    929
   ],
   "scale": 1,
   "pdf_size_in": [
     6.35,
-    3.58
+    3.49
   ],
-  "canvas_policy": "warm light-gray paper background; compact interface-first architecture with a lower evaluation strip and no white cards",
-  "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: bounded agent, explicit validator insertion point, short relation labels, and restrained functional icons",
+  "canvas_policy": "warm light-gray paper background; compact single-canvas runtime/measurement architecture with local semantic nodes and no pure-white cards",
+  "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, an explicit validator insertion point, aligned decision logging, short relation labels, and restrained functional icons",
   "text": [
     "Agent",
     "LLM",
     "response",
     "action",
     "condition",
-    "Validator",
-    "check",
     "proposed action",
+    "Validator",
+    "rule input",
     "accepted",
     "Environment",
     "observation",
@@ -32,7 +32,6 @@
     "records",
     "filter",
     "conditional rate",
-    "rule input",
     "selects records"
   ],
   "semantics": {
@@ -51,11 +50,11 @@
       "the black proposed arrow starts at action and enters Validator",
       "the amber rule-input arrow starts at condition and enters Validator",
       "the black accepted arrow goes directly from Validator to Environment",
-      "Validator has a separate accepted-decision arrow into Decision log",
+      "Validator has a separate accepted-decision arrow that terminates on the aligned Decision log",
       "the amber selects-records arrow starts at condition, bypasses Decision log, and enters Filter",
       "Decision log has a separate records arrow into Filter",
       "the observation route is thin, dashed, and returns from Environment to Agent",
-      "the compact canvas avoids a floating icon collage and excessive white space"
+      "the compact single-canvas composition avoids a floating icon collage and excessive white space"
     ]
   },
   "geometry_status": "not_machine_verifiable_for_generated_raster"

@@ -30,7 +30,7 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 | Anonymous manuscript | `paper\manuscript.tex` |
 | Bibliography | `paper\references.bib` |
 | Figures cited by TeX | `figures\active\` |
-| Figure 1 generated asset | `figures\assets\figure1_architecture_reset_D_final_v3.png` |
+| Figure 1 generated asset | `figures\assets\figure1_architecture_compact_v1.png` |
 | Figure 1 staging builder | `source\figure1_agent_paper.py` |
 | Figure 1 builder | `source\figure1_overlay.py` (compatibility entry point) |
 | Figure 1 manifest | `figures\active\figure1_concept.json` |
@@ -46,8 +46,8 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 
 `figures\active\` is the only directory whose rendered files may be included
 by `paper\manuscript.tex`. `figures\candidates\` contains non-active
-alternatives. `figures\assets\figure1_architecture_reset_D_final_v3.png` is
-the reviewed source asset for the active generated Figure 1. Legacy and
+alternatives. `figures\assets\figure1_architecture_compact_v1.png` is the
+reviewed source asset for the active generated Figure 1. Legacy and
 intermediate versions are under `figures\candidates\legacy\figure1\` and
 `figures\candidates\architecture-reset-round\`.
 
@@ -60,17 +60,21 @@ contains a response with `action` and `condition`, the `Validator` sits before
 condition takes a separate amber route directly to `filter`, while logged
 records enter the filter through `records` and feed `conditional rate`.
 
-The active composition is the reset D-v3 architecture generated after auditing
-ReAct, Reflexion, AutoGen, AgentSpec, SWE-agent, Voyager, and Magentic-One.
-It uses short relation labels, black primary routes, a small LLM chip cue,
-semantic flat fills, and a top dashed `observation` return lane. The earlier
-dashboard-like compositions are retired and preserved under
+The active composition is the compact v1 architecture generated after
+auditing ReAct, Reflexion, AutoGen, AgentSpec, SWE-agent, Voyager, and
+Magentic-One. It uses a single warm-gray canvas with local semantic nodes,
+keeps the response inside the Agent boundary, aligns the accepted-decision
+arrow with `Decision log`, and routes the shared condition directly to
+`filter`. It also uses short relation labels, black primary routes, a small
+LLM cue, semantic flat fills, and a top dashed `observation` return lane. The earlier
+dashboard-like and D-v3 compositions are historical and preserved under
 `figures\candidates\legacy\figure1\` and
 `figures\candidates\architecture-reset-round\`.
 
-The generated asset (D-v3, with `proposed action`, `accepted decision`, direct
-condition-to-filter routing, and a non-crossing observation loop) is visually
-reviewed at full size, paper-width preview, grayscale, and thumbnail size.
+The generated asset (compact v1, with `proposed action`, an aligned
+`accepted decision` arrow, direct condition-to-filter routing, and a
+non-crossing observation loop) is visually reviewed at full size, paper-width
+preview, grayscale, and thumbnail size.
 The geometry check reports `PASS_MANUAL_VISUAL_REVIEW_REQUIRED`: image
 dimensions and short labels are checked automatically, while pixel-level
 text/arrow separation is reviewed manually. The remaining delivery gate is
@@ -80,8 +84,8 @@ The Introduction states the measurement risk before the irrigation example,
 defines `agent-written condition` and `conditional rate` in plain language, and
 places Figure 1 immediately after the contribution summary. The caption maps
 the action, condition, Validator, Environment, accepted decision, Decision log,
-filter, and conditional rate to the upper execution path and lower evaluation
-strip, and states the missing-first-attempt boundary.
+filter, and conditional rate to the upper execution and lower measurement
+paths, and states the missing-first-attempt boundary.
 
 Use the active generated image and print preview for inspection:
 `figures\active\figure1_concept.png`

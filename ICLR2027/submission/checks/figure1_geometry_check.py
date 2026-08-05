@@ -70,11 +70,29 @@ def main() -> int:
             "automatic overlap and route-intersection checks are not applicable to this rendering mode",
         ]
         labels = manifest.get("text", [])
+        expected_labels = {
+            "Agent", "LLM", "response", "action", "condition", "proposed action",
+            "Validator", "rule input", "accepted", "Environment", "observation",
+            "accepted decision", "Decision log", "records", "filter",
+            "conditional rate", "selects records",
+        }
+        missing_labels = sorted(expected_labels - set(labels))
+        unexpected_labels = sorted(set(labels) - expected_labels)
+        if missing_labels or unexpected_labels or len(labels) != len(expected_labels):
+            errors.append(
+                "generated Figure 1 label set drifted: "
+                f"missing={missing_labels}, unexpected={unexpected_labels}"
+            )
         too_long = [label for label in labels if len(label) > 22 or len(label.split()) > 3]
         if too_long:
             errors.append(f"labels exceed the short-figure limit: {too_long}")
 
         source_asset = ROOT / manifest.get("asset", "")
+        if source_asset.name != "figure1_architecture_compact_v1.png":
+            errors.append(
+                "generated Figure 1 source must remain the reviewed compact v1 asset: "
+                f"{source_asset.name}"
+            )
         expected_hashes = {
             "source asset": (source_asset, manifest.get("asset_sha256")),
             "active PNG": (PNG, manifest.get("staged_sha256")),
