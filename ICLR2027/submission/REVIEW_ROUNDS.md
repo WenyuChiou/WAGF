@@ -379,3 +379,26 @@ adversarial review then passed all seven required routes, the agent-paper
 grammar, the exact thumbnail synchronization, and the caption alignment.
 Official typeset PDF inspection remains open because the local environment still
 lacks a TeX engine.
+
+## Round 20: nested-interface reset from agent-paper figures
+
+The v3 shared-condition bridge was retired as the active direction after a
+fresh comparison with the rendered ReAct, Reflexion, AutoGen, SWE-agent, and
+AgentSpec figures. The new generated candidate uses a bounded Agent, a black
+dashed governance boundary around Validator, a direct accepted-action path to
+Environment, and a separate accepted-record path to Decision log.
+
+The lower Counted set receives two visibly distinct inputs: the black `records`
+route from Decision log and the amber `selects` route from the response's
+`condition` field. The retry connector was removed because its first response is
+not preserved in the frozen corpus; the caption states that boundary. All
+boundaries and arrows use black outlines with flat colored fills and subordinate
+functional icons, following the compact interface grammar of the reference
+agent papers.
+
+The active generated source is
+`figures/assets/figure1_architecture_agentpaper_nested_v3.png`. The source,
+active PNG, print PNG, and regenerated thumbnail must be byte-identical after
+staging. Full-size, paper-width, grayscale, and thumbnail inspection is
+required, followed by adversarial semantic review. Official typeset PDF
+inspection remains open because the local environment still lacks a TeX engine.

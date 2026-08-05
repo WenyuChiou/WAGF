@@ -122,7 +122,8 @@ size. Candidate A was rejected because its `rule input` label sat on the wrong
 route. Candidate C was rejected because its nested boundaries over-weighted the
 measurement lane. Candidate D preserved the correct two-use condition routing
 and replaced the large robot and globe with a small LLM chip and a
-water-reservoir cue. It is now the active generated source.
+water-reservoir cue. It was the active generated source at that historical
+stage; the nested-interface reset below supersedes it.
 
 The active D composition has one `condition` field with two distinct amber
 routes, a direct Validator-to-Environment path, a separate

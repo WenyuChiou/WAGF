@@ -1,45 +1,46 @@
 {
   "rendering_mode": "generated_full",
-  "asset": "figures/assets/figure1_architecture_agentpaper_v3.png",
-  "asset_sha256": "295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b",
-  "staged_sha256": "295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b",
-  "print_sha256": "295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b",
+  "asset": "figures/assets/figure1_architecture_agentpaper_nested_v3.png",
+  "asset_sha256": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
+  "staged_sha256": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
+  "print_sha256": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
   "canvas_px": [
-    1774,
-    887
+    1692,
+    929
   ],
   "scale": 1,
   "pdf_size_in": [
     6.35,
-    3.18
+    3.49
   ],
-  "canvas_policy": "pale blue-gray paper background; black borders with colored fills; compact shared-condition bridge with tight-to-content nodes",
-  "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded response, a clear validator insertion point, an accepted-decision log, an explicit shared-condition fork, short relation labels, and subordinate AI/function icons",
+  "canvas_policy": "warm light-gray paper background; black dashed boundaries and black module borders with flat colored fills; compact nested-interface composition",
+  "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded response, a governance insertion boundary, a direct final-record log, a separate counted-set path, short relation labels, and subordinate AI/function icons",
   "text": [
     "Agent",
     "LLM",
     "response",
     "action",
     "condition",
-    "proposed action",
+    "governance",
     "Validator",
+    "proposed action",
     "rule input",
     "accepted",
     "Environment",
     "observation",
-    "accepted decision",
+    "final record",
     "Decision log",
     "records",
-    "filter",
-    "conditional rate",
-    "selects records"
+    "Counted set",
+    "selects",
+    "Conditional rate"
   ],
   "semantics": {
     "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
-    "runtime": "the response action enters Validator; the same condition supplies rule input; an accepted action changes Environment and the accepted decision is logged",
-    "selection": "the condition enters Filter as a selection rule, while the logged records enter Filter as the record set; Filter feeds conditional rate",
+    "runtime": "the response action enters Validator; the same condition supplies rule input; an accepted action changes Environment and the final record enters Decision log",
+    "selection": "the condition enters Counted set as a selection rule, while records from Decision log enter the same set; Counted set feeds Conditional rate",
     "secondary": "Environment returns an observation to the Agent for the next response",
-    "retry_boundary": "retries are not drawn because the frozen corpus lacks the first response before a retry"
+    "retry_boundary": "the retry path is intentionally omitted because the frozen corpus lacks the first response before a retry"
   },
   "manual_visual_review": {
     "required": true,
@@ -47,14 +48,16 @@
       "all labels are legible at full size, print width, and thumbnail size",
       "no text or icon overlaps an arrow or node border",
       "the Agent boundary owns the response object and its action/condition fields",
-      "the black proposed arrow starts at action and enters Validator",
+      "the black proposed-action arrow starts at action and enters Validator",
       "the amber rule-input arrow starts at condition and enters Validator",
       "the black accepted arrow goes directly from Validator to Environment",
-      "Validator has a separate accepted-decision arrow that terminates on the aligned Decision log",
-      "the amber selects-records arrow starts at condition, bypasses Decision log, and enters Filter",
-      "Decision log has a separate records arrow into Filter",
+      "the governance boundary makes Validator's insertion point explicit",
+      "Validator has a separate final-record arrow that terminates on Decision log",
+      "the amber selects arrow starts at condition, bypasses Decision log, and enters Counted set",
+      "Decision log has a separate records arrow into Counted set",
       "the observation route is thin, dashed, and returns from Environment to Agent",
-      "the compact single-canvas composition avoids a floating icon collage and excessive unused space"
+      "the retry path is absent rather than an ambiguous or unlogged connector",
+      "the nested-interface composition avoids a floating icon collage and excessive unused space"
     ]
   },
   "geometry_status": "not_machine_verifiable_for_generated_raster"

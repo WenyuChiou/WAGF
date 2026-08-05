@@ -1,8 +1,8 @@
 # Figure 1 redesign: agent-paper reference audit
 
-> **Superseded as the active design.** This document records the prior reset
-> contract and candidate logic. The v2 composition is historical; the active
-> composition is agent-paper v3, governed by
+> **Historical design record.** This document records the earlier shared-
+> condition bridge reset and candidate logic. The v3 composition is historical;
+> the active composition is the nested-interface candidate, governed by
 > [`AGENT_ARCHITECTURE_FIGURE_RESET.md`](AGENT_ARCHITECTURE_FIGURE_RESET.md)
 > and [`FIGURE1_DESIGN.md`](FIGURE1_DESIGN.md).
 

@@ -1,8 +1,8 @@
-"""Stage the generated, paper-facing Figure 1 shared-condition architecture.
+"""Stage the generated, paper-facing Figure 1 nested-interface architecture.
 
 The selected architecture is a single generated raster asset. The image
 generator produced the LLM cue, functional icons, node fills, borders, arrows,
-typography, and background as one shared-condition bridge composition.
+typography, and background as one nested-interface composition.
 This builder only copies that immutable asset into the active submission
 directory and records its labels and meaning for review; it does not redraw or
 edit any visual element.
@@ -19,7 +19,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_v3.png"
+ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_nested_v3.png"
 ACTIVE = ROOT / "figures" / "active"
 OUT = ACTIVE / "figure1_concept"
 
@@ -60,21 +60,21 @@ def build() -> dict[str, object]:
         "print_sha256": print_sha256,
         "canvas_px": [width, height],
         "scale": 1,
-        "pdf_size_in": [6.35, 3.18],
-        "canvas_policy": "pale blue-gray paper background; black borders with colored fills; compact shared-condition bridge with tight-to-content nodes",
-        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded response, a clear validator insertion point, an accepted-decision log, an explicit shared-condition fork, short relation labels, and subordinate AI/function icons",
+        "pdf_size_in": [6.35, 3.49],
+        "canvas_policy": "warm light-gray paper background; black dashed boundaries and black module borders with flat colored fills; compact nested-interface composition",
+        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded response, a governance insertion boundary, a direct final-record log, a separate counted-set path, short relation labels, and subordinate AI/function icons",
         "text": [
-            "Agent", "LLM", "response", "action", "condition", "proposed action",
-            "Validator", "rule input", "accepted", "Environment",
-            "observation", "accepted decision", "Decision log", "records", "filter",
-            "conditional rate", "selects records",
+            "Agent", "LLM", "response", "action", "condition", "governance",
+            "Validator", "proposed action", "rule input", "accepted", "Environment",
+            "observation", "final record", "Decision log", "records", "Counted set",
+            "selects", "Conditional rate",
         ],
         "semantics": {
             "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
-            "runtime": "the response action enters Validator; the same condition supplies rule input; an accepted action changes Environment and the accepted decision is logged",
-            "selection": "the condition enters Filter as a selection rule, while the logged records enter Filter as the record set; Filter feeds conditional rate",
+            "runtime": "the response action enters Validator; the same condition supplies rule input; an accepted action changes Environment and the final record enters Decision log",
+            "selection": "the condition enters Counted set as a selection rule, while records from Decision log enter the same set; Counted set feeds Conditional rate",
             "secondary": "Environment returns an observation to the Agent for the next response",
-            "retry_boundary": "retries are not drawn because the frozen corpus lacks the first response before a retry",
+            "retry_boundary": "the retry path is intentionally omitted because the frozen corpus lacks the first response before a retry",
         },
         "manual_visual_review": {
             "required": True,
@@ -82,14 +82,16 @@ def build() -> dict[str, object]:
                 "all labels are legible at full size, print width, and thumbnail size",
                 "no text or icon overlaps an arrow or node border",
                 "the Agent boundary owns the response object and its action/condition fields",
-                "the black proposed arrow starts at action and enters Validator",
+                "the black proposed-action arrow starts at action and enters Validator",
                 "the amber rule-input arrow starts at condition and enters Validator",
                 "the black accepted arrow goes directly from Validator to Environment",
-                "Validator has a separate accepted-decision arrow that terminates on the aligned Decision log",
-                "the amber selects-records arrow starts at condition, bypasses Decision log, and enters Filter",
-                "Decision log has a separate records arrow into Filter",
+                "the governance boundary makes Validator's insertion point explicit",
+                "Validator has a separate final-record arrow that terminates on Decision log",
+                "the amber selects arrow starts at condition, bypasses Decision log, and enters Counted set",
+                "Decision log has a separate records arrow into Counted set",
                 "the observation route is thin, dashed, and returns from Environment to Agent",
-                "the compact single-canvas composition avoids a floating icon collage and excessive unused space",
+                "the retry path is absent rather than an ambiguous or unlogged connector",
+                "the nested-interface composition avoids a floating icon collage and excessive unused space",
             ],
         },
         "geometry_status": "not_machine_verifiable_for_generated_raster",

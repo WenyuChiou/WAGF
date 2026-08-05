@@ -2,84 +2,95 @@
 
 ## Active version
 
-The active Figure 1 is the generated shared-condition agent-paper architecture candidate v3:
+The active Figure 1 is the generated nested-interface candidate:
 
-`figures/assets/figure1_architecture_agentpaper_v3.png`
+`figures/assets/figure1_architecture_agentpaper_nested_v3.png`
 
-The research and design rationale for the reset is recorded in
-`AGENT_ARCHITECTURE_FIGURE_RESET.md`. Earlier two-lane/dashboard-like
-compositions are historical and must not be used as the active direction.
+It is staged into `figures/active/figure1_concept.png` by
+`source/figure1_agent_paper.py`. The older shared-condition bridge v3 remains
+in `figures/assets/` as a historical comparison and is not active.
 
 ## Paper role
 
 Figure 1 is a conceptual architecture/dataflow figure. Its single reader task
-is to see that an Agent response contains an action and an agent-written
-condition; the Validator consumes the action and condition before execution;
-and the same condition later selects records for a conditional rate.
+is to see that one response contains an action and a condition; a governance
+interface reads both before execution; and the same condition later helps
+select the records used by a conditional rate.
 
 It is not a quantitative result, a component inventory, or evidence that the
 frozen corpus preserves every retry attempt.
 
-## Active visual sentence
+## Why this figure grammar
+
+The redesign follows the visual grammar of the rendered primary figures in
+ReAct, Reflexion, SWE-agent, and AgentSpec:
+
+- ReAct makes an observable agent trajectory readable with a small vocabulary.
+- Reflexion uses a bounded agent boundary and a few semantic modules.
+- SWE-agent places a compact interface between the LM agent and its environment.
+- AgentSpec makes the enforcement insertion point explicit with a nested
+  boundary and short decision paths.
+
+WAGF combines those conventions into one nested interface: the Agent owns the
+response, the governance boundary owns the Validator, and the lower path makes
+the counted population explicit. The figure does not copy a mascot, a chat
+transcript, or an algorithm block.
+
+## Visual sentence
 
 ```text
-RUNTIME: Agent response[action, condition] --> Validator --> Environment
-                         condition --------> Validator
-MEASUREMENT: Validator --accepted decision--> Decision log --records--> filter --> conditional rate
-                         condition -----------------------> filter
+Agent(response[action, condition]) -> Validator -> Environment
+                                      |
+                                      +-> Decision log -> Counted set -> Conditional rate
+condition ---------------------------> Counted set
+Environment -- observation (dashed) -> Agent
 ```
 
-The top dashed `observation` route returns from Environment to Agent. It is
-conceptual and is routed outside the solid measurement paths so that no arrow
-crosses another arrow.
+The amber condition is the only deliberately reused field. Its two routes have
+different meanings: `rule input` enters Validator, while `selects` enters
+Counted set. The black `records` route supplies the other input to Counted set.
 
-`RUNTIME` and `MEASUREMENT` in the sentence above name the two conceptual
-roles; they are not printed as full-canvas headers in the image.
+## Visible structure
 
-## Required visible relationships
-
-1. The blue `Agent` boundary contains a small `LLM` chip cue and the
-   `response` object with separate `action` and amber `condition` fields.
-2. The black `proposed action` arrow visibly begins at the `action` field and
-   enters `Validator`.
-3. The amber `rule input` arrow begins at `condition` and enters `Validator`.
-4. The black `accepted` arrow leaves `Validator` and enters `Environment`.
-5. A separate black `accepted decision` arrow leaves `Validator` and
-   terminates on `Decision log`; the black `records` arrow carries logged
-   records to `filter`.
-6. The amber `selects records` arrow bypasses `Decision log` and enters
-   `filter` directly from the condition field.
-7. The black `records` and amber `selects records` routes remain distinct.
-8. The dashed `observation` route has clear endpoints and no intersections
-   with solid routes, labels, icons, or node interiors.
+1. A black dashed `Agent` boundary contains a small `LLM` chip and a response
+   card with blue `action` and amber `condition` rows.
+2. A black dashed `governance` boundary encloses the orange `Validator` and
+   its checklist icon. It is visibly between the response and Environment.
+3. The accepted action goes directly from Validator to the green Environment.
+   A thin dashed `observation` route returns from Environment to Agent.
+4. A separate black `final record` arrow goes from Validator to the violet
+   `Decision log`.
+5. The lower violet `Counted set` receives two distinct inputs: black
+   `records` from Decision log and amber `selects` from the condition row. It
+   then feeds `Conditional rate`.
+6. The retry path is omitted. The caption states that the frozen corpus does
+   not preserve the first response before a retry.
 
 ## Visual constraints
 
-- Compact grid composition for the full-width ICLR figure, using local
-  semantic nodes and one Agent ownership boundary rather than full-canvas lane
-  frames or header banners.
-- Pale blue-gray background; pale blue Agent response, orange Validator,
-  green Environment, amber condition, and violet measurement fills.
-- Near-black borders and primary arrows; amber condition routes; one thin
-  black dashed observation route.
-- Small semantic icons only: LLM chip, validator check, environment/simulator,
-  log/list, filter, and rate gauge.
-- No gradients, large mascots, screenshots, pure-white label cards, title
-  banner, or sentence-length text inside the image.
-- All visible labels are short and exact: `Agent`, `LLM`, `response`, `action`,
-  `condition`, `Validator`, `proposed action`, `rule input`, `accepted`,
-  `Environment`, `observation`, `accepted decision`, `Decision log`,
-  `records`, `filter`, `conditional rate`, and
-  `selects records`.
+- Warm light-gray paper background; no gradient, shadow, title banner, legend,
+  equation, paragraph, watermark, or decorative mascot.
+- Black or near-black borders and arrows; flat colored fills only: blue for the
+  Agent/response, amber for condition, orange for Validator, green for
+  Environment, and violet for measurement modules.
+- Small functional icons identify the LLM, Validator, Environment, log, counted
+  set, and rate. Icons remain subordinate to labels.
+- Labels are short and exact. Explanations belong in the caption and body.
+- Every arrow has a visible origin, arrowhead, and destination. No connector
+  crosses a label, icon, boundary, or another connector.
+- The condition-to-Counted-set route must bypass Decision log visibly; it must
+  not terminate at the log or appear to be a second records route.
+- The image must remain legible at full size, manuscript width, thumbnail size,
+  and grayscale.
 
 ## Caption contract
 
-The caption must explain, in plain language, that the accepted action reaches
-the environment and log, while the same condition independently selects the
-logged records used by the conditional rate. It must state that the dashed
-observation path is conceptual and that the frozen corpus does not preserve
-the first response before a retry. It must not imply a causal effect, a
-correction, or complete logging of rejected/retry attempts.
+The caption must say, in plain language, that the allowed action reaches the
+environment, the final record enters Decision log, and the same condition
+selects the Counted set while records from the log enter that set. It must
+state that the dashed observation path is conceptual and that the retry path
+is omitted because the first response is unavailable. It must not imply a
+causal effect, a correction, or complete logging of rejected attempts.
 
 ## Regeneration and checks
 
@@ -89,6 +100,7 @@ python ICLR2027\submission\checks\figure1_geometry_check.py
 python ICLR2027\submission\checks\manuscript_static_check.py
 ```
 
-The generated-raster geometry check cannot prove pixel-level separation;
-full-size, paper-width, grayscale, thumbnail, and adversarial visual review
-remain required before release.
+The generated-raster geometry check verifies the active asset, dimensions,
+hashes, and label manifest. Pixel-level arrow and text separation still
+requires full-size, print-width, thumbnail, grayscale, and adversarial visual
+review before release.

@@ -223,7 +223,7 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use generated agent-paper v3: a compact shared-condition bridge with the response inside Agent, proposed action anchored to action, an accepted-decision route terminating on Decision log, black borders with colored fills, and a direct condition-to-filter route.",
+      "decision": "Use generated nested-interface v3: a bounded Agent with field-level action/condition origins, a black governance boundary around Validator, a final-record route to Decision log, black borders with flat colored fills, and a direct condition-to-Counted-set route.",
       "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
     }
   ],
@@ -290,11 +290,11 @@
       "visual_figure_review"
     ],
     "checked_hashes": {
-      "figure1_source_asset": "295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b",
-      "figure1_active_png": "295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b",
-      "figure1_print_png": "295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b"
+      "figure1_source_asset": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
+      "figure1_active_png": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
+      "figure1_print_png": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3"
     },
-    "visual_check": "PASS_AGENTPAPER_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
+    "visual_check": "PASS_NESTED_INTERFACE_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -313,20 +313,20 @@
   },
   "figure1_contract": {
     "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
-    "selected_base": "generated agent-paper compact shared-condition bridge candidate v3",
+    "selected_base": "generated nested-interface agent-paper candidate v3",
     "functional_rails": [],
-    "white_space_policy": "pale blue-gray single canvas; black borders with colored fills, tight-to-content nodes, and no pure-white cards",
-    "visible_label_count": 17,
+    "white_space_policy": "warm light-gray single canvas; black boundaries and borders with flat colored fills, tight semantic nodes, and no pure-white cards",
+    "visible_label_count": 18,
     "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
     "text_overlap_count": null,
     "centerline_intersection_check": "NOT_MACHINE_VERIFIABLE_FOR_GENERATED_RASTER",
-    "feedback_path": "dashed Environment -> observation -> Agent return lane above the modules; retry omitted because the first response is unavailable",
+    "feedback_path": "one dashed Environment -> observation -> LLM return lane above the modules; retry omitted because the first response is unavailable",
     "condition_roles": ["validator input", "record selection"]
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_AGENTPAPER_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
+    "visual_figure_review": "PASS_NESTED_INTERFACE_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
@@ -335,7 +335,7 @@
     "scholarly_writing": "MANUAL_PASS; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
     "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_BLOCKED",
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
-    "adversarial_review": "PASS_AGENTPAPER_V3_ACTIVE_SYNC",
+    "adversarial_review": "PASS_NESTED_INTERFACE_V3_ACTIVE_SYNC",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
     "official_tex_build": "BLOCKED_NO_TEX_ENGINE",
     "new_experiment_run": false
