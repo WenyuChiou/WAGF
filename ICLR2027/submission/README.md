@@ -22,7 +22,7 @@ paper. Read this file first when returning to the project.
 | Manuscript | `paper/manuscript.tex` |
 | Bibliography | `paper/references.bib` |
 | Figures cited by the manuscript | `figures/active/` |
-| Figure 1 generated asset | `figures/assets/figure1_architecture_compact_v1.png` |
+| Figure 1 generated asset | `figures/assets/figure1_architecture_agentpaper_v2.png` |
 | Figure 1 staging builder | `source/figure1_agent_paper.py` |
 | Figure 1 builder entry point | `source/figure1_overlay.py` compatibility entry point |
 | Figure 1 geometry check | `checks/figure1_geometry_check.py` |
@@ -32,15 +32,15 @@ paper. Read this file first when returning to the project.
 The files in `figures/candidates/` are alternatives only. They are not
 submission figures and must never be referenced by `manuscript.tex`. The
 active Figure 1 is the generated compact composition staged from
-`figures/assets/figure1_architecture_compact_v1.png`.
+`figures/assets/figure1_architecture_agentpaper_v2.png`.
 It follows the reset audit in `AGENT_ARCHITECTURE_FIGURE_RESET.md`: a compact
 Agent → Validator → Environment path, a separate accepted-decision log path,
 and a direct condition → filter route. The observation return is routed above
 the modules so it does not cross the measurement paths.
 
-The current compact v1 places the response inside the Agent boundary and
-aligns the accepted-decision arrow with the Decision log in the compact lower
-measurement path.
+The current agent-paper v2 places the response inside the Agent boundary,
+anchors `proposed action` to the `action` field, and aligns the accepted-
+decision arrow with the Decision log in the compact lower measurement path.
 
 ## Figure workflow
 

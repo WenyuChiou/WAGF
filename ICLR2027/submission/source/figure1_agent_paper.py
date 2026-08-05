@@ -19,7 +19,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "figures" / "assets" / "figure1_architecture_compact_v1.png"
+ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_v2.png"
 ACTIVE = ROOT / "figures" / "active"
 OUT = ACTIVE / "figure1_concept"
 
@@ -60,9 +60,9 @@ def build() -> dict[str, object]:
         "print_sha256": print_sha256,
         "canvas_px": [width, height],
         "scale": 1,
-        "pdf_size_in": [6.35, 3.49],
-        "canvas_policy": "warm light-gray paper background; compact single-canvas runtime/measurement architecture with local semantic nodes and no pure-white cards",
-        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, an explicit validator insertion point, aligned decision logging, short relation labels, and restrained functional icons",
+        "pdf_size_in": [6.35, 3.58],
+        "canvas_policy": "warm light-gray paper background; compact AgentSpec-style ownership boundaries, tight-to-content nodes, and no pure-white cards",
+        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, action-aligned validator insertion, aligned decision logging, short relation labels, and restrained functional icons",
         "text": [
             "Agent", "LLM", "response", "action", "condition", "proposed action",
             "Validator", "rule input", "accepted", "Environment",

@@ -223,7 +223,7 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use generated compact v1: a single-canvas agent-paper architecture with the response inside the Agent boundary, an accepted-decision arrow aligned to Decision log, and a direct condition-to-filter route with a non-crossing observation loop.",
+      "decision": "Use generated agent-paper v2: a compact ownership-boundary architecture with the response inside Agent, proposed action anchored to action, an accepted-decision arrow aligned to Decision log, and a direct condition-to-filter route.",
       "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
     }
   ],
@@ -290,11 +290,11 @@
       "visual_figure_review"
     ],
     "checked_hashes": {
-      "figure1_source_asset": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
-      "figure1_active_png": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
-      "figure1_print_png": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0"
+      "figure1_source_asset": "cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861",
+      "figure1_active_png": "cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861",
+      "figure1_print_png": "cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861"
     },
-    "visual_check": "PASS_COMPACT_V1_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
+    "visual_check": "PASS_AGENTPAPER_V2_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -313,9 +313,9 @@
   },
   "figure1_contract": {
     "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
-    "selected_base": "generated agent-paper compact single-canvas architecture candidate v1",
+    "selected_base": "generated agent-paper compact ownership-boundary architecture candidate v2",
     "functional_rails": [],
-    "white_space_policy": "warm light-gray single canvas; local semantic nodes, filled role regions, and no pure-white cards",
+    "white_space_policy": "warm light-gray single canvas; tight-to-content ownership boundaries, compact semantic nodes, and no pure-white cards",
     "visible_label_count": 17,
     "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
@@ -326,7 +326,7 @@
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_COMPACT_V1_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
+    "visual_figure_review": "PASS_AGENTPAPER_V2_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
@@ -335,7 +335,7 @@
     "scholarly_writing": "MANUAL_PASS; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
     "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_BLOCKED",
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
-    "adversarial_review": "PASS_FINAL_V9",
+    "adversarial_review": "PASS_AGENTPAPER_V2_ACTIVE_SYNC",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
     "official_tex_build": "BLOCKED_NO_TEX_ENGINE",
     "new_experiment_run": false

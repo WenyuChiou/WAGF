@@ -30,7 +30,7 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 | Anonymous manuscript | `paper\manuscript.tex` |
 | Bibliography | `paper\references.bib` |
 | Figures cited by TeX | `figures\active\` |
-| Figure 1 generated asset | `figures\assets\figure1_architecture_compact_v1.png` |
+| Figure 1 generated asset | `figures\assets\figure1_architecture_agentpaper_v2.png` |
 | Figure 1 staging builder | `source\figure1_agent_paper.py` |
 | Figure 1 builder | `source\figure1_overlay.py` (compatibility entry point) |
 | Figure 1 manifest | `figures\active\figure1_concept.json` |
@@ -46,7 +46,7 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 
 `figures\active\` is the only directory whose rendered files may be included
 by `paper\manuscript.tex`. `figures\candidates\` contains non-active
-alternatives. `figures\assets\figure1_architecture_compact_v1.png` is the
+alternatives. `figures\assets\figure1_architecture_agentpaper_v2.png` is the
 reviewed source asset for the active generated Figure 1. Legacy and
 intermediate versions are under `figures\candidates\legacy\figure1\` and
 `figures\candidates\architecture-reset-round\`.
@@ -60,18 +60,19 @@ contains a response with `action` and `condition`, the `Validator` sits before
 condition takes a separate amber route directly to `filter`, while logged
 records enter the filter through `records` and feed `conditional rate`.
 
-The active composition is the compact v1 architecture generated after
+The active composition is the agent-paper v2 architecture generated after
 auditing ReAct, Reflexion, AutoGen, AgentSpec, SWE-agent, Voyager, and
 Magentic-One. It uses a single warm-gray canvas with local semantic nodes,
 keeps the response inside the Agent boundary, aligns the accepted-decision
-arrow with `Decision log`, and routes the shared condition directly to
+arrow with `Decision log`, anchors `proposed action` to `action`, and routes the shared condition directly to
 `filter`. It also uses short relation labels, black primary routes, a small
 LLM cue, semantic flat fills, and a top dashed `observation` return lane. The earlier
 dashboard-like and D-v3 compositions are historical and preserved under
 `figures\candidates\legacy\figure1\` and
 `figures\candidates\architecture-reset-round\`.
 
-The generated asset (compact v1, with `proposed action`, an aligned
+The generated asset (agent-paper v2, with `proposed action` anchored at
+`action`, an aligned
 `accepted decision` arrow, direct condition-to-filter routing, and a
 non-crossing observation loop) is visually reviewed at full size, paper-width
 preview, grayscale, and thumbnail size.

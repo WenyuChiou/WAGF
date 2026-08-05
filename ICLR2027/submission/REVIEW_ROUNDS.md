@@ -318,7 +318,7 @@ Reflexion, AgentSpec, and SWE-agent: a bounded Agent response, a compact
 Validator insertion point, a separate Environment, and a small measurement
 chain.
 
-The selected compact v1 candidate removes the full-canvas lane frames and
+The selected compact v1 candidate removed the full-canvas lane frames and
 headers. Its black `proposed action` connector starts at the `action` field;
 the amber `rule input` connector starts at the right edge of `condition`; and
 the amber `selects records` route starts independently at the bottom edge of
@@ -327,10 +327,32 @@ the log, records flow through the filter, and the observation loop remains
 above the graph. The extra Environment database icon was removed so it cannot
 be confused with the Decision log.
 
-The active generated asset is
+At that historical stage, the active generated asset was
 `figures/assets/figure1_architecture_compact_v1.png`, staged through the normal
 builder. Full-size, paper-width, grayscale, and 900-pixel thumbnail inspection
-passed. The adversarial re-review of the exact current raster passed with no
-semantic, endpoint, overlap, or paper-grammar findings. Official typeset PDF
-inspection remains the release gate because the local environment still lacks a
-TeX engine.
+passed. The compact v1 candidate was then superseded by the agent-paper v2
+candidate to anchor `proposed action` directly to the `action` field. Official
+typeset PDF inspection remains the release gate because the local environment
+still lacks a TeX engine.
+
+## Round 18: agent-paper v2 active integration and endpoint audit
+
+The compact v1 candidate was not retained as the final design. A fresh
+generated candidate was produced from the paper grammar audit: a small dashed
+Agent ownership boundary, a tight response object, a compact Validator
+insertion point, a small Environment node, and a short lower log/filter chain.
+The highlighted `condition` field has two explicit uses: `rule input` enters
+the Validator before execution, while `selects records` enters the filter
+without passing through the Decision log. The black `proposed action` arrow
+was then regenerated so its visible origin is the `action` field itself.
+
+The active generated source is
+`figures/assets/figure1_architecture_agentpaper_v2.png`, with SHA-256
+`cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861`.
+The builder copied the same raster into the manuscript-facing PNG and print
+PNG. Full-size, paper-width, grayscale, and 900-pixel thumbnail inspection
+passed. The adversarial review of the exact active files passed all endpoints,
+overlap checks, information-density checks, and paper-grammar checks; it also
+confirmed that the single-headed dashed observation return is directionally
+unambiguous. Official typeset PDF inspection remains open because the local
+environment still lacks a TeX engine.

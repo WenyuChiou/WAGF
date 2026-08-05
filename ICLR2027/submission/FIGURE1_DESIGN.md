@@ -2,9 +2,9 @@
 
 ## Active version
 
-The active Figure 1 is the generated compact architecture candidate v1:
+The active Figure 1 is the generated agent-paper architecture candidate v2:
 
-`figures/assets/figure1_architecture_compact_v1.png`
+`figures/assets/figure1_architecture_agentpaper_v2.png`
 
 The research and design rationale for the reset is recorded in
 `AGENT_ARCHITECTURE_FIGURE_RESET.md`. Earlier two-lane/dashboard-like

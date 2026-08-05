@@ -1,20 +1,20 @@
 {
   "rendering_mode": "generated_full",
-  "asset": "figures/assets/figure1_architecture_compact_v1.png",
-  "asset_sha256": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
-  "staged_sha256": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
-  "print_sha256": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
+  "asset": "figures/assets/figure1_architecture_agentpaper_v2.png",
+  "asset_sha256": "cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861",
+  "staged_sha256": "cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861",
+  "print_sha256": "cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861",
   "canvas_px": [
-    1693,
-    929
+    1672,
+    941
   ],
   "scale": 1,
   "pdf_size_in": [
     6.35,
-    3.49
+    3.58
   ],
-  "canvas_policy": "warm light-gray paper background; compact single-canvas runtime/measurement architecture with local semantic nodes and no pure-white cards",
-  "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, an explicit validator insertion point, aligned decision logging, short relation labels, and restrained functional icons",
+  "canvas_policy": "warm light-gray paper background; compact AgentSpec-style ownership boundaries, tight-to-content nodes, and no pure-white cards",
+  "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, action-aligned validator insertion, aligned decision logging, short relation labels, and restrained functional icons",
   "text": [
     "Agent",
     "LLM",
