@@ -1,119 +1,88 @@
-# Figure 1 design contract
+# Figure 1 operational design contract
+
+## Active version
+
+The active Figure 1 is generated reset candidate D-v3:
+
+`figures/assets/figure1_architecture_reset_D_final_v3.png`
+
+The research and design rationale for the reset is recorded in
+`AGENT_ARCHITECTURE_FIGURE_RESET.md`. Earlier two-lane/dashboard-like
+compositions are historical and must not be used as the active direction.
 
 ## Paper role
 
-Figure 1 is a conceptual agent/evaluation diagram. Its one job is to show the
-measurement problem before the equations:
+Figure 1 is a conceptual architecture/dataflow figure. Its single reader task
+is to see that an Agent response contains an action and an agent-written
+condition; the Validator consumes the action and condition before execution;
+and the same condition later selects records for a conditional rate.
 
-> An LLM agent writes an action and a condition. Runtime governance consumes
-> both, while evaluation uses the same condition to choose the records counted
-> by a conditional rate.
+It is not a quantitative result, a component inventory, or evidence that the
+frozen corpus preserves every retry attempt.
 
-The figure is not a WAGF component inventory, a quantitative result, or a
-claim that the frozen corpus contains every intermediate retry response.
-
-## Agent-paper grammar
-
-The current composition was redesigned after inspecting the rendered figures
-in ReAct, Reflexion, AutoGen, and AgentSpec. The adopted grammar is:
-
-- expose one observable response and one trajectory, as in ReAct;
-- use a compact bounded agent loop with a small number of semantic modules,
-  as in Reflexion;
-- use one small LLM cue and direct message ownership, as in AutoGen;
-- show where enforcement intercepts the action, as in AgentSpec.
-
-The figure therefore has two aligned lanes rather than six equally weighted
-cards. The upper lane is execution. The lower lane is measurement. The
-highlighted condition is the only field that deliberately has two outgoing
-uses.
-
-## Visual sentence and modules
+## Active visual sentence
 
 ```text
-Agent (LLM) -> response[action, condition] -> Validator -> Environment
-                                      \           |             |
-                                       \          +-> Decision log
-                                        +-> Filter -> Conditional rate
-Environment -- next context (dashed) --> Agent (LLM)
+Agent response[action, condition] --proposed action--> Validator --accepted--> Environment
+                                      | rule input                         |
+                                      +--> filter <-- records <-- Decision log
+                                            |
+                                      conditional rate
 ```
 
-The generated composition contains these semantic modules:
+The top dashed `observation` route returns from Environment to Agent. It is
+conceptual and is routed outside the solid measurement paths so that no arrow
+crosses another arrow.
 
-1. `Agent (LLM)`: a small circuit/LLM icon marks the AI producer.
-2. `response`: one message containing `action` and the highlighted `condition`.
-3. `Validator`: the runtime gate that receives the proposed action and rule
-   input.
-4. `Environment`: the external simulator state changed by an accepted action.
-5. `Decision log`: the accepted decision record used by evaluation.
-6. `Filter`: the operation that selects records using the shared condition.
-7. `Conditional rate`: the downstream score over the selected records.
+## Required visible relationships
 
-The arrows carry only short relations: `emits`, `proposed action`, `rule input`,
-`accepted`, `accepted decision`, `recorded set`, `selects records`, and
-`next context`. No paragraph, equation, or numerical result belongs inside
-the image.
+1. The blue `Agent` boundary contains a small `LLM` chip cue and the
+   `response` object with separate `action` and amber `condition` fields.
+2. The black `proposed action` arrow visibly begins at the `action` field and
+   enters `Validator`.
+3. The amber `rule input` arrow begins at `condition` and enters `Validator`.
+4. The black `accepted` arrow leaves `Validator` and enters `Environment`.
+5. The black `accepted decision` arrow enters `Decision log`; the black
+   `records` arrow carries logged records to `filter`.
+6. The amber `selects records` arrow bypasses `Decision log` and enters
+   `filter` directly from the condition field.
+7. The black `records` and amber `selects records` routes remain distinct.
+8. The dashed `observation` route has clear endpoints and no intersections
+   with solid routes, labels, icons, or node interiors.
 
-## Geometry and style rules
+## Visual constraints
 
-- Use a compact landscape canvas that fills the paper figure width.
-- Use a uniform light neutral-gray background; avoid a large empty white field
-  and avoid white label pills.
-- Use near-black solid arrows for observed/control/data relations.
-- Use one thin gray dashed arrow for the conceptual next-context return.
-- Use amber only for the shared condition and its two outgoing branches.
-- Use muted blue for the agent/response, green for the environment, and violet
-  for the conditional rate.
-- Keep the LLM icon small and functional. It must identify the AI producer,
-  not act as decoration or a mascot.
-- Keep every label short and readable at thumbnail size.
-- Make the producer relation explicit: a short `emits` arrow must connect
-  `Agent (LLM)` to `response`; adjacency alone is not enough.
-- Do not let an arrow cross text, an icon, or a node border.
-- Keep the condition-to-Validator and condition-to-Filter routes visibly
-  distinct; keep the Validator-to-log and log-to-Filter routes distinct.
-- Do not draw a retry endpoint in Figure 1. The caption states that the frozen
-  corpus does not preserve the first response before a retry.
-
-## Active source and review outputs
-
-The active generated source is:
-
-`figures/assets/figure1_generated_full_final.png`
-
-The compatibility builder `source/figure1_overlay.py` stages it into:
-
-- `figures/active/figure1_concept.png` for the manuscript;
-- `figures/active/figure1_concept_print.png` for print-width inspection;
-- `figures/active/figure1_concept.json` for semantic and asset metadata.
-
-Earlier generation rounds, including the retired v11 composition and the
-three external-paper-inspired candidates, remain under
-`figures/candidates/` and are not referenced by TeX.
-
-Because the active artwork is a generated raster, the geometry checker can
-verify the asset and dimensions but cannot prove pixel-level arrow/text
-separation. Full-size, print-width, thumbnail, and adversarial visual review
-are required.
+- Compact landscape composition for the full-width ICLR figure.
+- Warm light-gray background; pale blue, amber, green, and violet fills.
+- Near-black primary outlines and arrows; one thin gray dashed observation
+  route.
+- Small semantic icons only: LLM chip, validator check, environment/simulator,
+  database, filter, and rate gauge.
+- No gradients, mascots, screenshots, white label pills, title banner, or
+  sentence-length text inside the image.
+- All visible labels are short and exact: `Agent`, `LLM`, `response`, `action`,
+  `condition`, `Validator`, `check`, `proposed action`, `accepted`,
+  `Environment`, `observation`, `accepted decision`, `Decision log`,
+  `records`, `filter`, `conditional rate`, `rule input`, and
+  `selects records`.
 
 ## Caption contract
 
-The caption must state the following in plain language:
+The caption must explain, in plain language, that the accepted action reaches
+the environment and log, while the same condition independently selects the
+logged records used by the conditional rate. It must state that the dashed
+observation path is conceptual and that the frozen corpus does not preserve
+the first response before a retry. It must not imply a causal effect, a
+correction, or complete logging of rejected/retry attempts.
 
-1. the response contains an action and an agent-written condition;
-2. the validator reads both before execution;
-3. accepted actions change the environment and enter the decision log;
-4. the same condition selects records for the conditional rate; and
-5. the dashed loop is conceptual because the first response before a retry is
-   missing from the frozen corpus.
-
-The caption must not call the fixed-denominator rate a correction or imply a
-causal effect.
-
-## Build and review order
+## Regeneration and checks
 
 ```powershell
 python ICLR2027\submission\source\figure1_overlay.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 python ICLR2027\submission\checks\manuscript_static_check.py
 ```
+
+The generated-raster geometry check cannot prove pixel-level separation;
+full-size, paper-width, grayscale, thumbnail, and adversarial visual review
+remain required before release.

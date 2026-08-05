@@ -1,7 +1,7 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-05 after the agent-paper figure audit and generated Figure 1
-replacement.
+Updated 2026-08-05 after a full Figure 1 reset based on published agent-paper
+architecture figures and adversarial route review.
 
 ## Read this first
 
@@ -30,7 +30,7 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 | Anonymous manuscript | `paper\manuscript.tex` |
 | Bibliography | `paper\references.bib` |
 | Figures cited by TeX | `figures\active\` |
-| Figure 1 generated asset | `figures\assets\figure1_generated_full_final.png` |
+| Figure 1 generated asset | `figures\assets\figure1_architecture_reset_D_final_v3.png` |
 | Figure 1 staging builder | `source\figure1_agent_paper.py` |
 | Figure 1 builder | `source\figure1_overlay.py` (compatibility entry point) |
 | Figure 1 manifest | `figures\active\figure1_concept.json` |
@@ -39,46 +39,49 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 | Design comparison audit | `FIGURE1_DESIGN_AUDIT.md` |
 | External-paper style audit | `..\FIGURE_STYLE_AUDIT.md` |
 | Agent-paper redesign contract | `AGENT_PAPER_FIGURE_REDESIGN.md` |
+| Figure 1 reset design contract | `AGENT_ARCHITECTURE_FIGURE_RESET.md` |
 | Static check report | `checks\manuscript_static_report.json` |
 | Evidence-boundary report | `checks\evidence_boundary_report.json` |
 | Reproducibility audit | `checks\reproducibility\reproducibility_report.md` |
 
 `figures\active\` is the only directory whose rendered files may be included
 by `paper\manuscript.tex`. `figures\candidates\` contains non-active
-alternatives. `figures\assets\figure1_generated_full_final.png` is the reviewed
-source asset for the active generated Figure 1. Legacy and intermediate
-versions are under `figures\candidates\legacy\figure1\`.
+alternatives. `figures\assets\figure1_architecture_reset_D_final_v3.png` is
+the reviewed source asset for the active generated Figure 1. Legacy and
+intermediate versions are under `figures\candidates\legacy\figure1\` and
+`figures\candidates\architecture-reset-round\`.
 
 ## Figure 1 status
 
 Figure 1 is a conceptual agent/evaluation diagram, not a quantitative result.
-It shows an `Agent (LLM)` emitting a response with an action and an
-agent-written condition. The action and condition enter `Validator`; an
-accepted action changes `Environment`, and the accepted decision enters
-`Decision log`. The same condition and the recorded decision set enter
-`Filter`, which feeds `Conditional rate`.
+It uses an AgentSpec/SWE-agent-style interface insertion point: an `Agent`
+contains a response with `action` and `condition`, the `Validator` sits before
+`Environment`, and the accepted decision enters `Decision log`. The same
+condition takes a separate amber route directly to `filter`, while logged
+records enter the filter through `records` and feed `conditional rate`.
 
-The active composition follows the compact loop/module grammar found in
-Reflexion and AgentSpec, with a small LLM cue and direct message ownership
-informed by AutoGen and ReAct. It uses two aligned lanes, one amber condition
-branch for `rule input`, one amber branch for `selects records`, and one thin
-gray dashed `next context` return. The previous dashboard-like composition is
-retired and preserved under `figures\candidates\legacy\figure1\`.
+The active composition is the reset D-v3 architecture generated after auditing
+ReAct, Reflexion, AutoGen, AgentSpec, SWE-agent, Voyager, and Magentic-One.
+It uses short relation labels, black primary routes, a small LLM chip cue,
+semantic flat fills, and a top dashed `observation` return lane. The earlier
+dashboard-like compositions are retired and preserved under
+`figures\candidates\legacy\figure1\` and
+`figures\candidates\architecture-reset-round\`.
 
-The new generated asset (candidate F, with an explicit `emits` arrow and
-`accepted decision` log label) is
-visually reviewed at full size and thumbnail size.
+The generated asset (D-v3, with `proposed action`, `accepted decision`, direct
+condition-to-filter routing, and a non-crossing observation loop) is visually
+reviewed at full size, paper-width preview, grayscale, and thumbnail size.
 The geometry check reports `PASS_MANUAL_VISUAL_REVIEW_REQUIRED`: image
 dimensions and short labels are checked automatically, while pixel-level
-text/arrow separation is reviewed manually. The remaining visual gate is
+text/arrow separation is reviewed manually. The remaining delivery gate is
 print-width inspection in the official typeset PDF.
 
-The Introduction now states the measurement risk before the irrigation example,
+The Introduction states the measurement risk before the irrigation example,
 defines `agent-written condition` and `conditional rate` in plain language, and
 places Figure 1 immediately after the contribution summary. The caption maps
-the action, condition, Validator, Environment, Decision log, Filter, and
-Conditional rate to the two lanes and states the missing-first-attempt
-boundary.
+the action, condition, Validator, Environment, accepted decision, Decision log,
+filter, and conditional rate to the upper execution path and lower evaluation
+strip, and states the missing-first-attempt boundary.
 
 Use the active generated image and print preview for inspection:
 `figures\active\figure1_concept.png`

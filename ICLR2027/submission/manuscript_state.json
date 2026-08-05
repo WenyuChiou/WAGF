@@ -223,8 +223,8 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use the reviewed generated agent-paper composition with a compact execution loop, a separate measurement lane, a single highlighted condition field, and explicit condition/log inputs to Filter.",
-      "authority": "FIGURE_STYLE_AUDIT.md and current visual review"
+      "decision": "Use generated reset candidate D-v3: an Agent-to-Validator-to-Environment path, an accepted-decision log path, and a direct condition-to-filter route with a non-crossing observation loop.",
+      "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
     }
   ],
   "issues": [
@@ -289,8 +289,12 @@
       "generated_figure_asset_integrity",
       "visual_figure_review"
     ],
-    "checked_hashes": {},
-    "visual_check": "PASS_CANDIDATE_F_FULL_THUMB; OFFICIAL_TYPESET_PENDING"
+    "checked_hashes": {
+      "figure1_source_asset": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
+      "figure1_active_png": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
+      "figure1_print_png": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9"
+    },
+    "visual_check": "PASS_CANDIDATE_D_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -309,20 +313,20 @@
   },
   "figure1_contract": {
     "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
-    "selected_base": "generated agent-paper two-lane composition candidate F (E plus accepted-decision label)",
+    "selected_base": "generated agent-paper architecture reset candidate D-v3",
     "functional_rails": [],
-    "white_space_policy": "uniform light neutral-gray background; compact execution and measurement lanes avoid a floating icon collage or excessive white space",
-    "visible_label_count": 17,
-    "max_label_characters": 19,
+    "white_space_policy": "warm light-gray background; compact interface-first architecture with a lower evaluation strip and no white cards",
+    "visible_label_count": 18,
+    "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
     "text_overlap_count": null,
     "centerline_intersection_check": "NOT_MACHINE_VERIFIABLE_FOR_GENERATED_RASTER",
-    "feedback_path": "dashed Environment -> next context -> Agent; retry omitted because the first response is unavailable",
+    "feedback_path": "dashed Environment -> observation -> Agent return lane above the modules; retry omitted because the first response is unavailable",
     "condition_roles": ["validator input", "record selection"]
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_CANDIDATE_F_FULL_THUMB",
+    "visual_figure_review": "PASS_CANDIDATE_D_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",

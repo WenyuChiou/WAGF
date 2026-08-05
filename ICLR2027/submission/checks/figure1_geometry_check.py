@@ -8,6 +8,7 @@ retained only for historical manifests.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -34,6 +35,14 @@ def inside(point: tuple[float, float], zone: tuple[float, float, float, float]) 
     x, y = point
     x1, y1, x2, y2 = zone
     return x1 <= x <= x2 and y1 <= y <= y2
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def orientation(a: tuple[float, float], b: tuple[float, float],
@@ -64,6 +73,30 @@ def main() -> int:
         too_long = [label for label in labels if len(label) > 22 or len(label.split()) > 3]
         if too_long:
             errors.append(f"labels exceed the short-figure limit: {too_long}")
+
+        source_asset = ROOT / manifest.get("asset", "")
+        expected_hashes = {
+            "source asset": (source_asset, manifest.get("asset_sha256")),
+            "active PNG": (PNG, manifest.get("staged_sha256")),
+            "print PNG": (PRINT_PNG, manifest.get("print_sha256")),
+        }
+        observed_hashes: dict[str, str | None] = {}
+        for label, (path, expected) in expected_hashes.items():
+            if not expected:
+                errors.append(f"missing SHA-256 in manifest for {label}")
+                observed_hashes[label] = None
+                continue
+            if not path.exists() or path.stat().st_size == 0:
+                errors.append(f"missing generated Figure 1 file for {label}: {path}")
+                observed_hashes[label] = None
+                continue
+            observed = sha256(path)
+            observed_hashes[label] = observed
+            if observed != expected:
+                errors.append(f"SHA-256 mismatch for {label}: expected {expected}, got {observed}")
+        observed_values = [value for value in observed_hashes.values() if value]
+        if len(observed_values) == len(expected_hashes) and len(set(observed_values)) != 1:
+            errors.append("source, active, and print Figure 1 hashes do not match each other")
         for path in (PNG, PRINT_PNG):
             if not path.exists() or path.stat().st_size == 0:
                 errors.append(f"missing generated figure output: {path}")
@@ -83,6 +116,8 @@ def main() -> int:
             "label_count": len(labels),
             "text_overlap_count": None,
             "route_intersection_count": None,
+            "sha256": observed_hashes,
+            "sha256_match": len(observed_values) == len(expected_hashes) and len(set(observed_values)) == 1,
             "warnings": warnings,
             "errors": errors,
         }

@@ -225,11 +225,12 @@ cards or bottom white strip.
 The semantic graph was preserved and made explicit: the agent-written
 condition branches to Validator and Record filter; Recorded decisions has a
 separate arrow into Record filter; the accepted action changes World state;
-the dashed future-context route returns outside the modules. The active asset
-is `figures/assets/figure1_generated_full_final.png`, staged through the normal
-builder. Automatic checks verify the asset, dimensions, labels, manuscript
-reference, and evidence boundary. Pixel-level text/arrow separation remains a
-manual visual review item because the final artwork is generated raster.
+the dashed future-context route returns outside the modules. At that historical
+stage, `figures/assets/figure1_generated_full_final.png` was staged through the
+normal builder. That asset is now superseded by D-v3; the historical checks
+and wording below do not define the active source. Pixel-level text/arrow
+separation remained a manual visual review item because the final artwork was
+a generated raster.
 
 ## Round 13: reset from external agent-paper figures
 
@@ -279,3 +280,29 @@ does not preserve the first response before a retry. The active asset and
 manifest were regenerated and checked at full size and thumbnail size. The
 independent reviewer found no overlap or routing defect after these changes.
 Official TeX build and typeset print-width review remain open.
+
+## Round 16: full architecture reset and non-crossing route repair
+
+The Round 15 candidate was rejected as a design direction after a fresh audit
+of published agent-paper figures. Four new layouts were generated from the
+grammar of ReAct, Reflexion, AgentSpec, and SWE-agent, with Voyager and
+Magentic-One used as additional role/icon references. Candidate B was rejected
+because its condition did not visibly reach Validator. Candidate D was kept as
+the structural base because its Validator insertion point and shared-field
+graph were clearest.
+
+Candidate D was then regenerated through three targeted repairs: the condition
+route was made to enter Filter directly while bypassing Decision log; the
+condition route was routed below the log so it does not touch the database
+icon; and the observation loop was moved above all modules so it does not
+cross the accepted-decision or condition-selection paths. The final D-v3 also
+aligns `proposed action` with the action field and labels the log input
+`accepted decision`.
+
+The active asset is
+`figures/assets/figure1_architecture_reset_D_final_v3.png`, staged through the
+normal builder. Full-size, paper-width, grayscale, and thumbnail inspections
+show exact short labels, clear endpoints, and no visible connector crossings.
+The adversarial re-review of D-v3 passed. Official typeset PDF inspection
+remains the release gate because the local environment still lacks a TeX
+engine.
