@@ -1,0 +1,181 @@
+panel,series,x,value,lo,hi,unit,n,note
+A,delta_high_appraisal_prevalence,1,3.3333,-3.7501,10.4167,percentage points (noval minus gov),5,gov=34.1026 noval=37.4359 p=0.2614 df=4
+A,delta_high_appraisal_prevalence,2,27.1795,21.9723,32.3867,percentage points (noval minus gov),5,gov=64.6154 noval=91.7949 p=0.0001 df=4
+A,delta_high_appraisal_prevalence,3,0.0,0.0,0.0,percentage points (noval minus gov),5,gov=100.0000 noval=100.0000 p=nan df=4
+A,delta_high_appraisal_prevalence,4,-18.4615,-27.0783,-9.8448,percentage points (noval minus gov),5,gov=82.8205 noval=64.3590 p=0.0040 df=4
+A,delta_high_appraisal_prevalence,5,0.7692,-3.953,5.4915,percentage points (noval minus gov),5,gov=87.6923 noval=88.4615 p=0.6745 df=4
+A,delta_high_appraisal_prevalence,6,41.0256,21.758,60.2933,percentage points (noval minus gov),5,gov=24.1026 noval=65.1282 p=0.0041 df=4
+A,delta_high_appraisal_prevalence,7,-6.4103,-8.3599,-4.4606,percentage points (noval minus gov),5,gov=6.9231 noval=0.5128 p=0.0008 df=4
+A,delta_high_appraisal_prevalence,8,2.3077,-5.1078,9.7232,percentage points (noval minus gov),5,gov=6.9231 noval=9.2308 p=0.4363 df=4
+A,delta_high_appraisal_prevalence,9,44.6154,6.1888,83.042,percentage points (noval minus gov),5,gov=9.4872 noval=54.1026 p=0.0322 df=4
+A,delta_high_appraisal_prevalence,10,49.7436,13.4188,86.0684,percentage points (noval minus gov),5,gov=8.4615 noval=58.2051 p=0.0191 df=4
+A,delta_high_appraisal_prevalence,11,3.0769,-8.1003,14.2541,percentage points (noval minus gov),5,gov=13.0769 noval=16.1538 p=0.4873 df=4
+A,delta_high_appraisal_prevalence,12,61.0256,52.1911,69.8602,percentage points (noval minus gov),5,gov=31.5385 noval=92.5641 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,13,42.3077,37.2737,47.3416,percentage points (noval minus gov),5,gov=52.5641 noval=94.8718 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,14,66.1538,61.0449,71.2628,percentage points (noval minus gov),5,gov=33.8462 noval=100.0000 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,15,64.6154,25.4669,103.7639,percentage points (noval minus gov),5,gov=27.4359 noval=92.0513 p=0.0102 df=4
+A,delta_high_appraisal_prevalence,16,63.0769,31.7529,94.4009,percentage points (noval minus gov),5,gov=30.0000 noval=93.0769 p=0.0050 df=4
+A,delta_high_appraisal_prevalence,17,92.3077,80.6641,103.9513,percentage points (noval minus gov),5,gov=2.0513 noval=94.3590 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,18,41.0256,34.2719,47.7794,percentage points (noval minus gov),5,gov=57.4359 noval=98.4615 p=0.0001 df=4
+A,delta_high_appraisal_prevalence,19,78.7179,75.8262,81.6097,percentage points (noval minus gov),5,gov=7.4359 noval=86.1538 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,20,81.7949,70.4043,93.1854,percentage points (noval minus gov),5,gov=10.5128 noval=92.3077 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,21,77.1795,66.0705,88.2885,percentage points (noval minus gov),5,gov=15.8974 noval=93.0769 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,22,76.4103,68.9777,83.8428,percentage points (noval minus gov),5,gov=8.9744 noval=85.3846 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,23,67.6923,64.6303,70.7543,percentage points (noval minus gov),5,gov=25.6410 noval=93.3333 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,24,87.4359,78.7605,96.1113,percentage points (noval minus gov),5,gov=5.8974 noval=93.3333 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,25,74.8718,67.525,82.2186,percentage points (noval minus gov),5,gov=11.5385 noval=86.4103 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,26,83.0769,74.1142,92.0396,percentage points (noval minus gov),5,gov=12.3077 noval=95.3846 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,27,72.5641,66.5444,78.5838,percentage points (noval minus gov),5,gov=14.3590 noval=86.9231 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,28,48.7179,3.217,94.2189,percentage points (noval minus gov),5,gov=48.7179 noval=97.4359 p=0.0410 df=4
+A,delta_high_appraisal_prevalence,29,70.0,56.9894,83.0106,percentage points (noval minus gov),5,gov=12.3077 noval=82.3077 p=0.0001 df=4
+A,delta_high_appraisal_prevalence,30,71.7949,62.0467,81.5431,percentage points (noval minus gov),5,gov=13.0769 noval=84.8718 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,31,80.5128,70.1107,90.915,percentage points (noval minus gov),5,gov=12.5641 noval=93.0769 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,32,67.4359,58.4591,76.4127,percentage points (noval minus gov),5,gov=14.6154 noval=82.0513 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,33,79.7436,72.589,86.8982,percentage points (noval minus gov),5,gov=13.3333 noval=93.0769 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,34,49.7436,46.6816,52.8056,percentage points (noval minus gov),5,gov=50.2564 noval=100.0000 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,35,53.5897,9.6268,97.5526,percentage points (noval minus gov),5,gov=43.3333 noval=96.9231 p=0.0277 df=4
+A,delta_high_appraisal_prevalence,36,78.4615,69.4284,87.4947,percentage points (noval minus gov),5,gov=10.5128 noval=88.9744 p=0.0000 df=4
+A,delta_high_appraisal_prevalence,37,22.0513,-7.4178,51.5204,percentage points (noval minus gov),5,gov=77.6923 noval=99.7436 p=0.1063 df=4
+A,delta_high_appraisal_prevalence,38,4.6154,0.9506,8.2802,percentage points (noval minus gov),5,gov=94.6154 noval=99.2308 p=0.0250 df=4
+A,delta_high_appraisal_prevalence,39,-1.0256,-3.1012,1.0499,percentage points (noval minus gov),5,gov=99.7436 noval=98.7179 p=0.2420 df=4
+A,delta_high_appraisal_prevalence,40,5.1282,1.5687,8.6878,percentage points (noval minus gov),5,gov=94.1026 noval=99.2308 p=0.0161 df=4
+A,delta_high_appraisal_prevalence,41,7.4359,3.9848,10.887,percentage points (noval minus gov),5,gov=92.0513 noval=99.4872 p=0.0039 df=4
+A,delta_high_appraisal_prevalence,42,4.8718,0.3134,9.4302,percentage points (noval minus gov),5,gov=94.6154 noval=99.4872 p=0.0413 df=4
+B,lake_mead_level[with-validators],1,1052.7964,1052.7964,1052.7964,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],1,1052.7964,1052.7964,1052.7964,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],1,0.0,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],2,1025.7986,1025.1778,1026.4074,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],2,1024.5897,1024.0534,1025.3094,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],2,1.2089,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],3,996.0566,994.364,997.6233,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],3,997.2941,991.7151,1001.244,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],3,-1.2375,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],4,1043.7748,1042.5336,1044.9238,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],4,1044.8984,1040.5911,1048.4912,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],4,-1.1235,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],5,1039.5158,1037.1254,1040.9879,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],5,1019.2057,1015.7145,1022.3793,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],5,20.31,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],6,1062.8157,1059.1574,1065.2552,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],6,1027.2222,1021.1086,1032.2409,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],6,35.5934,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],7,1108.5438,1106.105,1110.1702,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],7,1082.4602,1076.9695,1086.6807,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],7,26.0836,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],8,1147.4327,1144.9938,1149.059,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],8,1110.9097,1106.6571,1115.3212,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],8,36.523,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],9,1121.4553,1119.089,1123.1552,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],9,1076.1904,1071.0625,1081.1338,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],9,45.2649,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],10,1140.9631,1139.0358,1143.0357,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],10,1071.707,1067.6856,1075.2429,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],10,69.2561,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],11,1162.7096,1161.414,1164.5958,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],11,1077.6999,1075.027,1079.5721,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],11,85.0096,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],12,1139.0975,1136.8954,1141.6929,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],12,1033.8621,1029.5751,1036.7792,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],12,105.2354,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],13,1113.4928,1110.6483,1116.2424,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],13,1007.2907,1004.0136,1009.168,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],13,106.2021,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],14,1088.1467,1084.2684,1091.4029,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],14,982.2669,975.2829,987.5779,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],14,105.8798,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],15,1076.961,1073.6185,1080.4008,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],15,951.7851,942.4924,959.5305,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],15,125.1759,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],16,1074.8685,1072.7065,1076.7763,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],16,910.5734,899.5789,925.2574,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],16,164.2951,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],17,1085.2972,1082.9621,1087.3683,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],17,900.0779,895.0,914.7625,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],17,185.2193,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],18,1059.5709,1056.3168,1062.7566,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],18,895.0,895.0,895.0,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],18,164.5709,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],19,1106.3806,1104.2112,1108.5044,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],19,993.1818,993.1818,993.1818,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],19,113.1988,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],20,1139.1445,1137.4418,1141.2104,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],20,1018.7566,1016.7451,1021.1902,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],20,120.3879,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],21,1113.846,1112.7048,1116.3082,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],21,1000.5528,993.2498,1005.8044,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],21,113.2932,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],22,1139.9556,1137.3214,1142.9972,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],22,1017.2232,1010.0134,1023.4825,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],22,122.7324,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],23,1114.4139,1111.2126,1117.9852,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],23,997.6305,980.7828,1008.3594,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],23,116.7834,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],24,1090.5277,1085.8422,1095.8649,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],24,967.3858,938.3486,988.9268,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],24,123.1419,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],25,1118.6445,1113.8846,1124.5159,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],25,997.3417,969.666,1013.1723,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],25,121.3028,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],26,1093.2909,1087.874,1098.592,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],26,967.6253,919.3775,996.8975,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],26,125.6656,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],27,1104.6824,1100.3887,1108.7851,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],27,969.2311,910.5479,1001.1302,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],27,135.4514,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],28,1078.4956,1073.4448,1084.038,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],28,941.0111,895.0,974.6579,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],28,137.4845,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],29,1119.8801,1115.6299,1124.7004,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],29,1012.3313,991.1105,1028.0825,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],29,107.5487,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],30,1135.3229,1130.6297,1141.7247,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],30,1018.5291,994.7142,1035.2805,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],30,116.7938,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],31,1109.9114,1105.3508,1116.8676,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],31,993.0331,952.5931,1010.5768,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],31,116.8783,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],32,1125.2514,1119.998,1133.7215,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],32,1000.3776,956.9607,1018.8278,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],32,124.8738,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],33,1118.4024,1112.4974,1128.2919,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],33,972.9753,900.9494,1005.7351,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],33,145.4271,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],34,1093.21,1086.5267,1104.4128,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],34,950.2374,895.0,985.4896,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],34,142.9726,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],35,1072.3857,1062.1541,1086.6441,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],35,923.9875,895.0,961.3308,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],35,148.3982,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],36,1090.2523,1081.9742,1101.4727,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],36,931.2439,895.0,970.3907,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],36,159.0084,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],37,1061.9066,1051.2726,1076.6495,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],37,912.0202,895.0,946.9998,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],37,149.8865,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],38,1033.5823,1023.995,1046.5916,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],38,899.3529,895.0,916.7645,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],38,134.2294,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],39,1015.8852,1011.2077,1024.0399,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],39,895.0,895.0,895.0,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],39,120.8852,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],40,1006.1022,1001.9273,1014.5223,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],40,895.0,895.0,895.0,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],40,111.1022,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],41,1002.1176,997.3372,1012.1203,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],41,895.0,895.0,895.0,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],41,107.1176,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+B,lake_mead_level[with-validators],42,1001.5683,964.0135,1024.3141,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_level[no-validator],42,895.0,895.0,895.0,"feet (level, not a delta)",5,lo/hi = seed range
+B,lake_mead_gap[gov_minus_noval],42,106.5683,,,feet (gov MINUS noval),5,NOT the project Delta; a level gap
+C,delta_high_appraisal_prevalence[all decisions],gemma3:4b,45.7265,40.2449,51.2081,percentage points (noval minus gov),5,gov=37.0757 noval=82.8022
+C,delta_high_appraisal_prevalence[never retried (retry_count=0)],gemma3:4b,53.4637,48.7283,58.199,percentage points (noval minus gov),5,gov=23.9643 noval=77.4280
+C,delta_high_appraisal_prevalence[all decisions],gemma3:12b,21.2658,4.9681,37.5635,percentage points (noval minus gov),3,gov=5.4945 noval=26.7603
+C,delta_high_appraisal_prevalence[never retried (retry_count=0)],gemma3:12b,24.3112,4.7566,43.8657,percentage points (noval minus gov),3,gov=2.6941 noval=27.0053
+C,delta_high_appraisal_prevalence[all decisions],gemma4:e2b,47.5275,39.8709,55.1841,percentage points (noval minus gov),5,gov=18.2601 noval=65.7875
+C,delta_high_appraisal_prevalence[never retried (retry_count=0)],gemma4:e2b,50.9271,44.487,57.3673,percentage points (noval minus gov),5,gov=13.6162 noval=64.5433
+C,delta_high_appraisal_prevalence[all decisions],gemma4:e4b,43.3761,41.4742,45.278,percentage points (noval minus gov),5,gov=45.2747 noval=88.6508
+C,delta_high_appraisal_prevalence[never retried (retry_count=0)],gemma4:e4b,63.055,60.4441,65.6658,percentage points (noval minus gov),5,gov=25.7718 noval=88.8268
+C,delta_high_appraisal_prevalence[all decisions],ministral3:8b,31.1254,28.689,33.5617,percentage points (noval minus gov),3,gov=13.5633 noval=44.6886
+C,delta_high_appraisal_prevalence[never retried (retry_count=0)],ministral3:8b,34.0934,22.987,45.1998,percentage points (noval minus gov),3,gov=10.8181 noval=44.9115
+C,delta_high_appraisal_prevalence[all decisions],pooled,40.0154,,,percentage points (noval minus gov),21,gov=26.6774 noval=66.6928
+C,delta_high_appraisal_prevalence[never retried (retry_count=0)],pooled,48.2115,,,percentage points (noval minus gov),21,gov=17.0142 noval=65.2257

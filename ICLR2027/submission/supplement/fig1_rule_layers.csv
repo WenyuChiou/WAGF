@@ -1,0 +1,31 @@
+panel,model,arm,n_seeds,basis,category,count,denominator,percent
+a,gemma3:4b,with-validators,5,all decisions,approved,9911,16380,60.5067
+a,gemma3:4b,with-validators,5,all decisions,behavioural rule (appraisal-conditioned),3840,16380,23.4432
+a,gemma3:4b,with-validators,5,all decisions,behavioural rule (world-conditioned only),2629,16380,16.0501
+a,gemma3:4b,no-validator,5,all decisions,approved,11623,16380,70.9585
+a,gemma3:4b,no-validator,5,all decisions,world-feasibility precondition,4757,16380,29.0415
+a,gemma3:4b,with-validators,5,with-validators rejections (re-based),behavioural rule (appraisal-conditioned),3840,6469,59.36
+a,gemma3:4b,with-validators,5,with-validators rejections (re-based),behavioural rule (world-conditioned only),2629,6469,40.64
+b,ministral3:8b,no-validator,3,all decisions,world-feasibility precondition,84,9828,0.8547
+b,ministral3:8b,with-validators,3,all decisions,behavioural rule (appraisal-conditioned),3970,9828,40.3948
+b,ministral3:8b,with-validators,3,all decisions,behavioural rule (world-conditioned only),2185,9828,22.2324
+b,gemma4:e4b,no-validator,5,all decisions,world-feasibility precondition,239,16380,1.4591
+b,gemma4:e4b,with-validators,5,all decisions,behavioural rule (appraisal-conditioned),6576,16380,40.1465
+b,gemma4:e4b,with-validators,5,all decisions,behavioural rule (world-conditioned only),2644,16380,16.1416
+b,gemma4:e2b,no-validator,5,all decisions,world-feasibility precondition,586,16380,3.5775
+b,gemma4:e2b,with-validators,5,all decisions,behavioural rule (appraisal-conditioned),2538,16380,15.4945
+b,gemma4:e2b,with-validators,5,all decisions,behavioural rule (world-conditioned only),2063,16380,12.5946
+b,gemma3:12b,no-validator,3,all decisions,world-feasibility precondition,524,9828,5.3317
+b,gemma3:12b,with-validators,3,all decisions,behavioural rule (appraisal-conditioned),1972,9828,20.0651
+b,gemma3:12b,with-validators,3,all decisions,behavioural rule (world-conditioned only),2896,9828,29.4668
+b,gemma3:4b,no-validator,5,all decisions,world-feasibility precondition,4757,16380,29.0415
+b,gemma3:4b,with-validators,5,all decisions,behavioural rule (appraisal-conditioned),3840,16380,23.4432
+b,gemma3:4b,with-validators,5,all decisions,behavioural rule (world-conditioned only),2629,16380,16.0501
+c,all five pooled,with-validators,0,rejections caused by: behavioural rule (appraisal-conditioned),increase proposal,15224,18896,80.5673
+c,all five pooled,with-validators,0,rejections caused by: behavioural rule (appraisal-conditioned),decrease proposal,3616,18896,19.1363
+c,all five pooled,with-validators,0,rejections caused by: behavioural rule (appraisal-conditioned),unparsed / no proposal,56,18896,0.2964
+c,all five pooled,with-validators,0,rejections caused by: behavioural rule (world-conditioned only),increase proposal,6027,12417,48.5383
+c,all five pooled,with-validators,0,rejections caused by: behavioural rule (world-conditioned only),decrease proposal,6337,12417,51.0349
+c,all five pooled,with-validators,0,rejections caused by: behavioural rule (world-conditioned only),unparsed / no proposal,53,12417,0.4268
+c,all five pooled,no-validator,0,rejections caused by: world-feasibility precondition,increase proposal,6187,6190,99.9515
+c,all five pooled,no-validator,0,rejections caused by: world-feasibility precondition,unparsed / no proposal,3,6190,0.0485

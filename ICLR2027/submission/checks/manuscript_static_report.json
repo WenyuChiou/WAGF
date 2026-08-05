@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "build_status": "BLOCKED_NO_TEX_ENGINE",
+  "manuscript": "paper/manuscript.tex",
+  "cited_keys": [
+    "bean2025construct",
+    "kapoor2024agents",
+    "liu2023agentbench",
+    "rebedea2023nemo",
+    "rosenbaum1984adjustment",
+    "wang2026agentspec"
+  ],
+  "bibliography_keys": [
+    "bean2025construct",
+    "kapoor2024agents",
+    "liu2023agentbench",
+    "rebedea2023nemo",
+    "rosenbaum1984adjustment",
+    "wang2026agentspec"
+  ],
+  "figure_paths": [
+    "../figures/active/figure1_concept.png",
+    "../figures/active/fig1_rule_layers.pdf",
+    "../figures/active/fig2_mechanism.pdf",
+    "../figures/active/fig3_consequence.pdf"
+  ],
+  "figure_checks": {
+    "fig1_rule_layers.pdf": {
+      "pages": 1,
+      "bytes": 88270
+    },
+    "fig2_mechanism.pdf": {
+      "pages": 1,
+      "bytes": 63407
+    },
+    "fig3_consequence.pdf": {
+      "pages": 1,
+      "bytes": 52535
+    },
+    "figure1_concept.png": {
+      "size": [
+        1448,
+        1086
+      ],
+      "mode": "RGB"
+    }
+  },
+  "approximate_word_count": 3414,
+  "warnings": [],
+  "errors": []
+}
