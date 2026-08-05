@@ -8,7 +8,7 @@
 - [x] Main text uses the ICLR 2027 conference style and has no final-copy switch.
 - [x] Abstract, introduction, methods, results, limitations, conclusion,
       bibliography, AI-use, ethics, and reproducibility sections are present.
-- [x] Figure 1 agent-paper v2 has short labels, an action-aligned `proposed action`
+- [x] Figure 1 agent-paper v3 has short labels, an action-aligned `proposed action`
       route, an explicit `accepted decision` arrow that terminates on the
       aligned log, a direct condition-to-filter route, and a non-crossing
       observation loop.

@@ -88,9 +88,9 @@ def main() -> int:
             errors.append(f"labels exceed the short-figure limit: {too_long}")
 
         source_asset = ROOT / manifest.get("asset", "")
-        if source_asset.name != "figure1_architecture_agentpaper_v2.png":
+        if source_asset.name != "figure1_architecture_agentpaper_v3.png":
             errors.append(
-                "generated Figure 1 source must remain the reviewed agent-paper v2 asset: "
+                "generated Figure 1 source must remain the reviewed agent-paper v3 asset: "
                 f"{source_asset.name}"
             )
         expected_hashes = {

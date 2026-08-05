@@ -9,11 +9,11 @@ python ICLR2027\submission\source\figure1_overlay.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 ```
 
-Figure 1 is the reviewed agent-paper v2 generated composition based on the reset
+Figure 1 is the reviewed agent-paper v3 shared-condition bridge based on the
 agent-paper architecture audit. It uses local semantic nodes, an explicit
-Validator insertion point, an accepted-decision arrow aligned to Decision log,
-and a direct condition-to-filter route. The builder stages
-`figures/assets/figure1_architecture_agentpaper_v2.png`; it does not redraw or edit
+Validator insertion point, an accepted-decision route into Decision log, and a
+direct shared-condition-to-filter route. The builder stages
+`figures/assets/figure1_architecture_agentpaper_v3.png`; it does not redraw or edit
 the image. The geometry check verifies the generated asset and dimensions,
 while text/arrow separation requires the documented visual review because
 those pixels are not machine-addressable geometry.

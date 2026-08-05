@@ -1,8 +1,8 @@
-"""Stage the generated, paper-facing Figure 1 compact architecture.
+"""Stage the generated, paper-facing Figure 1 shared-condition architecture.
 
-The selected compact architecture is a single generated raster asset. The image
+The selected architecture is a single generated raster asset. The image
 generator produced the LLM cue, functional icons, node fills, borders, arrows,
-typography, and background as one interface-first architecture composition.
+typography, and background as one shared-condition bridge composition.
 This builder only copies that immutable asset into the active submission
 directory and records its labels and meaning for review; it does not redraw or
 edit any visual element.
@@ -19,7 +19,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_v2.png"
+ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_v3.png"
 ACTIVE = ROOT / "figures" / "active"
 OUT = ACTIVE / "figure1_concept"
 
@@ -60,9 +60,9 @@ def build() -> dict[str, object]:
         "print_sha256": print_sha256,
         "canvas_px": [width, height],
         "scale": 1,
-        "pdf_size_in": [6.35, 3.58],
-        "canvas_policy": "warm light-gray paper background; compact AgentSpec-style ownership boundaries, tight-to-content nodes, and no pure-white cards",
-        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, action-aligned validator insertion, aligned decision logging, short relation labels, and restrained functional icons",
+        "pdf_size_in": [6.35, 3.18],
+        "canvas_policy": "pale blue-gray paper background; black borders with colored fills; compact shared-condition bridge with tight-to-content nodes",
+        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded response, a clear validator insertion point, an accepted-decision log, an explicit shared-condition fork, short relation labels, and subordinate AI/function icons",
         "text": [
             "Agent", "LLM", "response", "action", "condition", "proposed action",
             "Validator", "rule input", "accepted", "Environment",
@@ -89,7 +89,7 @@ def build() -> dict[str, object]:
                 "the amber selects-records arrow starts at condition, bypasses Decision log, and enters Filter",
                 "Decision log has a separate records arrow into Filter",
                 "the observation route is thin, dashed, and returns from Environment to Agent",
-                "the compact single-canvas composition avoids a floating icon collage and excessive white space",
+                "the compact single-canvas composition avoids a floating icon collage and excessive unused space",
             ],
         },
         "geometry_status": "not_machine_verifiable_for_generated_raster",
