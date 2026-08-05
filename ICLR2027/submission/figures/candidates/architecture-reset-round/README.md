@@ -21,9 +21,11 @@ kept for design provenance and are never referenced by the manuscript.
   intermediate before action-edge alignment.
 - `figure1_candidate_D_final_generated_v3.png`: historical D-v3 generated
   candidate; it was the previous active source before the compact v1 reset.
-- `figure1_architecture_compact_v1.png`: current compact single-canvas candidate;
-  the reviewed source is copied to `figures/assets/` and staged as the active
-  manuscript figure.
+- `figure1_architecture_compact_v1.png`: historical compact single-canvas
+  candidate; it was superseded by the agent-paper v2 source below.
+- `figure1_architecture_agentpaper_v2.png`: current compact ownership-boundary
+  candidate; the reviewed source is copied to `figures/assets/` and staged as
+  the active manuscript figure.
 - `legacy_asset_D_v1.png` and `legacy_asset_D_v2.png`: duplicate intermediate
   source copies retained only for provenance.
 

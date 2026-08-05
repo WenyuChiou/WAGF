@@ -1,6 +1,6 @@
 # Figure 1 generated assets
 
-`figure1_architecture_compact_v1.png` is the reviewed generated agent-paper
+`figure1_architecture_agentpaper_v2.png` is the reviewed generated agent-paper
 composition used by the active ICLR manuscript. It contains the LLM cue,
 functional icons, borders, fills, arrows, labels, and background as one
 generated raster image. Its local semantic nodes separate runtime from

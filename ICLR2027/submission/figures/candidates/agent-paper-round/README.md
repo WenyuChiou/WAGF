@@ -3,7 +3,7 @@
 These candidates were generated after comparing the rendered figures in
 ReAct, Reflexion, AutoGen, and AgentSpec. This is a historical candidate round
 only; none of the files below is active and none is a regeneration source for
-the current compact v1 figure.
+the current agent-paper v2 figure.
 
 - `figure1_candidate_A_loop.png`: rejected; the `rule input` label was placed
   on the wrong downstream arrow and the condition-to-Validator relation was
@@ -25,5 +25,5 @@ The historical F image was copied to
 `figures/assets/figure1_generated_full_final.png` and staged by an earlier
 builder. All labels, arrows, and icons remain part of the generated raster,
 but the D-v3 source is now historical. The active source is
-`figures/assets/figure1_architecture_compact_v1.png`, documented in the
+`figures/assets/figure1_architecture_agentpaper_v2.png`, documented in the
 submission-level reset contract.

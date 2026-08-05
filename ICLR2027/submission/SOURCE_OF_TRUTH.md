@@ -7,7 +7,7 @@ The active release is the directory containing this file:
 
 - Manuscript source: `paper\manuscript.tex`
 - Bibliography: `paper\references.bib`
-- Figure 1 generated asset: `figures\assets\figure1_architecture_compact_v1.png`
+- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_v2.png`
 - Figure 1 staging builder: `source\figure1_agent_paper.py`
 - Figure 1 compatibility entry point: `source\figure1_overlay.py`
 - Figure 1 contract: `AGENT_ARCHITECTURE_FIGURE_RESET.md`
@@ -35,7 +35,7 @@ submission/
   paper/                 manuscript and bibliography
   figures/active/        only figures referenced by manuscript.tex
   figures/assets/        canonical generated source asset plus historical assets;
-                          only the named compact v1 asset feeds the active builder
+                          only the named agent-paper v2 asset feeds the active builder
   figures/candidates/    non-submission alternatives; never referenced by TeX
   source/                deterministic figure builder and ICLR style files
   checks/                static, geometry, evidence, and reproducibility checks
