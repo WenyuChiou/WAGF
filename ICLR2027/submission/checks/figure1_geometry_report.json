@@ -2,12 +2,18 @@
   "status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
   "rendering_mode": "generated_full",
   "canvas_px": [
-    1774,
-    887
+    1672,
+    941
   ],
-  "label_count": 17,
+  "label_count": 18,
   "text_overlap_count": null,
   "route_intersection_count": null,
+  "sha256": {
+    "source asset": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
+    "active PNG": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
+    "print PNG": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9"
+  },
+  "sha256_match": true,
   "warnings": [
     "generated raster: text, icon, and arrow geometry requires visual review",
     "automatic overlap and route-intersection checks are not applicable to this rendering mode"

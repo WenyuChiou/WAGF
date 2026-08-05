@@ -8,10 +8,13 @@
 - [x] Main text uses the ICLR 2027 conference style and has no final-copy switch.
 - [x] Abstract, introduction, methods, results, limitations, conclusion,
       bibliography, AI-use, ethics, and reproducibility sections are present.
-- [x] Figure 1 candidate F has short labels, explicit `emits` and `accepted decision` relations, clean routed arrows, a standalone
-      caption, and a generated-asset integrity check plus full-size and
-      thumbnail visual review. Its manuscript-facing output is under
-      `figures/active/`; official print-width PDF inspection remains open.
+- [x] Figure 1 reset candidate D-v3 has short labels, an action-aligned
+      `proposed action` route, an explicit `accepted decision` log route, a
+      direct condition-to-filter route, and a non-crossing observation loop.
+      Its generated-asset integrity check plus full-size, paper-width,
+      grayscale, and thumbnail visual reviews pass. Its manuscript-facing
+      output is under `figures/active/`; official typeset print-width PDF
+      inspection remains open.
 - [x] Figures 2--4 are copied from the existing deterministic evidence outputs
       under `figures/active/`; no generated image is used for a quantitative
       chart.

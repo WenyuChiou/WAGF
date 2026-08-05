@@ -1,7 +1,9 @@
 # Agent-paper Figure 1 candidate round
 
 These candidates were generated after comparing the rendered figures in
-ReAct, Reflexion, AutoGen, and AgentSpec. They are not manuscript inputs.
+ReAct, Reflexion, AutoGen, and AgentSpec. This is a historical candidate round
+only; none of the files below is active and none is a regeneration source for
+the current D-v3 figure.
 
 - `figure1_candidate_A_loop.png`: rejected; the `rule input` label was placed
   on the wrong downstream arrow and the condition-to-Validator relation was
@@ -19,6 +21,9 @@ ReAct, Reflexion, AutoGen, and AgentSpec. They are not manuscript inputs.
   it changes only the Validator-to-Decision-log label to `accepted decision`
   so the log cannot be read as containing rejected decisions.
 
-The selected F image was copied to
-`figures/assets/figure1_generated_full_final.png` and staged by the standard
-builder. All labels, arrows, and icons remain part of the generated raster.
+The historical F image was copied to
+`figures/assets/figure1_generated_full_final.png` and staged by an earlier
+builder. All labels, arrows, and icons remain part of the generated raster,
+but the active source is now
+`figures/assets/figure1_architecture_reset_D_final_v3.png`, documented in the
+submission-level reset contract.

@@ -1,15 +1,16 @@
-"""Stage the generated, paper-facing Figure 1.
+"""Stage the generated, paper-facing Figure 1 reset candidate.
 
-Figure 1 is intentionally a single generated raster asset. The image
+The selected reset candidate is a single generated raster asset. The image
 generator produced the LLM cue, functional icons, node fills, borders, arrows,
-typography, and background as one compact two-lane composition after the
-semantic layout was fixed. This builder only copies that immutable asset into
-the active submission directory and records the labels and meaning for review;
-it does not redraw or edit any visual element.
+typography, and background as one interface-first architecture composition.
+This builder only copies that immutable asset into the active submission
+directory and records its labels and meaning for review; it does not redraw or
+edit any visual element.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -18,9 +19,17 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "figures" / "assets" / "figure1_generated_full_final.png"
+ASSET = ROOT / "figures" / "assets" / "figure1_architecture_reset_D_final_v3.png"
 ACTIVE = ROOT / "figures" / "active"
 OUT = ACTIVE / "figure1_concept"
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def build() -> dict[str, object]:
@@ -34,28 +43,37 @@ def build() -> dict[str, object]:
     shutil.copy2(ASSET, png)
     shutil.copy2(ASSET, print_png)
 
+    asset_sha256 = sha256(ASSET)
+    staged_sha256 = sha256(png)
+    print_sha256 = sha256(print_png)
+    if staged_sha256 != asset_sha256 or print_sha256 != asset_sha256:
+        raise RuntimeError("staged Figure 1 copies do not match the source asset")
+
     with Image.open(ASSET) as image:
         width, height = image.size
 
     manifest = {
         "rendering_mode": "generated_full",
         "asset": str(ASSET.relative_to(ROOT)).replace("\\", "/"),
+        "asset_sha256": asset_sha256,
+        "staged_sha256": staged_sha256,
+        "print_sha256": print_sha256,
         "canvas_px": [width, height],
         "scale": 1,
-        "pdf_size_in": [6.35, 3.18],
-        "canvas_policy": "uniform light neutral-gray paper background; compact two-lane layout with no large white cards",
-        "style": "generated agent-paper composition with a bounded execution path, a measurement lane, short labels, and functional icons",
+        "pdf_size_in": [6.35, 3.58],
+        "canvas_policy": "warm light-gray paper background; compact interface-first architecture with a lower evaluation strip and no white cards",
+        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: bounded agent, explicit validator insertion point, short relation labels, and restrained functional icons",
         "text": [
-            "Agent (LLM)", "emits", "response", "action", "condition", "proposed action",
-            "Validator", "rule input", "accepted", "Environment", "next context",
-            "accepted decision", "Decision log", "selects records", "recorded set",
-            "Filter", "Conditional rate",
+            "Agent", "LLM", "response", "action", "condition", "Validator", "check",
+            "proposed action", "accepted", "Environment", "observation", "accepted decision",
+            "Decision log", "records", "filter", "conditional rate", "rule input",
+            "selects records",
         ],
         "semantics": {
             "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
-            "runtime": "the response action and condition enter Validator; an accepted action changes Environment and the accepted decision is logged",
-            "selection": "the condition and the recorded decision set enter Filter, which feeds Conditional rate",
-            "secondary": "Environment produces next context for the next agent response",
+            "runtime": "the response action enters Validator; the same condition supplies rule input; an accepted action changes Environment and the accepted decision is logged",
+            "selection": "the condition enters Filter as a selection rule, while the logged records enter Filter as the record set; Filter feeds conditional rate",
+            "secondary": "Environment returns an observation to the Agent for the next response",
             "retry_boundary": "retries are not drawn because the frozen corpus lacks the first response before a retry",
         },
         "manual_visual_review": {
@@ -63,15 +81,15 @@ def build() -> dict[str, object]:
             "checks": [
                 "all labels are legible at full size, print width, and thumbnail size",
                 "no text or icon overlaps an arrow or node border",
-                "the short emits arrow makes Agent-to-response ownership explicit",
-                "the black proposed-action arrow starts at action and enters Validator",
+                "the Agent boundary owns the response object and its action/condition fields",
+                "the black proposed arrow starts at action and enters Validator",
                 "the amber rule-input arrow starts at condition and enters Validator",
                 "the black accepted arrow goes directly from Validator to Environment",
                 "Validator has a separate accepted-decision arrow into Decision log",
-                "the amber selects-records arrow starts at condition and enters Filter",
-                "Decision log has a separate recorded-set arrow into Filter",
-                "the next-context route is thin, dashed, and returns from Environment to Agent",
-                "the compact gray canvas avoids a floating icon collage and excessive white space",
+                "the amber selects-records arrow starts at condition, bypasses Decision log, and enters Filter",
+                "Decision log has a separate records arrow into Filter",
+                "the observation route is thin, dashed, and returns from Environment to Agent",
+                "the compact canvas avoids a floating icon collage and excessive white space",
             ],
         },
         "geometry_status": "not_machine_verifiable_for_generated_raster",

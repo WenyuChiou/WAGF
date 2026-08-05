@@ -1,7 +1,11 @@
 # Figure 1 design audit and revision contract
 
-> This file preserves earlier visual comparisons. The active design contract
-> is `FIGURE1_DESIGN.md`; the external-paper comparison is
+> **Historical record only.** Every composition and contract described below
+> predates the full D-v3 reset and is superseded. Do not use its “active
+> source”, “Record filter”, “World state”, “future context”, or candidate-F
+> wording for regeneration. The active reset design is documented in
+> `AGENT_ARCHITECTURE_FIGURE_RESET.md` and operationalized in
+> `FIGURE1_DESIGN.md`; the external-paper comparison is
 > `..\FIGURE_STYLE_AUDIT.md`.
 
 ## Verdict on the previous version
