@@ -33,6 +33,9 @@ The files in `figures/candidates/` are alternatives only. They are not
 submission figures and must never be referenced by `manuscript.tex`. The
 active Figure 1 is the generated full composition staged from
 `figures/assets/figure1_generated_full_final.png`.
+It follows the agent-paper audit in `AGENT_PAPER_FIGURE_REDESIGN.md`: a
+compact execution loop above a measurement lane, with the condition as the
+single shared field.
 
 ## Figure workflow
 

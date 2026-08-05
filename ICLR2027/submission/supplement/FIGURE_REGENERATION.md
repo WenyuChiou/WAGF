@@ -9,11 +9,12 @@ python ICLR2027\submission\source\figure1_overlay.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 ```
 
-Figure 1 is a reviewed full generated composition. The builder stages
-`figures/assets/figure1_generated_full_final.png`; it does not redraw or edit the
-image. The geometry check verifies the generated asset and dimensions, while
-text/arrow separation requires the documented visual review because those
-pixels are not machine-addressable geometry.
+Figure 1 is a reviewed full generated composition based on the agent-paper
+figure audit. It uses a compact execution loop above a measurement lane. The
+builder stages `figures/assets/figure1_generated_full_final.png`; it does not
+redraw or edit the image. The geometry check verifies the generated asset and
+dimensions, while text/arrow separation requires the documented visual review
+because those pixels are not machine-addressable geometry.
 
 ## Figures 2--4
 

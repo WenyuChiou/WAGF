@@ -8,9 +8,10 @@
 - [x] Main text uses the ICLR 2027 conference style and has no final-copy switch.
 - [x] Abstract, introduction, methods, results, limitations, conclusion,
       bibliography, AI-use, ethics, and reproducibility sections are present.
-- [x] Figure 1 has short labels, clean routed arrows, a standalone caption, and
-      a generated-asset integrity check plus adversarial visual review. Its
-      manuscript-facing output is under `figures/active/`.
+- [x] Figure 1 candidate F has short labels, explicit `emits` and `accepted decision` relations, clean routed arrows, a standalone
+      caption, and a generated-asset integrity check plus full-size and
+      thumbnail visual review. Its manuscript-facing output is under
+      `figures/active/`; official print-width PDF inspection remains open.
 - [x] Figures 2--4 are copied from the existing deterministic evidence outputs
       under `figures/active/`; no generated image is used for a quantitative
       chart.

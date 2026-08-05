@@ -2,10 +2,10 @@
   "status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
   "rendering_mode": "generated_full",
   "canvas_px": [
-    1448,
-    1086
+    1774,
+    887
   ],
-  "label_count": 19,
+  "label_count": 17,
   "text_overlap_count": null,
   "route_intersection_count": null,
   "warnings": [
