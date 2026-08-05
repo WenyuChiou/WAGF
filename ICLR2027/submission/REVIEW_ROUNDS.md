@@ -208,7 +208,7 @@ response contains the action and condition; the action travels through the
 runtime rail to the validator and world state, while the single condition
 forks to the record filter and conditional rate. The feedback route is retained
 as a thin dashed path, but the retry endpoint is omitted because the frozen
-corpus lacks the first report before a retry. The output has 20 labels, zero
+corpus lacks the first response before a retry. The output has 20 labels, zero
 text-box overlaps, and zero declared route intersections at full and thumbnail
 inspection.
 
@@ -231,8 +231,51 @@ builder. Automatic checks verify the asset, dimensions, labels, manuscript
 reference, and evidence boundary. Pixel-level text/arrow separation remains a
 manual visual review item because the final artwork is generated raster.
 
+## Round 13: reset from external agent-paper figures
+
+The Round 12 composition was rejected as too close to an illustrated
+dashboard. The redesign returned to the visual grammar of published agent
+papers: one observable response, one compact execution loop, short semantic
+modules, and arrows that state the relation. ReAct, Reflexion, AutoGen, and
+AgentSpec were reviewed as primary references. The new figure has an upper
+execution lane and a lower measurement lane. A small LLM chip marks the AI
+producer; the condition is highlighted once and branches separately to
+Validator and Filter.
+
+Three candidates were generated. Candidate A was rejected for a misplaced
+`rule input` label; candidate C was rejected for a visually heavy nested
+boundary. Candidate D was selected after full-size and thumbnail review. It
+keeps the process semantics, replaces the previous large robot/globe icons
+with a small LLM chip and reservoir cue, and preserves clean arrow endpoints
+with no text overlap. The manuscript caption, Figure 1 builder manifest,
+design contract, source-of-truth, handoff, and regeneration note were updated
+together. Official print-width PDF review remains open because the current
+environment has no TeX engine.
+
 ## Current verdict
 
 Content and figure static checks pass after the adversarial fixes. The package
 is not yet upload-ready until the official ICLR TeX build and rendered-PDF
 inspection pass.
+
+## Round 14: explicit Agent-to-response ownership
+
+Candidate D was visually clean but relied on adjacency to imply that the
+agent produced the response. That is too weak for a mechanism figure. The
+generated candidate E adds one short `emits` arrow from `Agent (LLM)` to
+`response` and preserves every other route and label. Full-size and thumbnail
+inspection show a clear endpoint, no overlap, and no new crossing. The active
+asset and manifest were regenerated from E. Official typeset print-width
+inspection remains open because this environment has no TeX engine.
+
+## Round 15: accepted-decision logging and retry wording
+
+The adversarial reviewer found two semantic ambiguities in candidate E. The
+Validator-to-log arrow could be read as logging rejected decisions, and the
+caption overstated the retry boundary by saying retry paths were not measured.
+Candidate F changes the arrow label to the exact `accepted decision`. The
+caption now says that blocked and retry paths are not drawn; the frozen corpus
+does not preserve the first response before a retry. The active asset and
+manifest were regenerated and checked at full size and thumbnail size. The
+independent reviewer found no overlap or routing defect after these changes.
+Official TeX build and typeset print-width review remain open.

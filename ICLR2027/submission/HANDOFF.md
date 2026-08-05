@@ -1,7 +1,7 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-05 after the ICLR direction review and release-layout
-cleanup.
+Updated 2026-08-05 after the agent-paper figure audit and generated Figure 1
+replacement.
 
 ## Read this first
 
@@ -38,6 +38,7 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 | Design contract | `FIGURE1_DESIGN.md` |
 | Design comparison audit | `FIGURE1_DESIGN_AUDIT.md` |
 | External-paper style audit | `..\FIGURE_STYLE_AUDIT.md` |
+| Agent-paper redesign contract | `AGENT_PAPER_FIGURE_REDESIGN.md` |
 | Static check report | `checks\manuscript_static_report.json` |
 | Evidence-boundary report | `checks\evidence_boundary_report.json` |
 | Reproducibility audit | `checks\reproducibility\reproducibility_report.md` |
@@ -50,28 +51,34 @@ versions are under `figures\candidates\legacy\figure1\`.
 
 ## Figure 1 status
 
-Figure 1 is a conceptual dataflow, not a quantitative result. It shows one
-agent output containing an action and an agent-written condition; the same
-condition is read by governance and selects the records used by the conditional
-rate.
-The accepted action changes the simulator state that enters future context.
+Figure 1 is a conceptual agent/evaluation diagram, not a quantitative result.
+It shows an `Agent (LLM)` emitting a response with an action and an
+agent-written condition. The action and condition enter `Validator`; an
+accepted action changes `Environment`, and the accepted decision enters
+`Decision log`. The same condition and the recorded decision set enter
+`Filter`, which feeds `Conditional rate`.
 
-The current layout uses one `AGENT RESPONSE` packet, a shield `Validator`, an
-external `World state`, and a lower `Record filter` to a `Conditional rate`.
-The agent-written condition appears once and branches to the validator and
-record filter; `Recorded decisions` has a separate arrow into the filter. The
-complete artwork is generated as one composition with near-black borders,
-muted colored fills, a uniform cool-gray background, and no large white cards.
-The generated asset is visually reviewed at full size and thumbnail size. The
-geometry check reports `PASS_MANUAL_VISUAL_REVIEW_REQUIRED`: image dimensions
-and labels are checked automatically, while pixel-level text/arrow separation
-is reviewed manually. The final adversarial figure review returned `ACCEPT`;
-only the official typeset-PDF inspection remains open.
+The active composition follows the compact loop/module grammar found in
+Reflexion and AgentSpec, with a small LLM cue and direct message ownership
+informed by AutoGen and ReAct. It uses two aligned lanes, one amber condition
+branch for `rule input`, one amber branch for `selects records`, and one thin
+gray dashed `next context` return. The previous dashboard-like composition is
+retired and preserved under `figures\candidates\legacy\figure1\`.
+
+The new generated asset (candidate F, with an explicit `emits` arrow and
+`accepted decision` log label) is
+visually reviewed at full size and thumbnail size.
+The geometry check reports `PASS_MANUAL_VISUAL_REVIEW_REQUIRED`: image
+dimensions and short labels are checked automatically, while pixel-level
+text/arrow separation is reviewed manually. The remaining visual gate is
+print-width inspection in the official typeset PDF.
 
 The Introduction now states the measurement risk before the irrigation example,
 defines `agent-written condition` and `conditional rate` in plain language, and
-places Figure 1 immediately after the contribution summary. The caption states
-the two condition roles and the missing first-attempt boundary.
+places Figure 1 immediately after the contribution summary. The caption maps
+the action, condition, Validator, Environment, Decision log, Filter, and
+Conditional rate to the two lanes and states the missing-first-attempt
+boundary.
 
 Use the active generated image and print preview for inspection:
 `figures\active\figure1_concept.png`

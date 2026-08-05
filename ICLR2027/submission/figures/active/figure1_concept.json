@@ -2,55 +2,56 @@
   "rendering_mode": "generated_full",
   "asset": "figures/assets/figure1_generated_full_final.png",
   "canvas_px": [
-    1448,
-    1086
+    1774,
+    887
   ],
   "scale": 1,
   "pdf_size_in": [
     6.35,
-    4.76
+    3.18
   ],
-  "canvas_policy": "uniform cool-gray paper background; no large white cards or empty white strip",
-  "style": "generated icon-and-flow composition with near-black outlines and flat muted fills",
+  "canvas_policy": "uniform light neutral-gray paper background; compact two-lane layout with no large white cards",
+  "style": "generated agent-paper composition with a bounded execution path, a measurement lane, short labels, and functional icons",
   "text": [
-    "AGENT RESPONSE",
-    "Action",
-    "Agent-written",
+    "Agent (LLM)",
+    "emits",
+    "response",
+    "action",
     "condition",
-    "Validator",
-    "Recorded",
-    "decisions",
-    "World state",
-    "Record filter",
-    "Conditional",
-    "rate",
     "proposed action",
+    "Validator",
     "rule input",
-    "accept",
-    "recorded set",
-    "same condition",
+    "accepted",
+    "Environment",
+    "next context",
+    "accepted decision",
+    "Decision log",
     "selects records",
-    "accepted action",
-    "future context"
+    "recorded set",
+    "Filter",
+    "Conditional rate"
   ],
   "semantics": {
-    "primary": "the same agent-written condition is read by runtime validation and evaluation",
-    "runtime": "Validator directly sends the accepted action to World state and separately records the accepted decision",
-    "selection": "the recorded decision set and the same condition enter the record filter, which feeds the conditional rate",
-    "secondary": "an accepted action changes world state, which returns as future context",
-    "retry_boundary": "retries are not drawn because the frozen corpus lacks the first report before a retry"
+    "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
+    "runtime": "the response action and condition enter Validator; an accepted action changes Environment and the accepted decision is logged",
+    "selection": "the condition and the recorded decision set enter Filter, which feeds Conditional rate",
+    "secondary": "Environment produces next context for the next agent response",
+    "retry_boundary": "retries are not drawn because the frozen corpus lacks the first response before a retry"
   },
   "manual_visual_review": {
     "required": true,
     "checks": [
-      "all labels are legible at full size and print width",
+      "all labels are legible at full size, print width, and thumbnail size",
       "no text or icon overlaps an arrow or node border",
-      "the single black action arrow starts at Action and enters Validator",
-      "the condition branches only to Validator and Record filter",
-      "Validator directly sends accepted action to World state",
-      "Recorded decisions has a separate arrow to Record filter",
-      "the future-context route stays outside the modules",
-      "the uniform gray background avoids excessive white space"
+      "the short emits arrow makes Agent-to-response ownership explicit",
+      "the black proposed-action arrow starts at action and enters Validator",
+      "the amber rule-input arrow starts at condition and enters Validator",
+      "the black accepted arrow goes directly from Validator to Environment",
+      "Validator has a separate accepted-decision arrow into Decision log",
+      "the amber selects-records arrow starts at condition and enters Filter",
+      "Decision log has a separate recorded-set arrow into Filter",
+      "the next-context route is thin, dashed, and returns from Environment to Agent",
+      "the compact gray canvas avoids a floating icon collage and excessive white space"
     ]
   },
   "geometry_status": "not_machine_verifiable_for_generated_raster"

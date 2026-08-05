@@ -1,8 +1,8 @@
 # Figure 1 generated assets
 
-`figure1_generated_full_final.png` is the reviewed full composition used by the
-active ICLR manuscript. It contains the icons, borders, fills, arrows, labels,
-and background as one generated raster image.
+`figure1_generated_full_final.png` is the reviewed agent-paper composition used
+by the active ICLR manuscript. It contains the LLM cue, functional icons,
+borders, fills, arrows, labels, and background as one generated raster image.
 
 Other files in this directory are generation intermediates or historical style
 references. They are not active manuscript figures. Run

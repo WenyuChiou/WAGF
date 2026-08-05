@@ -13,8 +13,9 @@ The active release is the directory containing this file:
 - Figure 1 contract: `FIGURE1_DESIGN.md`
 - Manuscript-facing figures: `figures\active\`
 - Figure 1 manifest: `figures\active\figure1_concept.json`
-- Figure 1 is a complete generated raster composition with near-black borders,
-  restrained colored fills, and a uniform cool-gray background
+- Figure 1 is a complete generated raster composition with a compact agent
+  loop, a measurement lane, near-black arrows, restrained colored fills, and a
+  light neutral-gray background
 - Legacy vector and intermediate Figure 1 files:
   `figures\candidates\legacy\figure1\`
 - Non-active figure candidates: `figures\candidates\`
@@ -70,7 +71,7 @@ retain these boundaries:
 
 - reweighting to recorded world state is descriptive, not causal, because world
   state is downstream of governance;
-- the corpus does not preserve the first report before a retry;
+- the corpus does not preserve the first response before a retry;
 - the paper does not establish deception or within-world reporting revision;
 - flood is a portability check, not an identification control;
 - the result is scoped to the evaluated governance loop and open-weight model
@@ -84,4 +85,5 @@ retain these boundaries:
 - Figure 1 is conceptual. Figure 2 onward carries quantitative evidence.
 - Figure 1 omits a retry endpoint because the frozen corpus lacks the
   first-attempt report; the limitation is documented in the caption and
-  supplement.
+  supplement. The dashed route is the conceptual next-context loop, not a
+  measured retry trace.

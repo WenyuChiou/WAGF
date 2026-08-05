@@ -223,7 +223,7 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use the reviewed full generated Figure 1 composition with near-black borders, restrained colored fills, a uniform cool-gray background, and explicit arrows from Recorded decisions to Record filter.",
+      "decision": "Use the reviewed generated agent-paper composition with a compact execution loop, a separate measurement lane, a single highlighted condition field, and explicit condition/log inputs to Filter.",
       "authority": "FIGURE_STYLE_AUDIT.md and current visual review"
     }
   ],
@@ -290,7 +290,7 @@
       "visual_figure_review"
     ],
     "checked_hashes": {},
-    "visual_check": "PASS_ADVERSARIAL_ACCEPT; OFFICIAL_TYPESET_PENDING"
+    "visual_check": "PASS_CANDIDATE_F_FULL_THUMB; OFFICIAL_TYPESET_PENDING"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -308,21 +308,21 @@
     "first_attempt_available": false
   },
   "figure1_contract": {
-    "role": "conceptual dataflow: one response, one governance gate, two consequences",
-    "selected_base": "generated full icon-and-flow composition final",
+    "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
+    "selected_base": "generated agent-paper two-lane composition candidate F (E plus accepted-decision label)",
     "functional_rails": [],
-    "white_space_policy": "uniform cool-gray background; compact modules and muted fills avoid large white cards or empty white strips",
-    "visible_label_count": 19,
+    "white_space_policy": "uniform light neutral-gray background; compact execution and measurement lanes avoid a floating icon collage or excessive white space",
+    "visible_label_count": 17,
     "max_label_characters": 19,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
     "text_overlap_count": null,
     "centerline_intersection_check": "NOT_MACHINE_VERIFIABLE_FOR_GENERATED_RASTER",
-    "feedback_path": "dashed world state -> future context; retry omitted because the first report is unavailable",
+    "feedback_path": "dashed Environment -> next context -> Agent; retry omitted because the first response is unavailable",
     "condition_roles": ["validator input", "record selection"]
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_ADVERSARIAL_ACCEPT",
+    "visual_figure_review": "PASS_CANDIDATE_F_FULL_THUMB",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
