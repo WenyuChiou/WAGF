@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "scope": "frozen evidence presence and text alignment only",
+  "required_source_count": 8,
+  "key_value_count": 17,
+  "warnings": [],
+  "errors": []
+}

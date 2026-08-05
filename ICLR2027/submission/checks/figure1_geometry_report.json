@@ -1,0 +1,16 @@
+{
+  "status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
+  "rendering_mode": "generated_full",
+  "canvas_px": [
+    1448,
+    1086
+  ],
+  "label_count": 19,
+  "text_overlap_count": null,
+  "route_intersection_count": null,
+  "warnings": [
+    "generated raster: text, icon, and arrow geometry requires visual review",
+    "automatic overlap and route-intersection checks are not applicable to this rendering mode"
+  ],
+  "errors": []
+}

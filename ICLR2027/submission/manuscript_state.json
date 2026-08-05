@@ -1,0 +1,345 @@
+{
+  "schema_version": "1.1",
+  "project": {
+    "id": "wagf-iclr2027",
+    "title": "When Governance Changes What Gets Counted: Measurement Validity for LLM Agent Evaluation",
+    "archetype": "empirical computational paper",
+    "study_designs": [
+      "paired simulation comparison",
+      "coupled agent-based model",
+      "LLM-agent evaluation"
+    ],
+    "lifecycle_stage": "submission",
+    "review_maturity": "submission",
+    "target_venue": "ICLR 2027",
+    "active_release": "ICLR2027/submission"
+  },
+  "artifacts": [
+    {
+      "id": "main_manuscript",
+      "path": "paper/manuscript.tex",
+      "role": "main_manuscript",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "bibliography",
+      "path": "paper/references.bib",
+      "role": "bibliography",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "figure1_design_contract",
+      "path": "FIGURE1_DESIGN.md",
+      "role": "figure_documentation",
+      "status": "ACTIVE",
+      "required_for_release": false
+    },
+    {
+      "id": "review_rounds",
+      "path": "REVIEW_ROUNDS.md",
+      "role": "review_record",
+      "status": "ACTIVE",
+      "required_for_release": false
+    }
+  ],
+  "authority_sources": [
+    {
+      "id": "frozen-evidence-boundary",
+      "kind": "verified_primary_evidence",
+      "path_or_reference": "checks/evidence_boundary_report.json",
+      "scope": ["methods", "results", "numbers", "figures", "tables"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-05"
+    },
+    {
+      "id": "current-manuscript",
+      "kind": "current_manuscript_source",
+      "path_or_reference": "paper/manuscript.tex",
+      "scope": ["framing", "captions", "limitations", "declarations"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-05"
+    },
+    {
+      "id": "figure1-geometry",
+      "kind": "deterministic_check",
+      "path_or_reference": "checks/figure1_geometry_report.json",
+      "scope": ["figure1", "labels", "routes"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-05"
+    }
+  ],
+  "contract": {
+    "gap": "Runtime governance evaluations can use a condition written by the agent both to enforce a rule and to select the records used by a conditional rate.",
+    "task": "Evaluate this measurement-validity risk with paired WAGF simulations and define a reporting protocol that keeps the denominator and world-state dependence visible.",
+    "outcomes": [
+      "prevalence of the agent-written scarcity condition",
+      "conditional increase rate",
+      "fixed-denominator increase rate",
+      "descriptive world-state composition diagnostics"
+    ],
+    "questions": [
+      {
+        "id": "Q1",
+        "text": "Does enforcement change the prevalence of an agent-reported condition as well as the rate computed among those reports?",
+        "lock": "SEMANTIC"
+      },
+      {
+        "id": "Q2",
+        "text": "How much of the anchor contrast is descriptively associated with different simulator-recorded world states?",
+        "lock": "SEMANTIC"
+      },
+      {
+        "id": "Q3",
+        "text": "Which additional statistics remain interpretable when the denominator is fixed by design?",
+        "lock": "SEMANTIC"
+      }
+    ],
+    "contribution": "A bounded measurement-validity risk and a low-cost reporting protocol for governed LLM-agent evaluations.",
+    "nonclaims": [
+      "The paper does not claim deception or gaming.",
+      "The paper does not identify a causal effect of validation.",
+      "The paper does not identify a within-world reporting revision because the first response before retry is missing.",
+      "The paper does not claim universal behavior across agent frameworks.",
+      "The paper does not treat reweighting as a causal adjustment or corrected effect estimate."
+    ]
+  },
+  "semantic_locks": [
+    {
+      "id": "title-lock",
+      "kind": "EXACT",
+      "canonical": "When Governance Changes What Gets Counted",
+      "required_roles": ["main_manuscript"],
+      "forbidden_variants": []
+    }
+  ],
+  "terminology": [
+    {
+      "id": "conditional-rate",
+      "preferred": "conditional rate",
+      "prohibited": ["conditional metric rate"],
+      "scope_roles": ["main_manuscript"]
+    },
+    {
+      "id": "world-state",
+      "preferred": "simulator-recorded world state",
+      "prohibited": ["unaffected world state"],
+      "scope_roles": ["main_manuscript"]
+    }
+  ],
+  "style_profile": {
+    "language_variant": "American English",
+    "protected_terms": [
+      "WAGF",
+      "LLM",
+      "agent-written condition",
+      "conditional rate",
+      "validator-on",
+      "validator-off"
+    ],
+    "discouraged_phrases": [
+      "it is important to note that",
+      "it is worth noting that",
+      "in recent years",
+      "plays a crucial role",
+      "comprehensive framework",
+      "in the context of",
+      "furthermore",
+      "moreover"
+    ],
+    "allowed_repetitions": [
+      "agent",
+      "condition",
+      "validator",
+      "world state",
+      "conditional rate"
+    ],
+    "sentence_opening_words": 4,
+    "phrase_words": 5,
+    "phrase_min_occurrences": 3
+  },
+  "facts": [
+    {
+      "id": "anchor-prevalence-contrast",
+      "source_id": "frozen-evidence-boundary",
+      "expected_strings": ["+45.73"],
+      "forbidden_strings": [],
+      "scope_roles": ["main_manuscript"]
+    },
+    {
+      "id": "anchor-conditional-contrast",
+      "source_id": "frozen-evidence-boundary",
+      "expected_strings": ["+23.02"],
+      "forbidden_strings": [],
+      "scope_roles": ["main_manuscript"]
+    },
+    {
+      "id": "fixed-denominator-contrast",
+      "source_id": "frozen-evidence-boundary",
+      "expected_strings": ["+0.16", "-22.17"],
+      "forbidden_strings": [],
+      "scope_roles": ["main_manuscript"]
+    }
+  ],
+  "alignment": [
+    {
+      "question_id": "Q1",
+      "method": "Compare validator-on and validator-off prevalence and conditional rates in paired irrigation simulations.",
+      "evidence": "Table 1 and the frozen irrigation evidence inventory report per-seed values and contrasts.",
+      "result": "All five irrigation configurations have positive prevalence contrasts; the anchor conditional rate contrast is +23.02 percentage points.",
+      "interpretation": "The conditional score and its selected population move together.",
+      "limitation": "The first response before a retry is unavailable, so within-decision report revision is unresolved.",
+      "contribution": "Shows why a conditional conformance score needs condition prevalence beside it.",
+      "status": "COMPLETE"
+    },
+    {
+      "question_id": "Q2",
+      "method": "Directly standardize prevalence to pooled simulator-recorded world-state distributions in the anchor irrigation cell.",
+      "evidence": "Figure 2, Table 2, and the frozen world-state evidence files report pooled residuals, coverage, and per-seed diagnostics.",
+      "result": "The pooled residual is -2.53 percentage points at full coverage and +0.21 at the finest reported stratification.",
+      "interpretation": "Different recorded-world composition is consistent with much of the raw prevalence contrast.",
+      "limitation": "World state is downstream of governance, so the decomposition is descriptive rather than causal.",
+      "contribution": "Separates a supported world-state composition diagnosis from an unsupported causal claim.",
+      "status": "COMPLETE"
+    },
+    {
+      "question_id": "Q3",
+      "method": "Compare the conditional increase rate with an all-decision rate using the same final-action reading.",
+      "evidence": "Figure 3 and the frozen consequence evidence report contrasts for all five irrigation configurations.",
+      "result": "The fixed-denominator contrast can be near zero or reverse sign relative to the conditional contrast.",
+      "interpretation": "The denominator is part of the estimand, not a formatting detail.",
+      "limitation": "The fixed-denominator rate answers a different question and is not presented as an automatic correction.",
+      "contribution": "Provides a low-cost reporting protocol for governed-agent evaluations.",
+      "status": "COMPLETE"
+    }
+  ],
+  "dimensions": [],
+  "decisions": [
+    {
+      "id": "active-venue",
+      "decision": "Use ICLR 2027 as the active release target; retain AAMAS 2027 as a fallback after the ICLR decision or withdrawal.",
+      "authority": "current project handoff"
+    },
+    {
+      "id": "figure1-rendering",
+      "decision": "Use the reviewed full generated Figure 1 composition with near-black borders, restrained colored fills, a uniform cool-gray background, and explicit arrows from Recorded decisions to Record filter.",
+      "authority": "FIGURE_STYLE_AUDIT.md and current visual review"
+    }
+  ],
+  "issues": [
+    {
+      "id": "official-tex-build",
+      "severity": "S3",
+      "status": "OPEN",
+      "evidence_status": "CONFIRMED",
+      "description": "The Windows and available WSL environments have no pdflatex, xelatex, lualatex, tectonic, or bibtex executable; the official ICLR PDF build and rendered-PDF inspection remain unavailable.",
+      "affected_artifacts": ["main_manuscript", "bibliography"],
+      "waiver": null
+    },
+    {
+      "id": "historic-dirty-manifests",
+      "severity": "S3",
+      "status": "WAIVED",
+      "evidence_status": "CONFIRMED",
+      "description": "Three historic smoke manifests record git_dirty=true; the current manuscript discloses that the historic corpus is not claimed bitwise reproducible.",
+      "affected_artifacts": ["main_manuscript"],
+      "waiver": {
+        "authority": "current reproducibility statement and historical audit report",
+        "reason": "The limitation is explicitly disclosed and no bitwise reproducibility claim is made."
+      }
+    },
+    {
+      "id": "missing-first-attempt",
+      "severity": "S2",
+      "status": "WAIVED",
+      "evidence_status": "CONFIRMED",
+      "description": "The frozen corpus does not preserve the first response before a retry, so within-decision report revision cannot be separated from selection into the recorded accepted response.",
+      "affected_artifacts": ["main_manuscript", "figure1_design_contract"],
+      "waiver": {
+        "authority": "current limitations section and Figure 1 caption",
+        "reason": "The limitation is stated as a boundary on inference and is included in the reporting protocol."
+      }
+    }
+  ],
+  "release": {
+    "status": "WORKING",
+    "candidate_artifact_ids": ["main_manuscript", "bibliography"],
+    "required_checks": [
+      "argument_structure",
+      "evidence_scope",
+      "scholarly_writing",
+      "delivery_integrity",
+      "functional_completeness",
+      "manuscript_static",
+      "evidence_boundary",
+      "official_tex_build"
+    ],
+    "completed_checks": [
+      "argument_structure",
+      "evidence_scope",
+      "scholarly_writing",
+      "delivery_integrity",
+      "functional_completeness",
+      "figure_geometry",
+      "manuscript_static",
+      "evidence_boundary",
+      "caption_sync",
+      "stale_reference_audit",
+      "generated_figure_asset_integrity",
+      "visual_figure_review"
+    ],
+    "checked_hashes": {},
+    "visual_check": "PASS_ADVERSARIAL_ACCEPT; OFFICIAL_TYPESET_PENDING"
+  },
+  "active_venue": {
+    "primary": "ICLR 2027",
+    "fallback": "AAMAS 2027 after ICLR decision or withdrawal",
+    "historical": "TAE / NeurIPS workshop snapshot",
+    "parallel_submission_lock": true
+  },
+  "claim_contract": {
+    "primary_claim": "Runtime governance can change the population used by a conditional LLM-agent evaluation metric when the condition is agent-authored and read by enforcement.",
+    "mechanism_status": "descriptive world-state composition diagnosis",
+    "causal_claim": false,
+    "deception_claim": false,
+    "universal_claim": false,
+    "bitwise_reproducible_claim": false,
+    "first_attempt_available": false
+  },
+  "figure1_contract": {
+    "role": "conceptual dataflow: one response, one governance gate, two consequences",
+    "selected_base": "generated full icon-and-flow composition final",
+    "functional_rails": [],
+    "white_space_policy": "uniform cool-gray background; compact modules and muted fills avoid large white cards or empty white strips",
+    "visible_label_count": 19,
+    "max_label_characters": 19,
+    "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
+    "text_overlap_count": null,
+    "centerline_intersection_check": "NOT_MACHINE_VERIFIABLE_FOR_GENERATED_RASTER",
+    "feedback_path": "dashed world state -> future context; retry omitted because the first report is unavailable",
+    "condition_roles": ["validator input", "record selection"]
+  },
+  "verification": {
+    "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
+    "visual_figure_review": "PASS_ADVERSARIAL_ACCEPT",
+    "manuscript_static": "PASS",
+    "evidence_boundary": "PASS",
+    "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
+    "argument_structure": "PASS_WHY_EXAMPLE_MECHANISM_GAP_QUESTIONS_CONTRIBUTIONS",
+    "evidence_scope": "PASS_EVIDENCE_BOUNDARY_CHECK",
+    "scholarly_writing": "MANUAL_PASS; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
+    "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_BLOCKED",
+    "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
+    "adversarial_review": "PASS_FINAL_V9",
+    "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
+    "official_tex_build": "BLOCKED_NO_TEX_ENGINE",
+    "new_experiment_run": false
+  },
+  "next_actions": [
+    "Keep the academic prose scanner findings documented as parser limitations unless a future parser-aware run identifies a real prose issue.",
+    "Run the official ICLR TeX build in a TeX-enabled environment.",
+    "Inspect the rendered PDF at 100% and print size for page count, overfull boxes, caption clipping, and anonymity.",
+    "Complete final venue and dual-submission checks."
+  ]
+}
