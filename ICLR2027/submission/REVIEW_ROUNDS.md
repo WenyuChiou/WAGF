@@ -335,7 +335,7 @@ candidate to anchor `proposed action` directly to the `action` field. Official
 typeset PDF inspection remains the release gate because the local environment
 still lacks a TeX engine.
 
-## Round 18: agent-paper v2 active integration and endpoint audit
+## Round 18: agent-paper v2 integration and endpoint audit (historical)
 
 The compact v1 candidate was not retained as the final design. A fresh
 generated candidate was produced from the paper grammar audit: a small dashed
@@ -346,7 +346,7 @@ the Validator before execution, while `selects records` enters the filter
 without passing through the Decision log. The black `proposed action` arrow
 was then regenerated so its visible origin is the `action` field itself.
 
-The active generated source is
+At that historical stage, the generated source was
 `figures/assets/figure1_architecture_agentpaper_v2.png`, with SHA-256
 `cd94aaba55f3db872ea283401954689c2e86a1bdc710f731a0e94de1e2a52861`.
 The builder copied the same raster into the manuscript-facing PNG and print
@@ -356,3 +356,26 @@ overlap checks, information-density checks, and paper-grammar checks; it also
 confirmed that the single-headed dashed observation return is directionally
 unambiguous. Official typeset PDF inspection remains open because the local
 environment still lacks a TeX engine.
+
+## Round 19: shared-condition bridge v3
+
+The v2 composition was not treated as the endpoint because its module layout
+still gave the execution and measurement paths comparable visual weight. A new
+generated candidate was designed from the paper audit as a compact grid: the
+Agent response is on the left, Validator and Environment form the upper
+execution chain, and Decision log, filter, and conditional rate form the lower
+measurement chain. The amber `condition` field has two independent routes:
+`rule input` enters Validator, while `selects records` bypasses Decision log and
+enters filter. The black `accepted decision` route bends directly into the top
+edge of Decision log.
+
+The active generated source is
+`figures/assets/figure1_architecture_agentpaper_v3.png`, with SHA-256
+`295553a8c925f1250b42d6064a6cc792409841f4a4c574f8504f7e648e758a0b`.
+The candidate, active source, active PNG, print PNG, and regenerated thumbnail
+must all be copied from this exact raster. Full-size, paper-width, grayscale,
+and thumbnail review found no text overlap or route crossing. The exact-active
+adversarial review then passed all seven required routes, the agent-paper
+grammar, the exact thumbnail synchronization, and the caption alignment.
+Official typeset PDF inspection remains open because the local environment still
+lacks a TeX engine.

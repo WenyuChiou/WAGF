@@ -2,9 +2,9 @@
 
 ## Active version
 
-The active Figure 1 is the generated agent-paper architecture candidate v2:
+The active Figure 1 is the generated shared-condition agent-paper architecture candidate v3:
 
-`figures/assets/figure1_architecture_agentpaper_v2.png`
+`figures/assets/figure1_architecture_agentpaper_v3.png`
 
 The research and design rationale for the reset is recorded in
 `AGENT_ARCHITECTURE_FIGURE_RESET.md`. Earlier two-lane/dashboard-like
@@ -55,13 +55,13 @@ roles; they are not printed as full-canvas headers in the image.
 
 ## Visual constraints
 
-- Compact single-canvas composition for the full-width ICLR figure, using
-  local semantic nodes and ownership boundaries rather than full-canvas lane
+- Compact grid composition for the full-width ICLR figure, using local
+  semantic nodes and one Agent ownership boundary rather than full-canvas lane
   frames or header banners.
-- Warm light-gray background; pale blue Agent, orange Validator, green
-  Environment, amber condition, and violet measurement fills.
-- Near-black primary outlines and arrows; one thin gray dashed observation
-  route.
+- Pale blue-gray background; pale blue Agent response, orange Validator,
+  green Environment, amber condition, and violet measurement fills.
+- Near-black borders and primary arrows; amber condition routes; one thin
+  black dashed observation route.
 - Small semantic icons only: LLM chip, validator check, environment/simulator,
   log/list, filter, and rate gauge.
 - No gradients, large mascots, screenshots, pure-white label cards, title

@@ -5,9 +5,9 @@
 The earlier D-v3 checkpoint is retired as a design direction. It still reads
 like a colorful inventory of modules: the execution path, measurement path,
 icons, and feedback loop have comparable visual weight. A reviewer must decode
-the layout before seeing the paper's point. The selected agent-paper v2 figure
-is a new compact composition designed from the architecture grammars used in
-agent papers, not a recolor of the old composition.
+the layout before seeing the paper's point. The selected agent-paper v3 figure
+is a new shared-condition bridge designed from the architecture grammars used
+in agent papers, not a recolor of the old composition or v2 checkpoint.
 
 ## Message to communicate
 
@@ -42,7 +42,7 @@ gradients, or sentence-length labels inside the diagram.
 
 ## Selected information architecture
 
-The selected design is a **two-role, aligned-log** architecture:
+The selected design is a **shared-condition bridge** architecture:
 
 ```text
   RUNTIME: Agent(response[action, condition]) --> Validator --> Environment
@@ -93,12 +93,13 @@ checkpoint.
    highlighted condition to two clearly separated consumers, validator and
    filter, while the action path remains the primary left-to-right trajectory.
 
-The active agent-paper v2 asset is the compact ownership-boundary form: the
-response remains inside the Agent boundary, the `proposed action` arrow starts
-at the `action` field, the accepted-decision arrow lands directly on the
-Decision log, and the condition route passes below the log before entering the
-filter. The upper and lower paths are expressed by placement and connectors,
-not by full-canvas lane frames or header banners.
+The active agent-paper v3 asset is the compact grid form: the response remains
+inside the Agent boundary, the `proposed action` arrow starts at the `action`
+field, the accepted-decision route bends directly into the Decision log, and
+the condition route passes below the log before entering the filter. Black
+borders with colored fills and subordinate icons provide the visual hierarchy;
+the upper and lower paths are expressed by placement and connectors, not by
+full-canvas lane frames or header banners.
 
 ## Visual constraints
 

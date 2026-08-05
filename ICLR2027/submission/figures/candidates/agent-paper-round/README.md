@@ -1,9 +1,8 @@
 # Agent-paper Figure 1 candidate round
 
 These candidates were generated after comparing the rendered figures in
-ReAct, Reflexion, AutoGen, and AgentSpec. This is a historical candidate round
-only; none of the files below is active and none is a regeneration source for
-the current agent-paper v2 figure.
+ReAct, Reflexion, AutoGen, and AgentSpec. Earlier files are historical; the
+v3 shared-condition candidate below is now the active regeneration source.
 
 - `figure1_candidate_A_loop.png`: rejected; the `rule input` label was placed
   on the wrong downstream arrow and the condition-to-Validator relation was
@@ -25,5 +24,6 @@ The historical F image was copied to
 `figures/assets/figure1_generated_full_final.png` and staged by an earlier
 builder. All labels, arrows, and icons remain part of the generated raster,
 but the D-v3 source is now historical. The active source is
-`figures/assets/figure1_architecture_agentpaper_v2.png`, documented in the
-submission-level reset contract.
+`figures/assets/figure1_architecture_agentpaper_v3.png`, documented in the
+submission-level reset contract. `figure1_shared_condition_v3.png` is the
+generated source copied into that active asset.
