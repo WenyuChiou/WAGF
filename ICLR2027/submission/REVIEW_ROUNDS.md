@@ -299,10 +299,38 @@ cross the accepted-decision or condition-selection paths. The final D-v3 also
 aligns `proposed action` with the action field and labels the log input
 `accepted decision`.
 
-The active asset is
+At that historical stage, the candidate asset was
 `figures/assets/figure1_architecture_reset_D_final_v3.png`, staged through the
-normal builder. Full-size, paper-width, grayscale, and thumbnail inspections
-show exact short labels, clear endpoints, and no visible connector crossings.
-The adversarial re-review of D-v3 passed. Official typeset PDF inspection
-remains the release gate because the local environment still lacks a TeX
-engine.
+normal builder. It was later superseded by compact v1 because the large
+runtime/measurement panels still read like a dashboard. Full-size,
+paper-width, grayscale, and thumbnail inspections of D-v3 showed exact short
+labels, clear endpoints, and no visible connector crossings; its adversarial
+re-review passed. Official typeset PDF inspection remains the release gate
+because the local environment still lacks a TeX engine.
+
+## Round 17: compact single-canvas architecture reset
+
+The D-v3 composition was rejected after adversarial review because its large
+runtime/measurement panels, equal-weight cards, and oversized icons still read
+like a dashboard rather than a contemporary agent-paper architecture figure.
+New generated candidates were produced from the actual grammar of ReAct,
+Reflexion, AgentSpec, and SWE-agent: a bounded Agent response, a compact
+Validator insertion point, a separate Environment, and a small measurement
+chain.
+
+The selected compact v1 candidate removes the full-canvas lane frames and
+headers. Its black `proposed action` connector starts at the `action` field;
+the amber `rule input` connector starts at the right edge of `condition`; and
+the amber `selects records` route starts independently at the bottom edge of
+`condition` and bypasses `Decision log`. The accepted-decision branch lands on
+the log, records flow through the filter, and the observation loop remains
+above the graph. The extra Environment database icon was removed so it cannot
+be confused with the Decision log.
+
+The active generated asset is
+`figures/assets/figure1_architecture_compact_v1.png`, staged through the normal
+builder. Full-size, paper-width, grayscale, and 900-pixel thumbnail inspection
+passed. The adversarial re-review of the exact current raster passed with no
+semantic, endpoint, overlap, or paper-grammar findings. Official typeset PDF
+inspection remains the release gate because the local environment still lacks a
+TeX engine.

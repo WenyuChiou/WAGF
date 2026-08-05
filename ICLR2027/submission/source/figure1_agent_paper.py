@@ -1,6 +1,6 @@
-"""Stage the generated, paper-facing Figure 1 reset candidate.
+"""Stage the generated, paper-facing Figure 1 compact architecture.
 
-The selected reset candidate is a single generated raster asset. The image
+The selected compact architecture is a single generated raster asset. The image
 generator produced the LLM cue, functional icons, node fills, borders, arrows,
 typography, and background as one interface-first architecture composition.
 This builder only copies that immutable asset into the active submission
@@ -19,7 +19,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "figures" / "assets" / "figure1_architecture_reset_D_final_v3.png"
+ASSET = ROOT / "figures" / "assets" / "figure1_architecture_compact_v1.png"
 ACTIVE = ROOT / "figures" / "active"
 OUT = ACTIVE / "figure1_concept"
 
@@ -60,14 +60,14 @@ def build() -> dict[str, object]:
         "print_sha256": print_sha256,
         "canvas_px": [width, height],
         "scale": 1,
-        "pdf_size_in": [6.35, 3.58],
-        "canvas_policy": "warm light-gray paper background; compact interface-first architecture with a lower evaluation strip and no white cards",
-        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: bounded agent, explicit validator insertion point, short relation labels, and restrained functional icons",
+        "pdf_size_in": [6.35, 3.49],
+        "canvas_policy": "warm light-gray paper background; compact single-canvas runtime/measurement architecture with local semantic nodes and no pure-white cards",
+        "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one bounded agent response, an explicit validator insertion point, aligned decision logging, short relation labels, and restrained functional icons",
         "text": [
-            "Agent", "LLM", "response", "action", "condition", "Validator", "check",
-            "proposed action", "accepted", "Environment", "observation", "accepted decision",
-            "Decision log", "records", "filter", "conditional rate", "rule input",
-            "selects records",
+            "Agent", "LLM", "response", "action", "condition", "proposed action",
+            "Validator", "rule input", "accepted", "Environment",
+            "observation", "accepted decision", "Decision log", "records", "filter",
+            "conditional rate", "selects records",
         ],
         "semantics": {
             "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
@@ -85,11 +85,11 @@ def build() -> dict[str, object]:
                 "the black proposed arrow starts at action and enters Validator",
                 "the amber rule-input arrow starts at condition and enters Validator",
                 "the black accepted arrow goes directly from Validator to Environment",
-                "Validator has a separate accepted-decision arrow into Decision log",
+                "Validator has a separate accepted-decision arrow that terminates on the aligned Decision log",
                 "the amber selects-records arrow starts at condition, bypasses Decision log, and enters Filter",
                 "Decision log has a separate records arrow into Filter",
                 "the observation route is thin, dashed, and returns from Environment to Agent",
-                "the compact canvas avoids a floating icon collage and excessive white space",
+                "the compact single-canvas composition avoids a floating icon collage and excessive white space",
             ],
         },
         "geometry_status": "not_machine_verifiable_for_generated_raster",

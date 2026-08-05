@@ -19,9 +19,11 @@ kept for design provenance and are never referenced by the manuscript.
   observation-lane repair.
 - `figure1_candidate_D_final_generated_v2.png`: repaired observation lane;
   intermediate before action-edge alignment.
-- `figure1_candidate_D_final_generated_v3.png`: final generated candidate used
-  as the active source at
-  `figures/assets/figure1_architecture_reset_D_final_v3.png`.
+- `figure1_candidate_D_final_generated_v3.png`: historical D-v3 generated
+  candidate; it was the previous active source before the compact v1 reset.
+- `figure1_architecture_compact_v1.png`: current compact single-canvas candidate;
+  the reviewed source is copied to `figures/assets/` and staged as the active
+  manuscript figure.
 - `legacy_asset_D_v1.png` and `legacy_asset_D_v2.png`: duplicate intermediate
   source copies retained only for provenance.
 

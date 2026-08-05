@@ -2,9 +2,9 @@
 
 ## Active version
 
-The active Figure 1 is generated reset candidate D-v3:
+The active Figure 1 is the generated compact architecture candidate v1:
 
-`figures/assets/figure1_architecture_reset_D_final_v3.png`
+`figures/assets/figure1_architecture_compact_v1.png`
 
 The research and design rationale for the reset is recorded in
 `AGENT_ARCHITECTURE_FIGURE_RESET.md`. Earlier two-lane/dashboard-like
@@ -23,16 +23,18 @@ frozen corpus preserves every retry attempt.
 ## Active visual sentence
 
 ```text
-Agent response[action, condition] --proposed action--> Validator --accepted--> Environment
-                                      | rule input                         |
-                                      +--> filter <-- records <-- Decision log
-                                            |
-                                      conditional rate
+RUNTIME: Agent response[action, condition] --> Validator --> Environment
+                         condition --------> Validator
+MEASUREMENT: Validator --accepted decision--> Decision log --records--> filter --> conditional rate
+                         condition -----------------------> filter
 ```
 
 The top dashed `observation` route returns from Environment to Agent. It is
 conceptual and is routed outside the solid measurement paths so that no arrow
 crosses another arrow.
+
+`RUNTIME` and `MEASUREMENT` in the sentence above name the two conceptual
+roles; they are not printed as full-canvas headers in the image.
 
 ## Required visible relationships
 
@@ -42,8 +44,9 @@ crosses another arrow.
    enters `Validator`.
 3. The amber `rule input` arrow begins at `condition` and enters `Validator`.
 4. The black `accepted` arrow leaves `Validator` and enters `Environment`.
-5. The black `accepted decision` arrow enters `Decision log`; the black
-   `records` arrow carries logged records to `filter`.
+5. A separate black `accepted decision` arrow leaves `Validator` and
+   terminates on `Decision log`; the black `records` arrow carries logged
+   records to `filter`.
 6. The amber `selects records` arrow bypasses `Decision log` and enters
    `filter` directly from the condition field.
 7. The black `records` and amber `selects records` routes remain distinct.
@@ -52,18 +55,21 @@ crosses another arrow.
 
 ## Visual constraints
 
-- Compact landscape composition for the full-width ICLR figure.
-- Warm light-gray background; pale blue, amber, green, and violet fills.
+- Compact single-canvas composition for the full-width ICLR figure, using
+  local semantic nodes and ownership boundaries rather than full-canvas lane
+  frames or header banners.
+- Warm light-gray background; pale blue Agent, orange Validator, green
+  Environment, amber condition, and violet measurement fills.
 - Near-black primary outlines and arrows; one thin gray dashed observation
   route.
 - Small semantic icons only: LLM chip, validator check, environment/simulator,
-  database, filter, and rate gauge.
-- No gradients, mascots, screenshots, white label pills, title banner, or
-  sentence-length text inside the image.
+  log/list, filter, and rate gauge.
+- No gradients, large mascots, screenshots, pure-white label cards, title
+  banner, or sentence-length text inside the image.
 - All visible labels are short and exact: `Agent`, `LLM`, `response`, `action`,
-  `condition`, `Validator`, `check`, `proposed action`, `accepted`,
+  `condition`, `Validator`, `proposed action`, `rule input`, `accepted`,
   `Environment`, `observation`, `accepted decision`, `Decision log`,
-  `records`, `filter`, `conditional rate`, `rule input`, and
+  `records`, `filter`, `conditional rate`, and
   `selects records`.
 
 ## Caption contract

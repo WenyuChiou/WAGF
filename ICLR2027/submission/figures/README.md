@@ -16,8 +16,8 @@ generated raster; it is not an additional paper figure.
 ## Source and alternatives
 
 - `assets/` contains the reviewed full generated Figure 1 asset and historical
-  generation intermediates. Only `figure1_architecture_reset_D_final_v3.png`
-  feeds the active builder.
+  generation intermediates. Only `figure1_architecture_compact_v1.png` feeds
+  the active builder.
 - `candidates/` contains the agent-paper candidates and retired Figure 1
   alternatives. These files are kept for comparison only and are never
   included by the manuscript.

@@ -1,13 +1,13 @@
 # Figure 1 reset: architecture grammar from agent papers
 
-## Why the current direction is discarded
+## Why the earlier direction is discarded
 
-The active Figure 1 checkpoint is retired as a design direction. It still
-reads like a colorful inventory of modules: the execution path, measurement
-path, icons, and feedback loop have comparable visual weight. A reviewer must
-decode the layout before seeing the paper's point. The new figure must be
-designed from the architecture grammars used in agent papers, not by editing
-the old composition.
+The earlier D-v3 checkpoint is retired as a design direction. It still reads
+like a colorful inventory of modules: the execution path, measurement path,
+icons, and feedback loop have comparable visual weight. A reviewer must decode
+the layout before seeing the paper's point. The selected compact v1 figure is a
+new single-canvas composition designed from the architecture grammars used in
+agent papers, not a recolor of the old composition.
 
 ## Message to communicate
 
@@ -40,31 +40,34 @@ black outlines, short labels, direct arrows, and a caption that supplies the
 interpretation. The papers do not rely on a large robot mascot, a title banner,
 gradients, or sentence-length labels inside the diagram.
 
-## New information architecture
+## Selected information architecture
 
-The new design is an **interface-first, fork-second** architecture:
+The selected design is a **two-role, aligned-log** architecture:
 
 ```text
-  Agent(response[action, condition])
-       action ----------------------> Validator --------------------> Environment
-       condition -------------------> Validator                       |
-       accepted decision -----------> Decision log --records--------> Filter --> conditional rate
-       condition ----------------------------------------------------> Filter
-       Environment --observation (dashed)---------------------------> Agent
+  RUNTIME: Agent(response[action, condition]) --> Validator --> Environment
+                         condition ----------> Validator
+  MEASUREMENT: Validator --accepted decision--> Decision log --records--> Filter --> conditional rate
+                         condition -----------------------> Filter
+  Environment --observation (dashed)----------------------> Agent
 ```
 
 The generated artwork may use a more compact geometry, but it must preserve
 these ownership relationships:
 
+The `RUNTIME` and `MEASUREMENT` prefixes in the schematic are conceptual
+annotations for the audit; the generated figure does not print them as lane
+headers.
+
 1. `Agent / LLM` owns the response; the response visibly contains `action`
    and `condition`.
-2. `Governance interface` is between the proposed action and `Environment`.
-   It reads the action and condition before execution.
+2. `Validator` is between the proposed action and `Environment`. It reads the
+   action and condition before execution.
 3. Only an accepted action changes `Environment`; the observation returns to
    the agent as the next context.
 4. The accepted decision is recorded in `Decision log`.
-5. The same highlighted condition enters `Condition filter`, which selects the
-   records used by `Conditional rate`.
+5. The same highlighted condition enters `filter`, which selects the records
+   used by `conditional rate`.
 
 The condition is the only deliberately repeated field. Its two uses must be
 visually linked but must not share a junction with the accepted-action or
@@ -72,7 +75,7 @@ observation arrows. A retry/validation-message branch is omitted from the
 main figure unless it can be shown as a subordinate conceptual path without
 looking like a measured record.
 
-## Candidate layouts to generate
+## Candidate layouts considered
 
 Each candidate is a genuinely new composition, not a recolor of the retired
 checkpoint.
@@ -90,19 +93,28 @@ checkpoint.
    highlighted condition to two clearly separated consumers, validator and
    filter, while the action path remains the primary left-to-right trajectory.
 
+The active compact v1 asset is the aligned single-canvas form: the response
+remains inside the Agent boundary, the accepted-decision arrow lands directly
+on the Decision log, and the condition route passes below the log before
+entering the filter. The upper and lower paths are expressed by placement and
+connectors, not by full-canvas lane frames or header banners.
+
 ## Visual constraints
 
 - Use a compact landscape composition intended for a full-width ICLR figure;
-  no large empty canvas and no title banner inside the image.
+  use local semantic nodes and ownership boundaries, with no full-canvas lane
+  frames, header banners, or title inside the image.
 - Use a warm light-gray or paper-toned background, pale colored fills, and
-  near-black outlines/arrows. Do not use white text panels or gradients.
-- Use at most four semantic colors: blue for the agent/response, amber for
-  the shared condition, green for the environment, and violet for the score.
+  near-black outlines/arrows. Avoid pure-white cards and gradients.
+- Use five semantic colors: blue for the agent/response, orange for the
+  validator, amber for the shared condition, green for the environment, and
+  violet for the score.
 - Use a small, non-mascot LLM/chip icon inside the agent module; other icons
   should identify validator, environment, log, filter, or score at a glance.
 - Use short labels only: `Agent`, `LLM`, `response`, `action`, `condition`,
-  `check`, `accepted`, `Environment`, `observation`, `Decision log`,
-  `filter`, and `conditional rate`.
+  `proposed action`, `rule input`, `accepted`,
+  `Environment`, `observation`, `accepted decision`, `Decision log`,
+  `records`, `filter`, `selects records`, and `conditional rate`.
 - Every arrow must have a visible start and end, be orthogonal or gently
   curved, and avoid every label, icon, and border. Relation labels sit in
   dedicated whitespace beside the connector, never on top of it.

@@ -223,7 +223,7 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use generated reset candidate D-v3: an Agent-to-Validator-to-Environment path, an accepted-decision log path, and a direct condition-to-filter route with a non-crossing observation loop.",
+      "decision": "Use generated compact v1: a single-canvas agent-paper architecture with the response inside the Agent boundary, an accepted-decision arrow aligned to Decision log, and a direct condition-to-filter route with a non-crossing observation loop.",
       "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
     }
   ],
@@ -290,11 +290,11 @@
       "visual_figure_review"
     ],
     "checked_hashes": {
-      "figure1_source_asset": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
-      "figure1_active_png": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9",
-      "figure1_print_png": "17b380a90686430f96c2970a91b391b30db3dcd1438cbfaf1b4f389309d18fa9"
+      "figure1_source_asset": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
+      "figure1_active_png": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0",
+      "figure1_print_png": "94f3622d31859562531714365abb6268c67d6f374a2c1e14b0487396a48f6ed0"
     },
-    "visual_check": "PASS_CANDIDATE_D_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
+    "visual_check": "PASS_COMPACT_V1_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; OFFICIAL_TYPESET_PENDING"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -313,10 +313,10 @@
   },
   "figure1_contract": {
     "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
-    "selected_base": "generated agent-paper architecture reset candidate D-v3",
+    "selected_base": "generated agent-paper compact single-canvas architecture candidate v1",
     "functional_rails": [],
-    "white_space_policy": "warm light-gray background; compact interface-first architecture with a lower evaluation strip and no white cards",
-    "visible_label_count": 18,
+    "white_space_policy": "warm light-gray single canvas; local semantic nodes, filled role regions, and no pure-white cards",
+    "visible_label_count": 17,
     "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
     "text_overlap_count": null,
@@ -326,7 +326,7 @@
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_CANDIDATE_D_V3_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
+    "visual_figure_review": "PASS_COMPACT_V1_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
