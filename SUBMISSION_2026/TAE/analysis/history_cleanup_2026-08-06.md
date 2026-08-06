@@ -119,7 +119,7 @@ git reset --mixed HEAD~1
   form.
 - **`--tag-name-filter cat`** moves `firstattempt-launch-2026-08-05` onto the rewritten commit.
   Without it the tag keeps pointing at the pre-rewrite object and is orphaned.
-- **`origin/main..HEAD`** limits the rewrite to your commits — 49, plus the temporary one while it
+- **`origin/main..HEAD`** limits the rewrite to your commits, plus the temporary one while it
   exists. `main` and the three `feat/coupling-*` branches are untouched. **`--prune-empty` is
   deliberately omitted**: a commit that only added candidates becomes empty rather than vanishing,
   and its message is part of the record.
@@ -140,16 +140,34 @@ stay untracked — which is what the `.gitignore` rule added alongside this file
 <branch> -- <path>` would stage them and undo the whole exercise; it is also on this workspace's
 deny list.
 
+### 0. Record the baseline first
+
+Every commit to this repository moves the numbers below, so read them off the repository rather than
+trusting the table above. Run this **before block 1** and keep the window open:
+
+```powershell
+$before = @{
+  commits = (git rev-list --count origin/main..HEAD)
+  files   = (git diff --name-only origin/main..HEAD).Count
+  dirty   = (git status --porcelain | Where-Object { $_ -match '^ M' }).Count
+  ondisk  = (Get-ChildItem ICLR2027\submission\figures\candidates -Recurse -File).Count
+}
+$before
+```
+
+Block 3 compares against `$before`, so it stays correct no matter how much the branch has moved.
+
 ### 3. Verify before pushing
 
 ```powershell
 git rev-list --count origin/main..HEAD
-#   expect 52   -- 53 here means the temporary commit is still in; rerun 'git reset --mixed HEAD~1'
+#   must equal $before.commits
+#   one MORE means the temporary commit is still in; rerun 'git reset --mixed HEAD~1'
 
-git status --porcelain | Where-Object { $_ -match '^ M' } | Measure-Object | % Count
-#   expect 12   -- the parked changes are back, unstaged
+(git status --porcelain | Where-Object { $_ -match '^ M' }).Count
+#   must equal $before.dirty   -- the parked changes are back, unstaged
 
-git status --porcelain | Where-Object { $_ -match '^M ' } | Measure-Object | % Count
+(git status --porcelain | Where-Object { $_ -match '^M ' }).Count
 #   expect 0    -- nothing left staged
 
 (git ls-files 'ICLR2027/submission/figures/candidates').Count
@@ -159,10 +177,11 @@ git status --porcelain | Where-Object { $_ -match '^M ' } | Measure-Object | % C
 #   expect 0    -- the rasters are gone from history
 
 (git diff --name-only origin/main..HEAD).Count
-#   expect 308  (356 - 48)
+#   must equal $before.files - 48
 
 (Get-ChildItem ICLR2027\submission\figures\candidates -Recurse -File).Count
-#   expect 52   -- back on disk after block 2; 4 before block 2 is the expected intermediate
+#   must equal $before.ondisk  -- back on disk after block 2
+#   4 between blocks 1 and 2 is the expected intermediate, not a failure
 
 git log -1 --oneline firstattempt-launch-2026-08-05
 #   expect the "chore(provenance): track the submission workspace..." commit
