@@ -223,7 +223,7 @@ independently. Two computations, same answers.
 | irrigation | gemma4:e2b | 18.26% | 65.79% | +47.53 |
 | irrigation | gemma4:e4b | 45.27% | 88.65% | +43.38 |
 | irrigation | ministral3:8b | 13.56% | 44.69% | +31.13 |
-| flood | gemma3:4b | 32.46% | 31.30% | −1.16 ⚠ B6: **+0.35** without Run_1 |
+| flood | gemma3:4b | 30.95% | 31.30% | **+0.35** † B6 run excluded |
 | flood | gemma3:12b | 2.55% | 0.93% | −1.63 |
 | flood | gemma3:27b | 19.16% | 20.38% | +1.22 |
 | flood | ministral3:3b | 31.19% | 31.04% | −0.15 |
@@ -233,7 +233,7 @@ independently. Two computations, same answers.
 | flood | gemma4:e4b | 43.48% | 49.71% | **+6.24** |
 | flood | gemma4:26b | 17.44% | 20.36% | +2.92 |
 
-**irrigation n=5, +21.27 to +47.53, mean +37.80 · flood n=9, −3.66 to +6.24, mean +0.58**
+**irrigation n=5, +21.27 to +47.53, mean +37.80 · flood n=9, −3.66 to +6.24, mean +0.75**
 **Separation COMPLETE. Gap between min(irrigation) and max(flood): 15.03 pp.**
 
 ### Option 1 — the table, if that is all you want
@@ -243,7 +243,7 @@ Two rows appended to Table 1, or a standalone four-row block:
 | setting | n | with validators | no validator | contrast range | mean |
 |---|---|---|---|---|---|
 | irrigation | 5 | 5.49–45.27% | 26.76–88.65% | +21.27 to +47.53 | +37.80 |
-| flood | 9 | 2.55–43.48% | 0.93–49.71% | **−3.66 to +6.24** | **+0.58** |
+| flood | 9 | 2.55–43.48% | 0.93–49.71% | **−3.66 to +6.24** | **+0.75** |
 
 One sentence beneath it does the work: *the ranges do not overlap; flood governance rejects 0–0.85%
 of proposed actions and irrigation governance rejects 28–63%.*
@@ -262,8 +262,11 @@ of proposed actions and irrigation governance rejects 28–63%.*
 - **the gap**: a light band spanning **+6.24 to +21.27** with the label `15.03 pp, no overlap`. This
   is the single most informative mark on the panel — the reader should be able to take the finding
   from it without reading an axis value.
-- **the B6 cell**: plot flood gemma3:4b at −1.16 and mark it with an open marker or a footnote
-  symbol, keyed to the caption. **Do not quietly plot +0.35 instead** — that value is not decided.
+- **the B6 cell**: **settled 2026-08-06 — the divergent run is excluded.** Plot flood gemma3:4b at
+  **+0.35** and mark it with a footnote symbol keyed to the caption. Two things must be disclosed
+  wherever that cell appears: its governed arm has **4 runs against the no-validator arm's 5**, so it
+  is not a paired comparison and must not be called one; and any *other* flood statistic drawn from
+  that cell elsewhere in the paper must apply the same exclusion or say that it does not.
 - **do not annotate every point.** Label the two extremes of each group and leave the rest.
 
 ### Draft caption for the panel
@@ -274,9 +277,9 @@ of proposed actions and irrigation governance rejects 28–63%.*
 > $-3.66$ to $+6.24\pp$; five irrigation configurations span $+21.27$ to $+47.53\pp$. The ranges do
 > not overlap. Both settings share the harness, the governance code, the audit path and this measure;
 > they differ in how often enforcement binds — flood governance rejects 0–0.85\% of proposed actions,
-> irrigation governance 28–63\%. $\dagger$ marks a cell whose value depends on an unresolved prompt
-> difference in one run (Appendix); excluding that run moves it from $-1.16$ to $+0.35\pp$, inside
-> the same range.
+> irrigation governance 28–63\%. $\dagger$ one governed run of this cell used a different prompt and
+> is excluded, leaving four governed runs against five no-validator runs; including it moves the cell
+> from $+0.35$ to $-1.16\pp$, inside the same range either way.
 
 **I have built neither the table nor the panel. The figures are yours.** If you would rather I
 produced the panel, say so in your handoff and I will treat `fig2_mechanism.py` as mine for that one
