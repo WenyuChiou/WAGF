@@ -59,10 +59,13 @@ uses:
 - a lower Counted records path that receives black `records` from Decision log
   and the amber `condition` route separately before feeding Conditional rate.
 
-The image uses black borders/arrows, flat colored fills, a warm light-gray
-background, and small functional icons. Observation and retry paths are
-intentionally omitted for clarity; the frozen corpus does not preserve the
-first response before a retry, and the caption states this boundary.
+The image uses black borders/arrows, flat colored fills, and small functional
+icons. The fills are semantic: blue is agent output, orange is runtime
+validation, green is the environment, violet is the measurement path, and
+amber is the shared agent-written condition; the warm light-gray background is
+neutral. Observation and retry paths are intentionally omitted for clarity;
+the frozen corpus does not preserve the first response before a retry, and the
+caption states this boundary.
 
 The generated source and active/print copies are byte-identical after staging.
 The current visual gate includes full-size, paper-width, thumbnail, grayscale,

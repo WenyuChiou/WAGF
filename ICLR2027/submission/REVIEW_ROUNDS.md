@@ -473,3 +473,18 @@ and exclude the bibliography. The typeset artifact therefore passes the
 current page-limit check. OpenReview metadata, profiles, reciprocal-review
 eligibility, anonymity, and live dual-submission checks remain submission-time
 gates.
+
+## Round 24: semantic color audit
+
+The figure's fills were audited as functional encodings rather than visual
+decoration. The active palette now has an explicit contract in the caption,
+manifest, design contract, handoff, and submission checklist: blue is agent
+output, orange is runtime validation, green is the environment/simulator,
+violet is the measurement and record path, amber is the shared agent-written
+condition, and black marks execution/record flow and module borders. The
+warm-gray canvas remains intentionally neutral. The raster itself was not
+changed because its existing fills already satisfy this mapping.
+
+The revised caption was re-typeset with MiKTeX 25.12. The PDF remains 9 pages
+(8 pages of main text plus references), with no overfull boxes, undefined
+references, or caption clipping at manuscript width.
