@@ -7,15 +7,15 @@ The active release is the directory containing this file:
 
 - Manuscript source: `paper\manuscript.tex`
 - Bibliography: `paper\references.bib`
-- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_nested_v3.png`
+- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_shared_condition_v4.png`
 - Figure 1 staging builder: `source\figure1_agent_paper.py`
 - Figure 1 compatibility entry point: `source\figure1_overlay.py`
 - Figure 1 contract: `AGENT_ARCHITECTURE_FIGURE_RESET.md`
 - Manuscript-facing figures: `figures\active\`
 - Figure 1 manifest: `figures\active\figure1_concept.json`
-- Figure 1 is a complete generated raster composition with a bounded Agent,
-  an explicit governance/Validator insertion point, a direct condition-to-
-  Counted-set route, black borders, flat colored fills, and a warm light-gray
+- Figure 1 is a complete generated raster composition with an Agent response
+  card, explicit black/amber Validator ports, a direct condition-to-Counted-
+  records route, black borders, flat colored fills, and a warm light-gray
   background
 - Legacy vector and intermediate Figure 1 files:
   `figures\candidates\legacy\figure1\`
@@ -36,7 +36,7 @@ submission/
   paper/                 manuscript and bibliography
   figures/active/        only figures referenced by manuscript.tex
   figures/assets/        canonical generated source asset plus historical assets;
-                          only the named nested-interface asset feeds the active builder
+                          only the named shared-condition asset feeds the active builder
   figures/candidates/    non-submission alternatives; never referenced by TeX
   source/                deterministic figure builder and ICLR style files
   checks/                static, geometry, evidence, and reproducibility checks
@@ -86,7 +86,7 @@ retain these boundaries:
 - The scarcity report is broader than the two-condition rule; it is not
   silently relabeled as the full scarcity-and-coping condition.
 - Figure 1 is conceptual. Figure 2 onward carries quantitative evidence.
-- Figure 1 omits a retry endpoint because the frozen corpus lacks the
-  first-attempt report; the limitation is documented in the caption and
-  supplement. The dashed route is the conceptual next-context loop, not a
-  measured retry trace.
+- Figure 1 omits the observation and retry paths for visual clarity. The
+  frozen corpus lacks the first-attempt report; the limitation is documented
+  in the caption and supplement. The Evaluation Setting describes the omitted
+  next-context and retry paths.

@@ -1,8 +1,9 @@
 # Figure 1 redesign: agent-paper reference audit
 
 > **Historical design record.** This document records the earlier shared-
-> condition bridge reset and candidate logic. The v3 composition is historical;
-> the active composition is the nested-interface candidate, governed by
+> condition bridge reset and candidate logic. The v3 and nested-interface
+> compositions are historical; the active composition is the fresh
+> shared-condition candidate, governed by
 > [`AGENT_ARCHITECTURE_FIGURE_RESET.md`](AGENT_ARCHITECTURE_FIGURE_RESET.md)
 > and [`FIGURE1_DESIGN.md`](FIGURE1_DESIGN.md).
 
@@ -14,8 +15,8 @@ feedback route, and a long chain of labels. The replacement must show one
 agent trajectory and one measurement consequence. Its visual sentence is:
 
 > An LLM agent produces an action and a condition; runtime governance uses the
-> condition to decide what proceeds, while evaluation uses the same condition
-> to choose which accepted decisions are counted.
+> condition before execution, while evaluation uses the same condition to
+> choose which logged decisions are counted.
 
 The figure is conceptual. It does not report a numerical result and it does
 not claim that the frozen corpus contains the first response before a retry.

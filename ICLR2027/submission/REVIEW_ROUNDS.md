@@ -428,3 +428,32 @@ active PNG, print PNG, and regenerated thumbnail must be byte-identical after
 staging. Full-size, paper-width, grayscale, and thumbnail inspection is
 required, followed by adversarial semantic review. Official typeset PDF
 inspection remains open because the local environment still lacks a TeX engine.
+
+## Round 22: fresh shared-condition architecture round
+
+The nested-interface composition was then retired rather than defended. A new
+round generated six compact alternatives from the actual WAGF flow and the
+rendered figure grammar of ReAct, Reflexion, SWE-agent, AutoGen, and AgentSpec.
+The candidates were required to show only short semantic modules, a single
+execution path, a direct final-record path, and the two distinct uses of the
+same condition. Candidates A, B, and D were rejected because their record paths
+started at Environment or visually merged into the counting path. Candidate C
+had an ambiguous observation origin. Candidate E had the right topology but
+needed an explicit Validator input port and a caption reset.
+
+Candidate F is the active generated source:
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`, with
+SHA-256 `df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286`.
+It uses black borders and arrows, colored fills, short relation labels, and
+black/amber ports. The black `final record` arrow terminates at Decision log;
+black `records` then enters Counted records; amber `rule input` enters
+Validator; and amber `selects` enters Counted records while bypassing the log.
+Observation and retry paths are omitted for clarity rather than represented by
+an ambiguous connector.
+
+The independent adversarial visual review approved Candidate F at full size,
+manuscript-width thumbnail size, and grayscale, with no P0/P1/P2 image-level
+findings. It required synchronizing the caption's stale observation sentence
+and replacing `Counted set` with the visible term `Counted records`; both fixes
+are now applied. Official typeset PDF inspection remains open because the
+local environment still lacks a TeX engine.

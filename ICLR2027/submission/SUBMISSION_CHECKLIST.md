@@ -8,14 +8,14 @@
 - [x] Main text uses the ICLR 2027 conference style and has no final-copy switch.
 - [x] Abstract, introduction, methods, results, limitations, conclusion,
       bibliography, AI-use, ethics, and reproducibility sections are present.
-- [x] Figure 1 nested-interface design has short labels, an action-aligned
-      `proposed action` route, an explicit `final record` arrow that
-      terminates on Decision log, separate condition and records inputs to
-      Counted set, and a non-crossing observation loop.
-      Its generated-asset integrity check plus full-size, paper-width,
-      grayscale, and thumbnail visual reviews pass. Its manuscript-facing
-      output is under `figures/active/`; official typeset print-width PDF
-      inspection remains open.
+- [x] Figure 1 shared-condition design has short labels, explicit black and
+      amber ports, a `final record` arrow that terminates on Decision log,
+      separate condition and records inputs to Counted records, and no
+      ambiguous observation route. Its generated-asset integrity check plus
+      full-size, paper-width, grayscale, thumbnail, and independent adversarial
+      visual reviews pass. Its manuscript-facing output is under
+      `figures/active/`; official typeset print-width PDF inspection remains
+      open.
 - [x] Figures 2--4 are copied from the existing deterministic evidence outputs
       under `figures/active/`; no generated image is used for a quantitative
       chart.

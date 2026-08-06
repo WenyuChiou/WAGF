@@ -2,16 +2,16 @@
   "status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
   "rendering_mode": "generated_full",
   "canvas_px": [
-    1692,
-    929
+    1774,
+    887
   ],
-  "label_count": 18,
+  "label_count": 15,
   "text_overlap_count": null,
   "route_intersection_count": null,
   "sha256": {
-    "source asset": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
-    "active PNG": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3",
-    "print PNG": "e4c2449cc1a9de9dc76fa32bbe755cfc8cadfd9a63d9501b219578c08090d4a3"
+    "source asset": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
+    "active PNG": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
+    "print PNG": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286"
   },
   "sha256_match": true,
   "warnings": [

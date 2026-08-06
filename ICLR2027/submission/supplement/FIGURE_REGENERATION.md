@@ -9,16 +9,17 @@ python ICLR2027\submission\source\figure1_overlay.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 ```
 
-Figure 1 is the reviewed generated nested-interface composition based on the
-rendered agent-paper architecture audit. It uses a bounded Agent, a black
-dashed governance boundary around Validator, a direct accepted-record route
-into Decision log, and a separate condition-to-Counted-set route. The builder
-stages `figures/assets/figure1_architecture_agentpaper_nested_v3.png`; it does
-not redraw or edit the image. The retry path is omitted because the frozen
-corpus lacks the first response before a retry. The geometry check verifies the
-generated asset and dimensions, while text/arrow separation requires the
-documented visual review because those pixels are not machine-addressable
-geometry.
+Figure 1 is the reviewed generated shared-condition composition based on the
+rendered agent-paper architecture audit. It uses a compact Agent response, a
+Validator with explicit black/amber ports, a direct accepted-action route to
+Environment, a final-record route into Decision log, and a separate
+condition-to-Counted-records route. The builder stages
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`; it
+does not redraw or edit the image. Observation and retry paths are omitted for
+clarity; the frozen corpus lacks the first response before a retry. The geometry
+check verifies the generated asset and dimensions, while text/arrow separation
+requires the documented visual review because those pixels are not
+machine-addressable geometry.
 
 ## Figures 2--4
 
