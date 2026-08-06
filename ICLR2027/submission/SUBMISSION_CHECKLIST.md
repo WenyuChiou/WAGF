@@ -15,7 +15,9 @@
       full-size, paper-width, grayscale, thumbnail, and independent adversarial
       visual reviews pass. Its manuscript-facing output is under
       `figures/active/`; the official typeset PDF inspection passes at paper
-      width and in the rendered manuscript.
+      width and in the rendered manuscript. Its color contract is explicit:
+      blue agent output, orange validation, green environment, violet
+      measurement, amber shared condition, and black flow/borders.
 - [x] Figures 2--4 are copied from the existing deterministic evidence outputs
       under `figures/active/`; no generated image is used for a quantitative
       chart.

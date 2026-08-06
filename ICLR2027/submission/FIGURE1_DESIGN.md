@@ -75,6 +75,11 @@ ends at Counted records' amber input port. The black `final record` and
 - Warm very-light-gray paper background; black borders and black arrows;
   colored flat fills for action, condition, Validator, Environment, and the
   measurement path.
+- Color contract: blue marks the agent response, orange the runtime
+  Validator, green the Environment/simulator, violet the measurement and
+  record path, amber the shared agent-written condition, and black the
+  execution or record-flow connectors and module borders. The warm gray canvas
+  is neutral and carries no semantic data role.
 - No gradients, drop shadows, title banner, legend, equations, paragraphs,
   watermark, or floating white label plates.
 - Labels are short and exact: no label exceeds the short-figure limit in the

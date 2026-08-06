@@ -289,7 +289,7 @@
       "figure1_active_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
       "figure1_print_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286"
     },
-    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; OFFICIAL_TYPESET_PASS_9_PAGES_MAIN_TEXT_8_REFERENCES_1"
+    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; OFFICIAL_TYPESET_PASS_9_PAGES_MAIN_TEXT_8_REFERENCES_1"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -311,6 +311,15 @@
     "selected_base": "generated shared-condition agent-paper candidate F",
     "functional_rails": [],
     "white_space_policy": "warm light-gray single canvas; black module borders and arrows with flat colored fills, tight semantic nodes, and no floating white cards",
+    "color_roles": {
+      "blue": "agent response and agent output",
+      "orange": "runtime Validator",
+      "green": "Environment or simulator",
+      "violet": "measurement and record path",
+      "amber": "shared agent-written condition and its routes",
+      "black": "execution and record-flow arrows and module borders",
+      "warm light-gray": "neutral paper canvas"
+    },
     "visible_label_count": 15,
     "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
@@ -321,7 +330,7 @@
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED",
+    "visual_figure_review": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS",

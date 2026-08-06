@@ -63,6 +63,15 @@ def build() -> dict[str, object]:
         "pdf_size_in": [6.35, 3.18],
         "canvas_policy": "warm light-gray paper background; black module borders and black arrows with flat colored fills; compact shared-condition composition",
         "style": "generated agent-paper architecture inspired by ReAct, Reflexion, AgentSpec, and SWE-agent: one response card, an explicit validator interface with black and amber ports, a direct final-record log, a separate counted-records path, short relation labels, and subordinate AI/function icons",
+        "color_roles": {
+            "blue": "agent response and agent output",
+            "orange": "runtime Validator",
+            "green": "Environment or simulator",
+            "violet": "measurement and record path",
+            "amber": "shared agent-written condition and its routes",
+            "black": "execution and record-flow arrows and module borders",
+            "warm light-gray": "neutral paper canvas",
+        },
         "text": [
             "Agent response", "AI", "action", "condition", "propose",
             "Validator", "rule input", "accepted", "Environment", "final record",
