@@ -37,7 +37,7 @@ that needs someone to establish which are still inputs, and it was not establish
 A backup branch already exists, pointing at the current tip:
 
 ```
-backup-before-filter-2026-08-06  ->  aaf7b604
+backup-before-filter-2026-08-06  ->  13456687
 ```
 
 **Nothing below can lose work while that branch exists.** Delete it only after the push succeeds and
@@ -47,11 +47,16 @@ Recorded baseline, to compare against afterwards:
 
 | | |
 |---|---|
-| HEAD | `aaf7b604` |
-| commits ahead of `origin/main` | 49 |
-| files changed vs `origin/main` | 355 |
+| HEAD | `13456687` |
+| commits ahead of `origin/main` | 52 |
+| files changed vs `origin/main` | 356 |
+| modified tracked files in the working tree | 12 — **filter-branch will not start until these are parked; see block 1** |
 | tag `firstattempt-launch-2026-08-05` | `50247de3` — **inside the rewrite range** |
-| md5 of the 49 commit subjects | `84d64dd6b5a4` |
+| md5 of the 52 commit subjects | `71739886ed44` |
+
+The branch was at `aaf7b604` with 49 commits when this file was first drafted; the three since are
+this file's own corrections. `aaf7b604` is an ancestor of `13456687`, so moving the backup forward
+discarded nothing.
 
 ---
 
@@ -139,7 +144,7 @@ deny list.
 
 ```powershell
 git rev-list --count origin/main..HEAD
-#   expect 49   -- 50 here means the temporary commit is still in; rerun 'git reset --mixed HEAD~1'
+#   expect 52   -- 53 here means the temporary commit is still in; rerun 'git reset --mixed HEAD~1'
 
 git status --porcelain | Where-Object { $_ -match '^ M' } | Measure-Object | % Count
 #   expect 12   -- the parked changes are back, unstaged
@@ -154,7 +159,7 @@ git status --porcelain | Where-Object { $_ -match '^M ' } | Measure-Object | % C
 #   expect 0    -- the rasters are gone from history
 
 (git diff --name-only origin/main..HEAD).Count
-#   expect 307  (355 - 48)
+#   expect 308  (356 - 48)
 
 (Get-ChildItem ICLR2027\submission\figures\candidates -Recurse -File).Count
 #   expect 52   -- back on disk after block 2; 4 before block 2 is the expected intermediate
