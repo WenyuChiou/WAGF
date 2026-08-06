@@ -7,8 +7,12 @@ but replaces LLM skill selection with FQL Q-learning.  Everything else is
 identical: same IrrigationEnvironment, same execute_skill() Gaussian magnitude
 sampling, same 12 governance validators.
 
-This produces a published rule-based baseline for comparison with governed
-and ungoverned LLM agents in the Nature Water paper.
+This produces the published baseline arm for comparison with with-validators and
+no-validator LLM agents in the Nature Water paper. It is built from the source
+code and design of Hung & Yang (2021); describe it that way rather than as a
+"rule-based" baseline — fuzzy Q-learning is reinforcement learning, and the
+paper's own text (Extended Data Table 1, SI Table 11) correctly calls it the
+"FQL baseline". Corrected 2026-08-06; only this docstring was wrong.
 
 Usage:
     # Smoke test (5 agents, 5 years)
