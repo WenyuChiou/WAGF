@@ -115,10 +115,51 @@
 > NW gives **both** its cases a third non-LLM arm, but they are two different kinds of thing and
 > only one is rule-based:
 >
-> | NW case | third arm | what it is | validators |
+> **There are three levels of governance in play, not two.** Corrected 2026-08-06 after checking the
+> runner and the shipped columns rather than the docstrings:
+>
+> | arm | the 12 validators | **the retry loop** | what it produces |
 > |---|---|---|---|
-> | flood | rule-based PMT | standalone softmax-utility agent, 3 runs | **off** |
-> | irrigation | **FQL** | **fuzzy Q-learning — reinforcement learning, not a rule policy**, 10 seeds | **all 12 on** |
+> | `Group_C` (governed LLM) | ✅ | ✅ **blocked → the model is re-asked** | full audit trail |
+> | **`fql_raw`** (irrigation's third arm) | ✅ **71.1% of actions blocked** | ❌ **blocked → no second attempt** | `simulation_log.csv` only |
+> | **`rulebased`** (flood's third arm) | ❌ never enters the pipeline | ❌ | `simulation_log.csv` only |
+>
+> **The middle row is the interesting one, and it is exactly what this paper is about.** The retry
+> loop is the mechanism by which enforcement rewrites its own antecedent: a blocked LLM re-answers
+> the whole prompt, appraisal included. A blocked FQL action is simply blocked — the agent does not
+> revise anything, because there is nothing to revise. `run_fql_baseline.py:148` states the
+> asymmetry outright: "*The LLM path uses broker's RejectionHandler which re-invokes the LLM*".
+> Measured: `fql_blocked` is true on **23,291 of 32,760 rows across all ten seeds, 71.1%**.
+>
+> Two things to check rather than assume:
+>
+> - **NW's footnote says 84–89% of FQL actions were rejected; pooled over ten seeds I measure 71.1%.**
+>   The denominators may differ (per-cell, or per-metric), but the gap is large enough to reconcile
+>   before either number is quoted again.
+> - **FQL's log carries `wsa_label` and `aca_label`; `rulebased`'s carries no appraisal at all.** They
+>   are not the same kind of quantity as an LLM's self-report: a Q-learning agent's labels are
+>   *computed from environment state*, which is precisely the case this paper calls sound — a
+>   predicate with an observation channel independent of the generation being governed.
+>
+> **The first row is the one that is easy to get wrong, and I got it wrong once before correcting it
+> here.** "Rule-based" is not the flood ablation with governance switched off — that is
+> `Group_C_disabled`, which *does* run through the broker (`--governance-mode disabled`) and
+> therefore emits a full `household_governance_audit.csv` that can be compared row-for-row against
+> `Group_C`. The `rulebased/` arm is a **separate program outside the framework**. Its run
+> directories hold `simulation_log.csv` and a plot, and nothing else: no audit CSV, no
+> `governance_summary.json`, no `config_snapshot.yaml`, no `reproducibility_manifest.json`, no
+> reflection log. Verified by directory listing, 2026-08-06.
+>
+> That single fact explains the rest of its behaviour: it carries no appraisal column because nothing
+> ever asked it for one; it has no manifest because `experiment_runner.py` did not produce it; and
+> two of its three runs reproduce from no seed.
+>
+> **The two arms therefore answer different questions and are not parallel.** FQL asks *"replace the
+> LLM with a Q-table, hold governance fixed — what changes?"*, isolating the contribution of the
+> reasoning format. The rule-based agent asks *"how does the whole LLM-plus-governance stack compare
+> with conventional ABM practice?"* Both are legitimate. Calling both of them "baseline" in one paper
+> invites a reader to compare them with each other, which is meaningless — they share neither a code
+> path nor a governance condition.
 >
 > `run_fql_baseline.py:7` states it: "Everything else is identical: ... **same 12 governance
 > validators**", and the shipped logs carry an `fql_blocked` column confirming enforcement was
