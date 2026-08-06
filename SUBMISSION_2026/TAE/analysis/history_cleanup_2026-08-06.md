@@ -55,80 +55,87 @@ Recorded baseline, to compare against afterwards:
 
 ---
 
-## The commands
+## The commands — PowerShell
 
-Run from the repository root. In this session, prefix each with `! ` to run it here.
+Paste one block at a time from the repository root. In this session, prefix a line with `! ` to run
+it here.
 
-### 1. Rewrite the range
+### 1. Rewrite the range, and move the tag with it
 
-```bash
-FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --index-filter \
-  'git ls-files -z "ICLR2027/submission/figures/candidates" | \
-   grep -zvE "\.md$" | xargs -0 -r git rm --cached --ignore-unmatch --' \
-  origin/main..HEAD
+```powershell
+cd C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+$env:FILTER_BRANCH_SQUELCH_WARNING = "1"
+
+git filter-branch -f --tag-name-filter cat --index-filter 'git rm -r --cached --ignore-unmatch ":(glob)ICLR2027/submission/figures/candidates/**/*.png" ":(glob)ICLR2027/submission/figures/candidates/**/*.pdf"' origin/main..HEAD
 ```
 
-`--index-filter` touches only the index, so it never checks files out — it is the fast form and it
-cannot disturb your working tree. `origin/main..HEAD` limits it to your 49 commits; `main` and the
-three `feat/coupling-*` branches are untouched. **`--prune-empty` is deliberately omitted**: a commit
-that only added candidates becomes empty rather than disappearing, and its message is part of the
-record.
+Three details, each deliberate:
 
-### 2. Re-point the tag
+- **`--index-filter`** touches only the index, so nothing is ever checked out. It is the fast form
+  and it cannot disturb your working tree — the 52 files stay on disk throughout.
+- **`--tag-name-filter cat`** moves `firstattempt-launch-2026-08-05` onto the rewritten commit.
+  Without it the tag keeps pointing at the pre-rewrite object and is orphaned.
+- **`origin/main..HEAD`** limits the rewrite to your 49 commits. `main` and the three
+  `feat/coupling-*` branches are untouched. **`--prune-empty` is deliberately omitted**: a commit
+  that only added candidates becomes empty rather than vanishing, and its message is part of the
+  record.
 
-The tag points into the rewritten range, so after step 1 it still names the old commit.
+The pathspec was verified read-only before this file was written: `**/*.png` matches 47,
+`**/*.pdf` matches 1, and the four `README.md` files match neither. The outer quotes are PowerShell
+single quotes (literal) and the inner are double quotes, because git hands the string to `sh`, not
+to PowerShell.
 
-```bash
-git tag -f firstattempt-launch-2026-08-05 \
-  "$(git log --format=%H --grep='track the submission workspace' origin/main..HEAD | tail -1)"
-```
+### 2. Verify before pushing
 
-Check it landed on the right commit before continuing:
+```powershell
+git rev-list --count origin/main..HEAD
+#   expect 49
 
-```bash
+(git log --format=%s origin/main..HEAD | Out-String).Trim().Split("`n").Count
+#   expect 49
+
+(git ls-files 'ICLR2027/submission/figures/candidates').Count
+#   expect 4   -- only the READMEs remain tracked
+
+(git log --name-only --format= origin/main..HEAD | Select-String 'candidates.*\.png').Count
+#   expect 0   -- the rasters are gone from history
+
+(git diff --name-only origin/main..HEAD).Count
+#   expect 307   (355 - 48)
+
+(Get-ChildItem ICLR2027\submission\figures\candidates -Recurse -File).Count
+#   expect 52   -- still on disk, which is the point
+
 git log -1 --oneline firstattempt-launch-2026-08-05
+#   expect the "chore(provenance): track the submission workspace..." commit
 ```
 
-It should be the *"chore(provenance): track the submission workspace…"* commit.
+**If any of these disagrees, stop and restore:**
 
-### 3. Verify before pushing
-
-```bash
-# 49 commits, same subjects
-git rev-list --count origin/main..HEAD          # expect 49
-git log --format=%s origin/main..HEAD | md5sum  # expect 84d64dd6b5a4
-
-# the rasters are gone from history, the READMEs are not
-git log --all --name-only --format= origin/main..HEAD | grep -c 'candidates.*\.png'   # expect 0
-git ls-files 'ICLR2027/submission/figures/candidates' | wc -l                          # expect 4
-
-# nothing else moved
-git diff --name-only origin/main..HEAD | wc -l  # expect 307  (355 - 48)
-
-# the files are still on disk
-find ICLR2027/submission/figures/candidates -type f | wc -l   # expect 52
+```powershell
+git reset --hard backup-before-filter-2026-08-06
 ```
 
-**If any of these disagrees, stop.** `git reset --hard backup-before-filter-2026-08-06` restores the
-prior state exactly — though note that command is on this workspace's deny list, so it is also one
-you run rather than an agent.
+That command is on this workspace's deny list, so it is one you run rather than an agent — which is
+also why the backup branch was made before anything else.
 
-### 4. Push
+### 3. Push
 
-```bash
+```powershell
 git push -u origin p0-1-governance-instrumentation
 git push --tags
 ```
 
-### 5. Afterwards
+### 4. Afterwards, once you are satisfied
 
-```bash
-git branch -D backup-before-filter-2026-08-06   # only once you are satisfied
-git reflog expire --expire=now --all && git gc --prune=now --aggressive
+```powershell
+git branch -D backup-before-filter-2026-08-06
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
 ```
 
-The `gc` reclaims the 49.4 MB locally. Without it the objects remain in your clone, unreachable,
-until the reflog expires on its own.
+The `gc` reclaims the 49.4 MB locally. Without it the objects stay in your clone, unreachable, until
+the reflog expires on its own.
 
 ---
 
