@@ -74,15 +74,15 @@
     "gap": "Runtime governance evaluations can use a condition written by the agent both to enforce a rule and to select the records used by a conditional rate.",
     "task": "Evaluate this measurement-validity risk with paired WAGF simulations and define a reporting protocol that keeps the denominator and world-state dependence visible.",
     "outcomes": [
-      "prevalence of the agent-written scarcity condition",
+      "share of decisions with the agent-written scarcity condition",
       "conditional increase rate",
-      "fixed-denominator increase rate",
+      "all-decision increase rate",
       "descriptive world-state composition diagnostics"
     ],
     "questions": [
       {
         "id": "Q1",
-        "text": "Does enforcement change the prevalence of an agent-reported condition as well as the rate computed among those reports?",
+        "text": "Does enforcement change the share of decisions with an agent-reported condition as well as the rate computed among those decisions?",
         "lock": "SEMANTIC"
       },
       {
@@ -92,11 +92,11 @@
       },
       {
         "id": "Q3",
-        "text": "Which additional statistics remain interpretable when the denominator is fixed by design?",
+        "text": "Which additional statistics remain interpretable when the same denominator is used by design?",
         "lock": "SEMANTIC"
       }
     ],
-    "contribution": "A bounded measurement-validity risk and a low-cost reporting protocol for governed LLM-agent evaluations.",
+    "contribution": "A bounded measurement-validity risk and a minimal reporting protocol for governed LLM-agent evaluations.",
     "nonclaims": [
       "The paper does not claim deception or gaming.",
       "The paper does not identify a causal effect of validation.",
@@ -162,6 +162,7 @@
   "facts": [
     {
       "id": "anchor-prevalence-contrast",
+      "note": "Stable legacy fact identifier; current manuscript wording is condition-share contrast.",
       "source_id": "frozen-evidence-boundary",
       "expected_strings": ["+45.73"],
       "forbidden_strings": [],
@@ -176,6 +177,7 @@
     },
     {
       "id": "fixed-denominator-contrast",
+      "note": "Stable legacy fact identifier; current manuscript wording is all-decision contrast.",
       "source_id": "frozen-evidence-boundary",
       "expected_strings": ["+0.16", "-22.17"],
       "forbidden_strings": [],
@@ -185,20 +187,20 @@
   "alignment": [
     {
       "question_id": "Q1",
-      "method": "Compare validator-on and validator-off prevalence and conditional rates in paired irrigation simulations.",
+      "method": "Compare validator-on and validator-off condition shares and conditional rates in paired irrigation simulations.",
       "evidence": "Table 1 and the frozen irrigation evidence inventory report per-seed values and contrasts.",
-      "result": "All five irrigation configurations have positive prevalence contrasts; the anchor conditional rate contrast is +23.02 percentage points.",
+      "result": "All five irrigation configurations have positive condition-share contrasts; the anchor conditional rate contrast is +23.02 percentage points.",
       "interpretation": "The conditional score and its selected population move together.",
       "limitation": "The first response before a retry is unavailable, so within-decision report revision is unresolved.",
-      "contribution": "Shows why a conditional conformance score needs condition prevalence beside it.",
+      "contribution": "Shows why a conditional conformance score needs the condition share beside it.",
       "status": "COMPLETE"
     },
     {
       "question_id": "Q2",
-      "method": "Directly standardize prevalence to pooled simulator-recorded world-state distributions in the anchor irrigation cell.",
-      "evidence": "Figure 2, Table 2, and the frozen world-state evidence files report pooled residuals, coverage, and per-seed diagnostics.",
-      "result": "The pooled residual is -2.53 percentage points at full coverage and +0.21 at the finest reported stratification.",
-      "interpretation": "Different recorded-world composition is consistent with much of the raw prevalence contrast.",
+      "method": "Directly standardize the condition share to pooled simulator-recorded world-state distributions in the anchor irrigation cell.",
+      "evidence": "Figure 2, Table 2, and the frozen world-state evidence files report pooled differences, coverage, and per-seed diagnostics.",
+      "result": "The pooled difference is -2.53 percentage points at full coverage and +0.21 at the finest reported grouping.",
+      "interpretation": "Different recorded-world composition is consistent with much of the raw condition-share contrast.",
       "limitation": "World state is downstream of governance, so the decomposition is descriptive rather than causal.",
       "contribution": "Separates a supported world-state composition diagnosis from an unsupported causal claim.",
       "status": "COMPLETE"
@@ -207,10 +209,10 @@
       "question_id": "Q3",
       "method": "Compare the conditional increase rate with an all-decision rate using the same final-action reading.",
       "evidence": "Figure 3 and the frozen consequence evidence report contrasts for all five irrigation configurations.",
-      "result": "The fixed-denominator contrast can be near zero or reverse sign relative to the conditional contrast.",
+      "result": "The all-decision contrast can be near zero or reverse sign relative to the conditional contrast.",
       "interpretation": "The denominator is part of the estimand, not a formatting detail.",
-      "limitation": "The fixed-denominator rate answers a different question and is not presented as an automatic correction.",
-      "contribution": "Provides a low-cost reporting protocol for governed-agent evaluations.",
+      "limitation": "The all-decision rate answers a different question and is not presented as an automatic correction.",
+      "contribution": "Provides a minimal reporting protocol for governed-agent evaluations.",
       "status": "COMPLETE"
     }
   ],
@@ -332,7 +334,7 @@
     "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
     "argument_structure": "PASS_WHY_EXAMPLE_MECHANISM_GAP_QUESTIONS_CONTRIBUTIONS",
     "evidence_scope": "PASS_EVIDENCE_BOUNDARY_CHECK",
-    "scholarly_writing": "MANUAL_PASS; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
+    "scholarly_writing": "PASS_PLAIN_LANGUAGE_FOUR_PASS; ABSTRACT_242_RAW_TOKENS; STATS_AND_SCOPE_CLARIFIED; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
     "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_BLOCKED",
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
     "adversarial_review": "PASS_NESTED_INTERFACE_V3_ACTIVE_SYNC",
@@ -341,7 +343,6 @@
     "new_experiment_run": false
   },
   "next_actions": [
-    "Keep the academic prose scanner findings documented as parser limitations unless a future parser-aware run identifies a real prose issue.",
     "Run the official ICLR TeX build in a TeX-enabled environment.",
     "Inspect the rendered PDF at 100% and print size for page count, overfull boxes, caption clipping, and anonymity.",
     "Complete final venue and dual-submission checks."

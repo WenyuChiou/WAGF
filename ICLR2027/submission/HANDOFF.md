@@ -1,7 +1,8 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-05 after a second Figure 1 reset based on the rendered
-architecture figures of ReAct, Reflexion, AutoGen, SWE-agent, and AgentSpec.
+Updated 2026-08-05 after a Figure 1 reset based on the rendered architecture
+figures of ReAct, Reflexion, AutoGen, SWE-agent, and AgentSpec, followed by a
+plain-language and academic-writing audit of the active manuscript.
 
 ## Read this first
 
@@ -79,6 +80,22 @@ smoke manifests marked `git_dirty=true`; this is a provenance limitation, not
 a failed numerical crosscheck. Do not describe the historic corpus as bitwise
 reproducible.
 
+## Academic-writing and reviewer audit
+
+The active manuscript now uses a why-first introduction, a 242-word abstract
+(raw-token count before LaTeX rendering),
+an explicit 80/100 decision example, and plain-language definitions for the
+scarcity selection condition, all-decision rate, coverage, and direct
+standardization. The methods now state the frozen inference procedure: a
+two-sided one-sample $t$-test on per-seed off-minus-on deltas, 95\% $t$
+intervals with $n-1$ degrees of freedom, and cellwise unadjusted $p$-values.
+
+An independent adversarial CS reviewer passed the denominator example, citation
+resolution, claim boundaries, and Figure 1 route semantics. The reviewer’s
+requested fixes for caption denominator clarity, Figure 1’s scarcity-condition
+abstraction, exact reweighting support rules, and claim softening are now in
+`paper\manuscript.tex`. No new experiment was invented or run.
+
 ## Known blocker
 
 The Windows environment has no `pdflatex`, `xelatex`, `lualatex`, `tectonic`, or
@@ -89,14 +106,12 @@ fully upload-ready until a real TeX build passes.
 
 ## Next agent's order of work
 
-1. Complete the academic-writing four-pass audit of the active manuscript and
-   keep the figure caption/body terminology synchronized.
-2. Decide whether the ICLR generality claim needs a minimum controlled
-   validation experiment; do not broaden the claim without evidence.
-3. Build with the official ICLR style in a TeX-enabled environment and inspect
+1. Build with the official ICLR style in a TeX-enabled environment and inspect
    the PDF at 100% and print size for page count, overfull boxes, clipped
    captions, and anonymity leaks.
-4. Re-run the frozen evidence inventory and all table/figure crosschecks; do
+2. Re-run the frozen evidence inventory and all table/figure crosschecks; do
    not modify the historical TAE snapshot.
-5. Complete ICLR author metadata, profile, reciprocal-review, quota, and live
+3. Decide whether the ICLR generality claim needs a minimum controlled
+   validation experiment; do not broaden the claim without evidence.
+4. Complete ICLR author metadata, profile, reciprocal-review, quota, and live
    dual-submission checks only at submission time.

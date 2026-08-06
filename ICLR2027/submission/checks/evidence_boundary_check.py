@@ -9,6 +9,7 @@ scope-limiting language is present.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -67,21 +68,52 @@ def main() -> int:
     if missing_in_manuscript:
         errors.append(f"key values absent from manuscript: {missing_in_manuscript}")
 
-    required_scope_phrases = [
-        "descriptive rather than causal",
-        "does not claim deception",
-        "does not store the first response",
-        "identification control",
-        "not a causal adjustment",
-        "marginal proxy",
-        "not a data figure",
+    required_scope_assertions = {
+        "descriptive causal boundary": (
+            r"descriptive rather than causal",
+            r"not a causal adjustment",
+            r"not causal effect estimates",
+            r"does not establish a causal explanation",
+        ),
+        "deception boundary": (
+            r"does not claim deception",
+            r"do not claim that agents deceive",
+            r"no deception claim",
+        ),
+        "first-response boundary": (
+            r"does not store the first response before a retry",
+        ),
+        "non-causal flood boundary": (
+            r"do not use them to support causal claims",
+        ),
+        "reweighting boundary": (r"not a causal adjustment",),
+        "scarcity-condition distinction": (
+            r"broader than the two-condition rule",
+        ),
+        "conceptual-figure boundary": (r"not a data figure",),
+        "public-weight scope": (r"publicly available weights",),
+        "non-universal scope": (
+            r"same magnitudes hold for every model or agent framework",
+            r"rather than all LLM agents",
+        ),
+        "bitwise-reproduction boundary": (
+            r"does not claim bitwise reproduction",
+        ),
+    }
+    missing_scope = [
+        name
+        for name, assertions in required_scope_assertions.items()
+        if not any(re.search(pattern, manuscript, flags=re.IGNORECASE)
+                   for pattern in assertions)
     ]
-    missing_scope = [phrase for phrase in required_scope_phrases if phrase not in manuscript]
     if missing_scope:
         errors.append(f"scope-limiting phrases absent: {missing_scope}")
 
-    if "full conjunction" not in manuscript:
-        errors.append("manuscript does not define the full conjunction")
+    if not any(
+        phrase in manuscript
+        for phrase in ("full conjunction", "both conditions appear together")
+    ):
+        errors.append("manuscript does not define the two-condition rule")
     if "scarcity report" not in manuscript:
         errors.append("manuscript does not name the scarcity report")
 
