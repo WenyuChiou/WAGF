@@ -83,6 +83,11 @@ class HumanCentricMemoryEngine(MemoryEngine):
             W_interference: Weight for interference penalty (0 = disabled)
         """
         import random
+        # Kept as well as consumed. The seed governs which memories this engine promotes
+        # to the long-term store, so it is a behavioural parameter -- but it reached no
+        # artifact any run produced, which made `--memory-seed` unrecoverable from a
+        # finished corpus. ExperimentRunner reads this back into the manifest.
+        self.seed = seed
         self.rng = random.Random(seed)
 
         self.window_size = window_size
