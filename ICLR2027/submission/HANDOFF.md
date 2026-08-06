@@ -1,8 +1,9 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-05 after a Figure 1 reset based on the rendered architecture
-figures of ReAct, Reflexion, AutoGen, SWE-agent, and AgentSpec, followed by a
-plain-language and academic-writing audit of the active manuscript.
+Updated 2026-08-05 after a fresh Figure 1 generation round based on the
+rendered architecture figures of ReAct, Reflexion, AutoGen, SWE-agent, and
+AgentSpec, followed by independent visual review and a plain-language and
+academic-writing audit of the active manuscript.
 
 ## Read this first
 
@@ -30,7 +31,7 @@ strengthen ICLR generality; no new experiment has yet been run in this package.
 | Anonymous manuscript | `paper\manuscript.tex` |
 | Bibliography | `paper\references.bib` |
 | Figures cited by TeX | `figures\active\` |
-| Figure 1 generated asset | `figures\assets\figure1_architecture_agentpaper_nested_v3.png` |
+| Figure 1 generated asset | `figures\assets\figure1_architecture_agentpaper_shared_condition_v4.png` |
 | Figure 1 staging builder | `source\figure1_agent_paper.py` |
 | Figure 1 manifest | `figures\active\figure1_concept.json` |
 | Design contract | `FIGURE1_DESIGN.md` |
@@ -46,23 +47,21 @@ alternatives. Older v3 and D-v3 assets are historical and are not active.
 
 ## Figure 1 status
 
-The active Figure 1 is the generated nested-interface composition
-`figures\assets\figure1_architecture_agentpaper_nested_v3.png`. It uses:
+The active Figure 1 is the generated shared-condition composition
+`figures\assets\figure1_architecture_agentpaper_shared_condition_v4.png`. It
+uses:
 
-- a bounded Agent containing an LLM cue and a response with `action` and
-  `condition`;
-- a black dashed `governance` boundary around Validator, placed between the
-  response and Environment;
-- a direct allowed-action path to Environment and a separate final-record
+- an Agent response card with an AI cue and `action`/`condition` fields;
+- a compact Validator gate with explicit black and amber input ports;
+- a direct accepted-action path to Environment and a separate final-record
   path to Decision log;
-- a lower Counted set that receives black `records` from Decision log and the
-  amber `condition` route separately before feeding Conditional rate;
-- a thin dashed conceptual observation route from Environment to Agent.
+- a lower Counted records path that receives black `records` from Decision log
+  and the amber `condition` route separately before feeding Conditional rate.
 
 The image uses black borders/arrows, flat colored fills, a warm light-gray
-background, and small functional icons. The retry path is intentionally absent:
-the frozen corpus does not preserve the first response before a retry. The
-caption states this boundary.
+background, and small functional icons. Observation and retry paths are
+intentionally omitted for clarity; the frozen corpus does not preserve the
+first response before a retry, and the caption states this boundary.
 
 The generated source and active/print copies are byte-identical after staging.
 The current visual gate includes full-size, paper-width, thumbnail, grayscale,
@@ -90,11 +89,13 @@ standardization. The methods now state the frozen inference procedure: a
 two-sided one-sample $t$-test on per-seed off-minus-on deltas, 95\% $t$
 intervals with $n-1$ degrees of freedom, and cellwise unadjusted $p$-values.
 
-An independent adversarial CS reviewer passed the denominator example, citation
-resolution, claim boundaries, and Figure 1 route semantics. The reviewer’s
-requested fixes for caption denominator clarity, Figure 1’s scarcity-condition
-abstraction, exact reweighting support rules, and claim softening are now in
-`paper\manuscript.tex`. No new experiment was invented or run.
+An independent adversarial CS reviewer rejected four fresh candidates for
+record-path or endpoint ambiguity, then approved Candidate F's image-level
+routes at full size, thumbnail size, and grayscale. The remaining caption
+synchronization is now applied in `paper\manuscript.tex`. The earlier reviewer
+requests for caption denominator clarity, Figure 1's scarcity-condition
+abstraction, exact reweighting support rules, and claim softening are also in
+that file. No new experiment was invented or run.
 
 ## Known blocker
 

@@ -71,10 +71,9 @@ def main() -> int:
         ]
         labels = manifest.get("text", [])
         expected_labels = {
-            "Agent", "LLM", "response", "action", "condition", "governance",
-            "Validator", "proposed action", "rule input", "accepted", "Environment",
-            "observation", "final record", "Decision log", "records", "Counted set",
-            "selects", "Conditional rate",
+            "Agent response", "AI", "action", "condition", "propose",
+            "Validator", "rule input", "accepted", "Environment", "final record",
+            "Decision log", "records", "Counted records", "selects", "Conditional rate",
         }
         missing_labels = sorted(expected_labels - set(labels))
         unexpected_labels = sorted(set(labels) - expected_labels)
@@ -88,9 +87,9 @@ def main() -> int:
             errors.append(f"labels exceed the short-figure limit: {too_long}")
 
         source_asset = ROOT / manifest.get("asset", "")
-        if source_asset.name != "figure1_architecture_agentpaper_nested_v3.png":
+        if source_asset.name != "figure1_architecture_agentpaper_shared_condition_v4.png":
             errors.append(
-                "generated Figure 1 source must remain the reviewed nested-interface asset: "
+                "generated Figure 1 source must remain the reviewed shared-condition asset: "
                 f"{source_asset.name}"
             )
         expected_hashes = {

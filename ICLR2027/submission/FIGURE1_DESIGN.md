@@ -2,105 +2,109 @@
 
 ## Active version
 
-The active Figure 1 is the generated nested-interface candidate:
+The active Figure 1 is the generated shared-condition architecture:
 
-`figures/assets/figure1_architecture_agentpaper_nested_v3.png`
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`
 
 It is staged into `figures/active/figure1_concept.png` by
-`source/figure1_agent_paper.py`. The older shared-condition bridge v3 remains
-in `figures/assets/` as a historical comparison and is not active.
+`source/figure1_agent_paper.py`. Earlier nested-interface and bridge images
+remain historical candidates and are not active.
 
 ## Paper role
 
-Figure 1 is a conceptual architecture/dataflow figure. Its single reader task
-is to see that one response contains an action and a condition; a governance
-interface reads both before execution; and the same condition later helps
-select the records used by a conditional rate.
+Figure 1 has one reader task: see why a runtime validator can change a
+conditional evaluation score through the records that enter its denominator.
+The agent response contains an action and an agent-written condition. The
+response enters the Validator; an accepted action reaches the Environment; the
+Validator's final record enters the Decision log. The same condition enters the
+Validator as a rule input and selects records in the conditional-rate path.
 
-It is not a quantitative result, a component inventory, or evidence that the
-frozen corpus preserves every retry attempt.
+This is a conceptual dataflow figure, not a quantitative result, a component
+inventory, or evidence that the frozen corpus preserves every retry attempt.
 
-## Why this figure grammar
+## Reference-paper visual audit
 
-The redesign follows the visual grammar of the rendered primary figures in
-ReAct, Reflexion, SWE-agent, and AgentSpec:
+The new composition was rebuilt after inspecting the rendered primary figures
+in ReAct, Reflexion, SWE-agent, AutoGen, and AgentSpec. The relevant shared
+grammar is:
 
-- ReAct makes an observable agent trajectory readable with a small vocabulary.
-- Reflexion uses a bounded agent boundary and a few semantic modules.
-- SWE-agent places a compact interface between the LM agent and its environment.
-- AgentSpec makes the enforcement insertion point explicit with a nested
-  boundary and short decision paths.
+- a small number of semantic modules rather than a dashboard of equal-weight
+  boxes;
+- one dominant left-to-right agent/environment path;
+- a compact interface or gate where the agent meets execution;
+- short operation labels on connectors and short names inside nodes;
+- functional icons as subordinate cues, with explanations in the caption.
 
-WAGF combines those conventions into one nested interface: the Agent owns the
-response, the governance boundary owns the Validator, and the lower path makes
-the counted population explicit. The figure does not copy a mascot, a chat
-transcript, or an algorithm block.
+WAGF uses that grammar without copying any artwork. The black/amber ports are
+an intentional addition: they make the two uses of the same condition and the
+four record-flow endpoints explicit at paper width.
 
 ## Visual sentence
 
 ```text
-Agent(response[action, condition]) -> Validator -> Environment
-                                      |
-                                      +-> Decision log -> Counted set -> Conditional rate
-condition ---------------------------> Counted set
-Environment -- observation (dashed) -> Agent
+Agent response --propose--> Validator --accepted--> Environment
+                              |
+                              +--final record--> Decision log --records-->
+condition --rule input-----> Validator                         Counted records --> Conditional rate
+condition --selects-------------------------------------------> Counted records
 ```
 
-The amber condition is the only deliberately reused field. Its two routes have
-different meanings: `rule input` enters Validator, while `selects` enters
-Counted set. The black `records` route supplies the other input to Counted set.
+The amber condition is the only reused field. Its `rule input` route ends at
+Validator's amber input port; its `selects` route bypasses Decision log and
+ends at Counted records' amber input port. The black `final record` and
+`records` routes are separate and have their own ports.
 
 ## Visible structure
 
-1. A black dashed `Agent` boundary contains a small `LLM` chip and a response
-   card with blue `action` and amber `condition` rows.
-2. A black dashed `governance` boundary encloses the orange `Validator` and
-   its checklist icon. It is visibly between the response and Environment.
-3. The accepted action goes directly from Validator to the green Environment.
-   A thin dashed `observation` route returns from Environment to Agent.
-4. A separate black `final record` arrow goes from Validator to the violet
-   `Decision log`.
-5. The lower violet `Counted set` receives two distinct inputs: black
-   `records` from Decision log and amber `selects` from the condition row. It
-   then feeds `Conditional rate`.
-6. The retry path is omitted. The caption states that the frozen corpus does
-   not preserve the first response before a retry.
+1. A blue Agent response card contains a restrained AI-chip icon and two
+   fields: `action` and amber `condition`.
+2. The orange Validator card has distinct black and amber input ports, a black
+   output port for the accepted action, and a black bottom port for the final
+   record.
+3. The green Environment card receives only the accepted action path.
+4. The violet Decision log receives the Validator's final record. It sends
+   black `records` to Counted records.
+5. The violet Counted records card receives both black records and the amber
+   condition selector, then feeds Conditional rate.
+6. Observation-to-next-context and retry paths are omitted to keep the shared
+   condition relationship legible. The caption and Evaluation Setting describe
+   those paths and the frozen-corpus limitation.
 
 ## Visual constraints
 
-- Warm light-gray paper background; no gradient, shadow, title banner, legend,
-  equation, paragraph, watermark, or decorative mascot.
-- Black or near-black borders and arrows; flat colored fills only: blue for the
-  Agent/response, amber for condition, orange for Validator, green for
-  Environment, and violet for measurement modules.
-- Small functional icons identify the LLM, Validator, Environment, log, counted
-  set, and rate. Icons remain subordinate to labels.
-- Labels are short and exact. Explanations belong in the caption and body.
-- Every arrow has a visible origin, arrowhead, and destination. No connector
-  crosses a label, icon, boundary, or another connector.
-- The condition-to-Counted-set route must bypass Decision log visibly; it must
-  not terminate at the log or appear to be a second records route.
+- Warm very-light-gray paper background; black borders and black arrows;
+  colored flat fills for action, condition, Validator, Environment, and the
+  measurement path.
+- No gradients, drop shadows, title banner, legend, equations, paragraphs,
+  watermark, or floating white label plates.
+- Labels are short and exact: no label exceeds the short-figure limit in the
+  manifest.
+- Every connector has one visible origin, one arrowhead endpoint, and clearance
+  from text, icons, borders, and other connectors.
+- The condition route is amber and the records route is black; the two routes
+  remain distinguishable in color and by their separate ports.
 - The image must remain legible at full size, manuscript width, thumbnail size,
   and grayscale.
 
 ## Caption contract
 
-The caption must say, in plain language, that the allowed action reaches the
-environment, the final record enters Decision log, and the same condition
-selects the Counted set while records from the log enter that set. It must
-state that the dashed observation path is conceptual and that the retry path
-is omitted because the first response is unavailable. It must not imply a
-causal effect, a correction, or complete logging of rejected attempts.
+The caption must state that the action is checked before execution, that the
+final record enters Decision log, and that the same condition selects the
+Counted records used by Conditional rate. It must use the exact visible term
+`Counted records`, say that observation and retry paths are omitted for
+clarity, and state that the first response before a retry is unavailable in the
+frozen corpus. It must not imply a causal effect, a correction, or complete
+logging of rejected attempts.
 
 ## Regeneration and checks
 
 ```powershell
-python ICLR2027\submission\source\figure1_overlay.py
+python ICLR2027\submission\source\figure1_agent_paper.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 python ICLR2027\submission\checks\manuscript_static_check.py
 ```
 
-The generated-raster geometry check verifies the active asset, dimensions,
-hashes, and label manifest. Pixel-level arrow and text separation still
-requires full-size, print-width, thumbnail, grayscale, and adversarial visual
-review before release.
+The generated-raster geometry check verifies the staged asset, dimensions,
+hashes, and label manifest. Pixel-level separation is additionally reviewed
+at full size, manuscript width, thumbnail size, and grayscale, with an
+independent adversarial visual review before release.
