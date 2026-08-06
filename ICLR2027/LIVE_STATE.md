@@ -92,8 +92,6 @@ amber are close in hue for a colourblind reader, mitigated by their spatial sepa
 
 ---
 
----
-
 ## 6. The flood arm — keep it, and start reporting it
 
 **The author asked whether flood should be dropped from ICLR. The answer is no, and the reason is
@@ -110,20 +108,12 @@ Flood is the same harness, the same governance code, the same audit path, the sa
 on nine models in a different setting. **If the shift were an instrument artefact, flood would show
 it.** Measured, per-run-mean basis, `construct_TP_LABEL` in {H, VH}:
 
-| model | with validators | no validator | contrast |
-|---|---|---|---|
-| gemma3:4b | 32.46% | 31.30% | **−1.16** ← see the blocker below |
-| gemma3:12b | 2.55% | 0.93% | −1.63 |
-| gemma3:27b | 19.16% | 20.38% | +1.22 |
-| ministral3:3b | 31.19% | 31.04% | −0.15 |
-| ministral3:8b | 30.54% | 26.88% | −3.66 |
-| ministral3:14b | 19.45% | 19.92% | +0.47 |
-| gemma4:e2b | 27.42% | 28.39% | +0.97 |
-| gemma4:e4b | 43.48% | 49.71% | +6.24 |
-| gemma4:26b | 17.44% | 20.36% | +2.92 |
+**The numbers are below, under "from one source" — one table, not two.** An earlier draft of this
+file carried a second copy here and the two drifted apart within the hour when BACKLOG B6 was
+settled. Duplicating a table is how that happens; there is now one.
 
-**Flood spans −3.66 to +6.24, mean +0.58. Irrigation spans +21.26 to +47.53.** The two ranges do not
-touch; the gap between the largest flood contrast and the smallest irrigation one is **15 pp**.
+**Flood spans −3.66 to +6.24, mean +0.75. Irrigation spans +21.27 to +47.53, mean +37.80.**
+The ranges do not touch; the gap is **15.03 pp**.
 
 And the mechanism is visible rather than asserted: flood's enforcement blocks 0–0.85% of actions,
 irrigation's blocks 28–63%. **The shift tracks enforcement pressure, not the instrument.**
@@ -138,24 +128,24 @@ Meanwhile the body reports no flood number. So the paper currently pays the *"wh
 configurations run and none reported"* question **and** forgoes the control's benefit. Either
 direction is better than where it sits.
 
-### 🔴 One blocker, and it must be decided before any flood number is printed
+### The instrument gate, and BACKLOG B6 — settled
 
-`e2_flood_instrument.py` — the B5 gate that decides whether the two flood arms measured with the
-same instrument — returns **IDENTICAL INSTRUMENT** and rules that *"flood deltas MAY be printed, on
-the per-run-mean basis"*. The table above is on that basis; a pooled-row computation gives slightly
-different figures and should not be used.
+`e2_flood_instrument.py` — the B5 gate deciding whether the two flood arms measured with the same
+instrument — returns **IDENTICAL INSTRUMENT** and rules that *"flood deltas MAY be printed, on the
+per-run-mean basis"*. Everything here is on that basis. **A pooled-row computation over the same
+corpus gives different figures and must not be used** — I made that mistake once and it moved the
+gemma3:4b cell by 0.08 pp before anyone would have noticed.
 
-But its closing line is:
+Its closing line flagged B6 as blocking: *"B6 FLIPS THE SIGN of the gemma3:4b flood cell (−1.16
+with Run_1, +0.35 without) — decide it BEFORE any flood number is printed."*
 
-> **B6 FLIPS THE SIGN of the gemma3:4b flood cell (−1.16 with Run_1, +0.35 without). B6 is no longer
-> a cheap disclosure — decide it BEFORE any flood number is printed.**
+**Decided by the author, 2026-08-06: the run is EXCLUDED.** `JOH_FINAL/gemma3_4b/Group_C/Run_1`
+(`BACKLOG.md:70`) ran a different prompt — four response fields, no MULTI-ACTION block, 2,480
+characters against 2,972 in its four siblings — so it is not a replicate of the same condition and
+is not averaged into a per-run mean. The cell is **+0.35**.
 
-B6 (`BACKLOG.md:70`): `JOH_FINAL/gemma3_4b/Group_C/Run_1` ran a **different prompt** — four response
-fields, no MULTI-ACTION block, 2,480 characters against 2,972 in the other runs.
-
-**The reassuring part: it does not threaten the argument.** −1.16 and +0.35 are both small and both
-sit well inside the flood range, so the separation from irrigation holds either way. What B6 blocks
-is *printing that one cell's number*, not the control claim.
+The separation was never at stake: −1.16 and +0.35 both sit well inside the flood range, whose
+extremes are ministral3:8b and gemma4:e4b either way.
 
 ### Three disclosures the gate says must travel with any flood number
 
@@ -171,7 +161,7 @@ Its words, not mine:
 
 > The same validator stack, applied in a setting where enforcement rarely binds, produces no
 > comparable shift. Across nine flood configurations the high-appraisal share contrast spans −3.66 to
-> +6.24 pp (mean +0.58), against +21.26 to +47.53 pp across the five irrigation configurations; the
+> +6.24 pp (mean +0.75), against +21.27 to +47.53 pp across the five irrigation configurations; the
 > ranges do not overlap. Flood governance rejects 0–0.85% of proposed actions and irrigation
 > governance rejects 28–63%. The shift therefore scales with enforcement pressure rather than with
 > the measuring apparatus, which the two settings share.
@@ -195,7 +185,7 @@ for it.
 **My recommendation, in order of what I would do first:**
 
 1. **A table, or a two-line addition to Table 1.** The claim is a *separation of ranges*, and a table
-   states ranges more precisely than a plot: flood −3.66 to +6.24 (n=9), irrigation +21.26 to +47.53
+   states ranges more precisely than a plot: flood −3.66 to +6.24 (n=9), irrigation +21.27 to +47.53
    (n=5), no overlap. **Costs no display item**, which matters while the body is at the page limit —
    though see §4.1: that constraint loosens as the bibliography grows, since references do not count.
 2. **Then, if space allows, a fourth panel on fig2** — the fourteen cells on one axis, irrigation
