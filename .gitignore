@@ -83,6 +83,8 @@ temp_*.txt
 temp_*.json
 *.jpg
 *.csv
+# ICLR2027 release evidence: the active cross-testbed summary is intentionally tracked.
+!ICLR2027/submission/supplement/cross_testbed_summary.csv
 
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
