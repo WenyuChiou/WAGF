@@ -638,3 +638,27 @@ PASS. The check was changed to parse the denominator-gap CSV and compare only
 the `gap_pp` field for the two derived rounded values. The check and Python
 compile then passed, and the reviewer re-checked the fix and returned
 `APPROVE`. No reviewer approval was inferred from a timeout.
+
+## Round 34: whole-paper paragraph and display contract
+
+The active ICLR package now has a compact structure plan at
+`docs/plans/2026-08-06-iclr2027-paper-structure-and-displays.md`. The target is
+22 argument paragraphs: six in the Introduction, three in Evaluation Setting,
+three in The Denominator Moves, three in World-State Composition, two in
+Different Denominators and Action Readings, three in Reporting Protocol and
+Limitations, and two in the Conclusion. Required contribution, AI-use, ethics,
+and reproducibility blocks are kept separate from the argument count.
+
+The display contract keeps four figures and three tables. Figure 1 is the
+conceptual agent/validator/measurement dependency; Figure 2 is the rule-layer
+evidence; Figure 3 is the primary irrigation world-state diagnosis; and
+Figure 4 is the executed conditional-versus-all-decision gap. Irrigation is
+the primary result. Flood remains a secondary cross-testbed table check and is
+not given a mechanism panel. This prevents the paper from visually implying
+that Flood and irrigation support the same causal or transfer claim.
+
+The current Introduction v2 is included in this planning checkpoint for the
+academic-writing audit. Its remaining work is compression to the six-paragraph
+contract, followed by a section-by-section evidence and display pass. No new
+experiment is incorporated until its provenance is reconciled with the active
+source of truth.
