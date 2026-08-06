@@ -15,16 +15,34 @@ window.**
 
 | | files | size |
 |---|---|---|
-| **removed from history** | 48 rasters under `ICLR2027/submission/figures/candidates/` | **49.4 MB** |
+| **removed from history** | 48 rasters under `ICLR2027/submission/figures/candidates/` | 49.4 MB of file, **35.0 MB of branch** |
 | **kept in history** | the 4 `README.md` files beside them | 7 KB |
 | **put back on disk afterwards** | all 52, by an explicit step | 50 MB |
 
-The branch currently adds **80.1 MB**; 49.4 MB of it — **62%** — is rejected Figure 1 candidates.
+**Two different numbers, and the smaller one is the real one.** Summing the 48 files gives 49.4 MB.
+The branch shrinks by **35.0 MB** — measured, `origin/main..HEAD` before and after: 70.9 MB (976
+objects) → 35.9 MB (936 objects). Git stores content once, and the 48 paths resolve to 45 distinct
+blobs; **9 of those 45 (10.8 MB) are byte-identical to files still tracked** under
+`figures/assets/` and `figures/active/` — the candidates that were promoted to real figures. Those 9
+still ship, under their production filenames. One of them,
+`candidates/legacy/figure1/figure1_concept_print600_legacy.png`, is byte-identical to
+`figures/active/figure1_concept.png`: the image filed as a retired candidate **is** the Figure 1 the
+manuscript uses.
+
+That is correct scoping — those paths were never targeted — but if the intent had been to purge the
+*content* rather than untrack the *path*, this operation does not achieve it.
 
 **The READMEs are deliberately kept.** They record why each generation round was refused, and
 removing the reasoning while keeping nothing is the same inversion this repository has had to undo
 three times already. A `.gitignore` rule landed alongside this file so new rasters cannot come back;
-`.md` beside them is still tracked.
+`.md` beside them is still tracked. They reference the purged filenames as backticked prose and
+table cells rather than `![...]` embeds, so nothing renders as a broken image.
+
+**The design covers three of the four subdirectories.** `candidates/legacy/figure1/` held 11 files,
+all images, and **no README** — so that round leaves no record in git at all once
+`backup-before-filter-2026-08-06` is deleted. The 11 files remain on disk, ignored, in this working
+copy only. If any of them is worth keeping a reason for, write that README before dropping the
+backup branch.
 
 **Not touched:** `figures/active/` (the four figures the manuscript includes) and `figures/assets/`
 (≈10 MB, the generation sources for the active Figure 1). Assets may or may not be worth trimming;
@@ -173,8 +191,16 @@ git rev-list --count origin/main..HEAD
 (git ls-files 'ICLR2027/submission/figures/candidates').Count
 #   expect 4    -- only the READMEs remain tracked
 
-(git log --name-only --format= origin/main..HEAD | Select-String 'candidates.*\.png').Count
+(git log --name-only --format= origin/main..HEAD |
+   Select-String '^ICLR2027/submission/figures/candidates/.*\.(png|pdf)$').Count
 #   expect 0    -- the rasters are gone from history
+#
+#   The pattern MUST be anchored. An earlier version of this file used
+#   'candidates.*\.png', which also matches
+#   SUBMISSION_2026/TAE/figures/_candidates/fig1_WAGF_imagegen_paper_release_source.png
+#   -- a different directory that was never in scope. It returns 1 on a PERFECTLY CORRECT
+#   rewrite, and the instruction below is "stop and restore". That check would have destroyed
+#   a good rewrite. It also missed the one .pdf, so it under-tested in the other direction.
 
 (git diff --name-only origin/main..HEAD).Count
 #   must equal $before.files - 48
@@ -201,8 +227,20 @@ if Codex has written since block 1, copy `ICLR2027/submission/paper/manuscript.t
 
 ```powershell
 git push -u origin p0-1-governance-instrumentation
-git push --tags
+git push origin refs/tags/firstattempt-launch-2026-08-05
 ```
+
+**Push the tag by name. Not `--tags`.** The remote carries five tags (`v0.2.1` … `v0.5.1`); this
+clone has eight. `--tags` would create **three** remote tags, not one: the intended
+`firstattempt-launch-2026-08-05`, plus `v0.29.0` and `v0.6.0`. Both of those are ancestors of
+`origin/main`, so they add no bytes — they add two more refs that the still-pending PII
+`filter-repo` purge would have to rewrite. `v0.6.0`'s tree carries both survey CSVs.
+
+**Never `git push --all` or `--mirror` from this clone.** `backup-before-filter-2026-08-06` still
+holds all 48 images at its tip and lives under `refs/heads`, so `--all` would publish them and undo
+this entire operation in one command. `--mirror` additionally reaches
+`refs/original/refs/heads/p0-1-governance-instrumentation`, the temporary park commit. The explicit
+refspecs above send neither.
 
 ### 5. Afterwards, once you are satisfied
 
