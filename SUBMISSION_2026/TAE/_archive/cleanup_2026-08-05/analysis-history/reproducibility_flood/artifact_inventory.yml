@@ -1,0 +1,781 @@
+runs:
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T00:23:36.638519
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T01:56:02.001961
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T03:19:45.414518
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T15:32:14.519244
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-02T04:43:09.897072
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-02T17:55:30.715014
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T17:11:27.788807
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T18:09:05.750420
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T19:05:18.462712
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T04:40:31.702481
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T06:32:35.277132
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-01T09:31:02.018292
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T14:53:16.811188
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T15:40:03.431165
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T16:28:16.229119
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T19:56:45.318297
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T21:26:35.130749
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-28T22:53:52.391523
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T15:08:24.626034
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T17:00:34.091162
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: 8c82ae41d0b5abfb283c3b2fa877167cd200ea98
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-06-01T01:02:23-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: 8c82ae41d0b5abfb283c3b2fa877167cd200ea98
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-06-01T01:02:23-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T23:45:51.081826
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-10T10:03:09.443509
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T09:12:43.534218
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T10:25:00.849845
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T18:55:09.205391
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T21:21:48.573682
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T07:15:20.333116
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T08:13:32.025169
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: 5a1d467faa344e41f147495fc64de8f598f0046e
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-05-30T01:36:34-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T11:37:28.928011
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-09T13:22:03.590350
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-21T19:42:33.225313
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-21T23:39:25.633665
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-22T03:35:07.714539
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-22T07:28:56.417859
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-22T11:27:38.512449
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T00:49:10.205151
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T01:38:51.957951
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T02:27:40.233715
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T03:16:55.318539
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T04:06:34.590647
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_1
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T13:57:04.298044
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_2
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T15:36:45.448305
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_3
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T17:16:28.279372
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_4
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T18:51:51.366586
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_5
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T20:26:43.026530
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_A\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_A\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_A\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-02T20:12:37.382361
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-09T03:37:57.646330
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-10T12:53:57.879615
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T20:47:44.705807
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-08T00:54:15.332625
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_A\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_A\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_A\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-04T06:51:55.403249
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-09T14:15:02.992783
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-12T04:03:05.519795
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-08T09:02:16.343620
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-08T20:20:31.153239
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_A\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_A\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_A\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-02T12:54:09.892098
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-09T00:58:05.407163
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-10T09:51:56.189811
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T14:41:15.366830
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T15:56:17.080055
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_A\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_A\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_A\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-04T18:47:20.751155
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-10T06:06:23.949775
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-11T15:16:40.065237
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-08T03:44:22.743856
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-08T06:26:11.025026
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_1_bak_broker
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-01T05:27:02.481646
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-03T00:03:50.863698
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-09T23:08:40.871187
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-12T16:01:53.625371
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T12:22:51.121706
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T13:29:59.313395
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_A\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_A\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_A\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-03T03:43:31.066674
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-10T02:00:10.214672
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-02-11T10:16:47.428200
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T17:08:50.855458
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: null
+    data_first_trace_ts: 2026-03-07T19:01:17.883640
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-20T22:05:28.817061
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-21T02:21:24.715354
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-21T06:38:00.088461
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-21T11:02:23.655380
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: bdb29f526436ee4bf3d2212cf7b60c83f96a0ebd
+    data_first_trace_ts: 2026-04-21T15:24:45.853083
+    relevant_code_commit_date: 2026-04-20T22:09:12-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: 1efb8f50211383aea358c7b78526db7f30ce8f2c
+    data_first_trace_ts: 2026-04-19T20:20:02.059795
+    relevant_code_commit_date: 2026-04-19T20:44:16-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-19T21:16:49.714556
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-19T22:08:54.247123
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-19T23:04:19.478015
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-19T23:58:19.908925
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_1
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T04:58:53.577464
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_2
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T06:48:30.153882
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_3
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T08:37:57.037192
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_4
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T10:27:04.909897
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_5
+    manifest_present: true
+    manifest_git_commit: eb595df5933353d8fa29dd1396f33ba281a53f73
+    data_first_trace_ts: 2026-04-20T12:10:06.768088
+    relevant_code_commit_date: 2026-04-19T22:03:27-04:00
+    verdict: RED
+  - path: examples\single_agent\results\rulebased\Run_1
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\rulebased\Run_2
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
+  - path: examples\single_agent\results\rulebased\Run_3
+    manifest_present: false
+    manifest_git_commit: null
+    data_first_trace_ts: null
+    relevant_code_commit_date: null
+    verdict: RED
