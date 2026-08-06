@@ -215,9 +215,109 @@ It answers one question: **among decisions the governance loop blocked, did the 
 end up different from the one the agent first wrote?** The shipped corpus cannot answer it, which is
 what §8 admits.
 
-<!-- RESULTS PLACEHOLDER — Claude fills this at ~10:30. Do not write here. -->
+### ✅ RESULTS — seed 42 landed 2026-08-06 09:07, 9.78 h. **§8's admission is now a measurement.**
 
-**RESULTS: pending.** When the run lands I will append, in this spot:
+**The headline, and it is not the one either outcome branch predicted.** Both channels are real, and
+they are real at different levels of aggregation.
+
+| | |
+|---|---|
+| decisions | 3,276 (78 agents × 42 years, complete grid, sim/audit join exact) |
+| retried | **2,010 — 61.4%** |
+| comparable (attempt-0 WSA parseable) | 1,865 |
+| **appraisal changed between attempt 0 and the record** | **845 — 45.31%** |
+| entered HIGH | 323 |
+| left HIGH | 263 |
+| **net into HIGH** | **+60** |
+
+**At the level of a single decision the revision channel is large: nearly half of retried decisions
+recorded a different water-scarcity appraisal than the one the agent first wrote.** That is not
+noise, and it is not what the frozen corpus could ever have shown.
+
+**In aggregate it very nearly cancels.** Attempt-0 HIGH share **37.45%**; recorded HIGH share
+**37.91%**. **A difference of +0.46 pp on a cross-arm gap of +45.73 pp — about 1%.**
+
+### What this settles
+
+**§5's world-composition account survives, confirmed by a route that could have refuted it.** The
++45.73 pp cross-arm gap is not produced by agents rewriting their appraisal under pressure: they do
+rewrite it, constantly, and it nets to almost nothing. **The gap remains attributable to the two arms
+inhabiting different worlds**, exactly as the reweighting to −2.53 / +0.21 argued.
+
+**§8 stops being an admission.** *"We therefore cannot separate a report revision within the same
+decision from selection into the observed accepted set"* is no longer true of this arm. Both were
+measured. Revision is 45.31% per decision and +0.46 pp in aggregate; selection carries the rest.
+
+**And the measurement has no world-divergence confound at all** — same agent, same decision, same
+moment, same reservoir level. That is a property the cross-arm contrast can never have, and it is why
+this one run is worth more than a sixth seed of the old kind.
+
+### Gate: 8 of 9 checks pass. The ninth is a false statement, attested before it happened.
+
+```
+OK  3276 rows in both simulation_log.csv and irrigation_farmer_governance_audit.csv
+OK  78 agents x 42 years = 3276 pairs, complete grid, sim/audit join exact
+OK  initial_skill, initial_labels, attempt_skills present
+OK  initial_labels non-empty: 100.00% of all rows, 100.00% of 2010 retried rows
+OK  WSA_LABEL differs on 845/1865 comparable retried rows (45.31%)
+    -- the instrument is recording something
+OK  reflection_log.jsonl: 2848 records
+OK  wall-clock 9.78 h (baseline 10.4, ceiling 20.8)
+[FAIL] manifest provenance -- git_dirty=true
+```
+
+**The pre-launch worry did not materialise: the 1b smoke's 80% fill on retried rows was a
+weak-model artefact. gemma3:4b is at 100.00%.**
+
+The one FAIL is `git_dirty`, which `experiment_runner.py:509-521` samples **at finalize**, ten hours
+after launch, and which `e3_run_integrity.py:404-408` then reads as a launch-time statement. The
+manifest even records `git_commit 0237cb5f` — a commit made while the run was finalising, 26 commits
+after the launch tag.
+
+**Every file this run read shows zero drift**, committed or uncommitted, across those 26 commits:
+all of `broker/`, `run_experiment.py`, and the four isolated config files. Measured at 95.4%
+completion, before finalize, and recorded in
+`SUBMISSION_2026/TAE/runs/_logs/seed42_provenance_attestation.md` — deliberately written *before* the
+gate could produce the false verdict rather than as a rebuttal afterwards.
+
+**Do not weaken the gate to make this pass.** The attestation names three fixes and argues against
+that one specifically.
+
+### Two clean side results
+
+**`failed_rules` census, on real data for the first time.** No `Unknown`, no
+`precondition_violation`, and **`output_schema_violation` appears zero times** — so the token added
+to `_data.py` this session remains forward-looking protection that moved no number. Every rejection
+names a behavioural rule: `demand_ceiling_stabilizer` 1838, `high_threat_high_cope_no_increase` 1055,
+`curtailment_awareness` 701, `supply_gap_block_increase` 226, `demand_floor_stabilizer` 200,
+`low_threat_no_increase` 69.
+
+**`run_integrity.json` reports `reflection_tracked: false` against `reflection_expected: true`** —
+the signature that quarantined eighteen runs on 2026-05-30. Here it is a flag defect, not a data
+defect: `reflection_log.jsonl` holds **2,848 real entries** and `integrity_ok` is true. Worth fixing
+in the tracker; not worth doubting this run over.
+
+### What this means for the paper — and it is less than you might fear
+
+**No restructure.** The paper's account was right. What changes:
+
+1. **§8's limitation becomes a result.** The largest admission in the paper is answerable now, for one
+   arm, with a number.
+2. **§5 gains an independent confirmation.** Say so — a compositional account that survives a test
+   which could have killed it is worth more than one that was never tested.
+3. **Figure 1's caption stays literally true** — *"the **frozen** corpus does not preserve the first
+   response"* — but the paper now has a run that does. The caption should point at it rather than
+   leave the reader thinking the quantity is unobtainable.
+4. **The retry branch now has a measured magnitude.** 45.31% of retried decisions revise the
+   appraisal. Whether that earns a place in the diagram is your call, but "omitted for clarity" is a
+   weaker justification for a channel with a number attached than for one without.
+
+**Nothing here requires the other four seeds to be interpreted.** They would tighten it; they cannot
+overturn a 45.31%-versus-+0.46 pp split this wide.
+
+<!-- Superseded placeholder text kept below for the record of what was promised. -->
+
+**RESULTS: delivered above.** The original placeholder promised:
 
 - the `initial_labels` fill rate by stratum, against the >95% gate — **the stop condition**; if
   retried rows come in under 95%, seeds 43–46 do not run and this section says so
