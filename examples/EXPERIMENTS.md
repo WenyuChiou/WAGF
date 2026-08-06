@@ -39,7 +39,8 @@ at launch, so the description also travels with the data if the folder is moved 
 |---|---|---|---|---|
 | `production_v21_42yr_*` | gemma3:4b · gemma3:12b · gemma4:e2b · gemma4:e4b · ministral3:8b | 42–46 (12b, ministral: 42–44) | governed behaviour under the full validator stack | conference paper; Nature Water Paper 1b |
 | `ungoverned_v21_42yr_*` | same five | same | the no-validator comparison arm | same |
-| `fql_raw/` | — | 42–44 | fitted-Q baseline, a different comparison entirely | `examples/irrigation_abm/analysis/fql_comparison_*.py` **only** |
+| `fql_raw/` | — | 42–51 | the Fuzzy Q-Learning kernel of Hung & Yang (2021), run **through WAGF with all 12 validators active** — 71% of its actions are blocked | Nature Water: Fig. 2's grey trace, Extended Data Table 1, SI Table 11; `examples/irrigation_abm/analysis/fql_comparison_*.py` |
+| `fql_nogov/` | — | 42–51 | the same kernel with `--no-governance`. **Not used by any paper** — an audit arm, kept for the result: without validators the same kernel reaches dead pool in 10 of 10 seeds | nothing. See [its record](irrigation_abm/experiments/fql_nogov_2026-08.md) |
 | `firstattempt_gov_gemma3_4b_seed4x` | gemma3:4b | 42–46 | **does the recorded appraisal differ from the one the agent first wrote?** | conference paper §5/§8; reusable by Nature Water — see the design record |
 
 Design records: [`examples/irrigation_abm/experiments/`](irrigation_abm/experiments/)
