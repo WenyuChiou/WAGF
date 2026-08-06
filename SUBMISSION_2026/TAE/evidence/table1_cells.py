@@ -420,8 +420,16 @@ CSV_FIELDS = [
     "cond_gov", "cond_noval", "cond_delta", "cond_ci_lo", "cond_ci_hi", "cond_t", "cond_df", "cond_p",
     "uncond_gov", "uncond_noval", "uncond_delta", "uncond_ci_lo", "uncond_ci_hi",
     "uncond_t", "uncond_df", "uncond_p",
+    # The executed blocks carry full statistics as of 2026-08-06. They previously
+    # shipped as point estimates only, which was defensible while LAST-PROPOSED was
+    # the primary reading and these were a cross-check. The author moved the primary
+    # reading to EXECUTED, so a CI and a p-value are now required of the columns that
+    # carry the headline. No new data: the same per-seed deltas that produced the
+    # point estimates produce the interval.
     "cond_exec_gov", "cond_exec_noval", "cond_exec_delta",
+    "cond_exec_ci_lo", "cond_exec_ci_hi", "cond_exec_t", "cond_exec_df", "cond_exec_p",
     "uncond_exec_gov", "uncond_exec_noval", "uncond_exec_delta",
+    "uncond_exec_ci_lo", "uncond_exec_ci_hi", "uncond_exec_t", "uncond_exec_df", "uncond_exec_p",
     "action_reading_of_cond_uncond", "delta_convention",
 ]
 
@@ -462,8 +470,8 @@ def write_csv(rows: list[dict], path: str = OUT_CSV) -> str:
             rec.update(_blk(r, "high", "high"))
             rec.update(_blk(r, "cond", "cond"))
             rec.update(_blk(r, "uncond", "uncond"))
-            rec.update(_blk(r, "cond_exec", "cond_exec", full=False))
-            rec.update(_blk(r, "uncond_exec", "uncond_exec", full=False))
+            rec.update(_blk(r, "cond_exec", "cond_exec"))
+            rec.update(_blk(r, "uncond_exec", "uncond_exec"))
             w.writerow(rec)
     return path
 
