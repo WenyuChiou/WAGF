@@ -8,7 +8,11 @@
     "liu2023agentbench",
     "rebedea2023nemo",
     "rosenbaum1984adjustment",
-    "wang2026agentspec"
+    "shinn2023reflexion",
+    "wang2026agentspec",
+    "wu2023autogen",
+    "yang2024sweagent",
+    "yao2023react"
   ],
   "bibliography_keys": [
     "bean2025construct",
@@ -16,7 +20,11 @@
     "liu2023agentbench",
     "rebedea2023nemo",
     "rosenbaum1984adjustment",
-    "wang2026agentspec"
+    "shinn2023reflexion",
+    "wang2026agentspec",
+    "wu2023autogen",
+    "yang2024sweagent",
+    "yao2023react"
   ],
   "figure_paths": [
     "../figures/active/figure1_concept.png",
@@ -31,7 +39,7 @@
     },
     "fig2_mechanism.pdf": {
       "pages": 1,
-      "bytes": 63407
+      "bytes": 40059
     },
     "fig3_consequence.pdf": {
       "pages": 1,
@@ -45,7 +53,7 @@
       "mode": "RGB"
     }
   },
-  "approximate_word_count": 3848,
+  "approximate_word_count": 4356,
   "warnings": [],
   "errors": []
 }

@@ -488,3 +488,65 @@ changed because its existing fills already satisfy this mapping.
 The revised caption was re-typeset with MiKTeX 25.12. The PDF remains 9 pages
 (8 pages of main text plus references), with no overfull boxes, undefined
 references, or caption clipping at manuscript width.
+
+## Round 25: rule semantics and cross-testbed scope audit
+
+The reviewer question "why does the rule block high?" was resolved at the
+source level rather than by adding a normative explanation. The frozen WAGF
+branch is `high_threat_high_cope_no_increase`: an increase proposal is blocked
+only for the conjunction of high/very-high reported water scarcity and
+high/very-high reported coping capacity. High scarcity alone produces a
+warning. The manuscript now states that this is a testbed policy used to
+create the measurement coupling, not evidence that high scarcity alone should
+be blocked.
+
+The Flood evidence was also re-audited against the canonical eligibility
+decision. The active package retains nine Flood configurations, not eight. The
+gemma3:4b cell excludes one divergent governed run, leaving four governed and
+five no-validator runs; including it changes that cell from +0.35 pp to
+-1.16 pp. Figure 3D and Table 2 use the same per-run-mean contrast across
+settings, but Flood is not seed-paired, has a different action ontology, and
+has no action-to-environment feedback. The claim is therefore descriptive
+portability, not causal transfer.
+
+## Round 26: typeset and visual release audit
+
+The active cross-testbed builder regenerated Figure 3 PNG/PDF, its copied CSV,
+and the Table 2 TeX fragment idempotently. The final MiKTeX build has 10 pages:
+8 pages of main text and 2 pages of references. Rendered pages containing
+Figure 1, Table 2, Figures 3--4 were inspected at paper width. No text,
+caption, legend, arrow, or module is clipped or overlapped. Static checks,
+evidence-boundary checks, and the final citation pass are green.
+
+The package remains `WORKING`, not submission-ready, until venue-time
+anonymity, author metadata, reciprocal-review, quota, and any requested
+controlled-validation decision are completed.
+
+## Round 27: source-boundary corrections from adversarial review
+
+The review found four release hazards and all four were addressed. The Flood
+panel now calls its quantity a high-threat-appraisal contrast, not a
+high-scarcity contrast: irrigation stores `WSA_LABEL`, Flood stores
+`TP_LABEL`, and both use the high/very-high labels from the shared appraisal
+instrument. The older Flood gemma3:4b row in `table1_cells.csv` is explicitly
+labelled B6-included sensitivity-only; the active result remains the
+four-governed/five-no-validator row in `flood_control_contrasts.csv`.
+
+The enforcement-pressure range is now pinned in
+`enforcement_pressure_source.json` and loaded/asserted by the Figure 3
+builder rather than silently hard-coded. The active builder, summary CSV, and
+Table 2 fragment are release artifacts in the manuscript state and are staged
+explicitly despite the repository-wide CSV ignore rule. Table 1 is cited before
+Table 2 in the results prose, and the submission checklist records the current
+10-page PDF (8 main-text pages and 2 reference pages).
+
+## Round 28: staged release-integrity gate
+
+The repository now has an explicit ignore exception for the active
+cross_testbed_summary.csv, and all four cross-testbed release artifacts are
+tracked in the staged package: the builder, summary CSV, pressure-source JSON,
+and Table 2 fragment. A read-only code-reviewer re-check found exactly 19
+intended staged files, no unrelated TAE or examples/ changes, and no
+remaining P0/P1 issue. The package still discloses that the historical
+reproducibility report is red because three smoke manifests are dirty and that
+the live run remains fenced.

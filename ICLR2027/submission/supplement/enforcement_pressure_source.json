@@ -1,0 +1,11 @@
+{
+  "metric": "share of proposed actions rejected by governance",
+  "source": "ICLR2027/LIVE_STATE.md",
+  "source_lines": [118, 119, 165, 166, 238, 239, 269, 270],
+  "scope": "descriptive range across the reported irrigation and Flood configurations",
+  "ranges_pct": {
+    "irrigation": [28.0, 63.0],
+    "flood": [0.0, 0.85]
+  },
+  "note": "Pinned operational-handoff summary; this metric is not recomputed from flood_control_contrasts.csv and is not a causal dose-response measure."
+}

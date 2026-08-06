@@ -30,6 +30,34 @@
       "required_for_release": true
     },
     {
+      "id": "cross_testbed_builder",
+      "path": "source/cross_testbed_summary.py",
+      "role": "deterministic_figure_and_table_builder",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "cross_testbed_summary",
+      "path": "supplement/cross_testbed_summary.csv",
+      "role": "cross_testbed_evidence_summary",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "enforcement_pressure_source",
+      "path": "supplement/enforcement_pressure_source.json",
+      "role": "pinned_scope_summary",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "cross_testbed_table_fragment",
+      "path": "supplement/table2_cross_testbed.tex",
+      "role": "deterministic_table_fragment",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
       "id": "figure1_design_contract",
       "path": "FIGURE1_DESIGN.md",
       "role": "figure_documentation",
@@ -51,7 +79,7 @@
       "path_or_reference": "checks/evidence_boundary_report.json",
       "scope": ["methods", "results", "numbers", "figures", "tables"],
       "status": "VERIFIED",
-      "last_verified": "2026-08-05"
+      "last_verified": "2026-08-06"
     },
     {
       "id": "current-manuscript",
@@ -59,7 +87,7 @@
       "path_or_reference": "paper/manuscript.tex",
       "scope": ["framing", "captions", "limitations", "declarations"],
       "status": "VERIFIED",
-      "last_verified": "2026-08-05"
+      "last_verified": "2026-08-06"
     },
     {
       "id": "figure1-geometry",
@@ -67,7 +95,23 @@
       "path_or_reference": "checks/figure1_geometry_report.json",
       "scope": ["figure1", "labels", "routes"],
       "status": "VERIFIED",
-      "last_verified": "2026-08-05"
+      "last_verified": "2026-08-06"
+    },
+    {
+      "id": "cross-testbed-summary",
+      "kind": "verified_derived_evidence",
+      "path_or_reference": "supplement/cross_testbed_summary.csv and source/cross_testbed_summary.py",
+      "scope": ["flood", "figure3_panel_d", "table2"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-06"
+    },
+    {
+      "id": "enforcement-pressure-source",
+      "kind": "pinned_scope_summary",
+      "path_or_reference": "supplement/enforcement_pressure_source.json",
+      "scope": ["flood", "irrigation", "enforcement_pressure"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-06"
     }
   ],
   "contract": {
@@ -198,7 +242,7 @@
     {
       "question_id": "Q2",
       "method": "Directly standardize the condition share to pooled simulator-recorded world-state distributions in the anchor irrigation cell.",
-      "evidence": "Figure 2, Table 2, and the frozen world-state evidence files report pooled differences, coverage, and per-seed diagnostics.",
+      "evidence": "Figure 3 panels A--B and the frozen world-state evidence files report pooled differences, coverage, and per-seed diagnostics.",
       "result": "The pooled difference is -2.53 percentage points at full coverage and +0.21 at the finest reported grouping.",
       "interpretation": "Different recorded-world composition is consistent with much of the raw condition-share contrast.",
       "limitation": "World state is downstream of governance, so the decomposition is descriptive rather than causal.",
@@ -208,7 +252,7 @@
     {
       "question_id": "Q3",
       "method": "Compare the conditional increase rate with an all-decision rate using the same final-action reading.",
-      "evidence": "Figure 3 and the frozen consequence evidence report contrasts for all five irrigation configurations.",
+      "evidence": "Figure 4 and the frozen consequence evidence report contrasts for all five irrigation configurations.",
       "result": "The all-decision contrast can be near zero or reverse sign relative to the conditional contrast.",
       "interpretation": "The denominator is part of the estimand, not a formatting detail.",
       "limitation": "The all-decision rate answers a different question and is not presented as an automatic correction.",
@@ -227,6 +271,16 @@
       "id": "figure1-rendering",
       "decision": "Use generated shared-condition v4: a compact Agent response card, explicit black and amber Validator ports, a final-record route to Decision log, black borders with flat colored fills, and a direct condition-to-Counted-records route.",
       "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
+    },
+    {
+      "id": "rule-block-semantics",
+      "decision": "Describe high_threat_high_cope_no_increase as a testbed policy branch: it blocks increase proposals only for high/very-high scarcity together with high/very-high coping; high scarcity alone warns rather than blocks.",
+      "authority": "examples/irrigation_abm/config/agent_types.yaml via SUBMISSION_2026/TAE/evidence/e6_antecedent_conjunction.py"
+    },
+    {
+      "id": "flood-cross-testbed-scope",
+      "decision": "Retain nine Flood configurations and report them only as a descriptive cross-testbed check; exclude the one divergent governed B6 run and disclose the sensitivity.",
+      "authority": "ICLR2027/flood_control_contrasts.csv, source/cross_testbed_summary.py, and current Cloud handoff"
     }
   ],
   "issues": [
@@ -252,6 +306,18 @@
       "waiver": {
         "authority": "current limitations section and Figure 1 caption",
         "reason": "The limitation is stated as a boundary on inference and is included in the reporting protocol."
+      }
+    },
+    {
+      "id": "flood-b6-eligibility",
+      "severity": "S2",
+      "status": "RESOLVED",
+      "evidence_status": "CONFIRMED",
+      "description": "The Flood gemma3:4b cell contains one governed run with a divergent prompt; the active cross-testbed summary excludes that run and retains the configuration.",
+      "affected_artifacts": ["cross_testbed_builder", "cross_testbed_summary", "main_manuscript"],
+      "resolution": {
+        "authority": "ICLR2027/flood_control_contrasts.csv and current Cloud handoff",
+        "result": "Nine Flood configurations remain; the cell uses four governed and five no-validator runs, with the +0.35 to -1.16 sensitivity disclosed."
       }
     }
   ],
@@ -281,6 +347,8 @@
       "stale_reference_audit",
       "generated_figure_asset_integrity",
       "visual_figure_review",
+      "rule_semantics_audit",
+      "cross_testbed_eligibility",
       "official_tex_build",
       "typeset_pdf_inspection"
     ],
@@ -289,7 +357,7 @@
       "figure1_active_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
       "figure1_print_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286"
     },
-    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; OFFICIAL_TYPESET_PASS_9_PAGES_MAIN_TEXT_8_REFERENCES_1"
+    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; CROSS_TESTBED_PANEL_D_AND_TABLE2_INSPECTED; OFFICIAL_TYPESET_PASS_10_PAGES_MAIN_TEXT_8_REFERENCES_2"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -341,7 +409,7 @@
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
     "adversarial_review": "PASS_SHARED_CONDITION_V4_ACTIVE_SYNC",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
-    "official_tex_build": "PASS_MIKTEX_25_12_PDFLATEX_BIBTEX_9_PAGES",
+    "official_tex_build": "PASS_MIKTEX_25_12_PDFLATEX_BIBTEX_10_PAGES_MAIN_TEXT_8_REFERENCES_2",
     "new_experiment_run": false
   },
   "next_actions": [
