@@ -1,0 +1,84 @@
+# Missing Repro Steps
+
+- [ ] **examples\irrigation_abm\results\fql_raw\seed42**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed43**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed44**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed45**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed46**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed47**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed48**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed49**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed50**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\fql_raw\seed51**: no reproducibility_manifest.json
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed42**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed42**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed42**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed43**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed43**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed43**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed44**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed44**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma3_12b_seed44**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e2b_seed42**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e2b_seed43**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e2b_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e2b_seed45**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e2b_seed46**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e4b_seed42**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e4b_seed43**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e4b_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e4b_seed45**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_gemma4_e4b_seed46**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed42**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed42**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed42**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed43**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed43**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed43**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed44**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed44**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_ministral3_8b_seed44**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed42**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed43**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed45**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed45**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed45**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed46**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed46**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\production_v21_42yr_seed46**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed42**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed42**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed42**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed43**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed43**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed43**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed44**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed44**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma3_12b_seed44**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e2b_seed42**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e2b_seed43**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e2b_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e2b_seed45**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e2b_seed46**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e4b_seed42**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e4b_seed43**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e4b_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e4b_seed45**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_gemma4_e4b_seed46**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed42**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed42**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed42**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed43**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed43**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed43**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_ministral3_8b_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed42**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed43**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed44**: git_dirty=true; cannot reproduce
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed45**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed45**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed45**: missing required manifest field: timestamp
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed46**: missing required manifest field: git_commit
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed46**: missing required manifest field: config_hash
+- [ ] **examples\irrigation_abm\results\ungoverned_v21_42yr_seed46**: missing required manifest field: timestamp

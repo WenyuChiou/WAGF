@@ -1,0 +1,233 @@
+WORKSHOP PAPER -- FROZEN NUMBERS
+repo    : C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+outputs : C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\SUBMISSION_2026\papers
+python  : 3.14.0
+
+====================================================================================================
+A. PER-CELL TABLE -- enforcement pressure and appraisal composition
+====================================================================================================
+enforcement pressure = % of GOVERNED decisions with a terminal REJECTED status.
+shift = (ungoverned - governed) prevalence of the appraisal the rule conditions on.
+
+cell                      %rej gov  %rej ung  high|gov  high|ung  shift pp   n gov   n ung  balance     seeds gov | seeds ung
+-----------------------------------------------------------------------------------------------------------------------------
+irrigation ministral3:8b    62.63%     0.99%    13.56%    46.54%    +32.97   9,828   6,552  UNBALANCED  42,43,44 | 42,43
+irrigation gemma4:e4b       56.29%     1.46%    45.27%    88.65%    +43.38  16,380  16,380  BALANCED    42,43,44,45,46 | 42,43,44,45,46
+irrigation gemma3:12b       49.52%     5.33%     5.50%    26.76%    +21.26   9,825   9,828  BALANCED    42,43,44 | 42,43,44
+irrigation gemma3:4b        39.10%    29.03%    37.31%    82.82%    +45.50  16,275  16,377  BALANCED    42,43,44,45,46 | 42,43,44,45,46
+irrigation gemma4:e2b       28.08%     3.58%    18.26%    65.79%    +47.53  16,379  16,380  BALANCED    42,43,44,45,46 | 42,43,44,45,46
+flood gemma3:4b              0.85%     0.00%    32.45%    31.22%     -1.24   4,459   4,786  UNBALANCED  42,4202,4203,45,46 | 42,43,44,45,46
+flood gemma4:e4b             0.47%     0.00%    43.48%    49.72%     +6.25   4,920   4,907  BALANCED    42,43,44,45,46 | 42,43,44,45,46
+flood gemma4:26b             0.12%     0.00%    17.44%    20.36%     +2.92   4,999   5,000  BALANCED    42,43,44,45,46 | 42,43,44,45,46
+flood ministral3:3b          0.11%     0.00%    31.14%    30.92%     -0.22   3,674   3,755  UNBALANCED  42,4202,4203,45,46 | 42,43,44,45,46
+flood ministral3:8b          0.02%     0.00%    30.54%    26.85%     -3.69   4,195   4,440  UNBALANCED  42,4202,4203,45,46 | 42,43,44,45,46
+flood gemma3:12b             0.02%     0.00%     2.56%     0.92%     -1.64   4,840   4,890  UNBALANCED  42,4202,4203,45,46 | 42,43,44,45,46
+flood gemma3:27b             0.00%     0.00%    19.16%    20.39%     +1.22   4,989   4,984  UNBALANCED  42,4202,4203,45,46 | 42,43,44,45,46
+flood ministral3:14b         0.00%     0.00%    19.44%    19.92%     +0.48   4,634   4,448  UNBALANCED  42,4202,4203,45,46 | 42,43,44,45,46
+flood gemma4:e2b             0.00%     0.00%    27.37%    28.34%     +0.97   4,019   3,755  BALANCED    42,43,44,45,46 | 42,43,44,45,46
+
+  cells emitted: 14  (5 irrigation, 9 flood)
+  matches the skeleton's stated 14 cells (5 irrigation, 9 flood)
+  UNBALANCED cells (7): irrigation ministral3:8b, flood gemma3:4b, flood ministral3:3b, flood ministral3:8b, flood gemma3:12b, flood gemma3:27b, flood ministral3:14b
+  rows with a blank appraisal cell, excluded from every rate: 119 governed + 3 ungoverned
+  CORPUS: 216,020 logged decision rows in the 14 cells (215,898 with a parsed appraisal)
+  !! DISAGREEMENT: the skeleton abstract claims 432,083 logged decisions; this run counts 216,020. See NUMBERS.md for the candidate counts that were tried and none of which reproduce it.
+
+  CROSS-CHECK 1 vs the committed SUBMISSION_2026/evidence/appraisal_composition.csv
+    flood ministral3:3b       %rej  0.0874 ->  0.1089 (+0.0215)   shift  +2.0352 ->  -0.2189 (-2.2541)
+    cells differing from the committed CSV: 1 of 14
+
+  CROSS-CHECK 2 vs a LIVE re-run of appraisal_composition.py's glob convention
+    (its flood globs are `<base>/<model>/**/*governance_audit.csv`, which also match
+     Group_A directories; this script restricts the flood arms to Group_C /
+     Group_C_disabled, the clean ablation pair.)
+    flood ministral3:3b      prior-art pools +903 governed / +0 ungoverned extra rows; shift +2.2542 pp, %rej -0.0215 pp
+    flood cells where the two conventions differ: 1
+
+  PAIRED-SEED RECOMPUTATION (runs restricted to seeds present in BOTH arms)
+    cell                     paired seeds            shift all  shift paired    delta
+    irrigation ministral3:8b 42,43                      +32.97        +31.07    -1.90  <- moves
+    irrigation gemma4:e4b    42,43,44,45,46             +43.38        +43.38    +0.00
+    irrigation gemma3:12b    42,43,44                   +21.26        +21.26    +0.00
+    irrigation gemma3:4b     42,43,44,45,46             +45.50        +45.50    +0.00
+    irrigation gemma4:e2b    42,43,44,45,46             +47.53        +47.53    +0.00
+    flood gemma3:4b          42,45,46                    -1.24         -4.04    -2.80  <- moves
+    flood gemma4:e4b         42,43,44,45,46              +6.25         +6.25    +0.00
+    flood gemma4:26b         42,43,44,45,46              +2.92         +2.92    +0.00
+    flood ministral3:3b      42,45,46                    -0.22         +1.18    +1.40  <- moves
+    flood ministral3:8b      42,45,46                    -3.69         -3.27    +0.41  <- moves
+    flood gemma3:12b         42,45,46                    -1.64         -0.69    +0.95  <- moves
+    flood gemma3:27b         42,45,46                    +1.22         +1.70    +0.47  <- moves
+    flood ministral3:14b     42,45,46                    +0.48         +1.03    +0.56  <- moves
+    flood gemma4:e2b         42,43,44,45,46              +0.97         +0.97    +0.00
+
+  wrote C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\SUBMISSION_2026\papers\per_cell_table.csv
+
+====================================================================================================
+B. REGIME SUMMARY -- split at 5% of governed decisions rejected
+====================================================================================================
+  HIGH pressure  n= 5  pressure 28.08% .. 62.63%   shift mean +38.13 pp   range +21.26 .. +47.53   positive 5/5
+       testbeds: ['irrigation']
+  LOW  pressure  n= 9  pressure 0.00% .. 0.85%   shift mean +0.56 pp   range -3.69 .. +6.25   positive 5/9
+       testbeds: ['flood']
+
+  SEPARATION on appraisal shift: COMPLETE (min high +21.26 vs max low +6.25, margin +15.01 pp)
+  SEPARATION on enforcement pressure: COMPLETE (min high 28.08% vs max low 0.85%)
+  the pressure split is IDENTICAL to the testbed split -- so 'regime' and 'testbed' are confounded here and the paper must say so.
+  within the HIGH group the shift is NON-MONOTONE in pressure -- report a REGIME SEPARATION, not a dose-response.
+
+  the 5% threshold is not load-bearing: the observed pressure gap runs 0.85% .. 28.08% with no cell inside it.
+
+====================================================================================================
+C. IRRIGATION -- conditional vs unconditional, all five cells
+====================================================================================================
+conditional   = executed increases / decisions whose SELF-REPORTED scarcity is H or VH
+                (the published statistic; its denominator is post-treatment)
+unconditional = increases / every decision (denominator fixed at 78 agents x 42 years)
+action variable = simulation_log.yearly_decision, the last PROPOSED action.
+Rates are the MEAN OF PER-SEED rates, on seeds present in BOTH arms.
+
+cell             seeds           cond gov  cond ung  cond gap   unc gov   unc ung   unc gap  survives
+-----------------------------------------------------------------------------------------------------
+gemma3:4b        42,43,44,45,46    36.05%    59.07%    -23.02    40.90%    62.52%    -21.62     93.9%
+gemma3:12b       42,43,44           5.45%    16.89%    -11.44    41.36%    41.52%     -0.16      1.4%
+gemma4:e2b       42,43,44,45,46    12.71%    31.65%    -18.94    22.80%    38.05%    -15.25     80.5%
+gemma4:e4b       42,43,44,45,46    23.67%    41.08%    -17.41    36.36%    44.87%     -8.52     48.9%
+ministral3:8b    42,43              2.69%     5.10%     -2.41    52.01%    30.89%    +21.12    877.3%  <- SIGN FLIP
+
+  'survives' = |unconditional gap| / |conditional gap|. Sign convention throughout:
+  gap = governed - ungoverned, so NEGATIVE means governance lowered the rate.
+
+  ANCHOR GATE -- irrigation gemma3:4b must reproduce conditional 36.05/59.07 and unconditional 40.9/62.52
+    conditional governed       got  36.0521  expected  36.05  OK
+    conditional ungoverned     got  59.0700  expected  59.07  OK
+    unconditional governed     got  40.8974  expected  40.90  OK
+    unconditional ungoverned   got  62.5214  expected  62.52  OK
+    anchor reproduces exactly at 2 dp.
+
+  EXECUTED-ACTION recomputation of the same statistic (a rejected proposal never
+  moved the water request; the registry default 'maintain_demand' executed instead):
+    cell             exec cond gov exec cond ung  exec unc gov  exec unc ung
+    gemma3:4b                0.86%        26.77%         3.60%        33.50%
+    gemma3:12b               0.17%        13.13%         8.37%        36.19%
+    gemma4:e2b               0.00%        27.96%         5.63%        34.47%
+    gemma4:e4b               0.11%        40.06%         6.84%        43.41%
+    ministral3:8b            0.60%         4.79%        11.34%        29.90%
+    Two defensible definitions of 'the action', an order of magnitude apart on the
+    governed arm. The paper must say which it means.
+
+  RETRY-STRATIFIED appraisal prevalence, anchor governed arm (consistent with BOTH mechanisms, decisive for neither):
+     retries     rows  % high (parsed den.)   % high (all rows)
+           0    5,930                23.88%              23.88%
+           1    1,940                57.58%              57.58%
+           2    1,231                58.08%              58.08%
+           3    7,279                39.38%              38.81%
+    The parsed-row denominator is the prior-art convention and is the one the
+    skeleton quotes; the all-rows column differs only at 3 retries, where the
+    unparseable rows live.
+
+====================================================================================================
+D. FIGURE 1 -- regime separation
+====================================================================================================
+  wrote C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\SUBMISSION_2026\papers\fig1_data.csv  (14 points)
+  PNG skipped (--no-fig).
+
+====================================================================================================
+E. CLAIM LINES -- grep these
+====================================================================================================
+CLAIM n_cells: 14
+CLAIM n_cells_irrigation: 5
+CLAIM n_cells_flood: 9
+CLAIM corpus_decision_rows: 216020
+CLAIM corpus_rows_with_appraisal: 215898
+CLAIM n_unbalanced_cells: 7
+CLAIM cells_differing_from_prior_art_csv: 1
+CLAIM flood_cells_contaminated_by_prior_art_glob: 1
+CLAIM high_n_cells: 5
+CLAIM high_pressure_min_pct: 28.08
+CLAIM high_pressure_max_pct: 62.63
+CLAIM high_shift_mean_pp: 38.13
+CLAIM high_shift_min_pp: 21.26
+CLAIM high_shift_max_pp: 47.53
+CLAIM high_shift_positive_count: 5/5
+CLAIM low_n_cells: 9
+CLAIM low_pressure_min_pct: 0.0
+CLAIM low_pressure_max_pct: 0.85
+CLAIM low_shift_mean_pp: 0.56
+CLAIM low_shift_min_pp: -3.69
+CLAIM low_shift_max_pp: 6.25
+CLAIM low_shift_positive_count: 5/9
+CLAIM separation_shift: COMPLETE
+CLAIM separation_margin_pp: 15.01
+CLAIM separation_pressure: COMPLETE
+CLAIM high_group_monotone: no
+CLAIM anchor_gate: PASS
+CLAIM anchor_executed_conditional_governed_pct: 0.86
+CLAIM anchor_executed_conditional_ungoverned_pct: 26.77
+CLAIM retry_stratified_high_pct_parsed: 0:23.9 1:57.6 2:58.1 3:39.4
+CLAIM figure1_png: skipped
+CLAIM cell_irrigation_ministral38b_pct_rejected: 62.63
+CLAIM cell_irrigation_ministral38b_shift_pp: 32.97
+CLAIM cell_irrigation_gemma4e4b_pct_rejected: 56.29
+CLAIM cell_irrigation_gemma4e4b_shift_pp: 43.38
+CLAIM cell_irrigation_gemma312b_pct_rejected: 49.52
+CLAIM cell_irrigation_gemma312b_shift_pp: 21.26
+CLAIM cell_irrigation_gemma34b_pct_rejected: 39.1
+CLAIM cell_irrigation_gemma34b_shift_pp: 45.5
+CLAIM cell_irrigation_gemma4e2b_pct_rejected: 28.08
+CLAIM cell_irrigation_gemma4e2b_shift_pp: 47.53
+CLAIM cell_flood_gemma34b_pct_rejected: 0.85
+CLAIM cell_flood_gemma34b_shift_pp: -1.24
+CLAIM cell_flood_gemma4e4b_pct_rejected: 0.47
+CLAIM cell_flood_gemma4e4b_shift_pp: 6.25
+CLAIM cell_flood_gemma426b_pct_rejected: 0.12
+CLAIM cell_flood_gemma426b_shift_pp: 2.92
+CLAIM cell_flood_ministral33b_pct_rejected: 0.11
+CLAIM cell_flood_ministral33b_shift_pp: -0.22
+CLAIM cell_flood_ministral38b_pct_rejected: 0.02
+CLAIM cell_flood_ministral38b_shift_pp: -3.69
+CLAIM cell_flood_gemma312b_pct_rejected: 0.02
+CLAIM cell_flood_gemma312b_shift_pp: -1.64
+CLAIM cell_flood_gemma327b_pct_rejected: 0.0
+CLAIM cell_flood_gemma327b_shift_pp: 1.22
+CLAIM cell_flood_ministral314b_pct_rejected: 0.0
+CLAIM cell_flood_ministral314b_shift_pp: 0.48
+CLAIM cell_flood_gemma4e2b_pct_rejected: 0.0
+CLAIM cell_flood_gemma4e2b_shift_pp: 0.97
+CLAIM irrigation_gemma34b_conditional_governed_pct: 36.05
+CLAIM irrigation_gemma34b_conditional_ungoverned_pct: 59.07
+CLAIM irrigation_gemma34b_conditional_gap_pp: -23.02
+CLAIM irrigation_gemma34b_unconditional_governed_pct: 40.9
+CLAIM irrigation_gemma34b_unconditional_ungoverned_pct: 62.52
+CLAIM irrigation_gemma34b_unconditional_gap_pp: -21.62
+CLAIM irrigation_gemma34b_gap_survival_pct: 93.9
+CLAIM irrigation_gemma312b_conditional_governed_pct: 5.45
+CLAIM irrigation_gemma312b_conditional_ungoverned_pct: 16.89
+CLAIM irrigation_gemma312b_conditional_gap_pp: -11.44
+CLAIM irrigation_gemma312b_unconditional_governed_pct: 41.36
+CLAIM irrigation_gemma312b_unconditional_ungoverned_pct: 41.52
+CLAIM irrigation_gemma312b_unconditional_gap_pp: -0.16
+CLAIM irrigation_gemma312b_gap_survival_pct: 1.4
+CLAIM irrigation_gemma4e2b_conditional_governed_pct: 12.71
+CLAIM irrigation_gemma4e2b_conditional_ungoverned_pct: 31.65
+CLAIM irrigation_gemma4e2b_conditional_gap_pp: -18.94
+CLAIM irrigation_gemma4e2b_unconditional_governed_pct: 22.8
+CLAIM irrigation_gemma4e2b_unconditional_ungoverned_pct: 38.05
+CLAIM irrigation_gemma4e2b_unconditional_gap_pp: -15.25
+CLAIM irrigation_gemma4e2b_gap_survival_pct: 80.5
+CLAIM irrigation_gemma4e4b_conditional_governed_pct: 23.67
+CLAIM irrigation_gemma4e4b_conditional_ungoverned_pct: 41.08
+CLAIM irrigation_gemma4e4b_conditional_gap_pp: -17.41
+CLAIM irrigation_gemma4e4b_unconditional_governed_pct: 36.36
+CLAIM irrigation_gemma4e4b_unconditional_ungoverned_pct: 44.87
+CLAIM irrigation_gemma4e4b_unconditional_gap_pp: -8.52
+CLAIM irrigation_gemma4e4b_gap_survival_pct: 48.9
+CLAIM irrigation_ministral38b_conditional_governed_pct: 2.69
+CLAIM irrigation_ministral38b_conditional_ungoverned_pct: 5.1
+CLAIM irrigation_ministral38b_conditional_gap_pp: -2.41
+CLAIM irrigation_ministral38b_unconditional_governed_pct: 52.01
+CLAIM irrigation_ministral38b_unconditional_ungoverned_pct: 30.89
+CLAIM irrigation_ministral38b_unconditional_gap_pp: 21.12
+CLAIM irrigation_ministral38b_gap_survival_pct: 877.3
+
+CLAIM claim_count: 94
