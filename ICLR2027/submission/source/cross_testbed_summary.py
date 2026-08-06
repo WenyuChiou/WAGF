@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Build the ICLR cross-testbed summary and the four-panel mechanism figure.
+"""Build the ICLR irrigation mechanism figure and cross-testbed summary.
 
 This builder is intentionally owned by the ICLR submission package.  It reads
 the pinned Flood contrast CSV and the copied A--C mechanism data, and writes
@@ -42,9 +42,6 @@ PRESSURE_JSON = SUBMISSION / "supplement" / "enforcement_pressure_source.json"
 INK = "#202020"
 BLUE = "#1479b8"
 ORANGE = "#d66a05"
-FLOOD = "#2a9d8f"
-IRRIGATION = "#7b3294"
-AMBER = "#d59a00"
 GRID = "#d9d9d9"
 
 
@@ -127,7 +124,7 @@ def write_summary(summary: list[dict[str, object]]) -> None:
     lines = [
         r"\begin{tabular}{lrrrrr}",
         r"\toprule",
-        r"Setting & Configurations & With validators & No validator & Contrast range & Mean $\Delta$ \\",
+        r"Setting & Configurations & High-threat share on & High-threat share off & Contrast range & Mean $\Delta$ \\",
         r"\midrule",
     ]
     for row in summary:
@@ -199,7 +196,7 @@ def panel_b(ax: plt.Axes, rows: list[dict[str, object]]) -> None:
         ax.plot(x, y, color=color, linewidth=1.1, marker="o", markersize=2.1, label=label)
     ax.axhline(895, color="#777777", linestyle=(0, (2, 2)), linewidth=0.75)
     ax.axvline(1, color="#cf76ac", linestyle=(0, (1, 2)), linewidth=0.9)
-    ax.set_title("b  World states diverge after year 1", loc="left", fontsize=9, fontweight="bold")
+    ax.set_title("b  World states diverge", loc="left", fontsize=9, fontweight="bold")
     ax.set_ylabel("Lake Mead elevation (ft)", fontsize=8)
     ax.set_xlabel("year", fontsize=8)
     ax.set_xlim(0.2, 42.8)
@@ -242,79 +239,34 @@ def panel_c(ax: plt.Axes, rows: list[dict[str, object]]) -> None:
     ax.set_yticklabels(labels, fontsize=6.5)
     ax.set_xlabel("High-scarcity contrast (pp)", fontsize=8)
     ax.set_xlim(-10, 80)
+    ax.legend(frameon=False, fontsize=6.5, loc="upper right", ncol=2,
+              handlelength=1.5, columnspacing=0.8)
     _style_axis(ax)
     ax.grid(axis="x", color=GRID, linewidth=0.45, alpha=0.8)
 
 
-def panel_d(ax: plt.Axes, rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    data = flood_rows()
-    flood = sorted((row for row in data if row["setting"] == "flood"), key=lambda row: row["contrast"])
-    irrigation = sorted((row for row in data if row["setting"] == "irrigation"), key=lambda row: row["contrast"])
-    groups = (("Flood", flood, FLOOD, 0), ("Irrigation", irrigation, IRRIGATION, 1))
-    for label, group, color, y_center in groups:
-        offsets = np.linspace(-0.19, 0.19, len(group))
-        x = np.array([float(row["contrast"]) for row in group])
-        y = y_center + offsets
-        ax.scatter(x, y, s=26, color=color, edgecolor="white", linewidth=0.7, zorder=4, label=label)
-        for idx in (0, len(group) - 1):
-            ax.annotate(f"{x[idx]:+.2f}", (x[idx], y[idx]), xytext=(4, 0), textcoords="offset points", va="center", fontsize=6.5, color=INK)
-        if label == "Flood":
-            for row, yy in zip(group, y):
-                if row["model"] == "gemma3:4b":
-                    ax.text(float(row["contrast"]) + 0.35, yy - 0.12, "†", fontsize=8, color=INK, va="center")
-    ax.axvspan(6.237, 21.2658, color=AMBER, alpha=0.13, zorder=0)
-    ax.axvline(0, color="#666666", linewidth=0.8)
-    ax.text(13.75, 1.32, "15.03 pp gap", ha="center", va="bottom", fontsize=6.8, color="#8b6500")
-    ax.set_title("d  Cross-testbed check", loc="left", fontsize=9, fontweight="bold")
-    ax.set_xlabel(r"$\Delta$ high-threat-appraisal share (pp)", fontsize=8)
-    ax.set_yticks([0, 1])
-    ax.set_yticklabels(["Flood (n=9)", "Irrigation (n=5)"])
-    ax.set_xlim(-8, 52)
-    ax.set_ylim(-0.5, 1.5)
-    ax.legend(frameon=False, fontsize=6.5, loc="lower right")
-    _style_axis(ax)
-    ax.grid(axis="x", color=GRID, linewidth=0.45, alpha=0.8)
-    ax.grid(axis="y", visible=False)
-    return data
-
-
-def write_figure_csv(rows: list[dict[str, object]]) -> None:
-    existing = [row for row in read_csv(MECHANISM_CSV) if row["panel"] != "D"]
+def write_figure_csv() -> None:
+    existing = [row for row in read_csv(MECHANISM_CSV) if row["panel"] in ("A", "B", "C")]
     fields = ["panel", "series", "x", "value", "lo", "hi", "unit", "n", "note"]
-    output = list(existing)
-    for row in rows:
-        output.append(
-            {
-                "panel": "D",
-                "series": f"{row['setting']}_configuration",
-                "x": row["model"],
-                "value": f"{float(row['contrast']):.4f}",
-                "lo": "",
-                "hi": "",
-                "unit": "percentage points (noval minus gov)",
-                "n": row["n_gov"],
-                "note": row["note"],
-            }
-        )
     with FIGURE_CSV.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(output)
+        writer.writerows(existing)
 
 
 def build_figure(rows: list[dict[str, object]]) -> None:
     plt.rcParams.update({"font.family": "serif", "font.size": 8})
-    fig, axes = plt.subplots(2, 2, figsize=(7.7, 5.35), constrained_layout=True)
-    panel_a(axes[0, 0], rows)
-    panel_b(axes[1, 0], rows)
-    panel_c(axes[0, 1], rows)
-    flood_rows_for_csv = panel_d(axes[1, 1], rows)
+    fig = plt.figure(figsize=(7.7, 5.55), constrained_layout=True)
+    grid = fig.add_gridspec(2, 2, height_ratios=(1.0, 0.9), hspace=0.08, wspace=0.22)
+    panel_a(fig.add_subplot(grid[0, 0]), rows)
+    panel_b(fig.add_subplot(grid[0, 1]), rows)
+    panel_c(fig.add_subplot(grid[1, :]), rows)
     fig.patch.set_facecolor("white")
     ACTIVE_FIGURE.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(ACTIVE_FIGURE.with_suffix(".png"), dpi=300, facecolor="white")
     fig.savefig(ACTIVE_FIGURE.with_suffix(".pdf"), facecolor="white")
     plt.close(fig)
-    write_figure_csv(flood_rows_for_csv)
+    write_figure_csv()
 
 
 def main() -> None:

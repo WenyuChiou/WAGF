@@ -179,17 +179,3 @@ C,delta_high_appraisal_prevalence[all decisions],ministral3:8b,31.1254,28.689,33
 C,delta_high_appraisal_prevalence[never retried (retry_count=0)],ministral3:8b,34.0934,22.987,45.1998,percentage points (noval minus gov),3,gov=10.8181 noval=44.9115
 C,delta_high_appraisal_prevalence[all decisions],pooled,40.0154,,,percentage points (noval minus gov),21,gov=26.6774 noval=66.6928
 C,delta_high_appraisal_prevalence[never retried (retry_count=0)],pooled,48.2115,,,percentage points (noval minus gov),21,gov=17.0142 noval=65.2257
-D,irrigation_configuration,gemma3:4b,45.7265,,,percentage points (noval minus gov),5,
-D,irrigation_configuration,gemma3:12b,21.2658,,,percentage points (noval minus gov),3,
-D,irrigation_configuration,gemma4:e2b,47.5275,,,percentage points (noval minus gov),5,
-D,irrigation_configuration,gemma4:e4b,43.3761,,,percentage points (noval minus gov),5,
-D,irrigation_configuration,ministral3:8b,31.1254,,,percentage points (noval minus gov),3,
-D,flood_configuration,gemma3:4b,0.3487,,,percentage points (noval minus gov),4,B6 run EXCLUDED; -1.16 including it
-D,flood_configuration,gemma3:12b,-1.6253,,,percentage points (noval minus gov),5,
-D,flood_configuration,gemma3:27b,1.2197,,,percentage points (noval minus gov),5,
-D,flood_configuration,ministral3:3b,-0.1537,,,percentage points (noval minus gov),5,
-D,flood_configuration,ministral3:8b,-3.6556,,,percentage points (noval minus gov),5,
-D,flood_configuration,ministral3:14b,0.4703,,,percentage points (noval minus gov),5,
-D,flood_configuration,gemma4:e2b,0.9691,,,percentage points (noval minus gov),5,
-D,flood_configuration,gemma4:e4b,6.2370,,,percentage points (noval minus gov),5,
-D,flood_configuration,gemma4:26b,2.9163,,,percentage points (noval minus gov),5,

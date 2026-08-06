@@ -101,7 +101,7 @@
       "id": "cross-testbed-summary",
       "kind": "verified_derived_evidence",
       "path_or_reference": "supplement/cross_testbed_summary.csv and source/cross_testbed_summary.py",
-      "scope": ["flood", "figure3_panel_d", "table2"],
+      "scope": ["flood", "table2"],
       "status": "VERIFIED",
       "last_verified": "2026-08-06"
     },
@@ -279,7 +279,7 @@
     },
     {
       "id": "flood-cross-testbed-scope",
-      "decision": "Retain nine Flood configurations and report them only as a descriptive cross-testbed check; exclude the one divergent governed B6 run and disclose the sensitivity.",
+      "decision": "Retain nine Flood configurations as a secondary descriptive boundary check in Table 2 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity.",
       "authority": "ICLR2027/flood_control_contrasts.csv, source/cross_testbed_summary.py, and current Cloud handoff"
     }
   ],
@@ -357,7 +357,7 @@
       "figure1_active_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
       "figure1_print_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286"
     },
-    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; CROSS_TESTBED_PANEL_D_AND_TABLE2_INSPECTED; OFFICIAL_TYPESET_PASS_10_PAGES_MAIN_TEXT_8_REFERENCES_2"
+    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; FLOOD_TABLE2_BOUNDARY_CHECK_SYNCED; OFFICIAL_TYPESET_PASS_10_PAGES_MAIN_TEXT_8_REFERENCES_2"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -398,7 +398,7 @@
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED",
+    "visual_figure_review": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS",

@@ -39,7 +39,7 @@
     },
     "fig2_mechanism.pdf": {
       "pages": 1,
-      "bytes": 40059
+      "bytes": 33689
     },
     "fig3_consequence.pdf": {
       "pages": 1,
@@ -53,7 +53,7 @@
       "mode": "RGB"
     }
   },
-  "approximate_word_count": 4356,
+  "approximate_word_count": 4321,
   "warnings": [],
   "errors": []
 }

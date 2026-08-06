@@ -550,3 +550,21 @@ intended staged files, no unrelated TAE or examples/ changes, and no
 remaining P0/P1 issue. The package still discloses that the historical
 reproducibility report is red because three smoke manifests are dirty and that
 the live run remains fenced.
+
+## Round 29: primary-irrigation figure hierarchy
+
+A visual review found that the former four-panel Figure 3 gave the Flood
+boundary check the same visual status as the three irrigation diagnostics.
+That layout could make a reader mistake a secondary portability check for a
+second primary experiment. The active builder now produces a three-panel
+Figure 3 in reading order: (a) reported scarcity over time, (b) recorded
+world-state divergence, and (c) denominator filtering, all in the paired
+coupled irrigation setting.
+
+Flood remains in Table 2 and the cross-testbed summary as a secondary
+numerical boundary check. We retain it because the same per-run-mean
+contrast provides a bounded scale comparison outside irrigation; we do not
+treat it as a matched test of mechanism transfer because the field name,
+action ontology, feedback structure, and seed matching differ. The main
+Figure 3 caption now explains this separation, and the machine-readable
+mechanism CSV contains only the three primary irrigation panels.

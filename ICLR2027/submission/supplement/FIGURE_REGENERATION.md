@@ -25,9 +25,10 @@ machine-addressable geometry.
 
 Figure 2 is the copied rule-layer decomposition from the frozen WAGF evidence
 package. Figure 4 is the copied denominator consequence plot. Figure 3 is a
-deterministic four-panel output: panels A--C use the anchor irrigation cell,
-and panel D is the descriptive Flood cross-testbed check. The active ICLR
-package owns the cross-testbed builder so that the Flood eligibility decision
+deterministic three-panel output in reading order; all panels use the anchor
+irrigation cell. Flood is retained as a secondary numerical boundary check in
+Table 2 and the cross-testbed summary, not as a same-status mechanism panel.
+The active ICLR package owns the cross-testbed builder so that the Flood eligibility decision
 and the plotted values are recorded together:
 
 ```powershell
@@ -35,14 +36,14 @@ python ICLR2027\submission\source\cross_testbed_summary.py
 ```
 
 The builder reads only `ICLR2027\flood_control_contrasts.csv` and the copied
-irrigation mechanism CSV. It writes the active Figure 3 PNG/PDF, the
-machine-readable `supplement\cross_testbed_summary.csv`, the Table 2 TeX
-fragment, and the panel-D rows in `supplement\fig2_mechanism.csv`. It is
+irrigation mechanism CSV. It writes the active three-panel Figure 3 PNG/PDF,
+the machine-readable `supplement\cross_testbed_summary.csv`, the Table 2
+TeX fragment, and the A--C rows in `supplement\fig2_mechanism.csv`. It is
 idempotent and retains nine Flood configurations. The gemma3:4b Flood cell
 excludes one divergent governed run, leaving four governed versus five
 no-validator runs; including it changes that cell from +0.35 pp to -1.16 pp.
 Flood is therefore a descriptive portability check, not a paired or causal
-comparison. Panel D calls the quantity a high-threat-appraisal contrast: the
+comparison. The table calls the quantity a high-threat-appraisal contrast: the
 irrigation CSV uses `construct_WSA_LABEL`, while Flood uses
 `construct_TP_LABEL`; both use the H/VH labels from the shared five-level
 appraisal instrument. The enforcement-pressure range shown in the summary CSV
