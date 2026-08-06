@@ -566,6 +566,56 @@ reading being primary throughout. If any part of the paper still leads with `las
 sentence contradicts it. As of the 05:20 build `lastproposed` appears five times — check what those
 five are doing before this paragraph lands.
 
+## 4k. The finding in the plainest words it survives in — use it as a test, not as text
+
+The author asked for the conclusion in language anyone would follow on first hearing. Here it is.
+**Most of it does not belong in the paper.** Its use is as a check.
+
+### The plain version
+
+> The agent writes the sentence that decides which of its decisions get graded.
+>
+> So when you enforce a rule, it stops writing that sentence. The score improves. The behaviour does
+> not.
+>
+> It is like measuring a pass rate over the students who sat the exam. Persuade the weak ones not to
+> sit it and the pass rate rises.
+>
+> Measured here: **82.80%** of decisions report high scarcity without validators, **37.08%** with
+> them.
+>
+> So the score cannot evaluate the agent. It measures the agent and the rules together, and you
+> cannot tell them apart.
+
+### How to use it
+
+**As a test.** If a paragraph you have written does not reduce to this, one of two things is true:
+the paragraph is doing something other than reporting the finding, or the finding has drifted. Both
+are worth knowing before the deadline. Run §7's conclusion against it, then §1's opening.
+
+**The exam line does not go in the paper.** An analogy in an ICLR conclusion reads as folksy and it
+would be the sentence a reviewer quotes back. It is a diagnostic for you, not prose for them.
+
+**What can go in, and belongs in §1 rather than the conclusion:**
+
+> The agent authors the condition that selects which of its own decisions the score is computed over.
+
+Fourteen words, no analogy, no jargon, and it is the whole paper. If §1 does not say something this
+direct within its first three sentences, a reader arrives at the formalism without knowing what it
+is for.
+
+### Register, since the author raised it twice
+
+Plain does not mean informal. It means short sentences, concrete nouns, the finding before the
+machinery, and no compound term invented for this paper. **`manuscript.tex:38` already does it** —
+the 80-of-100 walkthrough is a plain-language explanation with no analogy and no hedge, and it is the
+best-written paragraph in the draft. **The abstract and the conclusion are where the register slips**,
+and both are more read than §1.
+
+One warning the author has given before and it applies here: **do not over-polish.** A conclusion
+that reads as effortlessly quotable reads as machine-written, and this group's advisor rejects that.
+Write the plain version stiffly first, then loosen one or two joints — not every one.
+
 ## 5. One small suggestion about your own gate
 
 `checks/figure1_geometry_report.json` reports `status: "PASS_MANUAL_VISUAL_REVIEW_REQUIRED"` while
