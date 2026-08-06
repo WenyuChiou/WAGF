@@ -380,6 +380,32 @@ grammar, the exact thumbnail synchronization, and the caption alignment.
 Official typeset PDF inspection remains open because the local environment still
 lacks a TeX engine.
 
+## Round 21: academic-writing audit and evidence-boundary clarification
+
+The active manuscript received a four-pass academic-writing review: claim and
+outline order, paragraph transitions, plain-language and first-use definitions,
+and reviewer/red-team scope. The abstract was reduced to 242 raw-token words
+before LaTeX rendering. The
+introduction now opens with the measurement consequence, then gives an 80/100
+decision example before introducing the full irrigation setting. The manuscript
+uses `condition share` and `all-decision rate` in place of unnecessary
+`prevalence`, `marginal proxy`, and `fixed-denominator` jargon.
+
+The methods now state the frozen statistical procedure: per-seed off-minus-on
+deltas, a two-sided one-sample t-test, 95% t intervals with df = n - 1, and
+cellwise unadjusted p-values. The world-state section defines direct
+standardization, the pooled weighting target, the 40-record-per-arm support
+rule, arm-level coverage, and the eight-record per-seed diagnostic rule. The
+Figure 1 caption explicitly defines the Counted-set denominator and says that
+the displayed condition abstracts the scarcity report while the full validator
+rule also reads coping capacity.
+
+An independent adversarial CS review passed the denominator example, citation
+resolution, noncausal/deception scope, and active Figure 1 routes. Its S2/S1
+readability and reproducibility findings were addressed in the manuscript and
+source-of-truth docs. Static and evidence-boundary checks pass; official TeX/PDF
+inspection remains the release gate because no TeX engine is available locally.
+
 ## Round 20: nested-interface reset from agent-paper figures
 
 The v3 shared-condition bridge was retired as the active direction after a

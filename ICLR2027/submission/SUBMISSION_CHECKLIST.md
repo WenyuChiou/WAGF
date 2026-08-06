@@ -21,8 +21,9 @@
       chart.
 - [x] Citation keys, figure paths, one-page quantitative figure PDFs, placeholder tokens,
       Unicode surprises, and LaTeX environment balance pass static checks.
-- [x] Frozen evidence-source presence, key reported values, marginal-versus-
-      conjunction wording, and scope-limiting language pass the evidence-boundary check.
+- [x] Frozen evidence-source presence, key reported values, scarcity-report
+      versus two-condition wording, and scope-limiting language pass the
+      evidence-boundary check.
 - [x] The WAGF reproducibility audit is preserved under
       `checks\reproducibility`; it is **RED** for three historical smoke
       manifests marked `git_dirty=true`, and the manuscript does not claim
@@ -56,7 +57,7 @@
 - [x] Confirm every number in the ICLR manuscript is still present in the
       current source-of-truth evidence files.
 - [x] Have an adversarial reviewer check the denominator logic, the distinction
-      between the marginal scarcity report and the full conjunction, the
+      between the scarcity report and the two-condition rule, the
       post-governance world-state reweighting caveat, and the first-attempt gap.
 - [x] The manuscript does not describe the paper as showing deception, gaming,
       a causal effect, universal behavior, or a corrected effect estimate.

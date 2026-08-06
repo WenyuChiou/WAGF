@@ -67,24 +67,24 @@ claim is superseded by this package and the live ICLR author guidelines.
 ## Evidence boundary
 
 The ICLR draft relies on the existing frozen corpus rather than a new model or
-simulation run. The central quantities are the irrigation prevalence and
+simulation run. The central quantities are the irrigation condition shares and
 conditional-rate contrasts, the world-state reweighting diagnostics, the
-year-one check, and the fixed-denominator sensitivity. The manuscript must
+year-one check, and the all-decision sensitivity. The manuscript must
 retain these boundaries:
 
 - reweighting to recorded world state is descriptive, not causal, because world
   state is downstream of governance;
 - the corpus does not preserve the first response before a retry;
 - the paper does not establish deception or within-world reporting revision;
-- flood is a portability check, not an identification control;
-- the result is scoped to the evaluated governance loop and open-weight model
-  configurations.
+- flood is a transferability check and is not used to support causal claims;
+- the result is scoped to the evaluated governance loop and models with
+  publicly available weights.
 
 ## Semantic locks
 
 - `\lastproposed` is the primary action reading.
-- The scarcity report is a marginal conditioning variable; it is not silently
-  relabeled as the full scarcity-and-coping conjunction.
+- The scarcity report is broader than the two-condition rule; it is not
+  silently relabeled as the full scarcity-and-coping condition.
 - Figure 1 is conceptual. Figure 2 onward carries quantitative evidence.
 - Figure 1 omits a retry endpoint because the frozen corpus lacks the
   first-attempt report; the limitation is documented in the caption and
