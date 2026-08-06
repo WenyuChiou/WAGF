@@ -184,8 +184,39 @@ class AgentValidator:
                     }
                 ))
         except Exception as e:
-            # logger.error(f"Error in Tier 0 validation: {e}")
-            pass
+            # This wraps the ENTIRE Tier-0 response-format block -- the check that emits the
+            # AgentValidator:format ERROR with constraint_type=hard. If it raises, Tier 0
+            # produces zero results and a decision missing every required construct field is
+            # APPROVED, executed, and written to the audit CSV as a clean row. The logger
+            # call was commented out, so at no log level did anything appear.
+            #
+            # It has never fired: 137,592 corpus rows contain zero APPROVED rows with an
+            # empty construct label (checked 2026-08-06). But two triggers are visible in
+            # this function -- `reasoning: Dict[str, str] = None` at the signature reaching
+            # `if field not in reasoning`, and `self.config.get(base_type)` for an
+            # agent_type absent from config -- so it is latent, not impossible.
+            #
+            # `pass` is kept deliberately rather than re-raising. Raising here would turn a
+            # format-check failure into a run-ending crash mid-experiment, and the failure
+            # direction of THAT is worse: an operator loses ten hours to a defect in a check
+            # rather than to a defect in the science. Making it visible is the fix; making it
+            # fatal is a different decision and not one to take silently.
+            #
+            # THE GAP THIS LOGGER DOES NOT CLOSE, and it is the reason not to stop here.
+            # The decision is still written to the audit CSV indistinguishable from a
+            # format-checked one. A later reader of the corpus has no way to act on the
+            # instruction in the message below, because the corpus carries no marker -- only
+            # this log line does, in a file nobody greps. The real fix is a column saying the
+            # row was not format-checked, which the note ~20 lines above correctly forbids
+            # before the next AUDIT_SCHEMA_VERSION bump. **Add it at that bump.** Until then
+            # the hole is visible rather than closed, and anyone reading this should not
+            # mistake a logger for a repair.
+            logger.error(
+                "[AgentValidator] Tier-0 response-format validation raised and was "
+                "swallowed for agent_type=%r agent_id=%r: %s. This decision was NOT "
+                "format-checked; treat its row as unvalidated.",
+                agent_type, agent_id, e, exc_info=True,
+            )
 
         # 0.1. Validate Financial Affordability (Tier 0.1)
         if self.enable_financial_constraints and full_validation_context:
