@@ -1,0 +1,15 @@
+setting,model,gov,noval,contrast,n_gov,n_noval,note
+irrigation,gemma3:4b,37.0757,82.8022,45.7265,5,5,
+irrigation,gemma3:12b,5.4945,26.7603,21.2658,3,3,
+irrigation,gemma4:e2b,18.2601,65.7875,47.5275,5,5,
+irrigation,gemma4:e4b,45.2747,88.6508,43.3761,5,5,
+irrigation,ministral3:8b,13.5633,44.6886,31.1254,3,3,
+flood,gemma3:4b,32.4623,31.3,-1.1623,5,5,BACKLOG B6: +0.35 excluding 1
+flood,gemma3:12b,2.5508,0.9255,-1.6253,5,5,
+flood,gemma3:27b,19.1621,20.3819,1.2197,5,5,
+flood,ministral3:3b,31.1901,31.0364,-0.1537,5,5,
+flood,ministral3:8b,30.5391,26.8836,-3.6556,5,5,
+flood,ministral3:14b,19.451,19.9213,0.4703,5,5,
+flood,gemma4:e2b,27.4182,28.3873,0.9691,5,5,
+flood,gemma4:e4b,43.4752,49.7122,6.237,5,5,
+flood,gemma4:26b,17.4437,20.36,2.9163,5,5,
