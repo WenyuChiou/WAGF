@@ -372,8 +372,22 @@ AAMAS2027/
 SUBMISSION_2026/**/runs/**
 !SUBMISSION_2026/**/runs/config_*/
 !SUBMISSION_2026/**/runs/config_*/**
-!SUBMISSION_2026/**/runs/*.md
-!SUBMISSION_2026/**/runs/*.py
+# Records at ANY depth, not only as direct children of runs/. The first version of these
+# lines matched `runs/*.md` only, so a provenance attestation written into `runs/_logs/`
+# was silently untracked -- a record about a run, excluded by the rule meant to keep
+# records about runs. `.sh` is here because launch scripts are launch documents; the
+# global `*.sh` rule at the top of this file is for machine-specific automation, and a
+# launch script that pins an experiment's parameters is the opposite of that.
+!SUBMISSION_2026/**/runs/**/
+!SUBMISSION_2026/**/runs/**/*.md
+!SUBMISSION_2026/**/runs/**/*.py
+!SUBMISSION_2026/**/runs/**/*.sh
+!SUBMISSION_2026/**/runs/**/*.txt
+# ...but never a run's own output, whatever directory it lands in.
+SUBMISSION_2026/**/runs/*/simulation_log.csv
+SUBMISSION_2026/**/runs/*/*_governance_audit.csv
+SUBMISSION_2026/**/runs/*/reflection_log.jsonl
+SUBMISSION_2026/**/runs/*/raw/**
 SUBMISSION_2026/**/__pycache__/
 SUBMISSION_2026/**/*.pyc
 ICLR2027/experiments/_smoke_*/
