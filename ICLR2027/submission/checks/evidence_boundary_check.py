@@ -8,6 +8,7 @@ scope-limiting language is present.
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 from pathlib import Path
@@ -18,6 +19,7 @@ PACKAGE = ROOT / "ICLR2027" / "submission"
 TAE = ROOT / "SUBMISSION_2026" / "TAE"
 MANUSCRIPT = PACKAGE / "paper" / "manuscript.tex"
 NUMBERS = TAE / "NUMBERS.md"
+DENOMINATOR_GAP = PACKAGE / "supplement" / "fig3_denominator_gap.csv"
 REPORT = PACKAGE / "checks" / "evidence_boundary_report.json"
 
 
@@ -36,6 +38,7 @@ def main() -> int:
         TAE / "evidence" / "fig3_consequence.py",
         TAE / "evidence" / "e4_world_fixed_decomposition.py",
         TAE / "evidence" / "e6_antecedent_conjunction.py",
+        DENOMINATOR_GAP,
     ]
     missing_sources = [str(path) for path in required_sources if not path.exists()]
     if missing_sources:
@@ -43,7 +46,12 @@ def main() -> int:
 
     key_values = [
         "+45.73",
-        "+23.02",
+        "+25.90",
+        "+29.90",
+        "+20.26",
+        "+36.57",
+        "-14.86",
+        "+3.38",
         "+43.15",
         "25.46",
         "68.61",
@@ -61,10 +69,37 @@ def main() -> int:
         "102.25",
     ]
     manuscript_search = manuscript.replace(r"\%", "%")
-    missing_in_numbers = [value for value in key_values if value not in numbers]
+    denominator_gap_rows = []
+    if DENOMINATOR_GAP.exists():
+        with DENOMINATOR_GAP.open(newline="", encoding="utf-8") as handle:
+            denominator_gap_rows = list(csv.DictReader(handle))
+
+    def gap_value_present(value: str) -> bool:
+        """Accept a rounded display value only from the CSV's ``gap_pp`` field."""
+        try:
+            target = float(value)
+        except ValueError:
+            return False
+        return any(
+            abs(float(row["gap_pp"]) - target) < 0.005
+            for row in denominator_gap_rows
+            if row.get("gap_pp")
+        )
+
+    derived_gap_values = {"-14.86", "+3.38"}
+
+    missing_in_numbers = [
+        value
+        for value in key_values
+        if value not in numbers
+        and not (value in derived_gap_values and gap_value_present(value))
+    ]
     missing_in_manuscript = [value for value in key_values if value not in manuscript_search]
     if missing_in_numbers:
-        errors.append(f"key values absent from NUMBERS.md: {missing_in_numbers}")
+        errors.append(
+            "key values absent from NUMBERS.md and the frozen denominator-gap CSV: "
+            f"{missing_in_numbers}"
+        )
     if missing_in_manuscript:
         errors.append(f"key values absent from manuscript: {missing_in_manuscript}")
 

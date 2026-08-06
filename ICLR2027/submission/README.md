@@ -19,7 +19,7 @@ paper. Read this file first when returning to the project.
 | Manuscript | `paper/manuscript.tex` |
 | Bibliography | `paper/references.bib` |
 | Figures cited by the manuscript | `figures/active/` |
-| Figure 1 generated asset | `figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png` |
+| Figure 1 generated asset | `figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png` |
 | Figure 1 staging builder | `source/figure1_agent_paper.py` |
 | Figure 1 builder entry point | `source/figure1_overlay.py` compatibility entry point |
 | Figure 1 geometry check | `checks/figure1_geometry_check.py` |
@@ -29,14 +29,15 @@ paper. Read this file first when returning to the project.
 The files in `figures/candidates/` are alternatives only. They are not
 submission figures and must never be referenced by `manuscript.tex`. The
 active Figure 1 is the generated shared-condition composition staged from
-`figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`.
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`.
 
 The design follows the rendered figure grammar of ReAct, Reflexion, SWE-agent,
 and AgentSpec: a compact Agent response, an explicit Validator insertion point,
-a direct Agent--Validator--Environment path, and a lower Counted-records path
-with separate condition and records inputs. It uses black borders and arrows,
-flat colored fills, and small functional icons. Observation and retry paths are
-omitted for clarity; the frozen corpus does not preserve the first response
+a direct Agent--Validator--Environment path, a subordinate retry/default-action
+branch, and a lower Counted-records path with separate condition and records
+inputs. It uses black borders and arrows, flat colored fills, and small
+functional icons. The retry branch is shown because the primary action reading
+is the executed action; the frozen corpus does not preserve the first response
 before a retry.
 
 ## Figure workflow

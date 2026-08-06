@@ -81,7 +81,7 @@ def main() -> int:
         "\\section{Evaluation Setting}",
         "\\section{The Denominator Moves}",
         "\\section{World-State Composition as a Descriptive Mechanism}",
-        "\\section{Different Denominators Answer Different Questions}",
+        "\\section{Different Denominators and Action Readings}",
         "\\section{Reporting Protocol and Limitations}",
         "\\section{Conclusion}",
         "\\subsection*{AI Use Statement}",

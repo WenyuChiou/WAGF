@@ -75,7 +75,7 @@ def flood_rows() -> list[dict[str, object]]:
 def pressure_ranges() -> dict[str, str]:
     source = json.loads(PRESSURE_JSON.read_text(encoding="utf-8"))
     ranges = source["ranges_pct"]
-    expected = {"irrigation": [28.0, 63.0], "flood": [0.0, 0.85]}
+    expected = {"irrigation": [28.0, 63.0], "flood": [0.0, 0.638]}
     if ranges != expected:
         raise RuntimeError("Pinned governance-pressure summary changed")
     return {
@@ -234,7 +234,7 @@ def panel_c(ax: plt.Axes, rows: list[dict[str, object]]) -> None:
         if not math.isnan(lo) and not math.isnan(hi):
             ax.errorbar(value, y, xerr=[[value - lo], [hi - value]], color=INK, linewidth=0.7, capsize=2)
     ax.axvline(0, color=INK, linewidth=0.8)
-    ax.set_title("c  Filtering changes the gap", loc="left", fontsize=9, fontweight="bold")
+    ax.set_title("c  Never-retried subset", loc="left", fontsize=9, fontweight="bold")
     ax.set_yticks(order)
     ax.set_yticklabels(labels, fontsize=6.5)
     ax.set_xlabel("High-scarcity contrast (pp)", fontsize=8)

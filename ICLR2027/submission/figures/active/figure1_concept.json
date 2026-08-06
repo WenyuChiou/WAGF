@@ -1,9 +1,9 @@
 {
   "rendering_mode": "generated_full",
-  "asset": "figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png",
-  "asset_sha256": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
-  "staged_sha256": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
-  "print_sha256": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
+  "asset": "figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png",
+  "asset_sha256": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
+  "staged_sha256": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
+  "print_sha256": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
   "canvas_px": [
     1774,
     887
@@ -39,13 +39,17 @@
     "records",
     "Counted records",
     "selects",
-    "Conditional rate"
+    "Conditional rate",
+    "fresh response",
+    "retry / re-ask",
+    "retry exhausted",
+    "default action"
   ],
   "semantics": {
     "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
-    "runtime": "the response enters Validator; an accepted action reaches Environment; the Validator's final record enters Decision log",
+    "runtime": "the response enters Validator; an accepted action reaches Environment; a retry may produce a fresh response or a default action; the final record enters Decision log",
     "selection": "records from Decision log enter Counted records; the same condition selects Counted records; Counted records feeds Conditional rate",
-    "omitted": "the observation-to-next-context loop and retry path are omitted to keep the shared-condition relationship readable"
+    "omitted": "the observation-to-next-context loop remains omitted; the retry branch is shown because primary statistics use the executed action"
   },
   "manual_visual_review": {
     "required": true,
@@ -59,7 +63,9 @@
       "Validator has a separate final-record arrow that terminates on Decision log",
       "the amber selects arrow starts at condition, bypasses Decision log, and enters Counted records",
       "Decision log has a separate records arrow into Counted records",
-      "the observation and retry paths are absent rather than ambiguous or unlogged connectors",
+      "the retry / re-ask arrow returns to Agent response without crossing the condition-selection route",
+      "the retry-exhausted / default-action arrow reaches the Environment execution path",
+      "the observation-to-next-context path remains absent rather than an ambiguous connector",
       "black borders and colored fills remain distinct at full size, paper width, thumbnail size, and grayscale"
     ]
   },
