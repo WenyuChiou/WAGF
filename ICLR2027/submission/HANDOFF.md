@@ -2,8 +2,9 @@
 
 Updated 2026-08-05 after a fresh Figure 1 generation round based on the
 rendered architecture figures of ReAct, Reflexion, AutoGen, SWE-agent, and
-AgentSpec, followed by independent visual review and a plain-language and
-academic-writing audit of the active manuscript.
+AgentSpec, followed by independent visual review, a plain-language and
+academic-writing audit, and an official MiKTeX typeset build of the active
+manuscript.
 
 ## Read this first
 
@@ -65,7 +66,11 @@ first response before a retry, and the caption states this boundary.
 
 The generated source and active/print copies are byte-identical after staging.
 The current visual gate includes full-size, paper-width, thumbnail, grayscale,
-and adversarial inspection. The official typeset PDF gate remains open.
+and adversarial inspection. The official typeset PDF gate passes with MiKTeX
+25.12: `paper\manuscript.pdf` is 9 pages total, with the final page containing
+references only. The build has no undefined citations/references and no
+overfull boxes. The title produces two non-fatal underfull hbox warnings; the
+body produces non-fatal underfull vbox warnings.
 
 ## Manuscript and evidence status
 
@@ -97,22 +102,32 @@ requests for caption denominator clarity, Figure 1's scarcity-condition
 abstraction, exact reweighting support rules, and claim softening are also in
 that file. No new experiment was invented or run.
 
-## Known blocker
+## Official TeX build
 
-The Windows environment has no `pdflatex`, `xelatex`, `lualatex`, `tectonic`, or
-`bibtex` executable, and the installed WSL distribution has no TeX engine. The
-official ICLR PDF build, page-count check, overfull-box check, and final
-print-size inspection are therefore still pending. Do not call the package
-fully upload-ready until a real TeX build passes.
+MiKTeX 25.12 is installed at
+`C:\Users\wenyu\AppData\Local\Programs\MiKTeX\miktex\bin\x64`.
+From `paper\`, the verified build is two `pdflatex` runs after the existing
+`bibtex manuscript` pass, with `TEXINPUTS` and `BSTINPUTS` pointing to
+`source\iclr_style\iclr2027`. The static checker now discovers this per-user
+MiKTeX installation even when the shell PATH has not been refreshed.
+
+## Remaining release checks
+
+The TeX and PDF checks are complete. The package is not yet a submission
+because OpenReview author metadata, author profiles and reciprocal-review
+requirements, final anonymity checks, and the live dual-submission decision
+still belong to the actual submission window. The official ICLR 2027 author
+guidelines allow at most 9 pages of main text and exclude the bibliography from
+that limit; this PDF has 8 pages of main text plus one references-only page.
+The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
+2026 AOE.
 
 ## Next agent's order of work
 
-1. Build with the official ICLR style in a TeX-enabled environment and inspect
-   the PDF at 100% and print size for page count, overfull boxes, clipped
-   captions, and anonymity leaks.
+1. Complete the final venue and dual-submission checks at submission time.
 2. Re-run the frozen evidence inventory and all table/figure crosschecks; do
    not modify the historical TAE snapshot.
 3. Decide whether the ICLR generality claim needs a minimum controlled
    validation experiment; do not broaden the claim without evidence.
-4. Complete ICLR author metadata, profile, reciprocal-review, quota, and live
-   dual-submission checks only at submission time.
+4. Complete ICLR author metadata, profile, reciprocal-review, and quota checks
+   only at submission time.

@@ -9,7 +9,9 @@ surprises, and the generated figure file formats.
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 from pathlib import Path
 
 from PIL import Image
@@ -21,6 +23,31 @@ MANUSCRIPT = PAPER / "manuscript.tex"
 BIB = PAPER / "references.bib"
 FIGURES = ROOT / "figures" / "active"
 REPORT = ROOT / "checks" / "manuscript_static_report.json"
+
+
+def find_tex_engine() -> str | None:
+    """Find a TeX executable on PATH or in common per-user MiKTeX locations."""
+
+    for executable in ("pdflatex", "xelatex", "lualatex", "tectonic"):
+        found = shutil.which(executable)
+        if found:
+            return found
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        miktex_bin = (
+            Path(local_app_data)
+            / "Programs"
+            / "MiKTeX"
+            / "miktex"
+            / "bin"
+            / "x64"
+        )
+        for executable in ("pdflatex.exe", "xelatex.exe", "lualatex.exe"):
+            candidate = miktex_bin / executable
+            if candidate.is_file():
+                return str(candidate)
+    return None
 
 
 def main() -> int:
@@ -120,9 +147,14 @@ def main() -> int:
     tex_words = re.sub(r"\\[a-zA-Z]+", " ", tex)
     tex_words = re.sub(r"[^A-Za-z0-9%+.-]+", " ", tex_words)
     word_count = len([word for word in tex_words.split() if word])
+    tex_engine = find_tex_engine()
     result = {
         "status": "PASS" if not errors else "FAIL",
-        "build_status": "BLOCKED_NO_TEX_ENGINE",
+        "build_status": (
+            f"TEX_ENGINE_AVAILABLE:{tex_engine}"
+            if tex_engine
+            else "BLOCKED_NO_TEX_ENGINE"
+        ),
         "manuscript": str(MANUSCRIPT.relative_to(ROOT)).replace("\\", "/"),
         "cited_keys": sorted(cited),
         "bibliography_keys": sorted(bib_keys),

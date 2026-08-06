@@ -231,15 +231,6 @@
   ],
   "issues": [
     {
-      "id": "official-tex-build",
-      "severity": "S3",
-      "status": "OPEN",
-      "evidence_status": "CONFIRMED",
-      "description": "The Windows and available WSL environments have no pdflatex, xelatex, lualatex, tectonic, or bibtex executable; the official ICLR PDF build and rendered-PDF inspection remain unavailable.",
-      "affected_artifacts": ["main_manuscript", "bibliography"],
-      "waiver": null
-    },
-    {
       "id": "historic-dirty-manifests",
       "severity": "S3",
       "status": "WAIVED",
@@ -289,14 +280,16 @@
       "caption_sync",
       "stale_reference_audit",
       "generated_figure_asset_integrity",
-      "visual_figure_review"
+      "visual_figure_review",
+      "official_tex_build",
+      "typeset_pdf_inspection"
     ],
     "checked_hashes": {
       "figure1_source_asset": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
       "figure1_active_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
       "figure1_print_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286"
     },
-    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; OFFICIAL_TYPESET_PENDING"
+    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; OFFICIAL_TYPESET_PASS_9_PAGES_MAIN_TEXT_8_REFERENCES_1"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -331,20 +324,20 @@
     "visual_figure_review": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
-    "academic_state_schema": "PASS_WITH_OFFICIAL_TEX_BLOCKER",
+    "academic_state_schema": "PASS",
     "argument_structure": "PASS_WHY_EXAMPLE_MECHANISM_GAP_QUESTIONS_CONTRIBUTIONS",
     "evidence_scope": "PASS_EVIDENCE_BOUNDARY_CHECK",
     "scholarly_writing": "PASS_PLAIN_LANGUAGE_FOUR_PASS; ABSTRACT_242_RAW_TOKENS; STATS_AND_SCOPE_CLARIFIED; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
-    "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_BLOCKED",
+    "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_PASS_MIKTEX_25_12",
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
     "adversarial_review": "PASS_SHARED_CONDITION_V4_ACTIVE_SYNC",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
-    "official_tex_build": "BLOCKED_NO_TEX_ENGINE",
+    "official_tex_build": "PASS_MIKTEX_25_12_PDFLATEX_BIBTEX_9_PAGES",
     "new_experiment_run": false
   },
   "next_actions": [
-    "Run the official ICLR TeX build in a TeX-enabled environment.",
-    "Inspect the rendered PDF at 100% and print size for page count, overfull boxes, caption clipping, and anonymity.",
-    "Complete final venue and dual-submission checks."
+    "Complete final venue and dual-submission checks.",
+    "Complete OpenReview author metadata, author profiles, reciprocal-review, and quota checks at submission time.",
+    "Recheck the live ICLR 2027 author guidelines if the organizers publish a revision."
   ]
 }

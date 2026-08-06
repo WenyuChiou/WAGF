@@ -14,8 +14,8 @@
       ambiguous observation route. Its generated-asset integrity check plus
       full-size, paper-width, grayscale, thumbnail, and independent adversarial
       visual reviews pass. Its manuscript-facing output is under
-      `figures/active/`; official typeset print-width PDF inspection remains
-      open.
+      `figures/active/`; the official typeset PDF inspection passes at paper
+      width and in the rendered manuscript.
 - [x] Figures 2--4 are copied from the existing deterministic evidence outputs
       under `figures/active/`; no generated image is used for a quantitative
       chart.
@@ -34,17 +34,24 @@
 
 ## Still required before upload
 
-- [ ] Run the official ICLR TeX build in an environment with a TeX engine and
-      inspect the resulting PDF at 100% and print size. From
+- [x] Run the official ICLR TeX build with MiKTeX 25.12 and inspect the
+      resulting PDF at 100% and print size. From
       `submission\paper`, use the staged style directory explicitly:
 
       ```powershell
+      $miktexBin = Join-Path $env:LOCALAPPDATA 'Programs\MiKTeX\miktex\bin\x64'
+      $env:Path = "$miktexBin;$env:Path"
       $iclrTexInputs = "..\source\iclr_style\iclr2027;$env:TEXINPUTS"
       $env:TEXINPUTS = $iclrTexInputs
+      $env:BSTINPUTS = $iclrTexInputs
+      bibtex manuscript
+      pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       ```
-- [ ] Verify the rendered page count is within the ICLR limit and that no
-      overfull boxes, clipped captions, or anonymization leaks remain.
+- [x] Verify the rendered PDF has 9 pages total (8 pages of main text plus a
+      references-only page), no overfull boxes, no clipped captions, and no
+      visible author metadata. The official ICLR 2027 author guidelines allow
+      up to 9 pages of main text and exclude references from the limit.
 - [ ] Fill the actual OpenReview author metadata only at submission time.
 - [ ] Complete the ICLR profile, reciprocal-review, and quota requirements for
       every author before the paper deadline.
