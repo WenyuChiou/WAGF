@@ -72,6 +72,85 @@ yours, and vice versa. I will do the same in reverse.
 manuscript's direction, what Figure 1 became, and anything you need from the evidence pipeline. I
 will fold it in.
 
+### WHICH PAPER NEEDS WHAT — there are three, and only one is yours
+
+This repository holds three manuscripts and they are at different stages. Confusing them is the most
+likely way effort gets spent in the wrong place.
+
+| paper | where | status | who acts |
+|---|---|---|---|
+| **ICLR 2027** — *When Governance Changes What Gets Counted: Measurement Validity for LLM Agent Evaluation* | `ICLR2027/submission/paper/manuscript.tex` | **live, and the one to work on** | **Codex** |
+| **TAE workshop** — *When Guardrails Change What Gets Counted: Conformance Metrics with Agent-Reported Rule Conditions* | `SUBMISSION_2026/TAE/paper/manuscript.md` | **frozen** — the venue closed 2026-08-05 | nobody |
+| **Nature Water Paper 1b** (a different project) | `paper/nature_water/drafts/` — gitignored | paused; has its own defects, listed below | the author, later |
+
+**These are two different papers, not two renderings of one.** Measured, not assumed: the ICLR `.tex`
+shares **43 of roughly 2,500 eight-grams** with the TAE markdown (Jaccard 0.0086) and exactly one
+sentence. Different titles, different framings — "guardrails / conformance metrics" became
+"governance / measurement validity" — 12 sections became 7. **Do not treat the TAE manuscript as a
+source to regenerate from, and do not port edits between them.**
+
+**What the ICLR paper needs, in order:**
+
+1. **The bibliography, from 6 to something a main-track reviewer will accept.** §3① above has the gap
+   analysis and the fabrication warning. Free in page terms. Highest value.
+2. **Item C1 — restore what the 8-page limit cut** (§1's roadmap paragraph, §2's worked-example
+   walkthrough, §6's different-estimand paragraph). Partly available now, more available as the
+   bibliography grows; see §3②.
+3. **A page gate that reads the live manuscript.** Nothing currently watches it (§4②).
+4. **A real answer on the RED reproducibility audit.** It was waived because TAE was non-archival.
+   **That waiver does not transfer to an archival venue** and the carry-over is not bannered anywhere.
+
+**What Nature Water needs — recorded here so it is not lost, but it is not yours and not now:**
+its flood arms are seed-unpaired (governed 42/**4202**/**4203**/45/46 against control 42/43/44/45/46,
+paired by folder index, so 2 of every 5 pairs compare unlike with unlike across six models), and three
+of its analysis scripts test `status == "REJECTED"` by exact equality and so silently drop
+`REJECTED_FALLBACK` — 105 of 6,469 rejections in the published irrigation cell.
+
+### WHAT I WILL MOVE, and when — so nothing surprises you
+
+Nothing further moves while the run is live. After it finishes:
+
+| when | what | why it waits |
+|---|---|---|
+| **~10:30, immediately after the run** | the `broker/` validator fix (§4 below) | editing `broker/` mid-run can kill the run |
+| **after that** | workspace consolidation proper | it needs directory renames, and `e3_run_integrity.py:85` hardcodes `config_irrigation_firstattempt` while the run is reading that tree |
+| **not scheduled** | renaming `SUBMISSION_2026/TAE/` | four directory names are load-bearing and ~31 scripts are locked to their exact depth. This is a code change, not a file move, and it needs its own decision |
+
+**Two moves have already happened**, both listed in §2: a root-level `figures/fig0_generated_v2.md`
+became `SUBMISSION_2026/TAE/analysis/fig0_generated_v2_attempt_log.md`, and
+`iclr-2027-style-files.zip` moved one level down into `source/iclr_style/`. **Neither touches your
+build.** That is the complete list to date.
+
+### THE RUNNING EXPERIMENT — results will be appended below when it lands
+
+**One run, in flight**: `gemma3:4b`, governed arm, seed 42, 42 years, 78 agents. Started
+2026-08-05 23:20, expected ~10:30 on 2026-08-06. Four more seeds (43–46) are conditional on seed 42
+passing its gate — the queue is not automatic and will not start without a decision.
+
+It answers one question: **among decisions the governance loop blocked, did the recorded appraisal
+end up different from the one the agent first wrote?** The shipped corpus cannot answer it, which is
+what §8 admits.
+
+<!-- RESULTS PLACEHOLDER — Claude fills this at ~10:30. Do not write here. -->
+
+**RESULTS: pending.** When the run lands I will append, in this spot:
+
+- the `initial_labels` fill rate by stratum, against the >95% gate — **the stop condition**; if
+  retried rows come in under 95%, seeds 43–46 do not run and this section says so
+- the drift rate **with its denominator**, and whether it is reported as a floor (it must be — the
+  appraisal is captured at the first and final attempts only, never mid-retry)
+- the `failed_rules` literal census, which is the first real-data check of whether
+  `output_schema_violation` ever fires
+- wall clock, and any integrity assertion that failed
+- **what it means for §5, §8 and Figure 1's caption** — that is the part you need. If the appraisal
+  barely moves, §5's world-composition account carries the whole effect and §8's admission narrows.
+  If it moves substantially, there is a within-decision revision channel alongside the compositional
+  one, and §5, §8 and the abstract each need a paragraph distinguishing two different quantities.
+  **Neither outcome falsifies the paper**; both change what it can say.
+
+**Until that section is filled, write nothing that depends on the answer.** `PLAN.md` §5 pre-authorises
+one extra writing day for the second case, so there is no schedule pressure to guess.
+
 ## 1. 🔴 A REAL 11-HOUR EXPERIMENT IS RUNNING. Do not touch `broker/`.
 
 Launched 2026-08-05 23:20 local. Expected finish ~10:30 on 2026-08-06.
