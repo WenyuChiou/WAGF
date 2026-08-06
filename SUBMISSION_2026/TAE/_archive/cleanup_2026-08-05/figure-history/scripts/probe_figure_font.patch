@@ -1,0 +1,60 @@
+Serif figure fonts: DejaVu Sans -> STIXGeneral (Times-metric), embedding kept.
+
+PREPARED, NOT APPLIED. Settled by probe_figure_font.py (see its docstring).
+Rationale in one line: the figures sit inline with a Times body and are set in
+DejaVu Sans; STIXGeneral is Times-metric, ships with matplotlib, and stays an
+EMBEDDED TrueType font, which template/neurips_2026.tex line 416 permits.
+
+The mathtext.fontset line is REQUIRED, not decorative: fig2 and fig3 use
+"$\Delta$", and without it matplotlib re-embeds DejaVuSans to draw that one
+glyph, so the sans font never actually leaves the PDF (probe Part C). It is
+added to fig1 too, which has no mathtext today, so a later "$...$" cannot
+silently reintroduce it.
+
+DO NOT APPLY YET. Changing the family changes text metrics, and each script's
+_assert_no_text_overlaps (fig1:472, fig2:484, fig3:369) must still print
+"TEXT OVERLAP CHECK: 0". Those scripts import _data.py, which correctly refuses
+a partial cell while the irrigation ministral3:8b seed-44 no-validator run is
+being written. Apply only after that run lands, then rebuild all three figures
+and require 0 from each, then rerun submission_gate.py.
+
+Apply with:  git apply SUBMISSION_2026/TAE/evidence/probe_figure_font.patch
+Verify first: git apply --check SUBMISSION_2026/TAE/evidence/probe_figure_font.patch
+
+diff --git a/SUBMISSION_2026/TAE/evidence/fig1_rule_layers.py b/SUBMISSION_2026/TAE/evidence/fig1_rule_layers.py
+--- a/SUBMISSION_2026/TAE/evidence/fig1_rule_layers.py
++++ b/SUBMISSION_2026/TAE/evidence/fig1_rule_layers.py
+@@ -414,7 +414,8 @@
+ # =============================================================================
+ def _style() -> None:
+     plt.rcParams.update({
+-        "font.family": "DejaVu Sans",
++        "font.family": "STIXGeneral",
++        "mathtext.fontset": "stix",
+         "font.size": MIN_FONT,
+         "axes.labelsize": MIN_FONT,
+         "axes.titlesize": 9.0,
+diff --git a/SUBMISSION_2026/TAE/evidence/fig2_mechanism.py b/SUBMISSION_2026/TAE/evidence/fig2_mechanism.py
+--- a/SUBMISSION_2026/TAE/evidence/fig2_mechanism.py
++++ b/SUBMISSION_2026/TAE/evidence/fig2_mechanism.py
+@@ -177,6 +177,8 @@
+ MEAD_FLOOR_FT = 895.0
+
+ plt.rcParams.update({
++    "font.family": "STIXGeneral",
++    "mathtext.fontset": "stix",
+     "font.size": MIN_FONT,
+     "axes.labelsize": MIN_FONT,
+     "axes.titlesize": 9.0,
+diff --git a/SUBMISSION_2026/TAE/evidence/fig3_consequence.py b/SUBMISSION_2026/TAE/evidence/fig3_consequence.py
+--- a/SUBMISSION_2026/TAE/evidence/fig3_consequence.py
++++ b/SUBMISSION_2026/TAE/evidence/fig3_consequence.py
+@@ -378,6 +378,8 @@
+ # ---------------------------------------------------------------------------
+ def plot(rows: list[dict], stem: str) -> None:
+     plt.rcParams.update({
++        "font.family": "STIXGeneral",
++        "mathtext.fontset": "stix",
+         "font.size": MIN_FONT,
+         "axes.labelsize": MIN_FONT,
+         "axes.titlesize": 9.0,

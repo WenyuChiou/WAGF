@@ -1,0 +1,19 @@
+runs:
+  - path: SUBMISSION_2026\TAE\runs\smoke_gemma3_4b_a2y1
+    manifest_present: true
+    manifest_git_commit: 10e190cf1f3805e2869e91b52d8c178a01b0f5f3
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-07-30T03:14:23-04:00
+    verdict: RED
+  - path: SUBMISSION_2026\TAE\runs\smoke_gemma4_12b_a2y1
+    manifest_present: true
+    manifest_git_commit: 10e190cf1f3805e2869e91b52d8c178a01b0f5f3
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-07-30T03:14:23-04:00
+    verdict: RED
+  - path: SUBMISSION_2026\TAE\runs\smoke_gemma4_12b_a4y2
+    manifest_present: true
+    manifest_git_commit: 10e190cf1f3805e2869e91b52d8c178a01b0f5f3
+    data_first_trace_ts: null
+    relevant_code_commit_date: 2026-07-30T03:14:23-04:00
+    verdict: RED

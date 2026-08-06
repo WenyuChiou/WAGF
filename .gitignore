@@ -218,6 +218,60 @@ examples/archive/
 examples/single_agent/archive/
 _archive/
 
+# ...but a SUBMISSION archive is a provenance record, not scratch. The rule above
+# is unanchored, so it also swallowed `SUBMISSION_2026/TAE/_archive/` -- 165 files,
+# 52 MB, of which 88 PNGs and 14 PDFs are rejected figure candidates (correctly not
+# versioned) and 25 markdown files are the WRITTEN REASONING for why each was
+# refused (which is the part worth keeping). Losing the reasoning and keeping the
+# rasters on disk is exactly backwards.
+#
+# That this was the intent is not a guess: `SUBMISSION_2026/TAE/_archive/**/candidates/*.pdf`
+# further down this file is a narrower rule inside an already-excluded directory --
+# dead code, written by someone who believed the archive was tracked. It was not.
+#
+# So: inside a submission workspace's archive, track the records and skip the weight.
+# "Archive it" must not silently mean "remove it from version control", or archiving
+# a superseded governance document destroys the audit trail it exists to preserve.
+# Step 1: let git descend into submission archives at all.
+!SUBMISSION_2026/**/_archive/
+!SUBMISSION_2026/**/_archive/**/
+!ICLR2027/**/_archive/
+!ICLR2027/**/_archive/**/
+# Step 2: re-exclude everything inside them by default. Negating a directory turns
+# OFF the blanket `_archive/` rule for its contents, so without this line the 52 MB
+# of rejected rasters would start being versioned -- the opposite of the intent.
+SUBMISSION_2026/**/_archive/**
+ICLR2027/**/_archive/**
+# Step 2b: ...but keep DIRECTORIES traversable. The trailing slash matches directories
+# only. Without this, git stops at the first subdirectory and every negation below it
+# is dead -- a file inside an excluded directory cannot be re-included, which is the
+# most common way a .gitignore silently does the opposite of what it reads like.
+!SUBMISSION_2026/**/_archive/**/
+!ICLR2027/**/_archive/**/
+# Step 3: track only the records. Text, code and config -- the reasoning, never the weight.
+# `.tex` and `.patch` are on this list for the same reason as `.md`: a figure's LaTeX
+# source and a diff of how a script changed are REASONING, not weight. `.csv` is
+# deliberately NOT here -- that is data, and it belongs on the ignored side.
+!SUBMISSION_2026/**/_archive/**/*.md
+!SUBMISSION_2026/**/_archive/**/*.py
+!SUBMISSION_2026/**/_archive/**/*.yml
+!SUBMISSION_2026/**/_archive/**/*.yaml
+!SUBMISSION_2026/**/_archive/**/*.json
+!SUBMISSION_2026/**/_archive/**/*.txt
+!SUBMISSION_2026/**/_archive/**/*.tex
+!SUBMISSION_2026/**/_archive/**/*.patch
+!ICLR2027/**/_archive/**/*.md
+!ICLR2027/**/_archive/**/*.py
+!ICLR2027/**/_archive/**/*.yml
+!ICLR2027/**/_archive/**/*.yaml
+!ICLR2027/**/_archive/**/*.json
+!ICLR2027/**/_archive/**/*.txt
+!ICLR2027/**/_archive/**/*.tex
+!ICLR2027/**/_archive/**/*.patch
+# Step 4: and never the caches, whatever their extension suggests.
+SUBMISSION_2026/**/_archive/**/__pycache__/**
+ICLR2027/**/_archive/**/__pycache__/**
+
 # Generated analysis JSON
 examples/single_agent/analysis/reports/*.json
 examples/irrigation_abm/analysis/*.png

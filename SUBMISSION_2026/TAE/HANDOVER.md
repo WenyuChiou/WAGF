@@ -2,9 +2,286 @@
 
 **This is the only file you need.** You do not need the conversation that produced it.
 
-**Read the VENUE CHANGE section first.** Everything below it — every status line, every gate result,
-every deadline, and the whole of the older "why this venue" reasoning — was written while this paper
-was going to the TAE workshop. **It is not.** The work is sound; the destination moved.
+**Read LIVE STATE first — it is about right now.** Then VENUE CHANGE. Everything below those — every
+status line, every gate result, every deadline, and the whole of the older "why this venue" reasoning
+— was written while this paper was going to the TAE workshop. **It is not.** The work is sound; the
+destination moved.
+
+---
+
+# LIVE STATE — 2026-08-06, Claude → Codex. Read before touching anything.
+
+**Two things are happening in this repository right now. One of them will be destroyed by an ordinary
+edit if you do not know about it.**
+
+## 0. WRITE BOUNDARY — who owns what, so we do not collide
+
+**You keep the paper. I keep the plumbing.** The author has asked you to carry on with the paper's
+direction and Figure 1; this section exists so you can do that without checking with anyone.
+
+| | owner | notes |
+|---|---|---|
+| `ICLR2027/submission/paper/**` | **Codex** | the manuscript, its bibliography, its build. I do not write here. I have read it and reported findings below; acting on them is yours. |
+| `ICLR2027/submission/figures/**`, `source/**` | **Codex** | Figure 1, its generator, the style files |
+| `ICLR2027/submission/*.md` (design, handoff, review rounds, checklist) | **Codex** | your working record |
+| `ICLR2027/submission/checks/**` | **Codex** | your gates. One suggestion below (§3③); yours to take or leave. |
+| `SUBMISSION_2026/TAE/evidence/**` | **shared — coordinate** | the pipeline your numbers come from. See the note below. |
+| `SUBMISSION_2026/TAE/figures/**` | **shared — coordinate** | generated here, copied into `ICLR2027/submission/figures/active/` |
+| `SUBMISSION_2026/TAE/runs/**` | **nobody, until ~10:30** | a live experiment is writing here (§1) |
+| `broker/**`, `examples/**` | **Claude** | framework and corpora. Do not edit `broker/` at all while the run is live. |
+| `.gitignore`, `DATA_OWNERSHIP.md`, `examples/EXPERIMENTS.md` | **Claude** | repository plumbing |
+| `SUBMISSION_2026/TAE/HANDOVER.md` | **shared — append, never rewrite** | you have a section below (`CURRENT HANDOFF`); this one is mine. Neither of us edits the other's. |
+
+### What I changed, exhaustively, so you can rule it out as a cause
+
+Everything below happened between 2026-08-05 22:00 and 2026-08-06 01:00.
+
+| file | change |
+|---|---|
+| `.gitignore` | **three rules fixed**, all the same defect class — unanchored patterns matching at any depth. `paper/` → `/paper/` (it was swallowing all 22 files of `SUBMISSION_2026/TAE/paper/`, manuscript included). `SUBMISSION_2026/**/runs/` → `runs/**` plus negations (it was excluding the isolated config a run reads). `_archive/` given submission-scoped negations (it was making "archive it" mean "untrack it"). Also added LaTeX build-output rules, which surfaced only once `/paper/` was anchored. **Every one verified with `git check-ignore -q` exit codes in both directions.** |
+| `SUBMISSION_2026/TAE/evidence/_data.py` | added `"output_schema_violation"` to `_NO_RULE_TOKENS`; rewrote the comment above it (it named the wrong commit) and the `rejection_cause` docstring. **No number moves**: 0 of 348 audit CSVs carry that token in `failed_rules`, and re-deriving the anchor cell reproduces gov 6,469 theory / noval 4,757 precondition exactly. |
+| `examples/EXPERIMENTS.md`, `examples/irrigation_abm/experiments/` | **new** — a corpus registry and per-arm design records, so a future author can tell which data belongs to which paper without re-deriving it from code |
+| `DATA_OWNERSHIP.md` | pointer block added at the top |
+| `ICLR2027/experiments/config_firstattempt/SUPERSEDED.md` | **new** — that config tree lacks `executed_skill_columns` and would fail the integrity gate on every seed. Kept, not deleted; it is the input half of the only smoke test that exists. |
+| commit `50247de3` + tag `firstattempt-launch-2026-08-05` | 151 files brought into version control, including the 22 that `paper/` had been hiding |
+| two file moves | listed in §2 below |
+
+**Nothing I changed touches the manuscript, its figures, or its build.** If an ICLR build breaks, I
+am not the cause — with one exception, disclosed in §2: a verification step regenerated
+`SUBMISSION_2026/TAE/figures/fig{0,1,2,3}*.pdf` and `manuscript.docx`. Content unchanged, timestamps
+differ, all validated.
+
+### The one place we genuinely share: `SUBMISSION_2026/TAE/evidence/`
+
+Your numbers come from there and I edited one file in it. **If you need to change anything under
+`evidence/`, append a line to your `CURRENT HANDOFF` section saying which file and why, rather than
+editing silently** — that directory is the single point where a change of mine could move a number of
+yours, and vice versa. I will do the same in reverse.
+
+### What I am doing next, in order
+
+1. **Establishing which copy of `appraisal_composition.py` is authoritative** (§4①, the sign flip).
+   Analysis only; touches no manuscript.
+2. **After the run finishes (~10:30): the `broker/` validator fix** (a bare `except Exception: pass`
+   with its logger commented out, on the Tier-0 governance path). Latent, never fired in 137,592
+   rows, but real. Will go through the review gate plus a mock byte-identity check.
+3. **After that: the workspace consolidation proper**, which needs directory renames and therefore
+   script edits — safe only once nothing is reading `SUBMISSION_2026/TAE/runs/`.
+
+**When you reach a stopping point, append a handover to your section.** Tell me what changed in the
+manuscript's direction, what Figure 1 became, and anything you need from the evidence pipeline. I
+will fold it in.
+
+## 1. 🔴 A REAL 11-HOUR EXPERIMENT IS RUNNING. Do not touch `broker/`.
+
+Launched 2026-08-05 23:20 local. Expected finish ~10:30 on 2026-08-06.
+
+```
+python examples/irrigation_abm/run_experiment.py \
+  --model gemma3:4b --real --years 42 --seed 42 --memory-seed 42 --workers 1 \
+  --governance-mode strict --num-ctx 8192 --num-predict 4096 \
+  --config-dir SUBMISSION_2026/TAE/runs/config_irrigation_firstattempt \
+  --output      SUBMISSION_2026/TAE/runs/firstattempt_gov_seed42
+```
+
+**What this forbids until it finishes:**
+
+| do not | why |
+|---|---|
+| **edit anything under `broker/`** | the runner spawns subprocesses that re-import the package mid-run; an edit can kill it at hour 9 |
+| **touch `SUBMISSION_2026/TAE/runs/`** — config, output, logs, launch doc | the process is reading the config and writing the output; a move or edit corrupts a run that cannot be restarted before the fence |
+| **start another GPU job** | one model is resident at 100% GPU; a second evicts it and the run silently falls back to CPU, which ran 12× slower on 2026-05-13 and cost four hours before anyone noticed |
+| **let Windows Update reboot** | paused until 2026-08-10; an auto-reboot has killed a run at year 10 before |
+
+Progress is readable without touching anything:
+`SUBMISSION_2026/TAE/runs/_logs/seed42.log` (grep `^--- Year`) and
+`SUBMISSION_2026/TAE/runs/firstattempt_gov_seed42/raw/irrigation_farmer_traces.jsonl` (line count).
+
+**Why it matters to the paper.** It records `initial_skill` / `initial_labels` / `attempt_skills` —
+the appraisal the agent wrote at attempt 0, before the retry loop reassigned it. §8's admission that
+"its first attempt is absent from the shipped corpus" is what this closes. **Early result at 262
+traces: `initial_labels` non-empty on 99.6% of all rows and 100% of retried rows**, against a >95%
+gate. The pre-launch worry — a 1b smoke showing 80% on retried rows — was a weak-model artefact.
+
+**Do not weaken the Figure 1 caption's disclosure on the strength of this.** It says "the **frozen**
+corpus does not preserve the first response before a retry", which is precisely scoped and stays
+literally true after this arm lands. That wording is correct; leave it.
+
+## 2. Claude is consolidating the submission workspaces. Expect files to move.
+
+Three workspaces exist and the migration between them was half-finished:
+
+| dir | files | tracked | governance `.md` | python |
+|---|---|---|---|---|
+| `SUBMISSION_2026/` | 376 | 143 | 28 | **60** |
+| `ICLR2027/` | 146 | 122 | 12 | **5** |
+| `AAMAS2027/` | 27 | **0** | 20 | 3 |
+
+**The structural fact is the last column: the paper moved to `ICLR2027/`, the evidence pipeline did
+not.** `ICLR2027/submission/checks/evidence_boundary_check.py` reaches back into `SUBMISSION_2026/`
+for it. 60 governance markdown files across three workspaces is what the author asked to be reduced.
+
+A mapping-then-move pass is in flight. **Rules it operates under, so you know what will and will not
+happen:** nothing is deleted — superseded material moves into `_archive/<venue>/` with a README
+saying what it was and why; no manuscript is edited or moved; nothing under
+`SUBMISSION_2026/TAE/runs/` moves at all; the venue gate is *not* re-pointed, because the destination
+is still not recorded in `DECISION.md`.
+
+### WHAT MOVED — completed 2026-08-06 00:45. **Two files. That is the whole list.**
+
+| from | to | why |
+|---|---|---|
+| `figures/fig0_generated_v2.md` (repo root) | `SUBMISSION_2026/TAE/analysis/fig0_generated_v2_attempt_log.md` | a figure attempt-log sitting alone in a root-level `figures/` directory; it belongs with the other dated analysis records. The root directory is now empty. |
+| `ICLR2027/submission/source/iclr-2027-style-files.zip` | `ICLR2027/submission/source/iclr_style/` | it sat one level above the files unpacked from it |
+
+**Nothing else moved, and the reason is worth reading, because it is the opposite of what "tidy up"
+suggests.**
+
+**The live ICLR paper's evidence backend lives inside the folder named after the dead venue.** Every
+number in `ICLR2027/submission/paper/manuscript.tex` is produced by `SUBMISSION_2026/TAE/evidence/`.
+`ICLR2027/submission/checks/evidence_boundary_check.py:32-41` names eight files there by literal
+path and errors if any is absent; ten sibling scripts import `_data.py` by bare name;
+`supplement/FIGURE_REGENERATION.md:31-33` documents the generate-in-TAE, copy-into-ICLR split as the
+contract. **`SUBMISSION_2026/TAE/` is not a dead folder. Tidying by name would delete what the live
+paper depends on.**
+
+Four directory names are load-bearing — `SUBMISSION_2026`, `ICLR2027`, `TAE`, and `runs/config_*` —
+and roughly 31 scripts are locked to their exact depth below the repo root. Renaming any of them is a
+code change, not a file move.
+
+### ONE GITIGNORE RULE WAS FIXED, because it made archiving destructive
+
+`.gitignore:219` was a bare `_archive/`, unanchored, matching at any depth. It was silently excluding
+`SUBMISSION_2026/TAE/_archive/` — **165 files, 52 MB, of which 25 markdown files are the written
+reasoning for why each rejected figure candidate was refused.** `git ls-files` on that directory
+returned zero.
+
+So "archive it" meant "remove it from version control while leaving it on disk". Archiving a
+superseded governance document would have destroyed the audit trail it exists to preserve.
+
+That this was not the intent is not a guess: a narrower rule,
+`SUBMISSION_2026/TAE/_archive/**/candidates/*.pdf`, sits further down the same file — dead code,
+written by someone who believed the archive was tracked.
+
+Now: inside a submission workspace's archive, **the records are tracked and the weight is not** —
+`.md`/`.py`/`.yml`/`.json`/`.txt` in, rasters and PDFs and caches out. Verified with
+`git check-ignore -q` exit codes on 21 paths in both directions including deep nesting, plus a
+regression sweep confirming no already-tracked file became newly excluded. 36 archive records enter
+version control; the 52 MB of rejected rasters stay on disk and out of git.
+
+**This is the third unanchored-gitignore defect found in two days.** The other two: `paper/` was
+swallowing all 22 files of `SUBMISSION_2026/TAE/paper/` including the manuscript and
+`submission_gate.py` (fixed to `/paper/`); `SUBMISSION_2026/**/runs/` was excluding the isolated
+config a run reads while the comment above it claimed configs were tracked (fixed to `runs/**` plus
+negations). If you add a `.gitignore` rule in this repository, anchor it and verify it with
+`git check-ignore -q` in **both** directions.
+
+### AN UNINTENDED WRITE, disclosed
+
+The consolidation pass was told to run evidence scripts "read-only where safe". **A figure generator
+is not read-only.** Its verification step regenerated
+`SUBMISSION_2026/TAE/figures/fig{0,1,2,3}*.pdf` and `SUBMISSION_2026/TAE/paper/manuscript.docx`, so
+those five binaries now show as modified against the commit. **No damage**: the committed blobs were
+extracted and validated (PDF magic + `%%EOF`, docx zip integrity all pass), and the regenerated
+working copies validate too. PDFs embed build timestamps, so the bytes differ and the content does
+not. Mentioned because a modified binary with no explanation is exactly the kind of thing that costs
+someone an hour later.
+
+## 3. Findings from reviewing your completed work — three, all worth your attention
+
+Read-only review of `ICLR2027/submission/` as of 2026-08-05 21:50. **The work is good**: Figure 1
+carries the actual argument (the agent-written condition both feeds the validator rule *and* selects
+the counted records), the caption is honest and precisely scoped, and omitting the retry branch was
+the right call — it keeps the figure to what §5 establishes rather than to what the data cannot yet
+support. Three things stand out.
+
+**① Six references is the largest acceptance risk in the current draft, and expanding the
+bibliography costs nothing in pages. This is the highest-value thing you can do next.**
+
+`references.bib` holds exactly six entries and all six are cited:
+
+```
+rebedea2023nemo · wang2026agentspec · kapoor2024agents
+liu2023agentbench · bean2025construct · rosenbaum1984adjustment
+```
+
+A main-track ICLR submission with six references reads as insufficient engagement with related work
+**regardless of the contribution's quality** — it is the kind of thing a reviewer notices before
+reading §1. The field norm is 30–60.
+
+**And it is free.** See ② — ICLR's page limit excludes references, so entries can be added without
+displacing a single line of body text. There is no trade-off to weigh here.
+
+Where the current six leave the paper exposed, judged against what it actually claims:
+
+| the paper's move | what it currently cites | what a reviewer will expect |
+|---|---|---|
+| post-treatment conditioning as the core defect | `rosenbaum1984adjustment` alone | the causal-inference literature on conditioning on post-treatment variables, and the measurement-validity literature it borrows from |
+| LLM agents are governed by runtime rules | `rebedea2023nemo`, `wang2026agentspec` | the guardrail / runtime-enforcement literature more broadly, including work this paper's mechanism resembles |
+| agent evaluation is the setting | `liu2023agentbench`, `kapoor2024agents` | the benchmark-critique literature, which is large and directly adjacent |
+| self-reported constructs are the conditioning variable | `bean2025construct` | self-report validity, and the chain-of-thought-faithfulness work — the paper's claim is a measurement claim about self-report |
+
+**A warning that is not optional here.** This repository has a recorded incident from 2026-05-20: a
+subagent given a citation-conversion task **fabricated roughly 30% of the references it added** —
+12 of 14 — despite an explicit instruction to stop if a source could not be found. Every entry you
+add must resolve to a real DOI or arXiv ID that you have actually retrieved. A fabricated citation in
+a submission is worse than a thin bibliography by a wide margin.
+
+**② Correction to what I told the author earlier: the body is NOT yet at the limit.** I said the
+paper was at 9 pages and therefore full. That was wrong in a way that changes what you can do.
+
+The PDF is 9 pages **including** the bibliography — `\bibliography{references}` sits at
+`manuscript.tex:211`, inside the document. **ICLR's 9-page limit excludes references.** So the body
+allowance is not exhausted; the room available equals whatever the bibliography currently occupies,
+which with six entries is small but real.
+
+The useful consequence: **as the bibliography grows it frees body space rather than consuming it.**
+Going from 6 to 30 references pushes roughly a page of material out of the counted region.
+
+So `HANDOVER` item C1 — "restore what the 8-page limit forced out", meaning §1's roadmap paragraph,
+§2's worked-example walkthrough and §6's different-estimand paragraph — **is partly available now and
+becomes more available as ① proceeds.** Do ① first and the space for C1 appears as a side effect.
+
+Before drafting into that space, measure rather than estimate: build, then check where the
+bibliography starts, and treat the pages before it as the counted body.
+
+**③ `figure1_geometry_report.json` reports `PASS_MANUAL_VISUAL_REVIEW_REQUIRED` while
+`text_overlap_count` and `route_intersection_count` are both `null`.** Labelling it that way rather
+than plain `PASS` was the right instinct. But anything grepping for `PASS` still matches, and in a
+paper whose whole subject is checks that report success while validating the wrong thing, that is a
+poor field value. Suggest `NEEDS_VISUAL_REVIEW`. The visual review itself has been done: the figure
+reads correctly; the only minor note is that the Validator orange and the condition amber are close
+in hue for a colourblind reader, mitigated by their spatial separation.
+
+Also recorded, not acted on: `figure1_concept.png` and `figure1_concept_print.png` are byte-identical
+(same sha256), so there is no separate print-resolution asset despite the name. At 0.98\textwidth the
+raster lands at ~268 DPI — usable, marginally under the 300 convention.
+
+## 4. Two analysis findings that outrank the tidying — both reproduced by hand
+
+**① Two copies of `appraisal_composition.py` disagree on one cell, and the sign flips.** Both were
+run against the same corpus. Thirteen of fourteen rows are identical to the digit. The fourteenth:
+
+```
+flood ministral3_3b   AAMAS2027/experiments/    0.09%   28.88%   30.92%   +2.04
+flood ministral3_3b   SUBMISSION_2026/evidence/ 0.11%   31.14%   30.92%   -0.22
+```
+
+The governed-arm figure differs (28.88 vs 31.14) and the shift changes sign. The headline survives
+either way — regime separation stays COMPLETE, carried by min-high +21.26 against max-low +6.25 —
+but the LOW-group mean moves from +0.81 to +0.56 pp, and one published-able cell has two answers.
+`ministral3_3b`'s flood arm is known partial data (pre-F1 whole-run abort, ~65–73% coverage), so the
+divergence is most likely a row-inclusion difference. **Whichever number reaches a paper, the other
+script is wrong; decide which is authoritative before either is cited.**
+
+**② The ICLR paper has no page gate, and the only page gate in the repository watches the wrong
+manuscript.** `SUBMISSION_2026/TAE/paper/submission_gate.py:127-129` hardcodes `BODY_PAGE_LIMIT = 8`
+and TAE's CFP URL and workshop title; `gate_venue()` at `:835-864` reads **only**
+`SUBMISSION_2026/TAE/paper/manuscript.tex`, whose line 13 still satisfies it — so it reports PASS for
+a venue that no longer exists and has never looked at the live manuscript.
+`ICLR2027/submission/checks/manuscript_static_check.py` checks page counts per figure, not for the
+document. The live PDF is 9 pages against ICLR's 9-page limit, with nothing watching it. Not fixed
+here, because re-pointing a venue gate requires a confirmed venue and `DECISION.md` still records TAE.
 
 ---
 

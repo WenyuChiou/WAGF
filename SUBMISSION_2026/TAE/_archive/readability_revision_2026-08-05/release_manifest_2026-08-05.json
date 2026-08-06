@@ -1,0 +1,52 @@
+{
+  "manifest_version": "1.0",
+  "recorded_at": "2026-08-05",
+  "scope": "TAE workshop submission candidate",
+  "release_status": "READY_TO_SUBMIT",
+  "source_of_truth": "paper/manuscript.md",
+  "delivery_artifact": "paper/manuscript.pdf",
+  "sha256": {
+    "paper/manuscript.md": "865E024B56D60CC7AC97454739AD0F7FE34474C2F9600AB53A07D33A91882870",
+    "paper/manuscript.pdf": "AF4BD1F70301B1AED327409CA4DEB5C7567DB8D56C3213FA6ACBE4D908429B38",
+    "paper/manuscript.substituted.md": "FE7F63553271E23C5A8FE2C095EA5458D19DA4E114FCFC07ED323A63A555001F",
+    "paper/manuscript.tex": "68D7558A186E88DDE154CEE0EEF235E2B1A4BC8B8305B2F6B4996E69C5443228",
+    "figures/fig0_problem_schematic.pdf": "C51EF5C356EFA48FF3530E73E13B45F419A16CBF2DA52E9BE6922B293B635B8C",
+    "figures/fig1_rule_layers.pdf": "5E7302FBAA3ED01E677F5E4B7B7E4A75199074BD30B0DCA1B94325D2A01578F3",
+    "figures/fig2_mechanism.pdf": "2992B17787BA5785561E669EC3B0C86B9DF9383EBB4C31C32928DC0488F6D060",
+    "figures/fig3_consequence.pdf": "4A8856390A5955EE299DA64CDDCFE050136A849363574CA165DCE9E88005E47A",
+    "figures/fig0_problem_schematic.png": "99934A866CC4F5969B257337B0ABAD775A42C1C745CBF46DA4FCBA2CCD7F0BEF",
+    "figures/fig1_rule_layers.png": "44FC92D907A99E33A616BAEAFF4B12C22C2351E9E9B2670681C485DA57812096",
+    "figures/fig2_mechanism.png": "1BCD4B79BE5F055B9A60EE4CC8BC4286851E5B5EB559C9DD2E25B1EAD05DDC88",
+    "figures/fig3_consequence.png": "CAE2E72DFB089B42E68FE06F316C67D7C12753A39F8822774D8C808780B3A237"
+  },
+  "measured_submission_gate": {
+    "measured_at": "2026-08-05T02:07:40-04:00",
+    "evidence": "15/15 PASS",
+    "figures": "4/4 PASS",
+    "build": "PASS; 0 LaTeX errors; 0 overfull boxes",
+    "venue": "PASS; [dblblindworkshop] and exact TAE workshoptitle",
+    "pages": "PASS; 9 pages total; body ends on page 8; references start on page 9",
+    "fonts": "PASS; 8 Type 1 + 3 embedded TrueType; 0 Type 3",
+    "anonymity": "PASS",
+    "citations": "PASS; 14 cited references; contiguous [1]--[14]"
+  },
+  "visual_review": {
+    "status": "PASSED",
+    "checked": "standalone figures and manuscript PDF at print size",
+    "figure_1_note": "Image-generated flat-icon raster schematic; no generated image supplies data; arrows and labels were checked for separation and target clarity; the Introduction preview appears before the rendered Figure 1"
+  },
+  "evidence_boundary": {
+    "provenance": "WAGF reproducibility audit remains RED for clean source-run reproduction: 27 enriched manifests are dirty and 15 identifying runs remain minimal; this is explicitly waived as a TAE upload blocker, not called reproducible. The CFP does not list a code/data/manifest upload requirement.",
+    "causal_scope": "Recorded-world reweighting is descriptive and not a causal adjustment; it does not identify within-world reporting or treatment-affected selection",
+    "venue_scope": "Official TAE CFP verified at https://tai-eval.github.io/cfp/: anonymized single PDF, up to 8 body pages, OpenReview, non-archival poster workshop, deadline 2026-08-29 AoE",
+    "venue_policy_note": "The official CFP does not state a dual-submission permission or prohibition; this artifact gate does not infer permission. Any concurrent-submission decision must follow the other venue's policy or organizer guidance."
+  },
+  "reproducibility_audit": {
+    "status": "RED_WITH_EXPLICIT_LIMITATION",
+    "report": "analysis/reproducibility_2026-08-04/reproducibility_report.md",
+    "release_decision": "analysis/reproducibility_release_decision_2026-08-04.md",
+    "pytest_canonical_invocation": "python -m pytest broker/ tests/ -q",
+    "pytest_exit_code": 0
+  },
+  "interpretation": "This manifest records a TAE-workshop-ready PDF, not a claim of full bitwise reproducibility, causal identification, or guaranteed acceptance."
+}
