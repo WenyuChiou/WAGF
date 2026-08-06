@@ -17,7 +17,7 @@ window.**
 |---|---|---|
 | **removed from history** | 48 rasters under `ICLR2027/submission/figures/candidates/` | **49.4 MB** |
 | **kept in history** | the 4 `README.md` files beside them | 7 KB |
-| **kept on disk, both** | all 52 | 50 MB |
+| **put back on disk afterwards** | all 52, by an explicit step | 50 MB |
 
 The branch currently adds **80.1 MB**; 49.4 MB of it — **62%** — is rejected Figure 1 candidates.
 
@@ -55,56 +55,109 @@ Recorded baseline, to compare against afterwards:
 
 ---
 
+## Two things filter-branch does that this file originally got wrong
+
+Both were found by rehearsing the whole sequence on a throwaway repository before writing this
+version. Neither is guesswork.
+
+**1. It refuses to start while the working tree is dirty.** Not a warning — it exits with
+`Cannot rewrite branches: You have unstaged changes.` and does nothing. This tree has 12 modified
+tracked files, and two of them are `ICLR2027/submission/paper/manuscript.tex` and its check report,
+**which Codex was writing minutes before this was drafted**.
+
+That rules out `git stash`. Stashing reverts those two files on disk to their committed content; if
+Codex reads one during the rewrite he sees a stale version and writes over his own work. The park
+step in block 1 uses a **temporary commit** instead, which never touches the working tree — verified
+by md5 on a stand-in file edited to look exactly like Codex's.
+
+**2. It deletes the filtered files from your working tree.** filter-branch ends with
+`git read-tree -u -m HEAD`, and after the rewrite HEAD no longer lists the 48 rasters, so they are
+removed from disk. An earlier version of this file claimed the opposite and told you to expect 52
+files afterwards. Block 3 puts them back, and the verification checks for it.
+
+They round-trip byte-exact: all 48 were compared on disk against their blobs (`sha256`), 48 matched,
+0 differed, so restoring them cannot corrupt a PDF through line-ending conversion.
+
+---
+
 ## The commands — PowerShell
 
 Paste one block at a time from the repository root. In this session, prefix a line with `! ` to run
-it here.
+it here. Blocks 1–3 are **one operation** — do not stop between them.
 
-### 1. Rewrite the range, and move the tag with it
+### 1. Park the working tree, rewrite, unpark
 
 ```powershell
 cd C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
 $env:FILTER_BRANCH_SQUELCH_WARNING = "1"
 
+git add -u
+git commit -m "TEMP: park working tree for history rewrite"
+
 git filter-branch -f --tag-name-filter cat --index-filter 'git rm -r --cached --ignore-unmatch ":(glob)ICLR2027/submission/figures/candidates/**/*.png" ":(glob)ICLR2027/submission/figures/candidates/**/*.pdf"' origin/main..HEAD
+
+git reset --mixed HEAD~1
 ```
 
-Three details, each deliberate:
-
-- **`--index-filter`** touches only the index, so nothing is ever checked out. It is the fast form
-  and it cannot disturb your working tree — the 52 files stay on disk throughout.
+- **`git add -u`** stages the 12 modified tracked files and nothing else. The 11 untracked
+  directories are left alone — untracked files do not block filter-branch, and `add -A` would sweep
+  `results_ops_e4b/` into a commit for no reason.
+- **The temporary commit is thrown away four lines later** and never reaches the remote, so it is
+  not a shipping commit and needs no review. The one active hook is
+  `.githooks/pre-commit`, a secret scanner over the staged diff; these 12 files carry no
+  credentials, so no `--no-verify` is needed. If it *does* fire, that is a finding — read it, do not
+  bypass it.
+- **`git reset --mixed HEAD~1`** undoes the temporary commit and returns the 12 files to unstaged.
+  `--mixed` is spelled out rather than left implicit so it cannot be misread as `--hard`; it never
+  touches the working tree.
+- **`--index-filter`** rewrites only the index, so nothing is checked out per commit. It is the fast
+  form.
 - **`--tag-name-filter cat`** moves `firstattempt-launch-2026-08-05` onto the rewritten commit.
   Without it the tag keeps pointing at the pre-rewrite object and is orphaned.
-- **`origin/main..HEAD`** limits the rewrite to your 49 commits. `main` and the three
-  `feat/coupling-*` branches are untouched. **`--prune-empty` is deliberately omitted**: a commit
-  that only added candidates becomes empty rather than vanishing, and its message is part of the
-  record.
+- **`origin/main..HEAD`** limits the rewrite to your commits — 49, plus the temporary one while it
+  exists. `main` and the three `feat/coupling-*` branches are untouched. **`--prune-empty` is
+  deliberately omitted**: a commit that only added candidates becomes empty rather than vanishing,
+  and its message is part of the record.
 
 The pathspec was verified read-only before this file was written: `**/*.png` matches 47,
 `**/*.pdf` matches 1, and the four `README.md` files match neither. The outer quotes are PowerShell
 single quotes (literal) and the inner are double quotes, because git hands the string to `sh`, not
 to PowerShell.
 
-### 2. Verify before pushing
+### 2. Put the candidate images back on disk
+
+```powershell
+git restore --source=backup-before-filter-2026-08-06 -- ICLR2027/submission/figures/candidates/
+```
+
+`git restore --source` writes the working tree **without** staging, so the rasters land on disk and
+stay untracked — which is what the `.gitignore` rule added alongside this file intends. `git checkout
+<branch> -- <path>` would stage them and undo the whole exercise; it is also on this workspace's
+deny list.
+
+### 3. Verify before pushing
 
 ```powershell
 git rev-list --count origin/main..HEAD
-#   expect 49
+#   expect 49   -- 50 here means the temporary commit is still in; rerun 'git reset --mixed HEAD~1'
 
-(git log --format=%s origin/main..HEAD | Out-String).Trim().Split("`n").Count
-#   expect 49
+git status --porcelain | Where-Object { $_ -match '^ M' } | Measure-Object | % Count
+#   expect 12   -- the parked changes are back, unstaged
+
+git status --porcelain | Where-Object { $_ -match '^M ' } | Measure-Object | % Count
+#   expect 0    -- nothing left staged
 
 (git ls-files 'ICLR2027/submission/figures/candidates').Count
-#   expect 4   -- only the READMEs remain tracked
+#   expect 4    -- only the READMEs remain tracked
 
 (git log --name-only --format= origin/main..HEAD | Select-String 'candidates.*\.png').Count
-#   expect 0   -- the rasters are gone from history
+#   expect 0    -- the rasters are gone from history
 
 (git diff --name-only origin/main..HEAD).Count
-#   expect 307   (355 - 48)
+#   expect 307  (355 - 48)
 
 (Get-ChildItem ICLR2027\submission\figures\candidates -Recurse -File).Count
-#   expect 52   -- still on disk, which is the point
+#   expect 52   -- back on disk after block 2; 4 before block 2 is the expected intermediate
 
 git log -1 --oneline firstattempt-launch-2026-08-05
 #   expect the "chore(provenance): track the submission workspace..." commit
@@ -117,16 +170,17 @@ git reset --hard backup-before-filter-2026-08-06
 ```
 
 That command is on this workspace's deny list, so it is one you run rather than an agent — which is
-also why the backup branch was made before anything else.
+also why the backup branch was made before anything else. It discards the working-tree state too, so
+if Codex has written since block 1, copy `ICLR2027/submission/paper/manuscript.tex` aside first.
 
-### 3. Push
+### 4. Push
 
 ```powershell
 git push -u origin p0-1-governance-instrumentation
 git push --tags
 ```
 
-### 4. Afterwards, once you are satisfied
+### 5. Afterwards, once you are satisfied
 
 ```powershell
 git branch -D backup-before-filter-2026-08-06
