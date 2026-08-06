@@ -9,7 +9,8 @@ what was asked.
 | **run directories** | `examples/irrigation_abm/results/firstattempt_gov_gemma3_4b_seed42` … `seed46` |
 | **model** | `gemma3:4b` (the anchor cell — matches both papers' headline model) |
 | **arm** | governed / `--governance-mode strict` only |
-| **seeds** | 42, 43, 44, 45, 46 — run sequentially, never in parallel |
+| **seeds** | `--seed` 42, 43, 44, 45, 46 — run sequentially, never in parallel |
+| **memory seed** | `--memory-seed 42` for **all five**, i.e. the default. See §2a. |
 | **isolated config** | `SUBMISSION_2026/TAE/runs/config_irrigation_firstattempt/` |
 | **cost** | ~10.4 h per run, ~52 GPU-h total |
 | **decision of record** | `SUBMISSION_2026/TAE/PLAN.md` §5 — "RUN OPTION 1, AND NOTHING ELSE" |
@@ -53,6 +54,32 @@ are CRLF like the frozen tree, so `config_hash` moves for one reason only.
 rule, the pairing is called for at `broker/core/_audit_helpers.py:271`, and the column **cannot be
 added retroactively**. A superseded config copy at `ICLR2027/experiments/config_firstattempt/` omits
 it; see the `SUPERSEDED.md` beside it for why not to launch against that one.
+
+## 2a. `--memory-seed` stays at the default 42 — a deliberate deviation from the decision text
+
+**There are two seeds and they do different things.** Confusing them would make this arm a different
+experiment from the corpus it is meant to sit beside.
+
+| flag | what it controls | archival practice | here |
+|---|---|---|---|
+| `--seed` | the experiment's randomness | **varied**: 42, 43, 44, 45, 46 | **same — varied 42–46** |
+| `--memory-seed` | passed as `seed=` to `HumanCentricMemoryEngine` (`run_experiment.py:629`); the memory engine's internal ranking randomness only | **never passed** → default **42** on all five runs | **42 on all five** |
+
+`EXPERIMENT_OPTIONS.md:403` writes `--memory-seed <S>`, i.e. per-seed. **This arm does not follow
+that, on the author's decision of 2026-08-06**, and the reason is reuse.
+
+The archival v21 batch scripts — the ones that produced the corpus this arm sits beside, and that
+Nature Water's headline irrigation numbers come from — never pass `--memory-seed` at all
+(`grep -rn "memory-seed" examples/irrigation_abm/*.bat` returns nothing), so all five archival runs
+share memory seed 42 and vary only the sampling seed.
+
+Matching that leaves the new arm differing from the frozen corpus in **exactly two ways: the audit
+flag, and the code state.** Varying the memory seed as well would add a third axis — different
+initial memories — which buys nothing for a within-decision measurement and costs a paragraph of
+explanation in any paper that compares the two.
+
+**Seed 42 is unaffected either way**: `--memory-seed 42` and the per-seed convention coincide there.
+The deviation only applies to seeds 43–46, which had not been launched when the decision was taken.
 
 ### The three new columns
 
