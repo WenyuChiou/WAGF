@@ -74,6 +74,7 @@ def main() -> int:
             "Agent response", "AI", "action", "condition", "propose",
             "Validator", "rule input", "accepted", "Environment", "final record",
             "Decision log", "records", "Counted records", "selects", "Conditional rate",
+            "fresh response", "retry / re-ask", "retry exhausted", "default action",
         }
         missing_labels = sorted(expected_labels - set(labels))
         unexpected_labels = sorted(set(labels) - expected_labels)
@@ -87,9 +88,9 @@ def main() -> int:
             errors.append(f"labels exceed the short-figure limit: {too_long}")
 
         source_asset = ROOT / manifest.get("asset", "")
-        if source_asset.name != "figure1_architecture_agentpaper_shared_condition_v4.png":
+        if source_asset.name != "figure1_architecture_agentpaper_shared_condition_v5_retry.png":
             errors.append(
-                "generated Figure 1 source must remain the reviewed shared-condition asset: "
+                "generated Figure 1 source must remain the reviewed shared-condition retry asset: "
                 f"{source_asset.name}"
             )
         expected_hashes = {

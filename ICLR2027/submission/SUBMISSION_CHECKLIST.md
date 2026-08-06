@@ -10,18 +10,20 @@
       bibliography, AI-use, ethics, and reproducibility sections are present.
 - [x] Figure 1 shared-condition design has short labels, explicit black and
       amber ports, a `final record` arrow that terminates on Decision log,
-      separate condition and records inputs to Counted records, and no
-      ambiguous observation route. Its generated-asset integrity check plus
-      full-size, paper-width, grayscale, thumbnail, and independent adversarial
-      visual reviews pass. Its manuscript-facing output is under
+      a subordinate retry/default-action branch, separate condition and
+      records inputs to Counted records, and no ambiguous observation route.
+      Its generated-asset integrity check plus full-size, paper-width,
+      grayscale, thumbnail, and independent visual reviews pass. Its
+      manuscript-facing output is under
       `figures/active/`; the official typeset PDF inspection passes at paper
       width and in the rendered manuscript. Its color contract is explicit:
       blue agent output, orange validation, green environment, violet
       measurement, amber shared condition, and black flow/borders.
-- [x] Figures 2--4 are deterministic evidence outputs under `figures/active/`;
-      Figure 3 is a three-panel primary irrigation mechanism figure, while
-      Flood remains a secondary Table 2/cross-testbed summary; no generated
-      image is used for a quantitative chart.
+- [x] Figures 2--4 are quantitative outputs under `figures/active/`;
+      Figure 3 is a three-panel primary irrigation mechanism figure, Figure 4
+      is the deterministic executed-action denominator-gap plot, and Flood
+      remains a secondary Table 2/cross-testbed summary. No generated image is
+      used for a quantitative chart.
 - [x] Citation keys, figure paths, one-page quantitative figure PDFs, placeholder tokens,
       Unicode surprises, and LaTeX environment balance pass static checks.
 - [x] Frozen evidence-source presence, key reported values, scarcity-report
@@ -31,9 +33,9 @@
       `checks\reproducibility`; it is **RED** for three historical smoke
       manifests marked `git_dirty=true`, and the manuscript does not claim
       bitwise historic reproducibility.
-- [x] The paper states the seed-level inferential unit, final-action reading,
-      missing first-attempt field, descriptive status of reweighting, and
-      testbed limitations.
+- [x] The paper states the seed-level inferential unit, executed-action primary
+      reading, last-proposed sensitivity, missing first-attempt field,
+      descriptive status of reweighting, and testbed limitations.
 
 ## Still required before upload
 
@@ -51,8 +53,8 @@
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       ```
-- [x] Verify the rendered PDF has 10 pages total (8 pages of main text plus 2
-      reference pages), no overfull boxes, no clipped captions, and no
+- [x] Verify the rendered PDF has 10 pages total (9 pages of main text plus 1
+      reference page), no overfull boxes, no clipped captions, and no
       visible author metadata. The official ICLR 2027 author guidelines allow
       up to 9 pages of main text and exclude references from the limit.
 - [ ] Fill the actual OpenReview author metadata only at submission time.
@@ -66,8 +68,10 @@
       isolated ICLR package; do not modify the historical TAE snapshot.
 - [x] Confirm every number in the ICLR manuscript is still present in the
       current source-of-truth evidence files.
-- [x] Have an adversarial reviewer check the denominator logic, the distinction
-      between the scarcity report and the two-condition rule, the
-      post-governance world-state reweighting caveat, and the first-attempt gap.
+- [x] Obtain a fresh adversarial reviewer pass under the executed-action
+      primary reading. The bounded staged-diff review approved the denominator
+      logic, executed/sensitivity separation, evidence-boundary fix, Figure 3
+      irrigation-primary/Flood-table-only decision, and retired Panel D. Local
+      PDF inspection separately covers raster figure legibility.
 - [x] The manuscript does not describe the paper as showing deception, gaming,
       a causal effect, universal behavior, or a corrected effect estimate.

@@ -7,7 +7,7 @@ The active release is the directory containing this file:
 
 - Manuscript source: `paper\manuscript.tex`
 - Bibliography: `paper\references.bib`
-- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_shared_condition_v4.png`
+- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_shared_condition_v5_retry.png`
 - Figure 1 staging builder: `source\figure1_agent_paper.py`
 - Figure 1 compatibility entry point: `source\figure1_overlay.py`
 - Figure 1 contract: `AGENT_ARCHITECTURE_FIGURE_RESET.md`
@@ -82,11 +82,12 @@ retain these boundaries:
 
 ## Semantic locks
 
-- `\lastproposed` is the primary action reading.
+- The executed action is the primary action reading; `\lastproposed` is a
+  declared sensitivity analysis only.
 - The scarcity report is broader than the two-condition rule; it is not
   silently relabeled as the full scarcity-and-coping condition.
 - Figure 1 is conceptual. Figure 2 onward carries quantitative evidence.
-- Figure 1 omits the observation and retry paths for visual clarity. The
-  frozen corpus lacks the first-attempt report; the limitation is documented
-  in the caption and supplement. The Evaluation Setting describes the omitted
-  next-context and retry paths.
+- Figure 1 shows the retry/default-action protocol path because the executed
+  action is primary, but it omits the observation-to-next-context loop. The
+  frozen corpus lacks the first-attempt report; the limitation is documented in
+  the caption and supplement.

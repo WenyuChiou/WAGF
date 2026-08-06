@@ -143,7 +143,7 @@ ax.axvline(0, color=C_RULE, lw=0.8, ls=(0, (4, 3)), zorder=0)
 ax.set_yticks(range(len(order)))
 ax.set_yticklabels(order, fontsize=F_TICK)
 ax.set_ylim(-0.7, len(order) - 0.3)
-ax.set_xlabel(r"$\Delta$ = no-validator $-$ validator-on  (percentage points, executed action)",
+ax.set_xlabel(r"$\Delta$ = no-validator $-$ validator-on  (pp; executed action)",
               fontsize=F_AX)
 ax.tick_params(axis="x", labelsize=F_TICK)
 for side in ("top", "right"):
@@ -155,9 +155,9 @@ ax.set_axisbelow(True)
 # there, and a legend placed by eye covered it in the first draft.
 ax.legend(handles=[
     Line2D([], [], marker="o", ls="none", ms=5.4, color=C_COND,
-           label="conditional (agent-authored denominator)"),
+           label="conditional (agent-written)"),
     Line2D([], [], marker="o", ls="none", ms=5.4, color=C_ALL,
-           label="all decisions (denominator fixed by design)"),
+           label="all decisions"),
 ], loc="upper left", frameon=False, fontsize=F_LEG, handletextpad=0.5,
    borderaxespad=0.3, labelspacing=0.35)
 

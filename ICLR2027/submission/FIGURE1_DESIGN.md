@@ -4,7 +4,7 @@
 
 The active Figure 1 is the generated shared-condition architecture:
 
-`figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`
 
 It is staged into `figures/active/figure1_concept.png` by
 `source/figure1_agent_paper.py`. Earlier nested-interface and bridge images
@@ -15,9 +15,11 @@ remain historical candidates and are not active.
 Figure 1 has one reader task: see why a runtime validator can change a
 conditional evaluation score through the records that enter its denominator.
 The agent response contains an action and an agent-written condition. The
-response enters the Validator; an accepted action reaches the Environment; the
-Validator's final record enters the Decision log. The same condition enters the
-Validator as a rule input and selects records in the conditional-rate path.
+response enters the Validator; an accepted action reaches the Environment;
+a rejected proposal can trigger a fresh response or a retry-exhausted default
+action; the Validator's final record enters the Decision log. The same
+condition enters the Validator as a rule input and selects records in the
+conditional-rate path. The primary paper statistics count the executed action.
 
 This is a conceptual dataflow figure, not a quantitative result, a component
 inventory, or evidence that the frozen corpus preserves every retry attempt.
@@ -43,8 +45,9 @@ four record-flow endpoints explicit at paper width.
 
 ```text
 Agent response --propose--> Validator --accepted--> Environment
-                              |
-                              +--final record--> Decision log --records-->
+                               |
+                               +--retry / re-ask--> fresh response
+                               +--final record--> Decision log --records-->
 condition --rule input-----> Validator                         Counted records --> Conditional rate
 condition --selects-------------------------------------------> Counted records
 ```
@@ -66,9 +69,10 @@ ends at Counted records' amber input port. The black `final record` and
    black `records` to Counted records.
 5. The violet Counted records card receives both black records and the amber
    condition selector, then feeds Conditional rate.
-6. Observation-to-next-context and retry paths are omitted to keep the shared
-   condition relationship legible. The caption and Evaluation Setting describe
-   those paths and the frozen-corpus limitation.
+6. The retry/default-action branch is shown because the executed action is the
+   primary reading. Observation-to-next-context remains omitted to keep the
+   shared condition relationship legible. The caption and Evaluation Setting
+   state that the frozen corpus lacks the first response before a retry.
 
 ## Visual constraints
 
@@ -93,13 +97,14 @@ ends at Counted records' amber input port. The black `final record` and
 
 ## Caption contract
 
-The caption must state that the action is checked before execution, that the
-final record enters Decision log, and that the same condition selects the
-Counted records used by Conditional rate. It must use the exact visible term
-`Counted records`, say that observation and retry paths are omitted for
-clarity, and state that the first response before a retry is unavailable in the
-frozen corpus. It must not imply a causal effect, a correction, or complete
-logging of rejected attempts.
+The caption must state that the action is checked before execution, that a
+rejected proposal can be re-asked or fall back to a default action, that the
+final executed record enters Decision log, and that the same condition selects
+the Counted records used by Conditional rate. It must use the exact visible
+term `Counted records`, state that the observation loop is omitted, and state
+that the first response before a retry is unavailable in the frozen corpus. It
+must not imply a causal effect, a correction, or complete logging of rejected
+attempts.
 
 ## Regeneration and checks
 

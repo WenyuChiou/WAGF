@@ -8,17 +8,19 @@ the reader decode containers before seeing the paper's measurement point.
 
 The active replacement is:
 
-`figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`
 
 It is a newly generated compact dataflow figure with black borders, colored
-fills, explicit input/output ports, short labels, and no nonessential loop.
+fills, explicit input/output ports, short labels, and a subordinate
+retry/default-action branch required by the executed-action primary reading.
 
 ## Message to communicate
 
 > One agent response contains an action and a condition. The Validator checks
-> the response before execution; the final decision is logged. The same
-> condition selects the records used by the conditional rate, so governance can
-> change what gets counted as well as what action executes.
+> the response before execution; a rejected proposal can be re-asked or fall
+> back to a default action, and the final decision is logged. The same condition
+> selects the records used by the conditional rate, so governance can change
+> what gets counted as well as what action executes.
 
 This is a measurement-validity mechanism. It is not a claim that the agent is
 deceptive, that validation has a causal effect, or that every retry is present

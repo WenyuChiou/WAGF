@@ -58,6 +58,20 @@
       "required_for_release": true
     },
     {
+      "id": "denominator_gap_builder",
+      "path": "../fig_denominator_gap.py",
+      "role": "executed_action_figure4_builder",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "denominator_gap_data",
+      "path": "supplement/fig3_denominator_gap.csv",
+      "role": "executed_action_figure4_data",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
       "id": "figure1_design_contract",
       "path": "FIGURE1_DESIGN.md",
       "role": "figure_documentation",
@@ -215,15 +229,24 @@
     {
       "id": "anchor-conditional-contrast",
       "source_id": "frozen-evidence-boundary",
-      "expected_strings": ["+23.02"],
+      "note": "Primary executed-action reading; the legacy final-proposal value is retained only as sensitivity.",
+      "expected_strings": ["+25.90"],
       "forbidden_strings": [],
       "scope_roles": ["main_manuscript"]
     },
     {
-      "id": "fixed-denominator-contrast",
-      "note": "Stable legacy fact identifier; current manuscript wording is all-decision contrast.",
+      "id": "executed-denominator-contrast",
+      "note": "Primary executed-action all-decision range and denominator-gap direction.",
       "source_id": "frozen-evidence-boundary",
-      "expected_strings": ["+0.16", "-22.17"],
+      "expected_strings": ["+29.90", "+20.26", "+36.57", "-14.86", "+3.38"],
+      "forbidden_strings": [],
+      "scope_roles": ["main_manuscript"]
+    },
+    {
+      "id": "legacy-proposal-sensitivity",
+      "note": "Explicit sensitivity only; not the primary action reading.",
+      "source_id": "frozen-evidence-boundary",
+      "expected_strings": ["+11.44", "+0.16", "-22.17"],
       "forbidden_strings": [],
       "scope_roles": ["main_manuscript"]
     }
@@ -233,7 +256,7 @@
       "question_id": "Q1",
       "method": "Compare validator-on and validator-off condition shares and conditional rates in paired irrigation simulations.",
       "evidence": "Table 1 and the frozen irrigation evidence inventory report per-seed values and contrasts.",
-      "result": "All five irrigation configurations have positive condition-share contrasts; the anchor conditional rate contrast is +23.02 percentage points.",
+      "result": "All five irrigation configurations have positive condition-share contrasts; the anchor executed conditional rate contrast is +25.90 percentage points.",
       "interpretation": "The conditional score and its selected population move together.",
       "limitation": "The first response before a retry is unavailable, so within-decision report revision is unresolved.",
       "contribution": "Shows why a conditional conformance score needs the condition share beside it.",
@@ -251,9 +274,9 @@
     },
     {
       "question_id": "Q3",
-      "method": "Compare the conditional increase rate with an all-decision rate using the same final-action reading.",
+      "method": "Compare the executed conditional increase rate with the executed all-decision rate, and retain the final-proposal reading only as sensitivity.",
       "evidence": "Figure 4 and the frozen consequence evidence report contrasts for all five irrigation configurations.",
-      "result": "The all-decision contrast can be near zero or reverse sign relative to the conditional contrast.",
+      "result": "Executed all-decision contrasts range from +20.26 to +36.57 percentage points; the conditional-minus-all gap ranges from -14.86 to +3.38, with four negative and one positive gap.",
       "interpretation": "The denominator is part of the estimand, not a formatting detail.",
       "limitation": "The all-decision rate answers a different question and is not presented as an automatic correction.",
       "contribution": "Provides a minimal reporting protocol for governed-agent evaluations.",
@@ -269,8 +292,18 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use generated shared-condition v4: a compact Agent response card, explicit black and amber Validator ports, a final-record route to Decision log, black borders with flat colored fills, and a direct condition-to-Counted-records route.",
+      "decision": "Use generated shared-condition v5 with a subordinate retry/default-action branch: a compact Agent response card, explicit black and amber Validator ports, a final-record route to Decision log, black borders with flat colored fills, and a direct condition-to-Counted-records route.",
       "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
+    },
+    {
+      "id": "action-reading",
+      "decision": "Use the executed action as the primary reading; retain the final-proposal/last-proposed reading only as an explicit sensitivity analysis.",
+      "authority": "ICLR2027/LIVE_STATE.md section 4f, author decision 2026-08-06"
+    },
+    {
+      "id": "on-off-contrast-framing",
+      "decision": "Treat validator-on versus validator-off as the object reported by governed-agent evaluations and audited by this paper, not as an estimator of a governance effect; governance changes the recorded world by design.",
+      "authority": "ICLR2027/LIVE_STATE.md section 4i, author decision 2026-08-06"
     },
     {
       "id": "rule-block-semantics",
@@ -279,7 +312,7 @@
     },
     {
       "id": "flood-cross-testbed-scope",
-      "decision": "Retain nine Flood configurations as a secondary descriptive boundary check in Table 2 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity.",
+      "decision": "Retain nine Flood configurations as a secondary cross-testbed control check in Table 2 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity. Report the corrected 0--0.638% Flood rejection-pressure range from the live handoff.",
       "authority": "ICLR2027/flood_control_contrasts.csv, source/cross_testbed_summary.py, and current Cloud handoff"
     }
   ],
@@ -353,11 +386,11 @@
       "typeset_pdf_inspection"
     ],
     "checked_hashes": {
-      "figure1_source_asset": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
-      "figure1_active_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286",
-      "figure1_print_png": "df3f36fe83772e4dd5598188dc72343c1d082533f1b7332f6e0c154228b29286"
+      "figure1_source_asset": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
+      "figure1_active_png": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
+      "figure1_print_png": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d"
     },
-    "visual_check": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; FLOOD_TABLE2_BOUNDARY_CHECK_SYNCED; OFFICIAL_TYPESET_PASS_10_PAGES_MAIN_TEXT_8_REFERENCES_2"
+      "visual_check": "PASS_SHARED_CONDITION_V5_RETRY_FULL_PRINT_GRAYSCALE_THUMB; RETRY_ROUTE_VISUALLY_REVIEWED; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; EXECUTED_DENOMINATOR_GAP_FIGURE_REVIEWED; FLOOD_TABLE2_CONTROL_CHECK_SYNCED; OFFICIAL_TYPESET_REVIEWED_10_PAGES_TOTAL_9_MAIN_1_REFERENCE"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -366,7 +399,8 @@
     "parallel_submission_lock": true
   },
   "claim_contract": {
-    "primary_claim": "Runtime governance can change the population used by a conditional LLM-agent evaluation metric when the condition is agent-authored and read by enforcement.",
+    "primary_claim": "Runtime governance can preserve model fidelity while changing the population used by a conditional LLM-agent evaluation metric when the condition is agent-authored and read by enforcement.",
+    "primary_action_reading": "executed action",
     "mechanism_status": "descriptive world-state composition diagnosis",
     "causal_claim": false,
     "deception_claim": false,
@@ -376,7 +410,7 @@
   },
   "figure1_contract": {
     "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
-    "selected_base": "generated shared-condition agent-paper candidate F",
+    "selected_base": "generated shared-condition agent-paper candidate F with retry/default-action branch",
     "functional_rails": [],
     "white_space_policy": "warm light-gray single canvas; black module borders and arrows with flat colored fills, tight semantic nodes, and no floating white cards",
     "color_roles": {
@@ -388,28 +422,28 @@
       "black": "execution and record-flow arrows and module borders",
       "warm light-gray": "neutral paper canvas"
     },
-    "visible_label_count": 15,
+    "visible_label_count": 19,
     "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
     "text_overlap_count": null,
     "centerline_intersection_check": "NOT_MACHINE_VERIFIABLE_FOR_GENERATED_RASTER",
-    "feedback_path": "observation-to-next-context and retry paths are omitted for clarity; retry is absent because the first response is unavailable",
+    "feedback_path": "retry/default-action path is shown because executed action is primary; observation-to-next-context remains omitted because the first response is unavailable",
     "condition_roles": ["validator input", "record selection"]
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_SHARED_CONDITION_V4_FULL_PRINT_GRAYSCALE_THUMB; ADVERSARIAL_REVIEW_PASS; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED",
+    "visual_figure_review": "PASS_SHARED_CONDITION_V5_RETRY_FULL_PRINT_GRAYSCALE_THUMB; RETRY_ROUTE_VISUALLY_REVIEWED; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; EXECUTED_DENOMINATOR_GAP_FIGURE_REVIEWED",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS",
     "argument_structure": "PASS_WHY_EXAMPLE_MECHANISM_GAP_QUESTIONS_CONTRIBUTIONS",
     "evidence_scope": "PASS_EVIDENCE_BOUNDARY_CHECK",
-    "scholarly_writing": "PASS_PLAIN_LANGUAGE_FOUR_PASS; ABSTRACT_242_RAW_TOKENS; STATS_AND_SCOPE_CLARIFIED; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_INTENTIONAL_TERMS_ONLY",
+    "scholarly_writing": "PASS_WHY_FIRST_MODEL_FIDELITY_EXECUTED_READING; FOUR_PASS_SCOPE_REVIEWED; STATS_AND_SCOPE_CLARIFIED; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_HISTORICAL_HANDOFF_TEXT",
     "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_PASS_MIKTEX_25_12",
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
-    "adversarial_review": "PASS_SHARED_CONDITION_V4_ACTIVE_SYNC",
+    "adversarial_review": "APPROVE_BOUNDED_STAGED_DIFF_REVIEWER_EXECUTED_PRIMARY_FLOOD_TABLE_ONLY_PANEL_D_RETIRED",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
-    "official_tex_build": "PASS_MIKTEX_25_12_PDFLATEX_BIBTEX_10_PAGES_MAIN_TEXT_8_REFERENCES_2",
+    "official_tex_build": "PASS_MIKTEX_25_12_10_PAGES_TOTAL_9_MAIN_1_REFERENCE_NO_OVERFULL_OR_UNDEFINED_CITATIONS",
     "new_experiment_run": false
   },
   "next_actions": [

@@ -568,3 +568,73 @@ treat it as a matched test of mechanism transfer because the field name,
 action ontology, feedback structure, and seed matching differ. The main
 Figure 3 caption now explains this separation, and the machine-readable
 mechanism CSV contains only the three primary irrigation panels.
+
+## Round 30: executed-action primary reading
+
+The live handoff settled the action reading: primary statistics count the
+action that executed after validation and retry, not the legacy final proposal
+field. The manuscript now reports the anchor executed conditional contrast
+(+25.90 pp) and executed all-decision contrast (+29.90 pp). Across the five
+irrigation cells, the executed all-decision contrasts range from +20.26 to
++36.57 pp, while the conditional-minus-all gap ranges from -14.86 to +3.38 pp;
+four cells understate and one overstates the contrast. The old final-proposal
+values remain only as an explicitly labelled sensitivity analysis.
+
+Figure 4 was regenerated as a slope plot of the two executed endpoints, with
+the arrow pointing to the all-decision endpoint. This makes the direction of
+the denominator gap visible without asking a reviewer to subtract paired bars.
+Figure 1 was regenerated with a subordinate retry/re-ask and
+retry-exhausted/default-action branch because the executed reading makes that
+transition part of the measured action. The first response remains an
+unavailable field, not an inferred observation.
+
+The four factual corrections in `LIVE_STATE.md` section 4e were propagated:
+the Flood pressure range is now the corrected 0--0.638% handoff value, the
+between-setting separation is not described as a dose-response, the
+reproducibility statement reports 42 runs with 27 dirty and 15 without a
+recorded commit, and the retry budget is described as three retries/four
+responses including the initial response.
+
+## Round 31: LIVE_STATE sections 4g--4j
+
+The new handoff sections were read after the executed-action switch. The
+manuscript now treats the validator-on/off contrast as the object being
+audited, not as an estimator of a governance effect: governed-agent
+evaluations report that contrast, while governance changes the recorded world
+by design. The introduction explains why the post-treatment warning applies
+here by construction because the evaluated agent writes the condition used by
+the score.
+
+Repeated defensive causal language was reduced while retaining the specific
+Flood, reweighting, first-response, and non-universal scope boundaries. The
+year-1 comparison is described as a passed placebo check, and the conclusion
+now states the model-fidelity premise, the executed all-decision range, and
+why a fixed-sign denominator correction is not justified. The former Panel D
+proposal is documented as retired: its shared axis obscured that Flood has a
+different action ontology, feedback structure, field name, and seed matching;
+Flood remains a Table 2 control check.
+
+## Round 32: plain-language and final page audit
+
+The 4k plain-language test is now applied to the active prose. The abstract
+and introduction state directly that the agent authors the condition that
+selects which of its own decisions are scored. The irrigation example uses
+short sentences, and the Figure 1 caption was shortened without removing the
+retry, executed-record, shared-condition, or high-scarcity rule boundaries.
+The contributions were split where one sentence carried multiple claims.
+
+The final MiKTeX build is 10 pages total: 9 pages of main text and 1
+references-only page. The 9-page main-text limit is therefore satisfied. The
+rendered Figure 1, Table 2, Figure 3, Figure 4, and conclusion pages were
+inspected after this pass; there is no clipping, overlap, overfull box, or
+undefined citation. Underfull boxes remain non-fatal page-fill warnings.
+
+## Round 33: bounded staged-diff reviewer gate
+
+The first reviewer attempt was stopped after it exceeded the review window
+without a verdict. A second bounded reviewer initially identified a real
+evidence-check risk: arbitrary numeric-token matching could create a false
+PASS. The check was changed to parse the denominator-gap CSV and compare only
+the `gap_pp` field for the two derived rounded values. The check and Python
+compile then passed, and the reviewer re-checked the fix and returned
+`APPROVE`. No reviewer approval was inferred from a timeout.

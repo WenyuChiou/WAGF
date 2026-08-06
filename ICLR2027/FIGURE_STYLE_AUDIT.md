@@ -51,7 +51,7 @@ That earlier artwork is retained only as a historical style audit. The current
 active artwork is documented in
 `submission/FIGURE1_DESIGN.md` and uses the current shared-condition
 composition
-`submission/figures/assets/figure1_architecture_agentpaper_shared_condition_v4.png`.
+`submission/figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`.
 
 ## Acceptance criteria
 
@@ -60,8 +60,8 @@ composition
 - The condition-to-Validator and condition-to-Filter arrows are both visible
   and have distinct meanings.
 - The accepted-action and recorded-decision arrows do not merge or cross.
-- Nonessential observation and retry paths are omitted rather than represented
-  by an ambiguous or unmeasured data path.
+- The observation-to-next-context loop remains omitted; the retry/default-action
+  branch is represented because executed action is the primary reading.
 - No text overlaps an arrow, icon, border, or another label.
 - The image contains no title banner, legend, paragraph, equation, or
   decorative robot.
