@@ -205,8 +205,82 @@ for it.
 3. **Not a standalone fifth figure.** It would separate the control from the claim it exists to
    defend, and cost a display item to do so.
 
-**I have built neither. The figures are yours.** If you would rather I produced the panel, say so in
-your handoff and I will treat that one script as mine for the change.
+### The numbers, from one source, on the one permitted basis
+
+**`ICLR2027/flood_control_contrasts.py` → `flood_control_contrasts.csv`.** Read the CSV; do not
+recompute. The gate permits flood deltas **on the per-run-mean basis only**, and a pooled-row
+computation over the same corpus gives different figures — I made exactly that mistake before writing
+the script, and it moved the gemma3:4b flood cell from −1.16 to −1.24.
+
+Cross-checked: the script's irrigation anchor is **+45.73**, matching `manuscript.tex:93` to the
+digit, and its B6-excluded flood figure is **+0.35**, matching what `e2_flood_instrument.py` reports
+independently. Two computations, same answers.
+
+| setting | model | with validators | no validator | contrast |
+|---|---|---|---|---|
+| irrigation | gemma3:4b | 37.08% | 82.80% | **+45.73** |
+| irrigation | gemma3:12b | 5.49% | 26.76% | +21.27 |
+| irrigation | gemma4:e2b | 18.26% | 65.79% | +47.53 |
+| irrigation | gemma4:e4b | 45.27% | 88.65% | +43.38 |
+| irrigation | ministral3:8b | 13.56% | 44.69% | +31.13 |
+| flood | gemma3:4b | 32.46% | 31.30% | −1.16 ⚠ B6: **+0.35** without Run_1 |
+| flood | gemma3:12b | 2.55% | 0.93% | −1.63 |
+| flood | gemma3:27b | 19.16% | 20.38% | +1.22 |
+| flood | ministral3:3b | 31.19% | 31.04% | −0.15 |
+| flood | ministral3:8b | 30.54% | 26.88% | **−3.66** |
+| flood | ministral3:14b | 19.45% | 19.92% | +0.47 |
+| flood | gemma4:e2b | 27.42% | 28.39% | +0.97 |
+| flood | gemma4:e4b | 43.48% | 49.71% | **+6.24** |
+| flood | gemma4:26b | 17.44% | 20.36% | +2.92 |
+
+**irrigation n=5, +21.27 to +47.53, mean +37.80 · flood n=9, −3.66 to +6.24, mean +0.58**
+**Separation COMPLETE. Gap between min(irrigation) and max(flood): 15.03 pp.**
+
+### Option 1 — the table, if that is all you want
+
+Two rows appended to Table 1, or a standalone four-row block:
+
+| setting | n | with validators | no validator | contrast range | mean |
+|---|---|---|---|---|---|
+| irrigation | 5 | 5.49–45.27% | 26.76–88.65% | +21.27 to +47.53 | +37.80 |
+| flood | 9 | 2.55–43.48% | 0.93–49.71% | **−3.66 to +6.24** | **+0.58** |
+
+One sentence beneath it does the work: *the ranges do not overlap; flood governance rejects 0–0.85%
+of proposed actions and irrigation governance rejects 28–63%.*
+
+### Option 2 — the fig2 panel, specified so it needs no decisions
+
+**Panel (D), one axis, fourteen points.**
+
+- **x**: contrast in percentage points, symmetric enough to show zero clearly — roughly −10 to +55.
+- **y**: the fourteen cells, **flood first (top), irrigation below**, each group sorted ascending by
+  contrast. Grouping beats interleaving here: the eye should read two clusters, not fourteen labels.
+- **markers**: reuse fig2's existing arm colours rather than inventing a scheme. One filled marker
+  per cell; a horizontal whisker is not needed — these are per-run means and the spread is a separate
+  claim.
+- **a vertical rule at x = 0**, thin and grey. The flood cluster straddles it; that *is* the result.
+- **the gap**: a light band spanning **+6.24 to +21.27** with the label `15.03 pp, no overlap`. This
+  is the single most informative mark on the panel — the reader should be able to take the finding
+  from it without reading an axis value.
+- **the B6 cell**: plot flood gemma3:4b at −1.16 and mark it with an open marker or a footnote
+  symbol, keyed to the caption. **Do not quietly plot +0.35 instead** — that value is not decided.
+- **do not annotate every point.** Label the two extremes of each group and leave the rest.
+
+### Draft caption for the panel
+
+> **(d) The same measure, in a setting where enforcement rarely binds.** Contrast in the prevalence of
+> the high-appraisal report that the conditional rate selects on, computed per run and averaged, as
+> $\Delta = \text{no-validator} - \text{with-validators}$. Nine flood configurations span
+> $-3.66$ to $+6.24\pp$; five irrigation configurations span $+21.27$ to $+47.53\pp$. The ranges do
+> not overlap. Both settings share the harness, the governance code, the audit path and this measure;
+> they differ in how often enforcement binds — flood governance rejects 0–0.85\% of proposed actions,
+> irrigation governance 28–63\%. $\dagger$ marks a cell whose value depends on an unresolved prompt
+> difference in one run (Appendix); excluding that run moves it from $-1.16$ to $+0.35\pp$, inside
+> the same range.
+
+**I have built neither the table nor the panel. The figures are yours.** If you would rather I
+produced the panel, say so in your handoff and I will treat `fig2_mechanism.py` as mine for that one
+change — and I will not touch anything else in `submission/`.
 
 ---
 
