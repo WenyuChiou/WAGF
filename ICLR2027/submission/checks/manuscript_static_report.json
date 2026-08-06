@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "build_status": "TEX_ENGINE_AVAILABLE:C:\\Users\\wenyu\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdflatex.exe",
+  "build_status": "TEX_ENGINE_AVAILABLE:C:\\Users\\wenyu\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdflatex.EXE",
   "manuscript": "paper/manuscript.tex",
   "cited_keys": [
     "bean2025construct",
@@ -45,7 +45,7 @@
       "mode": "RGB"
     }
   },
-  "approximate_word_count": 3748,
+  "approximate_word_count": 3848,
   "warnings": [],
   "errors": []
 }
