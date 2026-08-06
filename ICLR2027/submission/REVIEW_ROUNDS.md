@@ -455,5 +455,21 @@ The independent adversarial visual review approved Candidate F at full size,
 manuscript-width thumbnail size, and grayscale, with no P0/P1/P2 image-level
 findings. It required synchronizing the caption's stale observation sentence
 and replacing `Counted set` with the visible term `Counted records`; both fixes
-are now applied. Official typeset PDF inspection remains open because the
-local environment still lacks a TeX engine.
+are now applied.
+
+## Round 23: official MiKTeX build and ICLR 2027 page check
+
+MiKTeX 25.12 was used to run the ICLR style build: `bibtex manuscript` plus
+two final `pdflatex` passes with the staged style directory supplied through
+`TEXINPUTS` and `BSTINPUTS`. The build produced `paper/manuscript.pdf` with 9
+pages total: 8 pages of main text and one references-only page. The final log
+has no undefined citations or references, no overfull boxes, and no remaining
+label-rerun warning. It has non-fatal underfull hbox/vbox warnings, including a
+long title line and several page-fill warnings; rendered inspection found no
+clipped figure, caption, or author metadata.
+
+The official ICLR 2027 author guidelines allow at most 9 pages of main text
+and exclude the bibliography. The typeset artifact therefore passes the
+current page-limit check. OpenReview metadata, profiles, reciprocal-review
+eligibility, anonymity, and live dual-submission checks remain submission-time
+gates.
