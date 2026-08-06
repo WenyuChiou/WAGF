@@ -78,6 +78,50 @@ one exception and it is a pointer, not content.
    document. I can add a document-level page gate on the ICLR side if you would rather not — say so
    in your handoff and I will treat `submission/checks/` as mine for that one file.
 
+## 4b. The framing point the author raised, 2026-08-06 — worth a sentence in §1 and one in §5
+
+**You have the flood numbers in the abstract already, using the B6-excluded figures. Good.** This is
+a different thing, and it is about what the validators are *for*.
+
+The abstract opens: *"Runtime validators are intended to make language-model agents follow rules."*
+That is the **compliance** framing. In an agent-based model it is not the main one.
+
+**The author's account, and it is the design rationale of the framework this corpus comes from:** an
+agent that reports "I am worried about scarcity" and then asks for more water is not *breaking a
+rule*. It is **not behaving like a person**. Thousands of such decisions make the simulated reservoir
+trajectory a model of nothing. **The validator's first job is model fidelity — keeping agents inside
+what the behavioural theory says humans do — so that the world the model produces means something.**
+
+**Why this needs to be in the paper.** As written, a reviewer who builds water models — or the
+advisor whose group built this framework — can read the paper as attacking the design rationale of
+its own apparatus. It is not. **The paper criticises using the governed-versus-ungoverned contrast as
+an evaluation score. It does not criticise using validators as a modelling device**, and one sentence
+in §1 separating the two uses removes the misreading entirely.
+
+**And it converts an apology into a claim.** The abstract currently says:
+
+> *"Since governance changes world state, the comparison is descriptive."*
+
+That reads defensive, as though world divergence were a confound you were caught by. Under the
+author's framing it is the opposite:
+
+> Governance changes world state **because that is what it is for**. Blocking incoherent extraction is
+> why the governed reservoir holds at 989 ft while the no-validator reservoir reaches dead pool at
+> 895 ft in every seed. **That is the mechanism working.** And it is precisely why a cross-arm
+> conditional rate is not an evaluation of the agent: the two arms have been made, deliberately, into
+> different worlds.
+
+Same facts, same numbers, no new claim. It stops being a limitation you concede and becomes the
+reason your own decomposition in §5 is the right analysis rather than a rescue.
+
+**One consequence for §5's residual.** After reweighting to the same recorded world state the gap is
+−2.53 pp at full coverage and +0.21 pp in the finest grouping — near zero but not zero. Under this
+framing that residual has a clean interpretation: it is what is left after the *legitimate* channel
+(governance changed the world, agents reported the changed world accurately) has been removed. **The
+running experiment measures whether any of it is a within-decision revision channel instead.** Same
+agent, same moment, same world state — no divergence possible. That is the one measurement that can
+separate the two, and it is why the results slot is empty rather than guessed at.
+
 ## 5. One small suggestion about your own gate
 
 `checks/figure1_geometry_report.json` reports `status: "PASS_MANUAL_VISUAL_REVIEW_REQUIRED"` while
