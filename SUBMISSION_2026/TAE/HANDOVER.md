@@ -100,11 +100,39 @@ source to regenerate from, and do not port edits between them.**
 4. **A real answer on the RED reproducibility audit.** It was waived because TAE was non-archival.
    **That waiver does not transfer to an archival venue** and the carry-over is not bannered anywhere.
 
-**What Nature Water needs — recorded here so it is not lost, but it is not yours and not now:**
-its flood arms are seed-unpaired (governed 42/**4202**/**4203**/45/46 against control 42/43/44/45/46,
-paired by folder index, so 2 of every 5 pairs compare unlike with unlike across six models), and three
-of its analysis scripts test `status == "REJECTED"` by exact equality and so silently drop
-`REJECTED_FALLBACK` — 105 of 6,469 rejections in the published irrigation cell.
+**What Nature Water needs — recorded here so it is not lost, but it is not yours and not now.**
+Three defects, all found 2026-08-05/06, all in `examples/single_agent/analysis/`:
+
+1. **Its flood arms are seed-unpaired.** Governed recorded 42/**4202**/**4203**/45/46 against control
+   42/43/44/45/46, and the scripts pair by folder index — so 2 of every 5 pairs compare unlike with
+   unlike, across six models. `gemma4_nw_crossmodel_analysis.py:61` builds `Run_1..5` by index with no
+   seed check. The gemma4 lineage is correctly 42–46 and unaffected.
+2. **Three scripts test `status == "REJECTED"` by exact equality**, silently dropping
+   `REJECTED_FALLBACK` — 105 of 6,469 rejections in the published irrigation cell.
+3. **Three scripts treat `Group_A` as the no-validator arm. It is not.** Verified from disk
+   2026-08-06:
+
+| our term | flood directory | where |
+|---|---|---|
+| with validators | `Group_C` | `JOH_FINAL/`, `JOH_FINAL_v2/` |
+| **no validators** | **`Group_C_disabled`** | `JOH_ABLATION_DISABLED/`, `_v2/` |
+| — | `Group_A` | a **different experiment** — no structured prompts, not a clean ablation |
+| — | `Group_B` | **does not exist on disk in any of the four roots** |
+
+   `nw_ehe_annual_decision.py:5` documents "Ungoverned (Group_A)"; `:29` sets
+   `GROUPS = ["Group_A", "Group_B", "Group_C"]`. `nw_flood_ibr_decomposition.py:30-36` appends
+   `Group_A` into `ungoverned_files`. `nw_flood_pmt_crosstab.py:18` reads `Group_B`, which is not
+   there. All three are dated 2026-05-24.
+
+   **The ICLR side is safe and was built to be.** `SUBMISSION_2026/TAE/evidence/_data.py:168` pins
+   `_FLOOD_ARM_GROUP = {"gov": "Group_C", "noval": "Group_C_disabled"}` as literals, never a wildcard
+   descent, and its self-test asserts `Group_A` is rejected as contaminated (`:1081-1083`). **Codex:
+   this is why your flood numbers are not affected by any of the three. Do not "fix" the NW scripts;
+   they are outside the boundary and the author owns them.**
+
+   Worth noting because it is the same defect twice: the `Group_A` directory is also where the
+   `Run_1_bak_broker` backup sits that produced the `appraisal_composition.py` sign flip in §4①. A
+   `**` glob over a results tree absorbs whatever anyone parks there.
 
 ### WHAT I WILL MOVE, and when — so nothing surprises you
 

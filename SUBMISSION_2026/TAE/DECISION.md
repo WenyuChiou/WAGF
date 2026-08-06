@@ -26,6 +26,62 @@
 > Banner added by the 2026-08-05 records adjudication:
 > `analysis/cleanup_2026-08-05.md`. Nothing below this line was changed.
 
+> ## ✅ DESTINATION CONFIRMED — ICLR 2027 main track. Author's decision, 2026-08-06.
+>
+> **The paper is going to ICLR 2027 main track.** This is the entry the banner above asked
+> for; the "no destination is confirmed" state ends here.
+>
+> | | |
+> |---|---|
+> | deadline | **25 September 2026, AoE** |
+> | decision | 16 December 2026 |
+> | conference | 26–30 April 2027, California |
+> | length | **9 pages excluding references**, 10 at rebuttal, unlimited appendix |
+> | review | double-blind |
+> | arXiv | permitted, including during review |
+>
+> Verified from `iclr.cc` on 2026-08-05. The organisers of the withdrawn workshop explicitly
+> cleared this route in writing (`HANDOVER.md:37`): "It is perfectly acceptable to submit work
+> that you intend to further develop into a full paper for a future main conference submission."
+>
+> **The migration is already substantially done.** `ICLR2027/submission/` holds a real,
+> buildable, self-consistent package: a 9-page anonymous PDF, its own style files, three
+> self-checks that pass. Its manuscript is **a different paper** from the TAE one — measured,
+> not assumed: 43 of roughly 2,500 shared eight-grams (Jaccard 0.0086) and one shared sentence,
+> different titles, 12 sections against 7. *When Guardrails Change What Gets Counted* became
+> *When Governance Changes What Gets Counted: Measurement Validity for LLM Agent Evaluation*.
+>
+> ### What this unblocks, and what it now obliges
+>
+> **Unblocked** — both items the banner listed as waiting on this decision:
+>
+> 1. `paper/submission_gate.py:127-129, 835-864` may now be re-pointed or retired. As it stands
+>    it hardcodes `BODY_PAGE_LIMIT = 8`, TAE's CFP URL and workshop title, and reads **only**
+>    `SUBMISSION_2026/TAE/paper/manuscript.tex` — so it reports PASS for a venue that no longer
+>    exists and has never looked at the live manuscript. **A passing check that validates the
+>    wrong specification is the exact defect this paper is about**, so leaving it is not neutral.
+>    Note the replacement is not a one-line edit: the ICLR side currently has **no page gate at
+>    all**, and the live PDF is 9 pages against a 9-page limit with nothing watching it.
+> 2. The RED-reproducibility waiver **does not transfer.** It was granted because TAE was
+>    non-archival and PDF-only. ICLR is archival. This needs a real answer in the paper, not the
+>    same sentence — and it is currently carried over unbannered.
+>
+> **Obliged, and new:** the 9-page limit **excludes references**, which changes the shape of the
+> remaining work. The current PDF is 9 pages *including* its bibliography
+> (`manuscript.tex:211`), so the counted body is not yet full, and expanding the bibliography
+> from its present **six entries** frees body space rather than consuming it. Six references is
+> the largest acceptance risk in the draft and it is now also the cheapest thing to fix.
+>
+> ### What this does NOT change
+>
+> Everything below the original banner stays unedited. The 2026-08-03 TAE decision was correct
+> on its own terms and is the record of a real choice; the destination moved, the reasoning did
+> not become wrong. The eight-page structure in §8, the figure plan in §9 and the claims
+> discipline in §10 were written for a shorter paper and must be re-read against nine pages
+> before being followed — but they are not deleted, and they are not to be quietly rewritten.
+>
+> Written 2026-08-06 on the author's explicit instruction, during the seed-42 first-attempt run.
+
 Supersedes `workshop_skeleton.md` (which carries a retraction banner). Written 2026-07-31 after the
 materials audit, the mechanism falsification, and the psych-framing prior-art check.
 
