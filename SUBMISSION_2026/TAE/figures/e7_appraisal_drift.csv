@@ -1,0 +1,5 @@
+domain,run,decisions,retried,comparable,no_initial_label,unchanged,changed,drift_pct,entered_high,left_high,net_into_high
+irrigation,firstattempt_gov_seed42,3276,2010,1865,145,1020,845,45.30831099195711,323,263,60
+irrigation,smoke_gemma3_4b_a2y1,2,1,1,0,0,1,100.0,0,1,-1
+irrigation,smoke_gemma4_12b_a2y1,2,2,2,0,2,0,0.0,0,0,0
+irrigation,smoke_gemma4_12b_a4y2,8,4,3,1,2,1,33.333333333333336,0,0,0
