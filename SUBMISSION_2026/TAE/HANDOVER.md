@@ -89,6 +89,19 @@ sentence. Different titles, different framings — "guardrails / conformance met
 "governance / measurement validity" — 12 sections became 7. **Do not treat the TAE manuscript as a
 source to regenerate from, and do not port edits between them.**
 
+**Scope, confirmed by the author 2026-08-06: LLM arms only — validator-on against validator-off,
+no rule-based or other non-LLM comparator.** This confirms what the code already enforces, so there
+is nothing to build or remove; `DECISION.md` records why the comparator is not merely absent but
+*undefined* (a non-LLM policy writes no self-reported appraisal, so the paper's denominator does not
+exist for it). **Do not add one, and do not treat Nature Water as a precedent** — its two third-arms
+are different kinds of thing and only the flood one is rule-based.
+
+**One question that decision leaves open, and it is yours:** the manuscript reports **no flood result
+number at all**. `flood` appears four times, all descriptive — the setting (`:28`), irrigation-is-primary
+(`:76`), an irrigation result (`:93`), a limitation (`:193`). The pipeline reaches **18 flood arm-cells**
+and none is reported. If that is deliberate — flood as portability rather than evidence — **say so in
+the text**, because a reviewer will otherwise ask why nine configurations were run and none reported.
+
 **What the ICLR paper needs, in order:**
 
 1. **The bibliography, from 6 to something a main-track reviewer will accept.** §3① above has the gap
