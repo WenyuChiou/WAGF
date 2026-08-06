@@ -246,6 +246,78 @@ current caption's justification stops being true the moment the estimand moves.
 4. **`up to three attempts` is off by one.** `agent_types.yaml:52` sets `max_retries: 3` and
    `_retry_loop.py:236` yields four responses.
 
+## 4f. ✅ DECIDED — the author has switched the primary reading to EXECUTED. What I have already done.
+
+**Author's decision, 2026-08-06. This is settled, not proposed.** Two things are done on the
+evidence side. The manuscript and the shipped figure assets are yours.
+
+### Done: `table1_cells.py` now carries full statistics on the executed columns
+
+It passed `full=False` for `cond_exec` and `uncond_exec`, so those columns shipped as point
+estimates with no CI and no p-value. Flipped, with the eight field names added to `CSV_FIELDS`,
+and regenerated. **No new data** — the same per-seed deltas produce the intervals. The script's own
+gate prints *"every value checkable against the brief AGREES to within 0.005 pp"*.
+
+**This is a shared-file change under `SUBMISSION_2026/TAE/evidence/`, notified here per the write
+boundary. Nothing else in that directory was touched.**
+
+**The numbers for the manuscript. All-decision Δ, executed reading, all five irrigation cells:**
+
+| cell | Δ (pp) | 95% CI | p |
+|---|---|---|---|
+| gemma3:4b | **+29.90** | [27.55, 32.25] | 0.000004 |
+| gemma3:12b | **+27.82** | [19.82, 35.82] | 0.0044 |
+| gemma4:e2b | **+28.84** | [24.86, 32.82] | 0.000036 |
+| gemma4:e4b | **+36.57** | [35.31, 37.82] | <0.000001 |
+| ministral3:8b | **+20.26** | [11.69, 28.83] | 0.0095 |
+
+Against LAST-PROPOSED's +21.62 / **+0.16** / +15.25 / +8.52 / **−22.17**. **Every executed CI
+excludes zero.** The conditional executed deltas are +25.90 / +12.96 / +27.96 / +39.95 / +4.20.
+
+### Done: a figure that argues the new claim
+
+`ICLR2027/fig_denominator_gap.{pdf,png,csv}`, built by `ICLR2027/fig_denominator_gap.py`.
+
+**Take it or leave it — the figures are yours.** But the reasoning is worth reading before deciding:
+`fig3_consequence`'s visual argument is *look how unstable this is*, and under the executed reading
+that instability is gone. Five same-signed bars is a dull picture of a stronger result. So the
+figure has to argue something else, and there is something better:
+
+| gap = conditional Δ − all-decision Δ | per cell | what it says |
+|---|---|---|
+| LAST-PROPOSED | +1.39, +11.28, +3.69, +8.89, +24.97 — **all positive** | the conditional rate **inflates** |
+| **EXECUTED** | −3.99, −14.86, −0.88, **+3.38**, −16.06 — **four negative, one positive** | **the direction is not predictable** |
+
+*"The conditional rate inflates your number"* invites *"then correct for it"*. **"You cannot know in
+advance which way it goes"* forces §7's protocol instead of asserting it.**
+
+**What is drawn**: a slope plot, one line per cell running from the conditional Δ to the all-decision
+Δ with an arrowhead at the all-decision end, so **direction is the sign of the gap and length is its
+size** — levels and gaps both readable, which a bar chart of gaps alone would lose. Cells ordered by
+gap so the one running the other way sits apart from the four. 95% CI bands on both ends. Uses
+`_figstyle`'s shared font ramp, and re-derives every gap from the per-seed deltas rather than the
+rounded means, refusing to plot on a mismatch over 0.01 pp.
+
+**A layout note that cost me a rebuild**: the lower-right corner looks empty and is not — the largest
+gap label sits there, and my first legend covered it. It is now upper-left with explicit headroom,
+and the script comments say why so it does not get moved back.
+
+### Still yours, and I have not touched any of it
+
+1. **The manuscript text.** The abstract's *"changes one contrast from +11.44 to +0.16 and reverses
+   its sign in another"* is the sentence that must go — under the executed reading those are +27.82
+   and +20.26 and there is no reversal. What replaces it is the unpredictable-direction claim above.
+2. **Whether to keep `fig3_consequence` as well**, showing both readings. If you do, plot EXECUTED as
+   the primary series and LAST-PROPOSED ghosted behind: the divergence becomes visible rather than
+   described, and the ministral flip turns into a *demonstration of why the reading matters* rather
+   than a headline needing a caption to scope it.
+3. **`fig2_mechanism` panel C's caption.** Its stated point is that proposed equals executed on the
+   never-retried stratum. That stops being what makes the stratum special; what makes it special is
+   that **no validator ever spoke**. Same panel, one sentence.
+4. **`figure1_concept`'s retry branch** — see §4d. I endorsed omitting it and that endorsement does
+   not survive this change.
+5. **The four factual corrections in §4e**, none of which depend on any of the above.
+
 ## 5. One small suggestion about your own gate
 
 `checks/figure1_geometry_report.json` reports `status: "PASS_MANUAL_VISUAL_REVIEW_REQUIRED"` while
