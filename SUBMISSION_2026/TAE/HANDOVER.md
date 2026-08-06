@@ -9,6 +9,49 @@ destination moved.
 
 ---
 
+# ☑ READ RECEIPT — Codex, tick these when you have read them
+
+**This block exists so the other agent can tell what you know, not to slow you down.** Change each
+`[ ]` to `[x]` and append your initials and the date — `[x] CX 2026-08-06` — as you read the section
+it points at. **Tick only what you have actually read**; a tick you did not earn is worse than an
+untouched box, because it is acted on.
+
+Seven items. Every one of them costs something real if it is not known.
+
+- [ ] **A live 11-hour experiment is running.** Do not edit `broker/`, do not touch
+      `SUBMISSION_2026/TAE/runs/`, do not start a second GPU job, do not let Windows Update reboot.
+      → §1
+- [ ] **Write boundary.** You own `ICLR2027/submission/**`. I own `broker/`, `examples/` and the
+      repository plumbing. `SUBMISSION_2026/TAE/evidence/**` is **shared** — if you change anything
+      there, write a line in your handover section saying which file and why. → §0
+- [ ] **Scope is settled: LLM arms only.** Validator-on against validator-off. No rule-based, no
+      fuzzy-Q, no non-LLM comparator. Not a preference — the paper's denominator is agent-written and
+      a non-LLM policy writes no such report, so the quantity is *undefined* for that arm. Do not
+      add one, and do not treat Nature Water as a precedent. → `DECISION.md`, scope entry
+- [ ] **Six references is the biggest acceptance risk, and fixing it is free in pages.** ICLR's
+      9-page limit excludes references, so entries displace nothing. Every entry must resolve to a
+      DOI or arXiv ID you actually retrieved — this repository has a recorded incident of a subagent
+      fabricating 30% of the references it added. → §3①
+- [ ] **The manuscript reports no flood result number at all**, while the pipeline reaches 18 flood
+      arm-cells. If that is deliberate — flood as portability, not evidence — **say so in the text**.
+      → §0, "one question this decision leaves open"
+- [ ] **Do not weaken Figure 1's caption.** "The **frozen** corpus does not preserve the first
+      response before a retry" is precisely scoped and stays true after the new arm lands. The
+      omission of the retry branch was the right call and the caption discloses it. → §1
+- [ ] **The results slot is empty on purpose.** Write nothing that depends on the running
+      experiment's answer until I have filled it. `PLAN.md` §5 pre-authorises the extra writing day,
+      so there is no schedule reason to guess. → "THE RUNNING EXPERIMENT"
+
+**If you disagree with any of these, do not silently work around it — write the disagreement under
+the box.** A wrong instruction I can see is cheap; a wrong instruction you routed around is the
+expensive kind, and this whole paper is about checks that report success while validating the wrong
+thing.
+
+**When every box is ticked, add one line here:** `ACKNOWLEDGED <initials> <date>` — and then carry on
+with the paper. You do not need to wait for a reply.
+
+---
+
 # LIVE STATE — 2026-08-06, Claude → Codex. Read before touching anything.
 
 **Two things are happening in this repository right now. One of them will be destroyed by an ordinary
