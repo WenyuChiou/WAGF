@@ -122,6 +122,130 @@ running experiment measures whether any of it is a within-decision revision chan
 agent, same moment, same world state — no divergence possible. That is the one measurement that can
 separate the two, and it is why the results slot is empty rather than guessed at.
 
+## 4c. The action reading — the biggest decision on the table, and the story changes with it
+
+**Full review at `ICLR2027/manuscript_review_2026-08-06.md` (17 costed items). This is the one that
+changes what the paper says, so it is here rather than only there.**
+
+### First, credit where it is due
+
+`fig3_consequence.py:46-52` already states this as a falsification condition, checks it, scopes
+claim (2) explicitly to the LAST-PROPOSED reading, and says the cross-check exists "so the
+restriction is visible rather than convenient." **That is good practice and I nearly reported it as
+an oversight.** What follows is not "you missed this". It is "the restriction lives in the script and
+the table caption, and the abstract states the numbers without it."
+
+### What a reader of the abstract currently gets
+
+> *"Using an all-decision denominator changes one contrast from $+11.44\pp$ to $+0.16\pp$ and
+> reverses its sign in another."*
+
+Under the EXECUTED reading those two numbers are **+27.82** and **+20.26**. The sign reversal does not
+exist. The abstract presents reading-dependent figures as facts about governance.
+
+### Both readings, all five cells, from the shipped `supplement/fig3_consequence.csv`
+
+| all-decision Δ | LAST-PROPOSED | EXECUTED |
+|---|---|---|
+| gemma3:4b | +21.62 | **+29.90** |
+| gemma3:12b | **+0.16** | **+27.82** |
+| gemma4:e2b | +15.25 | **+28.84** |
+| gemma4:e4b | +8.52 | **+36.57** |
+| ministral3:8b | **−22.17** | **+20.26** |
+
+**Why they diverge.** In the anchor cell 1,267 of 3,276 governed decisions are REJECTED (38.7%);
+`yearly_decision` on those rows records `increase_small` (798) or `increase_large` (401) — the
+*blocked* proposal — while the registry default executed. **The harder the validators block, the more
+phantom increases are attributed to the governed arm, which dilutes the measured effect and, in
+ministral3:8b, reverses it.**
+
+### The project's own rule says executed
+
+Recorded 2026-04-14 and still in project memory: *headline results use `approved_skill.skill_name` /
+`final_skill` / `state_after`, never the proposal; proposed-stage numbers are allowed only in explicit
+robustness footnotes.* **The manuscript's primary reading is the proposal.** That is a governance
+conflict for the author to settle, not a defect for you to fix unilaterally.
+
+### The story that replaces the current one, and it is better
+
+Do not read this as "the finding weakens". Compute the gap between the two denominators under each
+reading:
+
+| | conditional − all-decision, per cell | what it says |
+|---|---|---|
+| LAST-PROPOSED | +1.39, +11.28, +3.69, +8.89, +24.97 — **all five positive** | the conditional rate **inflates** the effect |
+| **EXECUTED** | −3.99, −14.86, −0.88, **+3.38**, −16.06 — **four negative, one positive** | **the direction is not predictable** |
+
+**"The conditional rate inflates your number" invites the reply "then correct for it."** "You cannot
+know in advance whether it inflates or deflates — four of five understate here, the fifth overstates"
+**forces the reporting protocol in §7, which stops being asserted and starts being derived.** That is
+a stronger paper, and the evidence for it is already in your supplement.
+
+`table1_cells.py:465-466` passes `full=False`, which is the only reason the executed rows carry no CI
+or p-value. Flipping it re-derives them from data already on disk.
+
+---
+
+## 4d. What this does to the four figures — the story changed, so the pictures must
+
+| figure | under executed-primary |
+|---|---|
+| **`fig1_rule_layers`** | **unaffected.** It is about which rule layer fires, not about which action is counted. |
+| **`fig2_mechanism` A, B, D** | **unaffected.** Panel A is the appraisal share, B is the reservoir, D is the flood control — none touches the action reading. |
+| **`fig2_mechanism` C** | **the caption must change.** Panel C is the never-retried stratum, and its point was that proposed equals executed there. Under executed-primary that is no longer what makes it special; what makes it special is that **no validator ever spoke**. Same panel, different claim: it is the stratum with no governance message at all, not the stratum where the reading is clean. |
+| **`fig3_consequence`** | **must be replotted, and its point changes.** It currently plots the LAST-PROPOSED rows (`plotted=1` on ten rows; the ten EXECUTED rows are computed and carried at `plotted=0`). Under executed-primary the bars stop being an instability display and become five consistent positives. |
+| **`figure1_concept`** | **see below — I am reversing an earlier recommendation.** |
+
+### fig3: replot, and change what it is a picture *of*
+
+Right now it shows conditional beside unconditional per cell, and the visual argument is *look how
+unstable this is*. Under the executed reading that visual is gone — five bars all pointing the same
+way is a boring picture of a stronger result.
+
+**Plot the gap instead.** One bar per cell: conditional Δ minus all-decision Δ. Four bars below zero,
+one above, a rule at zero. **The picture then argues the thing the paper actually now claims — that
+the denominator's bias has no reliable direction.** Same CSV, no new computation, and it is a more
+honest figure than a paired-bar chart in which the reader is left to subtract by eye.
+
+If you keep both readings on the page, plot EXECUTED as the primary series and LAST-PROPOSED as a
+ghosted second series behind it. The divergence between them is then visible rather than described,
+and the ministral sign flip becomes a *demonstration* of why the reading matters instead of a
+headline that has to be scoped in a caption.
+
+### figure1_concept: I said the retry branch was rightly omitted. Under executed-primary it is not.
+
+**I endorsed the omission earlier and I was wrong about it under this change.** My reasoning was that
+the figure should carry §5's selection claim rather than a rewriting claim the data could not yet
+support. That still holds for the *appraisal*. It does not hold for the *action*.
+
+The proposed-versus-executed gap **is** the retry loop's output: 38.7% of governed decisions were
+blocked and executed the registry default. If the paper's primary statistic becomes the executed
+action, then the step that turns a proposal into a different executed action is no longer a detail
+omitted for clarity — **it is the step that produces the number on the page.**
+
+Minimum change: one edge from Validator back to Agent response labelled `rejected → re-ask`, and one
+from Validator to Environment labelled `retry exhausted → default action`. The caption's existing
+sentence about the omission then shrinks rather than grows. **Your figure, your call** — but the
+current caption's justification stops being true the moment the estimand moves.
+
+---
+
+## 4e. Four factual corrections, verified, independent of every decision above
+
+1. **`manuscript.tex:97`, flood enforcement "0–0.85%".** No basis reproduces it. The shipped
+   `table1_cells.csv` flood `pressure_gov` maximum is **1.0707**; B6-excluded it is 0.638%.
+   `enforcement_pressure_source.json` pins `[0.0, 0.85]` and its own `note` says the metric "is not
+   recomputed", while `cross_testbed_summary.py:81-83` **asserts** the pin rather than checking it.
+2. **`manuscript.tex:97` also claims the contrast tracks enforcement pressure.** Across the five
+   irrigation cells the correlation is **r = −0.72** — the within-irrigation dose-response runs the
+   other way. The between-setting separation is real; the within-setting gradient is not. Say the
+   first and drop the second.
+3. **`manuscript.tex:226`, Reproducibility Statement**, points at three historical smoke manifests.
+   The paper's own 42 runs are **27 `git_dirty=True`, 15 with no `git_commit`, zero clean**. Six of
+   21 "paired-by-seed" irrigation pairs record different commits in the two arms.
+4. **`up to three attempts` is off by one.** `agent_types.yaml:52` sets `max_retries: 3` and
+   `_retry_loop.py:236` yields four responses.
+
 ## 5. One small suggestion about your own gate
 
 `checks/figure1_geometry_report.json` reports `status: "PASS_MANUAL_VISUAL_REVIEW_REQUIRED"` while
