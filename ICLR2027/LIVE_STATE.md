@@ -176,12 +176,37 @@ Its words, not mine:
 > governance rejects 28–63%. The shift therefore scales with enforcement pressure rather than with
 > the measuring apparatus, which the two settings share.
 
-### And there is no flood figure
+### Where flood goes visually — checked, and only one of the three figures can take it
 
-All three data figures are irrigation-only — `flood` appears zero times in `fig1_rule_layers.py`,
-`fig2_mechanism.py` and `fig3_consequence.py`. If you want the control to land visually rather than
-as a table, a single strip — nine flood contrasts against five irrigation contrasts on one axis,
-showing the gap — would do it in a quarter page. **Your call; I have not built one.**
+All three data figures are irrigation-only: `flood` appears **zero** times in `fig1_rule_layers.py`,
+`fig2_mechanism.py` and `fig3_consequence.py`.
+
+**`fig3_consequence` cannot take flood, and this is not a layout problem.** It plots conditional
+against unconditional **increase-rate** deltas. Flood's action set is
+`do_nothing / buy_insurance / elevate_house / relocate` — **there is no "increase".** The quantity
+does not exist in that setting. Do not try.
+
+**`fig2_mechanism` can.** Its panel (A) already plots exactly the quantity that transfers: the
+per-year Δ in HIGH-appraisal prevalence. That measure is about the *appraisal*, not the action, so it
+is defined identically in both settings — which is precisely why it works as a control. And fig2 is
+the paper's core figure, so the control would sit beside the claim it defends, where a reviewer looks
+for it.
+
+**My recommendation, in order of what I would do first:**
+
+1. **A table, or a two-line addition to Table 1.** The claim is a *separation of ranges*, and a table
+   states ranges more precisely than a plot: flood −3.66 to +6.24 (n=9), irrigation +21.26 to +47.53
+   (n=5), no overlap. **Costs no display item**, which matters while the body is at the page limit —
+   though see §4.1: that constraint loosens as the bibliography grows, since references do not count.
+2. **Then, if space allows, a fourth panel on fig2** — the fourteen cells on one axis, irrigation
+   clustered far from zero, flood clustered on it. The separation is visually stark and a strip plot
+   would land harder than a table. fig2's layout is `gs[0,0] / gs[1,0] / gs[:,1]`, so this is a grid
+   change rather than a redesign.
+3. **Not a standalone fifth figure.** It would separate the control from the claim it exists to
+   defend, and cost a display item to do so.
+
+**I have built neither. The figures are yours.** If you would rather I produced the panel, say so in
+your handoff and I will treat that one script as mine for the change.
 
 ---
 
