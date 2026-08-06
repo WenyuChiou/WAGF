@@ -460,6 +460,112 @@ in the literature now".
 from 10 to 30.** Do them together; the search that finds the references is the search that finds the
 instance.
 
+## 4i. The on/off contrast is the paper's subject, not its instrument — say so
+
+**Author's decision, 2026-08-06. Two lines, in §2 beside the estimand definition** (the paragraph
+beginning *"For decision $i$ in seed $s$ and arm $a$"*). Anchor on that sentence rather than a line
+number; the file is moving.
+
+### What it fixes
+
+The conclusion currently reads:
+
+> *"...it also means that the governed-versus-ungoverned contrast is **descriptive**."*
+
+That is written as a concession — *unfortunately our comparison is only descriptive*. It is the last
+substantive clause before the recommendation, so it is the note the reader leaves on.
+
+**It should be a method statement, and the fidelity framing has already earned it.**
+
+### The move
+
+Comparing validator-on against validator-off is **how the field evaluates a guardrail**: run it with,
+run it without, compare. That practice is what this paper examines. So the two arms are the
+**specimen**, not the **instrument** — they are the object under study, not the estimator.
+
+> We do not compare validator-on with validator-off in order to estimate an effect of governance.
+> We compare them because that contrast is what governed-agent evaluations report, and the paper's
+> subject is what such a contrast contains. Governance changes the recorded world by design, so the
+> contrast is descriptive by construction rather than by a shortfall in this design.
+
+**Same fact, opposite posture.** You do not apologise for a specimen not being an instrument.
+
+### Why it is worth two lines
+
+Three things stop being remedies and become consequences of one stated position:
+
+| currently reads as | becomes |
+|---|---|
+| §5's world-state reweighting — a rescue after the contrast was found wanting | the comparison that *is* valid: within matched world states |
+| §6's all-decision rate — an alternative offered because the first one failed | the comparison whose denominator governance cannot move |
+| §7's protocol — five pieces of advice | what follows once the contrast is understood |
+
+It also disarms the reviewer objection directly. *"The two arms inhabit different worlds, so the
+comparison means nothing"* — **yes, and demonstrating that is the paper.** Under the current phrasing
+that objection reads as a hit; under this one it reads as the abstract.
+
+### One thing not to do with it
+
+**Do not use it to withdraw the numbers.** The +45.73 share contrast, the −2.53 / +0.21 residual, the
+executed all-decision range and the flood control are all still results, and they are what makes the
+position more than an assertion. This changes the framing of the contrast, not its status as
+evidence.
+
+## 4j. A draft conclusion — take it, cut it, or argue with it
+
+**This is a draft to adapt, not a decision.** The conclusion is yours. But the author asked what I
+would write, so here it is rather than another list of principles.
+
+### The draft
+
+> A validator that holds agents inside a behavioural theory changes the world the model produces.
+> That is what it is for. It also changes which decisions an evaluation counts, and a conditional
+> score cannot separate the two.
+>
+> The share of decisions carrying the agent-written condition differs by $+45.73\pp$ between arms;
+> reweighting both arms to the same recorded world state leaves $-2.53\pp$. The executed
+> all-decision contrast is positive in all five irrigation configurations, from $+20.26\pp$ to
+> $+36.57\pp$, while the conditional denominator moves that contrast in both directions —
+> understating it in four configurations and overstating it in the fifth. The error cannot be
+> sign-corrected.
+>
+> We therefore treat the validator-on/off contrast as an object of study rather than an estimator.
+> What survives is narrower and usable: a comparison within matched world states, a rate whose
+> denominator is fixed by design, and the condition share reported beside both. A conditional
+> conformance score computed over a model-authored condition is not an evaluation of the agent. It
+> measures the agent and the governance together, and nothing in the number tells you which is which.
+
+About 155 words against the current 110. **It is longer, and I think it earns the difference** — but
+if the page budget says no, the middle paragraph's first clause is the one to cut, since §3 already
+carries $+45.73$.
+
+### What I changed, and why each
+
+| change | reason |
+|---|---|
+| Opens with what the validator is *for*, in plain words | the author's fidelity argument, stated as a premise rather than a defence |
+| **"That is what it is for."** as its own sentence | it is the load-bearing clause; a subordinate clause hides it |
+| Dropped *"not evidence that validators are unsuitable for the model"* | the apology reflex — §4g. The opening already establishes the validator's purpose, so nothing needs defending |
+| Dropped *"it also means that the contrast is descriptive"* | replaced by the positive form: object of study, not estimator (§4i) |
+| **"The error cannot be sign-corrected"** | this is the addition to Rosenbaum (§4h ②) and it was not stated anywhere |
+| Ends on a claim, not a recommendation | the paper earned the claim and was only making the recommendation. The recommendation now sits in §7 where it belongs, and follows from this |
+| *"nothing in the number tells you which is which"* | plainer than "does not decompose", and it is the sentence a reader will remember |
+
+### What I deliberately did not put in it
+
+- **The 106.57 ft and 5-of-5 reservoir floor.** It belongs in the abstract or §1, where a reader
+  meets it early. In the conclusion it would read as a late appeal.
+- **The flood control.** It is a control; controls belong where the result they defend is stated.
+- **Any new hedge.** Every scope restriction this conclusion needs is already carried by §7's
+  limitations, which is the right place for all of them.
+
+### One thing to check before using it
+
+**"understating it in four configurations and overstating it in the fifth"** depends on the executed
+reading being primary throughout. If any part of the paper still leads with `lastproposed`, that
+sentence contradicts it. As of the 05:20 build `lastproposed` appears five times — check what those
+five are doing before this paragraph lands.
+
 ## 5. One small suggestion about your own gate
 
 `checks/figure1_geometry_report.json` reports `status: "PASS_MANUAL_VISUAL_REVIEW_REQUIRED"` while
