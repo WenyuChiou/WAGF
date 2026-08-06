@@ -318,6 +318,148 @@ and the script comments say why so it does not get moved back.
    not survive this change.
 5. **The four factual corrections in §4e**, none of which depend on any of the above.
 
+## 4g. Hedging — three categories, not one instruction
+
+**First: the 05:20 abstract and conclusion are a real improvement.** The fidelity framing landed, the
+executed reading is through (19 mentions against 5 of `lastproposed`), and the gap range is stated.
+This is about what remains.
+
+**The author's judgement: the paper self-limits so often it reads as unsure of its own finding.**
+I agree, but "hedge less" is the wrong instruction — some of these disclosures are what stop a
+reviewer finding them unflagged. The rule is **state each limitation once, in the place a reader
+would otherwise be misled, then stop.** Three categories.
+
+### 🔴 Keep — a reviewer computes these in ten seconds and unflagged is fatal
+
+| where | what |
+|---|---|
+| §5 never-retried | *36.2% of governed and 64.6% of no-validator decisions are never retried.* Anyone with the corpus derives this. |
+| §7 limitations | 24.3% of governed decisions accepted after a retry; the preceding report is absent |
+| §7 limitations | world state is downstream of governance |
+| §7 limitations | Flood is not a paired comparison; B6 exclusion; unequal run counts |
+
+**Four. Keep all four, and write them as findings rather than as apologies.** "The claim concerns
+this class of coupled governance loop rather than all LLM agents" is already the right register: it
+is a scope statement, not a concession.
+
+### 🟡 Cut — the same disclaimer, restated
+
+`descriptive` and `causal` appear on **13 separate lines**. The abstract already carries
+*"we make no deception claim"*. Every later restatement costs a line and buys nothing.
+
+**Rule: say "this comparison is descriptive, not causal" exactly once, in §2 where the estimand is
+defined. Delete every later instance.** Specifically redundant with that one statement:
+
+- §4's *"This does not tell us whether an agent changed its internal belief, nor does it show that a
+  validator caused a particular action change"*
+- §5's *"The analysis is therefore a descriptive comparison of world-state composition, not a causal
+  adjustment"* — the sentence before it already says the variables are downstream of governance
+- the `fig:mechanism` caption's *"descriptive rather than causal"*
+- the `tab:cross_testbed` caption's repetition of the same
+
+**And a new one to watch, introduced with the fidelity framing:** *"not that validators are
+unsuitable for model fidelity"* now appears in both the abstract and the conclusion. The framing was
+meant to make the paper more confident, not to add a second thing to apologise for. **Once, in §1.**
+
+**This is where the page budget comes from — roughly 4 lines, which is most of what §4b's purpose
+clause needs.**
+
+### 🔵 Fix — you are hedging your own supporting evidence
+
+This is the most wasteful category and the easiest to fix.
+
+> §5: *"At year 1, before actions can separate the worlds, the two arms match on nine pre-decision
+> columns across 390 paired agent-years. The year-1 share contrast is $+3.33\pp$ (95% CI
+> $[-3.75,+10.42]$, $p=0.261$). The large later gap is therefore **consistent with** accumulated
+> world-state composition."*
+
+**The sentence before it describes a placebo test that passed.** Nine matched columns, 390 paired
+agent-years, a null contrast with a CI straddling zero. That is evidence, and *"consistent with"* is
+the phrase for when you have none.
+
+It also answers the single most obvious objection — *"your two arms were different from the start"* —
+and it is currently one clause in the middle of a paragraph. **Name it as a placebo test, state that
+it passed, and let the later divergence be attributed rather than "consistent with".**
+
+Same treatment for the reservoir. §5 has *"The governed arm ends 106.57 ft higher on Lake Mead... The
+no-validator arm reaches the 895-ft floor in all five seeds, whereas the governed arm does not."*
+**5 of 5 against 0 of 5, on a real reservoir, is the only fact in this paper a reader understands
+without any statistics.** It is supporting detail in the middle of §5. Consider the abstract.
+
+### The three rules, compressed
+
+1. **One limitation, one statement, in the place a reader would be misled.** Never restated.
+2. **Do not hedge your own supporting evidence.** A placebo test that passed, passed.
+3. **Never state a limitation the evidence does not require.** That is inventing a weakness.
+
+---
+
+## 4h. How to make this more of a contribution — the AC's objection, answered
+
+The simulated area chair's objection is the one that decides this paper:
+
+> *Is this more than "don't condition on post-treatment variables"? Rosenbaum said that in 1984.*
+
+**It is, and the paper already contains the answer in three places without ever saying it.** Assembling
+them costs about ten lines and no new analysis.
+
+### ① Rosenbaum assumes the variable is one you chose. Here it is not.
+
+Rosenbaum's warning is addressed to an analyst deciding whether to adjust for a covariate. The
+standard remedy is *don't*.
+
+**That remedy is not available here.** The conditioning variable is a field the system under
+evaluation generated, and the metric is defined in terms of it. You cannot decline to condition on it
+without abandoning the score. **The warning applies by construction rather than by an analyst's
+choice**, which is exactly what the author's model-fidelity argument establishes: in a governed
+simulation the treatment is designed to change the outcome-relevant state.
+
+**One sentence in §1, next to the existing Rosenbaum citation at `:42`.**
+
+### ② Rosenbaum does not tell you which way you are wrong. This paper measures it.
+
+Standard intuition says post-treatment conditioning biases toward the null, or inflates. **Neither
+holds here.** The conditional-minus-all-decision gap on the executed reading is −3.99, −14.86, −0.88,
+**+3.38**, −16.06: four configurations understate the contrast, the fifth overstates it.
+
+**A practitioner who knows Rosenbaum still does not know the sign of their own error.** That is a
+concrete addition to a fifty-year-old warning and it is already in your abstract as a range — it is
+not yet stated as the point.
+
+### ③ You have a negative result that is more useful than the positive one
+
+§7 currently says, in passing:
+
+> *"Replacing the report with a world-recorded condition is not an automatic fix. For this cell, the
+> share with simulator-recorded shortage tier 2 or worse shifts by $+64.29\pp$."*
+
+**The obvious fix fails, and it fails worse than the thing it replaces** — +64.29 against +45.73. That
+is the most useful sentence in the paper for a practitioner and it is written as a caveat.
+
+**Promote it.** "Use the simulator's record instead" is what every reader will propose to themselves
+while reading §3. Answering it before they finish the thought, with a number, is worth more than
+another robustness check.
+
+### What I would not do to raise the contribution
+
+- **Do not add another testbed.** Two settings and fourteen configurations is enough; a third would
+  read as breadth substituting for depth.
+- **Do not claim generality you have not tested.** The limitation at §7 — *"this class of coupled
+  governance loop"* — is correct and should stay exactly as scoped.
+- **Do not soften the reporting protocol into hedges.** Five imperatives is the right register for a
+  protocol.
+
+### The one thing that would raise it further, and it is not free
+
+**An instance of this metric in someone else's published work.** As it stands the paper reads as
+"we found a confound in our own prior work". One citation to a published governed-agent evaluation
+that reports a conditional conformance rate over a model-authored condition converts it to "this is
+in the literature now".
+
+**That is literature work, not experiment work — and it is the same work as taking the bibliography
+from 10 to 30.** Do them together; the search that finds the references is the search that finds the
+instance.
+
 ## 5. One small suggestion about your own gate
 
 `checks/figure1_geometry_report.json` reports `status: "PASS_MANUAL_VISUAL_REVIEW_REQUIRED"` while

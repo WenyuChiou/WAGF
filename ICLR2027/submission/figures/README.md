@@ -7,9 +7,8 @@
 
 - `figure1_concept.png`: generated conceptual dataflow figure;
 - `fig1_rule_layers.pdf`: deterministic evidence figure;
-- `fig2_mechanism.pdf`: deterministic four-panel evidence figure; panels A--C
-  show the anchor irrigation mechanism and panel D shows the descriptive Flood
-  cross-testbed check;
+- `fig2_mechanism.pdf`: deterministic three-panel evidence figure; panels A--C
+  show the primary anchor-irrigation mechanism in reading order;
 - `fig3_consequence.pdf`: deterministic evidence figure.
 
 `figure1_concept_print.png` is the print-width inspection copy of the
@@ -35,9 +34,9 @@ and run the checks under `../checks/`. Do not edit a rendered figure directly.
   block.
 - Figure 2 answers: which rule layer names a rejection. It places the
   high-scarcity/high-coping increase rule in the self-report-conditioned layer.
-- Figure 3 answers: what can be seen in the irrigation mechanism and whether
-  the same contrast transfers descriptively to Flood. Panel D is not a causal
-  cross-testbed comparison.
+- Figure 3 answers: what can be seen in the primary irrigation mechanism.
+  The secondary Flood boundary check is reported in Table 2 and the
+  cross-testbed summary, not as a same-status mechanism panel.
 - Figure 4 answers: why the conditional and all-decision denominators can give
   different contrasts. It is irrigation-only because Flood has no
   action-to-environment feedback and no matched denominator analysis.

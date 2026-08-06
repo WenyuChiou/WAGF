@@ -18,9 +18,10 @@
       width and in the rendered manuscript. Its color contract is explicit:
       blue agent output, orange validation, green environment, violet
       measurement, amber shared condition, and black flow/borders.
-- [x] Figures 2--4 are copied from the existing deterministic evidence outputs
-      under `figures/active/`; no generated image is used for a quantitative
-      chart.
+- [x] Figures 2--4 are deterministic evidence outputs under `figures/active/`;
+      Figure 3 is a three-panel primary irrigation mechanism figure, while
+      Flood remains a secondary Table 2/cross-testbed summary; no generated
+      image is used for a quantitative chart.
 - [x] Citation keys, figure paths, one-page quantitative figure PDFs, placeholder tokens,
       Unicode surprises, and LaTeX environment balance pass static checks.
 - [x] Frozen evidence-source presence, key reported values, scarcity-report

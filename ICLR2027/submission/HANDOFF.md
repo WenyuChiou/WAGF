@@ -90,10 +90,9 @@ found no clipping or overlap.
 ## Manuscript and evidence status
 
 Figure 2 and Figure 4 are deterministic evidence outputs copied from the
-frozen historical evidence package. Figure 3 panels A--C retain the anchor
-irrigation diagnostics, while panel D is rebuilt by
-`source\cross_testbed_summary.py` from the canonical Flood contrast CSV and
-the copied irrigation mechanism values. The current ICLR draft preserves the
+frozen historical evidence package. Figure 3 is now a three-panel primary
+irrigation mechanism figure in reading order; the active builder no longer
+promotes Flood to a same-status panel. The current ICLR draft preserves the
 existing evidence boundary; the historical TAE package is untouched.
 
 The cross-testbed summary contains five irrigation and nine Flood
@@ -103,8 +102,9 @@ appraisal contrast: irrigation stores WSA_LABEL and Flood stores TP_LABEL, and
 both use the high/very-high labels from the shared five-level appraisal
 instrument. These are the same per-run-mean contrast, but Flood is not
 seed-paired with irrigation and has a different action ontology and no
-action-to-environment feedback. Panel D and Table 2 are therefore a
-descriptive portability check, not a causal comparison. The Flood gemma3:4b
+action-to-environment feedback. Table 2 is therefore a secondary descriptive
+boundary check, not a causal comparison or a mechanism-transfer test. The
+Flood gemma3:4b
 cell excludes one divergent governed run, leaving four governed versus five
 no-validator runs; including it changes that cell from +0.35 to -1.16
 percentage points. The reported enforcement-pressure ranges are pinned in
@@ -180,9 +180,9 @@ The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
    scarcity alone is blocked.
 2. Figure 2 is the rule-layer answer: it separates self-report-conditioned
    validator rules from simulator-recorded feasibility rules.
-3. Figure 3 is the mechanism/evidence answer. Panels A--C show why the anchor
-   irrigation contrast is descriptive; panel D checks portability across the
-   nine Flood configurations without claiming causal transfer.
+3. Figure 3 is the primary mechanism/evidence answer. Panels A--C show why
+   the anchor irrigation contrast is descriptive. Flood stays in Table 2 and
+   the cross-testbed summary as a secondary boundary check.
 4. Figure 4 is the denominator answer. It remains irrigation-only because the
    Flood artifacts do not provide the coupled action-to-environment setting
    needed for that analysis.
