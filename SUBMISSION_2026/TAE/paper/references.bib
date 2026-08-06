@@ -1,0 +1,516 @@
+% references.bib -- SUBMISSION_2026/TAE
+%
+% SINGLE SOURCE OF TRUTH for the bibliography. The References section of
+% manuscript.md is GENERATED from this file by make_bibliography.py; do not
+% hand-edit the block between <!-- BIBLIOGRAPHY:BEGIN --> and
+% <!-- BIBLIOGRAPHY:END --> in manuscript.md.
+%
+% BUILD ROUTE: no bibtex/biber. build.py escapes backslashes in body text
+% (_escape_tex), so neither \cite nor \begin{thebibliography} can be typed
+% into manuscript.md. In-text citations are therefore literal [n] numerals and
+% the reference list is a numbered run of plain paragraphs, both emitted from
+% this file by make_bibliography.py. One source, no second copy.
+%
+% VERIFICATION RULE (project incident, 2026-05-20: a subagent fabricated ~30%
+% of a reference list). Every entry below carries a `note` field naming the
+% page that was actually FETCHED and the date. An entry with no fetched page
+% does not belong in this file.
+%
+% Verification pass: 2026-08-02.
+
+% ---------------------------------------------------------------------------
+% CITED IN THE MANUSCRIPT (order of first appearance; numbering in
+% make_bibliography.py CITED_ORDER must match)
+% ---------------------------------------------------------------------------
+
+@inproceedings{wang2026agentspec,
+  author    = {Haoyu Wang and Christopher M. Poskitt and Jun Sun},
+  title     = {AgentSpec: Customizable Runtime Enforcement for Safe and Reliable LLM Agents},
+  booktitle = {Proceedings of the 48th IEEE/ACM International Conference on Software Engineering (ICSE 2026)},
+  year      = {2026},
+  eprint    = {2503.18666},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url       = {https://arxiv.org/abs/2503.18666},
+  note      = {VERIFIED 2026-08-02 via https://arxiv.org/abs/2503.18666 and
+               http://export.arxiv.org/api/query?id_list=2503.18666 (v1 24 Mar 2025,
+               v3 31 Jul 2025; arXiv comment field: "Accepted by the 48th IEEE/ACM
+               International Conference on Software Engineering (ICSE 2026)").
+               To appear -- no publisher DOI yet; cite the arXiv id.}
+}
+
+@inproceedings{rebedea2023nemo,
+  author    = {Traian Rebedea and Razvan Dinu and Makesh Narsimhan Sreedhar and Christopher Parisien and Jonathan Cohen},
+  title     = {NeMo Guardrails: A Toolkit for Controllable and Safe LLM Applications with Programmable Rails},
+  booktitle = {Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing: System Demonstrations},
+  pages     = {431--445},
+  year      = {2023},
+  publisher = {Association for Computational Linguistics},
+  doi       = {10.18653/v1/2023.emnlp-demo.40},
+  eprint    = {2310.10501},
+  archivePrefix = {arXiv},
+  url       = {https://aclanthology.org/2023.emnlp-demo.40/},
+  note      = {VERIFIED 2026-08-02 via https://aclanthology.org/2023.emnlp-demo.40/
+               (pages and DOI) and http://export.arxiv.org/api/query?id_list=2310.10501
+               (arXiv comment: "Accepted at EMNLP 2023 - Demo track").
+               ACL Anthology gives the second author's middle name as "Narsimhan",
+               which the arXiv listing omits; the Anthology form is used here.
+               RE-VERIFIED 2026-08-03 against the Anthology page (all five authors, pages
+               431-445, DOI, EMNLP 2023 System Demonstrations) -- metadata is CLEAN.
+               CLAIM DEFECT FOUND 2026-08-03, IN THE BODY NOT IN THIS ENTRY: section 1
+               para 1 says the four cited systems "all report success as a conformance
+               number, violations before enforcement against violations after". This paper
+               reports NO numeric rate of any kind. Its abstract's only result sentence is
+               "initial results show that the proposed approach can be used with several
+               LLM providers" (confirmed verbatim at
+               http://export.arxiv.org/api/query?id_list=2310.10501). It is an EMNLP
+               *demo-track* toolkit paper. The entry is right and the citation belongs in
+               the list of systems with this enforcement SHAPE; it is the "all report ... a
+               conformance number" half that this reference does not support. Author
+               decision -- see the reference-audit report of 2026-08-03.}
+}
+
+@misc{kang2026policyguard,
+  author    = {Seongjae Kang and Taehyung Yu and Sung Ju Hwang},
+  title     = {PolicyGuard: A Dialogue-Grounded Sub-Agent Verifier for Policy Adherence in LLM Agents},
+  year      = {2026},
+  eprint    = {2606.29225},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url       = {https://arxiv.org/abs/2606.29225},
+  note      = {VERIFIED 2026-08-02 via http://export.arxiv.org/api/query?id_list=2606.29225
+               (published 2026-06-28, updated 2026-08-02, comment "20 pages, 8 figures")
+               and https://arxiv.org/abs/2606.29225.
+               RE-VERIFIED INDEPENDENTLY 2026-08-03 by re-fetching https://arxiv.org/abs/2606.29225:
+               authors Seongjae Kang, Taehyung Yu, Sung Ju Hwang; title exactly as given;
+               submitted 28 Jun 2026; cs.AI + cs.CL.
+               DISAMBIGUATION HAZARD -- an arXiv title search for "PolicyGuard" returns
+               THREE distinct 2026 papers: this one; 2606.32004 (Malik, Singh, Azad,
+               "PolicyGuard: From Organizational Policies to Neuro-Symbolic Compliance
+               Review Engines"); and 2606.12896 (Guo, Huang, "PolicyGuard: Towards
+               Test-time and Step-level Adversary (Backdoor) Defense for Reinforcement
+               Learning Agent").
+               AMBIGUITY RESOLVED 2026-08-03 by fetching all three abstracts, not by
+               inference from the titles. 2606.32004 reviews STATIC DOCUMENTS (NDA clauses)
+               against organizational playbooks with a neuro-symbolic evaluator; there is no
+               agent, no action, and no runtime. 2606.12896 is a backdoor/adversary DEFENCE
+               for a REINFORCEMENT-LEARNING policy (cs.LG; Gaussian-process posterior
+               variance over time steps, AUROC 0.856/0.859 on seven games); no LLM and no
+               policy in the organizational-rule sense -- "policy" there means the RL
+               control policy, which is the source of the name collision. Only 2606.29225
+               matches the manuscript sentence: its abstract describes "a sub-agent verifier
+               that shares the agent's view of the dialogue, reasons over the policy in
+               context, and provides actionable feedback for the agent's next turn", i.e. a
+               runtime check on a proposed LLM-agent action that returns the violation to
+               the agent and lets it retry. That is the shape section 1 attributes to it.
+               This entry points at the right paper; the open item is CLOSED.
+               CAVEAT ON THE CLAIM, NOT THE ENTRY: section 1 says the four cited systems
+               "all report success as a conformance number, violations before enforcement
+               against violations after". This paper's headline number is PASS^4 task
+               success (+12.0/+6.0/+12.0 pp on tau^2-bench airline); its violation figure is
+               a per-call policy-violation RECALL against argument-level guards, not a
+               before/after violation count. See the note on rebedea2023nemo.}
+}
+
+@inproceedings{yuan2026saver,
+  author    = {Wenhao Yuan and Chenchen Lin and Jian Chen and Jinfeng Xu and Xuehe Wang and Edith Cheuk Han Ngai},
+  title     = {Verify Before You Commit: Towards Faithful Reasoning in LLM Agents via Self-Auditing},
+  booktitle = {Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (ACL 2026)},
+  year      = {2026},
+  eprint    = {2604.08401},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url       = {https://arxiv.org/abs/2604.08401},
+  note      = {VERIFIED 2026-08-02 via https://arxiv.org/abs/2604.08401 and
+               http://export.arxiv.org/api/query?id_list=2604.08401 (published 2026-04-09;
+               arXiv comment: "Accepted by ACL2026 Main Conference"). The system is named
+               SAVeR (Self-Audited Verified Reasoning) inside the paper; "SAVeR" is not in
+               the title, so the manuscript's bare "SAVeR" needs the system name spelled
+               out or the reader cannot find it. RESOLVED 2026-08-02: re-fetched
+               https://arxiv.org/abs/2604.08401, which confirms the expansion and the
+               sentence "enforces verification over internal belief states within the
+               agent before action commitment"; the manuscript now writes
+               "SAVeR [4] (Self-Audited Verified Reasoning)" at the point where the system
+               is described, so the reference-list title is findable from the body.
+               To appear -- no DOI yet.}
+}
+
+@incollection{grossi2007ubilex,
+  author    = {Davide Grossi and Huib Aldewereld and Frank Dignum},
+  title     = {Ubi Lex, Ibi Poena: Designing Norm Enforcement in E-Institutions},
+  booktitle = {Coordination, Organizations, Institutions, and Norms in Agent Systems II (COIN 2006, Revised Selected Papers)},
+  series    = {Lecture Notes in Computer Science},
+  pages     = {101--114},
+  year      = {2007},
+  publisher = {Springer},
+  doi       = {10.1007/978-3-540-74459-7_7},
+  url       = {https://doi.org/10.1007/978-3-540-74459-7_7},
+  note      = {METADATA VERIFIED 2026-08-02 via https://api.crossref.org/works/10.1007/978-3-540-74459-7_7
+               (title, authors, pages 101-114, Springer), https://dblp.org/rec/conf/atal/GrossiAD06.html
+               (COIN@AAMAS/ECAI 2006, same pages and DOI) and
+               https://api.semanticscholar.org/graph/v1/paper/DOI:10.1007/978-3-540-74459-7_7.
+               Book DOI 10.1007/978-3-540-74459-7 verified as "Coordination, Organizations,
+               Institutions, and Norms in Agent Systems II", LNCS, Springer, 2007.
+               CONTENT NOT VERIFIED: the chapter is closed access (OpenAlex oa_status
+               "closed"; the only other location is a CiteSeerX summary page with no PDF),
+               so the abstract and full text could not be read. Cite it for norm
+               ENFORCEMENT in e-institutions, which the title carries. It has NOT been
+               confirmed from a fetched page that this chapter states the
+               regimentation-versus-enforcement dichotomy in those words.
+               MANUSCRIPT BROUGHT INTO LINE 2026-08-02: two further attempts to reach the
+               content failed -- Semantic Scholar returns no abstract for this DOI (the
+               publisher elides it) and https://api.openalex.org/works/doi:10.1007/978-3-540-74459-7_7
+               carries abstract_inverted_index = null with oa_status "closed" and no PDF
+               location. The manuscript sentence therefore no longer attributes the
+               regimentation/enforcement distinction to this chapter; it now claims only
+               that norm enforcement was treated as a design problem in its own right,
+               which is the chapter's title. The "more than two decades" span moved off
+               this 2007 entry and onto AMELI/OperA/MOISE+ (2004, 2004, 2002), which
+               carry it. LNCS volume
+               number deliberately omitted: Crossref does not carry it and it was not
+               verified.}
+}
+
+@inproceedings{esteva2004ameli,
+  author    = {Marc Esteva and Bruno Rosell and Juan A. Rodr{\'i}guez-Aguilar and Josep Llu{\'i}s Arcos},
+  title     = {AMELI: An Agent-Based Middleware for Electronic Institutions},
+  booktitle = {Proceedings of the Third International Joint Conference on Autonomous Agents and Multiagent Systems (AAMAS 2004)},
+  pages     = {236--243},
+  year      = {2004},
+  publisher = {IEEE Computer Society},
+  doi       = {10.1109/AAMAS.2004.10060},
+  url       = {https://doi.org/10.1109/AAMAS.2004.10060},
+  note      = {VERIFIED 2026-08-02 via https://dblp.org/rec/conf/atal/EstevaRRA04.html
+               (full author names, title capitalisation, pages 236-243, DOI
+               10.1109/AAMAS.2004.10060) and by resolving https://doi.org/10.1109/AAMAS.2004.10060
+               (302 -> doi.ieeecomputersociety.org -> computer.org, i.e. the DOI is live).
+               DEFECT RECORDED IN PROJECT NOTES AND CONFIRMED: this DOI is ABSENT FROM
+               CROSSREF -- https://api.crossref.org/works/10.1109/AAMAS.2004.10060 returns
+               HTTP 404. It is a real, resolving IEEE Computer Society DOI that was never
+               deposited with Crossref, so any Crossref-only checker will report it as
+               fabricated. Do not delete it on that report; it resolves.
+               ADDED 2026-08-03 (independent re-check): the DOI is absent from OPENALEX as
+               well -- https://api.openalex.org/works?filter=doi:10.1109/AAMAS.2004.10060
+               returns count 0. So TWO aggregators miss it, not one. The redirect chain was
+               re-walked and still terminates in the IEEE Computer Society digital library
+               (doi.org 302 -> doi.ieeecomputersociety.org 301 -> computer.org/CSDL), and
+               dblp still carries the record with these exact fields. The entry rests on
+               dblp plus a live redirect, which is stated here so that a future checker does
+               not mistake aggregator silence for fabrication.
+               SECOND DOI IN CIRCULATION: Semantic Scholar records 10.1109/AAMAS.2004.56
+               for the same paper. That one also resolves (302 -> csdl.computer.org
+               .../20920236abs.htm, whose id encodes first page 236) and is also absent
+               from Crossref. dblp's is preferred here as the more curated record.}
+}
+
+@phdthesis{dignum2004opera,
+  author    = {Virginia Dignum},
+  title     = {A Model for Organizational Interaction: Based on Agents, Founded in Logic},
+  school    = {Utrecht University},
+  year      = {2004},
+  series    = {SIKS Dissertation Series},
+  identifies = {OperA},
+  url       = {https://dspace.library.uu.nl/handle/1874/890},
+  note      = {YEAR DEFECT RESOLVED 2026-08-02. The OperA model is introduced in this
+               thesis. Aggregators disagree on the year: OpenAlex records BOTH 2000
+               (W1579147322, type "dissertation") and 2003 (W49169227) for the same title,
+               and dblp has no record of it at all. The authoritative field retrieved is
+               OpenAIRE's, https://api.openaire.eu/search/publications?title=A%20Model%20for%20Organizational%20Interaction%20based%20on%20Agents%20founded%20in%20Logic&format=json,
+               which gives creator "Dignum, M.V.", publisher "SIKS", type "Doctoral
+               thesis", and date "2004-01-12" (the defence date). 2004 is therefore the
+               correct year and OpenAlex's 2000/2003 are wrong.
+               CAVEAT: the Utrecht repository landing page (handle 1874/890) returns HTTP
+               403 to this fetcher, so the year rests on the OpenAIRE record rather than on
+               the repository page itself. No DOI exists. If the author wants a
+               DOI-bearing OperA citation instead, none was found.
+               YEAR RE-CONFIRMED INDEPENDENTLY 2026-08-03: the OpenAIRE record was fetched
+               again and still returns creator "Dignum, M.V.", publisher "SIKS", type
+               "Doctoral thesis", acceptance date 2004-01-12, hosted by Pure Utrecht
+               University and the Utrecht University Repository; OpenAlex W1579147322 still
+               says 2000 and is still wrong. 2004 stands.
+               FINDABILITY DEFECT 2026-08-03: section 1 names this work "OperA [7]", but the
+               string "OperA" appears NOWHERE in the entry as rendered -- not in the title,
+               not in the school, not in the series. A reader who follows [7] cannot confirm
+               they have reached the OperA paper. This is the same defect the project already
+               fixed for SAVeR [4] by spelling the expansion out in the body; it is unfixed
+               here and for MOISE+ [8]. It cannot be repaired inside this entry without
+               falsifying the title field. Author decision -- see the reference-audit report
+               of 2026-08-03. Note the repository's own capitalisation is "based on Agents,
+               founded in Logic"; the title-case form used above is a normalisation, not a
+               metadata error.}
+}
+
+@inproceedings{hubner2002moise,
+  author    = {Jomi Fred H{\"u}bner and Jaime Sim{\~a}o Sichman and Olivier Boissier},
+  title     = {A Model for the Structural, Functional, and Deontic Specification of Organizations in Multiagent Systems},
+  booktitle = {Advances in Artificial Intelligence: 16th Brazilian Symposium on Artificial Intelligence (SBIA 2002)},
+  series    = {Lecture Notes in Computer Science},
+  pages     = {118--128},
+  year      = {2002},
+  publisher = {Springer},
+  identifies = {MOISE+},
+  doi       = {10.1007/3-540-36127-8_12},
+  url       = {https://doi.org/10.1007/3-540-36127-8_12},
+  note      = {VERIFIED 2026-08-02 via https://api.crossref.org/works/10.1007/3-540-36127-8_12
+               (title, three authors, pages 118-128, Springer, 2002),
+               https://dblp.org/rec/conf/sbia/HubnerSB02.html (SBIA 2002: 118-128, same
+               DOI) and the book record https://api.crossref.org/works/10.1007/3-540-36127-8
+               ("Advances in Artificial Intelligence: 16th Brazilian Symposium on
+               Artificial Intelligence, SBIA 2002 ... Proceedings", LNCS, Springer).
+               TITLE-CONTAMINATION DEFECT, SOURCE IDENTIFIED: there are TWO 2002 papers by
+               these same three authors with near-identical titles -- this one (SBIA 2002,
+               full paper, pp. 118-128) and the AAMAS 2002 two-page extended abstract
+               entered below as hubner2002moiseplus_abstract, whose title carries the
+               "MOISE+:" prefix and whose pages are 501-502. A merged record ("MOISE+:
+               towards a structural ..." with pages 118-128, or the SBIA title with pages
+               501-502) is the contamination to watch for. This entry is the SBIA full
+               paper and is the one cited. LNCS volume number omitted: Crossref does not
+               carry it and it was not verified.
+               RE-VERIFIED INDEPENDENTLY 2026-08-03 on a THIRD source as well --
+               https://api.semanticscholar.org/graph/v1/paper/DOI:10.1007/3-540-36127-8_12
+               returns this exact title, the three authors, year 2002, venue "Brazilian
+               Symposium on Artificial Intelligence", and DBLP key conf/sbia/HubnerSB02. No
+               contamination is present in the entry as written.
+               FINDABILITY DEFECT 2026-08-03, same class as dignum2004opera: section 1 names
+               this work "MOISE+ [8]", and the string "MOISE+" appears nowhere in the entry
+               as rendered, because the "+"-bearing title belongs to the AAMAS 2002 extended
+               abstract below. Cheapest honest repairs, both author decisions: cite
+               hubner2002moiseplus_abstract beside this entry (adds one numbered line to a
+               reference list that is already spilling past page 8), or write the model name
+               in the body so the reader can bridge. See the reference-audit report of
+               2026-08-03.}
+}
+
+@misc{gao2026looping,
+  author    = {Xueping Gao and Jianwei Yang and Qiang Yang},
+  title     = {Looping Is Not Reliability: State-Bound Evidence and Typed Revision Contracts for Agentic Code Repair},
+  year      = {2026},
+  eprint    = {2607.24604},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url       = {https://arxiv.org/abs/2607.24604},
+  note      = {VERIFIED 2026-08-02 via https://arxiv.org/abs/2607.24604 and
+               http://export.arxiv.org/api/query?id_list=2607.24604 (published 2026-07-27,
+               comment "11 pages, 4 figures, 6 tables").
+               CONTENT CLAIM ALSO VERIFIED: the abstract contains the phrase verbatim --
+               "Two common-state studies use 2,430 branches from identical frozen programs
+               to remove post-treatment risk-set bias." This supports both halves of the
+               manuscript's sentence (the named bias, and the frozen-common-state remedy).
+               No venue and no DOI; preprint only at the time of checking.}
+}
+
+@article{rosenbaum1984adjustment,
+  author  = {Paul R. Rosenbaum},
+  title   = {The Consequences of Adjustment for a Concomitant Variable That Has Been Affected by the Treatment},
+  journal = {Journal of the Royal Statistical Society, Series A (General)},
+  volume  = {147},
+  number  = {5},
+  pages   = {656--666},
+  year    = {1984},
+  doi     = {10.2307/2981697},
+  url     = {https://doi.org/10.2307/2981697},
+  note    = {VERIFIED 2026-08-02 via https://api.crossref.org/works/10.2307/2981697
+             (Rosenbaum, JRSS A, volume 147, issue 5, first page 656, 1984). Crossref's
+             stored title misspells "Consquences"; the correct spelling is used here.
+             END PAGE SOURCED 2026-08-03, which the 2026-08-02 note did not do: Crossref
+             stores a FIRST page only (656) and therefore cannot support the "656--666" in
+             the pages field. 666 was confirmed on two independent records --
+             https://api.openalex.org/works/doi:10.2307/2981697 (first_page 656, last_page
+             666) and https://api.semanticscholar.org/graph/v1/paper/DOI:10.2307/2981697
+             (journal volume 147, pages "656-666"). Semantic Scholar also stores the title
+             with the correct "Consequences", which independently corroborates that the
+             Crossref spelling is the scrape error and not the real title.
+             CITED 2026-08-02 in section 1, para 4, in the same sentence as Gao et al.
+             and after it, as the classical reference for the hazard the manuscript's
+             whole argument turns on. The claim attached to it -- that post-treatment
+             risk-set bias is an instance of adjusting for a treatment-affected variable
+             -- is exactly what the title carries, so no content beyond the title is
+             being asserted on a paper whose full text was not fetched.}
+}
+
+@article{rogers1975pmt,
+  author  = {Ronald W. Rogers},
+  title   = {A Protection Motivation Theory of Fear Appeals and Attitude Change},
+  journal = {The Journal of Psychology},
+  volume  = {91},
+  number  = {1},
+  pages   = {93--114},
+  year    = {1975},
+  doi     = {10.1080/00223980.1975.9915803},
+  url     = {https://doi.org/10.1080/00223980.1975.9915803},
+  note    = {VERIFIED 2026-08-02 via https://api.crossref.org/works/10.1080/00223980.1975.9915803
+             (volume 91, issue 1, pages 93-114, 1975). Crossref's stored title ends with a
+             stray "1" (a footnote marker scraped into the metadata: "... Attitude
+             Change1"); the correct title has no trailing digit and that is what is used
+             here.}
+}
+
+% ---------------------------------------------------------------------------
+% VERIFIED BUT NOT CURRENTLY CITED -- kept here so a later edit does not have
+% to re-verify. make_bibliography.py does NOT number these; they reach the
+% page only if added to CITED_ORDER.
+% ---------------------------------------------------------------------------
+
+@inproceedings{hubner2002moiseplus_abstract,
+  author    = {Jomi Fred H{\"u}bner and Jaime Sim{\~a}o Sichman and Olivier Boissier},
+  title     = {MOISE+: Towards a Structural, Functional, and Deontic Model for MAS Organization},
+  booktitle = {Proceedings of the First International Joint Conference on Autonomous Agents and Multiagent Systems (AAMAS 2002)},
+  pages     = {501--502},
+  year      = {2002},
+  doi       = {10.1145/544741.544858},
+  url       = {https://doi.org/10.1145/544741.544858},
+  note      = {VERIFIED 2026-08-02 via https://dblp.org/rec/conf/atal/HubnerSB02.html
+               (AAMAS 2002, pages 501-502, DOI 10.1145/544741.544858). This is the
+               two-page extended abstract that gives the model the name "MOISE+". NOT
+               CITED: the manuscript names MOISE+ once, and the SBIA 2002 full paper
+               (hubner2002moise) is the canonical reference for the model. Recorded here
+               because it is the source of the title contamination described in that
+               entry's note, and because an author who wants the "MOISE+" string to appear
+               in the reference list would cite this one instead of, or beside, the SBIA
+               paper.}
+}
+
+@misc{park2026behavioural,
+  author    = {Taejin Park},
+  title     = {Behavioural Feasible Set: Value Alignment Constraints on AI Decision Support},
+  year      = {2026},
+  eprint    = {2603.21435},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url       = {https://arxiv.org/abs/2603.21435},
+  note      = {VERIFIED 2026-08-02 via https://arxiv.org/abs/2603.21435 and
+               http://export.arxiv.org/api/query?id_list=2603.21435 (single author Taejin
+               Park, published 2026-03-22, cs.AI and econ.GN). Abstract confirms
+               "behavioural feasible set" is used for the range of recommendations
+               reachable under vendor alignment constraints, i.e. the term collision
+               DECISION.md section 3 records.
+               NOT CITED, AND CORRECTLY SO: the manuscript body never uses "behavioural
+               feasibility" -- section 3 says "World-feasibility rules" and
+               "Theory-coherence rules". The disambiguating footnote DECISION.md section 3
+               mandates is therefore not triggered. If the term is ever reinstated, this
+               entry is the footnote's citation.}
+}
+
+@inproceedings{paul2024faithfulness,
+  author    = {Debjit Paul and Robert West and Antoine Bosselut and Boi Faltings},
+  title     = {Making Reasoning Matter: Measuring and Improving Faithfulness of Chain-of-Thought Reasoning},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2024},
+  pages     = {15012--15032},
+  year      = {2024},
+  publisher = {Association for Computational Linguistics},
+  doi       = {10.18653/v1/2024.findings-emnlp.882},
+  url       = {https://aclanthology.org/2024.findings-emnlp.882/},
+  note      = {VERIFIED 2026-08-02 via https://aclanthology.org/2024.findings-emnlp.882/
+               (four authors, Findings of EMNLP 2024, pages 15012-15032, DOI as given).
+               DECISION.md section 6's two content claims BOTH CHECK OUT: causal mediation
+               over TWELVE LLMs, and the finding quoted as "LLMs do not reliably use their
+               intermediate reasoning steps when generating an answer." No number is
+               misquoted in that passage.
+               NOT CITED: the manuscript never asserts mediation, which is what this paper
+               was held in reserve to defend against. Cite it only if a mediation or
+               CoT-faithfulness sentence is added.}
+}
+
+@inproceedings{bean2025construct,
+  author    = {Andrew M. Bean and others},
+  title     = {Measuring what Matters: Construct Validity in Large Language Model Benchmarks},
+  booktitle = {39th Conference on Neural Information Processing Systems (NeurIPS 2025) Track on Datasets and Benchmarks},
+  year      = {2025},
+  eprint    = {2511.04703},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url       = {https://arxiv.org/abs/2511.04703},
+  note      = {VERIFIED INDEPENDENTLY 2026-08-03 by TITLE SEARCH, not by the id handed to me:
+               http://export.arxiv.org/api/query?search_query=ti:"Measuring What Matters" AND
+               abs:"construct validity" -- returned exactly one entry, 2511.04703v1, published
+               2025-11-03T17:39:40Z. Comment field verbatim: "39th Conference on Neural Information
+               Processing Systems (NeurIPS 2025) Track on Datasets and Benchmarks". No journal-ref.
+               42 authors, counted; first author Andrew M. Bean; last author Adam Mahdi; includes
+               Inioluwa Deborah Raji, Christopher Summerfield, Philip H. S. Torr, Yarin Gal,
+               Antoine Bosselut, Arman Cohan, Jakob Foerster.
+               CLAIM CHECK -- the body sentence says a systematic review of 445 LLM benchmarks asks
+               whether measures represent what matters to the phenomenon claimed. Abstract verbatim:
+               "Reliably measuring abstract and complex phenomena such as 'safety' and 'robustness'
+               requires strong construct validity, that is, having measures that represent what
+               matters to the phenomenon. With a team of 29 expert reviewers, we conduct a systematic
+               review of 445 LLM benchmarks from leading conferences in natural language processing
+               and machine learning." Both the count 445 and the phrase are the paper's own words.
+               BUILD HAZARD, HANDLED. The full author list contains two non-ASCII names: Jonathan
+               Rystroem (o-with-stroke) and Maria Grandury (i-acute). The i-acute is already mapped
+               in _ACCENTS; the o-with-stroke is mapped NOWHERE -- confirmed by grep, absent from
+               both make_bibliography.py _ACCENTS and build.py _TEX_UNICODE -- and a full 42-author
+               entry would trip the unmappable-character guard. Resolved by the standard et-al form
+               above, which format_authors renders as "Andrew M. Bean and others" (two-element
+               split on " and "). The guard is NOT weakened: no mapping was added and it still
+               fires on any genuinely unmapped character.}
+}
+
+@misc{kapoor2024agents,
+  author    = {Sayash Kapoor and Benedikt Stroebl and Zachary S. Siegel and Nitya Nadgir and Arvind Narayanan},
+  title     = {AI Agents That Matter},
+  year      = {2024},
+  eprint    = {2407.01502},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url       = {https://arxiv.org/abs/2407.01502},
+  note      = {VERIFIED INDEPENDENTLY 2026-08-03 by TITLE SEARCH, not by the id handed to me:
+               http://export.arxiv.org/api/query?search_query=ti:"AI Agents That Matter" --
+               returned 2407.01502v1, published and updated 2024-07-01T17:48:14Z, authors exactly
+               Sayash Kapoor, Benedikt Stroebl, Zachary S. Siegel, Nitya Nadgir, Arvind Narayanan.
+               VENUE: NONE. The comment field and the journal-ref field are both absent. I could not
+               confirm a peer-reviewed version and do not assert one -- cited as a preprint, and
+               format_entry renders @misc as "Preprint, 2024." which is the honest form.
+               CLAIM CHECK -- the body sentence says agent benchmarks have produced mistaken
+               conclusions about where a reported gain came from. Abstract verbatim: "Our analysis of
+               current agent benchmarks and evaluation practices reveals several shortcomings...
+               First, there is a narrow focus on accuracy without attention to other metrics. As a
+               result, SOTA agents are needlessly complex and costly, and the community has reached
+               mistaken conclusions about the sources of accuracy gains." The body clause is that
+               sentence in general form. Do not stretch it further: the paper attributes the
+               misattribution to accuracy-only benchmarking and holdout weakness, NOT to a
+               conditioning variable authored by the evaluated system, which is this paper's case.}
+}
+
+@misc{liu2026charge,
+  author    = {Yao Liu and Tien-Ping Tan and Zhilan Liu},
+  title     = {Charge as a Construct-Validity Factor in Chinese Legal Case Retrieval: A Cross-Benchmark Audit},
+  year      = {2026},
+  eprint    = {2606.12993},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.IR},
+  url       = {https://arxiv.org/abs/2606.12993},
+  note      = {VERIFIED INDEPENDENTLY 2026-08-03 by TWO separate query paths, neither of them the id
+               handed to me. (1) Title search
+               http://export.arxiv.org/api/query?search_query=ti:"Chinese Legal Case Retrieval" AND
+               ti:"Construct Validity" -- totalResults 1, entry 2606.12993v2, published 2026-06-11,
+               cs.IR, authors Yao Liu, Tien-Ping Tan, Zhilan Liu. (2) Keyword search
+               all:"LeCaRDv2" AND all:"charge" -- returned the same paper alongside the genuine
+               LeCaRDv2 dataset paper (2310.17609, Li et al. 2023) and an unrelated 2026 LCR paper,
+               which is the corroboration that the id and the title bind to one real record.
+               VENUE: NONE. No comment, no journal-ref. Preprint, dated seven weeks before this
+               verification. Cited as a preprint.
+               CLAIM CHECK -- the body sentence says a retrieval audit holds one construct fixed, a
+               trained system's advantage collapses to a small residual, and the benchmark's
+               relevance label had encoded that construct by construction. Abstract verbatim:
+               "LeCaRDv2 defines top relevance via the crime's key constitutive elements, which
+               encode the charge, so same-charge cases are relevant by construction"; and "Holding
+               charge fixed, the trained reranker's advantage over BM25 collapses to a small
+               within-charge residual (+0.026 NDCG@10, cluster-bootstrap CI excluding zero, about a
+               quarter)." Both clauses are the paper's own words.
+               DO NOT DRIFT THIS ONE. The authors bound themselves explicitly and the citing
+               sentence must stay inside that bound: charge is "not a uniform explanation of
+               NDCG@10, and not evidence that any system relies on charge". Three specific
+               prohibitions. (a) Never write that the benchmark gain IS an artifact -- the residual
+               survives with a bootstrap CI EXCLUDING zero, so it is small, not absent; "collapses
+               to a small residual" is correct and "collapses to zero" or "vanishes" would be false.
+               (b) Never generalise it across benchmarks -- the same rule recovers 99.2% on
+               LeCaRDv2, 84.3% on LeCaRDv1, and is OUT OF SPEC on CAIL2022. (c) Do not quote the
+               parenthetical "about a quarter" as a standalone figure; its referent is not
+               resolvable from the abstract alone and nobody here has read the body.
+               WHY IT EARNS THE SLOT: it is the structural precedent for the world-fixed
+               decomposition, and it is what lets the novelty claim be made by CONTRAST rather than
+               by assertion. Their confounding construct is written into the dataset and is external
+               to the system under test, so it can be held fixed from outside; the antecedent here
+               is written by the governed generation itself, which is the difference section 7
+               demonstrates when the obvious repair fails.}
+}

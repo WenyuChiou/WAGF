@@ -1,0 +1,461 @@
+# When the Guardrail Works, the Measurement Misleads: Conformance Rates for Agents That Report Their Own State
+
+
+
+
+
+
+## Abstract 
+
+Governance layers for language-model agents report success as a conformance rate. We show that
+rate is least trustworthy on exactly the runs where the governance worked, and that no deceptive
+agent is needed to make it so. Some of these rules condition on a state the agent itself reports
+rather than on one the environment records. A norm of that kind has no observation channel independent of the process it governs, so
+enforcement rewrites the distribution of its own antecedent and the reported gain cannot be separated
+into behaviour and composition by that statistic. We measure the consequence on paired runs with
+validators and without, over {{CLAIM:n_model_configs}} model configurations in two agent testbeds.
+The conditioning variable moves further than the rate it supports, by
+{{CLAIM:anchor_conj_delta_bare}} on the rule's two-part antecedent and
+{{CLAIM:anchor_high_delta_bare}} on the scarcity conjunct the published statistics condition on,
+in the anchor configuration, and the movement is composition of
+world states rather than an agent working around the rule: holding the simulator-recorded world fixed
+leaves {{CLAIM:world_residual_coarse}} at {{CLAIM:world_coverage_coarse}} coverage and
+{{CLAIM:world_residual_finest}} at the finest stratification. An honest agent is enough to break the
+statistic; no assumption of deception is needed. On one configuration the whole
+apparent gain is composition, {{CLAIM:b12_cond_delta_bare}} conditional falling to
+{{CLAIM:b12_uncond_delta}} over a denominator fixed by design, on three seeds. Moving the antecedent to world
+state is tested here and fails. Report the conditioning variable's prevalence in both arms beside
+every conformance rate, and log the world state a self-reported antecedent refers to.
+
+## 1 Introduction 
+
+Runtime governance layers for language-model agents are proliferating, and most share one shape. A
+rule fires on a proposed action, the agent is told which rule it broke, and it is asked to try again.
+AgentSpec [1], NeMo Guardrails [2], PolicyGuard [3] and SAVeR [4] all work this way, and all report
+success as a conformance number, violations before enforcement against violations after. The shape is
+older than the systems: normative multi-agent systems treated norm enforcement as a design problem in
+its own right [5], and AMELI [6], OperA [7] and MOISE+ [8] each built an institution around it more
+than two decades ago.
+
+What a conformance number measures depends on what the norm reads. A rule can condition on state the
+environment records, a budget or an allocation cap, or on state the agent itself reports in the
+generation being judged, how severe it says a shortage is. We are not aware of an evaluation of the
+second case, and it is the one this paper is about.
+
+Enforcing over model-authored state is not new and we do not claim it. AgentSpec's rule language [1]
+places no constraint on what a predicate may read, so a rule firing on a self-reported appraisal is
+well formed in it today, and SAVeR [4] (Self-Audited Verified Reasoning) already checks an agent's
+internal belief states before an action commits. What follows is an evaluation result, not a
+mechanism, and the property that sets the self-reported case apart is not the obvious one.
+
+It is not endogeneity. A predicate over program state after an agent has
+edited files is treatment-affected as well; Gao et al. [9] name post-treatment risk-set bias in agentic
+code repair, the classical problem of adjusting for a treatment-affected variable [10], and offer a
+remedy, branching from frozen common states, available because their conditioning variable is
+external to the generation. A world predicate has an observation channel independent of what the
+agent writes, since the state can be frozen and re-entered. A self-reported predicate has only the
+generation being governed. Enforcement rewrites the distribution of its own antecedent and cannot be
+made not to, since freezing the appraisal destroys the thing being measured.
+
+This paper reports four results. The conditioning variable moves further than the conformance rate it
+supports (§4). The movement is composition of world states rather than an agent working around the
+rule, measured in the anchor configuration by holding the simulator's own record of the world
+fixed (§5). On one configuration
+the whole apparent gain is composition (§6). The obvious repair, moving the antecedent to world
+state, is tested here and fails (§7).
+
+## 2 Setup 
+
+Both testbeds run the same governed loop. The agent returns an action and a self-reported appraisal of
+its situation in one generation, a validator stack screens the proposal against that appraisal and
+against the state the simulator recorded, and an ERROR-level violation returns the broken rule and
+re-prompts, up to {{CLAIM:retry_budget}} attempts, after which a domain default executes. The rule
+under study forbids an increase in demand when the reported water scarcity is high and the reported
+coping capacity is also high. That two-part condition is the rule's antecedent, what has to hold
+before the rule applies at all, and both halves of it are labels the agent writes in the generation
+being judged. The primary quantity below is the scarcity half alone, a superset of the antecedent and
+the one the published statistics condition on. §4 puts the coping half and the antecedent itself
+beside it.
+
+Irrigation is the primary testbed: 78 farm agents over 42 years, {{CLAIM:decisions_per_run}} decisions
+per run, a dual-appraisal theory of scarcity and coping, {{CLAIM:irrigation_action_count}} actions,
+and a water right capping what any agent may withdraw. A
+reservoir is coupled to those withdrawals, so an action in one year changes the state the next year's
+decision sees. Flood is the second testbed, Protection Motivation Theory [11] over
+{{CLAIM:flood_action_count}} actions on the same loop, a portability demonstration with no
+action-to-environment feedback and no standing as a control for enforcement pressure.
+
+The corpus holds {{CLAIM:n_model_configs}} model configurations from {{CLAIM:model_scope}}, each run
+with validators on and off, all nine in flood and five in irrigation, giving fourteen
+model × testbed cells. The two arms, validators on and validators off, are paired within a cell,
+{{CLAIM:n_seeds}} seeds in most and fewer in two irrigation cells, with *n* in Table 1.
+
+One decision shows what the published statistic counts. An agent reports high water scarcity and high
+coping capacity, and proposes an increase in demand. That combination is what the rule forbids, so
+the proposal is rejected, the agent is told which rule it broke, and it answers again. The statistic
+then asks, among the decisions where the agent reported high scarcity, how many still asked for more
+water. In the anchor cell, gemma3:4b on irrigation and the one §5 measures the mechanism on, the
+answer is {{CLAIM:anchor_cond_gov}}% with validators on and {{CLAIM:anchor_cond_nov}}% with them off.
+The set those two rates run over is not fixed. Decisions reporting high scarcity are
+{{CLAIM:anchor_high_gov}}% of all decisions with validators on and {{CLAIM:anchor_high_nov}}% with
+them off. §4 measures the gap between those two populations and §5 asks what opened it.
+
+
+
+**Figure 1.** The rate is computed inside a denominator the agent writes. Both arms run the
+same agents, years and seeds and differ only in whether the validators are enforced. The
+shaded part of each upper bar is the share of decisions where the agent reported high
+scarcity, drawn to scale; the lower bars are the share of those decisions that still asked for
+more water. The reported gap compares two sets of decisions that are not the same size, and
+what the agent said is what decides which decisions are in each.
+
+## 3 The two rule layers separate 
+
+Only part of the stack reads what the agent says, and the paper needs that part isolated.
+World-feasibility rules read
+state that the simulator records and the agent does not author, such as a water-right allocation cap,
+an aggregate demand ceiling, or a curtailment level. Theory-coherence rules read the agent's own
+reported appraisal, the scarcity and coping labels written in the same generation that chooses the
+action. A distinction of this kind is presentational unless the layers behave differently in the data,
+so we measure it first.
+
+At the layer level the corpus separates them cleanly. In the anchor cell (five seeds,
+{{CLAIM:anchor_arm_n}} decisions per arm) the validators-off arm rejects {{CLAIM:novrej_pct}}
+of decisions, and all {{CLAIM:novrej_count}} are a bare precondition failure with no validator rule
+evaluated. The validators-on arm rejects {{CLAIM:govrej_pct}}, and all {{CLAIM:govrej_count}} of those
+name a validator rule, none of them a bare precondition (Figure 2a). The split is exact in
+{{CLAIM:rule_purity}} irrigation model-arm cells (Figure 2b), over governed rejection rates spanning
+{{CLAIM:govrej_range}} and validators-off rates spanning {{CLAIM:novrej_range}}, both pooled across
+seeds.
+
+Layer-level separation does not make the governed rejections behavioural theory. The validator stack
+carries rules of both kinds and the
+rejections divide accordingly: {{CLAIM:appraisal_conditioned_pct}} of the {{CLAIM:govrej_count}} name
+at least one rule whose antecedent is the reported appraisal, and the remaining
+{{CLAIM:world_conditioned_pct}} name only world-conditioned rules. Every claim that follows concerns
+the appraisal-conditioned subset, a minority of the enforcement a reader would see summarised as one
+rejection rate, and the arm it is compared against is not unconstrained either.
+
+The water-right precondition still binds without validators, and it binds on exactly the action the
+conformance statistic counts. It is attached to the two
+increase skills and to no other skill in the registry, so the {{CLAIM:novrej_increase_pct}} of
+validators-off rejections that are increase proposals (Figure 2c) follows from the configuration
+rather than from behaviour. In the anchor cell the constraint does real work,
+with {{CLAIM:atcap_noval_pct}} of validators-off agent-years sitting at or above 99% of the water
+right against {{CLAIM:atcap_gov_pct}} with validators on. The other four configurations are not like
+this, with validators-off rejection rates from {{CLAIM:novrej_range_excl_anchor}}, so any statement
+that both arms reject a large share holds for the anchor cell and nowhere else.
+
+The two layers also do not block the same actions. Across the five irrigation configurations,
+{{CLAIM:govrej_increase_pct}} of validators-on rejections fall on increase proposals and
+{{CLAIM:govrej_decrease_pct}} on decrease proposals, which the world layer has no precondition for at
+all. The appraisal-conditioned layer is measurable, and it is the only part of the stack whose
+antecedent the agent writes. The rest of the paper is about that part.
+
+
+
+**Figure 2.** What causes a rejection, by arm and by rule kind, in the irrigation testbed across five
+LLM configurations. (a) Anchor cell, gemma3:4b, five seeds, {{CLAIM:anchor_arm_n}} decisions per arm:
+every validators-off rejection is the water-right allocation-cap precondition with no validator rule
+evaluated, and every validators-on rejection names a validator rule,
+{{CLAIM:appraisal_conditioned_pct}} of them a rule whose antecedent is the agent's own reported
+appraisal. (b) The same decomposition for all five configurations, exact in {{CLAIM:rule_purity}}
+model-arm cells. (c) Proposed action of the rejected decisions, split by causing rule kind and pooled
+over the five configurations; the near-total increase share of validators-off rejections follows from
+the precondition being attached only to the two increase skills. Counts are pooled
+across seeds; this is a decomposition, not a paired contrast, so no confidence intervals are
+attached. An asterisk on a configuration marks ministral3:8b, whose arms are unbalanced; the
+decomposition is unaffected, since it is a per-arm composition rather than a paired contrast.
+
+## 4 The conditioning variable moves 
+
+
+
+The conditioning variable moves further than the rate it supports. In the anchor cell that is
+{{CLAIM:anchor_high_delta}} on prevalence against {{CLAIM:anchor_cond_delta}} on the rate. Only the
+smaller is normally reported. Without the larger one a lower violation rate cannot
+be told from a smaller and differently composed set of decisions entering the rule's scope.
+
+Coping moves too, so neither half describes the antecedent on its own. It is reported high in
+{{CLAIM:anchor_cope_gov}}% of governed anchor decisions against {{CLAIM:anchor_cope_nov}}% without
+validators, {{CLAIM:anchor_cope_delta}}, and the conjunction the rule fires on runs
+{{CLAIM:anchor_conj_gov}}% against {{CLAIM:anchor_conj_nov}}%, {{CLAIM:anchor_conj_delta}}, a
+conditional gap of {{CLAIM:anchor_conj_rate_gap}}. A second enforced rule, on a very low reported
+scarcity over a disjoint set, moves {{CLAIM:anchor_r2_delta}}.
+
+The anchor cell is not special. Every irrigation cell moves the same way,
+{{CLAIM:irrigation_high_delta_range}} across the five,
+positive in all and *p* < 0.05 in each of the four with balanced seeds. The nine flood cells sit
+elsewhere, {{CLAIM:flood_high_delta_range}} pp, mostly null,
+{{CLAIM:flood_positive_count}} positive, one significant (gemma4:26b, {{CLAIM:flood_sig_cell}}), and
+enforcement is as far apart, {{CLAIM:gov_rej_range_irrigation_perseed}} of governed irrigation
+decisions rejected on Table 1's per-seed-mean basis against {{CLAIM:flood_pressure_range}} in flood,
+where the no-validator arm rejects {{CLAIM:flood_pressure_noval}}. We report a regime separation and
+claim no dose-response. Regime is perfectly confounded with testbed, so any pressure-to-shift relation
+across the fourteen cells describes two simulators as well as it describes pressure, and within
+irrigation it runs against what a pressure account needs. The near-null flood shifts show only that
+the irrigation pattern is not an artefact of the appraisal instrument or of one model family.
+Identification is in §5.
+
+**Table 1.** Prevalence of the conditioning variable and the conformance rate conditioned on it, both
+arms, all fourteen model × testbed cells. HIGH is the share of a run's decisions whose self-reported
+water-scarcity appraisal is high or very high, a superset of the rule's two-part
+antecedent. The conditional rate is the share of those decisions whose recorded action was a demand increase. It is not a norm-violation rate: an increase reported with high scarcity but not high coping falls outside the antecedent and breaks no rule. On and off are with and without validators, Δ is off minus on, so positive
+means the validators lowered the quantity. Cell values are means of per-seed rates, last-proposed
+reading, seed the inferential unit, df = *n* − 1. ministral3:8b is unbalanced and excluded from every
+paired test, point estimates shown. The nine flood cells share one line and carry no conformance rate.
+
+| testbed | model | *n* | HIGH, on | HIGH, off | Δ HIGH | cond., on | cond., off | Δ cond. |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| irrigation | gemma3:4b | 5 | 37.08 | 82.80 | **+45.73** | 36.05 | 59.07 | **+23.02** |
+| irrigation | gemma3:12b | 3 | 5.49 | 26.76 | **+21.27** | 5.45 | 16.89 | **+11.44** |
+| irrigation | gemma4:e2b | 5 | 18.26 | 65.79 | **+47.53** | 12.71 | 31.65 | **+18.94** |
+| irrigation | gemma4:e4b | 5 | 45.27 | 88.65 | **+43.38** | 23.67 | 41.08 | **+17.41** |
+| irrigation | ministral3:8b | 2 | 15.46 | 46.54 | +31.07 | 2.69 | 5.10 | +2.41 |
+| flood | 9 cells | 5 | — | — | −3.66 to +6.24 | — | — | — |
+
+
+
+## 5 Why it moves — the mechanism 
+
+In the anchor cell the shift in the conditioning variable is composition of world states, not a
+change in what the agent says about a given world. The world the agent is reporting on — shortage
+tier, reservoir elevation, drought index — is written by the simulator, not by the generation under
+judgement, so it can be held fixed after the fact. That independence is from the generation and not
+from the treatment, which moved the reservoir and with it the distribution of the world state; §7
+turns on the second. Standardising both arms on a common distribution of that world state, so that
+like world is compared with like, leaves a residual near zero at every resolution the data supports.
+Against a raw gap in
+HIGH-appraisal prevalence of
+{{CLAIM:anchor_high_delta}}, holding shortage tier fixed leaves {{CLAIM:world_residual_coarse}}
+across {{CLAIM:world_coverage_coarse}} of the anchor corpus, and the finest stratification leaves
+{{CLAIM:world_residual_finest}} across {{CLAIM:world_coverage_finest}} of it. No resolution produces
+a residual larger than {{CLAIM:world_residual_max}}.
+
+Table 2 gives the ladder, a count and an interval on every rung. A stratum enters only if it holds
+40 decisions in each arm, so coverage falls as the strata get
+finer, and the finest rung speaks for a little under half the corpus on strata whose smallest
+comparable cell holds {{CLAIM:world_min_cell_finest}} decisions. Two of the four intervals exclude
+zero, both below it: the governed arm reports more scarcity than the no-validator arm for the same
+recorded world, the opposite direction from an agent restating its premise to escape the rule.
+
+**Table 2.** The appraisal shift under stratification on the simulator-recorded world state. Anchor
+cell, five paired seeds, raw shift with the world not held fixed **+45.73 pp**. Residual =
+(no-validator) − (with-validators) in HIGH-appraisal prevalence, percentage points, both arms
+standardised on the pooled stratum distribution. Standardising on either arm's own distribution
+instead moves a residual by at most {{CLAIM:world_weighting_swing}}. n is the smallest and largest
+per-arm cell on the rung. The last column recomputes the residual inside each seed and takes a paired
+interval, df = 4. Curtailment ratio is collinear with tier and adds no stratum.
+
+| world held fixed at | strata | n per stratum | coverage | residual | per-seed mean (95% CI) |
+|---|---:|---:|---:|---:|---:|
+| shortage tier | 4 | 858–12,558 | 100.0% | −2.53 | −3.12 (−5.56, −0.68) |
+| tier + Mead elevation, 25 ft | 7 | 78–4,602 | 81.9% | −4.47 | −4.95 (−8.29, −1.62) |
+| tier + Mead 10 ft + drought decile | 19 | 78–1,326 | 50.5% | +0.57 | −0.53 (−4.32, +3.25) |
+| tier + Mead + drought + agent cluster | 19 | 67–1,139 | 43.4% | +0.21 | −0.87 (−4.94, +3.19) |
+
+What the stratification leaves as the explanation is where each arm spends its run. The governed arm
+takes {{CLAIM:tier0_gov_share}} of its decisions in shortage tier 0, the tier in which no shortage is
+declared. The no-validator arm takes {{CLAIM:tier3_noval_share}} of its decisions in tier 3, severe
+shortage. The two arms occupy different worlds, and within a world they report the same thing.
+
+What made the worlds differ is the reservoir (Figure 3b). The governed arm ends
+{{CLAIM:reservoir_final_gap}} higher on Lake Mead, {{CLAIM:reservoir_mean_gap}} averaged over the 42
+simulated years, both level gaps governed minus no-validator rather than the Δ convention above. The
+no-validator arm first touches the 895 ft floor in year
+{{CLAIM:noval_floor_years}} in all five
+seeds, and the governed arm reaches that floor in none of them. The divergence is the governance
+layer doing what it was installed to do, and in this cell it accounts for nearly all of the movement
+in the statistic used to certify it.
+
+In the anchor cell this is a stronger result than
+one in which the agent games the rule, since it needs no assumption of deception at all: a perfectly
+honest agent breaks the conformance statistic on its own, and does so because the enforcement moved
+the world the agent reports on. Whether the distortion scales with how far the world moved is not
+identified here.
+
+Two further comparisons agree with the decomposition. At year 1 the two arms' worlds are identical —
+exact string equality on all nine pre-decision columns over {{CLAIM:year1_matched_pairs}} matched
+anchor pairs, with the first disagreement on any of them at year {{CLAIM:year1_divergence_year}} —
+and the shift there is {{CLAIM:year1_high_delta}}, a null (Figure 3a).
+Year-1 retry pressure runs well above the all-years mean. {{CLAIM:year1_retried_pct}} of governed
+year-1 decisions were rejected and re-prompted at least once, against
+{{CLAIM:allyears_retried_pct}} over all 42 years, and {{CLAIM:year1_exhausted_pct}} of governed
+year-1 decisions ran to the end of the retry budget. Maximum pressure on an identical world moves the
+reported appraisal by nothing measurable. The gap is not monotone after year 1 either:
+{{CLAIM:postyear1_reversals}}, and years 2 to 11 are mixed in sign.
+
+The second comparison approaches from the opposite side. On decisions the governance loop never spoke
+to — no rejection, no re-prompt, no message of any kind — the shift is larger rather than smaller, in
+{{CLAIM:neverretried_larger_cells}} irrigation cells, the unbalanced one included since this
+comparison carries no interval (Figure 3c): {{CLAIM:neverretried_delta_anchor}} in the
+anchor cell against {{CLAIM:anchor_high_delta_bare}} over all of its decisions, and
+{{CLAIM:pooled_neverretried_delta}} against {{CLAIM:pooled_alldecisions_delta}} when pooled over all
+20 paired seeds. Selection on acceptance is not what produces the effect. The comparison bounds that
+concern rather than dismissing it. The stratum is not
+balanced across the two arms, and that caveat travels with the number — it covers
+{{CLAIM:neverretried_share_gov}} of governed decisions against {{CLAIM:neverretried_share_noval}} of
+no-validator ones, and the asymmetry is itself a consequence of enforcement.
+
+One quantity stays out of reach. The appraisal on record for a governed decision that was retried and
+then approved is selected on the rule that judged it, and the first attempt is not recoverable from
+this corpus (§8).
+
+
+
+**Figure 3. The world moved, and the reported appraisal followed it.** (a) Per-year gap in
+HIGH-appraisal prevalence over the 42 simulated years, band = 95% CI across seeds. At year 1 the two
+arms' worlds are identical on all nine pre-decision columns and the gap is
+{{CLAIM:year1_high_delta_bare}}, a null. The gap is not monotone afterwards, and the significant
+reversals are marked. (b) Lake Mead elevation, levels per arm rather than a
+Δ, with the 895 ft model floor the no-validator arm reaches in every seed and the governed arm in
+none. (c) The same prevalence gap on all decisions against the never-retried stratum, for the five
+irrigation configurations and pooled over the 20 paired seeds; it is larger on the never-retried
+stratum in every configuration. Δ = (no-validator) −
+(with-validators), so positive means the validators lowered the quantity. Panels a and b are the
+anchor cell (gemma3:4b, irrigation), five paired seeds; ministral3:8b in panel c is unbalanced and
+drawn without an interval.
+
+## 6 What it does to the statistic 
+
+
+
+Recomputed over a denominator the design fixes in advance — 78 agents by 42 years,
+{{CLAIM:decisions_per_run}} decisions per run in both arms, none of it authored by the model — the
+reported effect shrinks in every irrigation cell and on one of them disappears (Figure 4).
+
+On the anchor cell the effect survives de-conditioning almost intact,
+{{CLAIM:anchor_cond_delta_bare}} conditional against {{CLAIM:anchor_uncond_delta_bare}}
+unconditional, a gap of {{CLAIM:anchor_gap}}. The two gemma4 cells widen from there, gemma4:e2b from
+{{CLAIM:e2b_cond_delta}} to {{CLAIM:e2b_uncond_delta}} and gemma4:e4b from
+{{CLAIM:e4b_cond_delta}} to {{CLAIM:e4b_uncond_delta}}. gemma3:12b goes the whole way.
+
+On that cell the entire apparent effect is composition, {{CLAIM:b12_cond_delta}} becoming
+{{CLAIM:b12_uncond_delta}}. The conditioning variable's distribution moved and the increase rate over
+a fixed denominator did not, so a reader given only the conditional number would credit the
+governance layer with a behaviour change this corpus does not show.
+
+One cell stands outside all of this. ministral3:8b's arms are unbalanced,
+{{CLAIM:ministral_balance}}, so a paired test over seeds has nothing to pair, and it is excluded from
+every paired interval and significance test. The
+exclusion follows a design criterion applied in code before these rates were computed, and the cell is
+drawn without a confidence interval rather than dropped, so its conditional
+{{CLAIM:ministral_cond_delta}} and unconditional {{CLAIM:ministral_uncond_delta}} stay on the page,
+the sign reversal on that cell uninterpreted.
+
+The unconditional rate is not a corrected version of the conditional one. It answers how often the
+agent asked for more water out of every decision it made, not out of the decisions where it reported
+high scarcity. What survives de-conditioning on the anchor is a quantity of similar size, not the
+same quantity.
+
+Both rates use the LAST-PROPOSED action reading, the one the published statistics use. Substituting
+the executed action on rejected rows moves the gemma3:12b unconditional delta to
+{{CLAIM:b12_uncond_exec_delta}}, so the near-zero result on that cell belongs to the published reading
+and has to be reported as belonging to it.
+
+A denominator fixed by design also admits an external reference the conditional rate cannot use. The
+irrigation action set holds {{CLAIM:action_set_shape}}, so a uniformly random agent would propose an
+increase on {{CLAIM:uniform_null}} of its decisions. Without validators the unconditional rate sits
+far above that null ({{CLAIM:anchor_uncond_nov}}, {{CLAIM:nov_null_t}}, 95% CI
+{{CLAIM:nov_null_ci}}). With validators it cannot be distinguished from it
+({{CLAIM:anchor_uncond_gov}}, {{CLAIM:gov_null_t}}, 95% CI {{CLAIM:gov_null_ci}}). No such comparison
+exists for the conditional rate, whose denominator is written by the process under evaluation. The
+null is weak and bounds the direction only: a marginal rate at chance means no net pull toward
+increases, not that governed behaviour is random.
+
+
+
+
+
+**Figure 4.** Removing the conditioning shrinks the reported effect, and on one configuration removes
+it entirely. Every irrigation cell carries two estimates of the governance effect on the increase
+rate: the published conditional statistic (increases among decisions the agent itself labelled high
+water scarcity, solid) and the unconditional statistic over the design-fixed denominator of 78 agents
+by 42 years (hatched). Delta = (no-validator) minus (with-validators), so a positive value means the
+validators lowered the increase rate; bars are two-sided 95% confidence intervals from a paired t-test
+on the per-seed deltas, df = n − 1, the seed being the inferential unit. The action reading is
+LAST-PROPOSED. gemma3:12b (shaded) is the one cell where the whole apparent effect is composition.
+ministral3:8b is unbalanced and drawn unfilled without an interval rather than dropped. The
+unconditional rate is a different estimand shown as a decomposition term, not a corrected effect size.
+
+## 7 What to do instead 
+
+The obvious repair fails, and we tested it on the anchor cell. Condition the norm on world state
+instead of on what the agent says, and the antecedent moves as much or more: shortage tier 2 or worse
+shifts {{CLAIM:world_tier2_shift}} against the self-reported conjunct's
+{{CLAIM:anchor_high_delta_bare}}, tier 1 or worse and a nonzero curtailment ratio each shift
+{{CLAIM:world_tier1_curtail_shift}}, and a drought index at or above 0.5 shifts
+{{CLAIM:world_drought_shift}}. The world state is not written by the generation, which is what let §5
+hold it fixed, and it is still downstream of the treatment. Nothing in a coupled system sits upstream
+of the intervention, so the repair buys a differently observed conditioning variable rather than a
+steadier one. It is the first fix a reader proposes, and it now has a measurement behind it.
+
+Three things survive, and a practitioner can do all of them tomorrow. Report the conditioning
+variable's prevalence in both arms beside every conformance rate. It is one extra number, almost never
+reported, and the studies that produced this corpus did not report it either.
+
+If a norm reads a state the agent reports, log the independent world state that report is about.
+Without it the number cannot be decomposed at all. §5's stratification ran only because the simulator
+happened to write shortage tier, reservoir elevation and drought index to a record the generation
+never touches. A deployment that logs rule fires, retries and outcomes and nothing in that role
+carries the same shift with no way to find it.
+
+Where a design fixes a denominator, report the rate over it beside the conditional one, and say
+plainly that it is a different estimand rather than a corrected effect size. The two answer different
+questions, and on one configuration they disagree completely.
+
+The point outlasts this testbed. Where the antecedent of a rule is written by the process the rule
+governs, the only available control is to detect a violation after the fact, and detection of that
+kind moves the thing it detects.
+
+## 8 Limitations and what would settle it 
+
+The appraisal on record for a governed decision that was retried and then approved comes from the
+accepted generation, so it is selected on the rule that judged it. That stratum is
+{{CLAIM:acceptance_selection_pct}} of governed decisions and its first attempt is not in the shipped
+corpus, checked three ways, all negative. The never-retried stratum bounds it: no appraisal there was
+rewritten, and the shift is larger, {{CLAIM:neverretried_delta_anchor}} against
+{{CLAIM:anchor_high_delta_bare}} in the anchor cell and in {{CLAIM:neverretried_larger_cells}}
+irrigation cells.
+
+Stratification buys resolution with coverage, the finest strata reaching
+{{CLAIM:world_coverage_finest}} of the anchor corpus against {{CLAIM:world_coverage_coarse}} at the
+coarse ones. The corpus covers {{CLAIM:model_scope}} and no frontier models, and both size endpoints are
+flood-only. Whether the finding is architectural rather than a capability limit is untested here.
+Regime is perfectly confounded with testbed, so identification runs within irrigation and no
+cross-testbed contrast carries an inference. One irrigation configuration is unbalanced,
+{{CLAIM:ministral_balance}}, excluded from every paired interval and test. Flood carries three
+provenance defects: audit coverage of the per-run denominator runs {{CLAIM:flood_coverage_range}}, by
+design rather than by loss; manifest seeds disagree across arms in
+{{CLAIM:flood_manifest_disagree}}, where pairing is by run index; and one governed gemma3:4b run used
+a shorter prompt than the other four in its cell. None bears on irrigation.
+
+Two missing arms would settle the rest: one logging the first-attempt appraisal before the retry loop
+can rewrite it, the other running enforcement with the environment pinned to the untreated
+trajectory. Neither exists here. This is one implementation on one governance stack, and the
+inference backend is not deterministic at a fixed seed, so every comparison is an N-seed aggregate.
+
+## Artifact availability 
+
+On acceptance we will release the analysis code, the derived data, and the configuration of both
+arms. One command regenerates every table and figure here from the derived data, with no GPU and no
+network; the decision corpus is not released, so the derivation from raw traces is documented rather
+than runnable. The
+derived data are the machine-readable per-cell table behind Table 1 and the plotted values behind all
+three figures. The arm configurations are the validator rule set, the skill registry, the agent-type
+definitions and the prompt templates the runs used. The decision corpus carries no licence, its provenance is
+unresolved on the points §8 records, and the run manifests record a modified working tree wherever
+they record one, so no commit-level reproducibility claim is supported.
+
+
+
+## References 
+
+
+
+
+
+
+
+
+
