@@ -492,6 +492,31 @@ class GenericAuditWriter:
         if config.clear_existing_traces:
             raw_dir = self.output_dir / "raw"
             if raw_dir.exists():
+                # Refuse to clear the traces of a COMPLETED run. A manifest is written only
+                # by _finalize_experiment, so its presence means this directory already
+                # holds a finished experiment.
+                #
+                # Without this guard the sequence is: an operator mistypes one field of a
+                # launch command, points --output at a finished seed, and this loop unlinks
+                # that seed's raw/*_traces.jsonl seconds later. During a run the JSONL is
+                # the ONLY durable artifact -- the audit CSV, the manifest and the summaries
+                # are all written at finalize -- so ten hours of work is destroyed before
+                # anything has been produced to replace it. The runner does not refuse an
+                # existing --output, and e3_run_integrity.py never compares the manifest's
+                # seed to the directory name, so the result would also be certified under
+                # the wrong seed.
+                #
+                # Raising is the safe failure direction here: a false refusal costs an
+                # operator one rename, and the guard is trivially bypassed by pointing at a
+                # fresh directory, which is what was wanted anyway. Added 2026-08-06 after
+                # the hazard was found while seed 42 of a five-seed queue was still running.
+                if (self.output_dir / "reproducibility_manifest.json").exists():
+                    raise RuntimeError(
+                        f"{self.output_dir} already holds a completed run "
+                        f"(reproducibility_manifest.json is present). Refusing to clear its "
+                        f"raw/*_traces.jsonl. Point --output at a new directory, or move the "
+                        f"existing one aside first."
+                    )
                 for trace_file in raw_dir.glob("*_traces.jsonl"):
                     try:
                         trace_file.unlink()
