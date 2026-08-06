@@ -82,6 +82,65 @@
 >
 > Written 2026-08-06 on the author's explicit instruction, during the seed-42 first-attempt run.
 
+> ## ✅ SCOPE CONFIRMED — LLM arms only. No rule-based comparator. Author, 2026-08-06.
+>
+> **The ICLR paper uses the LLM experiments only: validator-on against validator-off, and
+> nothing else.** No rule-based agent, no fuzzy-Q, no non-LLM comparator of any kind.
+>
+> **This confirms the status quo — there is nothing to build or remove.** Verified 2026-08-06:
+> `manuscript.tex` returns **zero** matches for `rule-based|rulebased|fuzzy|q-learning|FQL|non-LLM`,
+> and `_data.py:173-176` already raises on any arm name other than `gov`/`noval`. The two audit
+> scripts under `SUBMISSION_2026/audit/` list `rulebased` in their *exclusion* tuples. Three
+> independent places in this repository already encode the refusal.
+>
+> ### Why the comparator is not merely absent but undefined
+>
+> This is worth recording so it is not re-opened. The paper's headline number is a rate whose
+> **denominator is written by the agent itself** — the share of decisions in which the agent
+> *reported* high scarcity. A non-LLM policy files no such report.
+>
+> The rule-based flood corpus (`examples/single_agent/results/rulebased/`) carries nine columns
+> and **not one of them is an appraisal**: `agent_id, year, decision, flooded_this_year, elevated,
+> has_insurance, relocated, trust_in_insurance, trust_in_neighbors`. The appraisal reader at
+> `_data.py:585-589` recognises only `wsa_label`, `construct_WSA_LABEL` and `construct_TP_LABEL`,
+> and would raise on every row. The Nature Water analysis hit the same wall and wrote it down:
+> `examples/single_agent/analysis/compute_flood_metrics.py:172-173`,
+> `# No threat_appraisal in rulebased` → `ibr_val = float("nan")`.
+>
+> So the answer to "should we add one" is not "not worth the effort". **It is that the quantity
+> does not exist for that arm.**
+>
+> ### What Nature Water does, and why it is not a precedent here
+>
+> NW gives **both** its cases a third non-LLM arm, but they are two different kinds of thing and
+> only one is rule-based:
+>
+> | NW case | third arm | what it is | validators |
+> |---|---|---|---|
+> | flood | rule-based PMT | standalone softmax-utility agent, 3 runs | **off** |
+> | irrigation | **FQL** | **fuzzy Q-learning — reinforcement learning, not a rule policy**, 10 seeds | **all 12 on** |
+>
+> `run_fql_baseline.py:7` states it: "Everything else is identical: ... **same 12 governance
+> validators**", and the shipped logs carry an `fql_blocked` column confirming enforcement was
+> active. NW's own Extended Data Table 1 footnote says two of its four behavioural metrics "are
+> not computed because 84–89% of FQL actions were rejected by governance".
+>
+> **A correction to a claim made during this audit:** a subagent reported that NW's Discussion
+> calls the FQL arm "a conservative rule-based baseline". **That is not reproducible in the
+> current drafts** — `rule-based` there refers consistently to the flood PMT agent, and Results
+> and SI Table 11 both label the irrigation arm "FQL baseline". The mislabel lives in
+> `run_fql_baseline.py:9` ("This produces a published rule-based baseline"), i.e. in code, not in
+> the paper. Worth fixing in the docstring; the manuscript needs nothing.
+>
+> ### One question this decision leaves open
+>
+> **The ICLR manuscript reports no flood result number at all.** `flood` appears four times and
+> every one is descriptive: the setting (`:28`), irrigation-is-primary (`:76`), an irrigation
+> result (`:93`), and a limitation (`:193`). The pipeline reaches **18 flood arm-cells** and the
+> manuscript reports none of them. That may be deliberate — flood as portability, not evidence —
+> but it is not stated anywhere, and a reviewer will ask why nine configurations were run and
+> none reported. **Not part of this decision; flagged for the next one.**
+
 Supersedes `workshop_skeleton.md` (which carries a retraction banner). Written 2026-07-31 after the
 materials audit, the mechanism falsification, and the psych-framing prior-art check.
 
