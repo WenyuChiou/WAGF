@@ -69,9 +69,9 @@ one exception and it is a pointer, not content.
    **Every entry must resolve to a DOI or arXiv ID you have actually retrieved.** This repository has
    a recorded incident of a subagent fabricating 30% of the references it added — 12 of 14 — despite
    being told to stop when a source could not be found.
-2. **The manuscript reports essentially no flood result**, while the pipeline reaches 18 flood
-   arm-cells. If that is deliberate — flood as portability, not evidence — **say so in the text**, or
-   a reviewer asks why nine configurations were run and none reported.
+2. **Report the flood result. It is the paper's answer to the most damaging objection available, and
+   right now it is being paid for and not used.** Expanded in §6 below — numbers, the blocker, and
+   the three disclosures that must travel with them.
 3. **Nothing watches the page count.** `SUBMISSION_2026/TAE/paper/submission_gate.py` hardcodes 8
    pages and TAE's CFP, reads only the TAE manuscript, and reports PASS for a venue that no longer
    exists. `submission/checks/manuscript_static_check.py` counts pages per figure, not for the
@@ -89,6 +89,99 @@ value. `NEEDS_VISUAL_REVIEW` would read correctly to both a human and a grep.
 The visual review itself is done: the figure reads correctly, the circularity is legible, and
 omitting the retry branch was the right call. One minor note — the Validator orange and the condition
 amber are close in hue for a colourblind reader, mitigated by their spatial separation.
+
+---
+
+---
+
+## 6. The flood arm — keep it, and start reporting it
+
+**The author asked whether flood should be dropped from ICLR. The answer is no, and the reason is
+that flood is the control that makes the irrigation result defensible.**
+
+### The objection flood answers
+
+A reviewer's cheapest attack on this paper is:
+
+> *Your +45.73 pp shift is an artefact of your framework. Of course a system that blocks a proposal
+> and re-asks produces different reports.*
+
+Flood is the same harness, the same governance code, the same audit path, the same appraisal column,
+on nine models in a different setting. **If the shift were an instrument artefact, flood would show
+it.** Measured, per-run-mean basis, `construct_TP_LABEL` in {H, VH}:
+
+| model | with validators | no validator | contrast |
+|---|---|---|---|
+| gemma3:4b | 32.46% | 31.30% | **−1.16** ← see the blocker below |
+| gemma3:12b | 2.55% | 0.93% | −1.63 |
+| gemma3:27b | 19.16% | 20.38% | +1.22 |
+| ministral3:3b | 31.19% | 31.04% | −0.15 |
+| ministral3:8b | 30.54% | 26.88% | −3.66 |
+| ministral3:14b | 19.45% | 19.92% | +0.47 |
+| gemma4:e2b | 27.42% | 28.39% | +0.97 |
+| gemma4:e4b | 43.48% | 49.71% | +6.24 |
+| gemma4:26b | 17.44% | 20.36% | +2.92 |
+
+**Flood spans −3.66 to +6.24, mean +0.58. Irrigation spans +21.26 to +47.53.** The two ranges do not
+touch; the gap between the largest flood contrast and the smallest irrigation one is **15 pp**.
+
+And the mechanism is visible rather than asserted: flood's enforcement blocks 0–0.85% of actions,
+irrigation's blocks 28–63%. **The shift tracks enforcement pressure, not the instrument.**
+
+### Why the current state is the worst of both
+
+The abstract already claims flood — `manuscript.tex:28`, *"across nine models … in irrigation and
+flood settings"*. **Note that "nine models" is the flood count; irrigation has five.** So dropping
+flood costs the model-diversity claim as well, and `:193` already concedes "the model set is small".
+
+Meanwhile the body reports no flood number. So the paper currently pays the *"why were nine
+configurations run and none reported"* question **and** forgoes the control's benefit. Either
+direction is better than where it sits.
+
+### 🔴 One blocker, and it must be decided before any flood number is printed
+
+`e2_flood_instrument.py` — the B5 gate that decides whether the two flood arms measured with the
+same instrument — returns **IDENTICAL INSTRUMENT** and rules that *"flood deltas MAY be printed, on
+the per-run-mean basis"*. The table above is on that basis; a pooled-row computation gives slightly
+different figures and should not be used.
+
+But its closing line is:
+
+> **B6 FLIPS THE SIGN of the gemma3:4b flood cell (−1.16 with Run_1, +0.35 without). B6 is no longer
+> a cheap disclosure — decide it BEFORE any flood number is printed.**
+
+B6 (`BACKLOG.md:70`): `JOH_FINAL/gemma3_4b/Group_C/Run_1` ran a **different prompt** — four response
+fields, no MULTI-ACTION block, 2,480 characters against 2,972 in the other runs.
+
+**The reassuring part: it does not threaten the argument.** −1.16 and +0.35 are both small and both
+sit well inside the flood range, so the separation from irrigation holds either way. What B6 blocks
+is *printing that one cell's number*, not the control claim.
+
+### Three disclosures the gate says must travel with any flood number
+
+Its words, not mine:
+
+- **(a)** the with-validators arm censors the appraisal on retry-exhausted rows — blank
+  `construct_TP_LABEL`, 100% `REJECTED_FALLBACK`. **Blanks are not HIGH and stay in the denominator.**
+- **(b)** the arms are **not contemporaneous** and some runs pin no commit. A provenance defect for
+  §8, already bounded in the gate's own §5.
+- **(c)** every label statistic must case-normalise. `_data.appraisal()` already does.
+
+### What I suggest, in one paragraph you can adapt
+
+> The same validator stack, applied in a setting where enforcement rarely binds, produces no
+> comparable shift. Across nine flood configurations the high-appraisal share contrast spans −3.66 to
+> +6.24 pp (mean +0.58), against +21.26 to +47.53 pp across the five irrigation configurations; the
+> ranges do not overlap. Flood governance rejects 0–0.85% of proposed actions and irrigation
+> governance rejects 28–63%. The shift therefore scales with enforcement pressure rather than with
+> the measuring apparatus, which the two settings share.
+
+### And there is no flood figure
+
+All three data figures are irrigation-only — `flood` appears zero times in `fig1_rule_layers.py`,
+`fig2_mechanism.py` and `fig3_consequence.py`. If you want the control to land visually rather than
+as a table, a single strip — nine flood contrasts against five irrigation contrasts on one axis,
+showing the gap — would do it in a quarter page. **Your call; I have not built one.**
 
 ---
 
