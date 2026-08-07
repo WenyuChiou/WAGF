@@ -283,3 +283,8 @@ docs/internal/
 # Manuscript language + multi-agent literature review
 examples/irrigation_abm/analysis/MANUSCRIPT_LANGUAGE.md
 examples/multi_agent/flood/docs/manuscripts/
+
+# OpenWiki generated wiki -- removed 2026-08-07. It was a generated
+# orientation layer that duplicated ARCHITECTURE.md and the source it
+# described, and went stale against HEAD with nothing enforcing a refresh.
+openwiki/
