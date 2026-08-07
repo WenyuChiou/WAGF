@@ -255,13 +255,3 @@ one). Other AI agents should treat this AGENTS.md section as the
 canonical routing guide.
 
 Full chooser table: [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md).
-
-<!-- OPENWIKI:START -->
-
-## OpenWiki
-
-This repository uses OpenWiki for recurring code documentation. Start with `openwiki/quickstart.md`, then follow its links to architecture, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-The OpenWiki wiki is currently updated manually (no scheduled workflow yet). Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting the wiki be regenerated.
-
-<!-- OPENWIKI:END -->
