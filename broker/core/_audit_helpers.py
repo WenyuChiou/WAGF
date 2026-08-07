@@ -90,6 +90,47 @@ def _safe_triggered_rules(all_validation_history) -> List[str]:
         return []
 
 
+def _sanitize_audit_segment(value) -> str:
+    """P0-1a: make a value safe to embed in a ``|``/``=`` delimited audit field.
+
+    The separators are replaced, NOT dropped, so a downstream ``.split("|")`` /
+    ``.split("=")`` can never mis-parse a record. This matters because
+    ``normalize_construct_value`` (broker/utils/normalization.py) returns the
+    RAW LLM string unchanged whenever it fails to match the canonical VL..VH
+    vocabulary, a custom mapping, or the regex-derived allowed values — so an
+    off-vocabulary label can carry arbitrary characters straight through to
+    here. Silent ambiguity in exactly the columns that exist to make the
+    "governance changed the action" metric trustworthy would be the worst
+    possible failure mode, hence substitution rather than best-effort joining.
+    """
+    return str(value).replace("|", "/").replace("=", ":")
+
+
+def _extract_construct_labels(skill_proposal) -> str:
+    """P0-1a: pipe-joined ``KEY=VALUE`` of a proposal's ``*_LABEL`` reasoning keys.
+
+    Used to snapshot the FIRST attempt's appraisal labels before the governance
+    retry loop reassigns ``skill_proposal``, so appraisal drift across retries
+    is measurable. Returns "" for a missing proposal, missing/invalid reasoning,
+    or a proposal carrying no ``_LABEL`` keys — never raises, because this runs
+    on the audit path where a failure must not lose the decision record.
+
+    Key order follows the reasoning dict (insertion-ordered from the parser),
+    matching how ``_LABEL`` keys are surfaced elsewhere in the audit trace.
+    Keys and values are separator-sanitized (see ``_sanitize_audit_segment``).
+    """
+    if skill_proposal is None:
+        return ""
+    reasoning = getattr(skill_proposal, "reasoning", None)
+    if not isinstance(reasoning, dict):
+        return ""
+    return "|".join(
+        f"{_sanitize_audit_segment(k)}={_sanitize_audit_segment(v)}"
+        for k, v in reasoning.items()
+        if isinstance(k, str) and k.endswith("_LABEL")
+    )
+
+
 def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
     """Extract structured social-context audit fields from a prompt context.
 
@@ -157,6 +198,10 @@ class AuditMixin:
         all_validation_history: List,
         executed_skill: Optional[str] = None,
         executed_via_fallback: bool = False,
+        initial_skill: Optional[str] = None,
+        initial_labels: str = "",
+        attempt_skills: Optional[List] = None,
+        advise_info: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -216,6 +261,39 @@ class AuditMixin:
         # PROPOSAL-stage value, kept distinct from the commit-stage world_<name>
         # columns so EXECUTED-ONLY analysis never conflates them. The legacy
         # magnitude scalars are skipped (already covered elsewhere).
+        # P0-1a: FIRST-ATTEMPT proposal columns, OPT-IN via
+        # global_config.audit.initial_proposal_columns (default OFF). Same
+        # key-gated discipline as executed_extra: flag-OFF emits no key -> no
+        # row key -> no new CSV fieldname -> frozen baselines byte-identical.
+        # Closes the proposal-stage gap: `skill_proposal` is reassigned on every
+        # governance retry, so proposed_skill/final_skill record the LAST
+        # attempt and compare equal on 100% of shipped rows. Pair with
+        # executed_skill_columns to measure initial -> executed.
+        initial_extra: Dict[str, Any] = {}
+        get_iflag = getattr(self.config, "get_audit_initial_proposal_columns", None)
+        if callable(get_iflag) and get_iflag():
+            initial_extra = {
+                "initial_skill": initial_skill,
+                "initial_labels": initial_labels,
+                # "" marks an unparsable attempt; order is attempt 0..N.
+                # Sanitized: skill_name is whatever the PARSER produced, which
+                # is not yet registry-validated at this point, so it is not
+                # guaranteed separator-free even though every shipped registry
+                # id is.
+                "attempt_skills": "|".join(
+                    _sanitize_audit_segment(s) if s else ""
+                    for s in (attempt_skills or [])
+                ),
+            }
+
+        # P0-1c: ADVISORY columns, OPT-IN via global_config.audit.advise_columns
+        # (default OFF). Same key-gated discipline: flag-OFF emits no key -> no row
+        # key -> no new CSV fieldname -> frozen baselines byte-identical.
+        advise_extra: Dict[str, Any] = {}
+        get_aflag = getattr(self.config, "get_audit_advise_columns", None)
+        if callable(get_aflag) and get_aflag() and advise_info:
+            advise_extra = dict(advise_info)
+
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)
         if (callable(get_pflag) and get_pflag()
@@ -286,6 +364,10 @@ class AuditMixin:
             # compute_csv_fieldnames appends these sorted-after-priority, so the
             # frozen column order is never reordered.
             **param_extra,
+            # P0-1a: first-attempt columns, spread last (same rationale).
+            **initial_extra,
+            # P0-1c: advisory columns, spread last (same rationale).
+            **advise_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

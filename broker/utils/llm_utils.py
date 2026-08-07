@@ -491,12 +491,34 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
         
         return invoke
-    except ImportError:
-        _LOGGER.warning("langchain-ollama not found. Falling back to mock LLM.")
-        return lambda p: ('{"decision": 1}', LLMStats())
+    # Both branches below previously returned ``lambda p: ('{"decision": 1}', LLMStats())``
+    # and logged a warning. That is not a fallback to the mock model -- the requested-mock
+    # path above parses the prompt and selects an option, while this constant answers every
+    # prompt in a run identically. A 42-year, 78-agent experiment would complete, write
+    # 3,276 rows, pass its row-count and join checks, and be indistinguishable from a real
+    # run in every artifact it produces.
+    #
+    # The failure direction was wrong. Constructing an LLM fails at startup or not at all,
+    # so raising costs an operator thirty seconds; the silent constant costs ten GPU-hours
+    # and yields a corpus that looks real. Verified before changing: no test and no caller
+    # depends on the old behaviour -- `test_mock_models_bypass_factory_and_ollama` asserts
+    # ollama is never touched for mock models, so it takes the branch above, and
+    # `test_cloud_provider_routing` installs a working fake.
+    #
+    # Reachability is not hypothetical: this environment already warns that Pydantic V1 is
+    # incompatible with Python 3.14, and any dependency update that turns that warning into
+    # an exception would, before this change, have silently converted every subsequent run
+    # into constant output. Corrected 2026-08-06.
+    except ImportError as e:
+        raise RuntimeError(
+            f"Cannot construct an LLM for model {model!r}: langchain-ollama is not "
+            f"importable ({e}). Install it, or pass a model name beginning with 'mock' "
+            f"if a mock run is what you want."
+        ) from e
     except Exception as e:
-        _LOGGER.warning(f"Falling back to mock LLM due to: {e}")
-        return lambda p: ('{"decision": 1}', LLMStats())
+        raise RuntimeError(
+            f"Cannot construct an LLM for model {model!r}: {e}"
+        ) from e
 
 
 def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLMInvokeFunc:

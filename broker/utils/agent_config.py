@@ -304,6 +304,214 @@ class AgentTypeConfig:
             return False
         return bool(block.get("param_columns", False))
 
+    def get_audit_initial_proposal_columns(self) -> bool:
+        """P0-1a (2026-07-29): opt-in FIRST-ATTEMPT proposal columns (default-OFF).
+
+        When ``global_config.audit.initial_proposal_columns: true``, every
+        trace carries three key-gated columns recording the agent's FIRST
+        proposal, before any governance retry:
+
+        - ``initial_skill``  -- the skill proposed on attempt 0 (``None`` if
+          that attempt failed to parse).
+        - ``initial_labels`` -- the attempt-0 construct labels (the
+          ``*_LABEL`` entries of the proposal's reasoning), pipe-joined as
+          ``KEY=VALUE`` pairs, so appraisal drift across retries is visible.
+        - ``attempt_skills`` -- every attempt's skill in order, pipe-joined
+          (``""`` marks an unparsable attempt).
+
+        WHY THIS EXISTS. ``skill_proposal`` is REASSIGNED on each governance
+        retry (``_retry_loop._governance_retry_loop``), so both the CSV's
+        ``proposed_skill`` and the JSONL's ``skill_proposal`` record the LAST
+        (post-retry) proposal. Measured over the shipped corpus,
+        ``proposed_skill == final_skill`` on 100% of rows in all three
+        reference domains despite heavy retrying, which makes any
+        "governance changed the action" metric defined as
+        proposed != final identically zero. These columns restore the
+        proposal-stage truth that comparison needs; pair them with
+        ``executed_skill_columns`` (F3) to measure initial -> executed.
+
+        OPT-IN, default-OFF by byte-identity necessity, exactly as for
+        ``executed_skill_columns`` and ``param_columns``: CSV fieldnames derive
+        from row keys, so flag-OFF emits no key and frozen-baseline reruns
+        (v21 / paper-3 mock) stay byte-identical. Enable for ALL NEW runs.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("initial_proposal_columns", False))
+
+    def get_audit_advise_columns(self) -> bool:
+        """P0-1c: opt-in ADVISORY audit columns + per-decision LLM call counter.
+
+        When ``global_config.audit.advise_columns: true`` every trace carries the
+        advisory payload (``advise_mode``, ``advisory_fired``, ``advisory_llm_calls``,
+        ``advisory_rules``, ``advisory_skill_before`` / ``_after``,
+        ``advisory_changed_action``, ``advisory_parse_failed``,
+        ``advisory_reports_shown``, ``advisory_prompt_chars``, ``post_advice_rules``)
+        plus an ``llm_calls`` entry inside ``llm_stats``.
+
+        ``llm_calls`` is the load-bearing one: sample-matching between the advise and
+        placebo arms is the assumption the whole enforcement decomposition rests on,
+        so it is MEASURED per decision rather than asserted in the Methods.
+
+        OPT-IN, default-OFF by byte-identity necessity, exactly as for
+        ``executed_skill_columns`` and ``initial_proposal_columns``.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("advise_columns", False))
+
+    def get_governance_on_retry_exhausted(self) -> str:
+        """What executes when governance retries are exhausted: a MODEL-BUILDER choice.
+
+        ``"default"`` (the default) — execute the registry ``default_skill``. This is
+        the historical, hardcoded behaviour and stays bit-for-bit unchanged.
+
+        ``"keep_proposal"`` — execute the agent's FINAL FAILED PROPOSAL instead.
+
+        Why this is configurable rather than a framework constant: the two shipped
+        water domains want opposite things. The flood study treats a persistent
+        rule-violating choice as the observable it exists to measure, so overwriting
+        it with a default destroys the datum. Irrigation is an enforced-allocation
+        domain that would not converge if agents could keep taking water they were
+        denied, so it wants the default.
+
+        SCOPE. ``keep_proposal`` applies ONLY to ``SkillOutcome.REJECTED`` — a real
+        proposal that failed validation. ``UNCERTAIN`` (the parser never produced a
+        usable proposal) always uses the default: there is no agent choice to
+        preserve, and executing a parser artefact is strictly worse.
+
+        SAFETY, and read this before enabling it. ``keep_proposal`` executes an
+        action that JUST FAILED VALIDATION, unvalidated. That directly trips the
+        revisit trigger of accepted risk AR-1 in ``broker/INVARIANTS.md`` ("any
+        domain configures a substantive, state- or world-mutating fallback"), whose
+        safety argument was that every shipped default is a no-op. Enabling it is
+        therefore a statement that, for THIS domain, the rules that can block are
+        behavioural-theory rules whose violation is incoherent but possible — not
+        world-affordance rules whose violation is impossible. A domain that mixes
+        both must either keep the default policy or guarantee an independent
+        execution-layer guard.
+
+        It is REFUSED outright when the coupling layer is enabled (AR-2): a rejected
+        proposal that reaches ``ControlSink.apply`` / ``commit_world_delta`` would
+        commit a rule-violating value to a physical model with no governance at all,
+        which is the one thing this framework claims it does not allow.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return "default"
+        policy = str(gov.get("on_retry_exhausted", "default")).strip().lower()
+        if policy not in {"default", "keep_proposal"}:
+            raise ValueError(
+                f"global_config.governance.on_retry_exhausted {policy!r} "
+                "not in ['default', 'keep_proposal']"
+            )
+        if policy == "keep_proposal":
+            coupling = self._config.get("global_config", {}).get("coupling", {})
+            if isinstance(coupling, dict) and coupling.get("enable", False):
+                raise ValueError(
+                    "global_config.governance.on_retry_exhausted='keep_proposal' is "
+                    "not permitted while global_config.coupling.enable is true. A "
+                    "rejected proposal would reach the external model's ControlSink "
+                    "ungoverned and commit a rule-violating value to the world "
+                    "(broker/INVARIANTS.md accepted risk AR-2)."
+                )
+        return policy
+
+    def get_governance_advise(self) -> Optional[Dict[str, Any]]:
+        """P0-1c: the ADVISE arm spec, or None (default) meaning OFF.
+
+        YAML surface, entire block absent by default::
+
+            global_config:
+              governance:
+                advise:
+                  mode: advise          # advise | placebo | resample | wrapper | off
+                  rule_ids: [rule_a, rule_b]
+                  placebo_text: "A governance rule was triggered by this decision."
+
+        ``rule_ids`` is an explicit ALLOWLIST of rule ids whose blocking results are
+        demoted to non-blocking advisories (see :mod:`broker.core._advise`). It fails
+        CLOSED — an unlisted rule keeps blocking — and it is keyed on rule id rather
+        than validator name so it also reaches domain custom validators.
+
+        Validated eagerly and loudly, because a silently-misspelled arm config would
+        produce a scientifically wrong run that still looks healthy:
+        unknown mode, non-list / empty ``rule_ids``, and any id in
+        :data:`broker.core._advise.ADVISE_DENY` all raise ValueError here.
+
+        Default-OFF by byte-identity necessity: no block -> None -> empty allowlist
+        -> ``demote()`` returns the same list object -> frozen baselines unchanged.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return None
+        spec = gov.get("advise")
+        if spec is None:
+            return None
+        if not isinstance(spec, dict):
+            raise ValueError(
+                f"global_config.governance.advise must be a mapping, got {type(spec).__name__}"
+            )
+        mode = str(spec.get("mode", "advise")).strip().lower()
+        valid_modes = {"advise", "placebo", "resample", "wrapper", "off"}
+        if mode not in valid_modes:
+            raise ValueError(
+                f"global_config.governance.advise.mode {mode!r} not in {sorted(valid_modes)}"
+            )
+        rule_ids = spec.get("rule_ids")
+        if mode != "off":
+            if not isinstance(rule_ids, list) or not rule_ids:
+                raise ValueError(
+                    "global_config.governance.advise.rule_ids must be a non-empty list "
+                    f"when mode={mode!r}; got {rule_ids!r}"
+                )
+            from broker.core._advise import ADVISE_DENY
+            denied = sorted(set(map(str, rule_ids)) & ADVISE_DENY)
+            if denied:
+                raise ValueError(
+                    f"global_config.governance.advise.rule_ids may not contain {denied} "
+                    "— these are hard feasibility gates that must always block."
+                )
+        return {
+            "mode": mode,
+            # mode="off" FORCES an empty allowlist. Without this, an arm authored as
+            # the no-op control by flipping only `mode` while leaving `rule_ids`
+            # populated would still demote those rules at _run_validators -- they
+            # would stop blocking AND the advisory pass would never fire, so the
+            # model would be told nothing. That is precisely the "WARNING has no
+            # channel to the model" defect this whole feature exists to remove,
+            # silently reintroduced inside the control arm.
+            "rule_ids": [] if mode == "off" else [str(r) for r in (rule_ids or [])],
+            "placebo_text": spec.get(
+                "placebo_text", "A governance rule was triggered by this decision."
+            ),
+        }
+
+    def get_governance_intervention_framing(self) -> str:
+        """P0-1c: retry/advisory prompt framing — ``legacy`` (default) or ``neutral``.
+
+        ``legacy`` reproduces the shipped retry prompt byte-for-byte and stays the
+        default forever, so every published arm-C prompt is unchanged.
+
+        ``neutral`` is opt-in and used by the NEW 7-arm runs. It replaces the
+        "was BLOCKED" verb with a disposition-free one and suppresses the optional
+        Suggestion line, so the text an agent sees is IDENTICAL in the advise,
+        placebo and enforce arms — making the enforce-minus-advise contrast pure
+        enforcement with zero wording delta.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return "legacy"
+        framing = str(gov.get("intervention_framing", "legacy")).strip().lower()
+        if framing not in {"legacy", "neutral"}:
+            raise ValueError(
+                f"global_config.governance.intervention_framing {framing!r} "
+                "not in ['legacy', 'neutral']"
+            )
+        return framing
+
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
         # 1. Check Global Config
@@ -883,7 +1091,10 @@ class AgentTypeConfig:
     def get_identity_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get identity/status rules."""
         cfg = self.get(agent_type)
-        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        # Guarded too: this accessor runs on EVERY step, whereas the thinking-rule
+        # accessor is skipped when a proposal's reasoning failed to parse. Guarding
+        # only that one would leave an undeclared profile reachable for a whole run.
+        profile = self._resolve_governance_profile(agent_type, cfg)
 
         # Task 015 fix: Look in both locations for governance rules
         # 1. Top-level governance section: governance.{profile}.{agent_type}.identity_rules
@@ -958,10 +1169,65 @@ class AgentTypeConfig:
 
         return issues
 
+    def get_governance_require_profile(self) -> bool:
+        """P0-1c: opt-in fail-loud on an undeclared GOVERNANCE_PROFILE (default False).
+
+        ``get_thinking_rules`` silently falls back to the ``default`` profile, and
+        then to agent-type-level rules, when the requested profile is not declared.
+        For ordinary runs that is forgiving; for an experiment sweep it is a trap —
+        a typo'd arm name runs the WRONG RULE SET and the run still looks healthy,
+        producing scientifically wrong data with no error anywhere.
+
+        Set ``global_config.governance.require_profile: true`` in every arm config.
+        Default-OFF so no frozen run changes behaviour.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return False
+        return bool(gov.get("require_profile", False))
+
+    def _resolve_governance_profile(self, agent_type: str, cfg: Dict[str, Any]) -> str:
+        """Resolve GOVERNANCE_PROFILE, failing loudly on an undeclared name (opt-in).
+
+        MUST be called by EVERY rule accessor, not just one. Both
+        ``get_thinking_rules`` and ``get_identity_rules`` silently fall back to the
+        ``default`` profile when the requested one is undeclared, and they are
+        reached by different paths:
+
+        * ``get_identity_rules`` runs UNCONDITIONALLY on every step (skill filtering
+          and ``validate_identity``);
+        * ``get_thinking_rules`` runs only ``if reasoning:`` — and ``reasoning`` is
+          legitimately ``{}`` whenever a small local model's structured reasoning
+          block fails to parse.
+
+        So guarding only the thinking path leaves a real hole: a typo'd profile plus
+        a parse-failure step completes the whole run on the wrong rule set with no
+        error anywhere — the exact silent-wrong-data failure this guard exists to
+        close. Centralised here so a future accessor cannot forget it.
+        """
+        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        if profile == "default" or not self.get_governance_require_profile():
+            return profile
+        # Mirror the resolver's own lookup: the top-level form nests the agent_type
+        # UNDER the profile, so a profile declared for another agent_type must not
+        # count as declared for this one.
+        top_level = self._config.get("governance", {}) or {}
+        declared = {p for p, body in top_level.items()
+                    if isinstance(body, dict) and agent_type in body}
+        declared |= set(cfg.get("governance", {}) or {})
+        if profile not in declared:
+            raise ValueError(
+                f"GOVERNANCE_PROFILE={profile!r} is not declared for agent_type "
+                f"{agent_type!r} (declared: {sorted(declared)}). "
+                "global_config.governance.require_profile is on, so this fails "
+                "rather than silently falling back to the 'default' rule set."
+            )
+        return profile
+
     def get_thinking_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get cognitive/thinking rules."""
         cfg = self.get(agent_type)
-        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        profile = self._resolve_governance_profile(agent_type, cfg)
 
         # Task 015 fix: Look in both locations for governance rules
         # 1. Top-level governance section: governance.{profile}.{agent_type}.thinking_rules

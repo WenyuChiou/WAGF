@@ -148,12 +148,15 @@ class TestSingleYearExecution:
     def test_single_year_completes(self, tmp_path):
         agents = {"a1": _make_agent("a1")}
         broker = _make_mock_broker()
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
         runner = ExperimentRunner(
             broker=broker, sim_engine=MagicMock(advance_year=lambda: {"current_year": 1}),
             agents=agents, config=config,
         )
-        # Patch llm_invoke to avoid real LLM creation
+        # NOTE: run(llm_invoke=...) does NOT avoid LLM creation -- the loop
+        # builds its own per-agent-type invokes via get_llm_invoke(). The
+        # model="mock" on the config above is what keeps this test off a real
+        # backend; see tests/core/test_llm_backend_absent.py.
         mock_invoke = MagicMock(return_value='{"decision": "do_nothing"}')
         runner.run(llm_invoke=mock_invoke)
 
@@ -162,7 +165,7 @@ class TestSingleYearExecution:
     def test_multi_year_processes_all_agents(self, tmp_path):
         agents = {f"a{i}": _make_agent(f"a{i}") for i in range(3)}
         broker = _make_mock_broker()
-        config = ExperimentConfig(num_years=2, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=2, output_dir=tmp_path)
         sim = MagicMock()
         sim.advance_year.return_value = {"current_year": 1}
         runner = ExperimentRunner(
@@ -186,7 +189,7 @@ class TestHookOrdering:
         hook_log = []
         agents = {"a1": _make_agent("a1")}
         broker = _make_mock_broker()
-        config = ExperimentConfig(num_years=2, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=2, output_dir=tmp_path)
 
         runner = ExperimentRunner(
             broker=broker,
@@ -205,7 +208,7 @@ class TestHookOrdering:
         step_agents = []
         agents = {"a1": _make_agent("a1"), "a2": _make_agent("a2")}
         broker = _make_mock_broker()
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
 
         runner = ExperimentRunner(
             broker=broker,
@@ -225,7 +228,7 @@ class TestHookOrdering:
         post_step_called = []
         agents = {"a1": _make_agent("a1")}
         broker = _make_mock_broker({"a1": _make_rejected_result("a1")})
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
 
         runner = ExperimentRunner(
             broker=broker,
@@ -327,6 +330,7 @@ class TestPhaseExecution:
         broker.process_step.side_effect = track_process_step
 
         config = ExperimentConfig(
+            model="mock",
             num_years=1, output_dir=tmp_path,
             phase_order=[["government"], ["household"]],
         )
@@ -352,7 +356,7 @@ class TestStateChanges:
         result = _make_approved_result("a1", state_changes={"elevated": True})
 
         broker = _make_mock_broker({"a1": result})
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
         runner = ExperimentRunner(
             broker=broker,
             sim_engine=MagicMock(advance_year=lambda: {}),
@@ -368,7 +372,7 @@ class TestStateChanges:
         result = _make_rejected_result("a1")
 
         broker = _make_mock_broker({"a1": result})
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
         runner = ExperimentRunner(
             broker=broker,
             sim_engine=MagicMock(advance_year=lambda: {}),
@@ -392,7 +396,7 @@ class TestInactiveAgents:
         a2.is_active = False  # Mark inactive
 
         broker = _make_mock_broker()
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
         runner = ExperimentRunner(
             broker=broker,
             sim_engine=MagicMock(advance_year=lambda: {}),
@@ -427,7 +431,7 @@ class TestExceptionHandling:
 
         broker.process_step.side_effect = process_step_side_effect
 
-        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        config = ExperimentConfig(model="mock", num_years=1, output_dir=tmp_path)
         runner = ExperimentRunner(
             broker=broker,
             sim_engine=MagicMock(advance_year=lambda: {}),
