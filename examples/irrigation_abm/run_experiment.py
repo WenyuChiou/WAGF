@@ -451,7 +451,24 @@ class IrrigationLifecycleHooks:
 def main():
     args = parse_args()
     base = Path(__file__).parent
-    config_dir = base / "config"
+    # --config-dir lets a campaign point at an ISOLATED copy of the config tree so new
+    # experiment arms never edit the frozen paper configs in examples/. Default is the
+    # in-tree config dir, so every existing invocation is unchanged.
+    config_dir = Path(args.config_dir).resolve() if args.config_dir else base / "config"
+    if args.config_dir:
+        # Every file this runner resolves off config_dir, so an incomplete copy is named
+        # up front in one message rather than crashing partway through setup on whichever
+        # file happens to be read first.
+        missing = [f for f in ("agent_types.yaml", "skill_registry.yaml",
+                               "prompts/irrigation_farmer.txt")
+                   if not (config_dir / f).exists()]
+        if missing:
+            raise SystemExit(
+                f"--config-dir {config_dir} is missing {missing}. An isolated config dir must be "
+                "a complete copy of examples/irrigation_abm/config (including prompts/), not a "
+                "partial overlay."
+            )
+        print(f"[Config] ISOLATED config dir: {config_dir}")
     ref_dir = PROJECT_ROOT / "ref"
 
     # --- Random seed ---
@@ -663,7 +680,7 @@ def main():
         .with_context_builder(ctx_builder)
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
-        .with_governance("strict", str(agent_config_path))
+        .with_governance(args.governance_mode, str(agent_config_path))
         .with_custom_validators([irrigation_governance_validator])
         .with_exact_output(str(output_dir))
         .with_workers(args.workers)
@@ -750,6 +767,18 @@ def parse_args():
     p.add_argument("--ablation-mode", type=str, default=None,
                    choices=["no_demand_ceiling"],
                    help="Policy counterfactual: disable specific validator (e.g., no_demand_ceiling)")
+    # P0-1d: the governance profile was hardcoded to "strict" at the builder
+    # call below, so the published irrigation corpus has only strict + disabled
+    # arms and no enforcement-gradient condition could be run at all. Named
+    # profiles resolve from agent_types.yaml's governance block; GovernanceProfiles
+    # carries ConfigDict(extra="allow"), so new arm profiles are pure YAML
+    # additions. Default "strict" reproduces every existing run byte-identically.
+    p.add_argument("--config-dir", type=str, default=None,
+                   help="Isolated config directory (complete copy of config/). Lets a campaign "
+                        "run new arms without editing the frozen paper configs. Default: in-tree.")
+    p.add_argument("--governance-mode", type=str, default="strict",
+                   help="Governance profile name from agent_types.yaml "
+                        "(strict | disabled | any custom profile defined there)")
     return p.parse_args()
 
 
