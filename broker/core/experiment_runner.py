@@ -138,6 +138,22 @@ class ExperimentRunner:
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
 
+        # Git state, captured HERE rather than at finalize. See the note in
+        # _collect_reproducibility_metadata: sampling it ten hours later recorded whether
+        # the tree was dirty when the run ended, and named a commit the run never ran.
+        # Construction is the earliest unambiguous point and is seconds from launch.
+        try:
+            import subprocess
+            self._git_commit_at_launch = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            ).decode().strip()
+            self._git_dirty_at_launch = len(subprocess.check_output(
+                ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
+            ).decode().strip()) > 0
+        except Exception:
+            self._git_commit_at_launch = "unavailable"
+            self._git_dirty_at_launch = None
+
         # Sync verbosity
         self.broker.log_prompt = self.config.verbose
 
@@ -395,6 +411,23 @@ class ExperimentRunner:
         manifest = {
             "model": self.config.model,
             "seed": self.config.seed,
+            # The memory engine's own seed, distinct from config.seed. It decides which
+            # memories are promoted to the long-term store, so two runs differing only in
+            # it are different experiments -- and it reached no artifact until 2026-08-06,
+            # which made `--memory-seed` unrecoverable from a finished corpus. None when
+            # the engine does not carry one.
+            #
+            # The isinstance guard is not defensive padding. Tests construct the runner with
+            # MagicMock engines, and a bare getattr returns a Mock rather than None, which
+            # is not JSON-serialisable and takes the whole manifest write down. This project's
+            # own plan file records that this exact class has bitten twice before; it bit a
+            # third time when this line was first written without the guard, and the suite
+            # caught it. Coerce to a known type, never trust the attribute's presence.
+            "memory_seed": (
+                _ms if isinstance(_ms := getattr(self.memory_engine, "seed", None), int)
+                else None
+            ),
+            "memory_engine_class": type(self.memory_engine).__name__,
             "num_years": iterations,
             "governance_profile": self.config.governance_profile,
             "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown",
@@ -458,7 +491,13 @@ class ExperimentRunner:
         try:
             with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
                 json.dump(manifest, f, indent=2)
-        except OSError as e:
+        except (OSError, TypeError, ValueError) as e:
+            # TypeError/ValueError matter as much as OSError here: json.dump raises
+            # TypeError on a non-serialisable value, so a single bad entry anywhere
+            # in `manifest` would abort this block and STARVE the summary save
+            # below — defeating the whole point of splitting these into independent
+            # try/excepts. A duck-typed or Mock broker injecting a Mock into
+            # metadata is exactly that case, and OSError never caught it.
             logger.error(
                 f"[Finalize] reproducibility_manifest.json write "
                 f"failed: {e}. Continuing — summary save is the "
@@ -499,20 +538,35 @@ class ExperimentRunner:
         except Exception:
             metadata["model_digest"] = "unavailable"
 
-        # 2. Capture git state
+        # 2. Git state, sampled at CONSTRUCTION rather than here.
+        #
+        # This method runs from _finalize_experiment, which on a 42-year real-LLM run is
+        # about ten hours after launch. Sampling `git status` here answered a question
+        # nobody asked: it recorded whether the tree was dirty when the run FINISHED.
+        # `SUBMISSION_2026/TAE/evidence/e3_run_integrity.py:404` reads the field as a
+        # launch-time statement and fails the run on it, so an unrelated commit made
+        # while a run was finalising failed a run whose own code path had zero drift
+        # (seed 42, 2026-08-06 -- see runs/_logs/seed42_provenance_attestation.md).
+        #
+        # `git_commit` had the same defect and it is worse there: the recorded commit was
+        # one made DURING the run, so the manifest named code the run never executed.
+        #
+        # Both are now captured in __init__ and replayed here. The finalize-time values
+        # are kept alongside under `_at_finalize` names, because a difference between the
+        # two is itself informative -- it says the tree moved while the run was in flight.
+        metadata["git_commit"] = getattr(self, "_git_commit_at_launch", "unavailable")
+        metadata["git_dirty"] = getattr(self, "_git_dirty_at_launch", None)
         try:
             import subprocess
-            commit = subprocess.check_output(
+            metadata["git_commit_at_finalize"] = subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
             ).decode().strip()
-            dirty = subprocess.check_output(
+            metadata["git_dirty_at_finalize"] = len(subprocess.check_output(
                 ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
-            ).decode().strip()
-            metadata["git_commit"] = commit
-            metadata["git_dirty"] = len(dirty) > 0
+            ).decode().strip()) > 0
         except Exception:
-            metadata["git_commit"] = "unavailable"
-            metadata["git_dirty"] = None
+            metadata["git_commit_at_finalize"] = "unavailable"
+            metadata["git_dirty_at_finalize"] = None
 
         # 3. LLM config snapshot
         try:
@@ -580,6 +634,38 @@ class ExperimentRunner:
                         t: len(agent_cfg.get_thinking_rules(t))
                         for t in active_types
                     }
+            # P0-1c: pin the ARM identity, not just the profile name. Three fields,
+            # each recording something a reader cannot recover from the YAML alone.
+            #
+            # max_retries_resolved is the load-bearing one: SkillBrokerEngine.__init__
+            # resolves `max_retries if max_retries != 3 else config.get_governance_retries()`,
+            # so an explicit constructor argument SILENTLY beats the YAML — an arm
+            # intended as one-retry can quietly run as three, which would break the
+            # call-matching the enforcement decomposition depends on. Verify arms from
+            # the manifest, never from the config file.
+            # Coerced to plain JSON-safe scalars, and shape-checked before use.
+            # This block runs inside a try/except, but the manifest is serialised
+            # LATER and outside it, so a non-serialisable value here would poison
+            # the ENTIRE manifest rather than just dropping one key. Duck-typed
+            # brokers (tests, alternate hosts) must degrade to a null, never crash
+            # the run's provenance record.
+            spec = getattr(self.broker, "_advise_spec", None)
+            if isinstance(spec, dict) and isinstance(spec.get("rule_ids"), (list, tuple)):
+                metadata["advise_spec_resolved"] = {
+                    "mode": str(spec.get("mode", "off")),
+                    "rule_ids": sorted(str(r) for r in spec["rule_ids"]),
+                }
+            else:
+                metadata["advise_spec_resolved"] = None
+            framing = getattr(self.broker, "_intervention_framing", "legacy")
+            metadata["intervention_framing_resolved"] = (
+                framing if isinstance(framing, str) else "legacy")
+            retries = getattr(self.broker, "max_retries", None)
+            # bool is a subclass of int, so exclude it explicitly: recording
+            # `true` as a retry count would look plausible and be wrong.
+            metadata["max_retries_resolved"] = (
+                retries if isinstance(retries, int) and not isinstance(retries, bool)
+                else None)
         except Exception as exc:
             logger.debug(f"[Integrity] governance-resolution provenance skipped: {exc}")
 

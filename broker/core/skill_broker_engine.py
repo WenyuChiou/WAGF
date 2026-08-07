@@ -55,11 +55,13 @@ from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
 
 from ._retry_loop import RetryMixin
-from ._audit_helpers import AuditMixin
+from ._audit_helpers import AuditMixin, _extract_construct_labels
+from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
+from ._advise_pass import AdviseMixin
 from ._skill_filtering import SkillFilterMixin
 
 
-class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
+class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
     """
     Skill-Governed Broker Engine.
     
@@ -127,6 +129,52 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         self.max_retries = max_retries if max_retries != 3 else self.config.get_governance_retries(max_retries)
         self.max_reports = self.config.get_governance_max_reports()
         self.log_prompt = log_prompt
+
+        # P0-1c: resolve the ADVISE arm spec ONCE into immutable instance state.
+        # getattr-guarded because tests and alternate config objects predate these
+        # getters (same defensive idiom as the audit flags). Never written to during
+        # process_step -- the engine is shared across a ThreadPoolExecutor.
+        _get_advise = getattr(self.config, "get_governance_advise", None)
+        _spec = _get_advise() if callable(_get_advise) else None
+        # Coerced, not trusted: a MagicMock config returns a truthy Mock here, and a
+        # Mock supports __getitem__, so `_spec["mode"]` would yield another Mock that
+        # compares False against every mode string -- silently taking a branch nobody
+        # chose. Only a genuine dict with a known mode counts as configured.
+        _VALID_MODES = ("off", "advise", "placebo", "resample", "wrapper")
+        if isinstance(_spec, dict) and _spec.get("mode") in _VALID_MODES:
+            self._advise_spec = _spec
+            self._advise_mode = _spec["mode"]
+        else:
+            self._advise_spec = None
+            self._advise_mode = "off"
+        # Belt-and-braces against the control-arm footgun: the config getter already
+        # forces rule_ids=[] when mode="off", and this re-asserts it here so a
+        # hand-built spec (tests, programmatic callers) cannot demote rules in a
+        # mode that never issues the advisory call -- which would silently strip
+        # enforcement while telling the model nothing.
+        self._advise_rule_ids = (
+            frozenset(self._advise_spec["rule_ids"])
+            if (self._advise_spec and self._advise_mode != "off") else frozenset()
+        )
+        # Coerced for the same reason as _on_retry_exhausted below: a MagicMock
+        # config returns a Mock from this getter, which would then reach
+        # format_intervention_prompt and raise mid-run rather than degrading.
+        _get_framing = getattr(self.config, "get_governance_intervention_framing", None)
+        _framing = _get_framing() if callable(_get_framing) else "legacy"
+        self._intervention_framing = _framing if _framing in ("legacy", "neutral") else "legacy"
+        # `bool(MagicMock())` is True, so a bare-Mock config would silently switch
+        # per-decision call counting on. Require a real bool.
+        _get_acols = getattr(self.config, "get_audit_advise_columns", None)
+        _acols = _get_acols() if callable(_get_acols) else False
+        self._count_llm_calls = _acols if isinstance(_acols, bool) else False
+        # Retry-exhaustion policy (model-builder choice; see the getter's docstring).
+        # COERCED to a known string rather than stored raw: tests build this engine
+        # with MagicMock configs, and a Mock is truthy and compares unequal to any
+        # string, so an unrecognised value must degrade to "default" here and every
+        # branch below must test POSITIVELY for "keep_proposal".
+        _get_ore = getattr(self.config, "get_governance_on_retry_exhausted", None)
+        _ore = _get_ore() if callable(_get_ore) else "default"
+        self._on_retry_exhausted = _ore if _ore in ("default", "keep_proposal") else "default"
         
         self.stats = {
             "total": 0,
@@ -309,6 +357,32 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             if v.valid and hasattr(v, 'warnings') and v.warnings:
                 logger.info(f" [Governance:Warning] {agent_id} | {v.warnings[0]}")
 
+        # P0-1a: snapshot the FIRST proposal before the retry loop reassigns
+        # `skill_proposal`. Cheap and unconditional (two locals); the values are
+        # only written to the trace when the initial_proposal_columns flag is ON,
+        # so flag-OFF runs stay byte-identical.
+        initial_skill = skill_proposal.skill_name if skill_proposal else None
+        initial_labels = _extract_construct_labels(skill_proposal)
+        attempt_skills: List[Optional[str]] = [initial_skill]
+
+        # P0-1c: the single-shot advisory pass. No-op (returns its inputs, zero LLM
+        # calls) unless an arm config declares global_config.governance.advise. Runs
+        # BEFORE the retry loop so the advisory prompt is built from the same
+        # attempt-0 proposal and the same reports arm C's first retry uses.
+        skill_proposal, raw_output, validation_results, all_valid, advise_info = (
+            self._advisory_pass(
+                all_valid=all_valid, skill_proposal=skill_proposal,
+                validation_results=validation_results,
+                all_validation_history=all_validation_history,
+                validation_context=validation_context,
+                prompt=prompt, llm_invoke=llm_invoke, context=context,
+                agent_id=agent_id, agent_type=agent_type,
+                env_context=env_context, raw_output=raw_output,
+                total_llm_stats=total_llm_stats,
+                attempt_skills=attempt_skills,
+            )
+        )
+
         # Governance retry loop
         skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count = (
             self._governance_retry_loop(
@@ -320,6 +394,7 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 agent_id=agent_id, agent_type=agent_type,
                 env_context=env_context, raw_output=raw_output,
                 total_llm_stats=total_llm_stats,
+                attempt_skills=attempt_skills,
             )
         )
 
@@ -419,7 +494,17 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             # REJECTED: execute the registry's default skill as fallback so the
             # agent's state is recalculated (instead of a full no-op that
             # freezes state).
-            if self.simulation_engine:
+            if self.simulation_engine and self._keeps_rejected_proposal(
+                    outcome, approved_skill, validation_results):
+                # Model-builder opt-in: this domain treats a persistent
+                # rule-violating choice as the observable, so the agent's OWN final
+                # proposal executes and nothing "fell back".
+                # approved_skill already carries that proposal and its execution
+                # mapping (_build_approved_skill), so it is executed as-is.
+                execution_result = self.simulation_engine.execute_skill(approved_skill)
+                executed_skill = approved_skill.skill_name
+                executed_via_fallback = False
+            elif self.simulation_engine:
                 # Phase 6J-E (2026-05-22): get_default_skill() now raises
                 # if unconfigured (Phase 6J-C), so the only branch left to
                 # guard is whether the configured id is actually registered.
@@ -465,6 +550,10 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 all_validation_history=all_validation_history,
                 executed_skill=executed_skill,
                 executed_via_fallback=executed_via_fallback,
+                initial_skill=initial_skill,
+                initial_labels=initial_labels,
+                attempt_skills=attempt_skills,
+                advise_info=advise_info,
             )
 
         return SkillBrokerResult(
@@ -573,6 +662,64 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                     self.auditor.log_intervention(rule_id, success=False, is_final=True)
 
         return approved_skill, outcome
+
+    def _keeps_rejected_proposal(self, outcome, approved_skill,
+                                 validation_results=None) -> bool:
+        """True iff this decision should execute the agent's own rejected proposal.
+
+        Four conditions, all required:
+
+        1. the domain opted in (``on_retry_exhausted: keep_proposal``);
+        2. the outcome is ``REJECTED`` — a real proposal that failed validation.
+           ``UNCERTAIN`` means the parser never produced a usable choice, so there is
+           nothing of the agent's to preserve and the default must run;
+        3. the proposal names a REGISTERED skill. Membership validation can fail and
+           still leave a bogus name on the proposal, and executing an unregistered
+           skill would silently do nothing useful (or, in a domain whose executor
+           applies side effects before matching a branch, something arbitrary).
+           Mirrors the ``exists()`` guard the default path already applies;
+        4. **no HARD-constraint rule was among the blockers.** This is the safety
+           condition INVARIANTS AR-1a states, enforced here in code rather than left
+           as prose. ``keep_proposal`` exists to preserve *behaviourally incoherent*
+           choices — violating a theory rule is possible, just irrational. It must
+           never resurrect a *world-infeasible* one: re-doing an irreversible action,
+           exceeding an allocation cap, or paying for something unaffordable would
+           put the simulated world into a state it cannot occupy, and some domain
+           executors would double-charge or double-apply rather than refuse.
+
+        On (4), note what the marker can and cannot do. ``constraint_type``/
+        ``expected_terminal`` are set per validator TIER (identity + affordability =
+        hard, thinking = soft), so they are the YAML section in disguise. That makes
+        them reliable for what they DO flag — an identity/affordability blocker really
+        is an affordance — but they under-flag: a domain may encode a physical
+        constraint as a thinking rule, and this guard will not catch it. So it is a
+        floor, not a proof. Classifying each rule remains the domain owner's call.
+        """
+        if self._on_retry_exhausted != "keep_proposal":
+            return False
+        if outcome is not SkillOutcome.REJECTED:
+            return False
+        name = getattr(approved_skill, "skill_name", None)
+        if not name or not self.skill_registry.exists(name):
+            return False
+        for v in (validation_results or []):
+            if v is None or getattr(v, "valid", True):
+                continue
+            meta = getattr(v, "metadata", None) or {}
+            if (meta.get("constraint_type") == "hard"
+                    or meta.get("expected_terminal") is True
+                    or meta.get("deterministic") is True):
+                logger.info(
+                    "[Governance:Exhausted] keep_proposal declined for "
+                    f"{getattr(approved_skill, 'agent_id', '?')}: "
+                    f"'{name}' was blocked by a hard-constraint rule "
+                    f"{meta.get('rules_hit') or meta.get('rule_id')}; running the "
+                    "registry default instead (INVARIANTS AR-1a)."
+                )
+                return False
+            if set(meta.get("rules_hit") or []) & _ADVISE_DENY_IDS:
+                return False
+        return True
 
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
@@ -703,7 +850,14 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                     logger.debug(f"[Precondition] {proposal.skill_name}: {precond_result.errors}")
                 results.append(precond_result)
 
-        return results
+        # P0-1c: the ADVISE disposition rewrite, applied at this single return so
+        # EVERY validation pass in a decision agrees — the first pass, the retry
+        # loop's re-validation (_retry_loop.py), the multi-skill secondary path, and
+        # the advisory pass's own re-validation. Applying it anywhere earlier would
+        # let the retry loop re-derive the rule UN-demoted and block on it, and would
+        # permanently desync EarlyExit's prev/current blocking-rule comparison.
+        # Flag OFF => empty allowlist => demote() returns this same list object.
+        return demote(results, self._advise_rule_ids)
 
     def _create_result(self, outcome, proposal, approved, execution, errors, format_retries: int = 0) -> SkillBrokerResult:
         return SkillBrokerResult(

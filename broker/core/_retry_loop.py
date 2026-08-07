@@ -14,8 +14,14 @@ attempts; same deterministic rule blocks consecutive attempts" clause):
   consecutive retries AND every blocker in that set is deterministic.
   Non-deterministic blockers (e.g., stochastic magnitude rechecks) do not
   trigger early exit because the agent may succeed on a subsequent draw.
-- On termination (exhausted retries OR early exit), the registry default
-  skill executes (maintain_demand for irrigation, do_nothing for flood).
+- On termination (exhausted retries OR early exit), what executes is a
+  MODEL-BUILDER choice, set per domain via
+  ``global_config.governance.on_retry_exhausted``:
+  ``default`` (the default) runs the registry ``default_skill``
+  (maintain_demand for irrigation, do_nothing for flood); ``keep_proposal``
+  runs the agent's own final failed proposal, so a persistently
+  rule-violating choice survives as an observable instead of being
+  overwritten. ``UNCERTAIN`` (no parsable proposal) always uses the default.
 - Every retry, including fallback execution, is recorded in the audit
   trail with status ``REJECTED``, ``REJECTED_FALLBACK``, or ``APPROVED``.
 
@@ -28,6 +34,7 @@ from ..interfaces.skill_types import (
     SkillProposal, InterventionReport, ValidationResult,
 )
 from ..utils.logging import logger
+from ._advise import build_intervention_reports, render_intervention_prompt
 
 
 class RetryMixin:
@@ -50,11 +57,22 @@ class RetryMixin:
         format_retry_count = 0
         max_initial_attempts = 2
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
+        # P0-1c: per-decision LLM call counter. Sample-matching between the advise
+        # and placebo arms is the load-bearing assumption of the whole decomposition,
+        # so it is MEASURED per row, not asserted in the Methods. Seeded only when the
+        # advise audit flag is on, so the flag-OFF llm_stats dict -- serialised whole
+        # into the trace -- keeps exactly its published key set. Lives in this local
+        # dict and NEVER on self: process_step runs on an engine shared across a
+        # ThreadPoolExecutor.
+        if getattr(self, "_count_llm_calls", False):
+            total_llm_stats["llm_calls"] = 0
 
         while initial_attempts <= max_initial_attempts and not skill_proposal:
             initial_attempts += 1
             try:
                 res = llm_invoke(prompt)
+                if "llm_calls" in total_llm_stats:
+                    total_llm_stats["llm_calls"] += 1
                 if isinstance(res, tuple):
                     raw_output, llm_stats_obj = res
                     total_llm_stats["llm_retries"] += llm_stats_obj.retries
@@ -189,6 +207,7 @@ class RetryMixin:
         prompt: str, llm_invoke: Callable, context: Dict,
         agent_id: str, agent_type: str, env_context: Optional[Dict],
         raw_output: str, total_llm_stats: Dict,
+        attempt_skills: Optional[List] = None,
     ):
         """Run governance validation retry loop.
 
@@ -204,6 +223,13 @@ class RetryMixin:
         Returns (skill_proposal, raw_output, validation_results,
                  all_validation_history, all_valid, retry_count).
         Mutates total_llm_stats and all_validation_history in-place.
+
+        P0-1a: when ``attempt_skills`` is supplied it is appended to in-place,
+        one entry per RETRY attempt (the caller seeds index 0 with the initial
+        proposal). ``None`` marks an attempt whose output failed to parse.
+        Optional and default-``None`` so existing callers are unaffected; the
+        list is only surfaced when the ``initial_proposal_columns`` audit flag
+        is ON, keeping flag-OFF traces byte-identical.
         """
         retry_count = 0
         prev_blocking_rules = self._extract_blocking_rule_ids(validation_results)
@@ -211,19 +237,12 @@ class RetryMixin:
             retry_count += 1
 
             # Build InterventionReports for explainable governance
-            intervention_reports = []
-            for v in validation_results:
-                if v and hasattr(v, 'errors') and v.errors:
-                    for error_msg in v.errors:
-                        report = InterventionReport(
-                            rule_id=v.metadata.get("rules_hit", ["unknown_rule"])[0] if v.metadata.get("rules_hit") else "unknown_rule",
-                            blocked_skill=skill_proposal.skill_name if skill_proposal else "unknown",
-                            violation_summary=error_msg,
-                            suggested_correction=v.metadata.get("suggestion"),
-                            severity="ERROR" if not v.valid else "WARNING",
-                            domain_context=v.metadata,
-                        )
-                        intervention_reports.append(report)
+            # P0-1c: extracted verbatim into _advise.build_intervention_reports so
+            # the enforce and advisory paths share ONE builder -- a wording or shape
+            # drift between them would land inside the (C-B) contrast.
+            intervention_reports = build_intervention_reports(
+                validation_results, skill_proposal, source="errors",
+            )
 
             if not skill_proposal:
                 errors_to_send = [InterventionReport(
@@ -238,8 +257,17 @@ class RetryMixin:
                     e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors
                 ]
 
-            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send, max_reports=self.max_reports)
+            # P0-1c: framing defaults to "legacy", which delegates to the byte-identical
+            # published prompt. Arms B/B'/C set "neutral" so the enforce arm's text
+            # matches the advisory arms' exactly and (C-B) carries no wording delta.
+            retry_prompt, _reports_shown = render_intervention_prompt(
+                self.model_adapter, prompt, errors_to_send,
+                max_reports=self.max_reports,
+                framing=getattr(self, "_intervention_framing", "legacy"),
+            )
             res = llm_invoke(retry_prompt)
+            if "llm_calls" in total_llm_stats:
+                total_llm_stats["llm_calls"] += 1
 
             if isinstance(res, tuple):
                 raw_output, llm_stats_obj = res
@@ -261,13 +289,25 @@ class RetryMixin:
                 total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
                 total_llm_stats["llm_success"] = stats.get("current_success", True)
 
-            skill_proposal = self.model_adapter.parse_output(raw_output, {
-                **context,
-                "agent_id": agent_id,
-                "agent_type": agent_type,
-                "retry_attempt": retry_count,
-                "current_year": env_context.get("current_year") if env_context else "?",
-            })
+            if isinstance(raw_output, SkillProposal):
+                skill_proposal = raw_output
+            else:
+                skill_proposal = self.model_adapter.parse_output(raw_output, {
+                    **context,
+                    "agent_id": agent_id,
+                    "agent_type": agent_type,
+                    "retry_attempt": retry_count,
+                    "current_year": env_context.get("current_year") if env_context else "?",
+                })
+
+            # P0-1a: record THIS attempt's proposal before it is overwritten by
+            # the next iteration. Appended for parsed and unparsed attempts
+            # alike (None marks unparsable) so the list length always equals
+            # retry_count and attempt N maps to index N.
+            if attempt_skills is not None:
+                attempt_skills.append(
+                    skill_proposal.skill_name if skill_proposal else None
+                )
 
             if skill_proposal:
                 # F5 (2026-06-10 review): re-inject the CURRENT attempt's
@@ -336,11 +376,34 @@ class RetryMixin:
                         reason_text = reason_text.get("reason", str(reason_text))
                     logger.error(f"  - Agent Motivation: {reason_text}")
 
-            fallout_skill = (
-                skill_proposal.skill_name
-                if (skill_proposal and skill_proposal.parse_layer != "default")
-                else self.skill_registry.get_default_skill()
+            # Report what WILL ACTUALLY EXECUTE, not the agent's choice.
+            # Pre-fix this line printed the proposal unconditionally while the engine
+            # executed the registry default, so a domain whose default differed from
+            # the blocked proposal looked correct in the logs and was not. That
+            # mismatch is why the flood/irrigation fallback divergence went unnoticed
+            # for the whole shipped corpus.
+            keeps_proposal = (
+                getattr(self, "_on_retry_exhausted", "default") == "keep_proposal"
+                and skill_proposal is not None
+                and skill_proposal.parse_layer != "default"
+                and self.skill_registry.exists(skill_proposal.skill_name)
             )
-            logger.error(f"  - Action: Proceeding with '{fallout_skill}' (Result: REJECTED)")
+            if keeps_proposal:
+                fallout_skill = skill_proposal.skill_name
+                policy = "keep_proposal"
+            else:
+                policy = "default"
+                try:
+                    fallout_skill = self.skill_registry.get_default_skill()
+                except ValueError:
+                    # get_default_skill() raises when unconfigured (Phase 6J-C).
+                    # A diagnostic line must never be the thing that aborts a run —
+                    # the execution branch raises this properly if it is reached at
+                    # all, and in standalone mode (no simulation engine) it never is.
+                    fallout_skill = "<unconfigured default_skill>"
+            logger.error(
+                f"  - Action: Executing '{fallout_skill}' "
+                f"(policy={policy}, Result: REJECTED)"
+            )
 
         return skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count

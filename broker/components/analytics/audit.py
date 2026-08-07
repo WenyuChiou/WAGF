@@ -244,6 +244,31 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["executed_skill"] = t.get("executed_skill")
         row["executed_via_fallback"] = bool(t.get("executed_via_fallback"))
 
+    # 2.7b. P0-1a: FIRST-ATTEMPT proposal columns, key-gated the same way. Only
+    # traces produced with global_config.audit.initial_proposal_columns ON carry
+    # these keys, so legacy/flag-OFF traces keep the frozen column set
+    # byte-identical. Closes the proposal-stage gap: skill_proposal is
+    # reassigned on every governance retry, so proposed_skill records the LAST
+    # attempt and compares equal to final_skill on 100% of shipped rows.
+    if "initial_skill" in t:
+        row["initial_skill"] = t.get("initial_skill")
+        row["initial_labels"] = t.get("initial_labels", "")
+        row["attempt_skills"] = t.get("attempt_skills", "")
+
+    # 2.7c. P0-1c: ADVISORY columns, key-gated the same way. Present only when
+    # global_config.audit.advise_columns is ON. `advisory_llm_calls` and the
+    # `llm_calls` total below are what make sample-matching between the advise and
+    # placebo arms a measured fact rather than a Methods assertion.
+    if "advise_mode" in t:
+        for _k in ("advise_mode", "advisory_fired", "advisory_llm_calls",
+                   "advisory_rules", "advisory_skill_before", "advisory_skill_after",
+                   "advisory_changed_action", "advisory_parse_failed",
+                   "advisory_reports_shown", "advisory_prompt_chars",
+                   "post_advice_rules"):
+            row[_k] = t.get(_k)
+    if "llm_calls" in llm_stats:
+        row["llm_calls"] = llm_stats.get("llm_calls")
+
     # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
     # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
     # is ON and the proposal carries setpoints; surface them into the row so
@@ -467,6 +492,31 @@ class GenericAuditWriter:
         if config.clear_existing_traces:
             raw_dir = self.output_dir / "raw"
             if raw_dir.exists():
+                # Refuse to clear the traces of a COMPLETED run. A manifest is written only
+                # by _finalize_experiment, so its presence means this directory already
+                # holds a finished experiment.
+                #
+                # Without this guard the sequence is: an operator mistypes one field of a
+                # launch command, points --output at a finished seed, and this loop unlinks
+                # that seed's raw/*_traces.jsonl seconds later. During a run the JSONL is
+                # the ONLY durable artifact -- the audit CSV, the manifest and the summaries
+                # are all written at finalize -- so ten hours of work is destroyed before
+                # anything has been produced to replace it. The runner does not refuse an
+                # existing --output, and e3_run_integrity.py never compares the manifest's
+                # seed to the directory name, so the result would also be certified under
+                # the wrong seed.
+                #
+                # Raising is the safe failure direction here: a false refusal costs an
+                # operator one rename, and the guard is trivially bypassed by pointing at a
+                # fresh directory, which is what was wanted anyway. Added 2026-08-06 after
+                # the hazard was found while seed 42 of a five-seed queue was still running.
+                if (self.output_dir / "reproducibility_manifest.json").exists():
+                    raise RuntimeError(
+                        f"{self.output_dir} already holds a completed run "
+                        f"(reproducibility_manifest.json is present). Refusing to clear its "
+                        f"raw/*_traces.jsonl. Point --output at a new directory, or move the "
+                        f"existing one aside first."
+                    )
                 for trace_file in raw_dir.glob("*_traces.jsonl"):
                     try:
                         trace_file.unlink()
