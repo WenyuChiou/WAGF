@@ -841,3 +841,24 @@ figures changed. The official MiKTeX build, static check, evidence-boundary
 check, and ICLR page gate pass (11 total pages: 9 main-text and 2 reference
 pages). Rendered pages 7--9 show no clipping, overlap, or unreadable figure or
 table text. Historical provenance and OpenReview submission gates remain open.
+
+## Round 42: continuation completion audit and state-label sync
+
+The current repository state, `LIVE_STATE.md`, the operational handover, the
+active manuscript, and the release inventory were re-read after the prior
+paper closeout. The literature audit still records 23 cited and independently
+verified sources across agent evaluation, runtime enforcement, construct
+validity, and coupled human--environment modeling. The active figure contract
+remains Figure 1 as the domain-neutral bridge, Figures 2--4 as irrigation-led
+evidence, and Flood as a Table 3 boundary check; the older Panel D proposal is
+not active.
+
+The full non-real-LLM test suite was rerun with the repository root on
+`PYTHONPATH` and exited 0; the existing three skips and two documented xfails
+remain. The first collection attempt without that import path failed before
+test execution and is treated as an invocation issue, not a framework defect.
+The project-state cross-testbed scope and visual-check labels were corrected
+from the superseded `table2` wording to active Table 3, with an append-only
+correction recorded in the shared handover. No manuscript number, figure, or
+experiment result changed. Historical provenance, the unmatched first-attempt
+branch, and submission-time OpenReview gates remain open.
