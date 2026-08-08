@@ -51,7 +51,11 @@ That earlier artwork is retained only as a historical style audit. The current
 active artwork is documented in
 `submission/FIGURE1_DESIGN.md` and uses the current shared-condition
 composition
-`submission/figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`.
+`submission/figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`.
+
+The v6 revision removes the detached retry pill and routes the retry arrow
+directly back to Agent response. Version v5 is retained only as a historical
+generation record.
 
 ## Acceptance criteria
 

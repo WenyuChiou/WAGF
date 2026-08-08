@@ -19,7 +19,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_shared_condition_v5_retry.png"
+ASSET = ROOT / "figures" / "assets" / "figure1_architecture_agentpaper_shared_condition_v6_retry_return.png"
 ACTIVE = ROOT / "figures" / "active"
 OUT = ACTIVE / "figure1_concept"
 
@@ -76,11 +76,11 @@ def build() -> dict[str, object]:
             "Agent response", "AI", "action", "condition", "propose",
             "Validator", "rule input", "accepted", "Environment", "final record",
             "Decision log", "records", "Counted records", "selects", "Conditional rate",
-            "fresh response", "retry / re-ask", "retry exhausted", "default action",
+            "retry / re-ask", "retry exhausted", "default action",
         ],
         "semantics": {
             "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
-            "runtime": "the response enters Validator; an accepted action reaches Environment; a retry may produce a fresh response or a default action; the final record enters Decision log",
+            "runtime": "the response enters Validator; an accepted action reaches Environment; a rejected proposal returns to Agent response for retry or falls back to a default action; the final record enters Decision log",
             "selection": "records from Decision log enter Counted records; the same condition selects Counted records; Counted records feeds Conditional rate",
             "omitted": "the observation-to-next-context loop remains omitted; the retry branch is shown because primary statistics use the executed action",
         },

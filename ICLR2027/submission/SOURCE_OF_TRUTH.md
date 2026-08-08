@@ -7,12 +7,14 @@ The active release is the directory containing this file:
 
 - Manuscript source: `paper\manuscript.tex`
 - Bibliography: `paper\references.bib`
-- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_shared_condition_v5_retry.png`
+- Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`
 - Figure 1 staging builder: `source\figure1_agent_paper.py`
 - Figure 1 compatibility entry point: `source\figure1_overlay.py`
 - Figure 1 contract: `AGENT_ARCHITECTURE_FIGURE_RESET.md`
 - Manuscript-facing figures: `figures\active\`
 - Figure 1 manifest: `figures\active\figure1_concept.json`
+- Figure and example-role audit: `PAPER_AUDIT.md`
+- Reference verification audit: `REFERENCE_AUDIT.md`
 - Figure 1 is a complete generated raster composition with an Agent response
   card, explicit black/amber Validator ports, a direct condition-to-Counted-
   records route, black borders, flat colored fills, and a warm light-gray

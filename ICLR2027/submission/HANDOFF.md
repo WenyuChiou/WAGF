@@ -50,7 +50,7 @@ provenance requires it.
 | Anonymous manuscript | `paper\manuscript.tex` |
 | Bibliography | `paper\references.bib` |
 | Figures cited by TeX | `figures\active\` |
-| Figure 1 generated asset | `figures\assets\figure1_architecture_agentpaper_shared_condition_v5_retry.png` |
+| Figure 1 generated asset | `figures\assets\figure1_architecture_agentpaper_shared_condition_v6_retry_return.png` |
 | Figure 1 staging builder | `source\figure1_agent_paper.py` |
 | Figure 1 manifest | `figures\active\figure1_concept.json` |
 | Figure 3 cross-testbed builder | `source\cross_testbed_summary.py` |
@@ -63,6 +63,8 @@ provenance requires it.
 | Static check report | `checks\manuscript_static_report.json` |
 | Evidence-boundary report | `checks\evidence_boundary_report.json` |
 | Reproducibility audit | `checks\reproducibility\reproducibility_report.md` |
+| Paper, figure, and example-role audit | `PAPER_AUDIT.md` |
+| Reference verification audit | `REFERENCE_AUDIT.md` |
 
 `figures\active\` is the only directory whose rendered files may be included
 by `paper\manuscript.tex`. `figures\candidates\` contains non-active
@@ -71,7 +73,7 @@ alternatives. Older v3 and D-v3 assets are historical and are not active.
 ## Figure 1 status
 
 The active Figure 1 is the generated shared-condition composition
-`figures\assets\figure1_architecture_agentpaper_shared_condition_v5_retry.png`. It
+`figures\assets\figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`. It
 uses:
 
 - an Agent response card with an AI cue and `action`/`condition` fields;
@@ -92,8 +94,8 @@ the first response before a retry, and the caption states this boundary.
 The generated source and active/print copies are byte-identical after staging.
 The current visual gate includes full-size, paper-width, thumbnail, grayscale,
 and adversarial inspection. The official typeset PDF gate passes with MiKTeX
-25.12: `paper\manuscript.pdf` is 10 pages total, with 8 pages of main text and
-2 pages of references. The build has no undefined citations/references and no
+25.12: `paper\manuscript.pdf` is 11 pages total, with 9 pages of main text and
+2 pages of references, within the current nine-page main-text limit. The build has no undefined citations/references and no
 overfull boxes. The title and page fill produce non-fatal underfull hbox/vbox
 warnings. Rendered checks of pages containing Figure 1, Table 2, Figures 3--4
 found no clipping or overlap.
@@ -117,7 +119,7 @@ both use the high/very-high labels from the shared five-level appraisal
 instrument. These are the same per-run-mean contrast, but Flood is not
 seed-paired with irrigation and has a different action ontology and no
 action-to-environment feedback. Table 2 is therefore a secondary descriptive
-control check, not a causal comparison, dose-response estimate, or
+boundary check, not a causal comparison, dose-response estimate, or
 mechanism-transfer test. Flood governance rejects 0--0.64% of proposed actions,
 compared with 28--63% in irrigation. The
 Flood gemma3:4b
@@ -163,7 +165,7 @@ axis as a visual control. That comparison was easy to misread as a co-primary
 mechanism result: Flood uses a different action ontology, no action-to-
 environment feedback, a different appraisal field, and different seed
 matching. The panel is therefore not active. Flood remains in Table 2 as a
-secondary descriptive cross-testbed control, where the caption states the
+secondary descriptive cross-testbed boundary check, where the caption states the
 shared measure and the non-comparability boundaries.
 
 The generated Figure 1 routes were inspected at full size, paper width,
@@ -199,7 +201,7 @@ because OpenReview author metadata, author profiles and reciprocal-review
 requirements, final anonymity checks, and the live dual-submission decision
 still belong to the actual submission window. The official ICLR 2027 author
 guidelines allow at most 9 pages of main text and exclude the bibliography from
-that limit; this PDF has 8 pages of main text plus 2 reference pages.
+that limit; this PDF has 9 pages of main text plus 2 reference pages.
 The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
 2026 AOE.
 
@@ -228,8 +230,11 @@ The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
    remains irrigation-only because the Flood artifacts do not provide the
    coupled action-to-environment setting needed for that analysis.
 
-The active generated Figure 1 is the v5 retry-branch asset. It was regenerated
+The active generated Figure 1 is the v6 retry-return asset. It was regenerated
 from the reviewed shared-condition composition and visually checked at full
-size, paper width, thumbnail, and grayscale. Keep the retry branch subordinate
-to the main propose--validate--accept flow; do not add a data-bearing chart to
-this conceptual figure.
+size, paper width, thumbnail, and grayscale. The retry arrow now terminates at
+Agent response; the previous detached retry pill is retired. Keep the retry
+branch subordinate to the main propose--validate--accept flow; do not add a
+data-bearing chart to this conceptual figure. The full figure/table hierarchy
+and the irrigation-primary/Flood-secondary balance are recorded in
+`PAPER_AUDIT.md`.

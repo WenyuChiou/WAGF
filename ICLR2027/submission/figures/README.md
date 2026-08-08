@@ -18,8 +18,8 @@ generated raster; it is not an additional paper figure.
 
 - `assets/` contains the reviewed full generated Figure 1 asset and historical
   generation intermediates. Only
-  `figure1_architecture_agentpaper_shared_condition_v5_retry.png` feeds the
-  active builder.
+  `figure1_architecture_agentpaper_shared_condition_v6_retry_return.png` feeds
+  the active builder.
 - `candidates/` contains the agent-paper candidates and retired Figure 1
   alternatives. These files are kept for comparison only and are never
   included by the manuscript.

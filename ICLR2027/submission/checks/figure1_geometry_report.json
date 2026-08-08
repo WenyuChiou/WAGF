@@ -5,13 +5,13 @@
     1774,
     887
   ],
-  "label_count": 19,
+  "label_count": 18,
   "text_overlap_count": null,
   "route_intersection_count": null,
   "sha256": {
-    "source asset": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
-    "active PNG": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
-    "print PNG": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d"
+    "source asset": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
+    "active PNG": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
+    "print PNG": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985"
   },
   "sha256_match": true,
   "warnings": [
