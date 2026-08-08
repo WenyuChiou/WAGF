@@ -35,13 +35,16 @@ and run the checks under `../checks/`. Do not edit a rendered figure directly.
   reading counts the action that executed.
 - Figure 2 answers: which rule layer names a rejection. It places the
   high-scarcity/high-coping increase rule in the self-report-conditioned layer.
-- Figure 3 answers: what can be seen in the primary irrigation mechanism.
-  The secondary Flood boundary check is reported in Table 2 and the
+- Figure 3 answers: how the primary irrigation setting changes the observed
+  world and the filtered population. Panels A--C respectively show the yearly
+  condition contrast, the reservoir trajectories, and the all-decision versus
+  never-retried sensitivity. The secondary Flood boundary check is reported in Table 3 and the
   cross-testbed summary, not as a same-status mechanism panel. An earlier
   Panel D proposal placed the two settings on one contrast axis to show
   separation, but that juxtaposition obscured the different action ontology,
   feedback structure, appraisal field, and seed matching. It is therefore
-  retained as a table-level control rather than a visual co-primary result.
+  retained as a table-level boundary check rather than a visual co-primary
+  result.
 - Figure 4 answers: why the conditional and all-decision denominators can give
   different contrasts under the executed-action reading. It is irrigation-only
   because Flood has no action-to-environment feedback and no matched denominator

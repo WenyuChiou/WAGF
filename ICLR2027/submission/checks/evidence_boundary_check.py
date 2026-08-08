@@ -50,7 +50,7 @@ def main() -> int:
         "+29.90",
         "+20.26",
         "+36.57",
-        "-14.86",
+        "-16.06",
         "+3.38",
         "+43.15",
         "25.46",
@@ -86,7 +86,7 @@ def main() -> int:
             if row.get("gap_pp")
         )
 
-    derived_gap_values = {"-14.86", "+3.38"}
+    derived_gap_values = {"-16.06", "+3.38"}
 
     missing_in_numbers = [
         value

@@ -19,14 +19,15 @@ causal estimate of governance, or a claim that the agent is deceptive.
 
 | Function in the argument | Current sources | Why the sources are needed | What the paper adds beyond them |
 | --- | --- | --- | --- |
-| Agent evaluation is interactive and multi-dimensional | AgentBench, AgentBoard, WebArena, SWE-bench, `\tau`-bench | Establishes that agent scores depend on tools, trajectories, state, and task outcomes | Audits the population entering a conditional score when that population is agent-authored |
-| Agent behavior includes action, feedback, and repeated context | ReAct, Reflexion, AutoGen, SWE-agent, `\tau`-bench | Establishes the loop in which a response can affect later inputs and records | Connects that loop to the score denominator rather than only to task success |
+| Agent evaluation is interactive and multi-dimensional | AgentBench, AgentBoard, WebArena, SWE-bench, OSWorld, TheAgentCompany | Establishes that agent scores depend on tools, trajectories, state, and task outcomes | Audits the population entering a conditional score when that population is agent-authored |
+| Agent behavior includes action, feedback, and repeated context | ReAct, Reflexion, AutoGen, SWE-agent, `\tau`-bench, ToolSandbox | Establishes the loop in which a response can affect later inputs and records | Connects that loop to the score denominator rather than only to task success |
 | Runtime systems inspect or constrain responses | NeMo Guardrails, AgentSpec | Establishes that a response can be checked before execution and re-asked | Identifies the same response field as both an enforcement input and a selection variable |
 | Scores need construct and benchmark validity | AI Agents That Matter, Measuring What Matters, Agentic Benchmark Checklist, Rosenbaum | Provides the measurement and conditioning vocabulary | Tests the specific shared-condition failure mode and reports both conditional and all-decision endpoints |
+| Coupled human--environment models make the primary example meaningful | Khan et al., Lin et al., Streefkerk et al. | Establishes that agent decisions and environmental state can form a two-way feedback loop | Uses that loop to diagnose measurement composition, not to claim hydrological validation |
 
-The current bibliography has 15 cited entries, all used by a claim sentence and
+The current bibliography has 23 cited entries, all used by a claim sentence and
 all verified in `REFERENCE_AUDIT.md`. This is enough for a concise ICLR
-Introduction because the sources cover the four functions above without
+Introduction because the sources cover the five functions above without
 turning the section into a survey. Adding more framework names would not fill
 the paper's gap unless they directly study a score-defining field that is also
 consumed by runtime enforcement.
@@ -37,8 +38,14 @@ The following primary sources were checked during this pass:
 
 | Source | What it contributes to the field | Decision for this manuscript |
 | --- | --- | --- |
-| [AgentDojo, NeurIPS 2024](https://proceedings.nips.cc/paper_files/paper/2024/hash/97091a5177d8dc64b1da8bf3e1f6fb54-Abstract-Datasets_and_Benchmarks_Track.html) | Dynamic agent environments and security evaluation over tool outputs | Reviewed but not added; current AgentBench/WebArena/`\tau`-bench citations already support the interactive-setting sentence, while AgentDojo's prompt-injection target is not the paper's metric gap |
-| [AgentIF, NeurIPS 2025](https://proceedings.neurips.cc/paper_files/paper/2025/hash/51bb3a8a33610a25aae074bfc51b1b1f-Abstract-Datasets_and_Benchmarks_Track.html) | Constraint-level instruction-following evaluation in agentic scenarios | Reviewed but not added; it evaluates instruction adherence, not a runtime-selected denominator |
+| [AgentDojo, NeurIPS 2024](https://proceedings.nips.cc/paper_files/paper/2024/hash/97091a5177d8dc64b1da8bf3e1f6fb54-Abstract-Datasets_and_Benchmarks_Track.html) | Dynamic agent environments and security evaluation over tool outputs | Added as a concrete example of tool-mediated runtime interaction; it does not establish the manuscript's metric result |
+| [OSWorld, NeurIPS 2024](https://proceedings.neurips.cc/paper_files/paper/2024/hash/5d413e48f84dc61244b6be550f1cd8f5-Abstract-Datasets_and_Benchmarks_Track.html) | Open-ended multimodal tasks in real computer environments | Added to support the claim that current agent evaluation includes stateful, environment-facing tasks |
+| [TheAgentCompany, NeurIPS 2025](https://proceedings.neurips.cc/paper_files/paper/2025/hash/0d744742f6fac4d1134c019b7cef3c8a-Abstract-Datasets_and_Benchmarks_Track.html) | Consequential real-world task evaluation for LLM agents | Added to support the distinction between end-task scores and the records/process that produce them |
+| [AgentIF, NeurIPS 2025](https://proceedings.neurips.cc/paper_files/paper/2025/hash/51bb3a8a33610a25aae074bfc51b1b1f-Abstract-Datasets_and_Benchmarks_Track.html) | Constraint-level instruction-following evaluation in agentic scenarios | Added as a neighboring constraint-focused evaluation setting; it does not study a runtime-selected denominator |
+| [ToolSandbox, Findings NAACL 2025](https://aclanthology.org/2025.findings-naacl.65/) | Stateful, conversational, interactive tool-use evaluation | Added to support the feedback/stateful-agent setting in which later records depend on earlier interaction |
+| [Khan et al., HESS 2017](https://hess.copernicus.org/articles/21/6275/2017/hess-21-6275-2017.html) | Coupled watershed management with agent decisions and hydrology | Added only to motivate the coupled water-resource example; it does not validate the simulator |
+| [Lin et al., Environmental Modelling and Software 2022](https://doi.org/10.1016/j.envsoft.2022.105451) | Two-way coupled natural--human agent-based modeling | Added only to motivate the action-to-state-to-context structure |
+| [Streefkerk et al., Frontiers in Water 2023](https://www.frontiersin.org/journals/water/articles/10.3389/frwa.2022.1037971/full) | Human--drought feedbacks in a coupled agent-based model | Added only to motivate feedback as a meaningful domain pattern, not as validation of current results |
 | [GUITAR, ACL ARR 2026](https://openreview.net/forum?id=QHqd5m6Wcv) | State/transition diagnostics for frequency-weighted GUI-agent scores | Reviewed as a conceptual neighbor, but not cited because the current record is an ARR submission rather than a stable archival venue and the paper uses a different failure mode |
 | Agentic Benchmark Checklist | Benchmark design and reward choices can distort measured performance | Already included as `zhu2025abc`; it supplies the closest general benchmark-rigor support |
 
@@ -100,7 +107,7 @@ A reviewer should be able to answer three questions from the Introduction:
 
 ## Decision
 
-Keep the current 15-reference bibliography and the four-function Introduction.
+Keep the current 23-reference bibliography and the five-function Introduction.
 Make the primary/secondary example hierarchy explicit in the manuscript prose
 and captions; do not add citations merely to increase the count.
 
@@ -113,8 +120,8 @@ presented as established by prior work.
 
 ## Required changes
 
-None to the bibliography at this stage. Re-run metadata and claim-support
-verification if a future revision adds AgentDojo, AgentIF, or another source.
+No additional bibliography expansion is required at this stage. Re-run metadata
+and claim-support verification if a future revision adds another source.
 
 ## Next actions
 

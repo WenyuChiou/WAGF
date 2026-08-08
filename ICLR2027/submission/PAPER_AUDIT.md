@@ -52,8 +52,8 @@ question in the second column without reading another figure first.
 | Figure 3 | Why is the anchor validator-on/off contrast descriptive in a coupled setting? | The anchor time series, reservoir trajectories, and never-retried subset show matched initial worlds, later state divergence, and unequal filtering. | It is not a mediator analysis, causal adjustment, or proof of a unique mechanism. | Primary irrigation mechanism diagnosis. |
 | Figure 4 | What changes when the action denominator includes every executed decision? | Conditional and all-decision executed-action contrasts differ in both directions across the five irrigation cells. | It is not an automatic correction or a claim that one denominator is universally valid. | Primary estimand consequence. |
 | Table 1 | What are the primary irrigation condition and action rates? | Anchor and five-cell executed-action quantities, with seed-level inference. | It must not foreground Flood. | Primary result table. |
-| Table 2 | Is the broad contrast confined to irrigation? | A bounded descriptive comparison: irrigation has the larger range, Flood remains near zero and crosses signs. | It is not a paired comparison, dose-response result, or mechanism-transfer test. | Secondary boundary check only. |
-| Table 3 | How much of the anchor share contrast remains after recorded-state alignment? | Reweighting is a descriptive composition diagnostic with explicit coverage. | It is not causal adjustment because recorded state is downstream of governance. | Supporting primary irrigation diagnostic. |
+| Table 2 | How much of the anchor share contrast remains after recorded-state alignment? | Reweighting is a descriptive composition diagnostic with explicit coverage. | It is not causal adjustment because recorded state is downstream of governance. | Supporting primary irrigation diagnostic. |
+| Table 3 | Is the broad contrast confined to irrigation? | A bounded descriptive comparison: irrigation has the larger range, Flood remains near zero and crosses signs. | It is not a paired comparison, dose-response result, or mechanism-transfer test. | Secondary boundary check only. |
 
 ## Figure hierarchy and balance
 
@@ -93,7 +93,7 @@ level of measurement validity in governed LLM-agent evaluation.
 
 The same rule applies within each display: Figure 1 abstracts away from water
 and shows the reusable dependency; Figures 2--4 use irrigation because they
-answer progressively more specific empirical questions; Table 2 carries the
+answer progressively more specific empirical questions; Table 3 carries the
 Flood boundary check without suggesting that the two settings form a matched
 mechanism comparison.
 
@@ -104,7 +104,7 @@ The manuscript introduces Figure 1 in the Introduction immediately after the
 figure appears when the reader first needs the system-level dependency. The
 methods then use Figure 2 to define the validator inputs. The world-state
 section uses Figure 3 for the anchor diagnosis. The denominator section uses
-Figure 4 for the primary executed-action comparison. Table 2 is introduced as
+Figure 4 for the primary executed-action comparison. Table 3 is introduced as
 a secondary boundary check after the primary irrigation result, not before it.
 
 The caption contracts are:
@@ -157,7 +157,7 @@ The gap statement is specific: existing work motivates interactive evaluation,
 runtime enforcement, and construct validity, but the manuscript tests the case
 where the evaluated agent writes the condition that selects its own scored
 records. The literature is evidence for the problem setting, not evidence for
-the manuscript's numerical results. The 15 cited entries and their claim-level
+the manuscript's numerical results. The 23 cited entries and their claim-level
 locators are recorded in `REFERENCE_AUDIT.md`; no bibliography metadata blocker
 remains in the current package.
 

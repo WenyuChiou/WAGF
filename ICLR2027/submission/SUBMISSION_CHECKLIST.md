@@ -22,7 +22,7 @@
 - [x] Figures 2--4 are quantitative outputs under `figures/active/`;
       Figure 3 is a three-panel primary irrigation mechanism figure, Figure 4
       is the deterministic executed-action denominator-gap plot, and Flood
-      remains a secondary Table 2/cross-testbed summary. No generated image is
+      remains a secondary Table 3/cross-testbed summary. No generated image is
       used for a quantitative chart.
 - [x] Citation keys, figure paths, one-page quantitative figure PDFs, placeholder tokens,
       Unicode surprises, and LaTeX environment balance pass static checks.

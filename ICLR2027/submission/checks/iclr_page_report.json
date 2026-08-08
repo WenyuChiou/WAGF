@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "pdf": "paper/manuscript.pdf",
+  "extractor": "pdftotext",
+  "total_pages": 11,
+  "main_pages": 9,
+  "max_main_pages": 9,
+  "statement_pages": [
+    9
+  ],
+  "statement_locations": {
+    "aiusestatement": [
+      [
+        9,
+        43
+      ]
+    ],
+    "ethicsstatement": [
+      [
+        9,
+        53
+      ]
+    ],
+    "reproducibilitystatement": [
+      [
+        9,
+        60
+      ]
+    ]
+  },
+  "reference_pages": [
+    10
+  ],
+  "figure4_caption": [
+    8,
+    25
+  ],
+  "table3_caption": [
+    8,
+    33
+  ],
+  "errors": []
+}

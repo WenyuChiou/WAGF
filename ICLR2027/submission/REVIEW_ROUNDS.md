@@ -1,25 +1,57 @@
 # Review rounds
 
-## Current supersession note: Round 25 (2026-08-08)
+## Current supersession note: Round 26 (2026-08-08)
 
 This section is the current authority for the figure-position, example-balance,
 material-inventory, literature, and venue pass. Earlier round notes preserve
 their historical state and are not current release claims. In particular, the
 old statements that the TeX engine was unavailable are superseded: the official
 ICLR style build now runs with MiKTeX 25.12 and produces 11 pages (9 main-text,
-2 reference) without overfull boxes or undefined citations.
+2 reference) without overfull boxes or undefined citations. The page gate uses
+the rendered PDF and Poppler text extraction to identify the reference start.
 
 The current figure chain is: Figure 1, domain-neutral shared-condition
 concept; Figure 2, irrigation rule-layer inputs; Figure 3, irrigation coupled
-world-state diagnosis; Figure 4, irrigation denominator consequence; Table 2,
+world-state diagnosis; Figure 4, irrigation denominator consequence; Table 3,
 Flood boundary check only. The water example is primary because it contains the
 feedback loop required by the mechanism diagnosis. Flood is not a co-primary
 case, matched control, or mechanism panel.
 
-The current audit also records 15 verified bibliography entries, a four-function
+The current audit also records 23 verified bibliography entries, a five-function
 literature funnel, a frozen-corpus inventory pass, and no confirmed P0/P1 defect
-in a generic WAGF module. The unresolved provenance and first-attempt matched-arm
-gates remain published in `EXPERIMENT_AUDIT.md` and `HANDOFF.md`.
+in a generic WAGF module. The executed conditional-minus-all gap is now aligned
+across the manuscript and checks at `-16.06` to `+3.38` pp: four cells understate
+the all-decision contrast and one overstates it. The unresolved provenance and
+first-attempt matched-arm gates remain published in `EXPERIMENT_AUDIT.md` and
+`HANDOFF.md`.
+
+### Round 26: figure positioning and example balance
+
+The display contract is now stated as a four-step argument. Figure 1 is the
+domain-neutral conceptual bridge: it shows the same agent-written condition
+entering validation and record selection. Figure 2 is the irrigation rule audit:
+it answers which validator layers read self-report versus simulator state. Figure
+3 is the irrigation world-state diagnosis: it shows matched starting worlds,
+later reservoir divergence, and unequal retry filtering. Figure 4 is the
+irrigation estimand consequence: it connects the conditional and executed
+all-decision contrasts and makes the direction of the gap visible.
+
+Irrigation remains the primary example because only it supplies the action to
+environment to later-context feedback needed for the mechanism diagnosis. Flood
+is mentioned in the abstract only as a bounded secondary comparison and remains
+in one table in the paper. It is not a co-primary case, a matched control, or a
+mechanism panel. This hierarchy gives the reviewer one reusable CS claim and one
+concrete empirical story instead of two competing application stories.
+
+The latest prose pass also aligns the bibliography keys with the manuscript,
+adds the ICLR rendered-page gate, and clarifies that Figure 3's never-retried
+subset means no validator rejection message was returned; it does not imply a
+clean action reading.
+
+The final typeset cleanup also keeps the surrounding argument paragraphs
+intact around Figures 1--3. Shorter, plain-language transitions prevent a
+double-column float from splitting a contribution or result paragraph. The
+rendered package remains 9 main-text pages plus 2 reference pages.
 
 ## Round 1: academic-writing and release pass
 

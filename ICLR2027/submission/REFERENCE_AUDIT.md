@@ -25,21 +25,31 @@ without a stable proceedings record.
 | shinn2023reflexion | NeurIPS 2023, vol. 36, DOI 10.52202/075280-0377; authors corrected to published record | Feedback can be part of a repeated agent loop | Abstract: verbal feedback and subsequent decisions | VERIFIED |
 | wu2023autogen | arXiv:2308.08155; title/authors exact; technical-report exception | Multi-agent conversation extends tool/feedback loops | Abstract: agents converse to accomplish tasks | VERIFIED |
 | yang2024sweagent | NeurIPS 2024, vol. 37, DOI 10.52202/079017-1601; authors/title exact | Interface design can change agent behavior and performance | Abstract: agent-computer interface affects software tasks | VERIFIED |
+| agentdojo2024 | NeurIPS 2024 Datasets and Benchmarks, vol. 37, DOI 10.52202/079017-2636; official title/authors checked | Dynamic tool-mediated environments can evaluate agent interaction under attacks and defenses | Proceedings abstract | VERIFIED |
+| osworld2024 | NeurIPS 2024 Datasets and Benchmarks, vol. 37, DOI 10.52202/079017-1650; official title/authors checked | Open-ended agent evaluation can operate over real computer environments and evolving state | Proceedings abstract | VERIFIED |
+| agentcompany2025 | NeurIPS 2025 Datasets and Benchmarks, vol. 38, DOI 10.52202/085713-0315; official title/authors checked | Agent evaluation can target consequential multi-step tasks | Proceedings abstract | VERIFIED |
+| agentif2025 | NeurIPS 2025 Datasets and Benchmarks, vol. 38, DOI 10.52202/085713-1892; official title/authors checked | Agentic evaluation can make constraints and instruction following explicit | Proceedings abstract | VERIFIED |
+| toolsandbox2025 | Findings of NAACL 2025, pp. 1160--1183, DOI 10.18653/v1/2025.findings-naacl.65; title/authors checked | Stateful conversational tool-use evaluation makes later interaction part of the measured setting | ACL Anthology abstract | VERIFIED |
+| khan2017coupled | HESS 21, 6275--6288, 2017, DOI 10.5194/hess-21-6275-2017; title/authors checked | Coupled watershed models can connect agent decisions and hydrologic state | HESS abstract and model description | VERIFIED |
+| lin2022cnhs | Environmental Modelling and Software 155:105451, 2022, DOI 10.1016/j.envsoft.2022.105451; title/authors checked | Two-way coupled natural--human ABMs provide a precedent for action/state feedback | Publisher abstract | VERIFIED |
+| streefkerk2023drought | Frontiers in Water 4:1037971, 2023, DOI 10.3389/frwa.2022.1037971; title/authors checked | Human decisions and drought conditions can form a coupled feedback model | Article abstract | VERIFIED |
 
 ## Cross-file checks
 
-- The manuscript cites 15 distinct keys, and all 15 keys occur in the
+- The manuscript cites 23 distinct keys, and all 23 keys occur in the
   bibliography.
 - No bibliography entry is currently uncited.
-- The introduction uses the new references for context and gap construction;
-  none is used as evidence for the WAGF numerical results.
+- The introduction uses the added references for context, coupled-example
+  motivation, and gap construction; none is used as evidence for the WAGF
+  numerical results.
 - The only preprint-only sources are kapoor2024agents and wu2023autogen;
   yao2023react, zhou2024webarena, jimenez2024swebench, and
   yao2025taubench retain arXiv identifiers but are cited as ICLR papers.
-- The bibliography is now targeted rather than padded. Fifteen sources cover
+- The bibliography is targeted rather than padded. Twenty-three sources cover
   agent evaluation, runtime enforcement, interactive environments, feedback
-  loops, construct validity, and benchmark rigor. A venue-specific related-work
-  expansion can be added later only if it changes the gap or comparison.
+  loops, coupled human--environment modeling, construct validity, and benchmark
+  rigor. A venue-specific related-work expansion should be added only if it
+  changes the gap or comparison.
 
 ## Remaining check at upload
 
