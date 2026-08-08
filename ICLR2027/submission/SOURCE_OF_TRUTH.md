@@ -24,6 +24,8 @@ The active release is the directory containing this file:
 - Non-active figure candidates: `figures\candidates\`
 - Static checks: `checks\figure1_geometry_check.py` and
   `checks\manuscript_static_check.py`
+- First-attempt experiment boundary: `EXPERIMENT_AUDIT.md`; it records
+  governed-only diagnostics that are not released into the manuscript
 - Official style source: `source\iclr_style\iclr2027`
 
 ## File layout rule

@@ -12,6 +12,16 @@ defect this paper is about; this file is the cheap fix rather than editing yours
 **Full detail: `SUBMISSION_2026/TAE/HANDOVER.md`, the `LIVE STATE` section at the top.** Everything
 below is the part that cannot wait for you to get there.
 
+## Current status supersession — 2026-08-08
+
+The real-LLM batch described in the historical section below has finished. The
+five governed-only first-attempt directories are inventoried but unreleased:
+their provenance is RED and no matched no-validator first-attempt arm exists.
+Treat the old "running" language and early signal as historical context, not a
+current result. The active operational boundary is the Codex addendum in
+`SUBMISSION_2026/TAE/HANDOVER.md`; the detailed release conditions are in
+`ICLR2027/submission/EXPERIMENT_AUDIT.md`.
+
 ---
 
 ## 1. 🔴 An 11-hour real-LLM experiment is running. Four prohibitions.
