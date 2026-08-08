@@ -54,9 +54,9 @@ new validator, a deception claim, or a hydrological policy result.
 - The active Table 3 fragment is named `supplement/table3_cross_testbed.tex`.
   No current builder, manifest, README, or handoff reference uses the
   superseded `table2` path; older review-log entries remain historical.
-- The latest local submission commits are `9853aa97` and `a9e99abb`; no
-  manuscript number, experiment claim, or Cloud-owned file was changed in
-  those cleanup commits.
+- The recent local submission commits are `9853aa97`, `a9e99abb`, and
+  `1b807f95`; no manuscript number, experiment claim, or Cloud-owned file was
+  changed in those cleanup commits.
 
 ## Gates that remain open
 
