@@ -9,10 +9,10 @@
     9
   ],
   "statement_locations": {
-    "reproducibilitystatement": [
+    "aiusestatement": [
       [
         9,
-        65
+        42
       ]
     ],
     "ethicsstatement": [
@@ -21,10 +21,10 @@
         55
       ]
     ],
-    "aiusestatement": [
+    "reproducibilitystatement": [
       [
         9,
-        42
+        65
       ]
     ]
   },

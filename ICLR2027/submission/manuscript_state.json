@@ -59,7 +59,7 @@
     },
     {
       "id": "cross_testbed_table_fragment",
-      "path": "supplement/table2_cross_testbed.tex",
+      "path": "supplement/table3_cross_testbed.tex",
       "role": "deterministic_table_fragment",
       "status": "ACTIVE",
       "required_for_release": true
