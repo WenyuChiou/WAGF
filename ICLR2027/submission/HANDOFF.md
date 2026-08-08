@@ -155,9 +155,11 @@ smoke manifests marked `git_dirty=true`; this is a provenance limitation, not
 a failed numerical crosscheck. Do not describe the historic corpus as bitwise
 reproducible.
 
-The 2026-08-08 polish pass changed prose, captions, and release notes only. It
-did not regenerate a figure or add the unreleased first-attempt result: Figure
-1 remains the reviewed generated conceptual asset, and Figures 2--4 remain
+The 2026-08-08 content polish pass changed prose, captions, and release notes
+only. A subsequent delivery pass added `\hypersetup{hidelinks}` to remove
+printed hyperlink borders from citations and cross-references; it did not
+regenerate a figure or add the unreleased first-attempt result. Figure 1
+remains the reviewed generated conceptual asset, and Figures 2--4 remain
 deterministic evidence displays. When Cloud releases the additional
 experiments, reconcile their provenance against LIVE_STATE.md before changing
 any number, caption, figure, table, or claim.
@@ -225,7 +227,8 @@ that limit; this PDF has 9 pages of main text plus 2 reference pages.
 The current official ICLR 2027 author guidelines list the abstract deadline as
 Sep 11, 2026 AOE and the paper deadline as Sep 16, 2026 AOE. Recheck the live
 author page at submission time; the older dates in historical TAE handover
-notes are superseded.
+notes and the older planned dates still shown on the Call for Papers page are
+superseded by the Author Guidelines.
 
 ## Next agent's order of work
 
