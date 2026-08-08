@@ -21,6 +21,8 @@ paper. Read this file first when returning to the project.
 | Figures cited by the manuscript | `figures/active/` |
 | Figure 1 generated asset | `figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png` |
 | Figure and example-role audit | `PAPER_AUDIT.md` |
+| WAGF material and code inventory | `WAGF_INVENTORY.md` |
+| Literature and contribution positioning | `LITERATURE_POSITIONING_AUDIT.md` |
 | Reference verification audit | `REFERENCE_AUDIT.md` |
 | Figure 1 staging builder | `source/figure1_agent_paper.py` |
 | Figure 1 builder entry point | `source/figure1_overlay.py` compatibility entry point |

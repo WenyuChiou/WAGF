@@ -84,6 +84,27 @@
       "role": "review_record",
       "status": "ACTIVE",
       "required_for_release": false
+    },
+    {
+      "id": "wagf_inventory",
+      "path": "WAGF_INVENTORY.md",
+      "role": "material_code_and_evidence_inventory",
+      "status": "ACTIVE",
+      "required_for_release": false
+    },
+    {
+      "id": "literature_positioning_audit",
+      "path": "LITERATURE_POSITIONING_AUDIT.md",
+      "role": "literature_and_contribution_positioning",
+      "status": "ACTIVE",
+      "required_for_release": false
+    },
+    {
+      "id": "venue_matrix",
+      "path": "VENUE_MATRIX.md",
+      "role": "venue_requirements_and_target_decision",
+      "status": "ACTIVE",
+      "required_for_release": false
     }
   ],
   "authority_sources": [
@@ -126,6 +147,30 @@
       "scope": ["flood", "irrigation", "enforcement_pressure"],
       "status": "VERIFIED",
       "last_verified": "2026-08-06"
+    },
+    {
+      "id": "paper-material-inventory",
+      "kind": "read_only_release_audit",
+      "path_or_reference": "WAGF_INVENTORY.md",
+      "scope": ["materials", "evidence", "generic_modules", "ownership"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-08"
+    },
+    {
+      "id": "literature-positioning",
+      "kind": "academic_writing_audit",
+      "path_or_reference": "LITERATURE_POSITIONING_AUDIT.md and REFERENCE_AUDIT.md",
+      "scope": ["introduction", "literature", "contribution", "claim_boundary"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-08"
+    },
+    {
+      "id": "venue-requirements",
+      "kind": "official_venue_sources",
+      "path_or_reference": "VENUE_MATRIX.md",
+      "scope": ["target_venue", "deadlines", "format", "submission_policy"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-08"
     }
   ],
   "contract": {

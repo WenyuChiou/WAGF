@@ -1,8 +1,9 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-08 after a frozen-corpus downstream prose/display polish pass,
-fresh Figure 1 visual inspection, a plain-language and academic-writing audit,
-and an official MiKTeX typeset build of the active manuscript.
+Updated 2026-08-08 after the figure-role/example-balance audit, WAGF material
+inventory, refreshed CS-agent literature positioning, a plain-language and
+academic-writing audit, and an official MiKTeX typeset build of the active
+manuscript.
 
 ## Read this first
 
@@ -45,6 +46,17 @@ the measurement-validity problem, not with the name of the implementation.
 Later method and reproducibility sections may retain the framework name where
 provenance requires it.
 
+The current figure hierarchy is deliberate: Figure 1 is a domain-neutral
+conceptual bridge; Figures 2--4 are irrigation-led rule, coupled-world, and
+denominator analyses; Flood appears only in Table 2 as a secondary boundary
+check. Do not add a Flood mechanism panel unless the study design gains a
+matched mechanism question and evidence.
+
+The current working-tree changes for this pass are not committed. Three
+read-only code-reviewer attempts timed out without a verdict, so the commit
+gate remains open rather than being treated as an approval. The manuscript and
+audit checks themselves have passed; retry the reviewer gate before staging.
+
 ## Canonical package layout
 
 | What to use | Location |
@@ -66,6 +78,8 @@ provenance requires it.
 | Evidence-boundary report | `checks\evidence_boundary_report.json` |
 | Reproducibility audit | `checks\reproducibility\reproducibility_report.md` |
 | Paper, figure, and example-role audit | `PAPER_AUDIT.md` |
+| WAGF material and code inventory | `WAGF_INVENTORY.md` |
+| Literature and contribution positioning | `LITERATURE_POSITIONING_AUDIT.md` |
 | Reference verification audit | `REFERENCE_AUDIT.md` |
 | First-attempt provenance audit | `EXPERIMENT_AUDIT.md` |
 | Irrigation coupling audit | `COUPLING_AUDIT.md` |

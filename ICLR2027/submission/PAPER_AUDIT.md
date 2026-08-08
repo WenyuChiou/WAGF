@@ -5,6 +5,22 @@ current frozen-corpus manuscript pass, and the first-attempt evidence audit.
 This is an internal review record. The
 anonymous manuscript remains `paper/manuscript.tex`.
 
+## Current figure-position decision
+
+The figures are an argument sequence, not a collection of application
+illustrations. Figure 1 earns the first slot because it gives the reviewer the
+paper's reusable dependency before any domain-specific result appears. The
+remaining quantitative displays are irrigation-led because irrigation is the
+only setting in the current corpus that supplies the coupled action -> state ->
+next-context path needed for the mechanism diagnosis. Flood receives one
+table-level boundary check so it contributes breadth without becoming a second
+story.
+
+The balance rule is strict: if a display cannot answer a distinct reviewer
+question, it is removed or moved to the supplement. A Flood panel would fail
+this rule because it would suggest a matched mechanism comparison that the
+different feedback, action, field, and seed designs do not support.
+
 ## Paper identity
 
 The paper studies a measurement-validity problem in governed LLM-agent
@@ -18,10 +34,11 @@ The coupled irrigation simulation is the primary empirical example because it
 has the required feedback loop: an accepted action changes a shared reservoir,
 and the later world state enters subsequent agent context. It is an example of
 the measurement dependency, not a claim that the result is specific to water
-management. Flood is retained as a secondary cross-testbed boundary check. It tests
-whether the broad contrast is isolated to the coupled irrigation setting, but
-it is not a second mechanism analysis because its action ontology, feedback,
-field name, and seed matching differ.
+management. Flood is retained as a secondary cross-testbed boundary check. It
+provides a bounded descriptive check on whether similarly large high-appraisal
+contrasts appear in the non-coupled Flood setting, but it is not a second
+mechanism analysis because its action ontology, feedback, field name, and seed
+matching differ.
 
 ## Figure and table contract
 
