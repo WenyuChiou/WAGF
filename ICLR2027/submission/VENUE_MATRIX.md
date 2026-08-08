@@ -1,5 +1,7 @@
 # Venue decision matrix
 
+Last official-source check: 2026-08-08.
+
 ## Active decision
 
 **Primary target: ICLR 2027.** The paper is framed as an AI-agent evaluation and
@@ -13,6 +15,12 @@ TAE is historical in this repository and is not the active target because its
 schedule conflicts with the author's AGU commitment. The existing
 `SUBMISSION_2026\TAE` package is preserved as a snapshot and is not overwritten
 by this ICLR package.
+
+The official ICLR 2027 author guidance currently places the abstract deadline
+on 18 September 2026 AoE and the full-paper deadline on 25 September 2026 AoE.
+The author's AGU26 commitment is 7--11 December 2026, so these dates do not
+conflict. TAE remains closed as an operational target because of the prior
+commitment decision, not because the historical package is deleted.
 
 ## Comparison
 
@@ -32,3 +40,18 @@ AAMAS becomes the target, re-check that policy before submission. The active
 ICLR Figure 1 is a reviewed generated full composition; it should not be
 silently reused for another venue without that policy check. Earlier vector and
 generated intermediates remain outside the active figure path.
+
+## Current paper-shape decision
+
+The ICLR package uses one conceptual figure, three irrigation-led quantitative
+figures, and three tables. Flood appears in one secondary boundary-check table.
+This is a paper-design choice rather than a venue quota: it keeps the visual
+and quantitative emphasis on the coupled feedback loop that motivates the
+paper's measurement claim. AAMAS remains a later fallback, and its current
+image-generation policy must be rechecked before any venue switch.
+
+## Official sources
+
+- [ICLR 2027 Author Guidelines](https://iclr.cc/Conferences/2027/AuthorGuidelines)
+- [AGU Annual Meeting](https://www.agu.org/annual-meeting)
+- [AAMAS 2027 Calls](https://warwick.ac.uk/fac/sci/dcs/aamas2027/calls/)

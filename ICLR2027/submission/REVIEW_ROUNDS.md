@@ -1,5 +1,26 @@
 # Review rounds
 
+## Current supersession note: Round 25 (2026-08-08)
+
+This section is the current authority for the figure-position, example-balance,
+material-inventory, literature, and venue pass. Earlier round notes preserve
+their historical state and are not current release claims. In particular, the
+old statements that the TeX engine was unavailable are superseded: the official
+ICLR style build now runs with MiKTeX 25.12 and produces 11 pages (9 main-text,
+2 reference) without overfull boxes or undefined citations.
+
+The current figure chain is: Figure 1, domain-neutral shared-condition
+concept; Figure 2, irrigation rule-layer inputs; Figure 3, irrigation coupled
+world-state diagnosis; Figure 4, irrigation denominator consequence; Table 2,
+Flood boundary check only. The water example is primary because it contains the
+feedback loop required by the mechanism diagnosis. Flood is not a co-primary
+case, matched control, or mechanism panel.
+
+The current audit also records 15 verified bibliography entries, a four-function
+literature funnel, a frozen-corpus inventory pass, and no confirmed P0/P1 defect
+in a generic WAGF module. The unresolved provenance and first-attempt matched-arm
+gates remain published in `EXPERIMENT_AUDIT.md` and `HANDOFF.md`.
+
 ## Round 1: academic-writing and release pass
 
 The manuscript was reorganized as why -> example -> mechanism -> estimands ->
