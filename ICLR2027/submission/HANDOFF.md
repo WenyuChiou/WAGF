@@ -1,10 +1,8 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-06 after a cross-testbed evidence round and a fresh Figure 1
-generation review based on the rendered architecture figures of ReAct,
-Reflexion, AutoGen, SWE-agent, and AgentSpec, followed by independent visual
-review, a plain-language and academic-writing audit, and an official MiKTeX
-typeset build of the active manuscript.
+Updated 2026-08-08 after a frozen-corpus downstream prose/display polish pass,
+fresh Figure 1 visual inspection, a plain-language and academic-writing audit,
+and an official MiKTeX typeset build of the active manuscript.
 
 ## Read this first
 
@@ -21,6 +19,11 @@ answer in the manuscript until the operational handoff explicitly releases
 it. The package below uses only the frozen evidence and the canonical Flood
 contrast CSV.
 
+Cloud's four additional experiments remain outside this release. Their
+numbers, traces, and new fields must not enter the manuscript, figures,
+tables, or claims until the operational handoff releases their provenance and
+source-of-truth status.
+
 The current strategic direction is to present WAGF as an empirical testbed for
 a general measurement-validity problem in governed LLM-agent evaluation:
 
@@ -30,7 +33,8 @@ a general measurement-validity problem in governed LLM-agent evaluation:
 
 The manuscript does not claim deception, causality, universal agent behavior,
 or a within-world reporting revision. A controlled validation experiment would
-strengthen ICLR generality; no new experiment has yet been run in this package.
+strengthen ICLR generality; no new experiment result has yet been integrated
+in this package.
 
 For the Introduction, the framing decision is to omit the internal framework
 name and present the coupled water-resource simulation as the empirical
@@ -128,6 +132,13 @@ current source. The WAGF reproducibility audit remains RED for three historic
 smoke manifests marked `git_dirty=true`; this is a provenance limitation, not
 a failed numerical crosscheck. Do not describe the historic corpus as bitwise
 reproducible.
+
+The 2026-08-08 polish pass changed prose, captions, and release notes only. It
+did not regenerate a figure or add a Cloud result: Figure 1 remains the
+reviewed generated conceptual asset, and Figures 2--4 remain deterministic
+evidence displays. When Cloud releases the four experiments, reconcile their
+provenance against LIVE_STATE.md before changing any number, caption, figure,
+table, or claim.
 
 ## Academic-writing and reviewer audit
 
