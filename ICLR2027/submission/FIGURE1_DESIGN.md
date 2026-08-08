@@ -4,7 +4,7 @@
 
 The active Figure 1 is the generated shared-condition architecture:
 
-`figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`
 
 It is staged into `figures/active/figure1_concept.png` by
 `source/figure1_agent_paper.py`. Earlier nested-interface and bridge images
@@ -16,8 +16,8 @@ Figure 1 has one reader task: see why a runtime validator can change a
 conditional evaluation score through the records that enter its denominator.
 The agent response contains an action and an agent-written condition. The
 response enters the Validator; an accepted action reaches the Environment;
-a rejected proposal can trigger a fresh response or a retry-exhausted default
-action; the Validator's final record enters the Decision log. The same
+a rejected proposal returns to the Agent response for a retry or reaches a
+retry-exhausted default action; the Validator's final record enters the Decision log. The same
 condition enters the Validator as a rule input and selects records in the
 conditional-rate path. The primary paper statistics count the executed action.
 
@@ -45,9 +45,9 @@ four record-flow endpoints explicit at paper width.
 
 ```text
 Agent response --propose--> Validator --accepted--> Environment
-                               |
-                               +--retry / re-ask--> fresh response
-                               +--final record--> Decision log --records-->
+       ^                     |
+       +--retry / re-ask-----+
+                             +--final record--> Decision log --records-->
 condition --rule input-----> Validator                         Counted records --> Conditional rate
 condition --selects-------------------------------------------> Counted records
 ```
@@ -69,10 +69,10 @@ ends at Counted records' amber input port. The black `final record` and
    black `records` to Counted records.
 5. The violet Counted records card receives both black records and the amber
    condition selector, then feeds Conditional rate.
-6. The retry/default-action branch is shown because the executed action is the
-   primary reading. Observation-to-next-context remains omitted to keep the
-   shared condition relationship legible. The caption and Evaluation Setting
-   state that the frozen corpus lacks the first response before a retry.
+6. The direct retry/default-action branch is shown because the executed action
+   is the primary reading. Observation-to-next-context remains omitted to keep
+   the shared condition relationship legible. The caption and Evaluation
+   Setting state that the frozen corpus lacks the first response before a retry.
 
 ## Visual constraints
 

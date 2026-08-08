@@ -292,7 +292,7 @@
     },
     {
       "id": "figure1-rendering",
-      "decision": "Use generated shared-condition v5 with a subordinate retry/default-action branch: a compact Agent response card, explicit black and amber Validator ports, a final-record route to Decision log, black borders with flat colored fills, and a direct condition-to-Counted-records route.",
+      "decision": "Use generated shared-condition v6 with a subordinate retry/default-action branch: a compact Agent response card, explicit black and amber Validator ports, a final-record route to Decision log, black borders with flat colored fills, a direct condition-to-Counted-records route, and a retry arrow that returns to Agent response.",
       "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
     },
     {
@@ -312,7 +312,7 @@
     },
     {
       "id": "flood-cross-testbed-scope",
-      "decision": "Retain nine Flood configurations as a secondary cross-testbed control check in Table 2 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity. Report the corrected 0--0.638% Flood rejection-pressure range from the live handoff.",
+      "decision": "Retain nine Flood configurations as a secondary cross-testbed boundary check in Table 2 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity. Report the corrected 0--0.638% Flood rejection-pressure range from the live handoff.",
       "authority": "ICLR2027/flood_control_contrasts.csv, source/cross_testbed_summary.py, and current Cloud handoff"
     }
   ],
@@ -386,11 +386,11 @@
       "typeset_pdf_inspection"
     ],
     "checked_hashes": {
-      "figure1_source_asset": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
-      "figure1_active_png": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
-      "figure1_print_png": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d"
+      "figure1_source_asset": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
+      "figure1_active_png": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
+      "figure1_print_png": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985"
     },
-      "visual_check": "PASS_SHARED_CONDITION_V5_RETRY_FULL_PRINT_GRAYSCALE_THUMB; RETRY_ROUTE_VISUALLY_REVIEWED; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; EXECUTED_DENOMINATOR_GAP_FIGURE_REVIEWED; FLOOD_TABLE2_CONTROL_CHECK_SYNCED; OFFICIAL_TYPESET_REVIEWED_10_PAGES_TOTAL_9_MAIN_1_REFERENCE"
+      "visual_check": "PASS_SHARED_CONDITION_V6_RETRY_RETURN_FULL_PRINT_GRAYSCALE_THUMB; RETRY_ROUTE_VISUALLY_REVIEWED; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; EXECUTED_DENOMINATOR_GAP_FIGURE_REVIEWED; FLOOD_TABLE2_BOUNDARY_CHECK_SYNCED; OFFICIAL_TYPESET_REVIEWED_11_PAGES_TOTAL_9_MAIN_2_REFERENCE"
   },
   "active_venue": {
     "primary": "ICLR 2027",
@@ -410,7 +410,7 @@
   },
   "figure1_contract": {
     "role": "conceptual agent/evaluation diagram: one response, one governance gate, and one shared selection variable",
-    "selected_base": "generated shared-condition agent-paper candidate F with retry/default-action branch",
+    "selected_base": "generated shared-condition agent-paper candidate F v6 with retry-return/default-action branch",
     "functional_rails": [],
     "white_space_policy": "warm light-gray single canvas; black module borders and arrows with flat colored fills, tight semantic nodes, and no floating white cards",
     "color_roles": {
@@ -422,7 +422,7 @@
       "black": "execution and record-flow arrows and module borders",
       "warm light-gray": "neutral paper canvas"
     },
-    "visible_label_count": 19,
+    "visible_label_count": 18,
     "max_label_characters": 18,
     "geometry_status": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
     "text_overlap_count": null,
@@ -432,7 +432,7 @@
   },
   "verification": {
     "figure1_geometry": "PASS_MANUAL_VISUAL_REVIEW_REQUIRED",
-    "visual_figure_review": "PASS_SHARED_CONDITION_V5_RETRY_FULL_PRINT_GRAYSCALE_THUMB; RETRY_ROUTE_VISUALLY_REVIEWED; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; EXECUTED_DENOMINATOR_GAP_FIGURE_REVIEWED",
+    "visual_figure_review": "PASS_SHARED_CONDITION_V6_RETRY_RETURN_FULL_PRINT_GRAYSCALE_THUMB; RETRY_ROUTE_VISUALLY_REVIEWED; CAPTION_SYNCED; COLOR_CONTRACT_SYNCED; PRIMARY_IRRIGATION_FIGURE3_LAYOUT_REVIEWED; EXECUTED_DENOMINATOR_GAP_FIGURE_REVIEWED; FLOOD_TABLE2_BOUNDARY_CHECK_SYNCED",
     "manuscript_static": "PASS",
     "evidence_boundary": "PASS",
     "academic_state_schema": "PASS",
@@ -443,7 +443,7 @@
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
     "adversarial_review": "APPROVE_BOUNDED_STAGED_DIFF_REVIEWER_EXECUTED_PRIMARY_FLOOD_TABLE_ONLY_PANEL_D_RETIRED",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
-    "official_tex_build": "PASS_MIKTEX_25_12_10_PAGES_TOTAL_9_MAIN_1_REFERENCE_NO_OVERFULL_OR_UNDEFINED_CITATIONS",
+    "official_tex_build": "PASS_MIKTEX_25_12_11_PAGES_TOTAL_9_MAIN_2_REFERENCE_NO_OVERFULL_OR_UNDEFINED_CITATIONS",
     "new_experiment_run": false
   },
   "next_actions": [

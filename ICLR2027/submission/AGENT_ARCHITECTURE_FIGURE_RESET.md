@@ -8,11 +8,13 @@ the reader decode containers before seeing the paper's measurement point.
 
 The active replacement is:
 
-`figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png`
+`figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`
 
 It is a newly generated compact dataflow figure with black borders, colored
 fills, explicit input/output ports, short labels, and a subordinate
 retry/default-action branch required by the executed-action primary reading.
+Version v5 is retained only as a historical generation record; v6 routes the
+retry arrow directly back to Agent response.
 
 ## Message to communicate
 

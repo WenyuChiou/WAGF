@@ -4,27 +4,37 @@
   "manuscript": "paper/manuscript.tex",
   "cited_keys": [
     "bean2025construct",
+    "jimenez2024swebench",
     "kapoor2024agents",
     "liu2023agentbench",
+    "ma2024agentboard",
     "rebedea2023nemo",
     "rosenbaum1984adjustment",
     "shinn2023reflexion",
     "wang2026agentspec",
     "wu2023autogen",
     "yang2024sweagent",
-    "yao2023react"
+    "yao2023react",
+    "yao2025taubench",
+    "zhou2024webarena",
+    "zhu2025abc"
   ],
   "bibliography_keys": [
     "bean2025construct",
+    "jimenez2024swebench",
     "kapoor2024agents",
     "liu2023agentbench",
+    "ma2024agentboard",
     "rebedea2023nemo",
     "rosenbaum1984adjustment",
     "shinn2023reflexion",
     "wang2026agentspec",
     "wu2023autogen",
     "yang2024sweagent",
-    "yao2023react"
+    "yao2023react",
+    "yao2025taubench",
+    "zhou2024webarena",
+    "zhu2025abc"
   ],
   "figure_paths": [
     "../figures/active/figure1_concept.png",
@@ -53,7 +63,7 @@
       "mode": "RGB"
     }
   },
-  "approximate_word_count": 4395,
+  "approximate_word_count": 4485,
   "warnings": [],
   "errors": []
 }

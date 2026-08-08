@@ -36,6 +36,11 @@
 - [x] The paper states the seed-level inferential unit, executed-action primary
       reading, last-proposed sensitivity, missing first-attempt field,
       descriptive status of reweighting, and testbed limitations.
+- [x] `PAPER_AUDIT.md` records the figure roles and the irrigation-primary,
+      Flood-secondary boundary-check balance; the retired Flood mechanism Panel D is not in
+      the active package.
+- [x] `REFERENCE_AUDIT.md` verifies the cited bibliography and maps each
+      introduction claim to a literature function.
 
 ## Still required before upload
 
@@ -53,7 +58,7 @@
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       ```
-- [x] Verify the rendered PDF has 10 pages total (8 pages of main text plus 2
+- [x] Verify the rendered PDF has 11 pages total (9 pages of main text plus 2
       reference pages), no overfull boxes, no clipped captions, and no
       visible author metadata. The official ICLR 2027 author guidelines allow
       up to 9 pages of main text and exclude references from the limit.

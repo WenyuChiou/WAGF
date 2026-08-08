@@ -1,9 +1,9 @@
 {
   "rendering_mode": "generated_full",
-  "asset": "figures/assets/figure1_architecture_agentpaper_shared_condition_v5_retry.png",
-  "asset_sha256": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
-  "staged_sha256": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
-  "print_sha256": "48da36cff88d7ca7ddf34bb9075720086bc9acd279f017d853dc31d35b36609d",
+  "asset": "figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png",
+  "asset_sha256": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
+  "staged_sha256": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
+  "print_sha256": "cc40b7d49eeecfa042dd247fc54eda7f545ac4d123a133dc0eafef71f8a37985",
   "canvas_px": [
     1774,
     887
@@ -40,14 +40,13 @@
     "Counted records",
     "selects",
     "Conditional rate",
-    "fresh response",
     "retry / re-ask",
     "retry exhausted",
     "default action"
   ],
   "semantics": {
     "primary": "one agent-written condition is consumed by runtime governance and by the evaluation denominator",
-    "runtime": "the response enters Validator; an accepted action reaches Environment; a retry may produce a fresh response or a default action; the final record enters Decision log",
+    "runtime": "the response enters Validator; an accepted action reaches Environment; a rejected proposal returns to Agent response for retry or falls back to a default action; the final record enters Decision log",
     "selection": "records from Decision log enter Counted records; the same condition selects Counted records; Counted records feeds Conditional rate",
     "omitted": "the observation-to-next-context loop remains omitted; the retry branch is shown because primary statistics use the executed action"
   },
