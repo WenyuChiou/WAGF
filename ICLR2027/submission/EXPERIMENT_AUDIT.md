@@ -59,7 +59,7 @@ Do not merge these diagnostics into the ICLR paper. In particular:
    appraisal-drift chart without a matched arm and a pre-registered question.
 3. Figure 3 remains the irrigation world-state diagnosis, and Figure 4 remains
    the executed conditional-versus-all-decision comparison.
-4. Flood remains a secondary Table 2 boundary check. The first-attempt branch
+4. Flood remains a secondary Table 3 boundary check. The first-attempt branch
    does not change the example hierarchy or justify a Flood mechanism panel.
 
 ## Required release path

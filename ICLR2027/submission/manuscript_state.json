@@ -30,6 +30,13 @@
       "required_for_release": true
     },
     {
+      "id": "iclr-page-gate",
+      "path": "checks/iclr_page_gate.py",
+      "role": "rendered_page_gate",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
       "id": "cross_testbed_builder",
       "path": "source/cross_testbed_summary.py",
       "role": "deterministic_figure_and_table_builder",
@@ -283,7 +290,7 @@
       "id": "executed-denominator-contrast",
       "note": "Primary executed-action all-decision range and denominator-gap direction.",
       "source_id": "frozen-evidence-boundary",
-      "expected_strings": ["+29.90", "+20.26", "+36.57", "-14.86", "+3.38"],
+      "expected_strings": ["+29.90", "+20.26", "+36.57", "-16.06", "+3.38"],
       "forbidden_strings": [],
       "scope_roles": ["main_manuscript"]
     },
@@ -321,7 +328,7 @@
       "question_id": "Q3",
       "method": "Compare the executed conditional increase rate with the executed all-decision rate, and retain the final-proposal reading only as sensitivity.",
       "evidence": "Figure 4 and the frozen consequence evidence report contrasts for all five irrigation configurations.",
-      "result": "Executed all-decision contrasts range from +20.26 to +36.57 percentage points; the conditional-minus-all gap ranges from -14.86 to +3.38, with four negative and one positive gap.",
+      "result": "Executed all-decision contrasts range from +20.26 to +36.57 percentage points; the conditional-minus-all gap ranges from -16.06 to +3.38, with four negative and one positive gap.",
       "interpretation": "The denominator is part of the estimand, not a formatting detail.",
       "limitation": "The all-decision rate answers a different question and is not presented as an automatic correction.",
       "contribution": "Provides a minimal reporting protocol for governed-agent evaluations.",
@@ -357,7 +364,7 @@
     },
     {
       "id": "flood-cross-testbed-scope",
-      "decision": "Retain nine Flood configurations as a secondary cross-testbed boundary check in Table 2 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity. Report the corrected 0--0.638% Flood rejection-pressure range from the live handoff.",
+      "decision": "Retain nine Flood configurations as a secondary cross-testbed boundary check in Table 3 and the cross-testbed summary; do not promote them to a same-status mechanism panel. Exclude the one divergent governed B6 run and disclose the sensitivity. Report the corrected 0--0.638% Flood rejection-pressure range from the live handoff.",
       "authority": "ICLR2027/flood_control_contrasts.csv, source/cross_testbed_summary.py, and current Cloud handoff"
     }
   ],

@@ -16,7 +16,7 @@ agent request -> validator/retry -> accepted execution
 ```
 
 This loop is the reason irrigation carries Figures 2--4 and the main numeric
-tables. Flood remains a secondary boundary check in Table 2. It uses a
+tables. Flood remains a secondary boundary check in Table 3. It uses a
 different action and feedback ontology, so giving it a second mechanism panel
 or equal visual weight would make the paper look like two competing studies.
 
@@ -117,7 +117,7 @@ irrigation simulator as the contribution:
   consequential over time.
 - Figure 4 shows the reported endpoint gap and its direction-sensitive
   interpretation.
-- Table 2 gives Flood one bounded cross-testbed check without turning it into
+- Table 3 gives Flood one bounded cross-testbed check without turning it into
   a co-primary mechanism study.
 
 The manuscript should keep the claim at the level supported by this audit:

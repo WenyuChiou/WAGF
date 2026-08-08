@@ -23,7 +23,9 @@ paper. Read this file first when returning to the project.
 | Figure and example-role audit | `PAPER_AUDIT.md` |
 | WAGF material and code inventory | `WAGF_INVENTORY.md` |
 | Literature and contribution positioning | `LITERATURE_POSITIONING_AUDIT.md` |
+| Water--human spinout boundary | `WATER_HUMAN_POSITIONING.md` |
 | Reference verification audit | `REFERENCE_AUDIT.md` |
+| Rendered ICLR page gate | `checks/iclr_page_gate.py` and `checks/iclr_page_report.json` |
 | Figure 1 staging builder | `source/figure1_agent_paper.py` |
 | Figure 1 builder entry point | `source/figure1_overlay.py` compatibility entry point |
 | Figure 1 geometry check | `checks/figure1_geometry_check.py` |
@@ -50,6 +52,7 @@ before a retry.
 python ICLR2027\submission\source\figure1_overlay.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 python ICLR2027\submission\checks\manuscript_static_check.py
+python ICLR2027\submission\checks\iclr_page_gate.py
 ```
 
 The first command stages Figure 1 to `figures/active/`. Figures 2--4 are

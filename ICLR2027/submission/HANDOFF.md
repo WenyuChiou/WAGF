@@ -3,7 +3,8 @@
 Updated 2026-08-08 after the figure-role/example-balance audit, WAGF material
 inventory, refreshed CS-agent literature positioning, a plain-language and
 academic-writing audit, and an official MiKTeX typeset build of the active
-manuscript.
+manuscript. The current pass also corrects the executed denominator-gap range,
+aligns bibliography aliases with the manuscript, and adds an ICLR page gate.
 
 ## Read this first
 
@@ -48,14 +49,14 @@ provenance requires it.
 
 The current figure hierarchy is deliberate: Figure 1 is a domain-neutral
 conceptual bridge; Figures 2--4 are irrigation-led rule, coupled-world, and
-denominator analyses; Flood appears only in Table 2 as a secondary boundary
+denominator analyses; Flood appears only in Table 3 as a secondary boundary
 check. Do not add a Flood mechanism panel unless the study design gains a
 matched mechanism question and evidence.
 
-The current working-tree changes for this pass are not committed. Three
-read-only code-reviewer attempts timed out without a verdict, so the commit
-gate remains open rather than being treated as an approval. The manuscript and
-audit checks themselves have passed; retry the reviewer gate before staging.
+The release gate remains open until the current source passes the static,
+evidence-boundary, rendered-page, and bounded code-review checks together. A
+passing local package check does not close the historical provenance RED state
+or the submission-time ICLR metadata and policy checks.
 
 ## Canonical package layout
 
@@ -70,7 +71,7 @@ audit checks themselves have passed; retry the reviewer gate before staging.
 | Figure 3 cross-testbed builder | `source\cross_testbed_summary.py` |
 | Cross-testbed source summary | `supplement\cross_testbed_summary.csv` |
 | Enforcement-pressure source | `supplement\enforcement_pressure_source.json` |
-| Cross-testbed Table 2 fragment | `supplement\table2_cross_testbed.tex` |
+| Cross-testbed table fragment (paper Table 3) | `supplement\table2_cross_testbed.tex` |
 | Design contract | `FIGURE1_DESIGN.md` |
 | Reset rationale | `AGENT_ARCHITECTURE_FIGURE_RESET.md` |
 | External-paper style audit | `..\FIGURE_STYLE_AUDIT.md` |
@@ -80,6 +81,7 @@ audit checks themselves have passed; retry the reviewer gate before staging.
 | Paper, figure, and example-role audit | `PAPER_AUDIT.md` |
 | WAGF material and code inventory | `WAGF_INVENTORY.md` |
 | Literature and contribution positioning | `LITERATURE_POSITIONING_AUDIT.md` |
+| Water--human spinout boundary | `WATER_HUMAN_POSITIONING.md` |
 | Reference verification audit | `REFERENCE_AUDIT.md` |
 | First-attempt provenance audit | `EXPERIMENT_AUDIT.md` |
 | Irrigation coupling audit | `COUPLING_AUDIT.md` |
@@ -115,7 +117,7 @@ and adversarial inspection. The official typeset PDF gate passes with MiKTeX
 25.12: `paper\manuscript.pdf` is 11 pages total, with 9 pages of main text and
 2 pages of references, within the current nine-page main-text limit. The build has no undefined citations/references and no
 overfull boxes. The title and page fill produce non-fatal underfull hbox/vbox
-warnings. Rendered checks of pages containing Figure 1, Table 2, Figures 3--4
+warnings. Rendered checks of pages containing Figure 1, Table 3, Figures 3--4
 found no clipping or overlap.
 
 ## Manuscript and evidence status
@@ -136,7 +138,7 @@ appraisal contrast: irrigation stores WSA_LABEL and Flood stores TP_LABEL, and
 both use the high/very-high labels from the shared five-level appraisal
 instrument. These are the same per-run-mean contrast, but Flood is not
 seed-paired with irrigation and has a different action ontology and no
-action-to-environment feedback. Table 2 is therefore a secondary descriptive
+action-to-environment feedback. Table 3 is therefore a secondary descriptive
 boundary check, not a causal comparison, dose-response estimate, or
 mechanism-transfer test. Flood governance rejects 0--0.64% of proposed actions,
 compared with 28--63% in irrigation. The
@@ -182,7 +184,7 @@ The earlier Panel D proposal put irrigation and Flood contrasts on one shared
 axis as a visual control. That comparison was easy to misread as a co-primary
 mechanism result: Flood uses a different action ontology, no action-to-
 environment feedback, a different appraisal field, and different seed
-matching. The panel is therefore not active. Flood remains in Table 2 as a
+matching. The panel is therefore not active. Flood remains in Table 3 as a
 secondary descriptive cross-testbed boundary check, where the caption states the
 shared measure and the non-comparability boundaries.
 
@@ -243,7 +245,7 @@ The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
    validator rules from simulator-recorded feasibility rules.
 3. Figure 3 is the primary mechanism/evidence answer. Panels A--B use the
    anchor irrigation cell; panel C compares the all-decision and never-retried
-   readings across the five irrigation configurations. Flood stays in Table 2
+   readings across the five irrigation configurations. Flood stays in Table 3
    and the cross-testbed summary as a secondary boundary check.
 4. Figure 4 is the denominator answer under the executed-action reading. It
    remains irrigation-only because the Flood artifacts do not provide the
