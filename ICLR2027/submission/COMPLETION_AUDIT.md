@@ -22,9 +22,9 @@ new validator, a deception claim, or a hydrological policy result.
 | Define contribution, value, and innovation | `LITERATURE_POSITIONING_AUDIT.md`, `REFERENCE_AUDIT.md`, manuscript abstract/introduction | PASS for the narrow claim | Do not broaden beyond the evaluated governance loop |
 | Recheck CS literature and introduction logic | 23 verified references; seven-paragraph why-to-gap-to-contribution funnel | PASS | Re-audit only if new claims or citations are added |
 | Make figures readable and role-balanced | `PAPER_AUDIT.md`; Figure 1 visual audit; Figures 2--4 irrigation-led; Flood in Table 3 | PASS | Do not restore the retired Flood Panel D |
-| Confirm current evidence is sufficient | 42 irrigation and 90 Flood release-corpus run directories; evidence boundary check | PASS for descriptive ICLR claims | Historical provenance is not bitwise-clean |
-| Audit first-attempt experiments | `EXPERIMENT_AUDIT.md` | OPEN, correctly excluded | Needs clean matched no-validator arm before any appraisal-drift claim |
-| Audit generic WAGF modules | `WAGF_INVENTORY.md`, `COUPLING_AUDIT.md`, full non-real-LLM tests | PASS with YELLOW caveat | Worker-1 boundary and direct-path defaults remain disclosed |
+| Confirm current evidence is sufficient | 42 irrigation and 90 Flood release-corpus run directories; evidence boundary check | PASS for descriptive ICLR claims | No clean committed historical run is available; bitwise reproducibility is not claimed |
+| Audit first-attempt experiments | `EXPERIMENT_AUDIT.md` | OPEN, correctly excluded | Needs clean provenance, launch metadata, complete row contracts, and a matched no-validator arm before any appraisal-drift claim |
+| Audit generic WAGF modules | `WAGF_INVENTORY.md`, `COUPLING_AUDIT.md`, full non-real-LLM tests | YELLOW; targeted tests pass | Worker-1 boundary, missing-field defaults, and the absent formal direct-path contract remain disclosed |
 | Match target venue format and policy | `VENUE_MATRIX.md`; official ICLR Author Guidelines and AI Policy | PASS locally | OpenReview metadata and submission-window checks remain |
 | Preserve water-human follow-up scope | `WATER_HUMAN_POSITIONING.md` | PASS as a boundary record | Follow-up needs water outcomes, uncertainty, and validation/design work |
 | Keep package organized and auditable | `HANDOFF.md`, this file, deterministic builders, clean active submission tree | PASS | Cloud/TAE dirty work remains preserved by ownership |
@@ -45,10 +45,14 @@ new validator, a deception claim, or a hydrological policy result.
 
 ## Verification ledger
 
-- Full WAGF test command `pytest tests broker -k "not real_llm" -q -rA` exited
-  0 with three existing skips and two documented xfails.
-- Manuscript static, evidence-boundary, ICLR page-gate, and Figure 1 geometry
-  checks pass. The typeset PDF has 11 pages: 9 main-text and 2 reference pages.
+- From the repository root, `python -m pytest tests broker -k "not real_llm" -q
+  -rA` exited 0 with three existing skips and two documented xfails. The
+  module form is required here; invoking the bare `pytest` entry point can fail
+  during collection because the repository package path is not initialized.
+- Manuscript static, evidence-boundary, and ICLR page-gate checks pass. Figure
+  1's machine report is `PASS_MANUAL_VISUAL_REVIEW_REQUIRED`; the documented
+  full-size, paper-width, thumbnail, and grayscale visual review passed. The
+  typeset PDF has 11 pages: 9 main-text and 2 reference pages.
 - The cross-testbed builder passes twice with byte-stable Figure 3 PDF and PNG
   outputs; the page-gate JSON is also byte-stable across repeated runs.
 - The active Table 3 fragment is named `supplement/table3_cross_testbed.tex`.
@@ -60,8 +64,10 @@ new validator, a deception claim, or a hydrological policy result.
 
 ## Gates that remain open
 
-1. The five first-attempt runs are governed-only, have dirty manifests, and
-   lack a matched no-validator arm. They stay outside the manuscript.
+1. The five first-attempt runs are governed-only, have dirty manifests, missing
+   launch metadata, incomplete row contracts for seeds 44/45, and lack a
+   matched no-validator arm. They stay outside the manuscript until all of
+   those closure criteria are met.
 2. At submission time, all authors still need current OpenReview profiles and
    the required reciprocal-review, quota, anonymity, and dual-submission
    checks.
