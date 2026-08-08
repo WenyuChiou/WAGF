@@ -21,6 +21,9 @@ on 11 September 2026 AoE and the full-paper deadline on 16 September 2026 AoE.
 The author's AGU26 commitment is 7--11 December 2026, so these dates do not
 conflict. TAE remains closed as an operational target because of the prior
 commitment decision, not because the historical package is deleted.
+The ICLR Call for Papers page still displays the older planned dates of
+September 18 and 25; the Author Guidelines explicitly identify September 11
+and 16 as the final submission deadlines, so the latter governs this package.
 
 ## Comparison
 

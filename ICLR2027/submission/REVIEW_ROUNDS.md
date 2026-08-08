@@ -770,3 +770,21 @@ Static and evidence-boundary checks pass. The official MiKTeX build produces a
 pages containing Figure 1, Table 2, Figures 2--4, and the conclusion have no
 clipping, overlap, undefined citation, or overfull box. Underfull page-fill
 warnings remain non-fatal.
+
+## Round 37: final delivery polish and current-state audit
+
+The current manuscript was rebuilt with MiKTeX 25.12 after adding
+`\hypersetup{hidelinks}` so citations and cross-references do not render as
+colored boxes. The current PDF has 11 pages: 9 pages of main text and 2
+reference pages. The ICLR page gate, manuscript static check, and evidence
+boundary check pass; the rendered introduction and Figure 1 pages have no
+clipping, overlap, or link-border artifacts. The prose scanner findings are
+limited to LaTeX structure and historical review-log repetition, not active
+manuscript prose.
+
+The 2026-08-08 corpus inventory still finds 42 complete, seed-balanced
+irrigation run directories and 90 complete Flood run directories. The WAGF
+test suite and irrigation integration tests pass with one documented skip and
+two documented xfails. The historical reproducibility audit remains RED and
+the unreleased first-attempt branch remains outside the manuscript; neither
+condition is silently promoted to evidence.
