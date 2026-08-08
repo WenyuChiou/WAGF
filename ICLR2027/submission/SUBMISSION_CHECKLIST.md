@@ -41,6 +41,9 @@
       the active package.
 - [x] `REFERENCE_AUDIT.md` verifies the cited bibliography and maps each
       introduction claim to a literature function.
+- [x] `EXPERIMENT_AUDIT.md` records the completed governed-only first-attempt
+      branch and keeps it outside the manuscript until a matched arm and clean
+      provenance are released.
 
 ## Still required before upload
 

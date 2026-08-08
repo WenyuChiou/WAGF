@@ -12,17 +12,19 @@ used as the current venue or figure instruction.
 
 The single active manuscript is `paper\manuscript.tex`.
 
-The current operational fence is `ICLR2027\LIVE_STATE.md`: an 11-hour
-real-LLM experiment is running. Do not edit `broker\`, touch
-`SUBMISSION_2026\TAE\runs\`, start another GPU job, or use the live run's
-answer in the manuscript until the operational handoff explicitly releases
-it. The package below uses only the frozen evidence and the canonical Flood
-contrast CSV.
+The current operational fence is `ICLR2027\LIVE_STATE.md`. The real-LLM
+batch that produced `firstattempt_gov_seed42` through `seed46` has finished,
+but those five governed-only runs remain unreleased: their provenance audit is
+RED and no matched no-validator first-attempt arm is present. Do not edit
+`broker\` or `SUBMISSION_2026\TAE\runs\`, and do not use those runs in the
+manuscript until the operational handoff releases their provenance. The active
+package below continues to use only the frozen evidence and the canonical Flood
+contrast CSV. See `EXPERIMENT_AUDIT.md` for the exact boundary.
 
-Cloud's four additional experiments remain outside this release. Their
-numbers, traces, and new fields must not enter the manuscript, figures,
-tables, or claims until the operational handoff releases their provenance and
-source-of-truth status.
+Cloud's additional experiments remain outside this release. The first-attempt
+branch is now inventoried, but its governed-only diagnostics, traces, and new
+fields must not enter the manuscript, figures, tables, or claims until a
+matching no-validator arm and clean provenance are released.
 
 The current strategic direction is to present WAGF as an empirical testbed for
 a general measurement-validity problem in governed LLM-agent evaluation:
@@ -65,6 +67,8 @@ provenance requires it.
 | Reproducibility audit | `checks\reproducibility\reproducibility_report.md` |
 | Paper, figure, and example-role audit | `PAPER_AUDIT.md` |
 | Reference verification audit | `REFERENCE_AUDIT.md` |
+| First-attempt provenance audit | `EXPERIMENT_AUDIT.md` |
+| Irrigation coupling audit | `COUPLING_AUDIT.md` |
 
 `figures\active\` is the only directory whose rendered files may be included
 by `paper\manuscript.tex`. `figures\candidates\` contains non-active
@@ -136,11 +140,11 @@ a failed numerical crosscheck. Do not describe the historic corpus as bitwise
 reproducible.
 
 The 2026-08-08 polish pass changed prose, captions, and release notes only. It
-did not regenerate a figure or add a Cloud result: Figure 1 remains the
-reviewed generated conceptual asset, and Figures 2--4 remain deterministic
-evidence displays. When Cloud releases the four experiments, reconcile their
-provenance against LIVE_STATE.md before changing any number, caption, figure,
-table, or claim.
+did not regenerate a figure or add the unreleased first-attempt result: Figure
+1 remains the reviewed generated conceptual asset, and Figures 2--4 remain
+deterministic evidence displays. When Cloud releases the additional
+experiments, reconcile their provenance against LIVE_STATE.md before changing
+any number, caption, figure, table, or claim.
 
 ## Academic-writing and reviewer audit
 
@@ -223,9 +227,10 @@ The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
    executed action is the primary action reading.
 2. Figure 2 is the rule-layer answer: it separates self-report-conditioned
    validator rules from simulator-recorded feasibility rules.
-3. Figure 3 is the primary mechanism/evidence answer. Panels A--C show why
-   the anchor irrigation contrast is descriptive. Flood stays in Table 2 and
-   the cross-testbed summary as a secondary boundary check.
+3. Figure 3 is the primary mechanism/evidence answer. Panels A--B use the
+   anchor irrigation cell; panel C compares the all-decision and never-retried
+   readings across the five irrigation configurations. Flood stays in Table 2
+   and the cross-testbed summary as a secondary boundary check.
 4. Figure 4 is the denominator answer under the executed-action reading. It
    remains irrigation-only because the Flood artifacts do not provide the
    coupled action-to-environment setting needed for that analysis.

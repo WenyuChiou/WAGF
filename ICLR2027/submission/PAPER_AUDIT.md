@@ -1,7 +1,8 @@
 # ICLR 2027 paper audit: claim, figures, examples, and evidence
 
-Updated 2026-08-08 after the v6 generated Figure 1 retry-route fix and the
-current frozen-corpus manuscript pass. This is an internal review record. The
+Updated 2026-08-08 after the v6 generated Figure 1 retry-route fix, the
+current frozen-corpus manuscript pass, and the first-attempt evidence audit.
+This is an internal review record. The
 anonymous manuscript remains `paper/manuscript.tex`.
 
 ## Paper identity
@@ -58,6 +59,26 @@ reader equal visual weight for a setting that lacks the irrigation feedback
 loop and is not seed-paired to it. It would invite a stronger comparison than
 the evidence supports. The retired Panel D is therefore not part of the ICLR
 package.
+
+## Example-balance rule
+
+The water-resource simulation is an instance of the problem, not the paper's
+claim about all water agents. Irrigation earns the main visual and quantitative
+space because it contains the feedback loop needed for the paper's central
+diagnosis: an executed action changes the reservoir, and the later state enters
+the next agent context. Flood has one narrower job: it provides a bounded
+cross-testbed check that the large irrigation contrast is not automatically a
+property of every setting in the corpus. It is therefore reported in one table
+and described with its different action ontology, feedback structure, field
+name, and seed matching. We do not call it a co-primary control or give it a
+mechanism panel. This keeps the example concrete while keeping the claim at the
+level of measurement validity in governed LLM-agent evaluation.
+
+The same rule applies within each display: Figure 1 abstracts away from water
+and shows the reusable dependency; Figures 2--4 use irrigation because they
+answer progressively more specific empirical questions; Table 2 carries the
+Flood boundary check without suggesting that the two settings form a matched
+mechanism comparison.
 
 ## Figure-to-text order
 
@@ -134,8 +155,12 @@ with no undefined citations or overfull boxes.
 The following are still submission blockers or caveats, not reasons to hide the
 paper's limitations:
 
-- Cloud's four additional experiments remain outside the manuscript until the
+- Cloud's additional experiments remain outside the manuscript until the
   operational handoff releases their provenance.
+- The completed first-attempt branch is governed-only and fails the clean
+  provenance gate; without a matched no-validator arm it cannot support a
+  between-arm appraisal-drift claim. `EXPERIMENT_AUDIT.md` records the result
+  without changing the frozen manuscript.
 - The historical reproducibility audit is RED: the available 42-run history
   has no clean committed run. The manuscript reports this rather than claiming
   bitwise reproducibility.
@@ -147,7 +172,9 @@ paper's limitations:
   be changed while the live experiment fence is active.
 - Coupled runs use one worker, but the general CLI still exposes larger worker
   counts. The paper should retain the worker-1 boundary unless a multi-worker
-  coupling proof is added.
+  coupling proof is added. The read-only contract review is recorded in
+  `COUPLING_AUDIT.md`; it supports the paper's annual feedback-loop reading but
+  does not justify a generic parallel-safety claim.
 - ICLR author metadata, reciprocal-review, quota, anonymity, and final
   dual-submission checks occur at submission time.
 

@@ -93,7 +93,7 @@
       "path_or_reference": "checks/evidence_boundary_report.json",
       "scope": ["methods", "results", "numbers", "figures", "tables"],
       "status": "VERIFIED",
-      "last_verified": "2026-08-06"
+      "last_verified": "2026-08-08"
     },
     {
       "id": "current-manuscript",
@@ -101,7 +101,7 @@
       "path_or_reference": "paper/manuscript.tex",
       "scope": ["framing", "captions", "limitations", "declarations"],
       "status": "VERIFIED",
-      "last_verified": "2026-08-06"
+      "last_verified": "2026-08-08"
     },
     {
       "id": "figure1-geometry",
@@ -444,7 +444,8 @@
     "adversarial_review": "APPROVE_BOUNDED_STAGED_DIFF_REVIEWER_EXECUTED_PRIMARY_FLOOD_TABLE_ONLY_PANEL_D_RETIRED",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
     "official_tex_build": "PASS_MIKTEX_25_12_11_PAGES_TOTAL_9_MAIN_2_REFERENCE_NO_OVERFULL_OR_UNDEFINED_CITATIONS",
-    "new_experiment_run": false
+    "new_experiment_run": false,
+    "first_attempt_audit": "INVENTORIED_OUTSIDE_MANUSCRIPT; GOVERNED_ONLY; MATCHED_ARM_MISSING; PROVENANCE_RED"
   },
   "next_actions": [
     "Complete final venue and dual-submission checks.",

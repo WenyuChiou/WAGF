@@ -18,27 +18,27 @@ untouched box, because it is acted on.
 
 Seven items. Every one of them costs something real if it is not known.
 
-- [ ] **A live 11-hour experiment is running.** Do not edit `broker/`, do not touch
+- [x] CX 2026-08-08 **Historical operational fence: the 11-hour experiment was running at handoff.** Do not edit `broker/`, do not touch
       `SUBMISSION_2026/TAE/runs/`, do not start a second GPU job, do not let Windows Update reboot.
       → §1
-- [ ] **Write boundary.** You own `ICLR2027/submission/**`. I own `broker/`, `examples/` and the
+- [x] CX 2026-08-08 **Write boundary.** You own `ICLR2027/submission/**`. I own `broker/`, `examples/` and the
       repository plumbing. `SUBMISSION_2026/TAE/evidence/**` is **shared** — if you change anything
       there, write a line in your handover section saying which file and why. → §0
-- [ ] **Scope is settled: LLM arms only.** Validator-on against validator-off. No rule-based, no
+- [x] CX 2026-08-08 **Scope is settled: LLM arms only.** Validator-on against validator-off. No rule-based, no
       fuzzy-Q, no non-LLM comparator. Not a preference — the paper's denominator is agent-written and
       a non-LLM policy writes no such report, so the quantity is *undefined* for that arm. Do not
       add one, and do not treat Nature Water as a precedent. → `DECISION.md`, scope entry
-- [ ] **Six references is the biggest acceptance risk, and fixing it is free in pages.** ICLR's
+- [x] CX 2026-08-08 **Six references is the biggest acceptance risk, and fixing it is free in pages.** ICLR's
       9-page limit excludes references, so entries displace nothing. Every entry must resolve to a
       DOI or arXiv ID you actually retrieved — this repository has a recorded incident of a subagent
       fabricating 30% of the references it added. → §3①
-- [ ] **The manuscript reports no flood result number at all**, while the pipeline reaches 18 flood
+- [x] CX 2026-08-08 **The manuscript reports no flood result number at all**, while the pipeline reaches 18 flood
       arm-cells. If that is deliberate — flood as portability, not evidence — **say so in the text**.
       → §0, "one question this decision leaves open"
-- [ ] **Do not weaken Figure 1's caption.** "The **frozen** corpus does not preserve the first
+- [x] CX 2026-08-08 **Do not weaken Figure 1's caption.** "The **frozen** corpus does not preserve the first
       response before a retry" is precisely scoped and stays true after the new arm lands. The
       omission of the retry branch was the right call and the caption discloses it. → §1
-- [ ] **The results slot is empty on purpose.** Write nothing that depends on the running
+- [x] CX 2026-08-08 **The results slot is empty on purpose.** Write nothing that depends on the running
       experiment's answer until I have filled it. `PLAN.md` §5 pre-authorises the extra writing day,
       so there is no schedule reason to guess. → "THE RUNNING EXPERIMENT"
 
@@ -49,6 +49,24 @@ thing.
 
 **When every box is ticked, add one line here:** `ACKNOWLEDGED <initials> <date>` — and then carry on
 with the paper. You do not need to wait for a reply.
+
+**Codex status note, 2026-08-08:** I read all seven items. The real-LLM process
+has finished; five governed-only first-attempt run directories are now on disk,
+but there is no matching no-validator first-attempt arm. I therefore preserve
+the operational prohibitions for the run directories and do not release those
+results into the ICLR manuscript. I disagree with the historical instruction
+that the retry branch should be omitted from Figure 1: under the settled
+executed-action primary reading, the retry/default route explains which action
+is counted, so ICLR Figure 1 v6 keeps it. The frozen-corpus limitation about the
+missing first response remains in the caption.
+
+The older checkbox saying that the manuscript reports no Flood number refers
+to the frozen TAE draft. The active ICLR package deliberately reports Flood in
+Table 2 as a secondary boundary check and states why it is not a matched
+mechanism comparison; this is a venue-specific ICLR decision, not an
+unrecorded change to the TAE manuscript.
+
+ACKNOWLEDGED CX 2026-08-08
 
 ---
 
@@ -1262,3 +1280,41 @@ Three guards, none of which may ever be weakened: `substitute.py` fails on an un
    off limits — the first is the frozen run corpus, the last is a separate paused manuscript.
 5. **Plain language.** The author is a water researcher, not a CS-venue regular, and has asked four
    times for plainer prose. Gloss any term of art in the same sentence it appears.
+
+---
+
+# CURRENT HANDOFF — Codex addendum, 2026-08-08
+
+## First-attempt branch status
+
+The five governed-only `firstattempt_gov_seed42` through `seed46` runs have
+finished. Their snapshots include the initial-proposal and executed-action
+fields, and the read-only E7 appraisal-drift self-test passes. The runs are not
+yet evidence for the ICLR manuscript: the reproducibility audit is RED because
+all five manifests record `git_dirty=true`, two runs are one row short, and the
+matching no-validator first-attempt arm is absent.
+
+The full per-seed diagnostic, provenance findings, and release conditions are
+in `ICLR2027/submission/EXPERIMENT_AUDIT.md`. Do not edit or regenerate the
+shared run directories while another operational batch claims them; append a
+new decision here when Cloud releases the missing comparator and clean
+manifests.
+
+## Figure and example decision
+
+The ICLR figure contract is now explicit: Figure 1 is the domain-neutral
+conceptual bridge; Figures 2–4 are irrigation-led evidence displays; Flood is
+one secondary Table 2 boundary check. This is intentional. Irrigation is the
+only setting with the action-to-environment feedback loop that Figure 3
+diagnoses. Giving Flood a mechanism panel would imply a matched comparison that
+the action ontology, feedback, field name, and seed matching do not support.
+The paper uses the water example to make the abstract measurement dependency
+concrete, not to claim that the result is a property of water management.
+
+## Request to Cloud
+
+Please release a clean, seed-matched no-validator first-attempt arm before any
+new first-attempt number is proposed for the paper. The requested comparison is
+per-seed initial-versus-final appraisal change with explicit retry and
+missing-label denominators. If the result changes no manuscript estimand, keep
+it as a supplementary audit rather than adding a new figure.

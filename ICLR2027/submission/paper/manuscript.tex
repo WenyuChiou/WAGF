@@ -24,7 +24,7 @@
 \maketitle
 
 \begin{abstract}
-Runtime validators have two roles in coupled agent models. They keep simulated agents within the behavioral rules that give the environment meaning. They can also change which decisions an evaluation scores. This matters when an agent writes the condition that selects which of its own decisions enter a conditional score. We study that score: among decisions whose response reports high water scarcity, how often does the executed action increase demand?
+Runtime validators have two roles in coupled agent models. They keep simulated agents within the behavioral rules that give the environment meaning. This model-fidelity role is not the defect we study. The risk appears when an agent writes the condition that selects which of its own decisions enter a conditional score. We study that score: among decisions whose response reports high water scarcity, how often does the executed action increase demand?
 
 The primary analysis compares validator-on and validator-off simulations across five seed-paired irrigation configurations. In the anchor cell, high-scarcity reports appear in 82.80\% of no-validator decisions and 37.08\% of validator-on decisions, a $+45.73\pp$ contrast. The executed conditional increase contrast is $+25.90\pp$; the executed all-decision contrast is $+29.90\pp$. Across all five cells, executed all-decision contrasts range from $+20.26\pp$ to $+36.57\pp$. The conditional-minus-all gap ranges from $-14.86\pp$ to $+3.38\pp$, so the conditional denominator can understate or overstate the contrast. Reweighting both arms to the same recorded world-state distribution leaves $-2.53\pp$ at full coverage and $+0.21\pp$ in the finest grouping.
 
@@ -35,7 +35,7 @@ These results show a measurement-validity risk: a governed-agent score can chang
 
 \section{Introduction}
 
-Evaluating an AI agent requires more than counting its actions. It also requires specifying which decisions enter the score. We call a score computed only over decisions that satisfy a specified condition a \emph{conditional score}. Agent evaluations increasingly involve tool use, interaction, and feedback from an environment \citep{liu2023agentbench,ma2024agentboard,zhou2024webarena,kapoor2024agents}. Runtime validators, components that check a proposed action before execution, can reject a response or request another one \citep{rebedea2023nemo,wang2026agentspec}. The measurement problem arises when an agent-written field affects runtime handling and also selects the records used for evaluation.
+Evaluating an AI agent requires more than counting its actions. It also requires specifying which decisions enter the score. We call a score computed only over decisions that satisfy a specified condition a \emph{conditional score}. Agent evaluations increasingly involve tool use, interaction, and feedback from an environment \citep{liu2023agentbench,ma2024agentboard,zhou2024webarena,kapoor2024agents}. Runtime validators, components that check a proposed action before execution, can reject a response or request another one \citep{rebedea2023nemo,wang2026agentspec}. In a coupled agent model, this enforcement also protects model fidelity by keeping simulated behavior within the rules that make later environment states interpretable. The measurement problem arises when an agent-written field affects runtime handling and also selects the records used for evaluation.
 
 Consider a water-management agent in a coupled reservoir simulation. At each yearly decision, it proposes an action and reports water scarcity and coping capacity, its reported ability to adapt. A validator checks the proposal against these reports and the simulator state. Under the studied rule, an increase can be rejected when both reported conditions are high or very high; high scarcity alone is only a warning. The validator can request a new response, or a default action executes after retry exhaustion. If the evaluation also counts only decisions with a high-scarcity report, that response field participates in both enforcement and scoring. We call such a field an \emph{agent-written condition}.
 
@@ -160,7 +160,7 @@ The never-retried subset is a limited sensitivity check. It contains decisions f
 \begin{figure*}[t]
     \centering
     \includegraphics[width=0.98\textwidth]{../figures/active/fig2_mechanism.pdf}
-    \caption{\textbf{Primary irrigation world-state diagnosis.} All three panels use the anchor irrigation cell. Panel (a) reports the yearly high-scarcity contrast, panel (b) shows the recorded world-state trajectories, and panel (c) compares all decisions with the never-retried subset, where no validator rejection message was returned. Year 1 starts from matched pre-decision worlds; later reservoir divergence and unequal filtering show why the contrast is descriptive. Flood is reported separately in Table~\ref{tab:cross_testbed} because its action ontology, feedback structure, field name, and seed matching differ.}
+    \caption{\textbf{Primary irrigation world-state diagnosis.} Panels (a) and (b) use the anchor irrigation cell: panel (a) reports the yearly high-scarcity contrast, and panel (b) shows the recorded world-state trajectories. Panel (c) compares all decisions with the never-retried subset across the five irrigation configurations; the subset contains decisions for which no validator rejection message was returned. Year 1 starts from matched pre-decision worlds; later reservoir divergence and unequal filtering show why the contrast is descriptive. Flood is reported separately in Table~\ref{tab:cross_testbed} because its action ontology, feedback structure, field name, and seed matching differ.}
     \label{fig:mechanism}
 \end{figure*}
 
@@ -182,7 +182,7 @@ Finest reported rung & 43.4/36.4\% & +0.21 & -0.87 [-4.94,+3.19]\\
 \section{Different Denominators and Action Readings}
 \label{sec:estimands}
 
-The conditional rate asks: among decisions whose response reports high scarcity, how often is the executed action an increase? The all-decision rate asks: across every decision, how often is the executed action an increase? They answer different questions, and neither is automatically a correction. The action reading also matters. A rejected proposal can remain in a legacy log field even when a default action executes, so the paper uses the executed action as its primary reading.
+The validator's model-fidelity role is not itself a measurement defect: keeping simulated behavior within the modeled rules is what makes the environment interpretable. The risk begins when the same agent-authored input also defines the population used for scoring. The conditional rate asks: among decisions whose response reports high scarcity, how often is the executed action an increase? The all-decision rate asks: across every decision, how often is the executed action an increase? They answer different questions, and neither is automatically a correction. The action reading also matters. A rejected proposal can remain in a legacy log field even when a default action executes, so the paper uses the executed action as its primary reading.
 
 Using executed actions, the anchor conditional contrast is $+25.90\pp$ and the all-decision contrast is $+29.90\pp$. Across all five irrigation cells, the executed all-decision contrast ranges from $+20.26\pp$ to $+36.57\pp$. The conditional-minus-all gap ranges from $-14.86\pp$ to $+3.38\pp$: four cells are smaller conditionally and one is larger. Figure~\ref{fig:consequence} shows both endpoints and the direction of the gap. For gemma3:12b and ministral3:8b, the all-decision contrasts are $+27.82\pp$ and $+20.26\pp$; the corresponding legacy \lastproposed{} readings are $+11.44\pp$ versus $+0.16\pp$ and $+2.80\pp$ versus $-22.17\pp$. These legacy values are a sensitivity analysis, not the primary estimand.
 
@@ -227,6 +227,11 @@ The study uses simulated agents and does not recruit human participants. The sub
 
 \subsection*{Reproducibility Statement}
 The main paper reports the model configurations, paired-arm design, seed-level inferential unit, executed-action primary reading, legacy proposal-reading sensitivity, and metric definitions. The supplementary package contains a frozen evidence inventory, copied machine-readable table and figure values, the cross-testbed summary source, figure regeneration commands, the generated Figure~\ref{fig:concept} staging builder, and a checklist of unavailable first-attempt fields. The quantitative evidence scripts remain in the historical WAGF evidence tree; the package records that dependency explicitly rather than claiming self-contained reruns.
+
+All coupled irrigation runs reported in this paper use a single worker
+(\texttt{workers=1}). This is a deliberate execution boundary for the shared
+reservoir state. The framework exposes larger worker counts, but this paper
+does not establish parallel safety for that path.
 
 No new network or GPU run is required when that frozen corpus and its scripts are available. The pre-submission inventory contains 42 historical runs: 27 have \texttt{git\_dirty=true}, 15 have no recorded \texttt{git\_commit}, and none is clean; six of 21 paired-by-seed irrigation pairs record different commits across arms. The paper therefore does not claim bitwise reproduction of the historic runs.
 
