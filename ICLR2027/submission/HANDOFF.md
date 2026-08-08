@@ -156,7 +156,10 @@ a failed numerical crosscheck. Do not describe the historic corpus as bitwise
 reproducible.
 
 The 2026-08-08 content polish pass changed prose, captions, and release notes
-only. A subsequent delivery pass added `\hypersetup{hidelinks}` to remove
+only. A subsequent text-only closeout clarified the model-fidelity framing,
+the year-1 baseline check, and the mapping between executed and legacy
+sensitivity values without changing any result. A delivery pass added
+`\hypersetup{hidelinks}` to remove
 printed hyperlink borders from citations and cross-references; it did not
 regenerate a figure or add the unreleased first-attempt result. Figure 1
 remains the reviewed generated conceptual asset, and Figures 2--4 remain
