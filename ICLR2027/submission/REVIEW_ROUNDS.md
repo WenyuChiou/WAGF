@@ -821,3 +821,23 @@ conceptual figure. It also states that reported numbers came from documented
 scripts over the frozen corpus, were not manually generated or altered, and
 were checked by the authors. The submission form must repeat the same
 disclosure at upload time.
+
+## Round 41: figure-role balance and boundary-disclosure pass
+
+The current state was reconciled against `LIVE_STATE.md` sections 4b--4k and
+6. Executed action remains the primary reading, and the proposed Flood Panel D
+remains retired: Flood is reported in Table 3 only. The display contract is
+therefore intentionally asymmetric. Figure 1 explains the domain-neutral
+agent--validator--measurement dependency; Figures 2--4 explain the irrigation
+rule, world-state, and denominator consequences; Table 3 provides a bounded
+Flood boundary check. This keeps the examples balanced by evidential role
+rather than giving the secondary testbed equal visual weight.
+
+The manuscript now names the year-4 and year-7 reversals beside Figure 3,
+compresses the related-work bridge for plainer CS prose, and discloses Flood's
+70.5--99.9% audit coverage and reflection-record imbalance in the result
+paragraph, Table 3 caption, supplement README, and handoff. No numeric data or
+figures changed. The official MiKTeX build, static check, evidence-boundary
+check, and ICLR page gate pass (11 total pages: 9 main-text and 2 reference
+pages). Rendered pages 7--9 show no clipping, overlap, or unreadable figure or
+table text. Historical provenance and OpenReview submission gates remain open.
