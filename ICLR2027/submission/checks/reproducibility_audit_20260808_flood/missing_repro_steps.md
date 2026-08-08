@@ -1,0 +1,254 @@
+# Missing Repro Steps
+
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_12b\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_27b\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\gemma3_4b\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_14b\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_3b\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\_QUARANTINE_reflection_missing_2026-05-30\ministral3_8b\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_12b\Group_C_disabled\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_27b\Group_C_disabled\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\gemma3_4b\Group_C_disabled\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_14b\Group_C_disabled\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_3b\Group_C_disabled\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED\ministral3_8b\Group_C_disabled\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_4**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_26b\Group_C_disabled\Run_5**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_4**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e2b\Group_C_disabled\Run_5**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_4**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_ABLATION_DISABLED_v2\gemma4_e4b\Group_C_disabled\Run_5**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_A\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_A\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_A\Run_3**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_12b\Group_C\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_A\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_A\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_A\Run_3**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_27b\Group_C\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_A\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_A\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_A\Run_3**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\gemma3_4b\Group_C\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_A\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_A\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_A\Run_3**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_14b\Group_C\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_1_bak_broker**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_1_bak_broker**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_1_bak_broker**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_A\Run_3**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_3b\Group_C\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_A\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_A\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_A\Run_3**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_1**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_1**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_1**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_2**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_2**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_2**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_3**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_3**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_3**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_4**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_4**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_4**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_5**: missing required manifest field: git_commit
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_5**: missing required manifest field: config_hash
+- [ ] **examples\single_agent\results\JOH_FINAL\ministral3_8b\Group_C\Run_5**: missing required manifest field: timestamp
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_4**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_26b\Group_C\Run_5**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_4**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e2b\Group_C\Run_5**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_1**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_2**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_3**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_4**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\JOH_FINAL_v2\gemma4_e4b\Group_C\Run_5**: git_dirty=true; cannot reproduce
+- [ ] **examples\single_agent\results\rulebased\Run_1**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\rulebased\Run_2**: no reproducibility_manifest.json
+- [ ] **examples\single_agent\results\rulebased\Run_3**: no reproducibility_manifest.json

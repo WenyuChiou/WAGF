@@ -54,6 +54,30 @@ inventory does not repair the separate provenance audit: the historical corpus
 has no clean committed run, and the new first-attempt branch is not a matched
 two-arm experiment.
 
+### Raw-tree versus release-corpus boundary
+
+The canonical inventory intentionally filters auxiliary and quarantined
+directories. A separate read-only sweep of the raw result trees found 62
+irrigation result directories (42 with manifests) and 130 Flood/single-agent result
+directories (109 with manifests). Those totals include FQL baselines, archived
+or quarantined runs, and other historical branches. They are not the sample
+reported in the manuscript. The release corpus is the smaller, explicit set
+reported by `corpus_inventory.py`: 42 irrigation run directories and 90 Flood
+run directories, with the ten irrigation arm-by-cell rows and eighteen Flood
+arm-by-cell rows shown above. The full-tree sweep is retained as an audit
+finding, not as additional evidence.
+
+The two raw-tree audit outputs generated on 2026-08-08 are kept outside the
+active manuscript path during this review because both correctly return RED on
+mixed historical trees with missing, dirty, or incomplete manifests:
+
+- `checks/reproducibility_audit_20260808_irrigation/reproducibility_report.md`
+- `checks/reproducibility_audit_20260808_flood/reproducibility_report.md`
+
+These reports support the existing reproducibility limitation. They do not
+change any manuscript number or promote an auxiliary run into the frozen
+corpus.
+
 ## Claim sufficiency matrix
 
 | Claim or analysis | Evidence sufficient? | Boundary that must remain visible |
