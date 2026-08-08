@@ -800,3 +800,13 @@ the bibliography onto a tenth main-text page; after equivalent prose
 compression, the official MiKTeX build returned to 9 main-text pages and 2
 reference pages. Static, evidence-boundary, and ICLR page checks pass, and
 rendered pages 1, 2, 6, and 9 show no clipping or overlap.
+
+## Round 39: venue-source refresh
+
+The live ICLR 2027 Author Guidelines and Call for Papers were rechecked on
+2026-08-08. Both currently list the abstract deadline as September 18, 2026
+AOE and the full-paper deadline as September 25, 2026 AOE. The active venue
+matrix and handoff were updated to remove the superseded September 11/16
+dates. The guidelines confirm double-blind review, a nine-page main-text
+limit excluding references, and a required AI-use statement; the AGU26
+meeting remains a separate December 7--11, 2026 water-science track.
