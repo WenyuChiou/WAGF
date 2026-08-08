@@ -810,3 +810,14 @@ matrix and handoff were updated to remove the superseded September 11/16
 dates. The guidelines confirm double-blind review, a nine-page main-text
 limit excluding references, and a required AI-use statement; the AGU26
 meeting remains a separate December 7--11, 2026 water-science track.
+
+## Round 40: ICLR AI-use disclosure audit
+
+The live ICLR 2027 AI Policy for Authors was checked alongside the venue
+refresh. The manuscript disclosure now covers the actual paper workflow:
+methodology and experiment review, released-result interpretation, manuscript
+editing, evidence/code bookkeeping, and generation of the non-data-bearing
+conceptual figure. It also states that reported numbers came from documented
+scripts over the frozen corpus, were not manually generated or altered, and
+were checked by the authors. The submission form must repeat the same
+disclosure at upload time.

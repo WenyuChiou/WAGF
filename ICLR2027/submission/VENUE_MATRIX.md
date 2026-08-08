@@ -34,8 +34,9 @@ live Author Guidelines at submission time for any later revision.
 
 ## Important policy difference
 
-ICLR requires an AI-use statement and recommends ethics and reproducibility
-statements. The manuscript includes all three. AAMAS's current instructions
+ICLR requires an AI-use statement in both the paper and submission form, and
+recommends ethics and reproducibility statements. The manuscript includes all
+three; the form must repeat the same disclosure. AAMAS's current instructions
 also impose a stricter restriction on AI-generated images: an image is allowed
 only when generative AI is the topic or the image is qualitative evidence. If
 AAMAS becomes the target, re-check that policy before submission. The active
