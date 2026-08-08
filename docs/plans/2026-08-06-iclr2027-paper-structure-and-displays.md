@@ -42,6 +42,9 @@ This budget deliberately compresses the current introduction and limitations pro
 - The introduction now uses a coupled water-resource simulation as its empirical example and does not name the internal framework.
 - The paragraph openings follow why -> example -> consequence -> literature gap -> empirical design -> finding and scope.
 - The introduction contains 10 unique cited works, concentrated in the background and gap paragraphs; the result paragraphs do not add background citations.
+- The downstream prose/display polish pass is complete on the frozen corpus. Figure 1 is named and interpreted in the Introduction; the rule explanation separates the two-condition block from the broader scarcity metric; Flood is explicitly secondary; and the world-state section uses descriptive, non-causal language.
+- The active figures were visually rechecked at full size and thumbnail size. No image asset was regenerated because Figure 1 already satisfies the reviewed icon, semantic-fill, black-arrow, and endpoint requirements, while Figures 2--4 are evidence-bearing plots that must remain deterministic.
+- Cloud's four additional experiments remain outside this release. Their numbers, traces, and any new fields must not enter the manuscript, figures, tables, or claims until a handoff explicitly releases provenance and source-of-truth status.
 - Static, evidence-boundary, and Figure 1 geometry checks pass. The TeX build produces 10 pages total, with the ICLR main-text limit still subject to the existing page audit.
 - The full manuscript, figures, tables, bibliography, and release metadata still require the later integration and release passes.
 
@@ -82,8 +85,8 @@ The manuscript will be reviewed in four passes, following the academic-writing s
 The work proceeds in small, reviewable commits:
 
 1. **Structure checkpoint (completed):** save this structure/display contract; preserve the Introduction v2 checkpoint and its regenerated static report; stage only active-package files.
-2. **Prose pass (Introduction completed):** compress the Introduction to six prose paragraphs, use the coupled water-resource example without naming the internal framework, and rerun the paragraph-flow, evidence, citation, and TeX checks. The remaining sections still require the same pass.
-3. **Display pass:** audit captions, labels, color roles, arrow endpoints, and figure/table placement; regenerate only from the canonical active builders.
+2. **Prose pass (Introduction and frozen downstream polish completed):** compress the Introduction to six prose paragraphs, use the coupled water-resource example without naming the internal framework, and polish the downstream rule, denominator, world-state, action-reading, limitation, and conclusion prose without changing evidence values.
+3. **Display pass (caption/placement audit completed; asset regeneration deferred):** audit captions, labels, color roles, arrow endpoints, and figure/table placement; regenerate only from the canonical active builders if a visual defect or released data change requires it.
 4. **Reference pass:** expand or replace citations only when a source directly supports the paragraph's claim; rerun citation and evidence checks.
 5. **Release pass:** perform an independent reviewer-style read, rebuild the PDF, inspect the final artifact, and record the final readiness decision. The package remains `WORKING` until this gate passes.
 

@@ -688,3 +688,32 @@ item, and the official MiKTeX build exits successfully with a 10-page PDF
 (8 pages of main text and 2 pages of references).
 The remaining manuscript sections and final visual/release audit are still
 open.
+
+## Round 36: frozen-corpus downstream prose and display polish
+
+The post-Introduction pass was completed without changing any result value or
+experiment artifact. The Introduction now points directly to Figure 1 as the
+agent--validator--log dependency. The Evaluation Setting separates the
+two-condition blocking rule from the broader scarcity condition used by the
+frozen metric, and explains why the executed action is primary. The methods
+paragraph now states that the validator-on/off contrast is the object being
+audited and is descriptive rather than causal by construction.
+
+The result sections were tightened for shorter sentences and clearer bridges.
+Flood remains a secondary descriptive cross-testbed control, not a mechanism
+panel or transfer claim. The world-state section uses recorded-world
+composition language and explicitly says that reweighting is not a causal
+adjustment. The conclusion states that the conditional-minus-all gap changes
+in both directions, so the error cannot be sign-corrected from the conditional
+rate alone.
+
+The active figures were rechecked at full size and thumbnail size. Figure 1's
+generated asset remains unchanged because its icons, semantic fills, black
+arrows, and endpoints are already legible; Figures 2--4 remain deterministic
+data displays. Cloud's four additional experiments are still fenced: no
+in-progress result, trace, or field has been added to the active package.
+Static and evidence-boundary checks pass. The official MiKTeX build produces a
+10-page PDF (8 pages of main text and 2 pages of references), and the rendered
+pages containing Figure 1, Table 2, Figures 2--4, and the conclusion have no
+clipping, overlap, undefined citation, or overfull box. Underfull page-fill
+warnings remain non-fatal.
