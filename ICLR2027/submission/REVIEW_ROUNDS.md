@@ -788,3 +788,15 @@ test suite and irrigation integration tests pass with one documented skip and
 two documented xfails. The historical reproducibility audit remains RED and
 the unreleased first-attempt branch remains outside the manuscript; neither
 condition is silently promoted to evidence.
+
+## Round 38: text-only closeout and reflow check
+
+The manuscript text was tightened without changing any result, figure, table,
+or claim boundary. The abstract now states the model-fidelity role in direct
+language; the year-1 comparison is described as a baseline placebo check with
+no detectable share difference; and the executed versus legacy sensitivity
+values are mapped to each model explicitly. The first edit temporarily moved
+the bibliography onto a tenth main-text page; after equivalent prose
+compression, the official MiKTeX build returned to 9 main-text pages and 2
+reference pages. Static, evidence-boundary, and ICLR page checks pass, and
+rendered pages 1, 2, 6, and 9 show no clipping or overlap.
