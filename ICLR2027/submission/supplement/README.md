@@ -30,3 +30,14 @@ The package does not claim full bitwise reproduction of every historic run.
 The source-run provenance limitations remain disclosed in the paper. The
 supplement contains no private credentials, local paths, or identifying model
 metadata.
+
+## Flood boundary-check limitations
+
+The Flood summary is a secondary boundary check, not a clean matched control.
+The nine configuration rows have minimum audit coverage from 70.5% to 99.9%.
+The repository's data-defect audit also records a reflection-field imbalance in
+six configurations: some no-validator runs lack a reflection record present in
+the governed runs. These differences are why the Flood values are reported as
+bounded descriptive ranges and are not used for mechanism transfer, dose-response,
+or causal claims. The gemma3:4b B6 exclusion and its four-governed/five-
+no-validator sensitivity are documented in the active cross-testbed summary.

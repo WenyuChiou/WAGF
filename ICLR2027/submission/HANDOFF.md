@@ -138,8 +138,10 @@ appraisal contrast: irrigation stores WSA_LABEL and Flood stores TP_LABEL, and
 both use the high/very-high labels from the shared five-level appraisal
 instrument. These are the same per-run-mean contrast, but Flood is not
 seed-paired with irrigation and has a different action ontology and no
-action-to-environment feedback. Table 3 is therefore a secondary descriptive
-boundary check, not a causal comparison, dose-response estimate, or
+action-to-environment feedback. Its minimum audit coverage ranges from 70.5%
+to 99.9%, and six of nine configurations have a reflection-record imbalance
+across arms. Table 3 is therefore a secondary descriptive boundary check, not a
+clean matched control, causal comparison, dose-response estimate, or
 mechanism-transfer test. Flood governance rejects 0--0.64% of proposed actions,
 compared with 28--63% in irrigation. The
 Flood gemma3:4b
