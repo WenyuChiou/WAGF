@@ -1318,3 +1318,8 @@ new first-attempt number is proposed for the paper. The requested comparison is
 per-seed initial-versus-final appraisal change with explicit retry and
 missing-label denominators. If the result changes no manuscript estimand, keep
 it as a supplementary audit rather than adding a new figure.
+
+**Codex correction, 2026-08-08:** the active ICLR manuscript's cross-testbed
+display is **Table 3**, not Table 2. The two earlier ``Table 2`` references in
+this handover reflect superseded numbering; they must not be copied into the
+active ICLR package or used to justify a Flood mechanism panel.
