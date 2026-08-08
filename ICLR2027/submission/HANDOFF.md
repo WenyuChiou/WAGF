@@ -71,7 +71,7 @@ or the submission-time ICLR metadata and policy checks.
 | Figure 3 cross-testbed builder | `source\cross_testbed_summary.py` |
 | Cross-testbed source summary | `supplement\cross_testbed_summary.csv` |
 | Enforcement-pressure source | `supplement\enforcement_pressure_source.json` |
-| Cross-testbed table fragment (paper Table 3) | `supplement\table2_cross_testbed.tex` |
+| Cross-testbed table fragment (paper Table 3) | `supplement\table3_cross_testbed.tex` |
 | Design contract | `FIGURE1_DESIGN.md` |
 | Reset rationale | `AGENT_ARCHITECTURE_FIGURE_RESET.md` |
 | External-paper style audit | `..\FIGURE_STYLE_AUDIT.md` |

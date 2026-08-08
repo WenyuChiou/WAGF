@@ -35,7 +35,7 @@ MECHANISM_CSV = SUBMISSION / "supplement" / "fig2_mechanism.csv"
 ACTIVE_FIGURE = SUBMISSION / "figures" / "active" / "fig2_mechanism"
 FIGURE_CSV = SUBMISSION / "supplement" / "fig2_mechanism.csv"
 SUMMARY_CSV = SUBMISSION / "supplement" / "cross_testbed_summary.csv"
-SUMMARY_TEX = SUBMISSION / "supplement" / "table2_cross_testbed.tex"
+SUMMARY_TEX = SUBMISSION / "supplement" / "table3_cross_testbed.tex"
 PRESSURE_JSON = SUBMISSION / "supplement" / "enforcement_pressure_source.json"
 
 
@@ -43,6 +43,11 @@ INK = "#202020"
 BLUE = "#1479b8"
 ORANGE = "#d66a05"
 GRID = "#d9d9d9"
+PDF_METADATA = {
+    "Creator": "WAGF ICLR 2027 figure builder",
+    "CreationDate": None,
+    "ModDate": None,
+}
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -264,7 +269,11 @@ def build_figure(rows: list[dict[str, object]]) -> None:
     fig.patch.set_facecolor("white")
     ACTIVE_FIGURE.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(ACTIVE_FIGURE.with_suffix(".png"), dpi=300, facecolor="white")
-    fig.savefig(ACTIVE_FIGURE.with_suffix(".pdf"), facecolor="white")
+    fig.savefig(
+        ACTIVE_FIGURE.with_suffix(".pdf"),
+        facecolor="white",
+        metadata=PDF_METADATA,
+    )
     plt.close(fig)
     write_figure_csv()
 

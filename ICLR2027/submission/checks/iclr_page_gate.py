@@ -156,11 +156,14 @@ def main() -> int:
     else:
         texts, extractor = page_texts(pdf)
 
-    required_statements = {
-        "reproducibilitystatement",
+    # Keep the report deterministic.  A set here made JSON key order depend on
+    # hash iteration, producing a dirty report even when the rendered PDF was
+    # unchanged.
+    required_statements = (
         "aiusestatement",
         "ethicsstatement",
-    }
+        "reproducibilitystatement",
+    )
     statement_locations = {
         heading: heading_locations(texts, heading)
         for heading in required_statements
