@@ -9,22 +9,22 @@
     9
   ],
   "statement_locations": {
-    "aiusestatement": [
+    "reproducibilitystatement": [
       [
         9,
-        43
+        65
       ]
     ],
     "ethicsstatement": [
       [
         9,
-        53
+        55
       ]
     ],
-    "reproducibilitystatement": [
+    "aiusestatement": [
       [
         9,
-        60
+        42
       ]
     ]
   },
@@ -37,7 +37,7 @@
   ],
   "table3_caption": [
     8,
-    33
+    34
   ],
   "errors": []
 }
