@@ -53,8 +53,8 @@
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       pdflatex -interaction=nonstopmode -halt-on-error manuscript.tex
       ```
-- [x] Verify the rendered PDF has 10 pages total (9 pages of main text plus 1
-      reference page), no overfull boxes, no clipped captions, and no
+- [x] Verify the rendered PDF has 10 pages total (8 pages of main text plus 2
+      reference pages), no overfull boxes, no clipped captions, and no
       visible author metadata. The official ICLR 2027 author guidelines allow
       up to 9 pages of main text and exclude references from the limit.
 - [ ] Fill the actual OpenReview author metadata only at submission time.

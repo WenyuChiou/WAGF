@@ -662,3 +662,29 @@ academic-writing audit. Its remaining work is compression to the six-paragraph
 contract, followed by a section-by-section evidence and display pass. No new
 experiment is incorporated until its provenance is reconciled with the active
 source of truth.
+
+## Round 35: Introduction v3 and coupled-environment framing
+
+The Introduction was rewritten under the six-paragraph contract from Round 34.
+It now moves from the general measurement problem, to a coupled water-resource
+agent example, to the denominator arithmetic and downstream-state consequence,
+to the literature gap, to the empirical design, and finally to the primary
+finding and claim scope. The internal framework name is omitted from the
+Introduction; the paper presents the coupled simulation as the empirical
+example.
+
+The coding-agent example was replaced because the coupled setting makes the
+non-single-turn issue explicit: an action changes later environment state and
+therefore can change later records. The rule explanation preserves the
+semantic boundary that high scarcity alone is a warning, while the studied
+increase rule requires both reported conditions to be high or very high.
+
+The prose audit found six prose paragraphs, 10 unique cited works, and no
+framework-name occurrence in the Introduction. Citations are concentrated in
+the background and gap paragraph; the empirical-result paragraphs use the
+paper's own frozen evidence rather than background citations. Static and
+evidence-boundary checks pass, Figure 1 geometry remains a manual-review
+item, and the official MiKTeX build exits successfully with a 10-page PDF
+(8 pages of main text and 2 pages of references).
+The remaining manuscript sections and final visual/release audit are still
+open.

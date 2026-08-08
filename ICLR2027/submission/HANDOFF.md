@@ -32,6 +32,13 @@ The manuscript does not claim deception, causality, universal agent behavior,
 or a within-world reporting revision. A controlled validation experiment would
 strengthen ICLR generality; no new experiment has yet been run in this package.
 
+For the Introduction, the framing decision is to omit the internal framework
+name and present the coupled water-resource simulation as the empirical
+example. The motivation should lead with agent--environment interaction and
+the measurement-validity problem, not with the name of the implementation.
+Later method and reproducibility sections may retain the framework name where
+provenance requires it.
+
 ## Canonical package layout
 
 | What to use | Location |
@@ -81,8 +88,8 @@ the first response before a retry, and the caption states this boundary.
 The generated source and active/print copies are byte-identical after staging.
 The current visual gate includes full-size, paper-width, thumbnail, grayscale,
 and adversarial inspection. The official typeset PDF gate passes with MiKTeX
-25.12: `paper\manuscript.pdf` is 10 pages total, with 9 pages of main text and
-1 page of references. The build has no undefined citations/references and no
+25.12: `paper\manuscript.pdf` is 10 pages total, with 8 pages of main text and
+2 pages of references. The build has no undefined citations/references and no
 overfull boxes. The title and page fill produce non-fatal underfull hbox/vbox
 warnings. Rendered checks of pages containing Figure 1, Table 2, Figures 3--4
 found no clipping or overlap.
@@ -181,7 +188,7 @@ because OpenReview author metadata, author profiles and reciprocal-review
 requirements, final anonymity checks, and the live dual-submission decision
 still belong to the actual submission window. The official ICLR 2027 author
 guidelines allow at most 9 pages of main text and exclude the bibliography from
-that limit; this PDF has 9 pages of main text plus 1 reference page.
+that limit; this PDF has 8 pages of main text plus 2 reference pages.
 The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
 2026 AOE.
 

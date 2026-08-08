@@ -36,6 +36,15 @@ The target is **22 argument paragraphs**, plus compact contribution/list blocks 
 
 This budget deliberately compresses the current introduction and limitations prose. It keeps the logical chain visible without turning every caveat into a separate paragraph.
 
+## Current checkpoint: 2026-08-08
+
+- The Introduction prose pass is complete: six prose paragraphs plus the contribution list.
+- The introduction now uses a coupled water-resource simulation as its empirical example and does not name the internal framework.
+- The paragraph openings follow why -> example -> consequence -> literature gap -> empirical design -> finding and scope.
+- The introduction contains 10 unique cited works, concentrated in the background and gap paragraphs; the result paragraphs do not add background citations.
+- Static, evidence-boundary, and Figure 1 geometry checks pass. The TeX build produces 10 pages total, with the ICLR main-text limit still subject to the existing page audit.
+- The full manuscript, figures, tables, bibliography, and release metadata still require the later integration and release passes.
+
 ## Figure and table allocation
 
 The release keeps **four figures and three tables**. No new display is justified until a reviewer-facing gap is tied to a source CSV or a reproducible calculation.
@@ -72,8 +81,8 @@ The manuscript will be reviewed in four passes, following the academic-writing s
 
 The work proceeds in small, reviewable commits:
 
-1. **This round:** save this structure/display contract; preserve the current Introduction v2 and its regenerated static report; stage only those active-package files, excluding unrelated experiment edits.
-2. **Prose pass:** compress and align each section to the paragraph contracts, then rerun the four academic-writing passes.
+1. **Structure checkpoint (completed):** save this structure/display contract; preserve the Introduction v2 checkpoint and its regenerated static report; stage only active-package files.
+2. **Prose pass (Introduction completed):** compress the Introduction to six prose paragraphs, use the coupled water-resource example without naming the internal framework, and rerun the paragraph-flow, evidence, citation, and TeX checks. The remaining sections still require the same pass.
 3. **Display pass:** audit captions, labels, color roles, arrow endpoints, and figure/table placement; regenerate only from the canonical active builders.
 4. **Reference pass:** expand or replace citations only when a source directly supports the paragraph's claim; rerun citation and evidence checks.
 5. **Release pass:** perform an independent reviewer-style read, rebuild the PDF, inspect the final artifact, and record the final readiness decision. The package remains `WORKING` until this gate passes.
