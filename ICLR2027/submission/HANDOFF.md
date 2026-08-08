@@ -222,8 +222,10 @@ requirements, final anonymity checks, and the live dual-submission decision
 still belong to the actual submission window. The official ICLR 2027 author
 guidelines allow at most 9 pages of main text and exclude the bibliography from
 that limit; this PDF has 9 pages of main text plus 2 reference pages.
-The abstract deadline is Sep 18, 2026 AOE and the paper deadline is Sep 25,
-2026 AOE.
+The current official ICLR 2027 author guidelines list the abstract deadline as
+Sep 11, 2026 AOE and the paper deadline as Sep 16, 2026 AOE. Recheck the live
+author page at submission time; the older dates in historical TAE handover
+notes are superseded.
 
 ## Next agent's order of work
 
