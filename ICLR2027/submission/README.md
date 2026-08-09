@@ -27,15 +27,14 @@ paper. Read this file first when returning to the project.
 | Reference verification audit | `REFERENCE_AUDIT.md` |
 | Rendered ICLR page gate | `checks/iclr_page_gate.py` and `checks/iclr_page_report.json` |
 | Figure 1 staging builder | `source/figure1_agent_paper.py` |
-| Figure 1 builder entry point | `source/figure1_overlay.py` compatibility entry point |
 | Figure 1 geometry check | `checks/figure1_geometry_check.py` |
 | Manuscript static check | `checks/manuscript_static_check.py` |
 | Machine-readable supplement | `supplement/` |
 
-The files in `figures/candidates/` are alternatives only. They are not
-submission figures and must never be referenced by `manuscript.tex`. The
-active Figure 1 is the generated shared-condition composition staged from
+The active Figure 1 is the generated shared-condition composition staged from
 `figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`.
+Historical candidates and superseded generated assets are retained in Git
+history rather than in the active submission package.
 
 The design follows the rendered figure grammar of ReAct, Reflexion, SWE-agent,
 and AgentSpec: a compact Agent response, an explicit Validator insertion point,
@@ -49,7 +48,7 @@ before a retry.
 ## Figure workflow
 
 ```powershell
-python ICLR2027\submission\source\figure1_overlay.py
+python ICLR2027\submission\source\figure1_agent_paper.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 python ICLR2027\submission\checks\manuscript_static_check.py
 python ICLR2027\submission\checks\iclr_page_gate.py

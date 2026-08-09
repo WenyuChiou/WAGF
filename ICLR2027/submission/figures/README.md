@@ -14,15 +14,12 @@
 `figure1_concept_print.png` is the print-width inspection copy of the
 generated raster; it is not an additional paper figure.
 
-## Source and alternatives
+## Source
 
-- `assets/` contains the reviewed full generated Figure 1 asset and historical
-  generation intermediates. Only
-  `figure1_architecture_agentpaper_shared_condition_v6_retry_return.png` feeds
-  the active builder.
-- `candidates/` contains the agent-paper candidates and retired Figure 1
-  alternatives. These files are kept for comparison only and are never
-  included by the manuscript.
+- `assets/` contains the single reviewed generated Figure 1 source:
+  `figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`.
+  Superseded assets and candidates are retained in Git history, not in this
+  active package.
 
 When a figure changes, update the relevant source, regenerate into `active/`,
 and run the checks under `../checks/`. Do not edit a rendered figure directly.

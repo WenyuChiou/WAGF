@@ -7,8 +7,8 @@ The active Figure 1 is the generated shared-condition architecture:
 `figures/assets/figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`
 
 It is staged into `figures/active/figure1_concept.png` by
-`source/figure1_agent_paper.py`. Earlier nested-interface and bridge images
-remain historical candidates and are not active.
+`source/figure1_agent_paper.py`. Superseded compositions remain available in
+Git history rather than in the active submission package.
 
 ## Paper role
 

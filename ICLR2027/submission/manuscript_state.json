@@ -86,13 +86,6 @@
       "required_for_release": false
     },
     {
-      "id": "review_rounds",
-      "path": "REVIEW_ROUNDS.md",
-      "role": "review_record",
-      "status": "ACTIVE",
-      "required_for_release": false
-    },
-    {
       "id": "wagf_inventory",
       "path": "WAGF_INVENTORY.md",
       "role": "material_code_and_evidence_inventory",
@@ -345,7 +338,7 @@
     {
       "id": "figure1-rendering",
       "decision": "Use generated shared-condition v6 with a subordinate retry/default-action branch: a compact Agent response card, explicit black and amber Validator ports, a final-record route to Decision log, black borders with flat colored fills, a direct condition-to-Counted-records route, and a retry arrow that returns to Agent response.",
-      "authority": "AGENT_ARCHITECTURE_FIGURE_RESET.md, FIGURE1_DESIGN.md, and current visual review"
+      "authority": "FIGURE1_DESIGN.md, PAPER_AUDIT.md, and current visual review"
     },
     {
       "id": "action-reading",
