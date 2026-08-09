@@ -153,14 +153,190 @@ def check_directory(run_dir: str) -> str:
 
 
 def check_row_counts(sim_rows: list[dict], audit_rows: list[dict]) -> str:
+    """simulation_log must be the full grid; the audit CSV may be short by a REFUSAL.
+
+    The original form of this check required exactly EXPECTED_ROWS in both files. That is right
+    for simulation_log.csv -- every agent's state advances every year no matter what the model
+    said, so a short sim log means a lost year -- but it is wrong for the audit CSV under
+    ``--governance-mode strict``.
+
+    Strict mode disables the default fallback: when the model returns output no parser can turn
+    into a decision, after retries, the runner REFUSES to invent one. Seed 44 hit this once in
+    3,276 agent-years -- ``UpalcoUintaBonnUtes_NonIndian`` year 32, three unparsable generations,
+    ``[LLM:Error] Model returned unparsable output after retries`` -- and produced 3,275 audit
+    rows against 3,276 sim rows. The audit CSV and the streamed JSONL agree exactly at 3,275, so
+    nothing was lost on the write path; the decision was never made.
+
+    Failing that run on a row count treats a loud, recorded, correctly-handled refusal as if it
+    were data loss, and -- worse -- the hard failure BREAKS OUT of gate_one_run, skipping the
+    seven checks that would have shown the run was otherwise sound. The refusal is a property of
+    the model this paper is measuring, not a defect in the corpus, and hiding it behind a
+    disqualification would remove the one observation where the governance layer did the exact
+    thing the paper argues for.
+
+    So: the grid invariant stays on simulation_log.csv, the audit CSV is bounded ABOVE by it, and
+    ``check_undecided_rows_are_refusals`` below proves every shortfall is a refusal rather than a
+    gap. Failure direction is deliberate -- an audit row with no sim row still fails hard, because
+    that IS impossible.
+    """
     problems = []
     if len(sim_rows) != EXPECTED_ROWS:
         problems.append(f"simulation_log.csv has {len(sim_rows)} rows, expected {EXPECTED_ROWS}")
-    if len(audit_rows) != EXPECTED_ROWS:
-        problems.append(f"{AUDIT_FILE} has {len(audit_rows)} rows, expected {EXPECTED_ROWS}")
+    if len(audit_rows) > len(sim_rows):
+        problems.append(
+            f"{AUDIT_FILE} has {len(audit_rows)} rows, MORE than simulation_log.csv's "
+            f"{len(sim_rows)} -- a decision cannot exist without a state row"
+        )
     if problems:
         raise IntegrityError("; ".join(problems))
+
+    short = len(sim_rows) - len(audit_rows)
+    if short:
+        return (
+            f"OK  simulation_log.csv {len(sim_rows)} rows (full grid); {AUDIT_FILE} "
+            f"{len(audit_rows)} -- short by {short} ({100 * short / len(sim_rows):.3f}%), "
+            "each verified a refusal below"
+        )
     return f"OK  {EXPECTED_ROWS} rows in both simulation_log.csv and {AUDIT_FILE}"
+
+
+def check_undecided_rows_are_refusals(sim_rows: list[dict], audit_rows: list[dict]) -> str:
+    """Every sim row with no audit row must be a refusal, evidenced IN THE ARTIFACTS.
+
+    A refusal leaves a sim row whose ``yearly_decision`` is blank: the agent's state advanced,
+    but no skill was chosen. A LOST row leaves a sim row with a decision in it and no audit row
+    to match. The two are indistinguishable by count and completely different in meaning, which
+    is why this check reads the field rather than trusting the arithmetic.
+
+    Evidence is taken from the run directory only, never from the launcher's log file -- the log
+    lives outside the run directory, is not part of the archived corpus, and a gate that depends
+    on it cannot certify a corpus someone else received.
+
+    The check runs in BOTH directions, because one direction alone is trivially evadable. An
+    earlier version only walked sim rows that had no audit row, so it never inspected
+    ``yearly_decision`` on a row whose audit row still existed -- blanking the sim decision and
+    touching nothing else certified silently, reporting "no refusals". That was found by review
+    building the control, after the docstring here had already asserted such an evasion would
+    need coordinated edits to three files. It needed one. The claim was wrong and the code was
+    the thing that had to change.
+
+    RESIDUAL, stated because this check reads one field and could sound like more. It trusts the
+    sim log's own ``yearly_decision`` and does not corroborate it against a third source. Dropping
+    a row from the audit CSV, its JSONL trace AND blanking it in the sim log still certifies. That
+    shape is not reachable from a single bug: the sim log's decision is set from
+    ``result.approved_skill.skill_name`` before the auditor is involved, so the finalize-time
+    aggregation defect ``recover_csv_from_jsonl`` exists for cannot also blank it. Every other
+    shape tried is refused -- a plain dropped row, a dropped row disguised as a refusal, a
+    dropped row with its trace removed, a fabricated audit row, and a real refusal sitting
+    alongside a fake one, which is isolated correctly.
+    """
+    audit_pairs = _agent_year_pairs(audit_rows, AUDIT_FILE)
+    REFUSAL_SENTINELS = ("", "nan", "none", "n/a")
+    undecided, lost, contradictory = [], [], []
+    for row in sim_rows:
+        pair = (row.get("agent_id", "").strip(), str(row.get("year", "")).strip())
+        # "n/a" is the irrigation sim's own sentinel for a year in which no skill was chosen
+        # (run_experiment.py: `"yearly_decision": skill or "N/A"`). Verified across all five
+        # seeds: it appears exactly twice in 16,380 rows, on the two genuine refusals, while
+        # every other value is one of the five registered skill names. The empty/nan spellings
+        # are accepted too because the sentinel is a domain convention rather than a framework
+        # guarantee, and a repair tool round-tripping an empty cell through pandas would write
+        # one of them.
+        decision = (row.get("yearly_decision") or "").strip().lower()
+        is_refusal = decision in REFUSAL_SENTINELS
+        if pair in audit_pairs:
+            # Direction 2: a row claiming to be a refusal while an audit row exists for it. The
+            # agent either decided or it did not; both artifacts cannot be right.
+            if is_refusal:
+                contradictory.append((pair, decision))
+            continue
+        (undecided if is_refusal else lost).append((pair, decision))
+
+    if lost:
+        shown = "; ".join(f"{a} y{y} decided {d!r}" for (a, y), d in lost[:5])
+        raise IntegrityError(
+            f"{len(lost)} simulation row(s) carry a decision but have NO audit row -- this is "
+            f"data loss on the write path, not a refusal: {shown}"
+        )
+    if contradictory:
+        shown = "; ".join(f"{a} y{y} sim says {d!r}" for (a, y), d in contradictory[:5])
+        raise IntegrityError(
+            f"{len(contradictory)} simulation row(s) record NO decision while an audit row for "
+            f"the same (agent, year) exists -- the two artifacts contradict each other, so one "
+            f"of them has been altered: {shown}"
+        )
+    if not undecided:
+        return "OK  every simulation row has an audit row; no refusals, no contradictions"
+    shown = ", ".join(f"{a} y{y}" for (a, y), _ in undecided[:5])
+    return (
+        f"OK  {len(undecided)} refusal(s), {100 * len(undecided) / len(sim_rows):.3f}% of "
+        f"{len(sim_rows)} -- no decision recorded, no audit row, nothing lost: {shown}"
+    )
+
+
+def check_audit_matches_streamed_traces(
+    sim_rows: list[dict], audit_rows: list[dict], run_dir: str
+) -> str:
+    """The audit CSV must contain exactly what the streaming JSONL recorded.
+
+    This is the write-path integrity check the row count used to stand in for, and it is the one
+    that would actually catch a dropped row: the JSONL is appended and fsynced per decision
+    during the run, the CSV is written at finalize, so a divergence between them is a loss
+    between the two -- the failure mode ``broker.tools.recover_csv_from_jsonl`` exists to repair.
+
+    The first JSONL line is a ``_metadata`` header (framework 0.6.0), not a trace; counting it
+    would have made a correct 3,275/3,275 look like 3,276 and hidden exactly what this check is
+    for. It is identified by structure -- a ``_metadata`` key and no ``year`` -- not by position.
+    """
+    path = os.path.join(run_dir, TRACES_FILE)
+    if not os.path.isfile(path):
+        raise IntegrityError(f"missing {TRACES_FILE} -- cannot verify the audit CSV against it")
+
+    traces = headers = malformed = 0
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                malformed += 1
+                continue
+            if "_metadata" in rec and rec.get("year") is None:
+                headers += 1
+            else:
+                traces += 1
+
+    if malformed:
+        raise IntegrityError(
+            f"{TRACES_FILE}: {malformed} unparsable line(s) -- the streamed record is damaged, "
+            "so it cannot be used to corroborate the audit CSV"
+        )
+    if traces != len(audit_rows):
+        # The two directions are different failures and must not share a sentence. Fewer CSV rows
+        # than traces is LOSS between the streamed write and the finalize-time aggregation, which
+        # recover_csv_from_jsonl repairs. More CSV rows than traces is the opposite and more
+        # alarming: a decision reached the CSV that was never streamed, so it was not produced by
+        # the run's own write path. An earlier version phrased both as loss and printed "the CSV
+        # lost -1 row(s)" for the second, which points whoever triages it at the wrong tool.
+        delta = traces - len(audit_rows)
+        if delta > 0:
+            detail = (
+                f"the CSV is missing {delta} row(s) that WERE streamed during the run -- "
+                "recoverable, see broker.tools.recover_csv_from_jsonl"
+            )
+        else:
+            detail = (
+                f"the CSV carries {-delta} row(s) that were NEVER streamed -- not loss; a "
+                "decision appeared in the aggregate that the run did not write, so treat this "
+                "as fabrication or a merge of two runs, and do NOT repair it from the JSONL"
+            )
+        raise IntegrityError(
+            f"{AUDIT_FILE} has {len(audit_rows)} rows but {TRACES_FILE} recorded {traces} "
+            f"decision(s) ({headers} metadata header(s) excluded) -- {detail}"
+        )
+    return f"OK  {traces} streamed decisions == {len(audit_rows)} audit rows ({headers} header)"
 
 
 def _agent_year_pairs(rows: list[dict], label: str) -> set[tuple[str, str]]:
@@ -199,16 +375,26 @@ def check_no_gaps_or_duplicates(sim_rows: list[dict], audit_rows: list[dict]) ->
             "not every agent has every year"
         )
 
-    missing_in_audit = sim_pairs - audit_pairs
+    # The join is one-directional now. An audit row with no sim row is still impossible and
+    # still fails here. A sim row with no audit row is a refusal OR a loss, and telling those
+    # apart needs the yearly_decision field, so it belongs in
+    # check_undecided_rows_are_refusals rather than being disqualified on a set difference.
     extra_in_audit = audit_pairs - sim_pairs
-    if missing_in_audit or extra_in_audit:
+    if extra_in_audit:
+        shown = ", ".join(f"{a} y{y}" for a, y in sorted(extra_in_audit)[:5])
         raise IntegrityError(
-            f"sim/audit join is not exact: {len(missing_in_audit)} sim rows unmatched in audit, "
-            f"{len(extra_in_audit)} audit rows unmatched in sim"
+            f"{len(extra_in_audit)} audit row(s) have no matching simulation row -- a decision "
+            f"without a state row cannot happen: {shown}"
         )
+    unmatched = len(sim_pairs - audit_pairs)
+    suffix = (
+        "sim/audit join exact"
+        if not unmatched
+        else f"{unmatched} sim row(s) unmatched, classified by the next check"
+    )
     return (
         f"OK  {len(agents)} agents x {len(years)} years = {len(sim_pairs)} pairs, "
-        "complete grid, sim/audit join exact"
+        f"complete grid, {suffix}"
     )
 
 
@@ -372,6 +558,236 @@ def check_wallclock(run_dir: str) -> str:
     return f"OK  wall-clock {hours:.2f} h (baseline {BASELINE_HOURS:.1f} h, ceiling {MAX_WALLCLOCK_HOURS:.1f} h)"
 
 
+# Everything the runner reads while a seed executes. Anything outside this set can be dirty
+# without touching what the run did -- a manuscript, a figure, another domain's analysis.
+_EXECUTION_PATHS = (
+    "broker",
+    "examples/irrigation_abm",
+    "SUBMISSION_2026/TAE/runs/" + ISOLATED_CONFIG_MARKER,
+)
+
+
+def _git(*args: str) -> tuple[int, str]:
+    """Run git at the repository root. Returns (exit code, stdout). Never raises."""
+    import subprocess
+
+    root = os.path.dirname(os.path.dirname(TAE))
+    try:
+        out = subprocess.run(
+            ["git", "-C", root, *args],
+            capture_output=True, text=True, timeout=60,
+        )
+        return out.returncode, out.stdout.strip()
+    except Exception as exc:  # noqa: BLE001 -- reported, never swallowed into a pass
+        return 127, f"{type(exc).__name__}: {exc}"
+
+
+def _execution_path_provenance(manifest: dict[str, Any], problems: list[str]) -> str:
+    """Did this run execute committed code? -- which is not the same question as `git_dirty`.
+
+    The check this replaces failed any run whose repository-wide `git status` was non-empty. On
+    this machine it never can be empty: a co-author is writing the manuscript, and a different
+    paper's analysis has carried uncommitted work for weeks. Seeds 42, 43 and 44 each failed on
+    it while every file the runner actually reads was committed and unchanged -- so the gate was
+    rejecting all three for a property with no bearing on whether they are reproducible, and a
+    criterion that fails everything sorts nothing.
+
+    The question worth asking is narrower and answerable: are the files the run READ identical to
+    the commit its manifest names? That is what someone re-running from `git_commit` would get.
+
+    Failure direction is deliberate. Uncertainty fails: if git is unavailable, or the commit is
+    missing, 'unavailable', or unknown to this clone, this appends a problem rather than passing,
+    because then nobody can retrieve what ran.
+
+    WHAT THIS DOES NOT ESTABLISH, stated because the check it replaces appeared to and did not.
+
+    1. Whether the EXECUTION PATHS specifically were dirty AT LAUNCH cannot be recovered
+       afterwards -- the manifest records one repository-wide boolean, True on all five seeds
+       because of a manuscript and another paper's work-in-progress. For those the execution
+       paths were separately confirmed clean at launch and attested; the fix for future runs is
+       to record execution-path dirtiness in the manifest at ExperimentRunner.__init__, where
+       the launch-time answer is still knowable, rather than inferring it here.
+
+    2. It does not cover the run's UNTRACKED data. ``run_experiment.py`` resolves
+       ``PROJECT_ROOT / "ref"`` unconditionally -- not gated by ``--config-dir`` -- and
+       ``irrigation_personas.py`` reads ``ref/CRSS_DB/CRSS_DB/{Div_States,HistoricalData,
+       Group_Agt}/*.csv`` from it: the historical diversion and precipitation series that
+       parameterise all 78 agents and the 42-year trajectory. ``.gitignore`` excludes
+       ``ref/CRSS_DB/``, so it is in no commit and no tree hash. Two commits can have
+       byte-identical broker/, examples/irrigation_abm/ and config trees while having run
+       against different CRSS data, and nothing here would notice. Found by review, 2026-08-09.
+       Closing it needs a content hash of that directory recorded in the manifest at launch;
+       until then "the executed code is retrievable" is exactly the claim, and the data it read
+       is not part of it.
+
+    3. The remote-twin search below is a point-in-time answer, not a durable one. It walks a
+       bounded window of remote-reachable commits; this repository has days with 24-38 commits,
+       so a twin found today can fall outside the window in weeks with nothing about the run
+       having changed, flipping a certified run to refused during a revision. If a twin is ever
+       relied on, pin it into the manifest or attestation rather than re-deriving it live.
+    """
+    commit = str(manifest.get("git_commit") or "").strip()
+    repo_dirty = manifest.get("git_dirty")
+
+    # SCHEMA FRESHNESS. Before 2026-08-06, git state was sampled inside
+    # _collect_reproducibility_metadata, reached only from _finalize_experiment -- about ten
+    # hours after launch -- so `git_commit` named whatever HEAD happened to be near the END of
+    # the run, which for seed 42 is a commit authored 16 minutes before its manifest was written
+    # and roughly 9.5 hours after it started. The fix moved sampling to __init__ and kept the
+    # finalize values under *_at_finalize, so the PRESENCE of that key is what distinguishes a
+    # launch-time commit from a finalize-time one. A run without it is not disqualified -- the
+    # corpus predates the fix -- but its commit cannot be taken at face value, so this requires
+    # the contemporaneous attestation instead of accepting the field silently.
+    if "git_commit_at_finalize" not in manifest:
+        seed = manifest.get("seed")
+        att = os.path.join(RUNS_ROOT, "_logs", f"seed{seed}_provenance_attestation.md")
+        name = os.path.basename(att)
+        # The attestation must be READ, not merely counted. An earlier version checked only
+        # os.path.isfile, so an empty file -- or one containing a shopping list -- satisfied it
+        # while the gate printed "the claim rests on <name>, written contemporaneously". Binding
+        # it to the commit is what makes the file evidence rather than a filename: every real
+        # attestation names the commit it is vouching for, so requiring that substring costs
+        # nothing legitimate and refuses a placeholder.
+        if not os.path.isfile(att):
+            problems.append(
+                f"manifest has no 'git_commit_at_finalize' -- it predates the launch-time git "
+                f"sampling fix, so git_commit={commit[:12]} was taken at FINALIZE and may name "
+                f"code this run never executed. No attestation at {name} either, so nothing "
+                "establishes what ran"
+            )
+            return " exec-path=UNATTESTED-LEGACY"
+        try:
+            with open(att, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as exc:
+            problems.append(f"attestation {name} is unreadable ({exc})")
+            return " exec-path=ATTESTATION-UNREADABLE"
+        # The attestation is the AUTHORITY for a legacy run, not a corroboration of the manifest.
+        # It exists precisely because the manifest's commit is wrong, so requiring it to repeat
+        # that commit would require it to repeat the error -- which is what a first version of
+        # this check did, and it refused seed 42 for naming the right commit. seed 42's manifest
+        # says 0237cb5f (finalize-sampled); the attestation says 50247de3 was the launch commit,
+        # and those two differ in examples/irrigation_abm/ (tree 28539f5e vs 9d52722e), so the
+        # distinction is not academic -- the run loaded the launch tree.
+        #
+        # So the launch commit is taken FROM the attestation, by its own explicit label, and
+        # replaces the manifest's value for every check below. No label, or a label naming a
+        # commit this clone does not have, fails: an attestation that cannot be resolved to code
+        # establishes nothing.
+        import re
+
+        m = re.search(r"[Ll]aunch commit\s*`([0-9a-f]{7,40})`", text)
+        if not m:
+            problems.append(
+                f"attestation {name} ({len(text)} chars) has no ``Launch commit `<sha>``` line, "
+                "so the code this legacy run executed cannot be identified from it"
+            )
+            return " exec-path=ATTESTATION-UNPARSEABLE"
+        attested = m.group(1)
+        if _git("cat-file", "-e", attested + "^{commit}")[0] != 0:
+            problems.append(
+                f"attestation {name} names launch commit {attested[:12]}, which is not in this "
+                "clone -- the code it vouches for cannot be retrieved"
+            )
+            return " exec-path=ATTESTATION-COMMIT-MISSING"
+        legacy = (
+            f"; LEGACY MANIFEST: manifest git_commit={commit[:12]} was sampled at FINALIZE and "
+            f"is not the code that ran; {name} names launch commit {attested[:12]}, which is "
+            "what the checks above used"
+        )
+        commit = attested
+    else:
+        legacy = ""
+
+    if not commit or commit == "unavailable":
+        problems.append(
+            "manifest git_commit is missing or 'unavailable' -- the code this run executed "
+            "cannot be identified, so it cannot be certified"
+        )
+        return " exec-path=UNKNOWN"
+
+    rc, _ = _git("cat-file", "-e", commit + "^{commit}")
+    if rc != 0:
+        problems.append(
+            f"manifest git_commit={commit[:12]} is not present in this clone -- the code this "
+            "run executed cannot be retrieved, so it cannot be certified"
+        )
+        return " exec-path=UNKNOWN"
+
+    # How far the execution paths have MOVED since is recorded, not scored. A seed launched last
+    # week legitimately executed older code; that is what its commit is for. Scoring drift would
+    # disqualify every run the moment the next commit lands, which is the same "criterion that
+    # fails everything" defect in a different costume.
+    moved = []
+    for path in _EXECUTION_PATHS:
+        rc_diff, out_diff = _git("diff", "--name-only", commit, "HEAD", "--", path)
+        if rc_diff != 0:
+            problems.append(
+                f"git diff failed for {path!r} ({out_diff}) -- execution-path provenance is "
+                "unverifiable, so this run is not certified"
+            )
+            return " exec-path=UNVERIFIABLE"
+        n = len([l for l in out_diff.splitlines() if l.strip()])
+        if n:
+            moved.append(f"{path}+{n}")
+
+    # DURABILITY. A commit on no remote ref lives only in this clone: delete the branch holding
+    # it, run gc, and the run's provenance is gone. seed 42's commit is in exactly that position,
+    # anchored only by a local backup branch.
+    #
+    # The obvious repair -- tag the commit and push the tag -- is WRONG here, and measuring it
+    # rather than assuming it is what stopped this being shipped: that commit predates the
+    # history rewrite of 2026-08-06, so pushing anything anchored to it uploads 69.3 MB and 37
+    # of the 48 candidate rasters that rewrite removed. The fix would have undone the cleanup.
+    #
+    # What has to survive is not the commit OBJECT but the CODE. So when the exact commit is not
+    # on a remote, look for a remote-reachable commit whose execution-path trees are byte-
+    # identical, and report that as the retrievable equivalent. For seed 42 that is 4833ffd7 on
+    # origin/p0-1-governance-instrumentation: same broker/ tree, same examples/irrigation_abm/
+    # tree, different commit id. The code that ran is retrievable; only the id is local.
+    rc_rem, out_rem = _git("branch", "-r", "--contains", commit)
+    remotes = [l.strip() for l in out_rem.splitlines() if l.strip()] if rc_rem == 0 else []
+    if remotes:
+        anchor = f"pushed ({remotes[0].split()[0]}{'+' if len(remotes) > 1 else ''})"
+    else:
+        want = {}
+        for path in _EXECUTION_PATHS:
+            rc_t, out_t = _git("rev-parse", f"{commit}:{path}")
+            if rc_t == 0:
+                want[path] = out_t
+        twin = ""
+        rc_l, out_l = _git("rev-list", "--remotes", "--max-count=600")
+        for cand in (out_l.splitlines() if rc_l == 0 else []):
+            cand = cand.strip()
+            if not cand:
+                continue
+            if all(_git("rev-parse", f"{cand}:{p}")[1] == h for p, h in want.items()):
+                twin = cand
+                break
+        if twin:
+            anchor = (
+                f"commit id LOCAL ONLY, but the CODE is on a remote: {twin[:12]} has "
+                f"byte-identical trees for all {len(want)} execution paths"
+            )
+        else:
+            rc_loc, out_loc = _git("branch", "--contains", commit)
+            local = [l.strip(" *") for l in out_loc.splitlines() if l.strip()] if rc_loc == 0 else []
+            problems.append(
+                f"git_commit={commit[:12]} is on no remote, and no remote-reachable commit has "
+                f"matching execution-path trees -- the code this run executed exists only in "
+                f"this clone ("
+                + (", ".join(local) if local else "dangling, gc-eligible")
+                + "), so it cannot be certified as reproducible by anyone else"
+            )
+            return " exec-path=LOCAL-ONLY-UNREPRODUCIBLE"
+
+    since = f"; moved since: {', '.join(moved)}" if moved else "; unchanged since"
+    return (
+        f" exec-path={commit[:12]} {anchor}{since}; repo-wide git_dirty={repo_dirty} at launch, "
+        f"RECORDED NOT SCORED -- see _execution_path_provenance{legacy}"
+    )
+
+
 def check_provenance(run_dir: str) -> str:
     """Corroborating, not load-bearing: confirm the run actually read the isolated config.
 
@@ -401,11 +817,7 @@ def check_provenance(run_dir: str) -> str:
             f"manifest governance_profile={manifest.get('governance_profile')!r}, "
             "expected 'strict'"
         )
-    if manifest.get("git_dirty") is True:
-        problems.append(
-            "manifest git_dirty=true -- the pre-flight 'clean tagged tree' fence "
-            "(launch_firstattempt.md section 1a) was not actually satisfied at run time"
-        )
+    dirty_note = _execution_path_provenance(manifest, problems)
 
     if problems:
         raise IntegrityError("; ".join(problems))
@@ -414,13 +826,15 @@ def check_provenance(run_dir: str) -> str:
         f" (num_ctx={manifest.get('num_ctx')}, num_predict={manifest.get('num_predict')}, "
         f"seed={manifest.get('seed')}, git_commit={str(manifest.get('git_commit'))[:12]})"
     )
-    return "OK  manifest provenance consistent with launch_firstattempt.md" + extra
+    return "OK  manifest provenance consistent with launch_firstattempt.md" + extra + dirty_note
 
 
 CHECKS = [
     ("directory", check_directory, "run_dir"),
     ("row counts", check_row_counts, "csv"),
     ("no gaps / duplicates", check_no_gaps_or_duplicates, "csv"),
+    ("undecided rows are refusals", check_undecided_rows_are_refusals, "csv"),
+    ("audit matches streamed traces", check_audit_matches_streamed_traces, "csv_and_dir"),
     ("initial-proposal columns present", check_columns_present, "audit_only"),
     ("initial_labels coverage", check_initial_labels_coverage, "audit_only"),
     ("appraisal actually differs", check_appraisal_actually_differs, "audit_only"),
@@ -445,6 +859,12 @@ def gate_one_run(run_dir: str) -> tuple[bool, list[tuple[str, bool, str]]]:
                 if audit_rows is None:
                     audit_rows = _read_csv_rows(os.path.join(run_dir, AUDIT_FILE))
                 msg = fn(sim_rows, audit_rows)
+            elif kind == "csv_and_dir":
+                if sim_rows is None:
+                    sim_rows = _read_csv_rows(os.path.join(run_dir, SIM_FILE))
+                if audit_rows is None:
+                    audit_rows = _read_csv_rows(os.path.join(run_dir, AUDIT_FILE))
+                msg = fn(sim_rows, audit_rows, run_dir)
             elif kind == "audit_only":
                 if audit_rows is None:
                     audit_rows = _read_csv_rows(os.path.join(run_dir, AUDIT_FILE))
