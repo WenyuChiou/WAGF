@@ -9,8 +9,7 @@ The active release is the directory containing this file:
 - Bibliography: `paper\references.bib`
 - Figure 1 generated asset: `figures\assets\figure1_architecture_agentpaper_shared_condition_v6_retry_return.png`
 - Figure 1 staging builder: `source\figure1_agent_paper.py`
-- Figure 1 compatibility entry point: `source\figure1_overlay.py`
-- Figure 1 contract: `AGENT_ARCHITECTURE_FIGURE_RESET.md`
+- Figure 1 contract: `FIGURE1_DESIGN.md`
 - Manuscript-facing figures: `figures\active\`
 - Figure 1 manifest: `figures\active\figure1_concept.json`
 - Figure and example-role audit: `PAPER_AUDIT.md`
@@ -19,9 +18,6 @@ The active release is the directory containing this file:
   card, explicit black/amber Validator ports, a direct condition-to-Counted-
   records route, black borders, flat colored fills, and a warm light-gray
   background
-- Legacy vector and intermediate Figure 1 files:
-  `figures\candidates\legacy\figure1\`
-- Non-active figure candidates: `figures\candidates\`
 - Static checks: `checks\figure1_geometry_check.py` and
   `checks\manuscript_static_check.py`
 - First-attempt experiment boundary: `EXPERIMENT_AUDIT.md`; it records
@@ -39,19 +35,18 @@ submission/
   HANDOFF.md             current agent handoff
   paper/                 manuscript and bibliography
   figures/active/        only figures referenced by manuscript.tex
-  figures/assets/        canonical generated source asset plus historical assets;
-                          only the named shared-condition asset feeds the active builder
-  figures/candidates/    non-submission alternatives; never referenced by TeX
+  figures/assets/        single canonical generated Figure 1 source asset
   source/                deterministic figure builder and ICLR style files
   checks/                static, geometry, evidence, and reproducibility checks
   supplement/            non-identifying machine-readable release material
 ```
 
-Do not put a new manuscript-facing figure in the figures root or in
-`figures\candidates`. Add the manuscript-facing copy to `figures\active`, keep
-the canonical generated source asset named in the artifact map, update the
-manuscript, and rerun the static check. The historical TAE package remains
-outside this active release and must not be edited as part of ICLR work.
+Do not put a manuscript-facing figure in the figures root. Add its rendered
+copy to `figures\active`, keep its canonical source in `figures\assets` or the
+documented deterministic builder, update the manuscript, and rerun the static
+check. Superseded candidates belong in Git history rather than the active
+release. The historical TAE package remains outside this active release and
+must not be edited as part of ICLR work.
 
 ## Authority hierarchy
 

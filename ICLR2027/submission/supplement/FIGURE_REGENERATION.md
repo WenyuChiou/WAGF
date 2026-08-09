@@ -5,7 +5,7 @@
 From the repository root:
 
 ```powershell
-python ICLR2027\submission\source\figure1_overlay.py
+python ICLR2027\submission\source\figure1_agent_paper.py
 python ICLR2027\submission\checks\figure1_geometry_check.py
 ```
 

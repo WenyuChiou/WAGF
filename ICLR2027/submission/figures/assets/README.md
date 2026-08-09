@@ -10,6 +10,6 @@ the final record enters
 Decision log, and the shared condition routes separately to Validator and
 Counted records.
 
-Other files in this directory are generation intermediates or historical style
-references. They are not active manuscript figures. Run
-`source/figure1_overlay.py` to stage the reviewed asset into `figures/active/`.
+This is the only generated source asset retained in the active package. Run
+`source/figure1_agent_paper.py` to stage it into `figures/active/`. Superseded
+generation intermediates remain recoverable from Git history.

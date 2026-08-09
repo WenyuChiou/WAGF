@@ -1,6 +1,6 @@
 # Handoff: ICLR 2027 WAGF submission
 
-Updated 2026-08-08 after the figure-role/example-balance audit, WAGF material
+Updated 2026-08-09 after the active-package cleanup, figure-role/example-balance audit, WAGF material
 inventory, refreshed CS-agent literature positioning, a plain-language and
 academic-writing audit, and an official MiKTeX typeset build of the active
 manuscript. The current pass also corrects the executed denominator-gap range,
@@ -73,7 +73,6 @@ or the submission-time ICLR metadata and policy checks.
 | Enforcement-pressure source | `supplement\enforcement_pressure_source.json` |
 | Cross-testbed table fragment (paper Table 3) | `supplement\table3_cross_testbed.tex` |
 | Design contract | `FIGURE1_DESIGN.md` |
-| Reset rationale | `AGENT_ARCHITECTURE_FIGURE_RESET.md` |
 | External-paper style audit | `..\FIGURE_STYLE_AUDIT.md` |
 | Static check report | `checks\manuscript_static_report.json` |
 | Evidence-boundary report | `checks\evidence_boundary_report.json` |
@@ -87,8 +86,8 @@ or the submission-time ICLR metadata and policy checks.
 | Irrigation coupling audit | `COUPLING_AUDIT.md` |
 
 `figures\active\` is the only directory whose rendered files may be included
-by `paper\manuscript.tex`. `figures\candidates\` contains non-active
-alternatives. Older v3 and D-v3 assets are historical and are not active.
+by `paper\manuscript.tex`. `figures\assets\` contains only the current v6
+generated source. Superseded candidates and assets remain in Git history.
 
 ## Figure 1 status
 
@@ -185,20 +184,19 @@ placebo check, and uses the executed-action conclusion. Necessary boundaries
 remain once in the relevant sections; repeated defensive causal language was
 removed.
 
-### Panel D decision
+### Why Flood remains table-only
 
-The earlier Panel D proposal put irrigation and Flood contrasts on one shared
-axis as a visual control. That comparison was easy to misread as a co-primary
-mechanism result: Flood uses a different action ontology, no action-to-
-environment feedback, a different appraisal field, and different seed
-matching. The panel is therefore not active. Flood remains in Table 3 as a
-secondary descriptive cross-testbed boundary check, where the caption states the
-shared measure and the non-comparability boundaries.
+Flood uses a different action ontology, has no action-to-environment feedback,
+stores a different appraisal field, and does not share irrigation's seed
+matching. Giving it a mechanism panel would imply a co-primary comparison that
+the evidence does not support. Flood therefore remains in Table 3 as a
+secondary descriptive boundary check, with the shared measure and
+non-comparability boundaries stated in the caption.
 
 The generated Figure 1 routes were inspected at full size, paper width,
 thumbnail size, and grayscale. A fresh bounded staged-diff CS reviewer then
 approved the executed-primary separation, the irrigation-primary/Flood-
-table-only hierarchy, the retired Panel D decision, and the corrected evidence
+table-only hierarchy, and the corrected evidence
 boundary check. The earlier reviewer requests for caption denominator clarity,
 Figure 1's scarcity-condition abstraction, exact reweighting support rules,
 and claim softening are applied in `paper\manuscript.tex`. No new experiment
@@ -263,8 +261,7 @@ Guidelines at submission time for any later revision.
 The active generated Figure 1 is the v6 retry-return asset. It was regenerated
 from the reviewed shared-condition composition and visually checked at full
 size, paper width, thumbnail, and grayscale. The retry arrow now terminates at
-Agent response; the previous detached retry pill is retired. Keep the retry
-branch subordinate to the main propose--validate--accept flow; do not add a
-data-bearing chart to this conceptual figure. The full figure/table hierarchy
-and the irrigation-primary/Flood-secondary balance are recorded in
-`PAPER_AUDIT.md`.
+Agent response. Keep the retry branch subordinate to the main
+propose--validate--accept flow; do not add a data-bearing chart to this
+conceptual figure. The full figure/table hierarchy and the
+irrigation-primary/Flood-secondary balance are recorded in `PAPER_AUDIT.md`.
