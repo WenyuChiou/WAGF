@@ -12,19 +12,19 @@
     "aiusestatement": [
       [
         9,
-        42
+        20
       ]
     ],
     "ethicsstatement": [
       [
         9,
-        55
+        29
       ]
     ],
     "reproducibilitystatement": [
       [
         9,
-        65
+        40
       ]
     ]
   },
@@ -32,12 +32,12 @@
     10
   ],
   "figure4_caption": [
-    8,
-    25
+    7,
+    54
   ],
   "table3_caption": [
     8,
-    34
+    7
   ],
   "errors": []
 }

@@ -1,0 +1,145 @@
+{
+  "schema_version": "1.0",
+  "table": "Table 3 secondary cross-testbed boundary check",
+  "contrast_definition": "no-validator minus validator-on, in percentage points",
+  "aggregation": "Each configuration is a mean of per-run means; table cells report ranges across configurations.",
+  "sources": {
+    "canonical_release_cells": "ICLR2027/submission/supplement/cross_testbed_release_cells.csv",
+    "upstream_release_decision": "ICLR2027/flood_control_contrasts.csv",
+    "coverage_and_manifest_seed_alignment": "ICLR2027/submission/supplement/table1_cells.csv",
+    "governance_pressure_ranges": "ICLR2027/submission/supplement/enforcement_pressure_source.json",
+    "blank_appraisal_denominator_audit": "SUBMISSION_2026/TAE/evidence/e2_flood_instrument.py"
+  },
+  "caption_claims": {
+    "minimum_audit_coverage_pct_range": [
+      70.5,
+      99.9
+    ],
+    "manifest_seed_id_mismatch_configuration_count": 6,
+    "blank_appraisal_policy": "Retry-exhausted Flood rows with blank appraisal remain in the all-row denominator.",
+    "b6_release_policy": "Exclude the divergent gemma3:4b governed Run_1; retain four governed and five no-validator runs.",
+    "b6_included_sensitivity_pp": -1.16,
+    "b6_excluded_release_contrast_pp": 0.3487
+  },
+  "summary_rows": [
+    {
+      "setting": "irrigation",
+      "n_configurations": 5,
+      "gov_range": "5.49--45.27",
+      "noval_range": "26.76--88.65",
+      "contrast_range": "+21.27--+47.53",
+      "contrast_mean": 37.8,
+      "pressure_range": "28--63"
+    },
+    {
+      "setting": "flood",
+      "n_configurations": 9,
+      "gov_range": "2.55--43.48",
+      "noval_range": "0.93--49.71",
+      "contrast_range": "-3.66--+6.24",
+      "contrast_mean": 0.75,
+      "pressure_range": "0--0.638"
+    }
+  ],
+  "flood_configurations": [
+    {
+      "model": "gemma3:4b",
+      "validator_on_pct": 30.9513,
+      "no_validator_pct": 31.3,
+      "contrast_no_validator_minus_on_pp": 0.3487,
+      "n_validator_on_runs_release": 4,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 85.7,
+      "manifest_seed_ids_aligned_across_arms": false,
+      "release_note": "B6 run EXCLUDED; -1.16 including it"
+    },
+    {
+      "model": "gemma3:12b",
+      "validator_on_pct": 2.5508,
+      "no_validator_pct": 0.9255,
+      "contrast_no_validator_minus_on_pp": -1.6253,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 95.2,
+      "manifest_seed_ids_aligned_across_arms": false,
+      "release_note": ""
+    },
+    {
+      "model": "gemma3:27b",
+      "validator_on_pct": 19.1621,
+      "no_validator_pct": 20.3819,
+      "contrast_no_validator_minus_on_pp": 1.2197,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 99.1,
+      "manifest_seed_ids_aligned_across_arms": false,
+      "release_note": ""
+    },
+    {
+      "model": "ministral3:3b",
+      "validator_on_pct": 31.1901,
+      "no_validator_pct": 31.0364,
+      "contrast_no_validator_minus_on_pp": -0.1537,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 70.5,
+      "manifest_seed_ids_aligned_across_arms": false,
+      "release_note": ""
+    },
+    {
+      "model": "ministral3:8b",
+      "validator_on_pct": 30.5391,
+      "no_validator_pct": 26.8836,
+      "contrast_no_validator_minus_on_pp": -3.6556,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 81.5,
+      "manifest_seed_ids_aligned_across_arms": false,
+      "release_note": ""
+    },
+    {
+      "model": "ministral3:14b",
+      "validator_on_pct": 19.451,
+      "no_validator_pct": 19.9213,
+      "contrast_no_validator_minus_on_pp": 0.4703,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 86.3,
+      "manifest_seed_ids_aligned_across_arms": false,
+      "release_note": ""
+    },
+    {
+      "model": "gemma4:e2b",
+      "validator_on_pct": 27.4182,
+      "no_validator_pct": 28.3873,
+      "contrast_no_validator_minus_on_pp": 0.9691,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 73.6,
+      "manifest_seed_ids_aligned_across_arms": true,
+      "release_note": ""
+    },
+    {
+      "model": "gemma4:e4b",
+      "validator_on_pct": 43.4752,
+      "no_validator_pct": 49.7122,
+      "contrast_no_validator_minus_on_pp": 6.237,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 96.7,
+      "manifest_seed_ids_aligned_across_arms": true,
+      "release_note": ""
+    },
+    {
+      "model": "gemma4:26b",
+      "validator_on_pct": 17.4437,
+      "no_validator_pct": 20.36,
+      "contrast_no_validator_minus_on_pp": 2.9163,
+      "n_validator_on_runs_release": 5,
+      "n_no_validator_runs_release": 5,
+      "minimum_audit_coverage_pct": 99.9,
+      "manifest_seed_ids_aligned_across_arms": true,
+      "release_note": ""
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "build_status": "TEX_ENGINE_AVAILABLE:C:\\Users\\wenyu\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdflatex.EXE",
+  "build_status": "TEX_ENGINE_AVAILABLE:pdflatex.EXE",
   "manuscript": "paper/manuscript.tex",
   "cited_keys": [
     "agentcompany2025",
@@ -61,15 +61,15 @@
   "figure_checks": {
     "fig1_rule_layers.pdf": {
       "pages": 1,
-      "bytes": 88270
+      "bytes": 38887
     },
     "fig2_mechanism.pdf": {
       "pages": 1,
-      "bytes": 34081
+      "bytes": 28242
     },
     "fig3_consequence.pdf": {
       "pages": 1,
-      "bytes": 34339
+      "bytes": 14709
     },
     "figure1_concept.png": {
       "size": [
@@ -79,7 +79,7 @@
       "mode": "RGB"
     }
   },
-  "approximate_word_count": 4609,
+  "approximate_word_count": 4635,
   "warnings": [],
   "errors": []
 }

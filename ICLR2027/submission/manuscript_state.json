@@ -51,6 +51,27 @@
       "required_for_release": true
     },
     {
+      "id": "cross_testbed_release_cells",
+      "path": "supplement/cross_testbed_release_cells.csv",
+      "role": "canonical_table3_configuration_rows",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "cross_testbed_provenance",
+      "path": "supplement/cross_testbed_provenance.json",
+      "role": "cross_testbed_caption_and_configuration_provenance",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "table1_cells",
+      "path": "supplement/table1_cells.csv",
+      "role": "table1_endpoint_and_flood_audit_metadata",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
       "id": "enforcement_pressure_source",
       "path": "supplement/enforcement_pressure_source.json",
       "role": "pinned_scope_summary",
@@ -66,7 +87,7 @@
     },
     {
       "id": "denominator_gap_builder",
-      "path": "../fig_denominator_gap.py",
+      "path": "source/figure4_denominator_gap.py",
       "role": "executed_action_figure4_builder",
       "status": "ACTIVE",
       "required_for_release": true
@@ -75,6 +96,20 @@
       "id": "denominator_gap_data",
       "path": "supplement/fig3_denominator_gap.csv",
       "role": "executed_action_figure4_data",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "denominator_gap_per_seed",
+      "path": "supplement/fig4_per_seed.csv",
+      "role": "frozen_paired_executed_action_cells",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "denominator_gap_intervals",
+      "path": "supplement/fig4_gap_intervals.csv",
+      "role": "paired_conditional_minus_all_uncertainty",
       "status": "ACTIVE",
       "required_for_release": true
     },
@@ -105,6 +140,20 @@
       "role": "venue_requirements_and_target_decision",
       "status": "ACTIVE",
       "required_for_release": false
+    },
+    {
+      "id": "four_round_review",
+      "path": "FOUR_ROUND_REVIEW.md",
+      "role": "adversarial_submission_gate_record",
+      "status": "ACTIVE",
+      "required_for_release": true
+    },
+    {
+      "id": "release_manifest",
+      "path": "release_manifest.sha256",
+      "role": "exact_release_artifact_hashes",
+      "status": "ACTIVE",
+      "required_for_release": true
     }
   ],
   "authority_sources": [
@@ -135,10 +184,18 @@
     {
       "id": "cross-testbed-summary",
       "kind": "verified_derived_evidence",
-      "path_or_reference": "supplement/cross_testbed_summary.csv and source/cross_testbed_summary.py",
+      "path_or_reference": "supplement/cross_testbed_summary.csv, supplement/cross_testbed_provenance.json, and source/cross_testbed_summary.py",
       "scope": ["flood", "table3"],
       "status": "VERIFIED",
-      "last_verified": "2026-08-06"
+      "last_verified": "2026-08-10"
+    },
+    {
+      "id": "table1-endpoints",
+      "kind": "verified_derived_evidence",
+      "path_or_reference": "supplement/table1_cells.csv",
+      "scope": ["irrigation", "table1", "executed_action"],
+      "status": "VERIFIED",
+      "last_verified": "2026-08-10"
     },
     {
       "id": "enforcement-pressure-source",
@@ -375,6 +432,15 @@
       }
     },
     {
+      "id": "cross-arm-code-provenance",
+      "severity": "S3",
+      "status": "OPEN",
+      "evidence_status": "CONFIRMED",
+      "description": "Six of 21 paired irrigation seeds record different commits across validator arms; dirty or missing source snapshots prevent a complete code-equivalence proof for the historical corpus.",
+      "affected_artifacts": ["main_manuscript", "table1_cells", "denominator_gap_data"],
+      "required_resolution": "Provide a verified code-equivalence audit covering prompts, validation, simulation updates, parsing, logging, and analysis, or replace the primary evidence with paired runs from one clean frozen commit."
+    },
+    {
       "id": "missing-first-attempt",
       "severity": "S2",
       "status": "WAIVED",
@@ -400,7 +466,7 @@
     }
   ],
   "release": {
-    "status": "WORKING",
+    "status": "HOLD_PROVENANCE",
     "candidate_artifact_ids": ["main_manuscript", "bibliography"],
     "required_checks": [
       "argument_structure",
@@ -486,13 +552,14 @@
     "scholarly_writing": "PASS_WHY_FIRST_MODEL_FIDELITY_EXECUTED_READING; FOUR_PASS_SCOPE_REVIEWED; STATS_AND_SCOPE_CLARIFIED; PROSE_SCANNER_FLAGS_LATEX_COMMANDS_AND_HISTORICAL_HANDOFF_TEXT",
     "delivery_integrity": "PASS_STATIC_PACKAGE_CHECK; OFFICIAL_TEX_PASS_MIKTEX_25_12",
     "functional_completeness": "PASS_SUBMISSION_CHECKLIST_REVIEW",
-    "adversarial_review": "APPROVE_BOUNDED_STAGED_DIFF_REVIEWER_EXECUTED_PRIMARY_FLOOD_TABLE_ONLY_PANEL_D_RETIRED",
+    "adversarial_review": "HOLD_ONE_S3_CROSS_ARM_CODE_PROVENANCE; DISPLAY_AND_ESTIMAND_BLOCKERS_RESOLVED",
     "reproducibility_audit": "RED_GIT_DIRTY_SMOKE_MANIFESTS",
     "official_tex_build": "PASS_MIKTEX_25_12_11_PAGES_TOTAL_9_MAIN_2_REFERENCE_NO_OVERFULL_OR_UNDEFINED_CITATIONS",
     "new_experiment_run": false,
     "first_attempt_audit": "INVENTORIED_OUTSIDE_MANUSCRIPT; GOVERNED_ONLY; MATCHED_ARM_MISSING; PROVENANCE_RED"
   },
   "next_actions": [
+    "Resolve the cross-arm code-provenance S3 through a verified equivalence audit or clean paired confirmatory rerun.",
     "Complete final venue and dual-submission checks.",
     "Complete OpenReview author metadata, author profiles, reciprocal-review, and quota checks at submission time.",
     "Recheck the live ICLR 2027 author guidelines if the organizers publish a revision."

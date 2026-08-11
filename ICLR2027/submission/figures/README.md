@@ -7,8 +7,8 @@
 
 - `figure1_concept.png`: generated conceptual dataflow figure;
 - `fig1_rule_layers.pdf`: deterministic evidence figure;
-- `fig2_mechanism.pdf`: deterministic three-panel evidence figure; panels A--C
-  show the primary anchor-irrigation mechanism in reading order;
+- `fig2_mechanism.pdf`: deterministic two-panel evidence figure showing the
+  yearly condition-share contrast and recorded reservoir trajectories;
 - `fig3_consequence.pdf`: deterministic executed-action denominator-gap figure.
 
 `figure1_concept_print.png` is the print-width inspection copy of the
@@ -33,9 +33,10 @@ and run the checks under `../checks/`. Do not edit a rendered figure directly.
 - Figure 2 answers: which rule layer names a rejection. It places the
   high-scarcity/high-coping increase rule in the self-report-conditioned layer.
 - Figure 3 answers: how the primary irrigation setting changes the observed
-  world and the filtered population. Panels A--C respectively show the yearly
-  condition contrast, the reservoir trajectories, and the all-decision versus
-  never-retried sensitivity. The secondary Flood boundary check is reported in Table 3 and the
+  world and the filtered population. The two active panels show the yearly
+  condition contrast and the reservoir trajectories. The never-retried result
+  remains a text-and-supplement sensitivity rather than a co-equal panel. The
+  secondary Flood boundary check is reported in Table 3 and the
   cross-testbed summary, not as a same-status mechanism panel. An earlier
   Panel D proposal placed the two settings on one contrast axis to show
   separation, but that juxtaposition obscured the different action ontology,
@@ -45,5 +46,6 @@ and run the checks under `../checks/`. Do not edit a rendered figure directly.
 - Figure 4 answers: why the conditional and all-decision denominators can give
   different contrasts under the executed-action reading. It is irrigation-only
   because Flood has no action-to-environment feedback and no matched denominator
-  analysis. Its source is `ICLR2027/fig_denominator_gap.py`, with the copied
-  values in `supplement/fig3_denominator_gap.csv`.
+  analysis. Its source is `submission/source/figure4_denominator_gap.py`, with
+  endpoint values in `supplement/fig3_denominator_gap.csv` and paired gap
+  intervals in `supplement/fig4_gap_intervals.csv`.

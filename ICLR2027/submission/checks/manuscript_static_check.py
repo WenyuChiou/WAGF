@@ -25,6 +25,32 @@ FIGURES = ROOT / "figures" / "active"
 REPORT = ROOT / "checks" / "manuscript_static_report.json"
 
 
+def strip_tex_comments(text: str) -> str:
+    """Remove unescaped TeX comments before structural/source checks."""
+
+    return "\n".join(re.sub(r"(?<!\\)%.*$", "", line) for line in text.splitlines())
+
+
+def environment_errors(text: str) -> list[str]:
+    """Check environment nesting, not merely matching name counts."""
+
+    errors: list[str] = []
+    stack: list[str] = []
+    for match in re.finditer(r"\\(begin|end)\{([^}]+)\}", text):
+        action, environment = match.groups()
+        if action == "begin":
+            stack.append(environment)
+        elif not stack:
+            errors.append(f"unexpected end of {environment}")
+        elif stack[-1] != environment:
+            errors.append(f"ended {environment} while {stack[-1]} was open")
+        else:
+            stack.pop()
+    if stack:
+        errors.append("unclosed environments: " + ", ".join(stack))
+    return errors
+
+
 def find_tex_engine() -> str | None:
     """Find a TeX executable on PATH or in common per-user MiKTeX locations."""
 
@@ -51,7 +77,8 @@ def find_tex_engine() -> str | None:
 
 
 def main() -> int:
-    tex = MANUSCRIPT.read_text(encoding="utf-8")
+    tex_source = MANUSCRIPT.read_text(encoding="utf-8")
+    tex = strip_tex_comments(tex_source)
     bib = BIB.read_text(encoding="utf-8")
     errors: list[str] = []
     warnings: list[str] = []
@@ -80,7 +107,7 @@ def main() -> int:
         "\\section{Introduction}",
         "\\section{Evaluation Setting}",
         "\\section{The Denominator Moves}",
-        "\\section{World-State Composition as a Descriptive Mechanism}",
+        "\\section{World-State Composition Diagnosis}",
         "\\section{Different Denominators and Action Readings}",
         "\\section{Reporting Protocol and Limitations}",
         "\\section{Conclusion}",
@@ -100,10 +127,7 @@ def main() -> int:
     if non_ascii:
         errors.append(f"non-ASCII characters require review: {non_ascii}")
 
-    begin_envs = re.findall(r"\\begin\{([^}]+)\}", tex)
-    end_envs = re.findall(r"\\end\{([^}]+)\}", tex)
-    if sorted(begin_envs) != sorted(end_envs):
-        errors.append("LaTeX begin/end environment multiset is unbalanced")
+    errors.extend(environment_errors(tex))
 
     if r"\iclrfinalcopy" in tex:
         errors.append("final-copy switch is enabled in the anonymous draft")
@@ -151,7 +175,7 @@ def main() -> int:
     result = {
         "status": "PASS" if not errors else "FAIL",
         "build_status": (
-            f"TEX_ENGINE_AVAILABLE:{tex_engine}"
+            f"TEX_ENGINE_AVAILABLE:{Path(tex_engine).name}"
             if tex_engine
             else "BLOCKED_NO_TEX_ENGINE"
         ),

@@ -1,0 +1,241 @@
+\begin{thebibliography}{23}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Bean et~al.(2025)Bean, Kearns, Romanou, Hafner, Mayne, Batzner,
+  Eghlidi, Schmitz, Korgul, Batra, Deb, Beharry, Emde, Foster, Gausen,
+  Grandury, Han, Hofmann, Ibrahim, Kim, Kirk, Lin, Liu, Luettgau, Magomere,
+  Rystr{\o}m, Sotnikova, Yang, Zhao, Bibi, Bosselut, Clark, Cohan, Foerster,
+  Gal, Hale, Raji, Summerfield, Torr, Ududec, Rocher, and
+  Mahdi]{bean2025construct}
+Andrew~M. Bean, Ryan~Othniel Kearns, Angelika Romanou, Franziska~Sofia Hafner,
+  Harry Mayne, Jan Batzner, Negar~Foroutan Eghlidi, Chris Schmitz, Karolina
+  Korgul, Hunar Batra, Oishi Deb, Emma Beharry, Cornelius Emde, Thomas Foster,
+  Anna Gausen, Mar{\'\i}a Grandury, Sophia Han, Valentin Hofmann, Lujain
+  Ibrahim, Hazel Kim, Hannah~Rose Kirk, Fangru Lin, Gabrielle Liu, Lennart
+  Luettgau, Jabez Magomere, Jonathan Rystr{\o}m, Anna Sotnikova, Yushi Yang,
+  Yilun Zhao, Adel Bibi, Antoine Bosselut, Ronald Clark, Arman Cohan, Jakob
+  Foerster, Yarin Gal, Scott~A. Hale, Deborah Raji, Christopher Summerfield,
+  Philip H.~S. Torr, Cozmin Ududec, Luc Rocher, and Adam Mahdi.
+\newblock Measuring what matters: Construct validity in large language model
+  benchmarks.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~38, 2025.
+\newblock arXiv:2511.04703.
+
+\bibitem[Debenedetti et~al.(2024)Debenedetti, Zhang, Balunovic, Beurer-Kellner,
+  Fischer, and Tram{\`e}r]{agentdojo2024}
+Edoardo Debenedetti, Jie Zhang, Mislav Balunovic, Luca Beurer-Kellner, Marc
+  Fischer, and Florian Tram{\`e}r.
+\newblock Agentdojo: A dynamic environment to evaluate prompt injection attacks
+  and defenses for llm agents.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37, 2024.
+\newblock \doi{10.52202/079017-2636}.
+
+\bibitem[Jimenez et~al.(2024)Jimenez, Yang, Wettig, Yao, Pei, Press, and
+  Narasimhan]{jimenez2024swebench}
+Carlos~E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir
+  Press, and Karthik Narasimhan.
+\newblock {SWE}-bench: Can language models resolve real-world github issues?
+\newblock In \emph{International Conference on Learning Representations}, 2024.
+\newblock arXiv:2310.06770.
+
+\bibitem[Kapoor et~al.(2024)Kapoor, Stroebl, Siegel, Nadgir, and
+  Narayanan]{kapoor2024agents}
+Sayash Kapoor, Benedikt Stroebl, Zachary~S. Siegel, Nitya Nadgir, and Arvind
+  Narayanan.
+\newblock Ai agents that matter.
+\newblock \emph{arXiv preprint arXiv:2407.01502}, 2024.
+
+\bibitem[Khan et~al.(2017)Khan, Yang, Xie, and Ringler]{khan2017coupled}
+Hassaan~Furqan Khan, Y.~C.~Ethan Yang, Hua Xie, and Claudia Ringler.
+\newblock A coupled modeling framework for sustainable watershed management in
+  transboundary river basins.
+\newblock \emph{Hydrology and Earth System Sciences}, 21:\penalty0 6275--6288,
+  2017.
+\newblock \doi{10.5194/hess-21-6275-2017}.
+
+\bibitem[Lin et~al.(2022)Lin, Yang, Malek, and Adam]{lin2022cnhs}
+Chung-Yi Lin, Y.~C.~Ethan Yang, Keyvan Malek, and Jennifer~C. Adam.
+\newblock An investigation of coupled natural human systems using a two-way
+  coupled agent-based modeling framework.
+\newblock \emph{Environmental Modelling and Software}, 155:\penalty0 105451,
+  2022.
+\newblock \doi{10.1016/j.envsoft.2022.105451}.
+
+\bibitem[Liu et~al.(2024)Liu, Yu, Zhang, Xu, Lei, Lai, Gu, Ding, Men, Yang,
+  Zhang, Deng, Zeng, Du, Zhang, Shen, Zhang, Su, Sun, Huang, Dong, and
+  Tang]{liu2023agentbench}
+Xiao Liu, Hao Yu, Hanchen Zhang, Yifan Xu, Xuanyu Lei, Hanyu Lai, Yu~Gu,
+  Hangliang Ding, Kaiwen Men, Kejuan Yang, Shudan Zhang, Xiang Deng, Aohan
+  Zeng, Zhengxiao Du, Chenhui Zhang, Sheng Shen, Tianjun Zhang, Yu~Su, Huan
+  Sun, Minlie Huang, Yuxiao Dong, and Jie Tang.
+\newblock Agentbench: Evaluating llms as agents.
+\newblock In \emph{International Conference on Learning Representations}, 2024.
+\newblock arXiv:2308.03688.
+
+\bibitem[Lu et~al.(2025)Lu, Holleis, Zhang, Aumayer, Nan, Bai, Ma, Ma, Li, Yin,
+  Wang, and Pang]{toolsandbox2025}
+Jiarui Lu, Thomas Holleis, Yizhe Zhang, Bernhard Aumayer, Feng Nan, Haoping
+  Bai, Shuang Ma, Shen Ma, Mengyu Li, Guoli Yin, Zirui Wang, and Ruoming Pang.
+\newblock Toolsandbox: A stateful, conversational, interactive evaluation
+  benchmark for llm tool use capabilities.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  NAACL 2025}, pp.\  1160--1183. Association for Computational Linguistics,
+  2025.
+\newblock \doi{10.18653/v1/2025.findings-naacl.65}.
+
+\bibitem[Ma et~al.(2024)Ma, Zhang, Zhu, Yang, Yang, Jin, Lan, Kong, and
+  He]{ma2024agentboard}
+Chang Ma, Junlei Zhang, Zhihao Zhu, Cheng Yang, Yujiu Yang, Yaohui Jin,
+  Zhenzhong Lan, Lingpeng Kong, and Junxian He.
+\newblock Agentboard: An analytical evaluation board of multi-turn llm agents.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37, 2024.
+\newblock \doi{10.52202/079017-2365}.
+
+\bibitem[Qi et~al.(2025)Qi, Peng, Wang, Xin, Liu, Xu, Hou, and Li]{agentif2025}
+Yunjia Qi, Hao Peng, Xiaozhi Wang, Amy Xin, Youfeng Liu, Bin Xu, Lei Hou, and
+  Juanzi Li.
+\newblock Agentif: Benchmarking large language models instruction following
+  ability in agentic scenarios.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~38, 2025.
+\newblock \doi{10.52202/085713-1892}.
+
+\bibitem[Rebedea et~al.(2023)Rebedea, Dinu, Sreedhar, Parisien, and
+  Cohen]{rebedea2023nemo}
+Traian Rebedea, Razvan Dinu, Makesh~Narsimhan Sreedhar, Christopher Parisien,
+  and Jonathan Cohen.
+\newblock Nemo guardrails: A toolkit for controllable and safe llm applications
+  with programmable rails.
+\newblock In \emph{Proceedings of the 2023 Conference on Empirical Methods in
+  Natural Language Processing: System Demonstrations}, pp.\  431--445.
+  Association for Computational Linguistics, 2023.
+\newblock \doi{10.18653/v1/2023.emnlp-demo.40}.
+
+\bibitem[Rosenbaum(1984)]{rosenbaum1984adjustment}
+Paul~R. Rosenbaum.
+\newblock The consequences of adjustment for a concomitant variable that has
+  been affected by the treatment.
+\newblock \emph{Journal of the Royal Statistical Society: Series A (General)},
+  147\penalty0 (5):\penalty0 656--666, 1984.
+\newblock \doi{10.2307/2981697}.
+
+\bibitem[Shinn et~al.(2023)Shinn, Cassano, Gopinath, Narasimhan, and
+  Yao]{shinn2023reflexion}
+Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu
+  Yao.
+\newblock Reflexion: Language agents with verbal reinforcement learning.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~36, 2023.
+\newblock \doi{10.52202/075280-0377}.
+\newblock arXiv:2303.11366.
+
+\bibitem[Streefkerk et~al.(2023)Streefkerk, de~Bruijn, Haer, Loon, Quichimbo,
+  Wens, Hassaballah, and Aerts]{streefkerk2023drought}
+Ileen~N. Streefkerk, Jens de~Bruijn, Toon Haer, Anne F.~Van Loon, Edisson~A.
+  Quichimbo, Marthe Wens, Khalid Hassaballah, and Jeroen C. J.~H. Aerts.
+\newblock A coupled agent-based model to analyse human-drought feedbacks for
+  agropastoralists in dryland regions.
+\newblock \emph{Frontiers in Water}, 4:\penalty0 1037971, 2023.
+\newblock \doi{10.3389/frwa.2022.1037971}.
+
+\bibitem[Wang et~al.(2026)Wang, Poskitt, and Sun]{wang2026agentspec}
+Haoyu Wang, Christopher~M. Poskitt, and Jun Sun.
+\newblock Agentspec: Customizable runtime enforcement for safe and reliable llm
+  agents.
+\newblock In \emph{Proceedings of the 48th IEEE/ACM International Conference on
+  Software Engineering}, 2026.
+\newblock \doi{10.1145/3744916.3764546}.
+\newblock arXiv:2503.18666.
+
+\bibitem[Wu et~al.(2023)Wu, Bansal, Zhang, Wu, Li, Zhu, Jiang, Zhang, Zhang,
+  Liu, Awadallah, White, Burger, and Wang]{wu2023autogen}
+Qingyun Wu, Gagan Bansal, Jieyu Zhang, Yiran Wu, Beibin Li, Erkang Zhu,
+  Li~Jiang, Xiaoyun Zhang, Shaokun Zhang, Jiale Liu, Ahmed~Hassan Awadallah,
+  Ryen~W. White, Doug Burger, and Chi Wang.
+\newblock Autogen: Enabling next-gen llm applications via multi-agent
+  conversation.
+\newblock \emph{arXiv preprint arXiv:2308.08155}, 2023.
+
+\bibitem[Xie et~al.(2024)Xie, Zhang, Chen, Li, Zhao, Cao, Hua, Cheng, Shin,
+  Lei, Liu, Xu, Zhou, Savarese, Xiong, Zhong, and Yu]{osworld2024}
+Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng
+  Cao, Toh~Jing Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu,
+  Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao
+  Yu.
+\newblock Osworld: Benchmarking multimodal agents for open-ended tasks in real
+  computer environments.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37, 2024.
+\newblock \doi{10.52202/079017-1650}.
+
+\bibitem[Xu et~al.(2025)Xu, Song, Li, Tang, Jain, Bao, Wang, Zhou, Guo, Cao,
+  Yang, Lu, Martin, Su, Maben, Mehta, Chi, Jang, Xie, Zhou, and
+  Neubig]{agentcompany2025}
+Frank~(Fangzheng) Xu, Yufan Song, Boxuan Li, Yuxuan Tang, Kritanjali Jain,
+  Mengxue Bao, Zora Wang, Xuhui Zhou, Zhitong Guo, Murong Cao, Mingyang Yang,
+  Hao~Yang Lu, Amaad Martin, Zhe Su, Leander Maben, Raj Mehta, Wayne Chi,
+  Lawrence Jang, Yiqing Xie, Shuyan Zhou, and Graham Neubig.
+\newblock Theagentcompany: Benchmarking llm agents on consequential real world
+  tasks.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~38, 2025.
+\newblock \doi{10.52202/085713-0315}.
+
+\bibitem[Yang et~al.(2024)Yang, Jimenez, Wettig, Lieret, Yao, Narasimhan, and
+  Press]{yang2024sweagent}
+John Yang, Carlos~E. Jimenez, Alexander Wettig, Kilian Lieret, Shunyu Yao,
+  Karthik Narasimhan, and Ofir Press.
+\newblock Swe-agent: Agent-computer interfaces enable automated software
+  engineering.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37, 2024.
+\newblock \doi{10.52202/079017-1601}.
+\newblock arXiv:2405.15793.
+
+\bibitem[Yao et~al.(2023)Yao, Zhao, Yu, Du, Shafran, Narasimhan, and
+  Cao]{yao2023react}
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan,
+  and Yuan Cao.
+\newblock React: Synergizing reasoning and acting in language models.
+\newblock In \emph{International Conference on Learning Representations}, 2023.
+\newblock arXiv:2210.03629.
+
+\bibitem[Yao et~al.(2025)Yao, Shinn, Razavi, and Narasimhan]{yao2025taubench}
+Shunyu Yao, Noah Shinn, Pedram Razavi, and Karthik Narasimhan.
+\newblock $\tau$-bench: A benchmark for tool-agent-user interaction in
+  real-world domains.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
+\newblock arXiv:2406.12045.
+
+\bibitem[Zhou et~al.(2024)Zhou, Xu, Zhu, Zhou, Lo, Sridhar, Cheng, Ou, Bisk,
+  Fried, Alon, and Neubig]{zhou2024webarena}
+Shuyan Zhou, Frank~F. Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar,
+  Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, Uri Alon, and Graham
+  Neubig.
+\newblock Webarena: A realistic web environment for building autonomous agents.
+\newblock In \emph{International Conference on Learning Representations}, 2024.
+\newblock arXiv:2307.13854.
+
+\bibitem[Zhu et~al.(2025)Zhu, Jin, Pruksachatkun, Zhang, Liu, Cui, Kapoor,
+  Longpre, Meng, Weiss, Barez, Gupta, Dhamala, Merizian, Giulianelli, Coppock,
+  Ududec, Kellermann, Sekhon, Steinhardt, Schwettmann, Narayanan, Zaharia,
+  Stoica, Liang, and Kang]{zhu2025abc}
+Yuxuan Zhu, Tengjun Jin, Yada Pruksachatkun, Andy Zhang, Shu Liu, Sasha Cui,
+  Sayash Kapoor, Shayne Longpre, Kevin Meng, Rebecca Weiss, Fazl Barez, Rahul
+  Gupta, Jwala Dhamala, Jacob Merizian, Mario Giulianelli, Harry Coppock,
+  Cozmin Ududec, Antony Kellermann, Jasjeet Sekhon, Jacob Steinhardt, Sarah
+  Schwettmann, Arvind Narayanan, Matei~A. Zaharia, Ion Stoica, Percy Liang, and
+  Daniel Kang.
+\newblock Establishing best practices in building rigorous agentic benchmarks.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~38, 2025.
+\newblock \doi{10.52202/085713-5547}.
+
+\end{thebibliography}

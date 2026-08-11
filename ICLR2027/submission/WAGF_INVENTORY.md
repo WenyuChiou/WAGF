@@ -1,6 +1,6 @@
 # WAGF paper material and release inventory
 
-Updated 2026-08-08. This is an internal release audit for the active ICLR
+Updated 2026-08-10. This is an internal release audit for the active ICLR
 package. It records what is available, what supports the manuscript, and what
 must remain outside the claim boundary.
 
@@ -26,7 +26,7 @@ mechanism study, or a co-primary application.
 | Manuscript | `paper/manuscript.tex` and `paper/references.bib` | Anonymous ICLR paper, captions, claims, citations, declarations | Active |
 | Concept figure | `figures/active/figure1_concept.png` plus the generated source asset and manifest | Domain-neutral shared-condition path, retry/default route, record-selection route | Active; visual review passed |
 | Quantitative figures | `figures/active/fig1_rule_layers.pdf`, `fig2_mechanism.pdf`, `fig3_consequence.pdf` | Irrigation rule layers, coupled-world diagnosis, denominator consequence | Active; deterministic outputs |
-| Evidence builders | `source/cross_testbed_summary.py`, `../fig_denominator_gap.py`, and the frozen TAE evidence scripts | Rebuildable derived summaries and figure/table inputs | Active and read-only audited |
+| Evidence builders | `source/figure2_rule_layers.py`, `source/cross_testbed_summary.py`, `source/figure4_denominator_gap.py`, and the frozen TAE evidence scripts | Rebuildable derived summaries and figure/table inputs | Active and read-only audited |
 | Frozen corpus | `SUBMISSION_2026/TAE/runs` plus the evidence inventory | Paired irrigation and bounded Flood results | Sufficient for current descriptive claims; historical provenance caveat remains |
 | First-attempt branch | `ICLR2027/experiments/_smoke_firstattempt` and TAE first-attempt run folders | Governed-only retry/appraisal diagnostics | Outside manuscript; provenance RED |
 | Coupling audit | `COUPLING_AUDIT.md` | State timing, units, action/diversion distinction, worker boundary | Active audit record |

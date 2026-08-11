@@ -27,7 +27,7 @@
 \begin{abstract}
 Runtime validators have two roles in coupled agent models. They keep simulated agents within the behavioral rules that make the environment interpretable. We do not question that model-fidelity role. We study a different risk: an agent writes the condition that selects which of its own decisions enter a conditional score. We study that score: among decisions whose response reports high water scarcity, how often does the executed action increase demand?
 
-The primary analysis compares validator-on and validator-off simulations across five seed-paired irrigation configurations. In the anchor cell, high-scarcity reports appear in 82.80\% of no-validator decisions and 37.08\% of validator-on decisions, a $+45.73\pp$ contrast. The executed conditional increase contrast is $+25.90\pp$; the executed all-decision contrast is $+29.90\pp$. Across all five cells, executed all-decision contrasts range from $+20.26\pp$ to $+36.57\pp$. The conditional-minus-all gap ranges from $-16.06\pp$ to $+3.38\pp$: four cells understate the contrast and one overstates it. Reweighting both arms to the same recorded world-state distribution leaves $-2.53\pp$ at full coverage and $+0.21\pp$ in the finest grouping.
+The primary analysis compares validator-on and validator-off simulations across five seed-paired irrigation configurations. In the anchor cell, high-scarcity reports appear in 82.80\% of no-validator decisions and 37.08\% of validator-on decisions, a $+45.73\pp$ contrast. The executed conditional increase contrast is $+25.90\pp$; the executed all-decision contrast is $+29.90\pp$. Across all five cells, executed all-decision contrasts range from $+20.26\pp$ to $+36.57\pp$. The sample conditional-minus-all gap ranges from $-16.06\pp$ to $+3.38\pp$; paired intervals exclude zero for three negative gaps and one positive gap, while one includes zero. Reweighting both arms to the same recorded world-state distribution leaves $-2.53\pp$ at full coverage; the $+0.21\pp$ finest grouping retains 43.4\%/36.4\% of decisions.
 
 We also retain a secondary Flood check as a bounded cross-testbed comparison. Its different action ontology, feedback structure, and seed matching prevent it from serving as a second mechanism test.
 
@@ -42,11 +42,11 @@ Consider a water-management agent in a coupled reservoir simulation. At each yea
 
 The arithmetic is simple. Suppose 80 of 100 decisions satisfy the agent-written condition, and 40 of those decisions take the action of interest. The conditional rate is 50\%. After governance is enabled, suppose 40 decisions satisfy the condition and 10 of those decisions take the action. The rate is 25\%. Both the numerator and denominator changed, so the two rates do not isolate a change in action behavior. In a coupled environment, the difference can propagate. An action changes a later state, that state becomes part of the next input, and later records may come from a different population. Figure~\ref{fig:concept} summarizes this dependency: the response supplies both the action and the condition, validation determines what executes, and the condition then selects records from the log. This is related to the statistical warning against conditioning on a variable changed by an intervention \citep{rosenbaum1984adjustment}. Rosenbaum's warning usually concerns a covariate chosen by the analyst; here the evaluated system writes the conditioning field, so removing it changes the score rather than repairing it.
 
-Agent evaluation now spans interaction, progress across multiple turns, and end-to-end outcomes rather than only single-turn accuracy \citep{kapoor2024agents,liu2023agentbench,ma2024agentboard,osworld2024,agentcompany2025}. WebArena and SWE-bench check outcomes in websites and repositories, while OSWorld and TheAgentCompany extend evaluation to computer environments and consequential tasks \citep{zhou2024webarena,jimenez2024swebench,osworld2024,agentcompany2025}. ReAct, Reflexion, AutoGen, SWE-agent, ToolSandbox, and $\tau$-bench make action--feedback loops, tool coordination, evolving state, and policy adherence part of evaluation \citep{yao2023react,shinn2023reflexion,wu2023autogen,yang2024sweagent,toolsandbox2025,yao2025taubench}. AgentDojo and AgentIF add tool-mediated threats and explicit constraints, while NeMo Guardrails and AgentSpec show how runtime systems inspect or constrain responses \citep{agentdojo2024,agentif2025,rebedea2023nemo,wang2026agentspec}. Construct-validity and benchmark-rigor work asks whether a benchmark measures the behavior it claims to measure \citep{bean2025construct,zhu2025abc}. However, a specific case remains unresolved: the evaluated system can generate the condition that determines which of its own decisions enter the score. In that case, a conditional rate can change through record selection while being read as a change in action behavior.
+Agent evaluation now spans interaction, progress across multiple turns, and end-to-end outcomes rather than only single-turn accuracy \citep{kapoor2024agents,liu2023agentbench,ma2024agentboard,osworld2024,agentcompany2025}. WebArena and SWE-bench check outcomes in websites and repositories, while OSWorld and TheAgentCompany extend evaluation to computer environments and consequential tasks \citep{zhou2024webarena,jimenez2024swebench,osworld2024,agentcompany2025}. ReAct, Reflexion, AutoGen, SWE-agent, ToolSandbox, and $\tau$-bench make action--feedback loops, tool coordination, evolving state, and policy adherence part of evaluation \citep{yao2023react,shinn2023reflexion,wu2023autogen,yang2024sweagent,toolsandbox2025,yao2025taubench}. AgentDojo and AgentIF add tool-mediated threats and explicit constraints, while NeMo Guardrails and AgentSpec show how runtime systems inspect or constrain responses \citep{agentdojo2024,agentif2025,rebedea2023nemo,wang2026agentspec}. Construct-validity and benchmark-rigor work asks whether a benchmark measures the behavior it claims to measure \citep{bean2025construct,zhu2025abc}. However, a specific case remains unresolved: the evaluated system can generate the condition that determines which of its own decisions enter the score. The system therefore helps generate its measured population before the evaluator receives the log. This turns a familiar conditioning warning into an agent-benchmark design risk with an auditable reporting protocol. Without that audit, a conditional rate can change through record selection while being read as a change in action behavior.
 
 We use the coupled irrigation simulation as the primary empirical example of this problem. Paired validator-on and validator-off runs are matched by seed. We report the share of decisions carrying the agent-written condition, the conditional action rate using the executed action, the executed action rate over every decision, and descriptive reweighting by simulator-recorded world state. Flood is used only as a secondary descriptive boundary check; it is not a matched control, a mechanism-transfer test, or a causal comparison. We compare validator-on with validator-off because that is the contrast governed-agent evaluations report; the paper studies what this contrast contains, not a causal governance effect.
 
-In the primary irrigation analysis, the anchor configuration used for the detailed mechanism analysis has a $+45.73\pp$ contrast in condition share (Table~\ref{tab:irrigation}). Across all five irrigation configurations, the executed all-decision contrast remains positive, while the conditional-minus-all-decision gap ranges from $-16.06\pp$ to $+3.38\pp$. Four cells understate the contrast and one overstates it, so the conditional rate alone does not reveal the direction of the error. Replacing the agent report with a simulator-recorded shortage condition is not an automatic repair: its anchor contrast is $+64.29\pp$. The next section defines the paired evaluation and rule inputs; the paper then reports the moving denominator, diagnoses world-state composition, compares all-decision rates, and closes with a reporting protocol and limitations.
+In the primary irrigation analysis, the anchor configuration used for the detailed composition analysis has a $+45.73\pp$ contrast in condition share (Table~\ref{tab:irrigation}). Across all five irrigation configurations, the executed all-decision contrast remains positive, while the conditional-minus-all-decision gap ranges from $-16.06\pp$ to $+3.38\pp$. The conditional contrast is smaller in four sample cells and larger in one, so the conditional rate alone does not reveal how it differs from the all-decision result. Replacing the agent report with a simulator-recorded shortage condition is not an automatic repair: its anchor contrast is $+64.29\pp$. The next section defines the paired evaluation and rule inputs; the paper then reports the moving denominator, diagnoses world-state composition, compares all-decision rates, and closes with a reporting protocol and limitations.
 
 \begin{figure*}[t]
     \centering
@@ -58,7 +58,7 @@ In the primary irrigation analysis, the anchor configuration used for the detail
 Our contributions are threefold:
 \begin{enumerate}[leftmargin=1.3em,itemsep=0.1em,topsep=0.2em]
     \item We identify a measurement-validity risk for runtime governance evaluations in which a condition authored in the response also selects the records used for scoring.
-    \item We diagnose the risk with paired simulations, independent world-state records, and a cross-testbed check. Descriptive alignment of recorded states greatly reduces the raw contrast. The executed all-decision contrast remains positive across all five irrigation cells, but the conditional-minus-all gap is negative in four cells and positive in one; the direction of the denominator error is not predictable.
+    \item We diagnose the risk with paired simulations, independent world-state records, and a cross-testbed check. Descriptive alignment of recorded states greatly reduces the raw contrast. The executed all-decision contrast remains positive across all five irrigation cells, but the sample conditional-minus-all gap is negative in four cells and positive in one; paired intervals show that one negative direction remains uncertain.
     \item We give a minimal reporting protocol: report the condition share, action reading, all-decision rate, independent world state, and pre-retry response/message.
 \end{enumerate}
 
@@ -95,16 +95,15 @@ A reported cell value is the mean of the per-seed values above. The contrast is 
 The anchor irrigation cell makes the denominator problem visible. High scarcity appears in 37.08\% of decisions with validators and 82.80\% without them. The share contrast is $+45.73\pp$ (95\% confidence interval (CI) $[+40.24,+51.21]$, paired $p<0.001$). Among decisions reporting high scarcity, the executed increase rate is 0.86\% with validators and 26.77\% without them. This is a $+25.90\pp$ contrast (95\% CI $[+24.58,+27.23]$, $p<0.001$). The executed rate and its denominator move together.
 
 The five irrigation configurations all have positive share contrasts ($+21.27$ to $+47.53\pp$; all unadjusted cellwise $p$-values are below 0.05). Executed conditional contrasts range from $+4.20$ to $+39.95\pp$, versus $+20.26$ to $+36.57\pp$ for all decisions. Table~\ref{tab:irrigation} places the condition share beside the conditional rate; a single score would hide that both the measured population and executed rate move.
-
 \begin{table}[t]
-\caption{Irrigation condition shares and executed-action rates. \high{} is the share of decisions with a high or very high agent-reported scarcity condition. The executed conditional increase rate is computed only within \high{} decisions; Figure~\ref{fig:consequence} compares its contrast with the executed all-decision contrast. Values are per-seed means using the action that executed after validation and any retry. $\Delta$ is no-validator minus validator-on.}
+\caption{Irrigation condition shares and executed-action rates. \high{} is the share of decisions with a high or very high agent-reported scarcity condition. The executed conditional increase rate is computed only within \high{} decisions; Figure~\ref{fig:consequence} compares its contrast with the executed all-decision contrast. Values are means over paired seeds ($n$) using the action that executed after validation and any retry. $\Delta$ is no-validator minus validator-on.}
 \label{tab:irrigation}
 \centering
 \small
 \setlength{\tabcolsep}{3.2pt}
 \begin{tabular}{lrrrrrrr}
 \toprule
-Model & $n$ & \multicolumn{3}{c}{\high{} share} & \multicolumn{3}{c}{Executed conditional increase}\\
+Model & $n$ & \multicolumn{3}{c}{\high{} share (\%)} & \multicolumn{3}{c}{Executed conditional increase (\%)}\\
  & & on & off & $\Delta$ & on & off & $\Delta$\\
 \midrule
 gemma3:4b & 5 & 37.08 & 82.80 & +45.73 & 0.86 & 26.77 & +25.90\\
@@ -119,7 +118,7 @@ ministral3:8b & 3 & 13.56 & 44.69 & +31.13 & 1.65 & 5.85 & +4.20\\
 \begin{figure*}[t]
     \centering
     \includegraphics[width=0.98\textwidth]{../figures/active/fig1_rule_layers.pdf}
-    \caption{\textbf{Rule-layer decomposition.} The anchor cell contains 6,469 validator-on rejections: 59.4\% name a rule that reads an agent-reported condition, and 40.6\% use only simulator-recorded conditions. The high-scarcity/high-coping increase rule belongs to the self-report-conditioned layer; high scarcity alone is a warning, not a block. Panel (a) shows the rule-layer shares, panel (b) shows blocked-decision shares by model and arm, and panel (c) shows the proposed-action mix among blocked decisions. The middle row is re-based on validator-on rejections and is not a third arm. This figure identifies what the validator reads; it is not a causal or behavioral-effect plot.}
+    \caption{\textbf{Rule-layer decomposition.} Panel (a) isolates the 6,469 validator-on rejections in the anchor cell: 59.4\% name a rule that reads an agent-reported condition, and 40.6\% use only simulator-recorded conditions. Panel (b) reports blocked decisions as a share of all decisions for each model. The upper bar in each pair is validator-on; the lower bar is no-validator, where only the world-feasibility precondition (the water-right cap) remains. The high-scarcity/high-coping increase rule belongs to the agent-report layer; high scarcity alone is a warning, not a block. The figure identifies what each blocking rule reads, not a causal or behavioral effect.}
     \label{fig:layers}
 \end{figure*}
 
@@ -127,7 +126,7 @@ ministral3:8b & 3 & 13.56 & 44.69 & +31.13 & 1.65 & 5.85 & +4.20\\
 
 The conditional rate is not the fraction of all decisions that violate a rule. It is the rate of increase among decisions selected by an agent-authored condition. If validators alter the condition, the numerator and denominator no longer refer to a stable set of decisions. The reported conditional score alone cannot distinguish a change in the condition, a change in the executed action, or both.
 
-\section{World-State Composition as a Descriptive Mechanism}
+\section{World-State Composition Diagnosis}
 \label{sec:world}
 
 The coupled irrigation environment allows a descriptive composition check. An accepted increase changes the reservoir, and reservoir state enters later context. For each comparable recorded-world stratum, we compute each arm's high-scarcity share and give both arms the pooled stratum weights. We require at least 40 records per arm; coverage is the share of an arm's decisions in retained strata. This asks how much of the raw contrast remains after aligning observed states. It is a descriptive composition diagnostic, not a causal adjustment, because the recorded state is downstream of governance.
@@ -138,24 +137,24 @@ The environment also diverges. The governed arm ends 106.57 ft higher on Lake Me
 
 The never-retried subset is a limited sensitivity check. It contains decisions for which no validator rejection message was returned. Its anchor contrast is $+53.46\pp$, larger than the all-decision contrast. The arms are filtered differently: 36.2\% of governed decisions and 64.6\% of no-validator decisions are never retried. Because governance affects retries, this filtering can change the compared population; the subset is not evidence that selection is irrelevant.
 
-\begin{figure*}[t]
+\begin{figure*}[!h]
     \centering
     \includegraphics[width=0.98\textwidth]{../figures/active/fig2_mechanism.pdf}
-    \caption{\textbf{Primary irrigation world-state diagnosis.} Panels (a) and (b) use the anchor irrigation cell: panel (a) reports the yearly high-scarcity contrast, and panel (b) shows the recorded world-state trajectories. Panel (c) compares all decisions with the never-retried subset across the five irrigation configurations. Here, \emph{never retried} means that no validator rejection message was returned during that decision; it is not a claim that the action reading is automatically clean. Year 1 starts from matched pre-decision worlds; later reservoir divergence and unequal filtering show why the two arms no longer share a common world trajectory. Flood is reported separately in Table~\ref{tab:cross_testbed} because its action ontology, feedback structure, field name, and seed matching differ.}
+    \caption{\textbf{Primary irrigation world-state diagnosis.} Both panels use the anchor irrigation cell and five paired seeds. Panel (a) reports the yearly mean difference in high-scarcity share, no-validator minus validator-on; the shaded band is the paired 95\% confidence interval. Panel (b) reports mean Lake Mead elevation in each arm; its shaded bands span the five seed values. The diamond marks the year-1 estimate, when the pre-decision worlds match, and the horizontal line in panel (b) marks the 895-ft floor. Later reservoir divergence shows that the arms cease to share a common recorded-world trajectory. Table~\ref{tab:world}, rather than this temporal juxtaposition, supplies the composition diagnostic. Neither display identifies causal mediation.}
     \label{fig:mechanism}
 \end{figure*}
 
-\begin{table}[t]
+\begin{table}[!h]
 \caption{Selected world-state reweighting diagnostics for the anchor cell. The pooled difference is the no-validator minus validator-on share after reweighting both arms to the pooled recorded-world distribution. Coverage is reported as governed / no-validator. The per-seed diagnostic is a separate estimate with a paired 95\% interval.}
 \label{tab:world}
 \centering
-\scriptsize
+\footnotesize
 \begin{tabular}{lrrr}
 \toprule
 Stratification & Coverage (on/off) & Pooled difference ($\pp$) & Per-seed (95\% CI)\\
 \midrule
 Shortage tier & 100.0/100.0\% & -2.53 & -3.12 [-5.56,-0.68]\\
-Finest reported rung & 43.4/36.4\% & +0.21 & -0.87 [-4.94,+3.19]\\
+\shortstack[l]{Tier + Mead elevation + drought\\+ agent cluster} & 43.4/36.4\% & +0.21 & -0.87 [-4.94,+3.19]\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -167,31 +166,25 @@ Runtime governance keeps behavior within modeled rules, which makes the environm
 
 Using executed actions, the anchor conditional contrast is $+25.90\pp$ and the all-decision contrast is $+29.90\pp$. Across all five irrigation cells, the executed all-decision contrast ranges from $+20.26\pp$ to $+36.57\pp$ (gemma3:12b: $+27.82\pp$; ministral3:8b: $+20.26\pp$). The conditional-minus-all gap ranges from $-16.06\pp$ to $+3.38\pp$: four cells are smaller conditionally and one is larger. Figure~\ref{fig:consequence} shows both endpoints and the direction of the gap. Legacy \lastproposed{} values for gemma3:12b are $+11.44\pp$ conditional and $+0.16\pp$ all-decision; for ministral3:8b they are $+2.80\pp$ and $-22.17\pp$. These are sensitivity values, not the primary estimand.
 
-\begin{figure*}[t]
+\begin{figure*}[!h]
     \centering
     \includegraphics[width=0.98\textwidth]{../figures/active/fig3_consequence.pdf}
-    \caption{\textbf{Executed-action denominator gap.} Each row connects the conditional contrast to the all-decision contrast, both computed from executed actions; the arrow points to the all-decision endpoint. Four rows move left and one moves right, showing that the conditional denominator can understate or overstate the contrast. The colored intervals are paired 95\% confidence intervals for the two endpoints. The legacy \lastproposed{} reading is retained only as a sensitivity analysis in the text and supplement. Neither endpoint is presented as an automatic correction.}
+    \caption{\textbf{Executed-action denominator gap.} Each row connects two no-validator-minus-validator-on contrasts computed from executed increases. Blue circles condition on high-scarcity decisions; orange squares include all decisions. The right column reports conditional minus all decisions with its paired 95\% confidence interval, so a negative value means that the conditional contrast is smaller. Three negative intervals and one positive interval exclude zero; the gemma4:e2b interval includes zero. Colored horizontal intervals show paired 95\% confidence intervals for the two endpoints. The legacy \lastproposed{} reading remains only a sensitivity analysis in the text and supplement. Neither endpoint is an automatic correction.}
     \label{fig:consequence}
 \end{figure*}
 
 \subsection{Secondary cross-testbed boundary check}
 
-The nine Flood configurations span $-3.66\pp$ to $+6.24\pp$, whereas irrigation spans $+21.27\pp$ to $+47.53\pp$. Flood governance rejects 0--0.64\% of proposed actions, compared with 28--63\% in irrigation. Table~\ref{tab:cross_testbed} reports this separation. Flood differs in field names, action ontology, feedback, and seed matching; six of nine configurations also have reflection-record imbalance, and minimum audit coverage is 70.5--99.9\%. We use Flood only as a broad non-causal boundary check, not a clean control, dose-response estimate, or mechanism-transfer test. We do not use them to support causal claims. Flood rows with a blank appraisal after retry exhaustion remain in the denominator; the settled B6 exclusion is documented in the table and source summary.
+The nine Flood configurations span $-3.66\pp$ to $+6.24\pp$, whereas irrigation spans $+21.27\pp$ to $+47.53\pp$. Flood governance rejects 0--0.64\% of proposed actions, compared with 28--63\% in irrigation. Table~\ref{tab:cross_testbed} reports this separation. Flood differs in field names, action ontology, feedback, and seed matching; manifest seed IDs differ across arms in six of nine configurations, and minimum audit coverage is 70.5--99.9\%. We use Flood only as a broad non-causal boundary check, not a clean control, dose-response estimate, or mechanism-transfer test. We do not use these configurations to support causal claims. Flood rows with a blank appraisal after retry exhaustion remain in the denominator; the settled B6 exclusion is documented in the table and the machine-readable provenance file.
 
-\begin{table*}[t]
-    \caption{\textbf{Secondary cross-testbed boundary check.} Values are ranges across configurations; each configuration is the mean of per-run means. $\Delta$ is no-validator minus validator-on. Irrigation stores the appraisal as \texttt{WSA\_LABEL} and Flood as \texttt{TP\_LABEL}; both use high/very-high labels from the shared five-level instrument. Flood is a bounded non-causal check, not a paired comparison, dose-response estimate, or mechanism-transfer test. Coverage is 70.5\%--99.9\%; six configurations have reflection imbalance across arms. Blank appraisals on retry-exhausted Flood rows remain in the denominator. The Flood gemma3:4b cell excludes one governed run with a divergent prompt (four governed and five no-validator runs); including it changes that cell from $+0.35\pp$ to $-1.16\pp$.}
+\newpage
+\begin{table*}[!h]
+    \caption{\textbf{Secondary cross-testbed boundary check.} Values are ranges across configurations; each configuration is the mean of per-run means. $\Delta$ is no-validator minus validator-on. Both settings use high/very-high labels from a shared five-level appraisal instrument. Flood is a bounded non-causal check, not a paired comparison, dose-response estimate, or mechanism-transfer test. Coverage is 70.5\%--99.9\%; manifest seed IDs differ across arms in six configurations. Blank appraisals on retry-exhausted Flood rows remain in the denominator. The Flood gemma3:4b cell excludes one governed run with a divergent prompt (four governed and five no-validator runs); including it changes that cell from $+0.35\pp$ to $-1.16\pp$.}
     \label{tab:cross_testbed}
     \centering
     \scriptsize
     \setlength{\tabcolsep}{4.5pt}
-    \begin{tabular}{lrrrrr}
-    \toprule
-    Setting & Configurations & High-threat share on & High-threat share off & Contrast range & Mean $\Delta$ \\
-    \midrule
-    Irrigation & 5 & 5.49--45.27\% & 26.76--88.65\% & $+21.27$--$+47.53\pp$ & $+37.80\pp$ \\
-    Flood & 9 & 2.55--43.48\% & 0.93--49.71\% & $-3.66$--$+6.24\pp$ & $+0.75\pp$ \\
-    \bottomrule
-    \end{tabular}
+    \input{../supplement/table3_cross_testbed.tex}
 \end{table*}
 
 \section{Reporting Protocol and Limitations}
@@ -216,7 +209,7 @@ The world-state decomposition is limited to the anchor irrigation cell, and worl
 
 Runtime governance is intended to keep an agent within the rules that give its environment meaning. In a coupled simulation, that same mechanism can change which decisions enter a conditional score. The score therefore measures the agent together with the governance that selects its records.
 
-In the coupled irrigation simulations, the share of decisions carrying the agent-written condition differs by $+45.73\pp$ between arms; reweighting both arms to the same recorded world state leaves $-2.53\pp$. The executed all-decision contrast is positive in all five irrigation configurations, from $+20.26\pp$ to $+36.57\pp$, while the conditional-minus-all gap ranges from $-16.06\pp$ to $+3.38\pp$: it understates the contrast in four configurations and overstates it in the fifth. Replacing the agent report with a simulator-recorded condition is not an automatic repair; the corresponding anchor contrast is $+64.29\pp$.
+In the coupled irrigation simulations, the share of decisions carrying the agent-written condition differs by $+45.73\pp$ between arms; reweighting both arms to the same recorded world state leaves $-2.53\pp$. The executed all-decision contrast is positive in all five irrigation configurations, from $+20.26\pp$ to $+36.57\pp$, while the sample conditional-minus-all gap ranges from $-16.06\pp$ to $+3.38\pp$. It is smaller in four configurations and larger in one; paired intervals exclude zero for four of these gaps. Replacing the agent report with a simulator-recorded condition is not an automatic repair; the corresponding anchor contrast is $+64.29\pp$.
 
 We therefore treat the validator-on/off contrast as an object of study rather than an estimator of a governance effect. The usable practice is narrower: compare within matched world states when possible, report a rate whose denominator is fixed by design, and show the condition share beside it. A conditional score computed over a model-authored condition measures the agent and the governance together; the reported number cannot identify which component produced the change.
 
@@ -233,6 +226,7 @@ All coupled runs use one worker (\texttt{workers=1}) to preserve shared reservoi
 
 The inventory contains 42 historic runs: 27 were dirty, 15 lacked a recorded commit, and none was clean; six of 21 paired-by-seed pairs differ across arms. The paper does not claim bitwise reproduction.
 
+\clearpage
 \bibliographystyle{iclr2027_conference}
 \bibliography{references}
 
