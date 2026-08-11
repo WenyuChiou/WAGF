@@ -61,15 +61,15 @@
   "figure_checks": {
     "fig1_rule_layers.pdf": {
       "pages": 1,
-      "bytes": 38887
+      "bytes": 39671
     },
     "fig2_mechanism.pdf": {
       "pages": 1,
-      "bytes": 28242
+      "bytes": 28453
     },
     "fig3_consequence.pdf": {
       "pages": 1,
-      "bytes": 14709
+      "bytes": 15097
     },
     "figure1_concept.png": {
       "size": [
@@ -79,7 +79,7 @@
       "mode": "RGB"
     }
   },
-  "approximate_word_count": 4635,
+  "approximate_word_count": 4397,
   "warnings": [],
   "errors": []
 }

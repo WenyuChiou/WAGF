@@ -6,25 +6,26 @@
   "main_pages": 9,
   "max_main_pages": 9,
   "statement_pages": [
+    8,
     9
   ],
   "statement_locations": {
     "aiusestatement": [
       [
-        9,
-        20
+        8,
+        74
       ]
     ],
     "ethicsstatement": [
       [
         9,
-        29
+        7
       ]
     ],
     "reproducibilitystatement": [
       [
         9,
-        40
+        13
       ]
     ]
   },
@@ -33,7 +34,7 @@
   ],
   "figure4_caption": [
     7,
-    54
+    52
   ],
   "table3_caption": [
     8,

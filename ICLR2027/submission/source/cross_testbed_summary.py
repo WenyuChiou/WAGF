@@ -338,7 +338,7 @@ def _style_axis(ax: plt.Axes) -> None:
     ax.spines["right"].set_visible(False)
     ax.spines["left"].set_color(INK)
     ax.spines["bottom"].set_color(INK)
-    ax.tick_params(colors=INK, labelsize=7)
+    ax.tick_params(colors=INK, labelsize=7.5)
     ax.grid(axis="y", color=GRID, linewidth=0.45, alpha=0.8)
     ax.set_axisbelow(True)
 
@@ -354,12 +354,21 @@ def panel_a(ax: plt.Axes, rows: list[dict[str, object]]) -> None:
     ax.axhline(0, color="#777777", linestyle=(0, (4, 3)), linewidth=0.8)
     ax.axvline(1, color="#cf76ac", linestyle=(0, (1, 2)), linewidth=0.9)
     ax.scatter([1], [y[0]], marker="D", s=34, facecolor="white", edgecolor="#cf76ac", linewidth=1.1, zorder=4)
-    ax.set_title("a  Reported high-scarcity gap over time", loc="left", fontsize=9, fontweight="bold")
-    ax.set_ylabel("No-validator - validator-on (pp)", fontsize=8)
+    ax.set_title("a  Reported high-scarcity gap over time", loc="left", fontsize=9.4, fontweight="bold")
+    ax.set_ylabel("No-validator - validator-on (pp)", fontsize=8.3)
     ax.set_xlim(0.2, 42.8)
     ax.set_xticks([1, 10, 20, 30, 42])
-    ax.set_xlabel("year", fontsize=8)
-    ax.text(0.08, 0.08, "year 1: matched worlds", transform=ax.transAxes, color="#b45c94", fontsize=6.5)
+    ax.set_xlabel("year", fontsize=8.3)
+    ax.text(
+        41.0,
+        104.0,
+        "◇  year 1: matched worlds",
+        color="#9b3f7d",
+        fontsize=7.2,
+        ha="right",
+        va="top",
+        bbox={"facecolor": "white", "edgecolor": "#d8a5c5", "linewidth": 0.5, "alpha": 0.94, "pad": 1.2},
+    )
     _style_axis(ax)
 
 
@@ -375,13 +384,14 @@ def panel_b(ax: plt.Axes, rows: list[dict[str, object]]) -> None:
         ax.plot(x, y, color=color, linewidth=1.1, marker="o", markersize=2.1, label=label)
     ax.axhline(895, color="#777777", linestyle=(0, (2, 2)), linewidth=0.75)
     ax.axvline(1, color="#cf76ac", linestyle=(0, (1, 2)), linewidth=0.9)
-    ax.set_title("b  Recorded worlds diverge after year 1", loc="left", fontsize=9, fontweight="bold")
-    ax.set_ylabel("Lake Mead elevation (ft)", fontsize=8)
-    ax.set_xlabel("year", fontsize=8)
+    ax.set_title("b  Recorded worlds diverge after year 1", loc="left", fontsize=9.4, fontweight="bold")
+    ax.set_ylabel("Lake Mead elevation (ft)", fontsize=8.3)
+    ax.set_xlabel("year", fontsize=8.3)
     ax.set_xlim(0.2, 42.8)
     ax.set_xticks([1, 10, 20, 30, 42])
-    ax.text(0.03, 0.04, "895 ft floor", transform=ax.transAxes, color="#555555", fontsize=7)
-    ax.legend(frameon=False, fontsize=5.8, loc="upper left", bbox_to_anchor=(0.0, 1.02),
+    ax.text(2.0, 902.0, "895 ft floor", color="#555555", fontsize=7.2,
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.90, "pad": 1.0})
+    ax.legend(frameon=False, fontsize=7.0, loc="upper left", bbox_to_anchor=(0.0, 1.02),
               ncol=2, handlelength=1.5, columnspacing=0.8)
     _style_axis(ax)
 
@@ -426,7 +436,7 @@ def panel_c(ax: plt.Axes, rows: list[dict[str, object]]) -> None:
 
 def build_figure(rows: list[dict[str, object]], output: Path) -> None:
     plt.rcParams.update({"font.family": "serif", "font.size": 8, "pdf.fonttype": 42, "ps.fonttype": 42})
-    fig = plt.figure(figsize=(7.7, 3.15), constrained_layout=True)
+    fig = plt.figure(figsize=(7.7, 2.85), constrained_layout=True)
     grid = fig.add_gridspec(1, 2, wspace=0.22)
     panel_a(fig.add_subplot(grid[0, 0]), rows)
     panel_b(fig.add_subplot(grid[0, 1]), rows)
