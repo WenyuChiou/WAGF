@@ -202,5 +202,109 @@ Two that have cost real time before:
 
 ## Results
 
-*Empty until seed 42 completes. Record here: fill rate by stratum, drift rate with its denominator,
-the `failed_rules` literal census, wall-clock per run, and any run excluded by the gate and why.*
+**Complete, 2026-08-09. Five seeds, 42–46, all certified.** Written against the questions §5 and §3
+asked before the runs, not against what turned out to be interesting.
+
+### Fill rate — the stop condition §5 set
+
+| seed | rows | `initial_labels` on all rows | on retried rows |
+|---|---:|---:|---:|
+| 42 | 3,276 | 100.00% | 100.00% |
+| 43 | 3,276 | 100.00% | 100.00% |
+| 44 | 3,275 | 100.00% | 100.00% |
+| 45 | 3,275 | 100.00% | 100.00% |
+| 46 | 3,276 | 100.00% | 100.00% |
+
+§5 pre-registered the bar at >95% on both strata and said to stop after seed 42 if the retried
+stratum came in under it, because the `gemma3:1b` smoke run had scored 93.33% / 80.00% and a
+construct-less attempt-0 is exactly the generation most likely to be rewritten — so dropping those
+rows would have biased measured drift **downward**. That concern did not materialise: 4b filled
+every row of every run. **The measurement below is not thinned by the failure mode §5 anticipated.**
+
+### Drift, with its denominator
+
+| seed | retried | comparable | changed | rate | aggregate net |
+|---|---:|---:|---:|---:|---:|
+| 42 | 2,010 | 1,865 | 845 | 45.31% | +0.46 pp |
+| 43 | 2,104 | 1,949 | 860 | 44.13% | +1.10 pp |
+| 44 | 2,068 | 1,928 | 815 | 42.27% | +0.64 pp |
+| 45 | 1,969 | 1,836 | 796 | 43.36% | −0.03 pp |
+| 46 | 1,827 | 1,694 | 677 | 39.96% | +0.37 pp |
+
+**Rate** is the share of retried decisions whose attempt-0 `WSA_LABEL` differs from the accepted
+generation's. **Aggregate net** is the shift in HIGH-scarcity prevalence over ALL rows, attempt-0
+against accepted, on the published convention (denominator = all rows, a missing
+`construct_WSA_LABEL` counts as not-HIGH — `_data.py:133`).
+
+    rate           43.00%   sd 2.03   95% CI [40.49, 45.52]
+    aggregate net  +0.51 pp sd 0.41   95% CI [−0.00, +1.02]
+
+The two move in opposite directions and that is the finding: **the appraisal is rewritten on 43% of
+retried decisions, and the population-level prevalence barely moves.** The revision channel is large
+per decision and nearly cancels in aggregate.
+
+**Do not divide the aggregate net by the +45.73 pp between-arm gap in Table 1 of the readability
+draft.** That figure is a different corpus, measured on the LAST-PROPOSED reading; this arm's own
+accepted-HIGH mean is 36.21 against that table's 37.08. A ratio across the two is not a quantity.
+Computing a between-arm comparison for THIS corpus requires a matching no-validator arm measured
+the same way; none is recorded here.
+
+### `failed_rules` census — literal, five seeds pooled
+
+9,978 of 16,378 decisions (60.9%) carry at least one rule, 19,672 triggers over **6 distinct rules**
+in 75 distinct combinations:
+
+| rule | triggers | share |
+|---|---:|---:|
+| `demand_ceiling_stabilizer` | 8,836 | 44.9% |
+| `high_threat_high_cope_no_increase` | 5,163 | 26.2% |
+| `curtailment_awareness` | 3,344 | 17.0% |
+| `supply_gap_block_increase` | 1,140 | 5.8% |
+| `demand_floor_stabilizer` | 884 | 4.5% |
+| `low_threat_no_increase` | 305 | 1.6% |
+
+The field is `|`-separated. Splitting it on `,` yields 75 "rules", which are combinations — worth
+saying because that mistake was made once while compiling this table.
+
+### Wall-clock
+
+9.67 h mean, range 9.29–9.98, against the 10.4 h anchor and the 20.8 h ceiling. No run approached
+the CPU-fallback detector.
+
+### Runs excluded by the gate: none. Two carry a refusal.
+
+| seed | rows | what happened |
+|---|---:|---|
+| 44 | 3,275 | `UpalcoUintaBonnUtes_NonIndian` y32 |
+| 45 | 3,275 | `NewMexicoAgFarmToShip_NMHogbackCudei` y10 |
+
+In both, the model returned unparsable output on three consecutive generations and
+`--governance-mode strict` refused to substitute a default. **2 refusals in 16,380 agent-years,
+0.012%** — a rate rather than an accident, since it happened on two different seeds, agents and
+years. The audit CSV and the streamed JSONL agree exactly in both runs, so nothing was lost: the
+decision was never made.
+
+`e3_run_integrity.py` originally required exactly 3,276 audit rows and failed both. It now requires
+`simulation_log.csv` to be the full grid, bounds the audit CSV above by it, and proves every
+shortfall is a refusal — a `simulation_log` row that records no decision and has no audit row —
+rather than a gap. A row carrying a decision with no audit row still fails hard, as does a row
+claiming a refusal while its audit row exists.
+
+### Two limits on the word "reproducible", both outside this arm's control
+
+**The data this arm reads is not in version control.** `run_experiment.py` resolves
+`PROJECT_ROOT / "ref"` unconditionally — not gated by `--config-dir` — and `irrigation_personas.py`
+reads `ref/CRSS_DB/CRSS_DB/{Div_States,HistoricalData,Group_Agt}/*.csv` from it: the historical
+diversion and precipitation series that parameterise all 78 agents and the full 42-year trajectory.
+`.gitignore` excludes `ref/CRSS_DB/`. So it is in no commit and no tree hash, and two checkouts with
+byte-identical code can run against different data without anything detecting it. All five seeds
+used one machine's single copy. **"Reproducible" here means the CODE is retrievable; the data is
+not versioned.** Closing this needs a content hash of that directory recorded at launch.
+
+**Seed 42's `--memory-seed` has no artefact.** The flag defaults to 42 and seed 42's launch did not
+override it, so it was 42 — but the commit that run executed predates the fix that records the value,
+so nothing it produced proves it. Seeds 43–46 record `memory_seed: 42` explicitly. Seed 42's
+`_logs/seed42_provenance_attestation.md` states this itself and is tracked; cite that file rather
+than restating it. That attestation is also the authority for what seed 42 executed: its manifest's
+`git_commit` was sampled at finalize and names a different `examples/irrigation_abm/` tree than the
+launch commit the attestation records.
