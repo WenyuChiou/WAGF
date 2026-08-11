@@ -113,7 +113,8 @@ irrigation simulator as the contribution:
 
 - Figure 1 is domain-neutral and introduces the reusable counted-set problem.
 - Figure 2 shows which rule layer supplies the selection condition.
-- Figure 3 shows why a coupled environment makes the denominator difference
+- Figure 3 shows that the coupled arms cease to share a recorded-world trajectory;
+  Table 2 provides the descriptive composition diagnostic behind the denominator difference
   consequential over time.
 - Figure 4 shows the reported endpoint gap and its direction-sensitive
   interpretation.

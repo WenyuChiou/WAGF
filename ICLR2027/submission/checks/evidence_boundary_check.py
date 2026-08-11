@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import re
 from pathlib import Path
 
@@ -20,7 +21,16 @@ TAE = ROOT / "SUBMISSION_2026" / "TAE"
 MANUSCRIPT = PACKAGE / "paper" / "manuscript.tex"
 NUMBERS = TAE / "NUMBERS.md"
 DENOMINATOR_GAP = PACKAGE / "supplement" / "fig3_denominator_gap.csv"
+GAP_INTERVALS = PACKAGE / "supplement" / "fig4_gap_intervals.csv"
+PER_SEED = PACKAGE / "supplement" / "fig4_per_seed.csv"
 REPORT = PACKAGE / "checks" / "evidence_boundary_report.json"
+EXPECTED_MODELS = {
+    "gemma3:4b",
+    "gemma3:12b",
+    "gemma4:e2b",
+    "gemma4:e4b",
+    "ministral3:8b",
+}
 
 
 def main() -> int:
@@ -39,6 +49,8 @@ def main() -> int:
         TAE / "evidence" / "e4_world_fixed_decomposition.py",
         TAE / "evidence" / "e6_antecedent_conjunction.py",
         DENOMINATOR_GAP,
+        GAP_INTERVALS,
+        PER_SEED,
     ]
     missing_sources = [str(path) for path in required_sources if not path.exists()]
     if missing_sources:
@@ -73,6 +85,58 @@ def main() -> int:
     if DENOMINATOR_GAP.exists():
         with DENOMINATOR_GAP.open(newline="", encoding="utf-8") as handle:
             denominator_gap_rows = list(csv.DictReader(handle))
+
+    gap_interval_rows = []
+    if GAP_INTERVALS.exists():
+        with GAP_INTERVALS.open(newline="", encoding="utf-8") as handle:
+            gap_interval_rows = list(csv.DictReader(handle))
+    denominator_models = [row.get("model", "") for row in denominator_gap_rows]
+    interval_models = [row.get("model", "") for row in gap_interval_rows]
+    exact_denominator_rows = (
+        len(denominator_models) == len(set(denominator_models))
+        and set(denominator_models) == EXPECTED_MODELS
+    )
+    exact_interval_rows = (
+        len(interval_models) == len(set(interval_models))
+        and set(interval_models) == EXPECTED_MODELS
+    )
+    if not exact_denominator_rows:
+        errors.append("Figure 4 endpoint source must contain exactly one row for each expected model")
+    if not exact_interval_rows:
+        errors.append("Figure 4 gap intervals must contain exactly one row for each expected model")
+    if exact_denominator_rows and exact_interval_rows:
+        interval_by_model = {row["model"]: row for row in gap_interval_rows}
+        negative = positive = uncertain = 0
+        for endpoint in denominator_gap_rows:
+            model = endpoint["model"]
+            interval = interval_by_model[model]
+            fields = [
+                float(endpoint["cond_delta_pp"]),
+                float(endpoint["all_delta_pp"]),
+                float(endpoint["gap_pp"]),
+                float(interval["gap_pp"]),
+                float(interval["gap_ci_lo"]),
+                float(interval["gap_ci_hi"]),
+                float(interval["n_paired"]),
+            ]
+            if not all(math.isfinite(value) for value in fields):
+                errors.append(f"Figure 4 contains a non-finite value for {model}")
+                continue
+            endpoint_gap = fields[0] - fields[1]
+            if abs(endpoint_gap - fields[2]) > 0.011 or abs(fields[2] - fields[3]) > 0.011:
+                errors.append(f"Figure 4 endpoint/gap mismatch for {model}")
+            if not fields[4] <= fields[3] <= fields[5] or int(fields[6]) not in {3, 5}:
+                errors.append(f"Figure 4 interval or paired count invalid for {model}")
+            if fields[5] < 0:
+                negative += 1
+            elif fields[4] > 0:
+                positive += 1
+            else:
+                uncertain += 1
+        if (negative, positive, uncertain) != (3, 1, 1):
+            errors.append(
+                "Figure 4 sign summary changed; expected three negative, one positive, and one zero-crossing interval"
+            )
 
     def gap_value_present(value: str) -> bool:
         """Accept a rounded display value only from the CSV's ``gap_pp`` field."""
@@ -120,6 +184,7 @@ def main() -> int:
         ),
         "non-causal flood boundary": (
             r"do not use them to support causal claims",
+            r"do not use these configurations to support causal claims",
         ),
         "reweighting boundary": (r"not a causal adjustment",),
         "scarcity-condition distinction": (

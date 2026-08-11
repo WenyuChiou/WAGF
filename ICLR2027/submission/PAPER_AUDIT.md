@@ -53,7 +53,7 @@ question in the second column without reading another figure first.
 | Figure 4 | What changes when the action denominator includes every executed decision? | Conditional and all-decision executed-action contrasts differ in both directions across the five irrigation cells. | It is not an automatic correction or a claim that one denominator is universally valid. | Primary estimand consequence. |
 | Table 1 | What are the primary irrigation condition and action rates? | Anchor and five-cell executed-action quantities, with seed-level inference. | It must not foreground Flood. | Primary result table. |
 | Table 2 | How much of the anchor share contrast remains after recorded-state alignment? | Reweighting is a descriptive composition diagnostic with explicit coverage. | It is not causal adjustment because recorded state is downstream of governance. | Supporting primary irrigation diagnostic. |
-| Table 3 | Is the broad contrast confined to irrigation? | A bounded descriptive comparison: irrigation has the larger range, Flood remains near zero and crosses signs. | It is not a clean matched control: Flood has incomplete audit coverage and a reflection-record imbalance in six configurations; it is not a paired comparison, dose-response result, or mechanism-transfer test. | Secondary boundary check only. |
+| Table 3 | Is the broad contrast confined to irrigation? | A bounded descriptive comparison: irrigation has the larger range, Flood remains near zero and crosses signs. | It is not a clean matched control: Flood has incomplete audit coverage and differing manifest seed IDs across arms in six configurations; it is not a paired comparison, dose-response result, or mechanism-transfer test. | Secondary boundary check only. |
 
 ## Figure hierarchy and balance
 
@@ -87,7 +87,7 @@ the next agent context. Flood has one narrower job: it provides a bounded
 cross-testbed check that the large irrigation contrast is not automatically a
 property of every setting in the corpus. It is therefore reported in one table
 and described with its different action ontology, feedback structure, field
-name, seed matching, audit coverage, and reflection-record imbalance. We do not
+name, seed matching, audit coverage, and manifest seed-ID disagreement. We do not
 call it a co-primary control or give it a mechanism panel. This keeps the example
 concrete while keeping the claim at the level of measurement validity in governed
 LLM-agent evaluation.

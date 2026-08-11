@@ -1,7 +1,7 @@
 {
   "status": "PASS",
   "scope": "frozen evidence presence and text alignment only",
-  "required_source_count": 9,
+  "required_source_count": 11,
   "key_value_count": 22,
   "warnings": [],
   "errors": []

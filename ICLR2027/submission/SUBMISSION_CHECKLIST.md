@@ -20,8 +20,9 @@
       blue agent output, orange validation, green environment, violet
       measurement, amber shared condition, and black flow/borders.
 - [x] Figures 2--4 are quantitative outputs under `figures/active/`;
-      Figure 3 is a three-panel primary irrigation mechanism figure, Figure 4
-      is the deterministic executed-action denominator-gap plot, and Flood
+      Figure 3 is a two-panel primary irrigation world-state diagnosis, Figure 4
+      is the deterministic executed-action denominator-gap plot with paired
+      gap intervals, and Flood
       remains a secondary Table 3/cross-testbed summary. No generated image is
       used for a quantitative chart.
 - [x] Citation keys, figure paths, one-page quantitative figure PDFs, placeholder tokens,
@@ -30,9 +31,12 @@
       versus two-condition wording, and scope-limiting language pass the
       evidence-boundary check.
 - [x] The WAGF reproducibility audit is preserved under
-      `checks\reproducibility`; it is **RED** for three historical smoke
-      manifests marked `git_dirty=true`, and the manuscript does not claim
-      bitwise historic reproducibility.
+      `checks\reproducibility`; the historical irrigation corpus contains dirty
+      or missing commit metadata, and the manuscript does not claim bitwise
+      historic reproducibility.
+- [ ] The six paired irrigation seeds whose arms record different commits still
+      require a code-equivalence audit or clean rerun before the package can be
+      certified acceptance-competitive.
 - [x] The paper states the seed-level inferential unit, executed-action primary
       reading, last-proposed sensitivity, missing first-attempt field,
       descriptive status of reweighting, and testbed limitations.
