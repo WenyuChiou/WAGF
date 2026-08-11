@@ -171,7 +171,7 @@ def write_intervals(intervals: dict[str, dict[str, float]], path: Path) -> None:
 
 def render(data: dict[str, dict[str, float]], intervals: dict[str, dict[str, float]], output: Path) -> None:
     plt.rcParams.update({"font.family": "serif", "font.size": 8, "pdf.fonttype": 42, "ps.fonttype": 42})
-    fig, ax = plt.subplots(figsize=(7.7, 3.15), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(7.7, 2.75), constrained_layout=True)
 
     y_positions = list(reversed(range(len(ORDER))))
     for y, model in zip(y_positions, ORDER):
@@ -212,28 +212,32 @@ def render(data: dict[str, dict[str, float]], intervals: dict[str, dict[str, flo
             f"{gap['gap_pp']:+.1f} [{gap['gap_ci_lo']:+.1f}, {gap['gap_ci_hi']:+.1f}]",
             va="center",
             ha="left",
-            fontsize=7.4,
+            fontsize=7.7,
             color=INK,
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.94, "pad": 1.0},
         )
 
     ax.axvline(0, color="#777777", linewidth=0.8, linestyle=(0, (4, 3)), zorder=0)
+    ax.axvline(44.5, color="#bbbbbb", linewidth=0.6, zorder=0)
     ax.set_yticks(y_positions)
     ax.set_yticklabels(ORDER, fontsize=8)
-    ax.set_xlabel("Contrast in executed increase rate: no-validator - validator-on (pp)", fontsize=8.5)
-    ax.text(53.5, len(ORDER) - 0.18, "gap [95% CI]\nconditional - all", ha="center",
-            va="bottom", fontsize=7.5, color="#444444")
+    ax.set_xlabel("Executed increase-rate contrast: no-validator - validator-on (pp)", fontsize=8.5)
+    ax.text(53.5, len(ORDER) - 0.18, "Conditional - all\n(95% CI)", ha="center",
+            va="bottom", fontsize=7.8, color="#444444",
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.96, "pad": 1.0})
     ax.legend(
         handles=[
             Line2D([], [], marker="o", linestyle="none", color=BLUE,
-                   label="conditional: high-scarcity decisions"),
+                   label="conditional (high scarcity)"),
             Line2D([], [], marker="s", linestyle="none", color=ORANGE,
                    label="all decisions"),
         ],
         loc="upper left",
         frameon=False,
-        fontsize=7.4,
+        fontsize=7.8,
         handletextpad=0.5,
     )
+    ax.set_xticks([0, 10, 20, 30, 40])
     ax.grid(axis="x", color=GRID, linewidth=0.55, zorder=0)
     ax.set_axisbelow(True)
     ax.spines["top"].set_visible(False)

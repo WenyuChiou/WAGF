@@ -74,7 +74,7 @@ def style(ax: plt.Axes) -> None:
 def build() -> None:
     data = rows()
     plt.rcParams.update({"font.family": "serif", "font.size": 8, "pdf.fonttype": 42, "ps.fonttype": 42})
-    fig = plt.figure(figsize=(7.7, 3.45), constrained_layout=True)
+    fig = plt.figure(figsize=(7.7, 3.25), constrained_layout=True)
     grid = fig.add_gridspec(1, 2, width_ratios=(0.92, 1.55), wspace=0.18)
 
     ax_a = fig.add_subplot(grid[0, 0])
@@ -86,12 +86,14 @@ def build() -> None:
     ax_a.barh([0], [anchor_world], left=[anchor_self], color=MAGENTA,
               edgecolor=INK, linewidth=0.7, hatch="..")
     ax_a.text(anchor_self / 2, 0, f"{anchor_self:.1f}%", ha="center", va="center",
-              fontsize=8.2, fontweight="bold")
+              fontsize=8.4, fontweight="bold",
+              bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.86, "pad": 1.2})
     ax_a.text(anchor_self + anchor_world / 2, 0, f"{anchor_world:.1f}%", ha="center",
-              va="center", fontsize=8.2, fontweight="bold")
-    ax_a.set_title("a  What validator-on rejections read\nanchor gemma3:4b, n = 6,469", loc="left",
-                   fontsize=9, fontweight="bold")
-    ax_a.set_xlabel("Share of validator-on rejections (%)", fontsize=8)
+              va="center", fontsize=8.4, fontweight="bold",
+              bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.86, "pad": 1.2})
+    ax_a.set_title("a  Inputs read by rejection rules\nanchor: gemma3:4b validator-on, n = 6,469", loc="left",
+                   fontsize=9.4, fontweight="bold")
+    ax_a.set_xlabel("Share of validator-on rejections (%)", fontsize=8.4)
     ax_a.set_yticks([])
     ax_a.set_xlim(0, 100)
     ax_a.set_ylim(-0.8, 0.8)
@@ -112,25 +114,28 @@ def build() -> None:
                   color=MAGENTA, edgecolor=INK, linewidth=0.55, hatch="..")
         ax_b.barh(position - offset, cap_rate, height=height, color=YELLOW,
                   edgecolor=INK, linewidth=0.55, hatch="//")
-        ax_b.text(-1.3, position + offset, "on", ha="right", va="center", fontsize=6.6)
-        ax_b.text(-1.3, position - offset, "off", ha="right", va="center", fontsize=6.6)
-    ax_b.set_title("b  Share of all decisions blocked", loc="left", fontsize=9, fontweight="bold")
+        label_box = {"facecolor": "white", "edgecolor": "none", "alpha": 0.92, "pad": 0.5}
+        ax_b.text(-1.3, position + offset, "on", ha="right", va="center", fontsize=8.0,
+                  bbox=label_box)
+        ax_b.text(-1.3, position - offset, "off", ha="right", va="center", fontsize=8.0,
+                  bbox=label_box)
+    ax_b.set_title("b  Blocked share of all decisions", loc="left", fontsize=9.4, fontweight="bold")
     ax_b.set_yticks(y)
-    ax_b.set_yticklabels(ORDER, fontsize=7.3)
-    ax_b.set_xlabel("Blocked decisions (%)", fontsize=8)
+    ax_b.set_yticklabels(ORDER, fontsize=8.0)
+    ax_b.set_xlabel("Blocked decisions (%)", fontsize=8.4)
     ax_b.set_xlim(-8, 72)
     style(ax_b)
 
     fig.legend(
         handles=[
-            Patch(facecolor=TEAL, edgecolor=INK, hatch="xx", label="rule reads agent report"),
-            Patch(facecolor=MAGENTA, edgecolor=INK, hatch="..", label="rule reads recorded world"),
-            Patch(facecolor=YELLOW, edgecolor=INK, hatch="//", label="water-right cap"),
+            Patch(facecolor=TEAL, edgecolor=INK, hatch="xx", label="reads agent report"),
+            Patch(facecolor=MAGENTA, edgecolor=INK, hatch="..", label="reads recorded world"),
+            Patch(facecolor=YELLOW, edgecolor=INK, hatch="//", label="water-right cap only"),
         ],
         loc="outside upper center",
         ncol=3,
         frameon=False,
-        fontsize=7.5,
+        fontsize=8.0,
         columnspacing=1.4,
         handlelength=1.5,
     )
