@@ -46,12 +46,17 @@ If nothing supplied, ask. Do not invent a path.
    the audit CSV is non-empty.
 2. **Per-run metrics** (delegate to existing scripts; do NOT
    reimplement):
-   - IBR = R1+R3+R4 fraction → use
+   - IBR / AAI → read `references/metrics_definitions.md` FIRST and state which
+     denominator you are using; the same data gives flood 0.87% or 1.60%
+     depending on it. Published pair: `SUBMISSION_2026/decomposition/_loader.py::ibr()`.
+     Flood R1/R3/R4/R5 component counts:
      `examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py:compute_ibr_components`
-     (canonical formula, post-test-fix d8a5da4).
+     (its own denominator is every row of the audit csv with no medium-tier
+     exclusion, so its rate is NOT the published one).
    - EHE = normalized Shannon entropy → use
-     `examples/irrigation_abm/analysis/nw_bootstrap_ci.py:shannon_entropy`
-     (or for irrigation, `examples/irrigation_abm/analysis/compute_ibr.py`).
+     `examples/irrigation_abm/analysis/nw_bootstrap_ci.py:shannon_entropy`,
+     with k from the action interface (irrigation 5, flood 4), one value per
+     seed, then the mean.
    - Sentinel sweep → use
      `broker/components/analytics/audit.py:detect_audit_sentinels_in_csv`.
    - Temporal diagnostics M1/M2/M3 → call
