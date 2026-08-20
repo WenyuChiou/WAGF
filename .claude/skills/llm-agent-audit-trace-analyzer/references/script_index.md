@@ -55,12 +55,21 @@ across the Gemma-4 family governed runs.
 ## Irrigation IBR / governance comparison
 
 ```bash
-python examples/irrigation_abm/analysis/compute_ibr.py \
-    --results-dir <run_dir>
-python examples/irrigation_abm/analysis/compute_ibr.py \
-    --results-dir <governed_run_dir> \
-    --compare-ungoverned <ungoverned_run_dir>
+python SUBMISSION_2026/decomposition/reproduce_published.py
 ```
+
+Prints the published irrigation pair per seed under every candidate definition
+(conditional and unconditional denominator, last-proposal and executed action),
+plus the appraisal-share shift between arms. Import
+`SUBMISSION_2026/decomposition/_loader.py::ibr()` to compute it on one run.
+
+`examples/irrigation_abm/analysis/compute_ibr.py` used to be the entry point
+here. It was deleted 2026-08-20: every results directory it pointed at was a v20
+path that no longer exists, so it had not been runnable for some time. Four
+sibling scripts went with it for the same reason — `ensemble_analysis.py`,
+`governed_vs_ungoverned.py`, `nw_comprehensive_analysis.py`,
+`ibr_wsa_aca_decomposition.py`. They are recoverable from git history if a v20
+corpus is ever restored.
 
 ## Audit-CSV sentinel sweep
 
@@ -104,9 +113,14 @@ schema at `references/manifest_schema.md`.
 
 ## What the skill should NEVER do
 
-- Reimplement IBR. Always use `compute_ibr_components` or
-  `compute_ibr.py`.
+- Reimplement IBR. Use `SUBMISSION_2026/decomposition/_loader.py::ibr()` for
+  the published conditional statistic, or `compute_ibr_components` for the
+  flood R1/R3/R4/R5 component counts — note that the latter divides by the
+  all-rows denominator and does NOT give the published pair. Which denominator
+  applies is set out in `references/metrics_definitions.md`; state it whenever
+  you report a number.
 - Reimplement EHE. Always use `shannon_entropy`.
 - Pool data without checking the manifests' `git_commit` for
   consistency (delegate that to `abm-reproducibility-checker`).
-- Generate a forest plot from scratch. Use `gen_sfig_forest.py`.
+- Run `gen_sfig_forest.py`. It overwrites the adopted Supplementary Figure 1
+  with a different plot built on the superseded unconditional denominator.
