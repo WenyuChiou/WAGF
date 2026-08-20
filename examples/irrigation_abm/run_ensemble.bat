@@ -1,5 +1,13 @@
 @echo off
 REM =============================================================================
+REM SUPERSEDED 2026-08-20 -- DOES NOT RUN. Kept as a record of the v20 ensemble.
+REM Every results path below is a production_v20_* / ungoverned_v20_* directory
+REM that no longer exists on disk, so this script was already non-functional; the
+REM analysis step it calls (analysis\compute_ibr.py) was deleted the same day for
+REM the same reason. The Nature Water corpus is v21 (seeds 42-46). For the
+REM current metric definitions and which script computes each published number,
+REM read .claude/skills/llm-agent-audit-trace-analyzer/references/metrics_definitions.md
+REM =============================================================================
 REM Irrigation ABM Ensemble Runner for Nature Water Article
 REM =============================================================================
 REM This script runs the complete experiment ensemble:
