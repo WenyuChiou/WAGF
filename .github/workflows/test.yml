@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
@@ -21,29 +22,34 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # `analysis` (matplotlib, seaborn, scipy, openpyxl) is required now that the
+      # run below collects broker/ and the repo-root tests/. Without it
+      # broker/tests/test_single_agent_run_flood.py fails at COLLECTION -- it imports
+      # examples/single_agent/run_flood.py, which imports matplotlib at module scope --
+      # and a collection error aborts the whole session, so the job would go red with
+      # one opaque error and no signal from the ~3,200 tests that pass.
+      # `llm` is deliberately NOT installed: the LLM-backed tests are deselected below,
+      # and the framework is expected to degrade cleanly without a backend, which
+      # tests/core/test_llm_backend_absent.py asserts.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-          python -m pip install -e .[dev,web]
+          python -m pip install -e .[dev,web,analysis]
 
-      - name: Core tests
-        run: python -m pytest tests/core/ -v --tb=short
-
-      - name: SDK tests (no LLM)
+      # One step over the whole suite. This previously ran tests/core, tests/sdk and
+      # tests/integration as three separate steps, which collected 143 of the 3,250
+      # tests in the tree -- every governance test under broker/tests/ and every
+      # repo-root tests/*.py file was gated by nothing but someone typing pytest by hand.
+      #
+      # -ra prints skip reasons, so a module that opts out (the Nature Water figure
+      # tests need the gitignored paper/ directory) says so in the log instead of
+      # disappearing into a green tick.
+      #
+      # --continue-on-collection-errors keeps one bad import from blanking the entire
+      # run: without it pytest aborts the session and the whole signal is lost.
+      - name: Tests (no LLM)
         run: |
-          python -m pytest tests/sdk/ -v --tb=short -k "not real_llm" --ignore=tests/sdk/test_domain_packs.py || code=$?
-          if [ "${code:-0}" = "5" ]; then
-            echo "No SDK tests collected; skipping."
-            exit 0
-          fi
-          exit ${code:-0}
-
-      - name: Integration tests (no LLM)
-        run: |
-          python -m pytest tests/integration/ -v --tb=short -k "not real_llm" || code=$?
-          if [ "${code:-0}" = "5" ]; then
-            echo "No integration tests collected; skipping."
-            exit 0
-          fi
-          exit ${code:-0}
+          python -m pytest tests/ broker/ -ra --tb=short \
+            --continue-on-collection-errors \
+            -k "not real_llm"
