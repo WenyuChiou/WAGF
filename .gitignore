@@ -84,6 +84,11 @@ temp_*.json
 *.jpg
 *.csv
 
+# ...except the recorded reference outputs under reproduction/, which are the
+# values a reader compares their own run against. The blanket *.csv above is
+# scoped to data, and silently swallowed these when they were first added.
+!reproduction/**/*.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/

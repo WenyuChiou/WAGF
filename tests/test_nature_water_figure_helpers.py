@@ -4,24 +4,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-# These tests exercise the Nature Water figure scripts, which live under `paper/`.
-# That directory is gitignored, so it is absent from every clean clone and from CI;
-# without this guard the module fails 14 tests on any checkout that is not the
-# author's own working copy, and a green CI run says nothing about it because the
-# workflow did not collect this directory at all.
-_NW_SCRIPTS = Path(__file__).resolve().parents[1] / "paper" / "nature_water" / "scripts"
-
-if not _NW_SCRIPTS.is_dir():
-    pytest.skip(
-        f"Nature Water figure scripts absent ({_NW_SCRIPTS} not in this checkout; "
-        "paper/ is gitignored). These tests run only in a working copy that has them.",
-        allow_module_level=True,
-    )
-
-
 def _load_irrigation_fig_module():
     repo = Path(__file__).resolve().parents[1]
-    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig2_case1_irrigation.py"
+    path = repo / "reproduction" / "nature_water" / "gen_fig2_case1_irrigation.py"
     spec = importlib.util.spec_from_file_location("nw_fig2_irrigation", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -76,7 +61,7 @@ def test_compute_pie_matrix_returns_counts_totals_and_violation_percentages():
 
 def test_flood_fig3_panel_a_order_is_governed_then_ungoverned_then_rulebased():
     repo = Path(__file__).resolve().parents[1]
-    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    path = repo / "reproduction" / "nature_water" / "gen_fig3_case2_flood.py"
     spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -88,7 +73,7 @@ def test_flood_fig3_panel_a_order_is_governed_then_ungoverned_then_rulebased():
 
 def test_flood_violation_annotation_style_is_high_contrast():
     repo = Path(__file__).resolve().parents[1]
-    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    path = repo / "reproduction" / "nature_water" / "gen_fig3_case2_flood.py"
     spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -104,7 +89,7 @@ def test_flood_violation_annotation_style_is_high_contrast():
 
 def test_flood_panel_a_legend_is_top_right_of_first_subplot():
     repo = Path(__file__).resolve().parents[1]
-    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    path = repo / "reproduction" / "nature_water" / "gen_fig3_case2_flood.py"
     spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -118,7 +103,7 @@ def test_flood_panel_a_legend_is_top_right_of_first_subplot():
 
 def test_flood_year_markers_use_years_3_4_9():
     repo = Path(__file__).resolve().parents[1]
-    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    path = repo / "reproduction" / "nature_water" / "gen_fig3_case2_flood.py"
     spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -130,7 +115,7 @@ def test_flood_year_markers_use_years_3_4_9():
 
 def test_flood_year_marker_style_has_top_padding():
     repo = Path(__file__).resolve().parents[1]
-    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    path = repo / "reproduction" / "nature_water" / "gen_fig3_case2_flood.py"
     spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
