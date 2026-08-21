@@ -2,10 +2,12 @@
 
 Loads the 6 result dirs produced by `run_vaccination_batch.sh` /
 `run_vaccination_batch.bat` and prints per-seed/model decision
-statistics + per-year vaccination coverage. Mirrors what
-`examples/irrigation_abm/analysis/compute_ibr.py` does for irrigation
-but at the smallest possible scope (no plotting, no bootstrap CI —
-just a clean ASCII table).
+statistics + per-year vaccination coverage. Does for vaccination what the
+irrigation IBR tooling does for irrigation, but at the smallest possible
+scope (no plotting, no bootstrap CI — just a clean ASCII table). The
+irrigation counterpart it was written against, `analysis/compute_ibr.py`,
+was deleted 2026-08-20 as dead; the live definitions now live in
+`.claude/skills/llm-agent-audit-trace-analyzer/references/metrics_definitions.md`.
 
 Run from the repo root:
   python examples/vaccination_demo/summary.py
