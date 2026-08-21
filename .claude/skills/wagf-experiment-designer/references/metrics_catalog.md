@@ -8,15 +8,24 @@ listed here.
 ## ibr (Irrational Behaviour Rate)
 
 - **Domains**: flood, irrigation
-- **Definition (flood)**: (R1+R3+R4) / total_decisions, where R1 =
+- **Definition (flood)**: (R1+R3+R4) / **threat-relevant** decisions, where R1 =
   high-threat inaction, R3 = low-threat relocation, R4 = low-threat
-  elevation. R5 (re-elevation) excluded per EDT2.
+  elevation. R5 (re-elevation) excluded per EDT2. The denominator is only the
+  decisions at a threat extreme (TA in {H,VH} or {VL,L}); medium threat triggers
+  no rule and is excluded. Keeping the medium tier in the denominator gives
+  0.87 / 7.41 rather than the published 1.60 / 14.22.
 - **Definition (irrigation)**: fraction of high-WSA (H or VH) decisions
-  that propose any `increase_*` skill.
+  that propose any `increase_*` skill. "Propose" is exact: the column records the
+  last proposal after retries, not what executed.
 - **Canonical scripts**:
-  - flood: `examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py:100`
-    (`compute_ibr_components`)
-  - irrigation: `examples/irrigation_abm/analysis/compute_ibr.py`
+  - published pair, either domain: `SUBMISSION_2026/decomposition/_loader.py::ibr()`;
+    reproduce with `SUBMISSION_2026/decomposition/reproduce_published.py`
+  - flood R1/R3/R4/R5 component counts:
+    `examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py`
+    (`compute_ibr_components`) — its own rate divides by every row of the
+    audit csv, i.e. every decision made, with no medium-tier exclusion
+- **Before quoting any value**, read
+  `.claude/skills/llm-agent-audit-trace-analyzer/references/metrics_definitions.md`.
 - **Output**: fraction in [0, 1].
 - **Use for**: governance-effect headline (paper EDT1/EDT2).
 
