@@ -2,6 +2,21 @@ import importlib.util
 from pathlib import Path
 
 import pandas as pd
+import pytest
+
+# These tests exercise the Nature Water figure scripts, which live under `paper/`.
+# That directory is gitignored, so it is absent from every clean clone and from CI;
+# without this guard the module fails 14 tests on any checkout that is not the
+# author's own working copy, and a green CI run says nothing about it because the
+# workflow did not collect this directory at all.
+_NW_SCRIPTS = Path(__file__).resolve().parents[1] / "paper" / "nature_water" / "scripts"
+
+if not _NW_SCRIPTS.is_dir():
+    pytest.skip(
+        f"Nature Water figure scripts absent ({_NW_SCRIPTS} not in this checkout; "
+        "paper/ is gitignored). These tests run only in a working copy that has them.",
+        allow_module_level=True,
+    )
 
 
 def _load_irrigation_fig_module():
