@@ -438,3 +438,8 @@ SUBMISSION_2026/**/paper/*.pdf
 # page snapshots beside them, so the directory kept showing up as untracked. Neither is input to
 # anything -- they are a browser tool's scratch output.
 .playwright-mcp/
+
+# OpenWiki generated wiki -- removed 2026-08-07. It was a generated
+# orientation layer that duplicated ARCHITECTURE.md and the source it
+# described, and went stale against HEAD with nothing enforcing a refresh.
+openwiki/
