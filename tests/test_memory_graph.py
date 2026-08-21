@@ -9,6 +9,23 @@ import time
 import numpy as np
 from typing import List, Set
 
+# NetworkX is an undeclared optional dependency: it appears in neither
+# requirements.txt nor pyproject.toml, and broker/memory/graph.py imports it
+# lazily and raises a "pip install networkx" ImportError when it is missing.
+# The code therefore degrades on purpose, and these tests have to follow suit or
+# they fail 27 times on any environment that did not happen to install it --
+# which is what CI does. Same shape as the FAISS guard in tests/test_vector_db.py.
+try:
+    import networkx  # noqa: F401
+    NETWORKX_AVAILABLE = True
+except ImportError:
+    NETWORKX_AVAILABLE = False
+
+pytestmark = pytest.mark.skipif(
+    not NETWORKX_AVAILABLE,
+    reason="NetworkX not installed",
+)
+
 from broker.memory import UnifiedMemoryItem
 from broker.memory.graph import (
     MemoryGraph,
