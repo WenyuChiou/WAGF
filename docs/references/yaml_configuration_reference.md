@@ -202,6 +202,69 @@ global_config:
 
 ---
 
+#### 2.1.6 global_config.audit
+
+Opt-in audit columns. Every field here is **default OFF for byte-identity
+reasons**: the CSV's fieldnames are derived from the trace's row keys, so a
+flag that is off emits no key, adds no column, and leaves a rerun of a
+published corpus byte-identical. Turn them on for all NEW runs.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `corrected_status_columns` | bool | No | false | Report what the broker DID rather than what it approved. See below. |
+| `executed_skill_columns` | bool | No | false | Adds `executed_skill` + `executed_via_fallback`. Implied by `corrected_status_columns`. |
+| `initial_proposal_columns` | bool | No | false | Adds `initial_skill`, `initial_labels`, `attempt_skills` — the FIRST proposal, before the retry loop overwrote it |
+| `advise_columns` | bool | No | false | Adds the advisory-arm payload plus a per-decision `llm_calls` count |
+| `param_columns` | bool | No | false | Adds one `proposed_param_<name>` column per multi-field setpoint |
+
+**`corrected_status_columns` (v0.7)** is the one to set if you are starting a
+new study. Without it the audit CSV reports the BLOCKED proposal as if it were
+the outcome, and reports placeholders as if they were observations. With it:
+
+- **new column `execution_path`** — `approved` / `rejected_default` /
+  `rejected_proposal` / `fallback` / `aborted` / `not_executed`, naming which
+  branch produced `executed_skill`. Only on `rejected_default` does
+  `final_skill` name an action that never happened.
+- **`executed_skill` + `executed_via_fallback`** — as for
+  `executed_skill_columns`; you do not need to set both flags.
+- **`fallback_activated`** changes meaning: derived from what EXECUTED, so a
+  plain-`REJECTED` row on which the registry default ran now reads `True`
+  instead of `False`.
+- **`rules_personal_hit` / `_social_` / `_thinking_` / `_semantic_`** stop
+  being structurally zero: the category is INFERRED from the validator's
+  `tier` / name / rule id when it sets no explicit `category` (the production
+  `AgentValidator` never sets one). Inferred, not declared — only categories a
+  producer's tier labels can express populate, and rules whose category cannot
+  be named (identity and other precondition rules) are reported as
+  `rules_uncategorised_total` / `rules_uncategorised_ids` in
+  `run_integrity.json` rather than filed under a plausible bucket.
+- **`mem_top_emotion` / `mem_top_source`** read `unobserved` when the memory
+  records carry no such key, instead of the `neutral` / `personal` literals
+  that look exactly like a real unanimous value.
+- **one extra row per aborted step** — a step whose output never parsed gets
+  an `ABORTED` sentinel row, so per-agent-year row counts stay comparable
+  between arms instead of shrinking on the arm with more parse failures.
+
+If you skip it, a corpus produced today carries all five defects and the
+analyst must apply the known-limitation table in `docs/AUDIT_SCHEMA.md`.
+
+**Example:**
+
+```yaml
+global_config:
+  audit:
+    corrected_status_columns: true   # executed truth + execution_path
+    initial_proposal_columns: true   # what the agent proposed FIRST
+```
+
+Read by `AgentTypeConfig.get_audit_corrected_status_columns()` and its four
+siblings (`broker/utils/agent_config.py`). A malformed `audit:` block (a
+scalar rather than a mapping) reads as all-off and never raises. Full column
+semantics and the deterministic remap rule: `docs/AUDIT_SCHEMA.md`,
+"Corrected status columns".
+
+---
+
 ### 2.2 shared
 
 Shared definitions referenced across all agent types. These are accessed
