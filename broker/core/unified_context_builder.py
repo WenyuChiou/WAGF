@@ -1,6 +1,16 @@
 """
 Unified Context Builder - SA/MA compatible context construction.
 
+STATUS: EXPERIMENTAL — not on any production run path (no production
+callers as of v0.6.0). Verified by grep: nothing outside this file and
+its own tests imports `UnifiedContextBuilder` or
+`create_unified_context_builder`; `broker/core/__init__.py` re-exports
+the names but nothing instantiates them. The class also has no
+`format_prompt` method, so it cannot satisfy the `ContextBuilder`
+interface production callers (`skill_broker_engine.py`) actually use —
+production context construction goes through
+`broker/components/context/builder.py` / `tiered.py` instead.
+
 This module provides a unified context builder that supports both Single-Agent (SA)
 and Multi-Agent (MA) modes. It replaces the separate context builders with a single,
 configurable implementation.

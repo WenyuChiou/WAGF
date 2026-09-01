@@ -1,6 +1,18 @@
 """
 Shared Message Pool - Agent-to-agent structured messaging.
 
+STATUS: EXPERIMENTAL — not on any production run path (no production
+message producers as of v0.6.0). Verified by grep: the flood runner's
+`--enable-communication` flag (`examples/multi_agent/flood/run_unified_experiment.py`)
+only constructs `MessagePool` + `GameMaster`, registers agents, and
+subscribes households — it never calls `submit_proposal(s)`,
+`submit_artifact`, or `resolve_phase`, the only production call sites
+that would reach `MessagePool.publish()`. The only methods actually
+invoked on a live `message_pool` in production code are the setup/read
+calls `register_agents`, `subscribe`, and `get_unread`
+(`examples/multi_agent/flood/orchestration/lifecycle_hooks.py`). The
+machinery is wired; no producer exists to write into it.
+
 Implements MetaGPT-style shared message pool with pub-sub filtering
 and mailbox delivery. Supports:
 - Broadcast (global), type-targeted, spatial, and direct messaging

@@ -1,6 +1,14 @@
 """
 Graph-based Memory Structure with NetworkX.
 
+STATUS: EXPERIMENTAL — not on any production run path (no production
+callers as of v0.6.0). Verified by grep: outside this file, only its
+own standalone unit test (`tests/test_memory_graph.py`) and the package
+re-export in `broker/memory/__init__.py` reference `MemoryGraph`; no
+`broker/components/memory/` engine or `MemoryEngineRegistry` factory
+uses it, and the registered `"unified"` engine
+(`broker/memory/unified_engine.py`) does not import this module either.
+
 Provides hierarchical organization, associative retrieval, and emergent
 memory structures inspired by A-MEM (Agentic Memory).
 

@@ -126,8 +126,15 @@ or `status=REJECTED_FALLBACK`.
       blocked_skills: [elevate_home]
       level: WARNING  # Changed from ERROR to WARNING
   ```
-  **Important**: WARNING-level rules produce 0% behavior change for small LLMs. Only
-  ERROR-level rules (BLOCK + retry) reliably alter agent behavior.
+  **Important**: a WARNING-level rule cannot change agent behavior in the default
+  governance loop, by construction, not because of any measured LLM property. A
+  WARNING sets `valid=True` and leaves `errors` empty, so the retry loop
+  (`not all_valid` in `broker/core/_retry_loop.py`) never opens and the model
+  never sees the rule's message. The rule is still recorded in the audit trail,
+  but it has no path back to the LLM. Only ERROR-level rules (BLOCK + retry)
+  reach the model. (An opt-in "ADVISE" disposition in `broker/core/_advise.py`
+  exists to make the advice-vs-enforcement question empirically testable when
+  enabled; it is off by default.)
 
 - **Increase max_retries** for construct-based rules where the LLM may eventually
   produce a different appraisal:

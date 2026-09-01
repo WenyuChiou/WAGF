@@ -1,6 +1,16 @@
 """
 Governance Module - Extensible rule-based validation system.
 
+STATUS: the ``validate_all`` usage shown below (which dispatches through
+``broker.validators.governance.validate_all`` -> the five-category
+PersonalValidator/SocialValidator/ThinkingValidator/PhysicalValidator/
+SemanticGroundingValidator stack) is available architecture, not the
+production default. Production experiments (built via
+``broker/core/experiment_builder.py``) validate through a single
+``AgentValidator`` instance instead, which runs the YAML rule engine
+directly and never calls ``validate_all``. See
+``broker/validators/governance/__init__.py`` for the full note.
+
 Categories:
 - Personal Rules: Financial constraints, cognitive constraints
 - Social Rules: Neighbor influence, community norms (WARNING only)

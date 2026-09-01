@@ -875,8 +875,11 @@ Cross-type governance always follows this pattern:
 | `WARNING` | Log a warning but allow the skill to proceed |
 
 For multi-agent experiments, **always use ERROR** for cross-type constraints.
-WARNING-level rules have minimal behavioral impact, especially with smaller LLMs.
-This is a hard-won lesson from production experiments.
+A WARNING-level rule cannot reach the model in the default governance loop: it
+sets `valid=True` and leaves `errors` empty, so the retry loop never opens and
+the rule's message is never sent to the LLM (verified in
+`broker/core/_retry_loop.py` and `broker/core/_advise.py`). It is still written
+to the audit trail, but only ERROR-level rules can change what the model does.
 
 ### Identity Rules vs. Thinking Rules
 
