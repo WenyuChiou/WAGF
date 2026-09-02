@@ -354,6 +354,131 @@ layers whose name contains `default`; a governance `REJECTED` -> registry-defaul
 substitution is not a parse layer and never appears there — select those rows
 with `execution_path == "rejected_default"` instead.
 
+## Parsing hardening (`parsing.strict_layers`, v0.8)
+
+`global_config.parsing.strict_layers` (PR-4, default OFF) fixes an
+audit-discovered gap in `UnifiedAdapter.parse_output`
+(`broker/utils/parsing/unified_adapter.py`) where a stray digit anywhere in
+the model's free text — ungated by the per-agent-type `parsing.strict_mode`
+YAML key — could become the recorded decision. Under the flag every digit
+route that is not scoped to a decision line is disabled; the decision-line
+routes (`Decision: 3`, `I choose 3`) survive and are relabelled
+`parse_layer == "keyword+digit"` so they stay countable. Per-route table, YAML
+surface, and the `strict_mode` interaction:
+`docs/references/yaml_configuration_reference.md` §2.1.7.
+
+**Enable it together with `audit.corrected_status_columns`.** For a
+`strict_mode: true` agent type a suppressed row returns `None` and, if the
+retries also fail, the step aborts — and without the corrected-status flag an
+aborted step writes no audit row at all. Hardening the parser on its own would
+shrink the denominator of whichever arm the model struggled with more.
+
+**Pre-flag corpora are affected and cannot be repaired in place.** Every
+corpus produced with the flag absent (which is every published corpus as of
+v0.8) can carry rows whose decision was inferred from a bare digit rather
+than parsed from a reasoned choice, each stamped `parse_confidence=0.95` —
+the schema's highest tier — whenever the raw text also happened to contain
+unusable JSON (the confidence check tested `"json" in parse_layer` before
+`"digit"`). In a TAE submission run, 343 of 3,276 rows (10.47%) were decided
+this way. `broker.tools.readiness_report`'s `parse_layer_digit_share` /
+`parse_layer_default_share` counters (`run_integrity.json` →
+`audit_coverage`, always computed, no flag needed) are what make this ratio
+visible per run — a non-trivial digit share on a pre-flag corpus means some
+fraction of `parse_confidence=0.95` rows are not what that confidence number
+implies. Regenerating an existing JSONL trace with the flag ON does not
+retroactively fix it either: the adapter already ran at generation time, and
+`recover_csv_from_jsonl` only re-projects the trace that is already on disk.
+
+**`parse_layer_digit_share` is a LOWER BOUND on any pre-flag corpus.** The
+bracket/digit last-resort layer records its provenance as
+`parse_layer = parse_layer or "digit_fallback"` — an `or`, so it only names
+the digit when `parse_layer` is still empty. A row that reached an enclosure
+first (`parse_layer == "enclosure"`) and was then decided by that layer's
+digit is filed under `"enclosure"`, and no counter that keys on the substring
+`"digit"` can see it. The behaviour is kept exactly as-is flag-OFF, because
+correcting the label would change published bytes; under the flag the layer
+does not run at all, so nothing is mislabelled. When reading a pre-flag
+corpus, treat a low digit share as "at least this much", never as a ceiling —
+cross-check `parsing_warnings` for `Retry-based extraction from digit:`
+entries, which the layer does write on every row it decided.
+
+**Two gaps `strict_layers` does not close.** Neither is new in v0.8, and
+neither is fixed by the flag:
+
+- **Route 1b, the skill-NAME match on the decision line, is a false positive
+  in BOTH regimes.** `_parse_keywords` step 1b runs an unconditional
+  `re.search` for every valid skill name against the decision-line text, with
+  no negation check, flag on or off: `Decision: I will not relocate this
+  year.` resolves to `relocate` at `parse_layer == "keyword"`,
+  `parse_confidence` 0.70 — the model's stated refusal reads as its decision.
+  `strict_layers` re-anchors the DIGIT route (step 1a) and scopes the dead
+  fuzzy-name recovery (step 2b); it does not touch step 1b, so this class of
+  row is present, unlabelled, and indistinguishable from a genuine keyword
+  match in every corpus, pre- and post-flag alike.
+- **Two `parse_output` call sites sit outside the warning-stash protocol.**
+  The advisory re-parse in `_advise_pass.py` and the governance-retry parse in
+  `_retry_loop.py` (the loop that resends a rejected proposal to the model
+  with validator errors attached — not the format-retry loop
+  `_invoke_llm_with_retries`, which is the one that drains
+  `last_parse_warnings` into the next proposal or the `ABORTED` sentinel) both
+  call `parse_output` directly and never read or clear
+  `last_parse_warnings` afterward. The parser's own `logger.warning` /
+  `_warn_once_parsing` calls still fire, but the stashed warning reaches no
+  audit row: neither the row this call's own proposal produces (nothing here
+  merges the stash into it) nor any later one — the NEXT
+  `_invoke_llm_with_retries` call on the same thread drains-at-start
+  (`broker/core/_retry_loop.py`, guarding exactly this leak) and silently
+  discards whatever it finds, without recording it anywhere. Log lines are
+  the only record of a `strict_layers` suppression on these two paths.
+
+### `decision_source` (JSONL-only field)
+
+`decision_source` is written by `_classify_decision_source`
+(`broker/core/_audit_helpers.py`) into the raw JSONL trace only —
+`trace_to_csv_row` never emits a CSV column for it
+(`broker/tests/test_corrected_status_columns_pr3.py::test_decision_source_is_not_a_csv_column`).
+
+| Value | Meaning | Flag needed |
+|---|---|---|
+| `llm_reasoned` | `approved_skill.approval_status == "APPROVED"` | none |
+| `fallback_default` | `approval_status == "REJECTED_FALLBACK"` — governance retries exhausted, registry default executed | none |
+| `validator_rejected` | `approval_status == "REJECTED"` | none |
+| `parse_failure` | `approved_skill` is `None` (strict-mode parse failure after retries), or the `_write_aborted_sentinel_trace` sentinel (`audit.corrected_status_columns`) | none |
+| `exception` | the F1 exception sentinel written by `ExperimentRunner._write_aborted_trace` when a step raised | none |
+| `default_substituted` | **new in v0.8.** An APPROVED proposal whose `skill_proposal.parse_layer` is/contains `"default"` — the PARSER substituted the domain default because nothing else parsed, and a validator later approving that substitute does not make it a decision the model reasoned about. Without `parsing.strict_layers` this case is indistinguishable from `llm_reasoned` in the JSONL. | `parsing.strict_layers: true` **and** the agent type on `parsing.strict_mode: false` |
+| `unknown` | none of the above (defensive fallback) | none |
+
+`default_substituted` only reclassifies the APPROVED case. `fallback_default`
+and `validator_rejected` are unchanged by the flag — a parser-substituted
+default that then FAILS governance was already correctly distinguishable
+from a genuine LLM decision via `approval_status`; only the APPROVED case
+previously erased that distinction.
+
+**`default_substituted` can only appear for a `strict_mode: false` agent
+type.** `parse_layer == "default"` is the route-10 domain-default fallback,
+and route 10 is reachable only when `parsing.strict_mode` is false. A
+`strict_mode: true` agent type takes route 11 instead — `parse_output` returns
+`None`, the step retries, and it ends as `REJECTED_FALLBACK` or an `ABORTED`
+sentinel row (`decision_source == "parse_failure"`). Reading zero
+`default_substituted` rows off a `strict_mode: true` corpus therefore says
+nothing about whether the parser was substituting anything; count the
+`ABORTED` rows and `format_retries` there instead.
+
+Whether the hardened layers applied is decided by the PARSER, not re-derived
+by the audit layer: `UnifiedAdapter.parse_output` stamps
+`strict_layers_applied` on the `SkillProposal` it returns and
+`_classify_decision_source` reads that attribute. It is a plain attribute, not
+a dataclass field — `SkillProposal.to_dict()` serialises an explicit key list,
+so it never reaches the JSONL or the CSV in either flag state.
+
+The cost of that choice: a proposal rebuilt from `to_dict()` loses the stamp,
+and a rebuilt parser-default row would classify as `llm_reasoned` again.
+`ExperimentRunner._rebuild_cached_proposal` (the `CognitiveCache` hit path)
+does exactly that round-trip. Today it returns before `_write_audit_trace`, so
+nothing misclassifies — but anyone routing a rebuilt proposal into the audit
+writer has to re-stamp the attribute, or accept that those rows silently lose
+the distinction.
+
 ## Semantics Gotchas
 
 | Gotcha | Meaning | Recommended handling |
@@ -405,6 +530,7 @@ evidence and document the schema era in any paper or replication package.
 | Executed registry-default name on `REJECTED` | yes, under `audit.executed_skill_columns` or `audit.corrected_status_columns` (`executed_skill`) | yes | no |
 | Which remap rule produced the executed action | yes, under `audit.corrected_status_columns` (`execution_path`) | yes | no |
 | Steps whose output never parsed | yes, under `audit.corrected_status_columns` (an `ABORTED` sentinel row) | yes | no |
+| Whether an APPROVED row's decision came from the parser's default substitution rather than the model | no | yes, under `parsing.strict_layers` (`decision_source == "default_substituted"`) | no (flag OFF) |
 
 ## Analyst Checklist
 
@@ -416,4 +542,5 @@ evidence and document the schema era in any paper or replication package.
 | 4 | Use CSV for flat final-action, final-status, retry, rule-union, and construct analyses. |
 | 5 | Exclude reserved/dead columns from statistical analysis. |
 | 5b | Check the sidecar for `corrected_status_columns`. When absent, apply the known-limitation table above before reading `fallback_activated`, `rules_*_hit`, `mem_top_*`, or any row count. When present, read `executed_skill` (not `final_skill`) for executed-only analysis. |
+| 5c | Check `run_integrity.json` → `audit_coverage.parse_layer_digit_share`. A non-trivial digit share on a corpus produced without `parsing.strict_layers` means some `parse_confidence=0.95` rows were decided by a stray digit, not a clean JSON parse — see "Parsing hardening" above. |
 | 6 | For recovered artifacts, cite that `recover_csv_from_jsonl` shares `trace_to_csv_row` with the live writer. |
