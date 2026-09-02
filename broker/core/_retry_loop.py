@@ -67,6 +67,20 @@ class RetryMixin:
         if getattr(self, "_count_llm_calls", False):
             total_llm_stats["llm_calls"] = 0
 
+        # PR-4 (D6): under `parsing.strict_layers` an attempt that returns None
+        # leaves its parsing_warnings on the adapter as `last_parse_warnings` --
+        # they explain WHY the attempt failed (which candidate digits were
+        # suppressed, which JSON error was hit) and there is no proposal to
+        # carry them. Drain the stash from the previous step FIRST, so a step
+        # that ended without draining (an ABORTED step in a run that did not
+        # also enable `audit.corrected_status_columns`, so no sentinel row was
+        # written) cannot leak its warnings into the next agent's proposal.
+        # Flag-OFF the attribute is never created and every line here is a
+        # no-op, so no flag-OFF byte changes.
+        if getattr(self.model_adapter, "last_parse_warnings", None):
+            self.model_adapter.last_parse_warnings = []
+        pending_parse_warnings: List[str] = []
+
         while initial_attempts <= max_initial_attempts and not skill_proposal:
             initial_attempts += 1
             try:
@@ -109,6 +123,13 @@ class RetryMixin:
                         "current_year": env_context.get("current_year") if env_context else "?",
                         **context
                     })
+
+                # PR-4 (D6): collect whatever the parser stashed for this
+                # attempt before the next one overwrites it.
+                _stashed = getattr(self.model_adapter, "last_parse_warnings", None)
+                if _stashed:
+                    pending_parse_warnings.extend(_stashed)
+                    self.model_adapter.last_parse_warnings = []
 
                 if skill_proposal is None:
                     # Phase 6C-v4 Finding 3: distinguish actual empty LLM
@@ -156,6 +177,20 @@ class RetryMixin:
                     raise
                 logger.warning(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
                 prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
+
+        # PR-4 (D6): the warnings from the failed attempts belong to THIS
+        # decision either way. If a later attempt parsed, they go in front of
+        # that proposal's own warnings (chronological order: the failures came
+        # first). If none did, they go back on the adapter for the ABORTED
+        # sentinel to write, and the drain at the top of the next step clears
+        # them if nothing reads them. Empty list unless the flag is on.
+        if pending_parse_warnings:
+            if skill_proposal is not None:
+                skill_proposal.parsing_warnings = (
+                    pending_parse_warnings + list(skill_proposal.parsing_warnings)
+                )
+            else:
+                self.model_adapter.last_parse_warnings = list(pending_parse_warnings)
 
         return skill_proposal, raw_output, format_retry_count, total_llm_stats
 

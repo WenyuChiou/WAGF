@@ -265,6 +265,131 @@ semantics and the deterministic remap rule: `docs/AUDIT_SCHEMA.md`,
 
 ---
 
+#### 2.1.7 global_config.parsing
+
+Opt-in parsing hardening for `UnifiedAdapter`
+(`broker/utils/parsing/unified_adapter.py`). **Default OFF for byte-identity
+reasons**: the flag changes `parse_layer` / `parse_confidence` /
+`parsing_warnings` values and the JSONL-only `decision_source` field on rows
+that would otherwise be digit-inferred, so a published corpus must reproduce
+byte-identically with it absent.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `strict_layers` | bool | No | false | Disable every digit route that is not scoped to a decision line, fix two dormant parser bugs, and stop mislabeling parser-substituted defaults as reasoned decisions. See below. |
+
+**`strict_layers` (v0.8, PR-4)** closes an audit-discovered gap in the parser's
+last-resort layers. Without it:
+
+- A stray digit **anywhere** in the model's free text — even inside an
+  unrelated JSON field like `"confidence": 3`, or in "3 of my neighbours
+  moved" — can become the decision. This is completely ungated by the
+  per-agent-type `parsing.strict_mode` YAML key (that flag gates only a
+  *different*, later bracket-number layer, and even there it is bypassed on
+  every retry). In a TAE submission run, 343 of 3,276 rows (10.47%) were
+  decided this way.
+- Those digit-inferred rows are stamped `parse_confidence=0.95` — the
+  schema's highest tier, meant for a clean JSON parse — whenever the raw text
+  also happened to contain (unusable) JSON, because the confidence check
+  tests `"json" in parse_layer` before `"digit"`.
+- A total parse failure that falls through to the domain default
+  (`parse_layer == "default"`) and then happens to pass governance is
+  recorded as `decision_source == "llm_reasoned"` in the JSONL trace — the
+  model never made a decision; the parser substituted one.
+
+With `strict_layers: true`, the parser's fallback chain behaves as follows.
+"Fires" means the route can decide the row.
+
+| # | Route | ON behaviour |
+|---|---|---|
+| 1 | Enclosure extraction (`<<<DECISION_START>>>` …) | unchanged |
+| 2 | JSON `decision` / `choice` / `action` key resolution | unchanged — this is the contract |
+| 3 | `json_plus_digit` recovery after the JSON block | **disabled** (its keyword prefix is optional, so it matches any trailing digit) + warning |
+| 4 | JSON-decode exception | unchanged control flow, now records a `parsing_warnings` entry instead of `pass` |
+| 5 | Keyword decision-line digit (`Decision: 3`) | **fires**, re-anchored so the digit must BE the value (see below); `parse_layer` `keyword+digit` at `parse_confidence` **0.50** (down from 0.70 flag-OFF) |
+| 6 | Keyword choice phrase (`I choose 3`, `choice 3`) | **fires** (explicit choice phrase); `parse_layer` `keyword+digit` at `parse_confidence` **0.50** (down from 0.70 flag-OFF) |
+| 7 | Keyword skill-name recovery (step 2b, dead flag-OFF) | **fires**, scoped to the decision line only; own `parse_layer` `fuzzy_name` at confidence 0.50 + warning |
+| 8 | Naked digit anywhere in the text | **disabled** + warning |
+| 9 | Bracket/digit LAST RESORT (`[3]`, last digit) | **disabled** in BOTH arms — the `strict_mode: false` arm and the `retry_attempt > 0` arm — + warning |
+| 10 | Domain default (`parsing.default_skill`) | unchanged; reached by `strict_mode: false` rows |
+| 11 | `return None` → retry | unchanged; the warnings collected on the failed attempt are no longer discarded (see below) |
+
+Routes 5 and 6 survive on purpose: `Decision: 3` is what the prompt asks the
+model for, so a digit there is the answer, not a guess. They are relabelled
+`keyword+digit` (from a flat `keyword`) so `parse_layer_digit_share` still
+counts them — "the digit routes are closed" is true only of the routes that
+are, and the counter has to keep saying so. Surviving is not free, though:
+under the flag both routes are re-priced to the digit tier,
+`parse_confidence` **0.50**, down from the `keyword` tier's 0.70 flag-OFF —
+`"digit" in parse_layer` now outranks the plain keyword check, so a
+decision-line digit is never awarded a keyword parse's confidence again.
+
+Route 5's anchor is the single constant `DECISION_VALUE_DIGIT_RE` in
+`broker/utils/parsing/unified_adapter.py` — read it there rather than trusting
+a copy here, and note that the layer sees text AFTER the preprocessor. The
+requirement is that the digit be the decision VALUE, not merely somewhere on
+the decision line: `Decision: 3`, `"decision": 3`, `{'decision': 3,`,
+`Decision: [3]`, `Decision: (3)` and `my decision is 3` all resolve, while
+`Decision: I will revisit this in 2 or three years` and `Decision: relocate
+within 3 years` do not. A digit the pre-flag search would have taken and the
+anchor rejects is itself recorded as a `parsing_warnings` entry, so an
+over-tight anchor shows up in the audit rather than as an unexplained rise in
+`default` rows.
+
+Also under the flag:
+
+- `parse_confidence` checks `"digit" in parse_layer` first, so any
+  digit-recovered row is stamped at the digit tier (0.50) regardless of
+  whether unusable JSON was also present.
+- Each disabled route appends one `parsing_warnings` entry naming what it
+  suppressed (`STRICT_LAYERS: suppressed candidate digit 3 -> relocate
+  (naked-digit layer)`), and only when a digit would genuinely have been
+  taken.
+- Warnings collected on an attempt that returns `None` are handed to the next
+  attempt's proposal, or to the `ABORTED` sentinel row — flag-OFF they die
+  with the discarded proposal, so the one row that records a parse failure
+  says nothing about why.
+- `decision_source` reports the new value `"default_substituted"` instead of
+  `"llm_reasoned"` for an APPROVED proposal whose `parse_layer` is/contains
+  `"default"`.
+
+**What a suppressed row becomes depends on the per-agent-type
+`parsing.strict_mode`**, and the two regimes are not alike:
+
+| `parsing.strict_mode` | What happens to a row whose only candidate was a suppressed digit |
+|---|---|
+| `true` (default) | Route 11: `parse_output` returns `None` → format retry. If the retries also fail, the step ends `REJECTED_FALLBACK`, or as an `ABORTED` sentinel row under `audit.corrected_status_columns`. **`decision_source == "default_substituted"` cannot occur** — there is no proposal to substitute a default into. |
+| `false` | Route 10: the row takes `parsing.default_skill` with `parse_layer == "default"`, carries the suppression warning, and is the row the new `default_substituted` classification labels. |
+
+**Enable this together with `audit.corrected_status_columns`.** Without it, a
+`strict_mode: true` step that now aborts rather than guessing writes no audit
+row at all, so hardening the parser would shrink the denominator of whichever
+arm the model struggled with more — trading a wrong number for a missing one.
+
+**Example:**
+
+```yaml
+global_config:
+  parsing:
+    strict_layers: true
+  audit:
+    corrected_status_columns: true   # strongly recommended alongside
+```
+
+Read by `AgentTypeConfig.get_parsing_strict_layers()`
+(`broker/utils/agent_config.py`), resolved once per parse call through
+`resolve_strict_layers_flag`
+(`broker/utils/parsing/unified_adapter.py`), which coerces to a real `bool`
+and warns once per process on a getter that raises or returns a non-bool. A
+malformed `parsing:` block (a scalar rather than a mapping) reads as off and
+never raises. `strict_layers` is read from `global_config.parsing` **only** —
+under a per-agent-type `parsing:` block it is silently ignored, which
+`broker.tools.validate_prompt` warns about. Full column semantics, the
+readiness-report `parse_layer_digit_share` / `parse_layer_default_share`
+counters, and the `decision_source` enum: `docs/AUDIT_SCHEMA.md`.
+
+---
+
 ### 2.2 shared
 
 Shared definitions referenced across all agent types. These are accessed

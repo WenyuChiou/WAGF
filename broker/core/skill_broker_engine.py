@@ -153,6 +153,25 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 full_disclosure_agent_types=full_disclosure
             )
             
+        # PR-4 (D7): reset the parsing-flag warn-once set per engine. The set
+        # exists so a raising or non-bool `get_parsing_strict_layers` is
+        # reported once instead of once per decision; without this reset a
+        # SECOND run in the same process (a batch loop, a test session) is told
+        # nothing at all, and "the flag silently read OFF" is exactly the
+        # failure the warning exists to surface. Import is local and guarded:
+        # a caller may have swapped in an adapter module that does not define
+        # it, and an engine must not fail to construct over a log-dedup set.
+        # PR-3's sibling `_audit_helpers._FLAG_WARNED` has the identical
+        # per-process dedup shape and the identical reason to reset here, so
+        # it rides the same try block.
+        try:
+            from ..utils.parsing.unified_adapter import _PARSING_FLAG_WARNED
+            _PARSING_FLAG_WARNED.clear()
+            from ._audit_helpers import _FLAG_WARNED
+            _FLAG_WARNED.clear()
+        except ImportError:  # pragma: no cover - defensive
+            pass
+
         self.audit_writer = audit_writer
         self.max_retries = max_retries if max_retries != 3 else self.config.get_governance_retries(max_retries)
         self.max_reports = self.config.get_governance_max_reports()
@@ -340,6 +359,13 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     llm_stats=total_llm_stats,
                     memory_pre=memory_pre,
                     prompt=prompt,
+                    # PR-4 (D6): the parser's own account of why this step
+                    # never produced a decision. Empty unless
+                    # parsing.strict_layers is on, in which case the sentinel
+                    # is the only row that can carry it.
+                    parsing_warnings=list(
+                        getattr(self.model_adapter, "last_parse_warnings", None) or []
+                    ),
                 )
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
 
