@@ -544,3 +544,44 @@ evidence and document the schema era in any paper or replication package.
 | 5b | Check the sidecar for `corrected_status_columns`. When absent, apply the known-limitation table above before reading `fallback_activated`, `rules_*_hit`, `mem_top_*`, or any row count. When present, read `executed_skill` (not `final_skill`) for executed-only analysis. |
 | 5c | Check `run_integrity.json` → `audit_coverage.parse_layer_digit_share`. A non-trivial digit share on a corpus produced without `parsing.strict_layers` means some `parse_confidence=0.95` rows were decided by a stray digit, not a clean JSON parse — see "Parsing hardening" above. |
 | 6 | For recovered artifacts, cite that `recover_csv_from_jsonl` shares `trace_to_csv_row` with the live writer. |
+
+## Derived artifact: `ablation_samples.csv`
+
+Produced by `python -m broker.tools.ablate_factor` (PR-5), not by the audit
+writer. It is a *derived* artifact: every row is a replay of a decision the
+JSONL already recorded, with one context factor neutralised. It never
+overwrites, extends, or feeds back into a run's own audit files, and running
+the tool leaves the source run directory unchanged.
+
+Read `docs/guides/ablation_guide.md` before reading the numbers — in
+particular the determinism gate and the four refusals, which decide whether
+the rows support an inference at all.
+
+| Column | Meaning |
+|---|---|
+| `snapshot_id` | `<agent_id>\|y<year>\|<trace index>` — identifies the recorded decision this row replays. |
+| `agent_id`, `year` | Copied from the source trace. |
+| `factor` | The factor neutralised in this row. Empty on `baseline` rows: the baseline prompt does not depend on which factor is under test, so it is computed once per (snapshot, seed, replicate) and shared. |
+| `arm` | `baseline` (prompt unchanged), `masked` (factor replaced by its neutral rendering), or `paraphrase_control` (factor reworded, information preserved). |
+| `seed`, `replicate` | The paired seed and the repeat index within that cell. Check `seeds_applied_to_decider` in the summary: when False the decider takes no seed and these are labels, not draws — which is the case for every backend `create_llm_invoke` exposes today. |
+| `skill` | The skill this replay proposed. `__unparsed__` in the distributions when the reply did not parse. |
+| `executed_skill` | The post-governance action. Empty unless the replay ran with governance. |
+| `parse_layer` | Which parsing layer produced the skill — same vocabulary as the audit CSV's `parse_layer`. |
+| `validator_verdict` | The governance verdict; `not_evaluated` when the replay ran parse-only (the default), or `not_run` when the decider was never called for this arm (see `decider_called`). |
+| `governance_evaluated` | Whether validators ran. False means `validator_verdict` carries no information. |
+| `fidelity` | `prompt_only`, and only `prompt_only`. The trace records the rendered prompt, not the context the builder returned, so the mask edits prompt text. The column is single-valued on purpose: a context-level replay is not implemented, and keeping the column means a second value can be added later without changing this table's shape. |
+| `factor_present` | Whether the factor's pattern matched this prompt. False rows are excluded from that factor's statistics rather than scored as a null effect. |
+| `n_matches` | How many spans the mask replaced in this prompt. A pattern that matches a yearly memory bullet replaces every remembered year, so one and five are different interventions; the summary reports `matches_mean` and `matches_max` per factor. `0` on skipped and baseline rows. |
+| `mask_reason` | Why a mask did not apply, when it did not (factor absent, no pattern declared, no paraphrase control declared, or a rendering callable that raised). |
+| `perturbation_chars` | Characters this arm's edit touched, over the diff against the baseline prompt. The masked and control arms should be within a factor of two — the summary's `severity` block checks it per snapshot, not on the means. |
+| `prompt_diff` | What the mask changed, as `removed: … => added: …`, newline-escaped. Each side is clipped independently at 400 characters and says how much it dropped, so a long removal cannot push the replacement text out of the column. |
+| `raw_output` | The decider's reply, newline-escaped. Empty on skipped rows. |
+| `seed_applied` | Whether the seed reached the decider callable. |
+| `action_stage` | `proposed` (default) or `executed` — which action `decision_action` and every distribution were built from. |
+| `decision_action` | The action this row contributes to its distribution: `skill` under `proposed`, `executed_skill` under `executed`. Empty when the reply did not parse or the arm was skipped. |
+| `recorded_skill` | The action the source trace recorded at `action_stage` — the anchor delta-P is measured against. |
+| `matches_trace` | On `baseline` rows, whether the unmasked replay reproduced `recorded_skill`. Empty on other arms **and** when the trace recorded no action at all: "nothing recorded" is not agreement, and the summary counts those under `n_recorded_missing`. A low rate across the run means the reconstruction is not reproducing the original and the masked arms measure something else. |
+| `decider_called` | False when the mask changed nothing (factor absent, or no paraphrase declared) and the arm was skipped: its prompt would have been byte-identical to the baseline this cell already holds. Skipped rows carry no output and are excluded from the empty/unparsed counts. |
+| `error` | Populated when the replay produced no parsable proposal. |
+| `determinism_verified` | The run-level gate verdict, repeated on every row so a table read on its own cannot be mistaken for one that passed. False means every effect quantity in the accompanying summary — delta-P, `effect_vs_control`, the Wilcoxon blocks, JSD, KL and directional consistency — is `null`. |
+| `decider_source` | The agent config the replay parsed with. |

@@ -226,6 +226,13 @@ class DefaultDomainPack:
         # ``BROKER_FILLED_PLACEHOLDERS`` alone.
         return set()
 
+    def context_mask_defaults(self) -> Dict[str, Any]:
+        # PR-5 (stack/pr5-replay-ablate): default contract — this domain
+        # declares no ablatable context factors, so
+        # ``broker.tools.ablate_factor`` refuses rather than guessing at
+        # the prompt's wording. See DomainPack.context_mask_defaults.
+        return {}
+
     def affordability_constraints(self) -> Dict[str, Any]:
         return {}
 

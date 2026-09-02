@@ -700,6 +700,59 @@ class DomainPack(
         """
         ...
 
+    def context_mask_defaults(self) -> Dict[str, Any]:
+        """Named context factors this domain can neutralise for an
+        offline ablation, mapping factor name ->
+        :class:`broker.experiments.replay.MaskSpec`.
+
+        Default ``{}`` — a domain that declares no factors simply
+        cannot be ablated by ``python -m broker.tools.ablate_factor``,
+        which then says so instead of guessing at the prompt's wording.
+
+        Sibling of :meth:`prompt_placeholder_extensions` above: both
+        let a pack tell a generic broker tool something about the
+        domain's prompt that the tool has no way to infer. That one
+        names placeholders the validator must not warn about; this one
+        names the spans an ablation may replace, and with what.
+
+        Each ``MaskSpec`` carries six things:
+
+        - ``provider`` / ``key`` — which context provider owns the
+          factor and where it sits in the context dict. Documentation
+          only: the replay edits the rendered prompt, not the context,
+          so nothing reads these at run time. They are there so a reader
+          can find the code that produced the span.
+        - ``pattern`` — a regular expression locating the factor's span
+          in the RENDERED prompt, which is what the trace format
+          records. EVERY occurrence is replaced, so a factor rendered
+          once per remembered year is masked across the agent's whole
+          memory; say which span the factor covers in ``description``,
+          because "the grant line" and "every grant line the agent
+          remembers" are different factors.
+        - ``neutral`` — the documented neutral rendering that REPLACES
+          the span. It must never be empty: deleting a sentence changes
+          the prompt's shape as well as its content, and the resulting
+          stimulus is off-distribution, so a behaviour change no longer
+          isolates the factor.
+        - ``paraphrase`` — a severity-matched control rendering that
+          preserves the factor's information and changes only its
+          wording, by roughly the same number of characters as
+          ``neutral`` does. Without it an ablation cannot separate "this
+          factor is causal" from "any edit of that size moves the
+          model", so the ablation tool reports the masked arm alone and
+          says the control is missing.
+        - ``expected_sign`` — the direction this domain predicts for the
+          masked arm's delta-P, ``-1`` (removing the factor should make
+          the recorded action less likely) by default. It is the
+          assumption the directional-consistency number is scored
+          against, and a deterrent factor declares ``+1``.
+
+        Example (flood households, four factors) ships as a mixin at
+        ``examples/single_agent/flood_factor_masks.py`` rather than on
+        the frozen :class:`FloodDomainPack` itself.
+        """
+        ...
+
     # ─── Phase 6T-E (2026-05-27): social-media credibility vocabulary ─
 
     def credibility_tiers(self) -> List[str]:
