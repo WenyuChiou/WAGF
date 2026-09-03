@@ -269,7 +269,8 @@ class SetupPack(Protocol):
     ``synthetic_loader_class``, ``phase_layout``,
     ``initial_memory_templates``, ``mg_barrier_text``,
     ``institutional_lifecycle_handlers`` (Phase 6T-C 2026-05-27),
-    ``multi_agent_env_keys`` (Phase 6T-C 2026-05-27).
+    ``multi_agent_env_keys`` (Phase 6T-C 2026-05-27),
+    ``decider_factories`` (PR-8 2026-09-03).
     """
     def csv_loader_class(self) -> Optional[Any]: ...
     def synthetic_loader_class(self) -> Optional[Any]: ...
@@ -278,6 +279,7 @@ class SetupPack(Protocol):
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str: ...
     def institutional_lifecycle_handlers(self) -> Dict[str, Any]: ...
     def multi_agent_env_keys(self) -> Set[str]: ...
+    def decider_factories(self) -> Dict[str, Any]: ...
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1171,6 +1173,34 @@ class DomainPack(
         ``set()`` (the pre-6T-C silent contract). The flood pack
         documents its multi-agent env keys here for the first time;
         future multi-agent domains add their own.
+        """
+        ...
+
+    def decider_factories(self) -> Dict[str, Any]:
+        """PR-8: deciders this domain ships, as ``{name: factory}``.
+
+        A calibrated behavioural model — a logistic adoption surface, a
+        threshold rule fitted to survey data, a discrete-choice utility
+        — is domain science, and putting it in ``broker/`` would put a
+        domain's variables in the generic namespace. This hook is how a
+        domain contributes one WITHOUT editing ``broker/``: register the
+        factory here, name it in ``agent_types.yaml`` under
+        ``decider:``, and it runs through the same context build, the
+        same validators, the same retry loop and the same audit row as
+        every LLM agent beside it.
+
+        Each factory has the signature
+        ``(agent_type_config: dict, runtime: dict) -> Callable`` and
+        must return the decide function itself. ``runtime`` carries
+        ``llm_invoke`` / ``agent`` / ``agent_id`` / ``agent_type`` /
+        ``env`` / ``seed``; the returned callable takes the prompt and
+        returns a string, a ``SkillProposal``, or a
+        ``(payload, LLMStats)`` pair — see
+        :mod:`broker.agents.deciders` for the full contract.
+
+        Default ``{}`` — a domain that ships no decider of its own uses
+        the built-in ``llm`` / ``rule_based`` / ``hybrid`` /
+        ``parametric`` names and needs nothing here.
         """
         ...
 

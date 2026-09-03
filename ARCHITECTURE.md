@@ -67,7 +67,7 @@ subpackages some time ago and the doc was never updated.
 
 ```
 broker/                          # Core governance middleware
-├── agents/                      # BaseAgent + agent-state loading/protocols
+├── agents/                      # BaseAgent + agent-state loading/protocols + the decider registry (deciders.py, PR-8) that lets one run hold rule-based, hybrid and LLM agents
 ├── calibration/                 # Benchmark comparison (EPI) + numeric parameter optimizer (PR-7) -- generic, no water tokens
 ├── components/                  # Domain-independent pipeline components, 11 subpackages
 │   ├── analytics/               # Audit trace writer (audit.py), drift/feedback/observable-state tracking
@@ -464,3 +464,4 @@ handling, and cross-domain integration guidelines are documented in
 - [Task-029 Migration Guide](.tasks/handoff/task-029-migration-guide.md)
 - [Task-029 Audit Report](.tasks/handoff/task-029-audit-report.md)
 - [MA Experiment Guide](examples/multi_agent/README.md)
+- [Mixed Populations](docs/guides/mixed_populations.md) — declaring rule-based, hybrid and LLM deciders per agent type, and how to read the resulting audit rows

@@ -103,6 +103,19 @@ WORLD_CONDITION_TYPES: frozenset = frozenset({"expression", "precondition", "soc
 # resolves to the env copy. Writing ``scope:`` says which one you meant.
 WORLD_CONDITION_SCOPES: frozenset = frozenset({"auto", "env", "state", "social", "context"})
 
+# Top-level keys in an agent-types YAML that are NOT an agent type. Every
+# scan that asks "what does each agent type declare?" has to skip these,
+# and before PR-8 review finding C1 each scan carried its own copy of the
+# list — one of which had none, so `has_non_default_deciders` read a
+# `decider:` written under `shared:` (where nothing reads it) as a
+# mixed-population run and switched the audit columns on for a corpus
+# whose every row was an LLM row. Kept beside WORLD_CONDITION_SCOPES so
+# the next scan finds it. Mirrors `RESERVED` in broker/tools/validate_prompt.
+NON_AGENT_TOP_LEVEL_KEYS: frozenset = frozenset({
+    "global_config", "shared", "metadata", "governance", "personas",
+    "skill_magnitude",
+})
+
 # Warn-once keys for scope coercion (W5). ``world_condition_target`` runs per
 # condition per rule per agent per step, so an unconditional warning would print
 # at agents x years x rules x retries frequency and become noise nobody reads.
@@ -362,7 +375,10 @@ class AgentTypeConfig:
     def _load_yaml(self, yaml_path: Optional[str] = None):
         """Load from YAML file."""
         yaml_path = self._resolve_yaml_path(yaml_path)
-        
+        # PR-8: answered once per loaded config and consulted per audit row.
+        # Cleared here so a reload never answers from the previous file.
+        self._non_default_deciders = None
+
         try:
             with open(yaml_path, 'r', encoding='utf-8') as f:
                 self._config = yaml.safe_load(f) or {}
@@ -722,6 +738,126 @@ class AgentTypeConfig:
         if isinstance(block, dict) and bool(block.get("grounding_columns", False)):
             return True
         return self.has_world_grounded_rules()
+
+    def get_audit_decider_columns(self) -> bool:
+        """PR-8: opt-in DECIDER audit columns (``decider`` / ``decider_path``).
+
+        ON when ``global_config.audit.decider_columns: true`` OR when any
+        agent type in this config declares a ``decider:`` other than the
+        default ``llm``. The second clause is the one that matters: the
+        moment a run holds a mixed population, every row has to say what
+        produced it, or a rule-based row and a model row are
+        indistinguishable in the CSV and the comparison the mixed run
+        exists to support cannot be made.
+
+        A config where every type is (or defaults to) ``llm`` emits
+        neither key, so CSV fieldnames — derived from row keys — are
+        unchanged and every frozen corpus reruns byte-identically.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if isinstance(block, dict) and bool(block.get("decider_columns", False)):
+            return True
+        return self.has_non_default_deciders()
+
+    def _agent_type_blocks(self):
+        """Yield ``(name, block)`` for every AGENT-TYPE block, only.
+
+        C1: a ``decider:`` under ``shared:`` or ``global_config:`` is read
+        by nothing. Counting one as a declaration switched the audit
+        columns on for a run whose every row was an LLM row — a corpus
+        that then carries a ``decider`` column saying ``llm`` on every
+        row and a config that looks mixed. ``validate_prompt`` warns
+        about the misplaced key; this makes sure it does not also
+        silently change the CSV.
+        """
+        for name, block in (self._config or {}).items():
+            if not isinstance(block, dict):
+                continue
+            if str(name) in NON_AGENT_TOP_LEVEL_KEYS:
+                continue
+            yield str(name), block
+
+    def declared_decider_names(self) -> List[str]:
+        """Every decider name the AGENT-TYPE blocks resolve to, sorted.
+
+        A type that declares nothing contributes ``llm``, because that is
+        what it will run and what its rows will say. This is the only
+        thing that knows about an arm BEFORE the run: the per-decider
+        census in ``run_integrity.json`` can count the arms that produced
+        rows, and needs this to name the one that produced none.
+
+        A malformed declaration is skipped rather than raised on — this
+        is called to build a side artifact, and the run is about to fail
+        much louder at decider resolution.
+        """
+        from broker.agents.deciders import DEFAULT_DECIDER_NAME
+        names = set()
+        for name, _block in self._agent_type_blocks():
+            try:
+                names.add(self.get_decider(name).name)
+            except ValueError:
+                names.add(DEFAULT_DECIDER_NAME)
+        return sorted(names)
+
+    def has_non_default_deciders(self) -> bool:
+        """Does any agent type in this config declare a non-``llm`` decider?
+
+        Scans the AGENT-TYPE blocks only (C1) — see
+        :meth:`_agent_type_blocks` for why a ``decider:`` under
+        ``shared:`` must not count.
+        """
+        from broker.agents.deciders import DEFAULT_DECIDER_NAME
+        cached = getattr(self, "_non_default_deciders", None)
+        if isinstance(cached, bool):
+            return cached
+        answer = False
+        for name, block in self._agent_type_blocks():
+            if "decider" not in block:
+                continue
+            try:
+                spec = self.get_decider(name)
+            except ValueError:
+                # A malformed value is not a reason to answer "no columns":
+                # the run is about to fail at resolution anyway, and
+                # answering yes keeps the failure legible.
+                answer = True
+                break
+            if spec.name != DEFAULT_DECIDER_NAME:
+                answer = True
+                break
+        self._non_default_deciders = answer
+        return answer
+
+    def get_decider(self, agent_type: str):
+        """Return this agent type's declared decider as a ``DeciderSpec``.
+
+        ``decider:`` accepts a bare registered name or a
+        ``{name, params}`` mapping::
+
+            household_owner:
+              decider: llm                      # the default; may be omitted
+            household_renter:
+              decider:
+                name: rule_based
+                params:
+                  default_action: do_nothing
+                  rules: [...]
+
+        Absent means ``llm``, and the resolved callable is then the
+        identical object ``ExperimentRunner.get_llm_invoke`` returns —
+        so adding this key to the schema changed nothing for any config
+        that does not use it.
+
+        Raises ``ValueError`` on a malformed value rather than reading
+        it as the default: a run that silently ignored a broken
+        ``decider:`` would be an all-LLM run wearing a mixed-population
+        config, and nothing in its artifacts would say so.
+        """
+        from broker.agents.deciders import parse_decider_spec
+        cfg = self.get(agent_type)
+        return parse_decider_spec(
+            cfg.get("decider"), where=f"{agent_type}.decider"
+        )
 
     def get_audit_corrected_status_columns(self) -> bool:
         """PR-3 (2026-09-01): opt-in CORRECTED status/truth columns (default-OFF).

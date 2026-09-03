@@ -529,6 +529,94 @@ profile gains no columns and every frozen CSV stays byte-identical. The gate is
 the profile itself rather than a second flag, so a grounded run cannot be
 launched with the evidence for its own headline switched off.
 
+## Decider columns (auto-on with a non-`llm` decider, v0.9)
+
+Two columns, present only when some agent type in the active config declares a
+`decider:` other than `llm`, or when an operator writes
+`global_config.audit.decider_columns: true`.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `decider` | string | Registered name of what produced this row: `llm`, `rule_based`, `hybrid`, `parametric`, or a decider the domain ships. `<name>@<domain>` when a domain has deliberately replaced a built-in of that name. |
+| `decider_path` | string | Which way that thing went on THIS decision. One of `llm`, `rule`, `rule_default`, `parametric`, `aborted`. |
+
+`decider_path` values, and why each is its own value rather than folded
+into a neighbour:
+
+| Value | Meaning |
+|---|---|
+| `llm` | a model produced this row |
+| `rule` | a rule in the table matched |
+| `rule_default` | NO rule matched; the declared `default_action` was proposed |
+| `parametric` | a domain decision object produced it |
+| `aborted` | sentinel row — the step crashed or never parsed, so no decision path was taken |
+
+`rule` and `rule_default` are separate because a table whose fields
+never resolve answers every decision with its default, and folded
+together the CSV of that run reads exactly like one whose rules were
+evaluated and did not match — an arm that is a constant with a rule
+table's name. `aborted` is separate so a sentinel is not counted in the
+census as though it had decided something.
+
+**Why the pair, not just the name.** A hybrid answers some decisions from its
+rule table and sends the rest to the model. With only the name, every hybrid row
+reads the same and the arm is indistinguishable in the CSV from either pure arm
+— there is no way to say how much of the behaviour the model actually produced.
+`decider_path` is that split, recorded per row. For a decider with one path the
+two columns agree, which is the uninteresting case and costs nothing.
+
+**How the path is captured.** A hybrid records its path in a thread-local slot
+as it answers, and the audit row-builder POPS that slot. Popping matters: with
+`workers > 1` several agents share one callable, so an attribute on the function
+would be overwritten by whichever thread ran last, and a value left over from an
+earlier agent would be attributed to this row. A row whose decider recorded
+nothing falls back to that decider's declared default path.
+
+**What these rows do NOT mean.** A rule-based or parametric row went through the
+same context build, the same validators, the same governance retry loop and the
+same execution as an LLM row — that is the point of the column existing at all.
+What differs is the call that never happened: `llm_retries` reads `0`,
+`llm_success` reads `True`, the token columns are absent or zero, and
+`parse_layer` reads `decider:<name>` rather than a parser route. Two more
+belong on that list and are easy to miss. `llm_calls` reads **`1`**, not `0`:
+the retry loop increments it as soon as the decider callable returns, before it
+inspects what came back, so a rule-answered row counts as one call and summing
+the column overstates model usage by exactly the number of such rows. The
+`mem_*` family (`mem_top_source`, `mem_top_score`, ...) describes a retrieval
+that genuinely happened — the context build is identical for every decider,
+which is what keeps the arms comparable — but that nothing consumed, because a
+rule table does not read the prompt those memories went into.
+
+Filter on `decider` before averaging any LLM statistic across a mixed run.
+Construct labels (`construct_*` / `reason_*`) on such a row are a DECLARATION
+written in the rule table, not a model's self-report; `decider` is the only
+column that distinguishes the two. A `reason_fields_defaulted` column (and the
+same key in `raw_output`) names any OPTIONAL input the decider had to fall back
+on for that row, so a real zero and an absent field are not read alike. Full
+semantics: `docs/guides/mixed_populations.md`.
+
+**The run-level census.** `run_integrity.json` carries the composition claim as
+data, incremented from the same place these columns are computed, so the census
+and the columns cannot disagree: `decider_rows` (`{decider: row_count}`),
+`decider_rows_total`, `decider_declared` (what the config asked for),
+`decider_arms_with_zero_rows` (declared arms that produced NOTHING),
+`decider_aborted_rows`, `rule_default_rows`, `rule_field_unresolved`
+(`{agent type: {field: n}}` — conditions that could never hold) and
+`rule_firings` (`{agent type: {rule id: n}}`, counting decisions, so a retried
+row counts twice). Read them: a mixed-population config is a claim about
+composition, and an agent-type name that never matched contributes zero rows
+while the CSV still looks entirely normal. The run warns when every row came
+from one non-`llm` decider, when a declared arm produced no rows, and when an
+arm's every row was its `default_action`.
+
+**Key gating.** The columns are absent unless the trace carries the keys, and
+`compute_csv_fieldnames` derives fieldnames from row keys, so an all-`llm`
+config gains no columns and every frozen CSV stays byte-identical. The gate is
+the config's own declarations rather than a second flag, so a mixed run cannot
+be launched with the provenance for its own headline switched off. The ABORTED
+sentinel row carries the same two keys, so a mixed-population CSV has one column
+set rather than two.
+
 ## Soft-rule columns (`governance.advise_mode`, v0.8)
 
 Eleven columns, present only when `global_config.governance.advise_mode` is
@@ -659,6 +747,7 @@ evidence and document the schema era in any paper or replication package.
 | 5 | Exclude reserved/dead columns from statistical analysis. |
 | 5b | Check the sidecar for `corrected_status_columns`. When absent, apply the known-limitation table above before reading `fallback_activated`, `rules_*_hit`, `mem_top_*`, or any row count. When present, read `executed_skill` (not `final_skill`) for executed-only analysis. |
 | 5c | Check `run_integrity.json` → `audit_coverage.parse_layer_digit_share`. A non-trivial digit share on a corpus produced without `parsing.strict_layers` means some `parse_confidence=0.95` rows were decided by a stray digit, not a clean JSON parse — see "Parsing hardening" above. |
+| 5d | If the CSV carries a `decider` column, the run held a mixed population. Group by it before averaging ANY LLM statistic (`llm_retries`, `llm_success`, `llm_calls`, the token columns) — rows a rule produced could not retry, had no call to succeed, and still count `llm_calls: 1`, so pooling them dilutes the model arm's rates and overstates its call budget. Cross-check the composition against `run_integrity.json` → `decider_rows`, and check `decider_arms_with_zero_rows`, `rule_default_rows` and `rule_field_unresolved` before treating any rule-based arm as a model of anything: an arm whose every row is `rule_default` is a constant. |
 | 6 | For recovered artifacts, cite that `recover_csv_from_jsonl` shares `trace_to_csv_row` with the live writer. |
 
 ## Derived artifact: `ablation_samples.csv`

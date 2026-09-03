@@ -205,6 +205,23 @@ def _note_world_grounded_row(unevaluable: bool) -> None:
         logger.debug(f"[Audit] world-rule evaluability tally skipped: {exc}")
 
 
+def _note_decider_row(decider: str, path: str = "") -> None:
+    """PR-8: increment the per-decider row census. Never raises.
+
+    ``path`` rides along so the ``rule_default`` and ``aborted``
+    sub-censuses are incremented from the same call as the main one and
+    the three cannot drift apart.
+
+    Lazily imported for the same startup-cycle reason as the tally above.
+    """
+    try:
+        from broker.core.run_integrity import note_decider_row
+
+        note_decider_row(decider, path)
+    except Exception as exc:  # noqa: BLE001 — side-artifact census only
+        logger.debug(f"[Audit] decider row census skipped: {exc}")
+
+
 def _sanitize_audit_segment(value) -> str:
     """P0-1a: make a value safe to embed in a ``|``/``=`` delimited audit field.
 
@@ -408,6 +425,58 @@ class AuditMixin:
     """Mixin providing audit trace writing and state management helpers."""
 
     # ------------------------------------------------------------------
+    # PR-8: decider provenance
+    # ------------------------------------------------------------------
+    def _decider_audit_extra(
+        self, decider: Optional[str], *, path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """The two gated decider columns for one row, or ``{}`` when off.
+
+        ``decider`` names WHAT decided (``llm`` / ``rule_based`` /
+        ``hybrid`` / a domain's own). ``decider_path`` names WHICH WAY
+        that thing went on this particular decision, which only differs
+        from the name for a hybrid — and for a hybrid it is the whole
+        point, since a hybrid run without it is indistinguishable in the
+        CSV from either pure run.
+
+        ``path`` FORCES the recorded path. The aborted-step sentinels
+        pass ``"aborted"``: the row exists because the step crashed or
+        never parsed, so there is no completed decision path to report,
+        and letting the sentinel inherit a decider's default path would
+        put a row in the census as if it had decided something. The
+        thread-local slot is popped either way, so a value recorded by
+        the call that then crashed cannot leak into the NEXT row.
+
+        Returns ``{}`` unless the flag is on, so a config where every
+        agent type is (or defaults to) ``llm`` adds no row keys, gains
+        no CSV columns, and reruns byte-identically. Every failure here
+        also returns ``{}``: a provenance column is worth having, and
+        never worth aborting a decision for.
+        """
+        get_flag = getattr(self.config, "get_audit_decider_columns", None)
+        if not callable(get_flag):
+            return {}
+        try:
+            if not get_flag():
+                return {}
+        except Exception:  # noqa: BLE001
+            return {}
+        name = str(decider or "llm")
+        # P1-d: a domain that deliberately replaced a built-in writes
+        # `<name>@<domain>`; the built-in default path is keyed on the
+        # bare name, so look it up on the bare name.
+        bare = name.split("@", 1)[0]
+        try:
+            from broker.agents.deciders import BUILTIN_DEFAULT_PATHS, take_decider_path
+            recorded = take_decider_path(BUILTIN_DEFAULT_PATHS.get(bare, bare))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[Audit] decider path unavailable: %s", exc)
+            recorded = bare
+        resolved = str(path) if path else recorded
+        _note_decider_row(name, resolved)
+        return {"decider": name, "decider_path": resolved}
+
+    # ------------------------------------------------------------------
     # Audit trace
     # ------------------------------------------------------------------
     def _write_aborted_sentinel_trace(
@@ -418,6 +487,7 @@ class AuditMixin:
         memory_pre: Optional[List] = None,
         prompt: str = "",
         parsing_warnings: Optional[List[str]] = None,
+        decider: Optional[str] = None,
     ) -> None:
         """PR-3: emit one audit row for a step that returned ``ABORTED``.
 
@@ -505,6 +575,13 @@ class AuditMixin:
                 "executed_skill": "",
                 "executed_via_fallback": False,
                 "execution_path": "aborted",
+                # PR-8: same gated keys as every other row, so a
+                # mixed-population CSV has ONE column set. The PATH is
+                # forced to "aborted" (review P1-c): this row exists
+                # because nothing parsed after the retries, so the
+                # decider produced no decision whose path could be
+                # reported, and the census must not count it as one.
+                **self._decider_audit_extra(decider, path="aborted"),
             }, [
                 # Passed, rather than None, for two reasons. ``write_trace``
                 # forces ``validated=True`` when it receives no validation
@@ -557,6 +634,7 @@ class AuditMixin:
         attempt_skills: Optional[List] = None,
         advise_info: Optional[Dict[str, Any]] = None,
         soft_advise_info: Optional[Dict[str, Any]] = None,
+        decider: Optional[str] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -714,6 +792,12 @@ class AuditMixin:
                 _note_world_grounded_row(
                     _row_world_rules_unevaluable(all_validation_history))
 
+        # PR-8: the DECIDER columns. ON when any agent type in the active
+        # config declares a non-`llm` decider (or when forced), because at
+        # that moment the CSV holds rows produced by different things and
+        # nothing else in it says which is which.
+        decider_extra = self._decider_audit_extra(decider)
+
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)
         if (callable(get_pflag) and get_pflag()
@@ -805,6 +889,8 @@ class AuditMixin:
             # PR-6: soft-rule + grounding columns, spread last (same rationale).
             **soft_extra,
             **grounding_extra,
+            # PR-8: decider provenance, spread last (same rationale).
+            **decider_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

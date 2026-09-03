@@ -724,6 +724,64 @@ class TestGovernanceReplayRefusals:
         assert sorted(p.name for p in (run_dir / "raw").iterdir()) == before
 
 
+class TestNonLLMDeciderRefusal:
+    """P2 (both reviewers): ``_decide_with_engine`` calls ``process_step``
+    without ``decider=``, so governance replay always runs the row's
+    ``llm_invoke`` — never the rule table or parametric object that
+    actually produced a non-LLM row in a mixed-population corpus, so
+    every row would replay through the model and come back reading
+    ``decider: llm``. Parse-only replay is no safer for those same rows:
+    it feeds the row's stored prompt to the model adapter as though an
+    LLM produced it, meaningless for a row a rule table decided from
+    agent state and never read that prompt to produce at all. Both
+    refuse, checked once against the loaded config's
+    ``declared_decider_names()``, before either branch runs.
+    """
+
+    @pytest.fixture()
+    def mixed_config(self, tmp_path) -> Path:
+        import yaml
+        raw = yaml.safe_load(FLOOD_CONFIG.read_text(encoding="utf-8"))
+        raw["household"]["decider"] = {
+            "name": "rule_based",
+            "params": {"default_action": "do_nothing", "rules": []},
+        }
+        out = tmp_path / "mixed_agent_types.yaml"
+        out.write_text(yaml.safe_dump(raw), encoding="utf-8")
+        return out
+
+    def test_governance_replay_refuses(self, run_dir, mixed_config):
+        # No --validators-module needed to prove the point: this refusal
+        # fires BEFORE that later check, not after it.
+        with pytest.raises(ValueError, match="LLM-decided rows only"):
+            build_replay_decider(run_dir, model="mock",
+                                 agent_config=mixed_config,
+                                 with_governance=True)
+
+    def test_parse_only_replay_refuses_too(self, run_dir, mixed_config):
+        """The default mode (``with_governance=False``) is not exempt: a
+        parse-only replay of a rule-decided row's stored prompt is
+        equally meaningless, so the refusal fires before either branch."""
+        with pytest.raises(ValueError, match="LLM-decided rows only"):
+            build_replay_decider(run_dir, model="mock",
+                                 agent_config=mixed_config)
+
+    def test_the_refusal_names_the_declared_deciders(self, run_dir, mixed_config):
+        with pytest.raises(ValueError) as excinfo:
+            build_replay_decider(run_dir, model="mock", agent_config=mixed_config)
+        message = str(excinfo.value)
+        assert "rule_based" in message
+        assert "decider == 'llm'" in message
+
+    def test_an_all_llm_config_is_unaffected(self, run_dir):
+        """Falsification: the SAME run directory, against the unmodified
+        flood config (no ``decider:`` key anywhere), builds successfully
+        — the refusal is about what the CONFIG declares, not about the
+        traces or the run directory."""
+        decider = build_replay_decider(run_dir, model="mock")
+        assert decider.model_adapter is not None
+
+
 class TestGovernanceReplayExecutesOnce:
     """Item 7 (code-reviewer): every other governance test above pins a
     REFUSAL — the branch that never reaches SkillBrokerEngine.process_step
