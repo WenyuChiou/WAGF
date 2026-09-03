@@ -1359,7 +1359,7 @@ class TestNoWaterTokensInCalibrationPackage:
         result = subprocess.run(
             [sys.executable, "-m", "pytest",
              "broker/tests/test_framework_invariants.py::TestDomainGenericity",
-             "-q", "--timeout=60"],
+             "-q"],  # no --timeout: pytest-timeout is not a CI dependency
             cwd=str(REPO_ROOT), capture_output=True, text=True,
         )
         assert result.returncode == 0, (
