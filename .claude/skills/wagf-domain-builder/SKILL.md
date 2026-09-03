@@ -452,6 +452,16 @@ lifecycle stage). It never delegates to `llm-agent-audit-trace-
 analyzer` directly — trace analysis is post-experiment, owned by
 the experiment-designer chain.
 
+If the new domain has empirical benchmarks to check its aggregate
+behaviour against (e.g. "elevation rate should land near 10-35% over
+10 years"), that comparison — and the numeric parameter search that
+can chase it, `broker.calibration.optimize.optimize_parameters` — lives
+in `broker/calibration/`, not in this skill. Read
+`docs/guides/calibration_guide.md` before defining benchmarks or
+tuning non-prompt decision parameters; it also explains why the search
+refuses to touch prompt/template parameters (that stays a manual S5
+edit) and why two EPI formulas exist in this repo and disagree.
+
 ## Acceptance criteria
 
 The skill is ready when:

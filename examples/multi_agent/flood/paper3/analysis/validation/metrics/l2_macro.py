@@ -18,14 +18,37 @@ from validation.benchmarks.flood import (
 )
 
 
+FORMULA_VERSION = "paper3_l2_hard_range_v1"
+"""Names the EPI formula this module implements.
+
+Two implementations in this repo compute something called EPI and they
+disagree on the same observations.  This one uses the benchmark's
+**hard** range (no tolerance widening) and rounds the observed value to
+4 decimal places before the range check.  The other,
+``broker.calibration.benchmark_registry.BenchmarkRegistry.compare``
+(``formula_version="legacy_epi_v1"``), widens each band by a tolerance
+factor and does not round.  On the pinned 5-metric fixture in
+``broker/tests/test_calibration_pr7.py`` they return 0.7049 and 0.8689.
+Every published Paper 3 EPI number came from this one — carry the
+version string alongside the number so a reader never has to guess.
+"""
+
+
 @dataclass
 class L2Metrics:
-    """L2 Macro validation metrics."""
+    """L2 Macro validation metrics.
+
+    ``formula_version`` travels with ``epi`` through ``asdict()`` into
+    ``validation_report.json``, so a saved report says which of the two
+    EPI formulas produced its number instead of leaving that to be
+    inferred from the file's path.
+    """
     epi: float
     benchmark_results: Dict[str, Dict]
     benchmarks_in_range: int
     total_benchmarks: int
     supplementary: Optional[Dict] = None
+    formula_version: str = FORMULA_VERSION
 
     def passes_threshold(self) -> bool:
         return self.epi >= 0.60
