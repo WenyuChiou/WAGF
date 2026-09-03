@@ -64,7 +64,7 @@ from broker.domains.water.calibration.validation_router import (
     ValidationRouter,
     ValidatorType,
 )
-from broker.domains.water.calibration.benchmark_registry import (
+from broker.calibration.benchmark_registry import (
     BenchmarkRegistry,
     BenchmarkReport,
 )

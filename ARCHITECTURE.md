@@ -68,6 +68,7 @@ subpackages some time ago and the doc was never updated.
 ```
 broker/                          # Core governance middleware
 ├── agents/                      # BaseAgent + agent-state loading/protocols
+├── calibration/                 # Benchmark comparison (EPI) + numeric parameter optimizer (PR-7) -- generic, no water tokens
 ├── components/                  # Domain-independent pipeline components, 11 subpackages
 │   ├── analytics/               # Audit trace writer (audit.py), drift/feedback/observable-state tracking
 │   ├── cognitive/                # Reflection engine + orchestrator, cognitive trace dataclass
@@ -84,14 +85,14 @@ broker/                          # Core governance middleware
 ├── core/                          # Governance pipeline entrypoint: propose -> validate -> retry -> execute
 │                                  #   (skill_broker_engine.py, _retry_loop.py, _advise.py, experiment_runner.py, ...)
 ├── coupling/                      # External-model coupling layer (adapter/contract/grid+BMI sources)
-├── domains/                       # Domain metadata registry + the `water/` domain pack (flood/irrigation PMT, utility, memory strategies)
+├── domains/                       # Domain metadata registry + the `water/` domain pack (flood/irrigation PMT, utility, memory strategies, calibration's water-coupled modules -- see docs/guides/calibration_guide.md)
 ├── governance/                    # Rule-type dataclasses (rule_types.py) shared by the YAML rule engine
 ├── interfaces/                    # Protocol + dataclass definitions (enrichment, schemas, skill_types, ...)
 ├── memory/                        # Standalone research toolkit (persistence/checkpoint/replay) -- NOT the production tree, see below
 ├── modules/
 │   └── survey/                    # Generic CSV/Excel survey loading + profile creation
 ├── simulation/                    # Simulation engine, environment state, state manager
-├── tools/                         # Operator CLIs (scaffold_domain, validate_prompt, compare_audit_csv, ...)
+├── tools/                         # Operator CLIs (scaffold_domain, validate_prompt, compare_audit_csv, calibrate, ...)
 ├── utils/                         # Config loading, LLM API utilities, logging, retry formatting, ...
 └── validators/                    # AgentValidator rule engine (production path) + the five governance-framework validators
 

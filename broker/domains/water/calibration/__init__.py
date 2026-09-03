@@ -54,14 +54,22 @@ from broker.domains.water.calibration.validation_router import (
     ValidatorSpec,
     ValidatorType,
 )
-from broker.domains.water.calibration.benchmark_registry import (
+# PR-7 (2026-09): benchmark_registry / directional_validator /
+# calibration_protocol moved to broker.calibration (generic,
+# water-token-free). Importing directly from the new location here
+# means `import broker.domains.water.calibration` (this package) does
+# NOT itself trigger the submodules' DeprecationWarning — only an
+# explicit `from broker.domains.water.calibration.benchmark_registry
+# import ...` (the old submodule path, now a shim) does. Same objects
+# either way; this is purely where the names are resolved from.
+from broker.calibration.benchmark_registry import (
     Benchmark,
     BenchmarkCategory,
     BenchmarkComparison,
     BenchmarkRegistry,
     BenchmarkReport,
 )
-from broker.domains.water.calibration.directional_validator import (
+from broker.calibration.directional_validator import (
     DirectionalValidator,
     DirectionalTest,
     DirectionalTestResult,
@@ -70,13 +78,18 @@ from broker.domains.water.calibration.directional_validator import (
     chi_squared_test,
     mann_whitney_u,
 )
-from broker.domains.water.calibration.calibration_protocol import (
+from broker.calibration.calibration_protocol import (
     CalibrationProtocol,
     CalibrationConfig,
     CalibrationReport,
     CalibrationStage,
     StageVerdict,
     AdjustmentRecommendation,
+    FullConfig,
+    PilotConfig,
+    PilotIterationResult,
+    SensitivityConfig,
+    StageReport,
 )
 
 __all__ = [
@@ -125,4 +138,9 @@ __all__ = [
     "CalibrationStage",
     "StageVerdict",
     "AdjustmentRecommendation",
+    "FullConfig",
+    "PilotConfig",
+    "PilotIterationResult",
+    "SensitivityConfig",
+    "StageReport",
 ]

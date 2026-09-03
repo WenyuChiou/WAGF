@@ -3,6 +3,17 @@
 Generic, domain-agnostic validation pipeline for LLM-driven agent-based
 models.  Part of the **WAGF** (Water Agent Governance Framework) framework.
 
+> **PR-7 (2026-09):** `benchmark_registry.py`, `calibration_protocol.py`,
+> and `directional_validator.py` moved to `broker/calibration/` — they
+> had no water-domain content. The modules below (`micro_validator.py`
+> and the rest) stayed here because they do: PMT label scales, flood
+> action-name defaults, or a direct import of
+> `broker.domains.water.posthoc_keywords`. The old import paths still
+> work (`DeprecationWarning`-emitting shims). See
+> `docs/guides/calibration_guide.md` for the full picture, including the
+> two disagreeing EPI formulas and the new `broker.calibration.optimize`
+> parameter search.
+
 ## Architecture
 
 The Model Diagnostics framework validates LLM-ABM outputs at three hierarchical levels,
@@ -269,7 +280,7 @@ directory — callers must provide one.
 Domain-agnostic empirical benchmark comparison and EPI computation:
 
 ```python
-from broker.domains.water.calibration.benchmark_registry import (
+from broker.calibration.benchmark_registry import (
     BenchmarkRegistry, Benchmark, BenchmarkCategory,
 )
 
@@ -296,7 +307,7 @@ print(f"EPI = {report.plausibility_score:.3f}")
 Generic sensitivity testing with directional probes and persona swaps:
 
 ```python
-from broker.domains.water.calibration.directional_validator import (
+from broker.calibration.directional_validator import (
     DirectionalValidator, DirectionalTest,
 )
 
@@ -321,7 +332,7 @@ print(f"Pass rate = {report.pass_rate:.0%}")
 Also provides reusable statistical functions:
 
 ```python
-from broker.domains.water.calibration.directional_validator import (
+from broker.calibration.directional_validator import (
     chi_squared_test, mann_whitney_u,
 )
 ```
@@ -331,7 +342,7 @@ from broker.domains.water.calibration.directional_validator import (
 Three-stage calibration orchestrator with callback-based architecture:
 
 ```python
-from broker.domains.water.calibration.calibration_protocol import (
+from broker.calibration.calibration_protocol import (
     CalibrationProtocol,
 )
 
