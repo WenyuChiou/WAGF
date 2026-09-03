@@ -15,12 +15,43 @@ checks for new frameworks.
 Domain packs register their metadata at import time via
 ``register_framework_metadata()``.  See ``broker.domains.water`` for a
 reference implementation.
+
+PR-6 review P2: coverage note. ``world_variable_missing`` findings and the
+``run_integrity.py`` world-rule-evaluability census (``note_world_grounded_row``
+/ ``world_rules_never_evaluable``) are wired ONLY into the ``AgentValidator``
+plane — the production path every shipped domain actually runs. This
+validator (reached only through ``validate_all`` / ``build_domain_validators``,
+"available architecture, not the production default" per
+``broker/validators/governance/__init__.py``) has no equivalent: a rule whose
+``variable`` the environment did not publish silently evaluates to
+non-violated here too (see ``_evaluate_single_condition``), with no WARNING
+finding and no census entry. Deliberately NOT duplicating the AgentValidator's
+census machinery here — no shipped domain routes a decision through this
+plane, and top-level ``governance:``-plane world rules (the only rules this
+plane would ever evaluate that the AgentValidator plane does not already
+cover) are not shipped in any current domain, so there is nothing in
+production that would gain grounding columns from a second census. A
+deduped ``logger.warning`` at the miss site is the intentionally lighter
+substitute — see ``docs/guides/governance_layers.md`` §"A variable the
+environment never published" for the same note in the guide.
 """
-from typing import List, Dict, Any, Optional
+import logging
+from typing import Dict, List, Any, Optional, Set, Tuple
+
 from broker.interfaces.skill_types import ValidationResult
 from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
 from broker.governance.rule_types import GovernanceRule
 from broker.validators.governance.base_validator import BaseValidator, BuiltinCheck
+
+logger = logging.getLogger(__name__)
+
+#: PR-6 review P2: warn-once dedup for a world variable a grounded rule read
+#: but the environment never published, on THIS (non-production) evaluator
+#: plane. Keyed by (rule_id, variable) so a warning is emitted once per
+#: process per (rule, variable) pair rather than once per decision — the same
+#: warn-once shape as ``_WARNED_UNREGISTERED_FRAMEWORK`` in
+#: ``domain_validator_dispatch.py``.
+_WARNED_MISSING_WORLD_VARIABLE: Set[Tuple[str, str]] = set()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -180,6 +211,7 @@ class ThinkingValidator(BaseValidator):
         framework: Optional[str] = None,
         builtin_checks: Optional[List[BuiltinCheck]] = None,
         extreme_actions: Optional[set] = None,
+        framework_aware_labels: bool = False,
     ):
         """
         Initialize ThinkingValidator with a specific framework.
@@ -247,6 +279,15 @@ class ThinkingValidator(BaseValidator):
         self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, _DEFAULT_LABEL_ORDER)
         self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, {})
         self._extreme_actions = extreme_actions or set()
+        # PR-6: reconcile the missing-construct semantics with the other two
+        # condition evaluators. OFF (default) keeps line ~493's fabricated "M":
+        # an unreported construct is scored as MEDIUM, so a rule written for
+        # `values: ["M"]` FIRES on a decision whose construct the model never
+        # emitted. That is the published behaviour and stays reproducible.
+        # ON, an unreported construct makes the rule not fire and records a
+        # `construct_missing` WARNING — the same rule the AgentValidator and
+        # `RuleCondition.evaluate` follow under the flag.
+        self.framework_aware_labels = bool(framework_aware_labels)
         super().__init__(builtin_checks=builtin_checks)
 
     @property
@@ -344,6 +385,7 @@ class ThinkingValidator(BaseValidator):
         """
         results = []
         reasoning = context.get("reasoning", {})
+        missing_constructs: List[str] = []
 
         for rule in rules:
             # Skip non-thinking rules (use getattr for compatibility with both dataclass and Pydantic)
@@ -369,7 +411,8 @@ class ThinkingValidator(BaseValidator):
             rule_conditions = getattr(rule, 'conditions', None)
             if rule_conditions:
                 violated = self._evaluate_conditions(
-                    rule_conditions, reasoning, context, framework, matched_conditions
+                    rule_conditions, reasoning, context, framework, matched_conditions,
+                    missing_constructs=missing_constructs, rule_id=str(rule.id),
                 )
 
             if violated:
@@ -396,10 +439,54 @@ class ThinkingValidator(BaseValidator):
                         "blocked_skill": skill_name,
                         "level": rule_level,
                         **self._recovery_keys(rule),  # Phase 6O-A-2 (single source of truth)
+                        "grounding": self._rule_grounding(rule),
                     }
                 ))
 
+        for construct_name in missing_constructs:
+            results.append(ValidationResult(
+                valid=True,
+                validator_name="ThinkingValidator",
+                errors=[],
+                warnings=[
+                    f"[Rule: construct_missing] Construct '{construct_name}' was "
+                    f"not reported, so rules conditioned on it did not fire. No "
+                    f"middle value was assumed."
+                ],
+                metadata={
+                    "rule_id": "construct_missing",
+                    "rules_hit": ["construct_missing"],
+                    "category": "thinking",
+                    "framework": framework,
+                    "field": construct_name,
+                    "level": "WARNING",
+                    "expected_terminal": False,
+                    "constraint_type": "diagnostic",
+                    "grounding": "self_report",
+                },
+            ))
+
         return results
+
+    @staticmethod
+    def _rule_grounding(rule) -> str:
+        """PR-6: ``world`` iff any condition reads a variable the model cannot author."""
+        declared = str(getattr(rule, "grounding", "") or "").strip().lower()
+        if declared in ("world", "self_report"):
+            return declared
+        for cond in (getattr(rule, "conditions", None) or []):
+            if isinstance(cond, dict):
+                if cond.get("variable"):
+                    return "world"
+                if str(cond.get("type", "")).lower() in ("expression", "precondition", "social"):
+                    return "world"
+                continue
+            if getattr(cond, "variable", None):
+                return "world"
+            if str(getattr(cond, "type", "") or "").lower() in (
+                    "expression", "precondition", "social"):
+                return "world"
+        return "self_report"
 
     def _evaluate_conditions(
         self,
@@ -407,7 +494,9 @@ class ThinkingValidator(BaseValidator):
         reasoning: Dict[str, Any],
         context: Dict[str, Any],
         framework: str,
-        matched_conditions: List[str]
+        matched_conditions: List[str],
+        missing_constructs: Optional[List[str]] = None,
+        rule_id: Optional[str] = None,
     ) -> bool:
         """
         Task-041 Phase 3: Evaluate all conditions with AND logic.
@@ -418,6 +507,10 @@ class ThinkingValidator(BaseValidator):
             context: Full context including state
             framework: Current framework for label normalization
             matched_conditions: Output list to record which conditions matched
+            rule_id: PR-6 review P2 — the id of the rule these conditions
+                belong to, threaded through to ``_evaluate_single_condition``
+                purely so its missing-world-variable warning can name the
+                rule. Optional and log-only: never read for evaluation.
 
         Returns:
             True if ALL conditions match (rule is violated), False otherwise
@@ -460,7 +553,9 @@ class ThinkingValidator(BaseValidator):
             else:
                 continue  # Skip unknown format
 
-            if not self._evaluate_single_condition(cond_dict, reasoning, context, framework):
+            if not self._evaluate_single_condition(
+                    cond_dict, reasoning, context, framework,
+                    missing_constructs=missing_constructs, rule_id=rule_id):
                 return False  # AND logic: if any condition fails, rule doesn't apply
 
             # Record matched condition
@@ -474,7 +569,9 @@ class ThinkingValidator(BaseValidator):
         cond: Dict[str, Any],
         reasoning: Dict[str, Any],
         context: Dict[str, Any],
-        framework: str
+        framework: str,
+        missing_constructs: Optional[List[str]] = None,
+        rule_id: Optional[str] = None,
     ) -> bool:
         """
         Task-041 Phase 3: Evaluate a single condition.
@@ -484,20 +581,72 @@ class ThinkingValidator(BaseValidator):
             reasoning: Agent reasoning dict
             context: Full context
             framework: Current framework
+            rule_id: PR-6 review P2, log-only. Names the rule in the
+                missing-world-variable warning below. This plane has no
+                ``world_variable_missing`` finding and no run-integrity census
+                entry (see the module docstring's coverage note) — a
+                ``logger.warning`` is the only trace a miss leaves here.
 
         Returns:
             True if condition matches, False otherwise
         """
         # Get the value to compare
         if cond.get("construct"):
-            raw_value = reasoning.get(cond["construct"], "M")
+            if self.framework_aware_labels:
+                raw_value = reasoning.get(cond["construct"])
+                if raw_value is None or str(raw_value).strip() == "":
+                    name = str(cond["construct"])
+                    if missing_constructs is not None and name not in missing_constructs:
+                        missing_constructs.append(name)
+                    return False
+            else:
+                raw_value = reasoning.get(cond["construct"], "M")
             value = self._normalize_label(raw_value, framework)
         elif cond.get("variable"):
+            # PR-6: the env plane is searched FIRST and ``scope:`` can name a
+            # plane explicitly. Pre-PR-6 this read `context["state"]` then the
+            # flattened context, so a variable that lives only in ``env_state``
+            # (the broker's declared source of truth for world state) was
+            # unreachable and every rule written against one silently never
+            # fired. Same precedence as the AgentValidator, so a rule moved
+            # between the two evaluators reads the same value.
+            name = cond["variable"]
+            scope = str(cond.get("scope", "auto")).strip().lower()
+            env = context.get("env_state")
+            env = env if isinstance(env, dict) else {}
             state = context.get("state", {})
-            value = state.get(cond["variable"])
+            state = state if isinstance(state, dict) else {}
+            social = context.get("social_context")
+            social = social if isinstance(social, dict) else {}
+            planes = {
+                "env": (env,), "state": (state,), "social": (social,),
+                "context": (context,),
+            }.get(scope, (env, state, context))
+            value = None
+            for plane in planes:
+                if name in plane:
+                    value = plane[name]
+                    break
             if value is None:
-                value = context.get(cond["variable"])
-            if value is None:
+                # PR-6 review P2: this plane gets no `world_variable_missing`
+                # WARNING and no run-integrity census entry (the AgentValidator
+                # plane's grounding-observability apparatus does not reach
+                # here — see the module docstring). A deduped log line is the
+                # lighter substitute: loud enough to find, not another CSV
+                # column to keep byte-identical.
+                dedup_key = (str(rule_id or "unknown_rule"), str(name))
+                if dedup_key not in _WARNED_MISSING_WORLD_VARIABLE:
+                    _WARNED_MISSING_WORLD_VARIABLE.add(dedup_key)
+                    logger.warning(
+                        "[ThinkingValidator] rule %r reads world variable %r, "
+                        "which the environment did not publish for this "
+                        "decision — the condition silently does not match. "
+                        "No world_variable_missing finding and no "
+                        "run_integrity census entry are recorded on this "
+                        "plane (warned once per (rule_id, variable) per "
+                        "process).",
+                        dedup_key[0], dedup_key[1],
+                    )
                 return False  # Variable not found, condition doesn't match
         else:
             return False  # No construct or variable specified

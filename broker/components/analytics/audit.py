@@ -592,6 +592,28 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     if "llm_calls" in llm_stats:
         row["llm_calls"] = llm_stats.get("llm_calls")
 
+    # 2.7d. PR-6: SOFT-RULE columns, key-gated the same way. Present only when
+    # global_config.governance.advise_mode is `record` or `feedback`.
+    # `advise_findings` names the WARNING rules that fired; `advise_shown` says
+    # whether the model was actually told about them. Without the second column
+    # a reader cannot distinguish "advice had no effect" from "advice was never
+    # delivered" — the two readings the published corpus could not separate.
+    if "advise_findings" in t:
+        for _k in ("soft_advise_mode", "advise_findings", "advise_shown",
+                   "advise_reports_shown", "advise_skill_before",
+                   "advise_skill_after", "advise_executed_stage",
+                   "advise_parse_failed", "advise_post_validation_invalid",
+                   "advise_post_validation_rules", "soft_findings_unidentified"):
+            row[_k] = t.get(_k)
+
+    # 2.7e. PR-6: GROUNDING columns, key-gated the same way. Present only when
+    # the active governance profile declares a world-grounded rule (or the
+    # operator forces them on). Splits the rules that fired by whether their
+    # antecedent read simulator state or a label the model wrote itself.
+    if "rules_world_grounded" in t:
+        row["rules_world_grounded"] = t.get("rules_world_grounded", "")
+        row["rules_self_report"] = t.get("rules_self_report", "")
+
     # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
     # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
     # is ON and the proposal carries setpoints; surface them into the row so

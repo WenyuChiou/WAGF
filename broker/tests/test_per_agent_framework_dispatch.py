@@ -203,7 +203,7 @@ class TestValidateAllPlumbsAgentType:
 
         captured = {}
 
-        def _fake_dispatcher(domain, agent_type=None):
+        def _fake_dispatcher(domain, agent_type=None, **kwargs):
             captured["domain"] = domain
             captured["agent_type"] = agent_type
             return []
@@ -234,7 +234,7 @@ class TestValidateAllPlumbsAgentType:
 
         captured = {}
 
-        def _fake_dispatcher(domain, agent_type=None):
+        def _fake_dispatcher(domain, agent_type=None, **kwargs):
             captured["domain"] = domain
             captured["agent_type"] = agent_type
             return []

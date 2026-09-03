@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 _WARNED_UNREGISTERED_FRAMEWORK: Set[Tuple[str, str]] = set()
 
 
-def _empty_validators() -> list:
+def _empty_validators(framework_aware_labels: bool = False) -> list:
     from broker.validators.governance.thinking_validator import (
         FRAMEWORK_ESCAPE_HATCH,
     )
@@ -55,7 +55,9 @@ def _empty_validators() -> list:
         # sentinel — explicit no-metadata signal, generic 5-level
         # VL/L/M/H/VH ordering. Empty domain by definition has no
         # registered framework.
-        ThinkingValidator(framework=FRAMEWORK_ESCAPE_HATCH, builtin_checks=no_builtins),
+        ThinkingValidator(framework=FRAMEWORK_ESCAPE_HATCH,
+                          builtin_checks=no_builtins,
+                          framework_aware_labels=framework_aware_labels),
         SocialValidator(builtin_checks=no_builtins),
         SemanticGroundingValidator(builtin_checks=no_builtins),
     ]
@@ -69,6 +71,8 @@ def _with_registered_mode(validator, domain: str, slot: str):
 def build_domain_validators(
     domain: Optional[str],
     agent_type: Optional[str] = None,
+    framework_aware_labels: Optional[bool] = None,
+    config: Optional[object] = None,
 ) -> list:
     """Return builtin validator instances for any registered domain.
 
@@ -93,14 +97,29 @@ def build_domain_validators(
     preserved (paper-1b byte-identity protection: SA flood +
     irrigation runs that don't plumb agent_type get the same
     domain-wide framework as before). Closes engineering-audit Y6.
+
+    PR-6 review P1-b (2026-09-02): ``framework_aware_labels`` reaches the
+    ``ThinkingValidator`` from here. It was half-wired — ``AgentValidator``
+    read the flag from its own config and this dispatcher never passed it —
+    so under the flag the two evaluators disagreed about the SAME rule on
+    the SAME decision: one recorded a ``construct_missing`` WARNING and did
+    not fire, the other fabricated ``"M"`` and fired. Pass ``config`` (the
+    ``AgentTypeConfig`` the run was built from) or an explicit boolean;
+    ``None`` resolves the most-recently-loaded config, which is the one every
+    production path holds.
     """
+    if framework_aware_labels is None:
+        from broker.utils.agent_config import resolve_framework_aware_labels
+        framework_aware_labels = resolve_framework_aware_labels(config)
+    framework_aware_labels = bool(framework_aware_labels)
+
     resolved = (domain or "").strip().lower() or None
 
     if resolved is None:
-        return _empty_validators()
+        return _empty_validators(framework_aware_labels)
 
     if not ValidatorRegistry.has_domain(resolved):
-        return _empty_validators()
+        return _empty_validators(framework_aware_labels)
 
     extreme: set = set()
     framework: str = ""
@@ -201,6 +220,7 @@ def build_domain_validators(
             framework=framework,
             builtin_checks=ValidatorRegistry.get_checks(resolved, "thinking"),
             extreme_actions=extreme,
+            framework_aware_labels=framework_aware_labels,
         ), resolved, "thinking"),
         _with_registered_mode(
             SocialValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "social")),
