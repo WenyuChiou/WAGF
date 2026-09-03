@@ -180,8 +180,7 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "governance",   # see KNOWN_GOVERNANCE_KEYS
     "social_feeds", # see KNOWN_SOCIAL_FEEDS_KEYS (two-layer flag, Phase 6T-E.B)
     "coupling",     # see KNOWN_COUPLING_KEYS (two-layer flag, Phase 6V)
-    "audit",        # agent_config.get_audit_executed_columns (F3, opt-in
-                    # executed_skill_columns; default OFF)
+    "audit",        # see KNOWN_AUDIT_KEYS (opt-in column flags, all default OFF)
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {
@@ -215,6 +214,19 @@ KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
 
 KNOWN_COUPLING_KEYS: Set[str] = {
     "enable",  # broker/coupling/flag.py
+}
+
+# Every opt-in audit column flag, all default-OFF and all read through
+# ``AgentTypeConfig``. Registered here because these flags fail CLOSED: a
+# typo'd key resolves to its default, the run produces the UNCORRECTED columns,
+# and nothing in the artifacts says the flag was ever requested — you find out
+# when the analysis is already written. This check is the only config-time net.
+KNOWN_AUDIT_KEYS: Set[str] = {
+    "corrected_status_columns",  # agent_config.get_audit_corrected_status_columns (PR-3)
+    "executed_skill_columns",    # agent_config.get_audit_executed_columns (F3)
+    "initial_proposal_columns",  # agent_config.get_audit_initial_proposal_columns (P0-1a)
+    "advise_columns",            # agent_config.get_audit_advise_columns (P0-1c)
+    "param_columns",             # agent_config.get_audit_param_columns (6W-B6)
 }
 
 
@@ -267,6 +279,7 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     gov = _check_block("governance", KNOWN_GOVERNANCE_KEYS)
     _check_block("social_feeds", KNOWN_SOCIAL_FEEDS_KEYS)
     _check_block("coupling", KNOWN_COUPLING_KEYS)
+    _check_block("audit", KNOWN_AUDIT_KEYS)
 
     dispatch = gov.get("dispatch_domain_physical")
     if isinstance(dispatch, dict):

@@ -396,8 +396,21 @@ class ExperimentRunner:
 
     def _finalize_experiment(self, iterations: int):
         """Finalize outputs even if the run exits early."""
+        # ORDER IS LOAD-BEARING: finalize() is what writes the audit CSV(s).
+        # `_collect_reproducibility_metadata()` below calls `record_run_integrity`,
+        # whose coverage block READS those CSVs — run it first and coverage comes
+        # back empty, which reads as "nothing missing" rather than "not measured".
+        # Do not move this call below the manifest build.
         if hasattr(self.broker.audit_writer, 'finalize'):
             self.broker.audit_writer.finalize()
+
+        # The CONFIGURED expectation, recorded for the coverage block. It has to
+        # come from here because `_collect_reproducibility_metadata` never sees
+        # `iterations`, and the coverage block cannot derive it: a run cut short
+        # at year 9 of 13 produces a 9-year grid that looks complete.
+        # Per agent TYPE, because each type gets its own audit CSV and pooling
+        # them multiplies one type's agents by another type's years.
+        self._configured_expectation = self._configured_grid_expectation(iterations)
 
         summary_path = self.config.output_dir / "governance_summary.json"
 
@@ -515,6 +528,27 @@ class ExperimentRunner:
                 f"summary from those if needed.",
                 exc_info=True,
             )
+
+    def _configured_grid_expectation(self, iterations: int) -> dict:
+        """This runner's configured agent x year grid.
+
+        S2: the arithmetic lives in
+        ``broker.core.run_integrity.configured_grid_expectation`` so the
+        single-agent ``run_flood`` path computes it identically instead of
+        keeping a second inline copy. This method is the runner's spelling of
+        the same call.
+
+        ``getattr``, not ``self.agents``: this runs from ``_finalize_experiment``
+        on a FINISHED run, and a partially-built runner (every test that drives
+        finalize on an ``__new__``'d instance) has no ``agents`` attribute at
+        all. A bare attribute read would raise before the helper's own guard
+        could catch it, and take the finalize path down over a side artifact.
+        """
+        from broker.core.run_integrity import configured_grid_expectation
+
+        return configured_grid_expectation(
+            getattr(self, "agents", None), iterations
+        )
 
     def _collect_reproducibility_metadata(self) -> dict:
         """Collect model digest, git state, and config hashes for reproducibility."""
@@ -710,11 +744,30 @@ class ExperimentRunner:
                     "coupling_adapter": True,
                     "sim_engine_class": type(self.sim_engine).__name__,
                 }
+            # The configured grid, set by _finalize_experiment just before this
+            # runs. Absent on any path that reaches here without finalizing, in
+            # which case the coverage block reports "not measured".
+            refl_kwargs.update(getattr(self, "_configured_expectation", {}) or {})
             metadata["run_integrity"] = record_run_integrity(
                 self.config.output_dir,
                 memory_engine=self.memory_engine,
                 governance_mode=self.config.governance_profile,
                 seed=self.config.seed,
+                # The RESOLVED flag, not the YAML's requested one: this is the
+                # value the engine actually read, so a flag that failed closed
+                # is visible in the artifact rather than only in a log line.
+                corrected_status_columns=getattr(
+                    self.broker, "_corrected_status_columns", None
+                ),
+                # isinstance-guarded for the same reason `memory_seed` above is:
+                # a MagicMock broker returns a Mock from getattr, and Mock + int
+                # raises — which would take the whole integrity record down.
+                sentinel_write_failures=(
+                    (_bs if isinstance(_bs := getattr(
+                        self.broker, "_audit_sentinel_write_failures", 0), int) else 0)
+                    + (_rs if isinstance(_rs := getattr(
+                        self, "_aborted_trace_write_failures", 0), int) else 0)
+                ),
                 verbose=False,
                 **refl_kwargs,
             )
@@ -1009,7 +1062,7 @@ class ExperimentRunner:
             audit_writer = getattr(self.broker, 'audit_writer', None)
             if audit_writer is None:
                 return
-            audit_writer.write_trace(agent_type, {
+            trace = {
                 "run_id": run_id,
                 "step_id": sentinel_step,
                 "timestamp": datetime.now().isoformat(),
@@ -1028,8 +1081,35 @@ class ExperimentRunner:
                 ],
                 "retry_count": 0,
                 "format_retries": 0,
-            })
+            }
+            # P1a: the `status` key above is TOP-LEVEL, but `trace_to_csv_row`
+            # reads the status column off `approved_skill` — so this sentinel's
+            # CSV cell has always said `UNKNOWN`, and the one row written to
+            # make a crashed step visible named the crash nowhere the CSV
+            # reader could see it. Giving it an `approved_skill` with an empty
+            # skill name and the real status fixes the cell.
+            #
+            # Under the corrected-columns flag ONLY: `approved_skill` also
+            # feeds `final_skill` and `mapping`, and a frozen corpus rerun with
+            # the flag OFF must stay byte-identical, `UNKNOWN` included. With
+            # the flag OFF this row is NOT countable from the CSV (`status`
+            # is the only signal `audit_coverage` reads); it survives only in
+            # `raw/*_traces.jsonl` as `decision_source == "exception"`.
+            if getattr(self.broker, "_corrected_status_columns", False) is True:
+                trace["approved_skill"] = {
+                    "skill_name": "", "status": "ABORTED_EXCEPTION", "mapping": "",
+                }
+                trace["executed_skill"] = ""
+                trace["executed_via_fallback"] = False
+                trace["execution_path"] = "aborted"
+            audit_writer.write_trace(agent_type, trace)
         except Exception as audit_err:
+            # P2d: count it. This is a row that should exist and does not —
+            # the denominator hole the F1 fix was written to close, and until
+            # now it lived only in the console log.
+            self._aborted_trace_write_failures = (
+                getattr(self, "_aborted_trace_write_failures", 0) + 1
+            )
             logger.error(
                 f"[AbortedTrace] Secondary audit-writer failure for "
                 f"agent {agent.id} (original error was "

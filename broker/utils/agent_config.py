@@ -362,6 +362,57 @@ class AgentTypeConfig:
             return False
         return bool(block.get("advise_columns", False))
 
+    def get_audit_corrected_status_columns(self) -> bool:
+        """PR-3 (2026-09-01): opt-in CORRECTED status/truth columns (default-OFF).
+
+        When ``global_config.audit.corrected_status_columns: true`` the audit
+        plane stops reporting the *blocked proposal* as if it were the
+        outcome, and starts reporting what the broker actually did:
+
+        - ``executed_skill`` / ``executed_via_fallback`` — as for
+          ``executed_skill_columns`` (F3); this flag implies them, so a run
+          need not set both.
+        - ``execution_path`` (NEW column) — one of ``approved`` /
+          ``rejected_default`` / ``rejected_proposal`` / ``fallback`` /
+          ``aborted`` / ``not_executed``. It names the remap rule that
+          produced ``executed_skill``, so an analyst never has to re-derive
+          it from ``status`` plus the domain's ``on_retry_exhausted`` policy.
+        - ``fallback_activated`` — derived from the EXECUTED skill instead of
+          the blocked one. Flag-OFF it reads ``approval_status ==
+          "REJECTED_FALLBACK"``, which is False on a plain-``REJECTED`` row
+          even though the registry default is exactly what ran.
+        - ``rules_personal_hit`` / ``_social_`` / ``_thinking_`` /
+          ``_semantic_`` — INFERRED from tier / validator name / rule id under
+          ``AgentValidator`` (which sets ``metadata["tier"]``, never
+          ``metadata["category"]``), instead of structurally zero. It is an
+          inference, not a declaration: only the categories a producer's tier
+          labels can express will ever populate, so a bucket reading zero can
+          mean "no rule fired" OR "no tier label named this category". Rules
+          whose category cannot be named — identity and other precondition
+          rules among them — are NOT filed under a plausible bucket; they are
+          counted as ``rules_uncategorised_total`` /
+          ``rules_uncategorised_ids`` in ``run_integrity.json`` and logged
+          once per run. Read those alongside the columns.
+        - ``mem_top_emotion`` / ``mem_top_source`` — ``"unobserved"`` when the
+          retrieved memory records carry no such key, instead of the
+          ``"neutral"`` / ``"personal"`` literals that are indistinguishable
+          in the CSV from a genuine unanimous mode.
+        - one sentinel row per step that returned ``SkillOutcome.ABORTED``
+          (unparsable output after retries), so per-agent-year row counts are
+          conserved between arms instead of silently shrinking on the arm
+          with more parse failures.
+
+        OPT-IN, default-OFF by byte-identity necessity, exactly as for
+        ``executed_skill_columns`` / ``initial_proposal_columns`` /
+        ``advise_columns``: this flag both ADDS a column and CHANGES the
+        values of four existing ones, so every published corpus must be able
+        to reproduce byte-identically with it absent. Enable for ALL NEW runs.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("corrected_status_columns", False))
+
     def get_governance_on_retry_exhausted(self) -> str:
         """What executes when governance retries are exhausted: a MODEL-BUILDER choice.
 

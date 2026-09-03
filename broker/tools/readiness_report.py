@@ -50,6 +50,30 @@ from broker.components.validation.readiness_profile import (
     ReadinessProfile,
     load_readiness_profile,
 )
+from broker.utils.logging import logger as LOGGER
+
+
+# Coverage keys read out of run_integrity.json. `_REQUIRED_COVERAGE_KEYS` is
+# what a COMPLETE coverage block must contain; anything short of that triggers a
+# recompute from the CSV, because a partial block reads exactly like a full one
+# in the report.
+_COVERAGE_KEYS = (
+    "audit_rows", "audit_aborted_rows", "audit_aborted_rows_source",
+    "audit_agents", "audit_years",
+    "audit_grid_rows", "audit_rows_missing_vs_grid", "expected_rows",
+    "expected_agents", "expected_years", "configured_grid_rows",
+    "audit_rows_missing_vs_configured_grid",
+    "parse_layer_distribution", "parse_layer_digit_share",
+    "parse_layer_default_share", "audit_csv_files", "audit_coverage_by_file",
+    "audit_corrected_status_columns", "audit_coverage_errors",
+    "audit_expectation_unmatched_keys",
+)
+_REQUIRED_COVERAGE_KEYS = frozenset({
+    "audit_rows", "audit_aborted_rows", "audit_agents", "audit_years",
+    "audit_grid_rows", "audit_rows_missing_vs_grid",
+    "parse_layer_distribution", "parse_layer_digit_share",
+    "parse_layer_default_share",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +104,17 @@ class ReadinessMetrics:
     distinct_actions: List[str] = field(default_factory=list)
     validator_firing_diversity: Optional[int] = None
     dead_validators: List[str] = field(default_factory=list)
+    # PR-3 additions. `audit_coverage` answers "did every agent-year reach
+    # the CSV, and how were those decisions actually extracted" — the two
+    # questions a rejection-rate comparison between arms silently assumes.
+    # See broker/components/analytics/audit.py:audit_coverage for each key
+    # (run_integrity.py only embeds what that function returns).
+    audit_coverage: Dict[str, Any] = field(default_factory=dict)
+    # Which framework + audit schema wrote the run, and under which
+    # governance profile. Read from run_integrity.json / audit_summary.json,
+    # so the readiness report is self-contained evidence.
+    framework_provenance: Dict[str, Any] = field(default_factory=dict)
+    governance_profile: Optional[str] = None
 
 
 @dataclass
@@ -153,6 +188,19 @@ def _find_jsonl_traces(results_dir: Path) -> List[Path]:
 # ---------------------------------------------------------------------------
 
 
+def _read_run_integrity(results_dir: Path) -> Dict[str, Any]:
+    """Return run_integrity.json contents or empty dict if missing/unreadable."""
+    path = results_dir / "run_integrity.json"
+    if not path.is_file():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
 def _compute_metrics(results_dir: Path) -> ReadinessMetrics:
     """Read the results dir and compute every metric defined in
     `ReadinessMetrics`. Missing inputs leave fields `None`.
@@ -160,6 +208,53 @@ def _compute_metrics(results_dir: Path) -> ReadinessMetrics:
     metrics = ReadinessMetrics()
 
     summary = _read_audit_summary(results_dir)
+
+    # PR-3 provenance + coverage. Prefer what the run itself recorded
+    # (run_integrity.json), and recompute coverage from the CSV when the run
+    # predates the contract — a report on an older corpus is still useful.
+    integrity = _read_run_integrity(results_dir)
+    metrics.governance_profile = integrity.get("governance_mode")
+    provenance = integrity.get("framework_provenance")
+    if not isinstance(provenance, dict) or not provenance:
+        # P1d-2: this fallback reads audit_summary.json, which
+        # GenericAuditWriter.finalize now restamps to "3" when it wrote the
+        # corrected column set. Before that restamp this branch reported "2" on
+        # a corrected run — the wrong contract, from the artifact meant to state
+        # which contract applies.
+        provenance = {
+            key: summary[key]
+            for key in ("framework_version", "audit_schema_version", "git_commit_short")
+            if key in summary
+        }
+    metrics.framework_provenance = provenance
+    coverage = {
+        key: integrity[key]
+        for key in _COVERAGE_KEYS
+        if key in integrity
+    }
+    # P2c: an explicit required-key check, not `if not coverage`. A
+    # run_integrity.json carrying even ONE coverage key made the old truth test
+    # pass, so a partially-written or older-contract file was accepted whole
+    # and the recompute never ran — the report then showed a coverage block
+    # with holes in it and no sign that anything was missing.
+    if not _REQUIRED_COVERAGE_KEYS.issubset(coverage):
+        try:
+            from broker.components.analytics.audit import audit_coverage
+
+            recomputed = audit_coverage(results_dir)
+        except Exception as exc:
+            LOGGER.warning(
+                "[Readiness] audit coverage recompute failed (%s: %s) — the "
+                "coverage block below is whatever run_integrity.json held, "
+                "which may be partial.", type(exc).__name__, exc,
+            )
+            recomputed = {}
+        # Recomputed values fill the gaps; anything the run itself recorded
+        # wins, because only the run knew its configured expectation.
+        if recomputed:
+            recomputed.update(coverage)
+            coverage = recomputed
+    metrics.audit_coverage = coverage
     total = summary.get("total_traces")
     if isinstance(total, int) and total > 0:
         metrics.total_traces = total
@@ -474,6 +569,66 @@ def _format_console(report: ReadinessReport) -> str:
     if m.terminal_taxonomy:
         nonzero = {k: v for k, v in m.terminal_taxonomy.items() if v > 0}
         lines.append(f"  terminal_taxonomy           : {nonzero}")
+
+    cov = m.audit_coverage
+    if cov:
+        lines.append("")
+        lines.append("Audit coverage")
+        # A run predating the key gets "unrecorded" rather than a bare None —
+        # the point of the field is to say WHERE the count came from, and
+        # printing None would read like the count itself is missing.
+        counted_from = cov.get("audit_aborted_rows_source") or "unrecorded"
+        lines.append(
+            f"  rows                        : {cov.get('audit_rows')}"
+            f"  (aborted sentinels: {cov.get('audit_aborted_rows')}"
+            f", counted from: {counted_from})"
+        )
+        lines.append(
+            f"  agent x year grid           : "
+            f"{cov.get('audit_agents')} x {cov.get('audit_years')} "
+            f"= {cov.get('audit_grid_rows')}"
+            f"  (rows missing vs grid: {cov.get('audit_rows_missing_vs_grid')})"
+        )
+        if cov.get("configured_grid_rows") is not None:
+            lines.append(
+                f"  configured grid             : "
+                f"{cov.get('configured_grid_rows')}"
+                f"  (rows missing vs configured: "
+                f"{cov.get('audit_rows_missing_vs_configured_grid')})"
+            )
+            lines.append(
+                "                                a shortfall is a number to "
+                "explain (agents can leave the active set), not a verdict"
+            )
+        if cov.get("expected_rows") is not None:
+            lines.append(
+                f"  expected rows               : {cov.get('expected_rows')}"
+            )
+        if cov.get("audit_expectation_unmatched_keys"):
+            lines.append(
+                f"  EXPECTATION KEYS UNMATCHED  : "
+                f"{cov.get('audit_expectation_unmatched_keys')}"
+            )
+            lines.append(
+                "                                these named no audit CSV, so "
+                "their expectations were not applied"
+            )
+        if cov.get("audit_coverage_errors"):
+            lines.append(
+                f"  UNREADABLE audit CSVs       : {cov.get('audit_coverage_errors')}"
+            )
+        if len(cov.get("audit_csv_files") or []) > 1:
+            lines.append(
+                f"  per-file coverage           : {cov.get('audit_coverage_by_file')}"
+            )
+        lines.append(f"  parse_layer_distribution    : {cov.get('parse_layer_distribution')}")
+        lines.append(f"  parse_layer_digit_share     : {cov.get('parse_layer_digit_share')}")
+        lines.append(f"  parse_layer_default_share   : {cov.get('parse_layer_default_share')}")
+    if m.framework_provenance or m.governance_profile:
+        lines.append("")
+        lines.append("Provenance")
+        lines.append(f"  framework                   : {m.framework_provenance}")
+        lines.append(f"  governance_profile          : {m.governance_profile}")
 
     lines.append("")
     lines.append("Threshold checks")

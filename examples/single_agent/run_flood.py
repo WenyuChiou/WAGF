@@ -1304,13 +1304,33 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # actual runtime state to run_integrity.json + warn loudly if reflection was expected
     # (humancentric) but produced nothing. Record-and-flag, never raise. See
     # broker/INVARIANTS.md Invariant 6.
-    from broker.core.run_integrity import record_run_integrity
+    from broker.core.run_integrity import (
+        configured_grid_expectation, record_run_integrity,
+    )
+    # The CONFIGURED grid, so the coverage block can see a run that stopped
+    # early. Without it, coverage derives the grid from the rows that exist and
+    # a run truncated at year 9 of 13 reports nothing missing.
+    #
+    # S2: computed by the shared helper, which is per agent type and never
+    # raises. The inline loop this replaces could have thrown on an unexpected
+    # agents container and taken a FINISHED run down while writing a side
+    # artifact — the worst possible place for an exception.
+    _expectation = configured_grid_expectation(agents, years)
     record_run_integrity(
         output_dir,
         memory_engine_type=memory_engine_type,
         reflection_engine=reflection_engine,
         governance_mode=governance_mode,
         seed=seed,
+        # The RESOLVED flag and any sentinel rows the writer could not write —
+        # a failed sentinel write is a missing row, which is exactly the hole
+        # the coverage numbers exist to surface.
+        corrected_status_columns=getattr(
+            runner.broker, "_corrected_status_columns", None),
+        sentinel_write_failures=(
+            _sf if isinstance(_sf := getattr(
+                runner.broker, "_audit_sentinel_write_failures", 0), int) else 0),
+        **_expectation,
     )
 
     # 6. Save Simulation Log (Parity with baseline simulation_log.csv)

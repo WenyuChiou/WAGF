@@ -21,6 +21,17 @@ logger = setup_logger(__name__)
 # stamping the version that produced it.
 AUDIT_SCHEMA_VERSION = "2"
 
+# The version stamped instead of AUDIT_SCHEMA_VERSION when the CORRECTED column
+# set is present (``audit.corrected_status_columns`` ON). PR-3 review item P1d:
+# under that flag `fallback_activated` keeps its name but answers a different
+# question, `execution_path` is a new column and aborted steps gain rows — an
+# analyst who reads "2" on such a CSV would apply the wrong contract. The base
+# constant stays "2" because it pins the FLAG-OFF column set that
+# broker/tests/test_audit_schema_golden.py freezes; the corrected set is a
+# strict superset written only on request, so it gets its own number rather
+# than moving the frozen one.
+AUDIT_SCHEMA_VERSION_CORRECTED = "3"
+
 
 def _git_commit_short() -> str:
     """Short git hash of the working tree, or 'unavailable'.
@@ -79,9 +90,13 @@ def audit_run_metadata() -> dict:
 # to silently degrade to). Empty-string / False / 0.0 constants below are the
 # ones that should have triggered an alarm in the 2026-04-19 post-mortem.
 _SUSPICIOUS_COLUMN_DEFAULTS: Dict[str, Tuple[Any, ...]] = {
-    # Memory pipeline — see INVARIANTS.md Invariant 1 + 2
-    "mem_top_emotion": ("neutral", ""),
-    "mem_top_source": ("personal", ""),
+    # Memory pipeline — see INVARIANTS.md Invariant 1 + 2.
+    # "unobserved" (PR-3, written under audit.corrected_status_columns when the
+    # memory record carries no emotion/source key) is listed alongside the old
+    # literals: naming the gap honestly must not also make it invisible to the
+    # constancy sentinel that exists to catch exactly this pipeline leak.
+    "mem_top_emotion": ("neutral", "unobserved", ""),
+    "mem_top_source": ("personal", "unobserved", ""),
     "mem_surprise": (0.0, 0),
     "mem_cognitive_system": ("",),
     # Cognitive module — dormant in V1, should fire WARNING until V2 lands
@@ -154,6 +169,304 @@ def detect_audit_sentinels_in_csv(csv_path: str, min_rows: int = _SENTINEL_MIN_R
         with open(csv_path, newline="", encoding="utf-8-sig") as fh:
             rows = list(csv.DictReader(fh))
     return detect_audit_sentinels(rows, min_rows=min_rows)
+
+
+#: Statuses marking a row as a step that produced no decision. ``ABORTED`` is
+#: the PR-3 parse-failure sentinel written by ``SkillBrokerEngine``;
+#: ``ABORTED_EXCEPTION`` is the F1 sentinel written by
+#: ``ExperimentRunner._write_aborted_trace`` when a step raised.
+#:
+#: This is the ONLY signal ``audit_coverage`` reads, because ``status`` is the
+#: only one of the two that reaches the CSV. ``decision_source`` lives in the
+#: JSONL trace and ``trace_to_csv_row`` never emits a column for it (P1a-2), so
+#: a coverage count keyed on it would have been dead code on every real corpus.
+#: The consequence is stated in ``docs/AUDIT_SCHEMA.md``: with the
+#: corrected-columns flag OFF the F1 exception sentinel's ``status`` cell reads
+#: ``UNKNOWN``, and those rows cannot be counted from the CSV at all — count
+#: them from ``raw/*_traces.jsonl`` (``decision_source == "exception"``).
+_ABORTED_STATUSES = ("ABORTED", "ABORTED_EXCEPTION")
+
+#: What ``audit_aborted_rows`` was counted from, recorded in the coverage block
+#: so a reader never has to guess whether a zero means "no aborted steps" or
+#: "aborted steps this plane cannot see".
+_ABORTED_ROWS_SOURCE = "csv_status_column"
+
+
+def _row_is_aborted(row: Dict[str, Any]) -> bool:
+    """True when this CSV row is a no-decision sentinel."""
+    return str(row.get("status", "") or "").upper() in _ABORTED_STATUSES
+
+
+def _coverage_for_rows(
+    rows: List[Dict[str, Any]],
+    expected_rows: Optional[int],
+    expected_agents: Optional[int],
+    expected_years: Optional[int],
+) -> Dict[str, Any]:
+    """Coverage numbers for one already-read set of rows. Never raises."""
+    from collections import Counter
+
+    total = len(rows)
+    agents = {str(r.get("agent_id", "")) for r in rows if r.get("agent_id")}
+    years = {str(r.get("year", "")) for r in rows if r.get("year")}
+    aborted = sum(1 for r in rows if _row_is_aborted(r))
+    grid = len(agents) * len(years)
+
+    # The CONFIGURED grid, from what the caller asked the run to produce —
+    # never from the rows themselves. Deriving the expectation from observed
+    # rows is the P0 defect this replaces: a run truncated at year 9 of 13
+    # shows a 9-year observed grid and reports nothing missing.
+    if isinstance(expected_agents, int) and isinstance(expected_years, int):
+        configured_grid: Optional[int] = expected_agents * expected_years
+    elif isinstance(expected_rows, int):
+        configured_grid = expected_rows
+    else:
+        configured_grid = None
+
+    layers = Counter(str(r.get("parse_layer", "") or "(none)") for r in rows)
+    digit = sum(n for layer, n in layers.items() if "digit" in layer.lower())
+    # Substring, not an exact "default" key (PR-3 review item P2a): the parser
+    # names its last-resort layer variously ("default", "default_fallback",
+    # "layer4_default"), and an exact match silently reported 0.0 for all of
+    # them. NOTE this counts PARSE-layer defaults only — a governance
+    # REJECTED -> registry-default substitution is not a parse layer at all and
+    # never appears here; read `execution_path == "rejected_default"` for that.
+    default = sum(n for layer, n in layers.items() if "default" in layer.lower())
+
+    return {
+        "audit_rows": total,
+        "audit_aborted_rows": aborted,
+        "audit_agents": len(agents),
+        "audit_years": len(years),
+        "audit_grid_rows": grid,
+        "audit_rows_missing_vs_grid": grid - total,
+        "expected_rows": expected_rows,
+        "expected_agents": expected_agents,
+        "expected_years": expected_years,
+        "configured_grid_rows": configured_grid,
+        "audit_rows_missing_vs_configured_grid": (
+            configured_grid - total if isinstance(configured_grid, int) else None
+        ),
+        "parse_layer_distribution": dict(sorted(layers.items())),
+        "parse_layer_digit_share": round(digit / total, 4) if total else 0.0,
+        "parse_layer_default_share": round(default / total, 4) if total else 0.0,
+    }
+
+
+def _as_per_file_expectation(value, stem: str, n_files: int):
+    """Pull one CSV's share out of a total-or-per-agent-type expectation.
+
+    A mapping is keyed by agent type (the CSV stem minus ``_governance_audit``),
+    which is what ``ExperimentRunner`` can actually compute per type. An ``int``
+    is a TOTAL across every audit CSV in the directory, so it applies to a
+    single file only when that file is the whole run — with two agent types it
+    says nothing about either, and ``None`` is the honest answer rather than
+    half a number attached to a name.
+    """
+    if isinstance(value, dict):
+        return value.get(stem)
+    if isinstance(value, int) and n_files == 1:
+        return value
+    return None
+
+
+def _unmatched_expectation_keys(stems, *expectations) -> List[str]:
+    """Expectation-mapping keys that name no audit CSV in this directory.
+
+    P2-1: ``_as_per_file_expectation`` returns ``None`` for a key that matches
+    no stem, and ``None`` is also what "no expectation was supplied" looks
+    like — so an expectation keyed ``"households"`` against a
+    ``household_governance_audit.csv`` produced a coverage block reading "not
+    measured" with nothing anywhere saying the caller HAD measured it and the
+    name simply did not line up.
+    """
+    known = set(stems)
+    unmatched: set = set()
+    for value in expectations:
+        if isinstance(value, dict):
+            unmatched.update(str(k) for k in value if str(k) not in known)
+    return sorted(unmatched)
+
+
+def audit_coverage(
+    output_dir,
+    expected_rows=None,
+    expected_agents=None,
+    expected_years: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Row-count and parse-layer coverage for a finished run's audit CSV(s).
+
+    Read-only over ``<output_dir>/*_governance_audit.csv``; never raises and
+    never writes. Returns ``{}`` when no audit CSV is present or readable.
+    Consumed by ``broker.core.run_integrity.record_run_integrity`` (which
+    embeds it in ``run_integrity.json``) and by
+    ``broker.tools.readiness_report``.
+
+    ``expected_rows`` / ``expected_agents`` accept either an ``int`` (the total
+    across the whole run) or a mapping keyed by agent type, so a multi-type run
+    gets a per-CSV expectation instead of one pooled number.
+    ``expected_years`` is the configured iteration count and applies to every
+    agent type alike.
+
+    What the keys answer, and why each is here:
+
+    - ``audit_rows`` / ``audit_aborted_rows`` — total rows, and how many are
+      no-decision sentinels. Counting sentinels IN the total is the point: a
+      parse failure must occupy a row, not vanish from the denominator.
+      ``audit_aborted_rows_source`` names the column the count came from
+      (``status``), because on a flag-OFF corpus the F1 exception sentinel's
+      ``status`` cell reads ``UNKNOWN`` and is therefore NOT counted here —
+      those rows are visible only in ``raw/*_traces.jsonl``.
+    - ``audit_agents`` / ``audit_years`` / ``audit_grid_rows`` — the OBSERVED
+      agent x year grid; ``audit_rows_missing_vs_grid`` is grid minus rows.
+      This pair can only ever catch holes INSIDE what was observed: a run cut
+      short at year 9 of 13 observes a 9-year grid and reports nothing
+      missing, which is why the configured pair below exists.
+    - ``expected_rows`` / ``expected_agents`` / ``expected_years`` /
+      ``configured_grid_rows`` / ``audit_rows_missing_vs_configured_grid`` —
+      the same arithmetic against what the RUNNER was configured to produce,
+      so a truncated run is visible. All ``None`` when no caller supplied an
+      expectation: a guessed expectation would raise a false alarm on exactly
+      the runs this exists to certify.
+      A POSITIVE missing count is not automatically a defect — a domain where
+      agents leave the active set (a relocated flood household) legitimately
+      produces fewer rows. It is a number to explain, not a verdict, and this
+      function deliberately does NOT subtract exits on the domain's behalf.
+      (W1: a separate ``row_count_conserved`` boolean used to sit here. It was
+      removed — it restated ``audit_rows_missing_vs_configured_grid == 0``
+      while dropping the caveat above, so a legitimate agent exit read as a
+      bare ``False`` that looked like a verdict.)
+    - ``audit_expectation_unmatched_keys`` — expectation keys that matched no
+      audit CSV in this directory. Present only when there are some. Without
+      it, an expectation keyed ``"households"`` against a
+      ``household_governance_audit.csv`` silently produces "not measured".
+    - ``parse_layer_distribution`` / ``parse_layer_digit_share`` /
+      ``parse_layer_default_share`` — how the decisions were actually
+      extracted. A high digit share means the model mostly emitted a bare
+      option number rather than reasoned output; a non-zero ``default`` share
+      means the PARSER gave up and the registry default stood in for a
+      decision the model never made. Both change what the run's action
+      distribution means, and neither is visible in an aggregate rate.
+    - ``audit_coverage_by_file`` — the same block per CSV, keyed by file stem,
+      because pooling two agent types into one agent x year grid multiplies
+      households by farmer-years and reports a fictional expectation.
+    - ``audit_corrected_status_columns`` — whether the CSVs carry the
+      corrected column set, detected from the header rather than the config.
+    """
+    output_dir = Path(output_dir)
+    try:
+        csv_paths = sorted(output_dir.glob("*_governance_audit.csv"))
+    except OSError as exc:
+        logger.warning(
+            "[AuditCoverage] cannot list %s (%s) — coverage unavailable; an "
+            "empty coverage block means 'not measured', not 'nothing missing'.",
+            output_dir, exc,
+        )
+        return {}
+    if not csv_paths:
+        # Loud on purpose. A finished run with no audit CSV is either a real
+        # failure or a caller that ran this BEFORE audit_writer.finalize();
+        # both used to look identical to "coverage is fine".
+        logger.warning(
+            "[AuditCoverage] no *_governance_audit.csv under %s — coverage not "
+            "computed. If this is a finished run, check that "
+            "audit_writer.finalize() ran before this call.",
+            output_dir,
+        )
+        return {}
+
+    rows_by_stem: Dict[str, List[Dict[str, Any]]] = {}
+    all_rows: List[Dict[str, Any]] = []
+    corrected = False
+    errors: List[str] = []
+    for path in csv_paths:
+        stem = path.name[: -len("_governance_audit.csv")]
+        try:
+            with open(path, "r", newline="", encoding="utf-8-sig") as fh:
+                reader = csv.DictReader(fh)
+                file_rows = list(reader)
+                if reader.fieldnames and "execution_path" in reader.fieldnames:
+                    corrected = True
+        except (OSError, csv.Error, UnicodeDecodeError) as exc:
+            # W3: a skipped file used to leave a PLAUSIBLE smaller number with
+            # no trace of why. Say which file and why, and record it in the
+            # returned block so a consumer can tell a real zero from an
+            # unreadable file.
+            logger.warning(
+                "[AuditCoverage] skipping unreadable audit CSV %s (%s) — the "
+                "coverage numbers below EXCLUDE it.", path, exc,
+            )
+            errors.append(f"{path.name}: {type(exc).__name__}: {exc}")
+            continue
+        if not file_rows:
+            continue
+        all_rows.extend(file_rows)
+        rows_by_stem[stem] = file_rows
+
+    # Per-file blocks are built after the whole directory is known, because
+    # whether an int expectation applies to a given file depends on how many
+    # files there turned out to be.
+    n_files = len(rows_by_stem)
+    per_file: Dict[str, Dict[str, Any]] = {
+        stem: _coverage_for_rows(
+            file_rows,
+            _as_per_file_expectation(expected_rows, stem, n_files),
+            _as_per_file_expectation(expected_agents, stem, n_files),
+            expected_years if isinstance(expected_years, int) else None,
+        )
+        for stem, file_rows in rows_by_stem.items()
+    }
+
+    if not all_rows:
+        if errors:
+            logger.warning(
+                "[AuditCoverage] every audit CSV under %s was unreadable — "
+                "coverage unavailable.", output_dir,
+            )
+        return {}
+
+    # Totals. An int expectation is a whole-run total and applies here; a
+    # per-agent-type mapping is summed so the total is stated in the same
+    # terms. Where the caller gave neither, the totals stay None.
+    def _total(value):
+        if isinstance(value, int):
+            return value
+        if isinstance(value, dict):
+            nums = [v for v in value.values() if isinstance(v, int)]
+            return sum(nums) if nums else None
+        return None
+
+    total_expected_rows = _total(expected_rows)
+    total_expected_agents = _total(expected_agents)
+    coverage = _coverage_for_rows(
+        all_rows, total_expected_rows, total_expected_agents,
+        expected_years if isinstance(expected_years, int) else None,
+    )
+    if len(per_file) > 1:
+        # Pooling agent types into one grid is exactly the P2b defect: the
+        # observed cross-product multiplies every agent by every OTHER type's
+        # years, so `audit_grid_rows` above is not an expectation any run could
+        # meet. Say so, and point the reader at the per-file block.
+        coverage["audit_grid_pooled_across_agent_types"] = True
+    coverage["audit_csv_files"] = sorted(per_file)
+    coverage["audit_coverage_by_file"] = per_file
+    coverage["audit_corrected_status_columns"] = corrected
+    coverage["audit_aborted_rows_source"] = _ABORTED_ROWS_SOURCE
+    unmatched = _unmatched_expectation_keys(
+        per_file, expected_rows, expected_agents
+    )
+    if unmatched:
+        logger.warning(
+            "[AuditCoverage] expectation key(s) %s match no audit CSV under "
+            "%s (files present: %s) — their expectations were NOT applied, and "
+            "the affected coverage numbers read 'not measured' rather than "
+            "'nothing missing'.",
+            unmatched, output_dir, sorted(per_file),
+        )
+        coverage["audit_expectation_unmatched_keys"] = unmatched
+    if errors:
+        coverage["audit_coverage_errors"] = errors
+    return coverage
 
 
 @dataclass
@@ -243,6 +556,16 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     if "executed_skill" in t:
         row["executed_skill"] = t.get("executed_skill")
         row["executed_via_fallback"] = bool(t.get("executed_via_fallback"))
+
+    # 2.7a. PR-3: `execution_path`, key-gated the same way — present only on
+    # traces produced with global_config.audit.corrected_status_columns ON.
+    # It names the remap rule behind `executed_skill` (approved /
+    # approved_no_engine / rejected_default / rejected_proposal / fallback /
+    # aborted / not_executed / unknown) so the deterministic status -> executed
+    # mapping is stated in the row rather than reconstructed from the run's
+    # governance policy.
+    if "execution_path" in t:
+        row["execution_path"] = t.get("execution_path")
 
     # 2.7b. P0-1a: FIRST-ATTEMPT proposal columns, key-gated the same way. Only
     # traces produced with global_config.audit.initial_proposal_columns ON carry
@@ -526,6 +849,11 @@ class GenericAuditWriter:
         # Track file handles per agent type
         self._files: Dict[str, Path] = {}
         self._run_metadata = audit_run_metadata()
+        # P1d-2: set by _export_csv when the CORRECTED column set is written,
+        # so finalize() can restamp the summary's audit_schema_version from the
+        # same fieldname detection the sidecar uses. Starts False; a flag-OFF
+        # run never flips it, so audit_summary.json keeps "2" byte-for-byte.
+        self._corrected_columns_detected = False
         
         # Summary stats per agent type
         self.summary = {
@@ -801,6 +1129,15 @@ class GenericAuditWriter:
         with self._write_lock:
             if agent_type not in self._jsonl_buffer:
                 self._jsonl_buffer[agent_type] = []
+                # P1d-2: this record is written when the FIRST trace for the
+                # agent type arrives, and the CSV column set is not known until
+                # every trace is in (`compute_csv_fieldnames` unions keys across
+                # all rows). So its `audit_schema_version` is deliberately left
+                # at the base constant — it cannot be resolved here without
+                # guessing from one row. The sidecar, `audit_summary.json` and
+                # `run_integrity.json` are the authoritative stamps for the
+                # corrected set; docs/AUDIT_SCHEMA.md states this so nobody
+                # reads a "2" here as a claim about the CSV.
                 metadata_record = {
                     "_metadata": dict(self._run_metadata),
                     "agent_type": agent_type,
@@ -910,6 +1247,16 @@ class GenericAuditWriter:
                 sentinel_warnings[agent_type] = list(warnings_found)
         if sentinel_warnings:
             self.summary["audit_sentinel_warnings"] = sentinel_warnings
+
+        # P1d-2: restamp the schema version from what was actually WRITTEN.
+        # `audit_run_metadata()` runs at construction time, before any column
+        # set exists, so it can only stamp the base constant "2" — and on a
+        # corrected run that told an analyst reading audit_summary.json to
+        # apply the wrong contract, while the sidecar next to it said "3".
+        # Same fieldname detection as the sidecar, so the two cannot disagree.
+        # Flag-OFF never reaches this branch, so the summary keeps "2" exactly.
+        if self._corrected_columns_detected:
+            self.summary["audit_schema_version"] = AUDIT_SCHEMA_VERSION_CORRECTED
 
         # Export summary JSON — LAST, so it captures everything above (F11).
         with open(summary_path, 'w', encoding='utf-8') as f:
@@ -1022,13 +1369,40 @@ class GenericAuditWriter:
             # version + column set produced this CSV. Closes the "CSV carries
             # no version; two analysts read the same file differently" gap
             # (the v21 duplicate-column incident class).
+            # PR-3: the corrected-columns flag state, detected from the column
+            # set itself rather than plumbed down from the config — the writer
+            # holds no config object, and self-description cannot drift from
+            # what the CSV actually contains.
+            corrected = "execution_path" in fieldnames
+            if corrected:
+                # P1d-2: remembered so finalize() can restamp the SUMMARY with
+                # the same answer. Set before the write, so a sidecar write that
+                # fails on I/O still leaves the summary honest about the columns
+                # the CSV actually carries.
+                self._corrected_columns_detected = True
+            sidecar = {
+                # P1d: the corrected set is schema "3", not "2". Under the flag
+                # `fallback_activated` keeps its name and answers a different
+                # question and aborted steps gain rows, so an analyst reading
+                # "2" here would apply the wrong contract to the file in hand.
+                # Flag-OFF still writes "2", which is what the golden test pins.
+                "audit_schema_version": (
+                    AUDIT_SCHEMA_VERSION_CORRECTED if corrected
+                    else AUDIT_SCHEMA_VERSION
+                ),
+                "git_commit_short": self._run_metadata.get("git_commit_short", "unavailable"),
+                "row_count": len(flat_rows),
+                "fieldnames": fieldnames,
+            }
+            # Emitted ONLY when the flag was ON: adding a key unconditionally
+            # would change every flag-OFF sidecar, and the sidecar is an audit
+            # artifact that published corpora must reproduce byte-for-byte.
+            # Absence of the key therefore means the flag was OFF (or the run
+            # predates it).
+            if corrected:
+                sidecar["corrected_status_columns"] = True
             with open(schema_path, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "audit_schema_version": AUDIT_SCHEMA_VERSION,
-                    "git_commit_short": self._run_metadata.get("git_commit_short", "unavailable"),
-                    "row_count": len(flat_rows),
-                    "fieldnames": fieldnames,
-                }, f, indent=2, ensure_ascii=False)
+                json.dump(sidecar, f, indent=2, ensure_ascii=False)
         except OSError as e:
             logger.error(
                 f"[AuditWriter:Error] CSV export for agent_type=%r "
