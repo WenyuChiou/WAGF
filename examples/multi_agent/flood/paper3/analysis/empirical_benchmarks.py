@@ -263,7 +263,7 @@ def compare_with_benchmarks(
     df: pd.DataFrame,
     benchmarks: Optional[List[Benchmark]] = None,
     decision_col: str = "yearly_decision",
-    tolerance: float = 0.3,
+    tolerance: float = 0.0,  # STRICT (v2 2026-06-12): match l2_macro's `low<=v<=high`; the benchmark ranges ARE the plausibility envelope, do NOT double-soften by 30%
 ) -> BenchmarkReport:
     """Compare simulation output against empirical benchmarks.
 
@@ -295,7 +295,7 @@ def compute_epi(
     df: pd.DataFrame,
     benchmarks: Optional[List[Benchmark]] = None,
     decision_col: str = "yearly_decision",
-    tolerance: float = 0.3,
+    tolerance: float = 0.0,  # STRICT (v2 2026-06-12): match l2_macro's `low<=v<=high`; the benchmark ranges ARE the plausibility envelope, do NOT double-soften by 30%
 ) -> float:
     """Compute Empirical Plausibility Index (EPI).
 

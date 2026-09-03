@@ -116,8 +116,8 @@ calibration:
 
     - name: "Insurance Annual Lapse Rate"
       metric: insurance_lapse_rate
-      rate_low: 0.05
-      rate_high: 0.15
+      rate_low: 0.15
+      rate_high: 0.30
       source: "Gallagher (2014, AER); Michel-Kerjan et al. (2012)"
       description: "Annual rate of NFIP policy non-renewal"
       category: temporal

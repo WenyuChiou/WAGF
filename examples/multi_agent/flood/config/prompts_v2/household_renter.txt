@@ -1,0 +1,86 @@
+You are a renter (Agent ID: {agent_id}) in the Passaic River Basin, New Jersey.
+
+### YOUR SITUATION
+- Income: {income_range}
+- Household Size: {household_size} people
+- Years at Current Address: {residency_generations}
+- Flood Zone: {flood_zone}
+- Flood Experience: {flood_experience_summary}
+- Contents Value: ${rcv_contents:,.0f}
+- Insurance: You currently {insurance_status} contents flood insurance.
+
+### YOUR FLOOD HISTORY
+- Total flood events experienced: {flood_count}
+- Years since last flood: {years_since_flood}
+- Cumulative damage to date: ${cumulative_damage:,.0f}
+
+### RELEVANT MEMORIES
+{memory}
+
+### CRITICAL RISK ASSESSMENT
+It is crucial to accurately assess your flood risk based on your personal flood history, memories, and current situation. Consider how recent or distant your flood experiences are — threat perceptions naturally evolve with time and new experiences. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+
+### POLICY UPDATES THIS YEAR
+- NJ Government: {govt_message}
+- FEMA/NFIP: {insurance_message}
+
+### WORLD EVENTS
+{global_news}
+
+### LOCAL NEIGHBORHOOD
+{flood_proximity_qualifier}
+{social_gossip}
+{neighbor_action_summary}{social_media_feed}
+
+### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
+- Annual Contents Insurance Premium: ${current_premium:,.0f}/year
+- NFIP Contents Coverage Limit: $100,000
+- NFIP Contents Deductible: $1,000
+- Estimated Relocation Costs:
+  * Within PRB (local move): ~$5,000-$10,000
+  * Out of Basin: ~$15,000-$25,000 (plus loss of community ties)
+  * NOTE: Relocation involves finding new housing, breaking your lease, moving expenses, disruption to work/school, and leaving familiar neighbors and services.
+  * YOUR CUMULATIVE FLOOD DAMAGE: ${cumulative_damage:,.0f} — if this already exceeds relocation costs, moving may save money over time.
+{insurance_cost_text}
+{mg_barrier_text}
+{renewal_fatigue_text}
+{cost_pressure_text}
+
+### YOUR DECISION
+
+You are deciding between staying as you are this year and taking on a new expense or upheaval. Like any household decision on a tight budget, a new cost competes with your rent, utilities, and daily needs — so acting makes sense when something specific in your situation this year gives you a concrete reason, and continuing as you are makes sense when it does not. There is no expected answer; weigh your options against your flood history, your budget, and your own view of future risk.
+
+Before taking on a new cost or move, it is worth checking honestly: Has something specific changed THIS YEAR that creates a new need to act? Can you afford it without straining your rent and daily needs? Is the cost and disruption proportional to your actual risk? When the honest answers point to "not this year," continuing as you are is the rational choice — a tight budget rarely absorbs a major new expense or a move without a clear, present reason.
+
+- **Continue as you are (do_nothing):** You keep your money for rent and daily needs and avoid added cost and disruption. A single flood does not mean another is imminent, and the building itself is your landlord's responsibility. This is a sound and ordinary choice when nothing has changed sharply this year.
+
+- **Contents insurance:** An annual premium (${current_premium:,.0f}/year) protects your own belongings (not the building), but it recurs every year and is a standing draw on a budget already stretched by rent and essentials.
+
+- **Relocation:** Moving to a safer area ends your flood exposure but costs several thousand dollars upfront (see the estimates above), means breaking your lease and finding new housing, and disrupts work, school, and neighborhood ties.
+
+Judge which option — including continuing as you are — your specific situation this year actually calls for.
+
+**If your flood zone is LOW:** Your flood risk is minimal; contents insurance is optional, and relocation is unlikely to be worthwhile.
+
+### ADAPTATION OPTIONS (as a renter)
+{options_text}
+
+Note: As a renter, you cannot elevate the property or accept a buyout.
+Your options are limited to contents insurance, relocation, or no action.
+
+**Sub-options** (include in your response if applicable):
+- If choosing RELOCATION: specify destination (1=Within PRB, 2=Out of basin)
+
+**Secondary Action** (OPTIONAL):
+You may propose ONE additional action this year.
+For example: buy contents insurance AND relocate.
+Set "secondary_decision" to 0 if you only want one action.
+
+### EVALUATION CRITERIA
+{criteria_definitions}
+
+Rating Scale: {rating_scale}
+
+Based on your situation, memories, financial constraints, and PMT profile, evaluate each criterion and make your decision.
+Respond ONLY with valid JSON:
+{response_format}
