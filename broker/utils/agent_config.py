@@ -12,7 +12,7 @@ import os
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from collections import defaultdict
 from broker.utils.logging import setup_logger
@@ -64,6 +64,251 @@ class CoherenceRule:
     level: str = "ERROR" # ERROR (retry) or WARNING (log only)
     message: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # PR-6: what the rule's antecedent is ANCHORED IN.
+    #   "self_report" — every condition reads a construct label the model wrote
+    #                   in the same generation. Such a rule checks one JSON
+    #                   object against itself.
+    #   "world"       — at least one condition reads simulator/world state the
+    #                   model cannot author (an env variable, a physical
+    #                   precondition), so the rule can catch a self-report the
+    #                   world contradicts.
+    # Resolved by ``get_thinking_rules``: an explicit YAML ``grounding:`` wins;
+    # otherwise it is inferred from the condition shapes. Default "self_report"
+    # is the honest default — a rule is not world-grounded until it reads the
+    # world.
+    grounding: str = "self_report"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# PR-6: rule GROUNDING — where a condition's antecedent comes from
+# ──────────────────────────────────────────────────────────────────────
+# A thinking rule reads either a construct LABEL the model just emitted
+# (``construct:`` / ``field:`` with ``type: construct``) or a WORLD
+# VARIABLE the model cannot author (``variable:``, or ``field:`` with
+# ``type: expression | precondition | social``). Only the second kind can
+# catch a self-report the simulated world contradicts.
+#
+# These two helpers are the SINGLE definition of that distinction. The
+# config loader uses them to stamp ``CoherenceRule.grounding``; the
+# validator uses ``world_condition_target`` to decide how to evaluate a
+# condition. Keeping one definition is what stops the audit column and the
+# enforcement path from disagreeing about which rules were world-grounded.
+
+WORLD_CONDITION_TYPES: frozenset = frozenset({"expression", "precondition", "social"})
+
+# Where a world variable may be looked up. ``auto`` is the documented
+# precedence env_state -> agent state -> flattened context; the explicit
+# scopes exist because the broker's validation context is built as
+# ``{**agent_state, **env_context}`` and a name present in both silently
+# resolves to the env copy. Writing ``scope:`` says which one you meant.
+WORLD_CONDITION_SCOPES: frozenset = frozenset({"auto", "env", "state", "social", "context"})
+
+# Warn-once keys for scope coercion (W5). ``world_condition_target`` runs per
+# condition per rule per agent per step, so an unconditional warning would print
+# at agents x years x rules x retries frequency and become noise nobody reads.
+_WARNED_UNKNOWN_SCOPES: set = set()
+
+# STRICTNESS OF ``is_true`` / ``is_false`` (documented here because this is where
+# a rule author looks). Both operators test IDENTITY against Python's ``True`` /
+# ``False`` singletons, not truthiness and not ``==``. A magnitude of ``1.0``,
+# the string ``"true"``, and ``numpy.True_`` all fail an ``is_true`` condition.
+#
+# That is deliberate. ``1.0 == True`` is True in Python, so an ``==``-based flag
+# test would start matching a magnitude that happens to equal 1, and the audit
+# row would show the rule firing with nothing in it to explain why. The cost is
+# that a simulator publishing a numpy boolean must convert it: write
+# ``bool(value)`` in the environment adapter, or use
+# ``operator: "==", value: true``, which coerces. There is no numpy import in
+# ``broker/`` and adding one to accept ``numpy.bool_`` here would make the
+# generic layer depend on a scientific stack it does not otherwise need.
+
+
+def world_condition_target(cond: Any) -> Tuple[Optional[str], str]:
+    """Return ``(variable_name, scope)`` for a world-state condition, else ``(None, "")``.
+
+    Accepts the two shapes the repo already has in the wild:
+
+    * ``{variable: hazard_index, scope: env, operator: ">", value: 0.4}``
+    * ``{type: precondition, field: at_capacity, operator: "==", values: [true]}``
+
+    A ``construct:``/``type: construct`` condition returns ``(None, "")`` —
+    that is the self-report path and must keep its existing evaluation
+    verbatim, or every frozen baseline moves.
+    """
+    if not isinstance(cond, dict):
+        return None, ""
+    name = cond.get("variable")
+    if name:
+        scope = str(cond.get("scope", "auto")).strip().lower()
+        if scope not in WORLD_CONDITION_SCOPES:
+            _warn_unknown_scope(str(name), cond.get("scope"), "auto")
+            scope = "auto"
+        return str(name), scope
+    cond_type = str(cond.get("type", "") or "").strip().lower()
+    if cond_type in WORLD_CONDITION_TYPES and cond.get("field"):
+        raw_scope = cond.get("scope")
+        scope = str(raw_scope if raw_scope is not None else "").strip().lower()
+        if scope not in WORLD_CONDITION_SCOPES:
+            fallback = "social" if cond_type == "social" else "auto"
+            if scope:
+                _warn_unknown_scope(str(cond.get("field")), raw_scope, fallback)
+            scope = fallback
+        return str(cond.get("field")), scope
+    return None, ""
+
+
+def _warn_unknown_scope(variable: str, raw_scope: Any, fallback: str) -> None:
+    """W5: say out loud that a ``scope:`` was not recognised and was coerced.
+
+    Coercing silently is the failure this warning removes: ``scope: environment``
+    (a plausible typo for ``env``) became ``auto``, which searches env FIRST —
+    so it worked, until the day the agent's own state carried the same name and
+    the rule started reading the wrong plane with nothing anywhere saying the
+    scope had never been honoured. Warn-once per (variable, scope).
+    """
+    key = (variable, str(raw_scope))
+    if key in _WARNED_UNKNOWN_SCOPES:
+        return
+    _WARNED_UNKNOWN_SCOPES.add(key)
+    logger.warning(
+        "[Config] world condition on %r declares scope %r, which is not one of "
+        "%s. Coerced to %r. A coerced scope still resolves a value, so the rule "
+        "keeps firing — against whichever plane won, not the one you named.",
+        variable, raw_scope, sorted(WORLD_CONDITION_SCOPES), fallback,
+    )
+
+
+def resolve_rule_grounding(rule: Dict[str, Any]) -> str:
+    """Resolve a rule dict's grounding: explicit ``grounding:`` wins, else inferred.
+
+    Inference is deliberately conservative: a rule counts as ``world`` only
+    when at least one of its conditions actually reads a world variable. A
+    rule that merely *mentions* the world in its ``message:`` stays
+    ``self_report``, because prose is not an antecedent.
+
+    An IDENTITY rule's top-level ``precondition:`` counts as a world antecedent
+    (P1-f). Those rules test simulator state the model cannot author — this
+    irreversible action has already been taken, the agent is already at its
+    resource cap — and they always were world-grounded; nothing was stamping
+    them, so every identity block was filed under ``rules_self_report`` and a
+    count of self-report blocks silently included physical constraints.
+    """
+    declared = str(rule.get("grounding", "") or "").strip().lower()
+    if declared in ("world", "self_report"):
+        return declared
+    if rule.get("precondition"):
+        return "world"
+    conditions = rule.get("conditions") or []
+    if isinstance(conditions, list):
+        for cond in conditions:
+            name, _scope = world_condition_target(cond)
+            if name:
+                return "world"
+    return "self_report"
+
+
+def declared_governance_profiles(
+    config: Dict[str, Any], agent_type: Optional[str] = None
+) -> set:
+    """Every governance-profile name a raw config dict declares.
+
+    P1-e. Reads both shapes the loader reads: the top-level
+    ``governance.<profile>.<agent_type>`` form and the per-agent-type
+    ``<agent_type>.governance.<profile>`` form. ``global_config`` is skipped —
+    it has a ``governance:`` block of its own holding settings, not profiles,
+    and counting its keys would report ``max_retries`` as an available arm.
+
+    Used by the runners to refuse a ``--governance-mode`` the config does not
+    declare. Never raises; an unreadable config returns an empty set, and the
+    caller decides what that means.
+    """
+    names: set = set()
+    if not isinstance(config, dict):
+        return names
+    top = config.get("governance")
+    if isinstance(top, dict):
+        for profile, body in top.items():
+            if not isinstance(body, dict):
+                continue
+            if agent_type is None or agent_type in body:
+                names.add(str(profile))
+    for key, body in config.items():
+        if key == "global_config" or not isinstance(body, dict):
+            continue
+        if agent_type is not None and key != agent_type:
+            continue
+        gov = body.get("governance")
+        if isinstance(gov, dict):
+            names.update(str(p) for p in gov)
+    return names
+
+
+def assert_governance_profile_declared(
+    cfg_data: Dict[str, Any], profile: Any, agent_type: Optional[str], config_path: Any
+) -> None:
+    """PR-6 review P1-e: refuse an undeclared ``--governance-mode``, loudly.
+
+    ``get_thinking_rules`` falls back to the ``default`` profile when the
+    requested one is not declared, and says nothing. For an interactive run that
+    is forgiving; for a queued sweep it is the silent-wrong-data failure — a
+    typo'd or stale arm name runs the WRONG RULE SET for hours and every
+    artifact, including ``run_integrity.json``, looks healthy.
+
+    ``default`` is always accepted: it is the fallback itself, and a config that
+    declares no profiles at all legitimately resolves to it.
+
+    N2: moved here from a byte-identical copy duplicated in
+    ``examples/single_agent/run_flood.py`` and
+    ``examples/irrigation_abm/run_experiment.py`` — both runners now call this
+    one implementation instead of carrying their own that could drift apart.
+    """
+    requested = str(profile or "default").strip().lower()
+    if requested == "default":
+        return
+    declared = {p.lower() for p in declared_governance_profiles(cfg_data, agent_type)}
+    if requested in declared:
+        return
+    raise SystemExit(
+        f"--governance-mode {profile!r} is not declared for agent_type "
+        f"{agent_type!r} in {config_path}.\n"
+        f"Declared profiles: {sorted(declared) or '(none)'}.\n"
+        "Refusing to start: the config loader would fall back to the 'default' "
+        "rule set silently, so the run would finish, look healthy, and answer a "
+        "different question than the one you asked."
+    )
+
+
+def resolve_framework_aware_labels(config: Any = None) -> bool:
+    """The ``validators.framework_aware_labels`` value, for callers holding no config.
+
+    P1-b. ``build_domain_validators`` constructs a ``ThinkingValidator`` from a
+    domain name alone — it never receives the ``AgentTypeConfig`` the
+    ``AgentValidator`` was built from — so the flag reached one evaluator and not
+    the other, and the two disagreed about missing constructs on the same
+    decision. Pass a config when you have one; without it this reads the
+    most-recently-loaded instance, which is the same object every production run
+    path resolves (``ExperimentBuilder`` loads exactly one).
+
+    Never raises, and coerces to a real ``bool``: a test double whose getter
+    returns a truthy mock must not switch the flag on for the whole suite.
+    """
+    if config is None:
+        config = getattr(AgentTypeConfig, "_instance", None)
+    getter = getattr(config, "get_validators_framework_aware_labels", None)
+    if not callable(getter):
+        return False
+    try:
+        value = getter()
+    except Exception as exc:  # noqa: BLE001 — a config read must not break dispatch
+        logger.warning(
+            "[Config] could not resolve validators.framework_aware_labels (%s: %s); "
+            "treating as OFF for this validator. The AgentValidator resolves it "
+            "from its own config, so a failure here can make the two evaluators "
+            "disagree — check the startup parity log.",
+            type(exc).__name__, exc,
+        )
+        return False
+    return value if isinstance(value, bool) else False
 
 
 class AgentTypeConfig:
@@ -361,6 +606,122 @@ class AgentTypeConfig:
         if not isinstance(block, dict):
             return False
         return bool(block.get("advise_columns", False))
+
+    def get_validators_framework_aware_labels(self) -> bool:
+        """PR-6: opt-in FRAMEWORK-AWARE construct labels (default-OFF).
+
+        ``AgentValidator.get_label`` normalises every construct label through a
+        hardcoded five-level VL/L/M/H/VH alphabet and, on a miss, truncates to
+        the first two characters. Registration is generic — a domain declares
+        ``psychological_framework: financial`` and the frameworks registry
+        supplies ``AGGRESSIVE -> A`` / ``CONSERVATIVE -> C`` — but ENFORCEMENT
+        is not: those labels truncate to ``"AG"`` / ``"CO"``, match nothing, and
+        every rule written against them silently never fires. A rule that never
+        fires and a rule that never triggers look identical in the audit trail.
+
+        With ``global_config.validators.framework_aware_labels: true`` the
+        validator resolves labels against the agent type's OWN registered
+        alphabet, and a construct the model did not report makes its rules
+        NOT FIRE while recording a ``construct_missing`` WARNING — never a
+        fabricated middle value.
+
+        Default-OFF by byte-identity necessity: the truncation defect is load
+        bearing for the frozen corpora, so it stays reproducible until a run
+        opts out of it.
+        """
+        block = self._config.get("global_config", {}).get("validators", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("framework_aware_labels", False))
+
+    def get_governance_advise_mode(self) -> str:
+        """PR-6: the SOFT-RULE channel — ``off`` (default) / ``record`` / ``feedback``.
+
+        WARNING-level rules are the framework's advisory layer, and until this
+        flag they had no channel anywhere: they do not block (by design), they
+        are not rendered into any prompt (``_retry_loop`` comprehends only
+        ``v.errors``), and the audit CSV's ``warning_rules`` column records
+        them without recording whether anything was done with them.
+
+        * ``record``   — soft findings are written to the audit row
+          (``advise_findings``) and NEVER reach the model. Zero extra LLM
+          calls, so behaviour is provably unchanged and the column measures
+          the rules' firing rate on its own.
+        * ``feedback`` — soft findings are additionally rendered into ONE
+          extra, non-blocking prompt; the proposal is still APPROVED, and
+          ``advise_shown`` records that the model was told, so a reader can
+          measure whether advice changed the next action.
+
+        Distinct from ``global_config.governance.advise`` (P0-1c), which
+        DEMOTES rules authored as ERROR into advisories for an experiment arm.
+        This key governs rules already authored as WARNING.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return "off"
+        mode = str(gov.get("advise_mode", "off")).strip().lower()
+        if mode not in ("off", "record", "feedback"):
+            raise ValueError(
+                f"global_config.governance.advise_mode {mode!r} is not one of "
+                "['feedback', 'off', 'record']. Silently reading it as 'off' "
+                "would produce a run with no soft-rule record and no error "
+                "anywhere saying the channel was requested."
+            )
+        return mode
+
+    def has_world_grounded_rules(self) -> bool:
+        """PR-6: True iff the ACTIVE governance profile declares a world-grounded rule.
+
+        Used to switch the grounding audit columns on automatically for a
+        profile that has something to report. A profile with only self-report
+        rules gains no columns, which is what keeps every frozen baseline
+        byte-identical without an operator having to remember a second flag.
+
+        W6: MEMOISED per resolved profile. This is called once per audit ROW on
+        the frozen default path, and each call re-parses every thinking rule of
+        every agent type — a whole rule set rebuilt to answer a question whose
+        answer cannot change while the profile does not. The cache key is the
+        profile because the answer genuinely differs between `strict` and
+        `grounded_v1`, and both are reachable from one cached config instance in
+        a single process (the tests do exactly that). Value-preserving by
+        construction: the cached value is whatever the uncached scan returned.
+        """
+        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        cache = self.__dict__.setdefault("_world_grounded_cache", {})
+        if profile in cache:
+            return cache[profile]
+        skip = {"global_config", "shared", "metadata", "governance"}
+        answer = False
+        for agent_type in self._config:
+            if agent_type in skip or not isinstance(self._config.get(agent_type), dict):
+                continue
+            try:
+                rules = self.get_thinking_rules(agent_type)
+            except Exception:
+                # A profile undeclared for THIS agent type is not a reason to
+                # fail the audit-column decision; the rule accessors raise on
+                # that separately and much louder.
+                continue
+            if any(getattr(r, "grounding", "self_report") == "world" for r in rules):
+                answer = True
+                break
+        cache[profile] = answer
+        return answer
+
+    def get_audit_grounding_columns(self) -> bool:
+        """PR-6: opt-in GROUNDING audit columns (``rules_world_grounded`` / ``rules_self_report``).
+
+        ON when ``global_config.audit.grounding_columns: true`` OR when the
+        active profile declares at least one world-grounded rule. The second
+        clause is the important one: a reader of a grounded run must be able to
+        tell which of the rules that fired read the world and which read the
+        model's own labels, and that is not knowable from ``rules_triggered``,
+        which lists ids only.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if isinstance(block, dict) and bool(block.get("grounding_columns", False)):
+            return True
+        return self.has_world_grounded_rules()
 
     def get_audit_corrected_status_columns(self) -> bool:
         """PR-3 (2026-09-01): opt-in CORRECTED status/truth columns (default-OFF).
@@ -1215,7 +1576,12 @@ class AgentTypeConfig:
                 blocked_skills=rule.get("blocked_skills"),
                 level=rule.get("level", "ERROR"),
                 message=rule.get("message", ""),
-                metadata={"precondition": rule.get("precondition")}
+                metadata={"precondition": rule.get("precondition")},
+                # P1-f: identity rules read a physical precondition the model
+                # cannot author, so `resolve_rule_grounding` reports them as
+                # world-grounded. Unstamped, they defaulted to `self_report` and
+                # every identity block landed in the wrong audit column.
+                grounding=resolve_rule_grounding(rule),
             )
             for rule in rules_list
         ]
@@ -1370,7 +1736,8 @@ class AgentTypeConfig:
                     expected_levels=rule.get("when_above", rule.get("when_true")),
                     blocked_skills=rule.get("blocked_skills"),
                     level=level,
-                    message=rule.get("message", "")
+                    message=rule.get("message", ""),
+                    grounding=resolve_rule_grounding(rule),
                 )
             )
         return coherence_rules

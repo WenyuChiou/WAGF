@@ -17,14 +17,140 @@ class ValidationLevel(Enum):
 
 from broker.interfaces.skill_types import ValidationResult
 from broker.utils.agent_config import (
-    load_agent_config, 
-    ValidationRule, 
+    load_agent_config,
+    ValidationRule,
     CoherenceRule,
-    GovernanceAuditor
+    GovernanceAuditor,
+    world_condition_target,
 )
 from broker.utils.logging import setup_logger
 
 logger = setup_logger(__name__)
+
+# PR-6: sentinel for "this world variable was not found anywhere in the
+# validation context". A plain ``None`` cannot be the sentinel — a domain may
+# legitimately store ``None`` in state, and treating that as "absent" would make
+# a rule silently not fire on exactly the rows where the world state is unknown.
+_MISSING = object()
+
+
+def _lookup_world_variable(name, scope, state, full_context):
+    """Resolve a world variable, returning ``_MISSING`` when it is not present.
+
+    Lookup order for ``scope: auto`` is env_state -> agent state -> flattened
+    context, and it is DOCUMENTED rather than incidental. The broker builds its
+    validation context as ``{"env_state": env, **agent_state, **env}``, so a name
+    carried by both planes resolves to the env copy and the agent's own value is
+    unreachable — the key-collision trap. ``scope: state`` / ``scope: env`` name
+    the plane explicitly and are the recommended form for any new rule.
+    """
+    ctx = full_context if isinstance(full_context, dict) else {}
+    env = ctx.get("env_state")
+    env = env if isinstance(env, dict) else {}
+    social = ctx.get("social_context")
+    social = social if isinstance(social, dict) else {}
+    st = state if isinstance(state, dict) else {}
+
+    if scope == "env":
+        planes = (env,)
+    elif scope == "state":
+        planes = (st,)
+    elif scope == "social":
+        planes = (social,)
+    elif scope == "context":
+        planes = (ctx,)
+    else:  # auto
+        planes = (env, st, ctx)
+
+    for plane in planes:
+        if name in plane:
+            return plane[name]
+    return _MISSING
+
+
+def _coerce_pair(actual, target):
+    """Best-effort numeric coercion for a comparison, else the originals.
+
+    YAML gives ``0.4`` as a float and a simulator may hand back ``"0.4"``; a
+    string/float comparison would raise TypeError inside a validator and take
+    the whole run down, so the fallback is the uncoerced pair rather than an
+    exception.
+    """
+    try:
+        return float(actual), float(target)
+    except (TypeError, ValueError):
+        return actual, target
+
+
+def _evaluate_world_condition(cond, name, scope, state, full_context):
+    """Evaluate one world-state condition. Returns ``(matched, readable)``.
+
+    Fails CLOSED in the direction that matters: a rule whose world antecedent
+    cannot be read does not block. The alternative — treating an unreadable
+    variable as satisfied — would block actions on evidence nobody has.
+
+    ``readable`` is the second half of that contract and the reason this is a
+    tuple rather than a bool (P1-a). "Did not fire because the world says no"
+    and "did not fire because the variable was never published" are the same
+    row otherwise — and the second one means the grounded rule was decorative
+    for that decision. The caller turns a False here into an audited
+    ``world_variable_missing`` WARNING and a run-integrity tally.
+    """
+    actual = _lookup_world_variable(name, scope, state, full_context)
+    if actual is _MISSING:
+        return False, False
+
+    operator = str(cond.get("operator", "==")).strip()
+    values = cond.get("values")
+    values = list(values) if isinstance(values, (list, tuple)) else []
+    target = cond.get("value", values[0] if values else None)
+
+    if operator == "in":
+        return actual in values, True
+    if operator == "not_in":
+        return actual not in values, True
+    if operator == "is_true":
+        # Identity against the singleton, deliberately: `1 == True` and
+        # `numpy.True_ == True` are both True under `==`, so an `is_true` rule
+        # written to read a flag would start matching a magnitude of 1. See the
+        # strictness note beside WORLD_CONDITION_SCOPES in agent_config.py.
+        return actual is True, True
+    if operator == "is_false":
+        return actual is False, True
+    if operator in ("==", "!="):
+        # A bool is compared only against a bool. Python would happily coerce
+        # `1.0 == True` to True, so without this a rule written to read a flag
+        # would start matching a magnitude that happens to equal 1 — and the
+        # audit row would show the rule firing with nothing to explain why.
+        both_bool = isinstance(actual, bool) and isinstance(target, bool)
+        either_bool = isinstance(actual, bool) or isinstance(target, bool)
+        if either_bool and not both_bool:
+            return (operator == "!="), True
+        if both_bool:
+            same = actual is target
+        else:
+            a, t = _coerce_pair(actual, target)
+            same = a == t
+        return (same if operator == "==" else not same), True
+
+    a, t = _coerce_pair(actual, target)
+    try:
+        if operator == ">":
+            return a > t, True
+        if operator == "<":
+            return a < t, True
+        if operator == ">=":
+            return a >= t, True
+        if operator == "<=":
+            return a <= t, True
+    except TypeError:
+        return False, True
+    logger.warning(
+        "[AgentValidator] world condition on %r uses unknown operator %r; "
+        "treated as NOT matched. Valid: in, not_in, ==, !=, <, >, <=, >=, "
+        "is_true, is_false.", name, operator,
+    )
+    return False, True
 
 
 def _affordability_constraints_from_domain_pack():
@@ -59,6 +185,13 @@ class AgentValidator:
         self.warnings: List[ValidationResult] = []
         self.auditor = GovernanceAuditor()
         self.enable_financial_constraints = enable_financial_constraints
+        # PR-6: resolved ONCE, and coerced to a real bool rather than stored raw
+        # — tests build this validator with stand-in config objects whose getters
+        # return truthy mocks, and a mock would silently switch the flag on and
+        # move every label comparison in the suite.
+        _fa = getattr(self.config, "get_validators_framework_aware_labels", None)
+        _fa_value = _fa() if callable(_fa) else False
+        self.framework_aware_labels = _fa_value if isinstance(_fa_value, bool) else False
     
     def validate(self, *args, **kwargs) -> List[ValidationResult]:
         """
@@ -271,7 +404,10 @@ class AgentValidator:
         # Tier 2: Thinking/Cognitive Validation (Reasoning/Coherence)
         # Driven by 'thinking_rules' in YAML
         if reasoning:
-            results.extend(self.validate_thinking(base_type, agent_id, decision, state, reasoning))
+            results.extend(self.validate_thinking(
+                base_type, agent_id, decision, state, reasoning,
+                full_context=full_validation_context,
+            ))
         
         # 3. Numeric Attribute Bounds (Legacy/Structural)
         # Driven by 'validation_rules' in YAML
@@ -402,6 +538,16 @@ class AgentValidator:
                             # (hard when ERROR); WARNING rules are diagnostic.
                             "expected_terminal": lv == ValidationLevel.ERROR,
                             "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
+                            # P1-f: identity rules are precondition tests on
+                            # world state the model cannot author (this
+                            # irreversible action has already been taken), so
+                            # they are world-grounded and always were. Without
+                            # this stamp
+                            # `_safe_rules_by_grounding` applied its default and
+                            # filed every identity block under `rules_self_report`
+                            # — a paper counting self-report blocks would have
+                            # counted physical constraints among them.
+                            "grounding": getattr(rule, "grounding", "self_report"),
                         }
                     ))
         return results
@@ -412,11 +558,22 @@ class AgentValidator:
         agent_id: str,
         decision: str,
         state: Dict[str, Any],
-        reasoning: Dict[str, str]
+        reasoning: Dict[str, str],
+        full_context: Optional[Dict[str, Any]] = None,
     ) -> List[ValidationResult]:
-        """Tier 2: Thinking/Cognitive validation (Reasoning-based)."""
+        """Tier 2: Thinking/Cognitive validation (Reasoning-based).
+
+        ``full_context`` is the broker's validation context. It carries the
+        world planes (``env_state``, ``social_context``) that the agent's own
+        ``state`` dict does not, and world-grounded rules need them. Optional
+        and default-``None`` so every existing direct caller keeps working —
+        with it absent, a world condition simply finds nothing and does not fire.
+        """
         rules = self.config.get_thinking_rules(agent_type)
-        return self._run_rule_set(agent_id, decision, state, reasoning, rules, "thinking")
+        return self._run_rule_set(
+            agent_id, decision, state, reasoning, rules, "thinking",
+            agent_type=agent_type, full_context=full_context,
+        )
 
     def _run_rule_set(
         self,
@@ -425,14 +582,47 @@ class AgentValidator:
         state: Dict[str, Any],
         reasoning: Dict[str, str],
         rules: List[Any],
-        tier_name: str
+        tier_name: str,
+        agent_type: str = "",
+        full_context: Optional[Dict[str, Any]] = None,
     ) -> List[ValidationResult]:
         """Generic engine for label-based rules."""
         results = []
-        
+        framework_aware = bool(getattr(self, "framework_aware_labels", False))
+        framework = ""
+        fw_mappings: Dict[str, str] = {}
+        fw_alphabet: Dict[str, int] = {}
+        if framework_aware:
+            framework, fw_mappings, fw_alphabet = self._resolve_framework_alphabet(agent_type)
+        # Constructs a rule asked about and the model did not report. Collected,
+        # not fabricated: under the flag these become audited WARNING findings
+        # instead of a silently-invented middle value.
+        missing_constructs: List[str] = []
+        # P1-a: world variables a rule asked about and the environment did not
+        # publish, as ordered (rule_id, variable) pairs. Same reasoning as
+        # `missing_constructs`, applied to the other plane: a grounded rule whose
+        # antecedent is unreadable does not fire, and a non-firing grounded rule
+        # is indistinguishable in the audit trail from a rule that was evaluated
+        # and found nothing wrong. Collected UNCONDITIONALLY (no flag): a world
+        # condition is only reachable at all in a profile that declares one, and
+        # no frozen profile does, so this cannot move a published byte.
+        missing_world_vars: List[tuple] = []
+        # Per-pass grounded-rule census, for the run-integrity tally below.
+        world_rules_total = 0
+        world_rules_unreadable = 0
+
         def get_label(key):
             """Extract normalized 5-level label (VL/L/M/H/VH) from state or reasoning."""
             if not key: return ""
+            if framework_aware:
+                raw = state.get(key, reasoning.get(key, ""))
+                if raw is None or str(raw).strip() == "":
+                    if key not in missing_constructs:
+                        missing_constructs.append(key)
+                    return ""
+                return self._normalize_framework_label(
+                    str(raw), fw_mappings, fw_alphabet,
+                )
             # Normalized values are already in state
             # Priority: 1. State, 2. Reasoning
             val = str(state.get(key, reasoning.get(key, ""))).upper().strip()
@@ -460,6 +650,15 @@ class AgentValidator:
         def label_matches(actual_label: str, expected_values: list) -> bool:
             """Check if actual_label matches any of the expected values (5-level aware)."""
             if not actual_label: return False
+            if framework_aware:
+                # The EXPECTED side must go through the same alphabet as the
+                # actual side. Normalising only the actual value is how a
+                # framework whose YAML writes `values: ["AGGRESSIVE"]` ends up
+                # comparing "A" against "AGGRESSIVE" and never matching.
+                return actual_label in {
+                    self._normalize_framework_label(str(v), fw_mappings, fw_alphabet)
+                    for v in expected_values
+                }
             normalized_expected = []
             for v in expected_values:
                 v_upper = v.upper().strip()
@@ -475,11 +674,31 @@ class AgentValidator:
             if not rule.blocked_skills: continue
             
             is_triggered = False
+            _rule_has_world_condition = False
+            _rule_world_unreadable = False
             if rule.conditions:
                 if isinstance(rule.conditions, list):
                     matches = []
                     for cond in rule.conditions:
                         if isinstance(cond, dict):
+                            # PR-6: WORLD-STATE condition. Checked first and
+                            # `continue`d, so a construct condition takes the
+                            # identical path it always took — that equality is
+                            # what keeps every frozen self-report baseline
+                            # byte-for-byte unchanged.
+                            _var, _scope = world_condition_target(cond)
+                            if _var:
+                                _rule_has_world_condition = True
+                                _matched, _readable = _evaluate_world_condition(
+                                    cond, _var, _scope, state, full_context,
+                                )
+                                matches.append(_matched)
+                                if not _readable:
+                                    _rule_world_unreadable = True
+                                    _pair = (str(rule.id), str(_var))
+                                    if _pair not in missing_world_vars:
+                                        missing_world_vars.append(_pair)
+                                continue
                             # Phase 6N-E (2026-05-24): accept both the
                             # canonical short shape `construct: X` (used
                             # by irrigation, governed_flood, MA flood)
@@ -523,7 +742,12 @@ class AgentValidator:
                 label = get_label(rule.construct)
                 if label and rule.expected_levels:
                     is_triggered = label_matches(label, rule.expected_levels)
-                
+
+            if _rule_has_world_condition:
+                world_rules_total += 1
+                if _rule_world_unreadable:
+                    world_rules_unreadable += 1
+
             if is_triggered:
                 normalized_decision = decision.lower().strip().replace("_", "")
                 blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
@@ -555,9 +779,180 @@ class AgentValidator:
                             # violations; model can re-reason so never terminal.
                             "expected_terminal": False,
                             "constraint_type": "diagnostic" if lv == ValidationLevel.WARNING else "soft",
+                            # PR-6: does this rule's antecedent read the world or
+                            # the model's own labels? Recorded per FIRING, not
+                            # per rule definition, so the audit row can say which
+                            # of the rules that actually blocked a decision were
+                            # world-grounded. Additive metadata only — no
+                            # existing consumer reads this key, so flag-OFF rows
+                            # are unchanged.
+                            "grounding": getattr(rule, "grounding", "self_report"),
                         }
                     ))
+
+        # PR-6: one audited finding per construct a rule asked about and the
+        # model did not report. Only under the flag — legacy behaviour is that
+        # `get_label` returns "" and the rule quietly does not fire, which is
+        # the right ENFORCEMENT decision and the wrong AUDIT one: the row is
+        # indistinguishable from a row where the rule was evaluated and passed.
+        for construct_name in missing_constructs:
+            message = (
+                f"[Rule: construct_missing] Construct '{construct_name}' was not "
+                f"reported, so rules conditioned on it did not fire. No middle "
+                f"value was assumed."
+            )
+            results.append(ValidationResult(
+                valid=True,
+                validator_name=f"AgentValidator:{tier_name}_construct_missing",
+                errors=[],
+                warnings=[message],
+                metadata={
+                    "level": ValidationLevel.WARNING,
+                    "tier": f"Tier 2: {tier_name.capitalize()}",
+                    "rule": "construct_missing",
+                    "rule_id": "construct_missing",
+                    "rules_hit": ["construct_missing"],
+                    "field": construct_name,
+                    "framework": framework,
+                    "constraint": "construct_present",
+                    "expected_terminal": False,
+                    "constraint_type": "diagnostic",
+                    "grounding": "self_report",
+                },
+            ))
+
+        # P1-a: one audited finding per (rule, world variable) the environment
+        # did not publish. `grounding="world"` on purpose, so the row's
+        # `rules_world_grounded` cell names the rule that COULD NOT be evaluated
+        # alongside the ones that fired — a grounded profile whose variable was
+        # never published otherwise produces a row identical to a clean one.
+        _pass_unevaluable = bool(
+            world_rules_total and world_rules_unreadable == world_rules_total)
+        for rule_id, var_name in missing_world_vars:
+            message = (
+                f"[Rule: world_variable_missing] Rule '{rule_id}' reads world "
+                f"variable '{var_name}', which the environment did not publish "
+                f"for this decision, so the rule did not fire. No value was "
+                f"assumed."
+            )
+            results.append(ValidationResult(
+                valid=True,
+                validator_name=f"AgentValidator:{tier_name}_world_variable_missing",
+                errors=[],
+                warnings=[message],
+                metadata={
+                    "level": ValidationLevel.WARNING,
+                    "tier": f"Tier 2: {tier_name.capitalize()}",
+                    "rule": "world_variable_missing",
+                    "rule_id": "world_variable_missing",
+                    "rules_hit": ["world_variable_missing"],
+                    "field": var_name,
+                    "source_rule_id": rule_id,
+                    "constraint": "world_variable_published",
+                    "expected_terminal": False,
+                    "constraint_type": "diagnostic",
+                    "grounding": "world",
+                    # The per-pass census, carried on the finding so the audit
+                    # row can tally "every grounded rule was unevaluable here"
+                    # once per ROW rather than once per validation pass.
+                    "world_rules_total": world_rules_total,
+                    "world_rules_unreadable": world_rules_unreadable,
+                    "world_rules_unevaluable_pass": _pass_unevaluable,
+                },
+            ))
         return results
+
+    # ------------------------------------------------------------------
+    # PR-6: framework-aware label resolution (flag-gated)
+    # ------------------------------------------------------------------
+    def _resolve_framework_alphabet(self, agent_type: str):
+        """Return ``(framework, label_mappings, label_order)`` for an agent type.
+
+        Reads the SAME registry the ThinkingValidator reads
+        (``register_framework_metadata``), so a framework registered once is
+        enforced everywhere rather than only where it happened to be wired.
+        An UNREGISTERED framework name falls back to empty dicts, which makes
+        :meth:`_normalize_framework_label` behave like the legacy five-level
+        path minus the two-character truncation (both sides of a comparison pass
+        through unchanged, so literal labels still match) — but it is logged
+        once, because it means the framework's own alphabet is not being applied.
+
+        A framework that cannot be RESOLVED AT ALL raises. The old
+        ``except Exception: framework = ""`` swallowed a broken config accessor
+        and silently ran every label rule against the generic alphabet: rules
+        written for a registered framework's labels then matched nothing, and a
+        rule that never fires leaves the same audit trail as a rule that is never
+        violated. This flag is opt-in and off for every frozen corpus, so failing
+        loudly here costs a reproduction nothing and buys the run its own
+        correctness.
+        """
+        framework = ""
+        try:
+            getter = getattr(self.config, "get_framework_for_agent_type", None)
+            if callable(getter) and agent_type:
+                framework = str(getter(agent_type) or "").strip().lower()
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"validators.framework_aware_labels is ON but the framework for "
+                f"agent_type {agent_type!r} could not be resolved "
+                f"({type(exc).__name__}: {exc}). Refusing to fall back to the "
+                f"generic alphabet: every rule written against this framework's "
+                f"labels would silently never fire, and the audit trail of a "
+                f"rule that never fires is identical to one that was never "
+                f"violated. Fix the config's psychological_framework declaration, "
+                f"or turn the flag off."
+            ) from exc
+        try:
+            from broker.validators.governance.thinking_validator import (
+                FRAMEWORK_LABEL_ORDERS, _LABEL_MAPPINGS,
+            )
+        except ImportError:  # pragma: no cover - defensive
+            return framework, {}, {}
+        if framework and framework not in FRAMEWORK_LABEL_ORDERS:
+            warned = self.__dict__.setdefault("_warned_unregistered_frameworks", set())
+            if framework not in warned:
+                warned.add(framework)
+                logger.warning(
+                    "[AgentValidator] validators.framework_aware_labels is ON and "
+                    "agent_type %r declares framework %r, which is NOT registered "
+                    "(registered: %s). Labels will be compared literally on both "
+                    "sides instead of through that framework's alphabet, so a "
+                    "rule written with the framework's short codes will not match "
+                    "a model that answered in long form. Call "
+                    "register_framework_metadata(%r, ...) from the domain pack.",
+                    agent_type, framework, sorted(FRAMEWORK_LABEL_ORDERS.keys()),
+                    framework,
+                )
+        return (
+            framework,
+            dict(_LABEL_MAPPINGS.get(framework, {}) or {}),
+            dict(FRAMEWORK_LABEL_ORDERS.get(framework, {}) or {}),
+        )
+
+    def _normalize_framework_label(self, raw: str, mappings: Dict[str, str],
+                                   alphabet: Dict[str, int]) -> str:
+        """Normalise one label against a framework's registered alphabet.
+
+        Deliberately does NOT truncate to two characters. That truncation is the
+        F2 defect: it turns ``AGGRESSIVE`` into ``"AG"``, which is in no
+        framework's alphabet, so every ``financial`` rule silently never fires.
+        An unrecognised label is returned whole instead, where a comparison can
+        fail visibly rather than fail as a near-miss.
+        """
+        text = str(raw).upper().strip()
+        if "]" in text:
+            text = text.split("]")[0].replace("[", "").replace("]", "").strip()
+        if text in alphabet:
+            return text
+        if text in mappings:
+            return mappings[text]
+        try:
+            shared_map = self.config.get_shared("normalization_map", {}) or {}
+        except (ImportError, AttributeError, KeyError):
+            shared_map = {}
+        if text in shared_map:
+            return shared_map[text]
+        return text
 
     def validate_affordability(
         self,

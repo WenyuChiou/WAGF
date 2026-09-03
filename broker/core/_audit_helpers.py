@@ -126,6 +126,85 @@ def _safe_triggered_rules(all_validation_history) -> List[str]:
         return []
 
 
+def _safe_rules_by_grounding(all_validation_history):
+    """PR-6: split the rule ids that fired into (world-grounded, self-report).
+
+    Reads ``metadata["grounding"]``, which the validators stamp per FIRING. A
+    result without the key counts as self-report — the honest default: a rule
+    is not world-grounded until something says it read the world.
+
+    Returns ``([], [])`` on any error. The audit write path must never be the
+    thing that ends a run.
+    """
+    try:
+        world, self_report = set(), set()
+        for batch in all_validation_history or []:
+            results = batch if isinstance(batch, list) else [batch]
+            for r in results:
+                meta = getattr(r, "metadata", None) or {}
+                ids = set()
+                if meta.get("rule_id"):
+                    ids.add(str(meta["rule_id"]))
+                for h in (meta.get("rules_hit") or []):
+                    if h:
+                        ids.add(str(h))
+                if not ids:
+                    continue
+                bucket = world if meta.get("grounding") == "world" else self_report
+                bucket |= ids
+        # A rule id that fired both ways in one decision (a retry re-derived it
+        # from a different condition) is reported as world-grounded, because the
+        # stronger claim is the one a reader must be able to check.
+        return sorted(world), sorted(self_report - world)
+    except Exception as exc:
+        logger.warning(f"[Audit] grounding split failed: {exc}")
+        return [], []
+
+
+def _row_world_rules_unevaluable(all_validation_history) -> bool:
+    """PR-6 P1-a: True iff every world-grounded rule was unreadable on this row.
+
+    Reads the per-pass census the AgentValidator stamps on each
+    ``world_variable_missing`` finding. A row where one grounded rule fired and
+    another was unreadable is NOT unevaluable — it is a row with a gap. Only a
+    row where no grounded rule could be evaluated at all counts, because that is
+    the row whose CSV is indistinguishable from a self-report-only run's.
+
+    Returns ``False`` on any error: this feeds a side-artifact tally, and a
+    tally must never be the thing that ends a run.
+    """
+    try:
+        saw_pass = False
+        for batch in all_validation_history or []:
+            results = batch if isinstance(batch, list) else [batch]
+            for r in results:
+                meta = getattr(r, "metadata", None) or {}
+                if "world_rules_unevaluable_pass" not in meta:
+                    continue
+                if not meta.get("world_rules_unevaluable_pass"):
+                    return False
+                saw_pass = True
+        return saw_pass
+    except Exception as exc:
+        logger.warning(f"[Audit] world-rule evaluability tally failed: {exc}")
+        return False
+
+
+def _note_world_grounded_row(unevaluable: bool) -> None:
+    """Increment the process-global evaluability tally. Never raises.
+
+    Lazily imported for the same reason the uncategorised-rule tally is: the
+    module it lives in reaches back into the analytics package, and a
+    module-level import here would close a startup cycle.
+    """
+    try:
+        from broker.core.run_integrity import note_world_grounded_row
+
+        note_world_grounded_row(bool(unevaluable))
+    except Exception as exc:  # noqa: BLE001 — side-artifact tally only
+        logger.debug(f"[Audit] world-rule evaluability tally skipped: {exc}")
+
+
 def _sanitize_audit_segment(value) -> str:
     """P0-1a: make a value safe to embed in a ``|``/``=`` delimited audit field.
 
@@ -477,6 +556,7 @@ class AuditMixin:
         initial_labels: str = "",
         attempt_skills: Optional[List] = None,
         advise_info: Optional[Dict[str, Any]] = None,
+        soft_advise_info: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -603,6 +683,37 @@ class AuditMixin:
         if callable(get_aflag) and get_aflag() and advise_info:
             advise_extra = dict(advise_info)
 
+        # PR-6: the SOFT-RULE columns. Key-gated by the channel itself rather
+        # than by a second flag — `_soft_rule_pass` returns {} when the channel
+        # is off, so an off run adds no keys, gains no columns, and stays
+        # byte-identical without an operator having to remember two switches.
+        soft_extra: Dict[str, Any] = dict(soft_advise_info or {})
+
+        # PR-6: the GROUNDING columns. ON when the active profile declares a
+        # world-grounded rule (or when the operator forces them), so a reader of
+        # a grounded run can tell which of the rules that fired read the world
+        # and which read the model's own labels — a distinction `rules_triggered`
+        # cannot carry, since it lists ids only.
+        grounding_extra: Dict[str, Any] = {}
+        get_gflag = getattr(self.config, "get_audit_grounding_columns", None)
+        if callable(get_gflag):
+            try:
+                _gon = bool(get_gflag())
+            except Exception:
+                _gon = False
+            if _gon:
+                _world, _self_report = _safe_rules_by_grounding(all_validation_history)
+                grounding_extra = {
+                    "rules_world_grounded": "|".join(_world),
+                    "rules_self_report": "|".join(_self_report),
+                }
+                # PR-6 P1-a: one tally per ROW (this function runs once per audit
+                # row), not per validation pass — a decision that retried three
+                # times must not count three times against the row total the
+                # guardrail compares with.
+                _note_world_grounded_row(
+                    _row_world_rules_unevaluable(all_validation_history))
+
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)
         if (callable(get_pflag) and get_pflag()
@@ -691,6 +802,9 @@ class AuditMixin:
             **initial_extra,
             # P0-1c: advisory columns, spread last (same rationale).
             **advise_extra,
+            # PR-6: soft-rule + grounding columns, spread last (same rationale).
+            **soft_extra,
+            **grounding_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

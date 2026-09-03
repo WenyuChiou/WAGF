@@ -479,11 +479,127 @@ nothing misclassifies — but anyone routing a rebuilt proposal into the audit
 writer has to re-stamp the attribute, or accept that those rows silently lose
 the distinction.
 
+## Rule grounding columns (auto-on with a grounded profile, v0.8)
+
+Two columns, present only when the run's active governance profile declares at
+least one world-grounded rule, or when an operator writes
+`global_config.audit.grounding_columns: true`.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `rules_world_grounded` | `\|`-joined ids | Rules that fired whose antecedent read simulator/world state the model cannot author. |
+| `rules_self_report` | `\|`-joined ids | Rules that fired whose antecedent read only a construct label the model emitted in the same generation. |
+
+**Why the split exists.** `rules_triggered` lists ids and nothing else, so it
+cannot tell a reader whether a block was a *coherence* finding (the model
+disagreed with itself) or a *contradiction* finding (the world disagreed with
+the model). Those support different claims and a paper should not total them
+together. Full semantics: `docs/guides/governance_layers.md`.
+
+**How a rule is classified.** `AgentTypeConfig.get_thinking_rules` and
+`get_identity_rules` both stamp `CoherenceRule.grounding`; the validators copy it
+onto `metadata["grounding"]` per FIRING; `_safe_rules_by_grounding` splits the
+decision's validation history on that key. A result with no `grounding` key
+counts as self-report — the honest default, since a rule is not world-grounded
+until something says it read the world. An id that fired both ways inside one
+decision (a retry re-derived it from a different condition) is reported as
+world-grounded, because that is the stronger claim and the one a reader must be
+able to check.
+
+**Both rule tiers are covered, not just thinking rules.** An identity rule's
+`precondition:` tests simulator state the model cannot author — "the house is
+already elevated", "the farmer is at the allocation cap" — so identity blocks
+land in `rules_world_grounded`. They always were world-grounded; before PR-6
+nothing stamped them, so every identity block fell to the self-report default
+and a count of self-report blocks silently included physical constraints.
+
+**`world_variable_missing`.** A grounded rule whose variable the environment
+never published does not fire — the safe direction — and records a WARNING with
+`grounding: world`, so the id appears in `rules_world_grounded` for that row.
+Without it, "the world had nothing to object to" and "the rule could not read
+the world" are the same row, and only the first is evidence. `run_integrity.json`
+carries the run-level pair `world_grounded_rows` / `world_rules_unevaluable_rows`
+and FLAGS the run (`integrity_ok: false`) when every row of a grounded run was
+unevaluable — that run's CSV is otherwise indistinguishable from a
+self-report-only run's.
+
+**Key gating.** The columns are absent unless the trace carries the keys, and
+`compute_csv_fieldnames` derives fieldnames from row keys, so a self-report-only
+profile gains no columns and every frozen CSV stays byte-identical. The gate is
+the profile itself rather than a second flag, so a grounded run cannot be
+launched with the evidence for its own headline switched off.
+
+## Soft-rule columns (`governance.advise_mode`, v0.8)
+
+Eleven columns, present only when `global_config.governance.advise_mode` is
+`record` or `feedback` (default `off` emits no keys).
+
+| Column | Type | Meaning |
+|---|---|---|
+| `soft_advise_mode` | string | `record` or `feedback`. Named to avoid colliding with the P0-1c arm payload's `advise_mode`. |
+| `advise_findings` | `\|`-joined ids | WARNING-level rules that fired, each prefixed with its validator category. |
+| `advise_shown` | bool | Whether the finding text was rendered into a prompt the model received. |
+| `advise_reports_shown` | int | How many reports the renderer actually delivered. `advise_shown` is `bool()` of this. |
+| `advise_skill_before` | string | The proposal at the moment the advice was shown. Empty when nothing was shown. |
+| `advise_skill_after` | string | The proposal the model returned after the advisory call. Equal to `_before` when the model did not change its mind, or when the reply was unparsable. |
+| `advise_executed_stage` | `pre` / `post` | Which proposal actually EXECUTED. |
+| `advise_parse_failed` | bool | The advisory call raised, or its reply could not be parsed. |
+| `advise_post_validation_invalid` | bool | The post-advice proposal would have failed validation, so it was discarded. |
+| `advise_post_validation_rules` | `\|`-joined ids | Which rules it would have failed. |
+| `soft_findings_unidentified` | int | WARNING results that carried no rule id, so `advise_findings` could not name them. |
+
+**Which findings are counted.** Only results authored as WARNING that carry a
+rule id. Three kinds are deliberately excluded: results demoted by the P0-1c
+`governance.advise` arm (they have their own advisory call and their own
+columns), results converted by SHADOW mode (they are suppressed *enforcement*,
+recorded in `shadow_blocked` — feeding them back as advice would turn a shadow
+arm into a quiet advice arm), and results with no rule id, which are counted in
+`soft_findings_unidentified` instead. Including the last kind produced
+`advise_shown=True` with `advise_findings=""`: a call was made, the model was
+told something, and the row named nothing.
+
+**Category prefixes.** An id reads `thinking:low_coping_block`,
+`social:norm_drift`, and so on, because one cell can carry findings from several
+validator tiers and a bare id does not say which layer produced it.
+`construct_missing` and `world_variable_missing` instead carry the FIELD —
+`construct_missing:TP_LABEL` — since the rule id is the same string for every
+unreported construct.
+
+**When the snapshot is taken.** `advise_findings` records the ATTEMPT-0
+findings: the WARNING results of the first validation pass, before the
+governance retry loop runs. A rule that starts warning only on a later retry is
+not in this cell. That is the point — the cell is the input the advisory call
+was built from, so it has to describe the same moment the advice did.
+
+**Why `advise_shown` is a separate column from `advise_findings`.** Without it,
+"advice had no effect" and "advice was never delivered" produce the same row,
+and the published corpora could not tell them apart. Under `feedback` the
+advisory call is skipped when a hard rule is already blocking (see the guide),
+so `advise_findings` non-empty with `advise_shown=False` is a normal, meaningful
+state, not a bug.
+
+`advise_shown` is stamped before the call and never cleared on failure — the
+claim is "the model was shown this", which became true when the prompt was sent
+— but it is stamped from what the RENDERER delivered, not asserted. An adapter
+that dropped every report sends a prompt carrying no advice, and that decision
+is a resample, not an advice observation; exclude it from the matched contrast.
+
+**Advice never changes whether a decision blocks.** `status` is exactly what it
+would have been with the channel off; a post-advice proposal that would fail
+validation is DISCARDED rather than re-prompted (`advise_executed_stage` reads
+`pre`, and `advise_post_validation_invalid` / `advise_post_validation_rules`
+record what it would have tripped — see the `failed_rules` gotcha below for
+the CSV-column consequence of the discard). Full mechanism:
+`docs/guides/governance_layers.md` §"Advice never blocks".
+
+`record` issues zero extra LLM calls, so a `record` arm is provably incapable of
+changing behaviour and measures the soft rules' firing rate alone.
+
 ## Semantics Gotchas
 
 | Gotcha | Meaning | Recommended handling |
 |---|---|---|
-| `validated=True` with non-empty `failed_rules` | A retry recovered. The final attempt is clean, but prior blocking issues are preserved. | Treat as "retry-recovered", not as a final contradiction. |
+| `validated=True` with non-empty `failed_rules` | Two distinct causes. (1) A retry recovered: the final attempt is clean, but prior blocking issues are preserved. (2) A discarded post-advice proposal: `all_validation_history` is extended with the post-advice proposal's results (`broker/core/_advise_pass.py`) BEFORE the code checks whether that proposal is valid, so a rejected post-advice proposal's rule ids reach `failed_rules` — and the same unconditional extend feeds `rules_world_grounded` / `rules_self_report` / every `rules_*_hit` column — even though the row's `status` and executed action reflect the pre-advice proposal that actually ran. | Check `advise_executed_stage` before concluding anything about the executed decision from `failed_rules`: `pre` with `advise_post_validation_invalid=True` means the rule ids in these five columns name a proposal that never executed, not the one that did. `post` (or the retry case) means treat it as "retry-recovered", not a final contradiction. This matters under executed-only analysis discipline (the "Rejected-row discipline" row in Column Groups above): headline metrics read the executed action, never a discarded proposal's validation trail. |
 | `rules_triggered` vs `failed_rules` | `rules_triggered` reads `rules_hit`; `failed_rules` reads `rule_id`. Legacy validators can diverge. | Use both only after checking validator attribution semantics. |
 | `failed_rules` = `Unknown` | The producing `ValidationResult` carries no `metadata.rule_id`. Known producer: `AgentValidator:format` missing-required-fields (`agent_validator.py`), which fires on EVERY frozen-mock-baseline row — its label is frozen as `Unknown` because renaming it breaks mock byte-identity re-verification. | Treat `Unknown` + `error_messages` starting "Response missing required fields" as the format check. Rename to `format_required_fields` only at the next `AUDIT_SCHEMA_VERSION` bump. |
 | `output_schema_violation` / `precondition_violation` in `failed_rules` | Named 2026-06-10 (both registry-level checks in `skill_broker_engine._run_validators`). Byte-safe: zero occurrences of either in the frozen mock baselines, so naming them changed no frozen-path bytes. | Rows older than 2026-06-10 show these producers as `Unknown`. |
