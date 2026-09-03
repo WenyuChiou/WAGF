@@ -60,43 +60,49 @@ profile.extensions["trading"] = TradingPreferences(...)
 
 ## Directory Structure
 
+This tree is regenerated from the real layout (2 levels, one-line purpose
+per directory) — the previous version of this section described
+`broker/components/` as nine flat files; the package was split into
+subpackages some time ago and the doc was never updated.
+
 ```
 broker/                          # Core governance middleware
-├── components/                  # Core components
-│   ├── audit_writer.py         # Trace logging
-│   ├── context_builder.py      # LLM prompt construction
-│   ├── memory.py               # Memory management (config-driven)
-│   ├── memory_engine.py        # Memory retrieval engine
-│   ├── reflection_engine.py    # Batch reflection processing
-│   ├── skill_registry.py       # Action/skill management
-│   ├── skill_retriever.py      # Skill selection
-│   ├── social_graph.py         # Agent network relationships
-│   └── universal_memory.py     # Cognitive System 1/2 switching
-├── interfaces/                  # Protocol definitions
-│   ├── enrichment.py           # PositionEnricher, ValueEnricher
-│   ├── schemas.py              # Data schemas
-│   └── skill_types.py          # Skill type definitions
+├── agents/                      # BaseAgent + agent-state loading/protocols
+├── components/                  # Domain-independent pipeline components, 11 subpackages
+│   ├── analytics/               # Audit trace writer (audit.py), drift/feedback/observable-state tracking
+│   ├── cognitive/                # Reflection engine + orchestrator, cognitive trace dataclass
+│   ├── context/                  # LLM prompt/context construction (builder, providers, tiered)
+│   ├── coordination/             # GameMaster/coordinator, conflict resolution, message pool
+│   ├── events/                   # Environment + multi-agent event managers
+│   ├── governance/                # Skill registry/retriever, validator registry, domain-validator dispatch
+│   ├── memory/                    # MemoryEngine ABC + implementations, seeding, factory -- the PRODUCTION tree
+│   ├── orchestration/             # Phase execution ordering, saga transaction coordinator
+│   ├── prompt_templates/          # Generic memory-template contracts
+│   ├── social/                    # Social graph, perception filter, social-media post/dedup
+│   └── validation/                # Readiness-profile analysis (Phase 6O-C)
+├── config/                       # Config schema (schema.py) + memory-policy loader
+├── core/                          # Governance pipeline entrypoint: propose -> validate -> retry -> execute
+│                                  #   (skill_broker_engine.py, _retry_loop.py, _advise.py, experiment_runner.py, ...)
+├── coupling/                      # External-model coupling layer (adapter/contract/grid+BMI sources)
+├── domains/                       # Domain metadata registry + the `water/` domain pack (flood/irrigation PMT, utility, memory strategies)
+├── governance/                    # Rule-type dataclasses (rule_types.py) shared by the YAML rule engine
+├── interfaces/                    # Protocol + dataclass definitions (enrichment, schemas, skill_types, ...)
+├── memory/                        # Standalone research toolkit (persistence/checkpoint/replay) -- NOT the production tree, see below
 ├── modules/
-│   └── survey/                  # Generic survey processing
-│       ├── agent_initializer.py # Generic profile creation
-│       └── survey_loader.py     # Generic CSV/Excel loading
-└── utils/                       # Utilities
-    ├── agent_config.py         # YAML config loading
-    ├── llm_utils.py            # LLM API utilities
-    └── logging.py              # Logging configuration
+│   └── survey/                    # Generic CSV/Excel survey loading + profile creation
+├── simulation/                    # Simulation engine, environment state, state manager
+├── tools/                         # Operator CLIs (scaffold_domain, validate_prompt, compare_audit_csv, ...)
+├── utils/                         # Config loading, LLM API utilities, logging, retry formatting, ...
+└── validators/                    # AgentValidator rule engine (production path) + the five governance-framework validators
 
-examples/                        # Domain-specific implementations
-├── multi_agent/                 # MA Flood Simulation
-│   ├── environment/            # Flood-specific enrichers
-│   │   ├── depth_sampler.py    # Flood zone assignment
-│   │   └── rcv_generator.py    # Property value generation
-│   ├── survey/                 # MA-specific survey processing
-│   │   ├── flood_survey_loader.py
-│   │   ├── ma_initializer.py   # MG classification + flood extensions
-│   │   └── mg_classifier.py    # Marginalized Group classifier
-│   ├── ma_agent_types.yaml     # MA agent configurations
+examples/                          # Domain-specific implementations (non-exhaustive; see `examples/` for the full list)
+├── multi_agent/flood/             # Multi-agent flood simulation (Paper 3)
+│   ├── environment/               # Flood-specific enrichers (depth_sampler.py, rcv_generator.py)
+│   ├── survey/                    # MA-specific survey processing (flood_survey_loader.py, mg_classifier.py, ...)
 │   └── run_unified_experiment.py
-└── single_agent/               # Single agent experiments
+├── single_agent/                  # Single-agent flood experiments (Nature Water paper)
+├── irrigation_abm/                 # Irrigation domain (CRSS agents)
+└── vaccination_demo/               # Single-agent non-water reference domain
 ```
 
 ---

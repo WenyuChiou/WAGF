@@ -1,6 +1,15 @@
 """
 Vector Database for O(log n) Memory Retrieval.
 
+STATUS: EXPERIMENTAL — not on any production run path (no production
+callers as of v0.6.0). Verified by grep: outside this file, only its
+own standalone unit test (`tests/test_vector_db.py`) and the package
+re-export in `broker/memory/__init__.py` reference `VectorMemoryIndex`;
+no `broker/components/memory/` engine, `MemoryEngineRegistry` factory,
+or domain/example code imports it. The registered `"unified"` memory
+engine (`broker/memory/unified_engine.py`, wired in
+`broker/components/memory/registry.py`) does not use this module.
+
 Provides FAISS-based vector indexing for efficient semantic similarity search.
 Replaces O(n) linear scan with O(log n) approximate nearest neighbor search.
 
