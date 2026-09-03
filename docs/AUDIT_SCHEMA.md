@@ -617,6 +617,47 @@ be launched with the provenance for its own headline switched off. The ABORTED
 sentinel row carries the same two keys, so a mixed-population CSV has one column
 set rather than two.
 
+**Coupling-retrofit provenance (`run_integrity.json`, PR-9, F1).** A domain
+whose physical-state handoff cannot be wrapped in `EnvironmentCouplingAdapter`
+(its shape does not fit the adapter's single-flat-dict model — irrigation's
+per-agent `get_agent_context()` reads three separate dicts lazily; see
+`examples/irrigation_abm/irrigation_coupling.py`) reports its OWN inline
+`CouplingContract` guard via a distinct duck-typed hook,
+`sim_engine.get_coupling_retrofit_metadata()`, read generically by
+`ExperimentRunner._collect_reproducibility_metadata`
+(`broker/core/experiment_runner.py`) — no domain-specific code in `broker/`.
+Four keys land in `run_integrity.json` (top level, merged via the existing
+`extra` parameter of `record_run_integrity`), recorded UNCONDITIONALLY —
+present on a flag-OFF run, not merely absent, so a run's provenance never
+depends on the flag having been touched:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `coupling_contract_active` | bool | Whether `global_config.coupling.context_contract` resolved to ON for this run. This is the run's INTENT. |
+| `coupling_contract_fields` | dict[str, str] | Every field the contract covers, mapped to the check it actually got: `presence+range` (numeric — present, finite, within `[lo, hi]`, numeric type) or `presence+type` (bool/str — present and of the declared type; a `str` must be non-empty). A flat list would read as though all fields were range-guarded. |
+| `coupling_contract_uncovered_keys` | list[str] | Keys `get_agent_context()` returns that the contract does NOT cover, so "15 of 18" is checkable from the artifact. For irrigation: `agent_id` (the caller's own argument), `year` (a plain attribute), `shortage_tier` (derived from the covered `lake_mead_level`). |
+| `coupling_guard_calls` | int | How many times the guard actually ran and passed. This is the run's EVIDENCE: `coupling_contract_active: true` with `coupling_guard_calls: 0` is a run the guard never touched, and reads identically to a fully-guarded run without this number. |
+
+A fifth key appears only on failure: `coupling_retrofit_metadata_error`
+(`str`) records `Type: message` when the engine's hook itself raised, so a
+broken hook never reads as an engine that simply has none.
+
+None of these is a claim about UNITS. The guard does not call
+`CouplingContract.check_units()` or `check_cadence()`, and no unit
+CONVERSION is verified anywhere on this path — a wrong-unit value inside the
+declared range passes. What is enforced at contract CONSTRUCTION (direction,
+double-count, unit-declared, `lo <= hi`) and what is enforced per call
+(presence, finite range, dtype) are listed in full in
+`examples/irrigation_abm/irrigation_coupling.py`'s module docstring.
+
+This is DISTINCT from the `coupling_adapter` / `sim_engine_class` pair
+written when `sim_engine` genuinely IS an `EnvironmentCouplingAdapter`
+(read via the sibling `get_provenance` hook, same function) — a domain using
+the inline-guard pattern was never wrapped in the adapter, and conflating the
+two hooks would make `coupling_adapter: true` a false claim. Never touches
+the audit CSV: `compute_csv_fieldnames` derives columns from row keys, and
+none of these keys is written to any row.
+
 ## Soft-rule columns (`governance.advise_mode`, v0.8)
 
 Eleven columns, present only when `global_config.governance.advise_mode` is

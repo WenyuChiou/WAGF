@@ -54,15 +54,29 @@ whether agents see the same-step result.
 
 ## Failure modes
 
-Every timeout, NaN, crash, and wrong shape needs a planned response.
-The default policy is fail loudly or reuse last good output with a logged
-warning. Never silently zero-fill.
+Every timeout, NaN, crash, and wrong shape needs a planned response. The
+CONTRACT's policy is always fail loudly — `VarSpec.on_missing` accepts
+only `"fail_loud"`; `broker/coupling/contract.py` rejects `"last_good"`
+or `"quarantine"` at construction because neither has a runtime executor
+(a policy you can write but that silently never runs is worse than no
+policy). Never silently zero-fill.
 
-Good: "Timeout over 30 seconds reuses the last good `mead_elevation_ft`,
-sets `external_model_status=timeout`, and writes a warning row."
+A reuse-last-good behaviour is still allowed, but it lives INSIDE your
+adapter/source — before the value ever reaches the contract boundary —
+not as a contract-level policy. See
+`.claude/skills/wagf-coupling-designer/templates/adapter_A_file_replay.py.tmpl`
+for the worked pattern (it caches the last good payload itself and tags
+its own `external_model_status`).
+
+Good: "Timeout over 30 seconds: the adapter reuses its cached
+`mead_elevation_ft`, tags the reply `external_model_status=timeout`, and
+writes a warning row. The CONTRACT still declares `on_missing=fail_loud`
+for `mead_elevation_ft` — a call with NO cached value yet raises."
 
 Bad: "If the model fails, use default values." Defaults erase the signal
-that the experiment is no longer measuring the stated model.
+that the experiment is no longer measuring the stated model. Equally bad:
+"the contract sets `on_missing=last_good`" — that VarSpec will not
+construct.
 
 ## Units audit checklist
 

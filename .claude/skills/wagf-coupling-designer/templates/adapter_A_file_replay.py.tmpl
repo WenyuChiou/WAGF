@@ -59,7 +59,14 @@ class FileReplayAdapter:
         """
         key = (year, scenario)
         if key not in self.cache:
-            # TODO: Choose fail_loud or last_good in the coupling contract.
+            # TODO: Choose this ADAPTER's failure_policy ("fail_loud" or
+            # "last_good") above, in __init__ — NOT in the coupling contract.
+            # The contract's VarSpec.on_missing accepts only "fail_loud"
+            # (broker/coupling/contract.py rejects "last_good" and
+            # "quarantine" at construction: no runtime executor exists for
+            # either). A last-good policy is legal HERE, before the value
+            # reaches the contract boundary, because this adapter actually
+            # implements it — that is the whole point of the pattern.
             if self.failure_policy == "last_good" and self.last_good:
                 return dict(self.last_good), "fallback_last_good"
             raise KeyError(f"No replay row for {key}")

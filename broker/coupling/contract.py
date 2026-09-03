@@ -17,8 +17,24 @@ pure numerical models, but here carried across the LLM <-> simulator boundary:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
+
+
+def _is_bool_like(value: object) -> bool:
+    """True for a builtin bool and for a numpy bool scalar.
+
+    ``isinstance(numpy.bool_(True), bool)`` is False, so a boolean that
+    arrives from a pandas column or a vectorised comparison would be
+    rejected by a bool-typed VarSpec and would slip past the
+    bool-in-numeric-slot guard. Duck-typing on ``dtype.kind == "b"``
+    covers numpy without importing it into the generic contract layer.
+    """
+    if isinstance(value, bool):
+        return True
+    kind = getattr(getattr(value, "dtype", None), "kind", None)
+    return kind == "b"
 
 # Allowed enum-like string values (kept as strings, not Enums, so a YAML/JSON
 # contract can be authored without importing this module).
@@ -140,18 +156,79 @@ class VarSpec:
 
     # --- numerical-correctness check #1: units / dtype / range ---
     def range_violation(self, value: object) -> Optional[str]:
-        """Return a message if ``value`` violates dtype/range, else None."""
+        """Return a message if ``value`` violates dtype/range, else None.
+
+        This is the ONE primitive every runtime guard in the coupling layer
+        calls (``EnvironmentCouplingAdapter._validate_observations``,
+        ``subprocess_source._guard_reply``, and the domain-side inline guards),
+        so a hole here is a hole in all of them. Three were closed together
+        (PR-9 review round, P0):
+
+        * **NaN / ±inf were invisible.** ``float("nan") < lo`` and
+          ``float("nan") > hi`` are BOTH False, so a NaN passed every bounded
+          range check and reached the prompt as a number. ``math.isfinite``
+          now rejects it (and ±inf) BEFORE the bounds are consulted, naming
+          the field. A NaN in a coupled reading is never a reading — it is the
+          producer saying "no value" in a way that looks like one.
+        * **``bool`` coerced into numeric slots.** ``bool`` is a subclass of
+          ``int``, so ``float(True) == 1.0`` silently satisfied any range
+          containing 1 — a flag wired into a numeric variable read as a valid
+          measurement.
+        * **``str`` coerced into numeric slots.** ``float("55") == 55.0``, so a
+          producer emitting text where the contract declares a number passed
+          unnoticed; the units/dtype check exists precisely to catch that
+          schema disagreement, not to paper over it.
+
+        And the two NON-numeric dtypes are no longer unchecked: a ``bool`` or
+        ``str`` VarSpec previously fell straight through to ``return None``, so
+        declaring one bought PRESENCE checking and nothing else. Each now
+        asserts its declared type (and, for ``str``, non-emptiness — an empty
+        string is the string-shaped equivalent of the silent zero this layer
+        exists to refuse).
+
+        Runs that were already correct are unaffected: every rejection added
+        here is a value no passing run produces.
+        """
         if value is None:
             return None  # missing-handling is the adapter's on_missing job
         if self.dtype in (int, float):
+            # Order matters: bool BEFORE the float() coercion, because
+            # isinstance(True, int) is True and float(True) succeeds.
+            if _is_bool_like(value):
+                return (
+                    f"{self.name}={value!r} is a bool, not a "
+                    f"{self.dtype.__name__} ({self.unit})"
+                )
+            if isinstance(value, str):
+                return (
+                    f"{self.name}={value!r} is a str, not a "
+                    f"{self.dtype.__name__} ({self.unit}) -- a numeric variable "
+                    f"arriving as text means the producer's schema and the "
+                    f"contract disagree; coercing it would hide that"
+                )
             try:
                 num = float(value)
             except (TypeError, ValueError):
                 return f"{self.name}={value!r} not coercible to {self.dtype.__name__} ({self.unit})"
+            if not math.isfinite(num):
+                return f"{self.name}={value!r} is not finite ({self.unit})"
             if self.lo is not None and num < self.lo:
                 return f"{self.name}={num} below lo={self.lo} ({self.unit})"
             if self.hi is not None and num > self.hi:
                 return f"{self.name}={num} above hi={self.hi} ({self.unit})"
+            return None
+        if self.dtype is bool:
+            if not _is_bool_like(value):
+                return (
+                    f"{self.name}={value!r} is not a bool "
+                    f"({type(value).__module__}.{type(value).__name__})"
+                )
+            return None
+        if self.dtype is str:
+            if not isinstance(value, str):
+                return f"{self.name}={value!r} is not a str ({type(value).__name__})"
+            if not value:
+                return f"{self.name} is an empty str (declared str, non-empty required)"
         return None
 
 
@@ -163,7 +240,15 @@ class CouplingContract:
     inputs: Tuple[VarSpec, ...] = field(default_factory=tuple)  # agent_to_world
     decision_cadence: str = "annual"  # "annual" | "step"
     solver_cadence: str = "annual"  # "annual" | "event_set" | "sub_step"
-    operation_order: Tuple[str, ...] = field(default_factory=tuple)  # E3 pinned pipeline order
+    # E3 pinned pipeline order: the stage sequence INSIDE one coupled
+    # bundle's InterfaceBundle.run_pipeline (e.g. "hazard", "exposure",
+    # "vulnerability", "financial" — cat_model's chain). NOT the same knob
+    # as ExperimentBuilder.with_phase_order, which orders WHICH AGENT
+    # TYPES run before which others within one period and applies whether
+    # or not coupling is even in use. The two orderings are independent —
+    # a multi-agent coupled domain sets both, separately. Full comparison:
+    # docs/COUPLING_CONNECTORS.md "Two orderings, two different things".
+    operation_order: Tuple[str, ...] = field(default_factory=tuple)
     control_hold_policy: str = "constant"  # how an agent control is held across K sub-steps
     # K solver sub-steps per decision period (inc 3). None = event/annual
     # coupling (one advance per period). ContinuousBundle requires it.

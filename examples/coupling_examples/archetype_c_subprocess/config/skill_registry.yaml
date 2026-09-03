@@ -1,0 +1,37 @@
+# Archetype-C (subprocess) worked-example skill registry.
+skills:
+  - skill_id: log_normal
+    category: observation
+    intensity: none
+    reversibility: annual
+    description: "Record the sensor reading as within normal range"
+    eligible_agent_types: ["sensor_operator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "log_normal"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1] }
+    conflicts_with: []
+
+  - skill_id: flag_anomaly
+    category: observation
+    intensity: none
+    reversibility: annual
+    description: "Flag the sensor reading as anomalous"
+    eligible_agent_types: ["sensor_operator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "flag_anomaly"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [2] }
+    conflicts_with: []
+
+default_skill: log_normal

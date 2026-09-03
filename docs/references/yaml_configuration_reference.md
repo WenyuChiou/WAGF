@@ -468,6 +468,89 @@ counters, and the `decision_source` enum: `docs/AUDIT_SCHEMA.md`.
 
 ---
 
+#### 2.1.8 global_config.coupling
+
+Two independent flags share this block; both default OFF.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enable` | bool | No | (pack default) | Two-layer environment-coupling flag: wraps `sim_engine` in `EnvironmentCouplingAdapter`. See `broker/coupling/flag.py` and `docs/COUPLING_CONNECTORS.md`. Not further documented here — this section's new addition is `context_contract` below. |
+| `context_contract` | bool | No | false | Opt-in fail-loud guard on a domain environment's per-agent `get_agent_context()` handoff (PR-9, F1). Irrigation is the first consumer. See below. |
+
+**`context_contract` (PR-9, F1 remediation).** `IrrigationEnvironment
+.get_agent_context()` — the ONLY place per-agent physical state (Lake
+Mead level, precipitation, water right, curtailment, drought index, and
+ten more fields) crosses into the LLM prompt — reads every field with a
+silent `.get(key, 0)` / `.get(key, False)` / `.get(key, "unknown")`
+default. A genuinely missing value is therefore indistinguishable from a
+real zero. With this flag `true`, every field is checked against a
+`CouplingContract` (`examples/irrigation_abm/irrigation_coupling.py`)
+BEFORE any default is applied: a field that is actually absent raises
+`CouplingViolation` naming it; a field that is present is returned
+UNCHANGED (the guard adds a fail-loud floor, it never rewrites a value).
+
+**Exactly what the flag enforces, and what it does not.** The coupling
+layer advertises four numerical-correctness checks; this path runs two of
+them, so a write-up must not credit all four:
+
+- At contract CONSTRUCTION: direction (every observation is
+  `world_to_agent`) and double-count (one `consumer_of_record` per
+  quantity), via `CouplingContract.__post_init__`; plus unit-declared and
+  `lo <= hi`, via `VarSpec.__post_init__`.
+- At RUNTIME under the flag, per field per call: presence, then — for a
+  present value — finite (no NaN/±inf), inside `[lo, hi]`, and of the
+  declared dtype. Ten fields are numeric (`presence+range`); five are
+  bool/str and have no range to check (`presence+type`).
+- NOT run on this path: `check_units()` and `check_cadence()` are never
+  called, and NO unit conversion is verified. A value in the wrong unit
+  that still falls inside the declared range passes.
+
+The per-field breakdown is written into `run_integrity.json` as
+`coupling_contract_fields` (a field → check-kind mapping) so a reader does
+not have to reconstruct it.
+
+**All three irrigation runners read this flag** — `run_experiment.py`,
+`run_ungoverned_experiment.py` and `run_fql_baseline.py` — through the same
+`AgentTypeConfig` getter, so the governed and no-validator arms of a
+comparison are guarded or unguarded together. A mismatch between two
+compared runs is reported by
+`examples/single_agent/analysis/check_run_integrity.py`.
+
+Two fields (`precipitation`, `lake_mead_level`) are basin-scoped by the
+underlying environment's own design (Upper Basin agents get a
+precipitation signal, Lower Basin agents get a Lake Mead elevation signal
+— see `_BASIN_SCOPED_FIELDS` in `irrigation_coupling.py`) and are only
+checked for the basin they apply to; the guard does not require every
+agent to carry both.
+
+**Example:**
+
+```yaml
+global_config:
+  coupling:
+    context_contract: true
+```
+
+**OPT-IN, default-OFF by byte-identity necessity**: this changes nothing
+about the returned context on a fully-populated run (verified: the v21
+5-agent / 4-year synthetic mock run raises no `CouplingViolation` with
+the flag on), but a config that DOES have missing physical state now
+fails the run instead of silently prompting the LLM with a fabricated
+zero — so every published irrigation corpus must reproduce with the flag
+absent, and a NEW run should enable it.
+
+Read by `AgentTypeConfig.get_coupling_context_contract()`
+(`broker/utils/agent_config.py`), consumed by
+`IrrigationEnvironment.__init__(coupling_contract_active=...)` in all three
+irrigation runners. Active/inactive status, the per-field check mapping, the
+uncovered context keys, and the number of guard calls that actually ran are
+recorded unconditionally in `run_integrity.json` as
+`coupling_contract_active` / `coupling_contract_fields` /
+`coupling_contract_uncovered_keys` / `coupling_guard_calls` — a side
+artifact, never the audit CSV. Full schema: `docs/AUDIT_SCHEMA.md`.
+
+---
+
 ### 2.2 shared
 
 Shared definitions referenced across all agent types. These are accessed

@@ -84,7 +84,7 @@ broker/                          # Core governance middleware
 ├── config/                       # Config schema (schema.py) + memory-policy loader
 ├── core/                          # Governance pipeline entrypoint: propose -> validate -> retry -> execute
 │                                  #   (skill_broker_engine.py, _retry_loop.py, _advise.py, experiment_runner.py, ...)
-├── coupling/                      # External-model coupling layer (adapter/contract/grid+BMI sources)
+├── coupling/                      # External-model coupling layer (adapter/contract/grid+BMI+subprocess sources)
 ├── domains/                       # Domain metadata registry + the `water/` domain pack (flood/irrigation PMT, utility, memory strategies, calibration's water-coupled modules -- see docs/guides/calibration_guide.md)
 ├── governance/                    # Rule-type dataclasses (rule_types.py) shared by the YAML rule engine
 ├── interfaces/                    # Protocol + dataclass definitions (enrichment, schemas, skill_types, ...)
@@ -103,7 +103,8 @@ examples/                          # Domain-specific implementations (non-exhaus
 │   └── run_unified_experiment.py
 ├── single_agent/                  # Single-agent flood experiments (Nature Water paper)
 ├── irrigation_abm/                 # Irrigation domain (CRSS agents)
-└── vaccination_demo/               # Single-agent non-water reference domain
+├── vaccination_demo/               # Single-agent non-water reference domain
+└── coupling_examples/              # Standalone coupling-archetype worked examples (archetype_c_subprocess/, ...)
 ```
 
 ---
