@@ -296,6 +296,10 @@ def compute_validation(
     l2_path = output_dir / "l2_macro_metrics.json"
     l2_data = {
         "epi": l2.epi,
+        # Which EPI formula produced that number. Two implementations in
+        # this repo compute an "EPI" and disagree on the same
+        # observations, so the standalone L2 artifact has to say.
+        "formula_version": l2.formula_version,
         "benchmarks_in_range": l2.benchmarks_in_range,
         "total_benchmarks": l2.total_benchmarks,
         "benchmark_results": l2.benchmark_results,

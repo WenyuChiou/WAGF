@@ -188,6 +188,18 @@ schema (top-level keys mandatory).
 - `references/anti_overclaim.md` — refusal patterns and clarification
   prompts to avoid scope-creep.
 
+If the experiment includes a calibration pass against empirical
+benchmarks — deciding what an aggregate rate "should" land near, or
+searching non-prompt decision parameters (base rates, thresholds, cost
+weights) to hit that target — that belongs to `broker/calibration/`,
+not to the matrix this skill drafts. Read
+`docs/guides/calibration_guide.md` before writing calibration targets
+into an experiment plan: it covers the optimizer's contract
+(`optimize_parameters`, always non-prompt, always reports a search
+method), held-out validation via `split_targets`, and the two EPI
+formulas this repo currently has (they disagree — say which one a
+plan's target numbers come from).
+
 ## Acceptance criteria
 
 The skill is ready when:
