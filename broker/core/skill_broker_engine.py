@@ -272,7 +272,28 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             reset_world_rule_evaluability()
         except Exception as exc:  # noqa: BLE001 — side-artifact tally only
             logger.debug(f"[Integrity] world-rule tally reset skipped: {exc}")
-        
+        # PR-8: same reasoning for the per-decider row census.
+        try:
+            from broker.core.run_integrity import (
+                reset_decider_row_counts, set_declared_deciders,
+            )
+
+            reset_decider_row_counts()
+            # P1-b: the census can only see an arm that produced a row.
+            # Record what the CONFIG asked for, here, where the config
+            # object is in hand — that is the only way run_integrity can
+            # report an arm that produced NONE, which is the failure a
+            # mixed-population CSV cannot show on its own. Recorded only
+            # when the columns are on, so a plain all-LLM run leaves the
+            # keys absent exactly as before.
+            _dflag = getattr(self.config, "get_audit_decider_columns", None)
+            _dnames = getattr(self.config, "declared_decider_names", None)
+            if callable(_dflag) and callable(_dnames) and _dflag() is True:
+                set_declared_deciders(_dnames())
+        except Exception as exc:  # noqa: BLE001 — side-artifact census only
+            logger.debug(f"[Integrity] decider census reset skipped: {exc}")
+
+
         self.stats = {
             "total": 0,
             "approved": 0,
@@ -331,11 +352,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         seed: int,
         llm_invoke: Callable[[str], str],
         agent_type: str = "default",
-        env_context: Dict[str, Any] = None
+        env_context: Dict[str, Any] = None,
+        decider: Optional[str] = None,
     ) -> SkillBrokerResult:
         """
         Process one complete decision step through skill governance.
-        
+
         Flow:
         ① Build bounded context (READ-ONLY)
         ② LLM output → ModelAdapter → SkillProposal
@@ -343,10 +365,28 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         ④ ApprovedSkill creation
         ⑤ Execution (simulation engine ONLY)
         ⑥ Audit trace
+
+        ``llm_invoke`` has never been required to be an LLM — step ② is
+        "whatever this callable returns, parsed and validated" and has
+        been since the first version. PR-8 names that: ``decider`` is the
+        registered name of what ``llm_invoke`` actually is, recorded on
+        the audit row so a rule-based agent and a model-driven one are
+        distinguishable in the CSV while going through identical
+        validation. ``None`` means the default, ``"llm"``.
         """
         self.stats["total"] += 1
         timestamp = datetime.now().isoformat()
-        
+
+        # PR-8: a hybrid decider records per call which path answered.
+        # Cleared here so a value left by the PREVIOUS agent on this
+        # thread can never be attributed to this row.
+        try:
+            from broker.agents.deciders import DEFAULT_DECIDER_NAME, clear_decider_path
+            clear_decider_path()
+            decider = decider or DEFAULT_DECIDER_NAME
+        except Exception:  # noqa: BLE001 — provenance must not break a step
+            decider = decider or "llm"
+
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id, step_id=step_id, run_id=run_id, env_context=env_context)
         self._inject_filtered_skills(context, agent_type)
@@ -434,6 +474,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     parsing_warnings=list(
                         getattr(self.model_adapter, "last_parse_warnings", None) or []
                     ),
+                    # PR-8: the sentinel carries the same decider columns as
+                    # every other row, so a mixed-population CSV has one
+                    # column set rather than two.
+                    decider=decider,
                 )
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
 
@@ -769,6 +813,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_skills=attempt_skills,
                 advise_info=advise_info,
                 soft_advise_info=soft_advise_info,
+                decider=decider,
             )
 
         return SkillBrokerResult(

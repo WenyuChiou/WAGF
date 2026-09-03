@@ -1007,6 +1007,37 @@ def build_replay_decider(
             "Pass --agent-config explicitly."
         )
 
+    # P2 (both reviewers): refuse BOTH replay paths for a config that
+    # declares a non-LLM decider on any agent type, checked here — with
+    # the config already loaded — so it guards the branch below
+    # regardless of which one a caller reaches.
+    #
+    # The GOVERNANCE path (`_decide_with_engine`, reached under
+    # `with_governance=True`) calls `SkillBrokerEngine.process_step`
+    # without a `decider=` argument, so it always runs the row's
+    # `llm_invoke` — never the rule table or parametric object that
+    # actually produced a non-LLM row. Every row of a mixed-population
+    # corpus would replay through the model and come back reading
+    # `decider: llm`, silently wrong for whichever rows a rule or a
+    # calibrated object decided.
+    #
+    # The PARSE-ONLY path (the default, `with_governance=False`) is no
+    # safer for those same rows: it feeds the row's STORED PROMPT to the
+    # model adapter as though an LLM produced the reply, which is
+    # meaningless for a row a rule table decided from the agent's own
+    # state and never read that prompt to produce at all.
+    from broker.agents.deciders import DEFAULT_DECIDER_NAME
+    from broker.utils.agent_config import AgentTypeConfig
+
+    decider_config = AgentTypeConfig.load(str(config_path))
+    declared_deciders = decider_config.declared_decider_names()
+    if any(name != DEFAULT_DECIDER_NAME for name in declared_deciders):
+        raise ValueError(
+            "replay/ablation supports LLM-decided rows only; this config "
+            f"declares deciders {declared_deciders} — filter the corpus to "
+            "decider == 'llm' rows or drop --with-governance"
+        )
+
     from broker.utils.model_adapter import get_adapter
 
     adapter = get_adapter(resolved_model, config_path=str(config_path))
@@ -1061,13 +1092,15 @@ def build_replay_decider(
         )
 
     from broker.components.governance.registry import SkillRegistry
-    from broker.utils.agent_config import AgentTypeConfig
     from broker.validators import AgentValidator
     from broker.core.skill_broker_engine import SkillBrokerEngine
 
     registry = SkillRegistry()
     registry.register_from_yaml(str(registry_path))
-    config = AgentTypeConfig.load(str(config_path))
+    # Already loaded (and checked for a non-LLM decider) above; `.load()`
+    # is a path-keyed cache, so re-fetching here would return the same
+    # object anyway — reusing the variable just says so.
+    config = decider_config
 
     # The live path takes this from the context builder
     # (experiment_builder.py: enable_financial_constraints=getattr(

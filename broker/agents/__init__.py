@@ -37,6 +37,18 @@ from .loader import (
     load_agents,
 )
 
+from .deciders import (
+    DEFAULT_DECIDER_NAME,
+    DEFAULT_DECIDER_SPEC,
+    DeciderRegistry,
+    DeciderSpec,
+    DecisionContext,
+    DecisionRule,
+    parse_decider_spec,
+    register_domain_deciders,
+    take_decider_path,
+)
+
 
 __all__ = [
     # Protocols
@@ -58,4 +70,14 @@ __all__ = [
     # Loader
     "load_agent_configs",
     "load_agents",
+    # Deciders (PR-8): who decides an agent's action, per agent type
+    "DEFAULT_DECIDER_NAME",
+    "DEFAULT_DECIDER_SPEC",
+    "DeciderRegistry",
+    "DeciderSpec",
+    "DecisionContext",
+    "DecisionRule",
+    "parse_decider_spec",
+    "register_domain_deciders",
+    "take_decider_path",
 ]

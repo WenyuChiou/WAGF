@@ -206,6 +206,14 @@ def run_unified_experiment():
                              "use the influencer-experiment superset config (ma_agent_types_influencer_"
                              "experiment.yaml + skill_registry_influencer_experiment.yaml, social_feeds ON). "
                              "NOT for paper-3 byte-identity runs — every effect is gated behind this flag.")
+    parser.add_argument("--mixed-population", action="store_true",
+                        help="PR-8: run a HETEROGENEOUS population — owners decided by the "
+                             "calibrated flood logistic, renters by a rule table, the insurer "
+                             "by a rule table with the model as fallback, government by the "
+                             "model — all through the same governance and audit. Selects "
+                             "ma_agent_types_mixed_population.yaml (the frozen config plus "
+                             "`decider:` keys) and turns on the `decider` / `decider_path` "
+                             "audit columns. NOT for paper-3 byte-identity runs.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducibility")
     parser.add_argument("--thinking-mode", type=str, default=None,
@@ -957,17 +965,33 @@ def run_unified_experiment():
     # build the singleton influencer agent. With the flag OFF these resolve to
     # the frozen paper-3 paths and ``influencer`` is None, so every downstream
     # use is byte-identical to the pre-6T-F.5 runner.
-    _MA_CONFIG = str(MULTI_AGENT_DIR / "config" / (
-        "ma_agent_types_influencer_experiment.yaml" if args.with_influencer
-        else "ma_agent_types.yaml"))
+    #
+    # PR-8 (also gated): --mixed-population selects the mixed config, which
+    # is the frozen file plus a `decider:` key on three agent types. The
+    # skill registry is unchanged — the skills are the same; only who
+    # chooses among them differs.
+    if args.with_influencer and args.mixed_population:
+        parser.error(
+            "--with-influencer and --mixed-population each select a different "
+            "agent-types config; pick one. (A combined config would be a third "
+            "file, and nothing has needed one yet.)"
+        )
+    if args.mixed_population:
+        _MA_CONFIG_NAME = "ma_agent_types_mixed_population.yaml"
+    elif args.with_influencer:
+        _MA_CONFIG_NAME = "ma_agent_types_influencer_experiment.yaml"
+    else:
+        _MA_CONFIG_NAME = "ma_agent_types.yaml"
+    _MA_CONFIG = str(MULTI_AGENT_DIR / "config" / _MA_CONFIG_NAME)
     _SKILL_REGISTRY = str(MULTI_AGENT_DIR / "config" / (
         "skill_registry_influencer_experiment.yaml" if args.with_influencer
         else "skill_registry.yaml"))
-    if args.with_influencer:
+    if args.with_influencer or args.mixed_population:
         # Register FloodDomainPack so DomainPackRegistry.get("flood") resolves to
-        # the real pack (credibility_tiers / verbalise_post / social_feeds_pack).
-        # The paper-3 path leaves this unimported -> get("flood") stays None ->
-        # feeds OFF -> byte-identical (gated import = no paper-3 side effect).
+        # the real pack (credibility_tiers / verbalise_post / social_feeds_pack,
+        # and — PR-8 — decider_factories()). The paper-3 path leaves this
+        # unimported -> get("flood") stays None -> feeds OFF -> byte-identical
+        # (gated import = no paper-3 side effect).
         import examples.governed_flood  # noqa: F401
     influencer = create_influencer_agent() if args.with_influencer else None
 

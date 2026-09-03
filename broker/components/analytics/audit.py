@@ -614,6 +614,16 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["rules_world_grounded"] = t.get("rules_world_grounded", "")
         row["rules_self_report"] = t.get("rules_self_report", "")
 
+    # 2.7f. PR-8: DECIDER columns, key-gated the same way. Present only when
+    # some agent type in the active config declares a decider other than
+    # `llm` (or the operator forces them on). `decider` names what produced
+    # the decision; `decider_path` names which way that thing went, which
+    # differs from the name only for a hybrid — and for a hybrid it is the
+    # difference between a readable arm and an unreadable one.
+    if "decider" in t:
+        row["decider"] = t.get("decider", "")
+        row["decider_path"] = t.get("decider_path", "")
+
     # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
     # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
     # is ON and the proposal carries setpoints; surface them into the row so
