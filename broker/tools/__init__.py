@@ -9,6 +9,10 @@ Currently exposes:
   a delta-P unless the decider is verified deterministic — which requires
   identical replies that were also actual decisions, so a stopped backend
   returning the same empty string every time fails rather than passes.
+- ``calibrate`` — numeric parameter search (nelder-mead or grid) over a
+  caller-supplied objective, via ``broker.calibration.optimize`` (PR-7).
+  Scoped to non-prompt numeric parameters; refuses a search space whose
+  keys look like prompt/template paths.
 
 Run with ``python -m broker.tools.<name> --help``.
 """
