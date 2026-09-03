@@ -1,0 +1,75 @@
+# Archetype-C (subprocess) worked-example agent config.
+shared:
+  rating_scales:
+    generic:
+      levels: ["VL", "L", "M", "H", "VH"]
+  template_vars:
+    - current_year
+    - reading
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (log_normal) or 2 (flag_anomaly)" }
+      - { key: "reasoning", type: "text", required: false }
+
+global_config:
+  coupling:
+    enable: true
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 4096
+    num_predict: 512
+    max_retries: 3
+  governance:
+    domain: archetype_c_subprocess
+    max_retries: 2
+    max_reports_per_retry: 2
+
+sensor_operator:
+  agent_type: sensor_operator
+  psychological_framework: utility
+  prompt_template: |
+    ### SENSOR OPERATOR
+    Agent ID: {agent_id}
+    Period: {current_year}
+
+    ### LATEST READING
+    - reading: {reading} sensor_unit
+
+    ### DECISION
+    Log the reading as normal, or flag it as an anomaly.
+
+    ### OPTIONS
+    {options_text}
+
+    {response_format}
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (log_normal) or 2 (flag_anomaly)" }
+      - { key: "reasoning", type: "text", required: false }
+  actions:
+    - id: log_normal
+      aliases: ["1", "log_normal", "log normal", "normal"]
+      description: "Record the reading as within normal range"
+    - id: flag_anomaly
+      aliases: ["2", "flag_anomaly", "flag anomaly", "anomaly"]
+      description: "Flag the reading as anomalous"
+  parsing:
+    decision_keywords: ["decision"]
+    default_skill: log_normal
+    strict_mode: true
+    skill_map:
+      "1": log_normal
+      "2": flag_anomaly
+  log_fields: []
+  governance:
+    strict:
+      documented_unconstrained_skills:
+        - log_normal
+        - flag_anomaly

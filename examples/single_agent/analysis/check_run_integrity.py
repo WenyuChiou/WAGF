@@ -8,6 +8,7 @@ Audits every gov-vs-no-validator pair (flood single-agent + irrigation) for:
   - memory consolidation    ("Consolidated Reflection" rows in simulation_log memory)
   - audit-trace completeness (governance_audit.csv rows vs expected)
   - seed/run pairing         (same seeds in gov and noval?)
+  - coupling-guard parity    (coupling_contract_active equal in BOTH arms?)
 
 Run before any gov-vs-noval analysis, or in CI after a re-run batch.
 Exit code: 0 = clean, 1 = at least one CRITICAL parity defect found.
@@ -49,6 +50,45 @@ def _reflection_state(run_dir: Path):
         except OSError:
             return True, -1  # exists but unreadable — don't crash the audit
     return False, 0
+
+
+def _coupling_state(run_dir: Path):
+    """Return the run's recorded ``coupling_contract_active``, or None when the
+    run predates the key (or wrote no manifest).
+
+    PR-9 review P1-a: the ``coupling.context_contract`` guard changes what a
+    run DOES on missing physical state — one arm fails loud, the other prompts
+    the model with a manufactured zero. If the two arms of a gov-vs-noval pair
+    disagree about it, the comparison has a second difference besides
+    governance, and neither arm's CSV shows it. Same shape of defect as the
+    2026-05-30 reflection confound this file was written for.
+    """
+    integ = run_dir / 'run_integrity.json'
+    if not integ.exists():
+        return None
+    try:
+        d = json.loads(integ.read_text(encoding='utf-8'))
+    except Exception:
+        return None  # corrupt manifest — reported by the reflection checker
+    val = d.get('coupling_contract_active')
+    return bool(val) if isinstance(val, bool) else None
+
+
+def _coupling_parity_defect(label: str, gov_dirs, nov_dirs):
+    """Return a defect string when the two arms' recorded coupling-guard state
+    is not the same everywhere, else None. Runs with no recorded value (older
+    manifests) are ignored rather than assumed OFF — an absent key is 'not
+    measured', and treating it as False would invent a mismatch."""
+    gov = {s for s in (_coupling_state(d) for d in gov_dirs) if s is not None}
+    nov = {s for s in (_coupling_state(d) for d in nov_dirs) if s is not None}
+    if not gov or not nov:
+        return None
+    if gov == nov and len(gov) == 1:
+        return None
+    return (f'{label}: coupling_contract_active differs across the compared runs '
+            f'(gov={sorted(gov)}, noval={sorted(nov)}) — one arm fails loud on '
+            f'missing physical state and the other silently defaults it, so the '
+            f'two arms differ in more than governance')
 
 
 def _audit_completeness(run_dir: Path, audit_name: str, expected: int):
@@ -98,6 +138,10 @@ def check_flood():
             if mism or partial:
                 status = 'DEFECT'
                 defects.append(f'flood {m}: reflection gov {gov_ok} vs noval {nov_ok} (parity broken)')
+            cpl = _coupling_parity_defect(f'flood {m}', gov, nov)
+            if cpl:
+                status = 'DEFECT'
+                defects.append(cpl)
         rows.append(f'  {m:15} | gov_refl {gov_ok:>4} | noval_refl {nov_ok:>4} | gov_audit {gov_acm:>5}% | noval_audit {nov_acm:>5}% | {status}')
     return rows, defects
 
@@ -117,6 +161,9 @@ def check_irrigation():
             status = 'DEFECT'; defects.append(f'irrigation {m}: reflection gov {gov_r}/{len(gov)} vs noval {nov_r}/{len(nov)}')
         if unpaired:
             status = 'WARN(pairing)'; defects.append(f'irrigation {m}: unpaired seeds {sorted(unpaired)} (minor)')
+        cpl = _coupling_parity_defect(f'irrigation {m}', gov, nov)
+        if cpl:
+            status = 'DEFECT'; defects.append(cpl)
         rows.append(f'  {m:15} | gov_refl {gov_r}/{len(gov)} | noval_refl {nov_r}/{len(nov)} | seeds gov={len(gov_seeds)} noval={len(nov_seeds)} | {status}')
     return rows, defects
 

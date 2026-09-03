@@ -951,6 +951,55 @@ class AgentTypeConfig:
             return False
         return bool(block.get("strict_layers", False))
 
+    def get_coupling_context_contract(self) -> bool:
+        """PR-9 coupling-retrofit (F1): opt-in fail-loud guard on a domain
+        environment's per-agent CONTEXT handoff (default-OFF).
+
+        When ``global_config.coupling.context_contract: true``, a domain
+        environment that implements the pattern checks every physical-state
+        field its ``get_agent_context()`` reads against a DECLARED
+        ``CouplingContract`` before applying the legacy ``.get(key, 0)``
+        default, and raises ``CouplingViolation`` naming any field that is
+        genuinely absent instead of silently manufacturing a
+        plausible-looking zero. The irrigation domain is the first consumer
+        (fifteen fields — precipitation, lake_mead_level, water_right and
+        twelve more; the full list is
+        ``examples.irrigation_abm.irrigation_coupling.
+        IRRIGATION_CONTEXT_FIELD_SOURCES``), which is why the key is named
+        for the CONTEXT handoff and not for that domain.
+
+        WHAT THE FLAG BUYS, precisely (review W3): at contract construction,
+        direction + double-count (``CouplingContract.__post_init__``) and
+        unit-declared + ``lo <= hi`` (``VarSpec.__post_init__``); at runtime,
+        presence + finite numeric range + declared dtype, per field, per
+        call. ``check_units()`` and ``check_cadence()`` are NOT called on
+        this path and no unit CONVERSION is verified — a wrong-unit value
+        inside the declared range passes.
+
+        Distinct from the existing two-layer ``coupling.enable`` flag
+        (``broker/coupling/flag.py``): that flag governs whether
+        ``EnvironmentCouplingAdapter`` wraps ``sim_engine`` at all, a shape
+        a per-agent ``get_agent_context()`` accessor does not fit (see the
+        module docstring of ``irrigation_coupling.py``). This is a plain
+        single-layer flag, same pattern as ``get_parsing_strict_layers``
+        above — no DomainPack fallback, because a fail-loud guard opt-in
+        has no meaningful non-YAML default beyond OFF.
+
+        OPT-IN, default-OFF by byte-identity necessity: with the flag OFF
+        the environment never constructs the contract or calls the guard,
+        and every field defaults exactly as before, so v21 and every other
+        frozen irrigation corpus reproduces byte-identically with this key
+        absent. (Not "never imports ``broker.coupling``" — review W6: the
+        provenance hook ``get_coupling_retrofit_metadata`` imports the
+        contract module on EVERY run, flag or no flag, to report the field
+        list. Importing it has no effect on behaviour; constructing the
+        contract and running the guard are what the flag gates.)
+        """
+        block = self._config.get("global_config", {}).get("coupling", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("context_contract", False))
+
     def get_governance_on_retry_exhausted(self) -> str:
         """What executes when governance retries are exhausted: a MODEL-BUILDER choice.
 

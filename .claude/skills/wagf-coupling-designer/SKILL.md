@@ -61,9 +61,16 @@ the starting skeleton:
   `examples/reservoir_control/` for continuous control.
 - **B — File replay**: copy the file-replay source pattern in
   `examples/cat_model/coupling_modules.py` and attach file provenance.
-- **C — Service model**: implement the EventSource/InterfaceBundle
-  surface around HTTP/subprocess calls. `VarSpec.on_missing` only
-  accepts `fail_loud`; retries/caches must live inside the source.
+- **C — Service model**: SUBPROCESS is READY — copy
+  `broker.coupling.SubprocessModelConnector`
+  (`broker/coupling/subprocess_source.py`) and the worked example at
+  `examples/coupling_examples/archetype_c_subprocess/` (JSON-on-stdin /
+  JSON-on-stdout, one call per period, validates the reply against the
+  contract, refuses a non-zero exit). REST is still DEFERRED (v2 — no
+  first-party domain needs one yet; implement the EventSource surface
+  around your HTTP client following the same shape if you need it before
+  then). Either transport: `VarSpec.on_missing` only accepts `fail_loud`;
+  retries/caches must live inside the source.
 - **D — Another ABM / period-end exchange**: copy
   `examples/cat_model/run_cat_ma.py`. Accumulate intents during the
   period, settle shared state once at period end, and project the
@@ -387,14 +394,23 @@ The skill is ready when:
   yield-tons-per-ha", produces a complete `.coupling/contract.md`,
   a `_build_contract() -> CouplingContract` skeleton with `VarSpec`
   declarations, and `ExperimentBuilder.with_coupling(...)` wiring.
-- For input "I have a REST/service model", selects archetype C,
-  keeps retry/cache logic inside the source, uses
-  `VarSpec.on_missing="fail_loud"`, and documents provenance.
+- For input "I have a subprocess/CLI model", selects archetype C, points
+  the user at `SubprocessModelConnector` + the
+  `archetype_c_subprocess` worked example, keeps retry/cache logic
+  inside the source, uses `VarSpec.on_missing="fail_loud"`, and documents
+  provenance.
+- For input "I have a REST/service model", selects archetype C, states
+  plainly that REST is deferred to v2 (no first-party domain needs one
+  yet) and that the subprocess connector's shape is the template to
+  follow when one is needed sooner.
 - For input "Just use defaults, my model returns floats", refuses
   to advance past C1 without unit declarations.
 
 ## Future extensions (v2 / v3)
 
+- REST/HTTP archetype-C transport (subprocess is READY as of PR-9; no
+  first-party domain has needed REST yet — implement it by following
+  `subprocess_source.py`'s shape, transport swapped, when one does).
 - Additional worked examples for connector archetypes that do not yet
   have first-party domains.
 - FMI / FMU integration for Modelica-world models
