@@ -21,6 +21,7 @@ Public API:
     Event, MdrDraw, Settlement, WorldDelta  -- interface value types
     EnvironmentCouplingAdapter       -- wraps a sim engine behind the contract
     BmiComponent, BmiEventSource     -- host a CSDMS-BMI numerical model as a source
+    SubprocessModelConnector         -- Archetype C: JSON-stdio subprocess model source
     resolve_coupling_enabled         -- two-layer feature-flag resolver
 """
 from __future__ import annotations
@@ -44,6 +45,7 @@ from .bmi_source import BmiComponent, BmiEventSource
 from .continuous import BmiControlSink, ContinuousBundle
 from .projection import AgentLocations, GridProjector, GridSpec, ProjectionError
 from .grid_source import GridEventSource
+from .subprocess_source import SubprocessModelConnector
 
 __all__ = [
     "CouplingViolation",
@@ -71,4 +73,5 @@ __all__ = [
     "GridProjector",
     "ProjectionError",
     "GridEventSource",
+    "SubprocessModelConnector",
 ]

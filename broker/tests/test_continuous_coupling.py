@@ -407,7 +407,13 @@ def test_float_substeps_coerced_to_int_at_construction():
 def test_non_numeric_committed_value_raises_coupling_violation_not_valueerror():
     """Review W2: a broken bundle committing a non-numeric value for a declared
     input must surface as CouplingViolation (classified), never a raw
-    ValueError from float()."""
+    ValueError from float().
+
+    (PR-9 review P0 changed only the MESSAGE, not the outcome: a str in a
+    numeric slot is now named as a dtype violation instead of a coercion
+    failure, because ``float("55")`` succeeds and the old wording could never
+    have described it. The assertion below still pins the same property this
+    test was written for -- CouplingViolation, not ValueError.)"""
     class BrokenBundle(ContinuousBundle):
         def commit_world_delta(self, approved_skill):
             return WorldDelta(agent_state_changes={},
@@ -417,5 +423,5 @@ def test_non_numeric_committed_value_raises_coupling_violation_not_valueerror():
     bundle = BrokenBundle(contract=_contract(), solver=ToyBmiReservoir())
     adapter = EnvironmentCouplingAdapter(real_engine=None, contract=bundle.contract,
                                          sources=bundle)
-    with pytest.raises(CouplingViolation, match="not coercible"):
+    with pytest.raises(CouplingViolation, match="is a str, not a float"):
         adapter.execute_skill(_approved(release=5.0))

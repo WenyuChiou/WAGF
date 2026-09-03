@@ -165,8 +165,21 @@ def main():
         p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
 
     # --- Create environment and initialize ---
+    # PR-9 review P1-a: read the SAME flag through the SAME getter the
+    # governed runner uses. Before this, only run_experiment.py passed
+    # coupling_contract_active, so turning the guard on in agent_types.yaml
+    # protected the governed arm and left this one silently unguarded — the
+    # two arms of a gov-vs-no-validator comparison would then differ in a
+    # second way besides governance, which is exactly the confound class
+    # Invariant 6 exists to surface.
+    from broker.utils.agent_config import AgentTypeConfig
+    coupling_contract_active = AgentTypeConfig.load(
+        str(agent_config_path)
+    ).get_coupling_context_contract()
+    if coupling_contract_active:
+        print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config = WaterSystemConfig(seed=seed)
-    env = IrrigationEnvironment(config)
+    env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
     if args.real:

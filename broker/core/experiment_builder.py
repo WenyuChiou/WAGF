@@ -196,6 +196,18 @@ class ExperimentBuilder:
         Each phase is a list of agent_type strings that execute together.
         Phases run sequentially; agents within a phase run per the worker config.
         Example: [["government"], ["insurance"], ["household_owner", "household_renter"]]
+
+        NOT the same knob as ``CouplingContract.operation_order`` (PR-9
+        naming audit, finding noted alongside F1-F3): this orders WHICH
+        AGENT TYPES run before which OTHERS within one period (a WAGF
+        execution-loop concept, applies with or without coupling).
+        ``operation_order`` orders the stages INSIDE one coupled bundle's
+        ``run_pipeline`` (e.g. hazard -> exposure -> vulnerability ->
+        financial — a coupling-layer concept, meaningless without a
+        bundle). A multi-agent coupled domain sets BOTH, independently;
+        neither implies or configures the other. See
+        ``docs/COUPLING_CONNECTORS.md`` "Two orderings, two different
+        things" for the full comparison.
         """
         self._phase_order = phases
         return self

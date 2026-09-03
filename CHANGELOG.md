@@ -8,6 +8,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Coupling retrofit + archetype C (PR-9)**: `broker.coupling.SubprocessModelConnector`
+  (`broker/coupling/subprocess_source.py`) implements the previously
+  documented-but-unbuilt archetype C (service-model) connector — a
+  JSON-on-stdin / JSON-on-stdout subprocess round trip validated against
+  the contract's `VarSpec`s, refusing a non-zero exit / timeout / bad
+  reply as a `CouplingViolation` carrying exit code + stderr tail + wall
+  time. Worked example: `examples/coupling_examples/archetype_c_subprocess/`
+  (`--model mock`, completes in <4s). REST stays deferred (no first-party
+  consumer yet; documented in `docs/COUPLING_CONNECTORS.md`).
+- **Per-agent context guard (PR-9, opt-in, default OFF)**:
+  `global_config.coupling.context_contract` gates a fail-loud
+  `CouplingContract` check on a domain environment's
+  `get_agent_context()` — irrigation is the first consumer, where the
+  per-agent physical-state handoff previously defaulted every missing
+  field (precipitation, Lake Mead level, water right, and twelve more) to
+  a silent 0/False/"unknown". All three irrigation runners
+  (`run_experiment.py`, `run_ungoverned_experiment.py`,
+  `run_fql_baseline.py`) read the flag through the same getter, so the
+  compared arms are guarded or unguarded together. What the flag enforces:
+  at construction, direction + double-count + unit-declared + `lo <= hi`;
+  at runtime, presence + finite numeric range + declared dtype, per field
+  per call. It does NOT call `check_units()` or `check_cadence()` and
+  verifies no unit CONVERSION — a wrong-unit value inside the declared
+  range still passes. See
+  `examples/irrigation_abm/irrigation_coupling.py` and
+  `AgentTypeConfig.get_coupling_context_contract`. `run_integrity.json`
+  gains `coupling_contract_active` / `coupling_contract_fields` (field →
+  `presence+range` | `presence+type`) / `coupling_contract_uncovered_keys`
+  / `coupling_guard_calls` (side artifact; CSV output unchanged either
+  way), and
+  `examples/single_agent/analysis/check_run_integrity.py` flags a pair of
+  compared runs whose `coupling_contract_active` disagree.
+
+### Fixed
+
+- **`VarSpec.range_violation` was NaN-blind and type-blind (PR-9 review,
+  P0)**: the one primitive every coupling guard calls accepted
+  `float("nan")` through any bounded range (`nan < lo` and `nan > hi` are
+  both False), coerced `True` and `"55"` into numeric slots
+  (`float(True) == 1.0`), and returned `None` immediately for `bool` / `str`
+  VarSpecs, so declaring one bought presence checking and nothing else. It
+  now rejects non-finite values by `math.isfinite`, refuses `bool` and `str`
+  in numeric slots, and type-checks the two non-numeric dtypes (a `str` must
+  additionally be non-empty). `SubprocessModelConnector` refuses the
+  `NaN`/`Infinity` JSON tokens at parse time as well, records its audit
+  (`exit_code: None`, `timed_out: true`, wall time, stderr tail) BEFORE
+  raising on a timeout, warns on undeclared reply keys, indexes rather than
+  defaults `value_var` in `intensity_at`, and rejects a non-numeric
+  `value_var` at construction. Only failure paths change: no passing run
+  produces a value these newly reject.
+- **Coupling-designer template honesty (PR-9, F3)**: `coupling_contract.md.tmpl`
+  and the failure-mode playbook no longer imply `last_good` / `quarantine`
+  are usable `VarSpec.on_missing` policies (`contract.py` rejects both at
+  construction) — replaced with the "implement the fallback inside your
+  adapter" guidance `adapter_A_file_replay.py.tmpl` already demonstrates.
+- **`with_phase_order` vs `CouplingContract.operation_order` naming**
+  (PR-9): both docstrings now cross-reference
+  `docs/COUPLING_CONNECTORS.md`'s "Two orderings, two different things",
+  clarifying that one orders agent-type execution and the other orders a
+  coupled bundle's internal pipeline stages — independent knobs, neither
+  configures the other.
+
 ## [0.6.0] - 2026-06-10
 
 Minor-bump release: **Phase 6V environment coupling, Phase 6T-F
