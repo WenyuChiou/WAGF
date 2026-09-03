@@ -1,6 +1,22 @@
 """
 Governance Validators - Rule evaluation by category.
 
+STATUS: this five-category stack (reached through ``validate_all`` /
+``build_domain_validators`` below) is available architecture, not the
+production default. As of v0.6.0 it has no non-test production call
+sites: production experiment construction
+(``broker/core/experiment_builder.py``) wires a single
+``AgentValidator`` instance (``broker/validators/agent/agent_validator.py``),
+whose own ``validate_thinking`` / ``_validate_internal`` methods run the
+YAML rule engine (``identity_rules`` / ``thinking_rules`` / ...) directly —
+they never call into ``PersonalValidator`` / ``SocialValidator`` /
+``PhysicalValidator`` / ``SemanticGroundingValidator`` /
+``ThinkingValidator`` below. The one exception is the opt-in, default-OFF
+``domain_physical_dispatch`` path in ``skill_broker_engine.py``, which
+calls ``PhysicalValidator`` directly (not through ``validate_all``) and
+only when a run explicitly sets
+``global_config.governance.dispatch_domain_physical``.
+
 Validators:
 - PersonalValidator: Financial + Cognitive constraints
 - SocialValidator: Neighbor influence + Community norms (WARNING only)
@@ -60,6 +76,9 @@ def validate_all(
 ) -> List[ValidationResult]:
     """
     Run all validators against a skill proposal.
+
+    Not on the default production path — see the module STATUS note above.
+    Production runs validate through ``AgentValidator`` instead.
 
     Args:
         skill_name: Proposed skill name

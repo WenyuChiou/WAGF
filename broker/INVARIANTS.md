@@ -31,7 +31,18 @@ MemoryEngine.retrieve_content_only(...) -> List[str]   # compatibility helper on
 4. If `metadata` is absent when adding a memory, the engine MAY invoke a classifier (e.g., `_classify_emotion`) to infer it, but MUST NOT silently discard missing fields by substituting arbitrary defaults. The inferred value MUST be distinguishable from a missing value via a marker (e.g., `metadata["emotion_inferred"] = True`).
 
 ### Detection / enforcement
-- `broker/tests/test_framework_invariants.py::test_memory_engine_contract` — asserts every `MemoryEngine` subclass preserves metadata end-to-end for a synthetic critical memory.
+- `broker/tests/test_framework_invariants.py::TestMemoryTypeContract` — the
+  actual guard (there is no `test_memory_engine_contract`; that name does
+  not exist in the repo, verified by grep). It hardcodes
+  `HumanCentricMemoryEngine` in both its test methods
+  (`test_humancentric_retrieve_returns_list_of_dicts_with_metadata` and
+  `test_retrieve_content_only_returns_list_of_strings`) and asserts a
+  synthetic critical memory preserves its `emotion` field through
+  `retrieve()`. It does NOT iterate every `MemoryEngine` subclass, so Rule 1
+  above ("Any subclass of `MemoryEngine` MUST preserve metadata in
+  `retrieve()`") is currently guarded only for `HumanCentricMemoryEngine`.
+  TODO: a new subclass that violates Rule 1 will not be caught by this test
+  suite unless it is added by name.
 - Base `MemoryEngine.__init_subclass__` annotation-level check: **NOT IMPLEMENTED**
   (confirmed 2026-06-10 — the gate described here was never built; see the
   documented WindowMemoryEngine exemption below, which replaces it for window.
@@ -163,6 +174,7 @@ Every generic `broker/` subtree MUST be domain-agnostic. The only non-generic tr
 **Closed by Phase 6J** (2026-05-22):
 - **6J-A** — soft-default-to-PMT eliminated. `FrameworkType.GENERIC` is a standalone domain-neutral scale (not an alias to PMT); `UniversalContext.framework` defaults to GENERIC; `_get_framework_for_type` no longer silently infers a framework from agent-type name substrings. New behavioural guard `TestNoSilentDomainDefault`.
 - **6J-B** — `ma_manager.py` event dispatch de-flooded: removed unreachable `try/except ImportError` flood fallback; `get_agent_impact` flood event-type chain replaced by `DomainPack.agent_impact_handlers()` hook.
+- **NOT closed — do not confuse with 6J-B above**: `broker/components/governance/domain_validator_dispatch.py:150-153` carries a structurally similar `except ImportError: if resolved == "flood": extreme = {"relocate", "elevate_house"}; framework = "pmt"` fallback, but unlike the 6J-B `ma_manager.py` case, this one is live, reachable code, not dead — it fires whenever the inner `from broker.domains.registry import DomainPackRegistry` import raises `ImportError`, hardcoding flood-specific skill names and framework choice in an otherwise generic dispatch function. This is a genuine Rule-1 domain-token leak that has not been triaged into the `_ALLOWLIST_PATTERNS` list or fixed. Flagged 2026-09-01; not yet closed.
 - **6J-C** — domain-bias defaults converted to fail-fast or domain-housed (8 sites). `SkillRegistry.get_default_skill()` raises if unconfigured; `unified_adapter.py` parse-failure fallback raises if `parsing.default_skill` absent; `agent_initializer.py` requires `config["domain"]`; `create_default_registry()` raises (water content relocated to `broker/domains/water/agent_type_defaults.py`); `PhaseOrchestrator.__init__` defaults to generic 3-phase layout (flood 4-phase relocated to `broker/domains/water/phase_layouts.py`); `AGENT_SOCIAL_SPECS` starts empty (flood specs relocated to `broker/domains/water/social_specs.py`); `PriorityResolution.type_priorities` defaults to `{}`; artifact routing maps start empty (flood mappings registered by `examples/multi_agent/flood/protocols/artifacts.py`); `TypeValidator` requires an explicit registry.
 - **6J-D** — `validator_bundles.py` reverse-import removed. `_ensure_irrigation_registered` / `_ensure_flood_registered` (which lazy-imported from `examples/*/validators`) deleted; each example package's `__init__.py` now imports its `.validators` submodule on package import, and each flood entrypoint adds a top-level `import examples.governed_flood`. The hardened `test_water_domain_exposes_validator_builder` asserts populated `_builtin_checks` so the new path cannot vacuously pass. The `TA_KEYWORDS` / `CA_KEYWORDS` flood-PMT keyword dicts also relocated from generic `broker/validators/posthoc/keyword_classifier.py` to `broker/domains/water/posthoc_keywords.py`; the generic classifier supports a Tier-1/1.5-only mode when no keywords are supplied.
 - **6J-E** — `_DOMAIN_TOKENS` widened with 12 new tokens (`flood_occurred` / `flood_event` / `flood_depth_m` + flood / drought / irrigation infrastructure + skill identifiers `NFIP` / `FEMA` / `PRB` / `SFHA` / `CRSS` / `shortage_tier` / `drought_index` / `buyout` / `buyout_program`). 5 leak sites triaged: `simulation_protocols.py` docstring example de-flooded; `agents/base.py` + `components/context/providers.py` allowlisted as FP (only docstring "Literature:" references); `events/generators/flood.py` + `components/memory/initial_loader.py` + `components/memory/policy_classifier.py` + `components/memory/universal.py` allowlisted as TECH-DEBT(6K) — the memory subsystem and the flood-specific hazard generator need a DomainPack plugin pass.

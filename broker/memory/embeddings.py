@@ -1,3 +1,16 @@
+"""Embedding providers for the broker/memory FAISS/graph memory stack.
+
+STATUS: EXPERIMENTAL — not on any production run path (no production
+callers as of v0.6.0). Verified by grep: this module is imported by
+`broker/memory/graph.py` (itself without production callers — see its
+own STATUS note) and, only as an optional/unwired constructor
+parameter, by `broker/memory/retrieval.py`. `retrieval.py` IS used by
+the registered `"unified"` memory engine
+(`broker/memory/unified_engine.py`, wired in
+`broker/components/memory/registry.py`), but that factory never passes
+an `embedding_provider`, so this module is never actually reached at
+runtime even on the `"unified"` engine path.
+"""
 # cognitive_governance/memory/embeddings.py
 
 import logging

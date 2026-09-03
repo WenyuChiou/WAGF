@@ -524,8 +524,13 @@ identity_rules:
 | `ERROR` | Blocks the decision. Broker re-prompts the LLM with an `InterventionReport`. Counts toward `max_retries`. | Hard constraints -- physical impossibility, institutional prohibition |
 | `WARNING` | Logged but decision proceeds. Appears in audit trail but does not trigger retry. | Soft guidance -- suboptimal choices, behavioral nudges |
 
-**Important:** For small LLMs (< 8B parameters), `WARNING` rules have near-zero
-behavioral impact. Use `ERROR` for any rule that must change agent behavior.
+**Important:** `WARNING` rules cannot change agent behavior in the default
+governance loop, regardless of model size. This is architectural, not an
+empirical property of small LLMs: a WARNING sets `valid=True` and leaves
+`errors` empty, so the retry loop (`not all_valid`) never opens and the rule's
+message never reaches the model (see `broker/core/_retry_loop.py` and
+`broker/core/_advise.py`). It is still recorded in the audit trail. Use
+`ERROR` for any rule that must change agent behavior.
 
 #### 2.4.5 RuleCondition Evaluation (Advanced)
 
