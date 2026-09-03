@@ -55,10 +55,38 @@ from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
 
 from ._retry_loop import RetryMixin
-from ._audit_helpers import AuditMixin, _extract_construct_labels
+from ._audit_helpers import (
+    AuditMixin, _extract_construct_labels, _corrected_status_flag,
+)
 from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
 from ._advise_pass import AdviseMixin
 from ._skill_filtering import SkillFilterMixin
+
+
+def _reset_uncategorised_rules() -> None:
+    """Clear the process-global uncategorised-rule tally for a new run.
+
+    Imported lazily for the same reason ``_safe_rule_breakdown`` imports
+    ``get_rule_breakdown`` lazily: the governance package imports core types, so
+    a module-level import here would close a startup import cycle.
+
+    Failure is caught because a side-artifact tally must never stop an engine
+    from being built — but it is reported at WARNING, not swallowed: the
+    consequence is a `rules_uncategorised_*` block in ``run_integrity.json``
+    carrying a PREVIOUS run's rule ids alongside this one's, which is precisely
+    the kind of plausible-but-wrong number this PR exists to remove.
+    """
+    try:
+        from ..validators.governance import reset_uncategorised_rules
+
+        reset_uncategorised_rules()
+    except Exception as exc:  # pragma: no cover - governance import is present
+        logger.warning(
+            "[Audit] could not reset the uncategorised-rule tally (%s: %s); "
+            "run_integrity.json's rules_uncategorised_* may include rule ids "
+            "from an earlier run in this process.",
+            type(exc).__name__, exc,
+        )
 
 
 class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
@@ -175,6 +203,28 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_ore = getattr(self.config, "get_governance_on_retry_exhausted", None)
         _ore = _get_ore() if callable(_get_ore) else "default"
         self._on_retry_exhausted = _ore if _ore in ("default", "keep_proposal") else "default"
+        # PR-3: opt-in corrected status/truth columns. Resolved once, coerced to
+        # a real bool for the same reason as _count_llm_calls above.
+        self._corrected_status_columns = _corrected_status_flag(self.config)
+        # P1e: state the RESOLVED value once per engine. The flag fails closed
+        # by design, so "I set it in YAML" and "it never reached the engine"
+        # produce identical artifacts unless the engine says which happened.
+        logger.info(
+            "[Audit] corrected_status_columns=%s "
+            "(ON adds execution_path, corrects fallback_activated / rules_*_hit "
+            "/ mem_top_*, and writes a row for aborted steps)",
+            self._corrected_status_columns,
+        )
+        # P2d: sentinel rows that could not be written. Surfaced in
+        # run_integrity.json — a failed sentinel write is a missing row, which
+        # is the same denominator hole the sentinel exists to close.
+        self._audit_sentinel_write_failures = 0
+        # C1: the uncategorised-rule tally is a module global, so a second run
+        # in the same interpreter (a seed sweep driven from one script) would
+        # otherwise report the FIRST run's rule ids as well as its own. Cleared
+        # here, next to the counter above, because engine construction is the
+        # one point every run passes through exactly once.
+        _reset_uncategorised_rules()
         
         self.stats = {
             "total": 0,
@@ -271,6 +321,26 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             if format_retry_count > 0:
                 self.auditor.log_structural_fault_terminal(format_retry_count)
             logger.error(f" [LLM:Error] Model returned unparsable output after retries for {agent_id}.")
+            # PR-3: this early return skips the single _write_audit_trace call
+            # site below, so pre-PR-3 an unparsable step left NO row in either
+            # the JSONL or the CSV — the arm with more parse failures silently
+            # ran a smaller denominator. Under corrected_status_columns a
+            # sentinel row conserves the agent x year count instead.
+            if self.audit_writer and self._corrected_status_columns:
+                self._write_aborted_sentinel_trace(
+                    agent_type=agent_type, run_id=run_id, step_id=step_id,
+                    timestamp=timestamp, env_context=env_context, seed=seed,
+                    agent_id=agent_id, raw_output=raw_output,
+                    format_retry_count=format_retry_count,
+                    # P1b: the real call is still in scope here. Without these
+                    # the sentinel row would report a successful zero-token
+                    # call that retrieved no memories — a fabricated
+                    # measurement on the one row created to make a failure
+                    # visible.
+                    llm_stats=total_llm_stats,
+                    memory_pre=memory_pre,
+                    prompt=prompt,
+                )
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
 
         if format_retry_count > 0:
@@ -482,11 +552,19 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # Surfaced in the audit trace only when the opt-in flag is ON (see
         # AgentTypeConfig.get_audit_executed_columns; default-OFF keeps
         # frozen-baseline CSVs byte-identical).
+        #
+        # PR-3: `execution_path` names WHICH of these branches ran, so the
+        # audit row states the remap rule instead of leaving an analyst to
+        # re-derive it from `status` plus the domain's `on_retry_exhausted`
+        # policy (which the CSV does not carry). Computed unconditionally —
+        # it is one local string — and surfaced only under the flag.
         executed_skill: Optional[str] = None
         executed_via_fallback = False
+        execution_path = "not_executed"
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
             executed_skill = approved_skill.skill_name
+            execution_path = "approved"
             # ⑤b Sequential secondary execution
             if secondary_approved and execution_result.success:
                 secondary_execution = self.simulation_engine.execute_skill(secondary_approved)
@@ -504,6 +582,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 execution_result = self.simulation_engine.execute_skill(approved_skill)
                 executed_skill = approved_skill.skill_name
                 executed_via_fallback = False
+                execution_path = "rejected_proposal"
             elif self.simulation_engine:
                 # Phase 6J-E (2026-05-22): get_default_skill() now raises
                 # if unconfigured (Phase 6J-C), so the only branch left to
@@ -518,18 +597,38 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     execution_result = self.simulation_engine.execute_skill(fallback)
                     executed_skill = fallback_skill
                     executed_via_fallback = True
+                    # UNCERTAIN = the parser never produced a usable choice
+                    # (approval_status is already REJECTED_FALLBACK);
+                    # REJECTED = a real proposal was blocked and the registry
+                    # default took its place. Both run the default skill, but
+                    # only the second is the row where `final_skill` lies.
+                    execution_path = (
+                        "fallback" if outcome is SkillOutcome.UNCERTAIN
+                        else "rejected_default"
+                    )
                 else:
                     logger.warning(f"Default skill '{fallback_skill}' not in registry for {approved_skill.agent_id}")
                     execution_result = ExecutionResult(success=False, state_changes={})
             else:
                 execution_result = ExecutionResult(success=False, state_changes={})
         else:
-            # Standalone mode: Default to pseudo-execution
+            # Standalone mode: Default to pseudo-execution.
+            #
+            # P2-4: this branch reports success=True and records the approved
+            # skill as executed although NOTHING ran — there is no simulation
+            # engine to run it. Labelling it `approved` made those rows
+            # indistinguishable from a row where the engine really did execute
+            # the approved skill, in a column whose whole purpose is to say
+            # what happened. `approved_no_engine` keeps `executed_skill` (the
+            # approved skill IS the action the run attributes to the agent, and
+            # every downstream executed-only analysis depends on it) while
+            # naming the fact that no engine confirmed it.
             execution_result = ExecutionResult(
                 success=True,
                 state_changes={}
             )
             executed_skill = approved_skill.skill_name if approved_skill else None
+            execution_path = "approved_no_engine" if approved_skill else "not_executed"
 
         # Capture memory state after execution (before experiment-layer updates)
         memory_post = self._get_memory_snapshot(agent_id)
@@ -550,6 +649,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 all_validation_history=all_validation_history,
                 executed_skill=executed_skill,
                 executed_via_fallback=executed_via_fallback,
+                execution_path=execution_path,
                 initial_skill=initial_skill,
                 initial_labels=initial_labels,
                 attempt_skills=attempt_skills,

@@ -10,7 +10,7 @@ import hashlib
 import json
 
 from ..interfaces.skill_types import (
-    ExecutionResult, SkillOutcome,
+    ExecutionResult, SkillOutcome, ValidationResult,
 )
 from ..utils.logging import logger
 
@@ -29,7 +29,9 @@ def _classify_decision_source(approved_skill) -> str:
     return "unknown"
 
 
-def _safe_rule_breakdown(all_validation_history) -> Dict[str, int]:
+def _safe_rule_breakdown(
+    all_validation_history, allow_metadata_fallback: bool = False
+) -> Dict[str, int]:
     """Compute rule-category hit counts safely.
 
     Phase 6C W8: previously the audit trace omitted ``rule_breakdown``
@@ -37,6 +39,13 @@ def _safe_rule_breakdown(all_validation_history) -> Dict[str, int]:
     placeholders. We now populate from the validation history. Lazy
     import of ``get_rule_breakdown`` avoids a startup circular import
     between ``broker.core`` and ``broker.validators.governance``.
+
+    ``allow_metadata_fallback`` (PR-3, set only when
+    ``global_config.audit.corrected_status_columns`` is ON) lets the
+    breakdown infer a category from ``metadata["tier"]`` / validator name /
+    rule id — without it, every production run through ``AgentValidator``
+    reports zero for four of the five buckets no matter how many rules
+    fired. Default OFF keeps flag-OFF runs byte-identical.
 
     Falls back to a zeroed dict if anything goes wrong, so a producer
     error never breaks the audit write path.
@@ -46,7 +55,9 @@ def _safe_rule_breakdown(all_validation_history) -> Dict[str, int]:
         results = []
         for v in all_validation_history or []:
             results.extend(v if isinstance(v, list) else [v])
-        return get_rule_breakdown(results)
+        return get_rule_breakdown(
+            results, allow_metadata_fallback=allow_metadata_fallback
+        )
     except Exception as exc:
         logger.warning(f"[Audit] rule_breakdown computation failed: {exc}")
         return {"personal": 0, "social": 0, "thinking": 0, "physical": 0, "semantic": 0}
@@ -181,12 +192,218 @@ def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
 
+# PR-3: the value written to ``mem_top_emotion`` / ``mem_top_source`` when the
+# retrieved memory record carries no such key. The pre-PR-3 literals
+# ("neutral" / "personal") are indistinguishable in the CSV from a genuine
+# unanimous mode, which is the 2026-04-19 NW-flood failure class; this marker
+# is not, and it is what ``detect_audit_sentinels`` would rather see.
+UNOBSERVED = "unobserved"
+
+
+#: The four token columns ``trace_to_csv_row`` fills with 0 / 0.0 when the
+#: producing stats dict has no such key. On an ordinary row that default is
+#: harmless (the run genuinely reported no tokens); on the ABORTED sentinel it
+#: would be a fabricated measurement of a call that DID happen, so the sentinel
+#: writes "" for each key its stats dict does not carry.
+_TOKEN_STAT_KEYS = ("prompt_tokens", "response_tokens", "num_ctx",
+                    "context_utilization")
+
+
+def _sentinel_llm_stats(stats: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """The real LLM stats for an aborted step, with gaps marked as gaps.
+
+    ``llm_success`` is left exactly as the retry loop reported it — on a parse
+    failure the CALL usually succeeded and only the PARSE failed, and those are
+    different facts. What is missing stays "" rather than becoming a zero
+    someone can average.
+    """
+    out: Dict[str, Any] = dict(stats or {})
+    if "llm_success" not in out:
+        out["llm_success"] = ""
+    for key in _TOKEN_STAT_KEYS:
+        if key not in out:
+            out[key] = ""
+    return out
+
+
+#: One warning per (reason, config class) per process. A raising or non-bool
+#: getter is a property of the CONFIG OBJECT, not of the row being written, so
+#: warning per call would emit the same line thousands of times per run and
+#: train the operator to filter it out — which is how the silent failure this
+#: warning exists to surface gets re-buried.
+_FLAG_WARNED: set = set()
+
+
+def _warn_once(reason: str, config) -> None:
+    key = (reason, type(config).__name__)
+    if key in _FLAG_WARNED:
+        return
+    _FLAG_WARNED.add(key)
+    logger.warning(
+        "[Audit] audit.corrected_status_columns is being read OFF: %s "
+        "(config type %s). The audit CSV will carry the UNCORRECTED columns — "
+        "`fallback_activated` from the blocked proposal, `rules_*_hit` "
+        "structurally zero, no `execution_path`, no row for aborted steps. "
+        "If you meant to enable the flag, this run did not.",
+        reason, type(config).__name__,
+    )
+
+
+def _corrected_status_flag(config) -> bool:
+    """True iff this run opted into ``audit.corrected_status_columns``.
+
+    Coerced to a real ``bool``, never truth-tested raw: tests build engines
+    with ``MagicMock`` configs, and ``bool(MagicMock())`` is True — a bare
+    truth test would silently switch the corrected semantics on in every
+    mock-config run and change values nobody asked to change.
+
+    Every way of failing to read the flag resolves it OFF, which is the safe
+    direction for byte identity but the WRONG direction for someone who set it
+    in YAML and expects corrected columns. So each such path says so once
+    (PR-3 review item P1e): a flag that fails closed in silence is
+    indistinguishable from a flag nobody set.
+    """
+    getter = getattr(config, "get_audit_corrected_status_columns", None)
+    if not callable(getter):
+        # Not a warning: a config object predating the flag (or a narrow test
+        # double) legitimately has no such getter, and OFF is then correct.
+        return False
+    try:
+        value = getter()
+    except (AttributeError, TypeError, ValueError) as exc:
+        # Narrow on purpose. A KeyboardInterrupt / SystemExit / genuine bug in
+        # the config layer must propagate rather than be recorded as "OFF".
+        _warn_once(f"the getter raised {type(exc).__name__}: {exc}", config)
+        return False
+    if isinstance(value, bool):
+        return value
+    _warn_once(
+        f"the getter returned {type(value).__name__} rather than a bool", config
+    )
+    return False
+
+
 class AuditMixin:
     """Mixin providing audit trace writing and state management helpers."""
 
     # ------------------------------------------------------------------
     # Audit trace
     # ------------------------------------------------------------------
+    def _write_aborted_sentinel_trace(
+        self, *, agent_type: str, run_id: str, step_id: Any, timestamp: str,
+        env_context: Optional[Dict], seed: Any, agent_id: str,
+        raw_output: str, format_retry_count: int,
+        llm_stats: Optional[Dict[str, Any]] = None,
+        memory_pre: Optional[List] = None,
+        prompt: str = "",
+    ) -> None:
+        """PR-3: emit one audit row for a step that returned ``ABORTED``.
+
+        A step whose LLM output never parses returns from ``process_step``
+        BEFORE the single ``_write_audit_trace`` call site, so it reaches
+        neither the JSONL nor the CSV. The arm with more parse failures then
+        has FEWER audit rows than its counterpart, and the asymmetry is
+        invisible unless someone cross-checks the row count against the
+        agent x year grid. This sentinel conserves the count.
+
+        Written only under ``audit.corrected_status_columns`` — it adds a row
+        to the CSV, which no frozen corpus may gain. Caller checks the flag.
+
+        The row carries ``status=ABORTED``, an empty ``executed_skill`` and
+        ``execution_path=aborted``: nothing ran, and the row says so rather
+        than leaving a gap that looks like a step that never happened.
+
+        ``llm_stats`` / ``memory_pre`` / ``prompt`` are the REAL values live at
+        the call site (PR-3 review item P1b). Omitting them was not neutral:
+        ``trace_to_csv_row`` defaults a missing ``llm_stats`` to
+        ``llm_success=True, prompt_tokens=0, context_utilization=0.0`` and a
+        missing ``memory_audit`` to ``mem_retrieved_count=0``, so a row created
+        to make a failure visible instead asserted a successful zero-token call
+        that retrieved nothing. A sentinel that lies about the call it records
+        is worse than the missing row it replaces. Whatever genuinely was not
+        measured is written as ``""`` — never as 0, never as True.
+        """
+        try:
+            agent_type_final = agent_type or "default"
+            log_fields = self.config.get_log_fields(agent_type_final)
+            memory_pre = list(memory_pre or [])
+            self.audit_writer.write_trace(agent_type_final, {
+                "run_id": run_id,
+                "step_id": step_id,
+                "timestamp": timestamp,
+                "year": env_context.get("current_year") if env_context else None,
+                "seed": seed,
+                "agent_id": agent_id,
+                "model": getattr(self, "_model_name", "unknown"),
+                "decision_source": "parse_failure",
+                "validated": False,
+                "fallback_activated": False,
+                "_audit_priority": [f"reason_{f.lower()}" for f in log_fields],
+                "raw_output": raw_output,
+                "input": prompt,
+                "llm_stats": _sentinel_llm_stats(llm_stats),
+                "skill_proposal": None,
+                # trace_to_csv_row reads status off approved_skill; an empty
+                # skill_name keeps final_skill blank, which is the truth here.
+                "approved_skill": {
+                    "skill_name": "", "status": "ABORTED", "mapping": "",
+                },
+                "execution_result": None,
+                "outcome": SkillOutcome.ABORTED.value,
+                "retry_count": 0,
+                "format_retries": format_retry_count,
+                # Retrieval DID happen before the parse failed, so the count is
+                # a measurement. The memory bodies are omitted (the row is a
+                # sentinel, not a decision record) and `retrieval_mode` says so
+                # rather than reading as an ordinary retrieval. `surprise_value`
+                # is "" because nothing computed it — 0.0 would be a number
+                # someone could average.
+                "memory_audit": {
+                    "retrieved_count": len(memory_pre),
+                    "memories": [],
+                    "retrieval_mode": "aborted",
+                    "surprise_value": "",
+                },
+                "social_audit": {},
+                "rule_breakdown": {},
+                "executed_skill": "",
+                "executed_via_fallback": False,
+                "execution_path": "aborted",
+            }, [
+                # Passed, rather than None, for two reasons. ``write_trace``
+                # forces ``validated=True`` when it receives no validation
+                # results, which on an aborted step would be a plain untruth.
+                # And a row that records the failure without recording WHY
+                # sends the reader back to the JSONL; this puts the reason in
+                # ``failed_rules`` / ``error_messages`` where every other
+                # blocked decision already carries it.
+                ValidationResult(
+                    valid=False,
+                    validator_name="SkillBrokerEngine:parse",
+                    errors=["Parse error after retries"],
+                    metadata={"rule_id": "parse_failure_terminal",
+                              "rules_hit": ["parse_failure_terminal"],
+                              "expected_terminal": True,
+                              "constraint_type": "hard"},
+                ),
+            ])
+        except Exception as exc:
+            # An audit-writer failure must never convert a parse failure into
+            # a crashed run; the original ABORTED result still returns.
+            #
+            # P2d: but a log line alone is invisible to anyone reading the
+            # artifacts afterwards, and this failure is precisely a row that
+            # should have existed and does not — the same denominator hole the
+            # sentinel exists to close. Count it so `run_integrity.json` can
+            # report it as `audit_sentinel_write_failures`.
+            self._audit_sentinel_write_failures = (
+                getattr(self, "_audit_sentinel_write_failures", 0) + 1
+            )
+            logger.error(
+                f"[Audit] ABORTED sentinel write failed for {agent_id}: {exc}",
+                exc_info=True,
+            )
+
     def _write_audit_trace(
         self, *, agent_type: str, context: Dict, run_id: str,
         step_id: str, timestamp: str, env_context: Optional[Dict],
@@ -198,6 +415,7 @@ class AuditMixin:
         all_validation_history: List,
         executed_skill: Optional[str] = None,
         executed_via_fallback: bool = False,
+        execution_path: Optional[str] = None,
         initial_skill: Optional[str] = None,
         initial_labels: str = "",
         attempt_skills: Optional[List] = None,
@@ -215,6 +433,26 @@ class AuditMixin:
         log_fields = self.config.get_log_fields(agent_type_final)
         audit_priority = [f"reason_{f.lower()}" for f in log_fields]
 
+        # PR-3: with corrected_status_columns ON, an ABSENT emotion/source is
+        # marked as such instead of borrowing the "neutral"/"personal"
+        # literals. Observed values are untouched either way — only the
+        # missing-key default changes, so a run whose memory records DO carry
+        # these keys reads identically under both settings.
+        #
+        # P2-2: ONE resolution point per run. The engine resolves the flag once
+        # in __init__ (and logs the resolved value); re-reading the config here
+        # per row meant a config whose getter changed mid-run — or a test double
+        # that swapped it — could write some rows under one contract and some
+        # under the other, in one CSV, with nothing recording the split. The
+        # per-row helper stays as the fallback for a host with no engine
+        # attribute (the AuditMixin test hosts, and any caller that mixes the
+        # mixin into something other than SkillBrokerEngine).
+        corrected = getattr(self, "_corrected_status_columns", None)
+        if not isinstance(corrected, bool):
+            corrected = _corrected_status_flag(self.config)
+        _emotion_default = UNOBSERVED if corrected else "neutral"
+        _source_default = UNOBSERVED if corrected else "personal"
+
         # Build memory_audit from pre-retrieval data for audit CSV
         normalized_memories = []
         for memory in memory_pre:
@@ -222,16 +460,17 @@ class AuditMixin:
                 normalized_memories.append(
                     {
                         "content": memory.get("content", ""),
-                        "emotion": memory.get("emotion", "neutral"),
+                        "emotion": memory.get("emotion", _emotion_default),
                         "importance": memory.get("importance", 0.0),
-                        "source": memory.get("source", "personal"),
+                        "source": memory.get("source", _source_default),
                         "timestamp": memory.get("timestamp"),
                         "final_score": memory.get("final_score"),
                     }
                 )
             else:
                 normalized_memories.append(
-                    {"content": memory, "emotion": "neutral", "importance": 0.0, "source": "personal"}
+                    {"content": memory, "emotion": _emotion_default,
+                     "importance": 0.0, "source": _source_default}
                 )
 
         memory_audit = {
@@ -247,11 +486,24 @@ class AuditMixin:
         # v21 / paper-3 mock reruns stay byte-identical.
         executed_extra: Dict[str, Any] = {}
         get_flag = getattr(self.config, "get_audit_executed_columns", None)
-        if callable(get_flag) and get_flag():
+        if (callable(get_flag) and get_flag()) or corrected:
             executed_extra = {
                 "executed_skill": executed_skill,
                 "executed_via_fallback": bool(executed_via_fallback),
             }
+        # PR-3: `execution_path` names the remap rule that produced
+        # `executed_skill` (approved / approved_no_engine / rejected_default /
+        # rejected_proposal / fallback / aborted / not_executed / unknown), so
+        # the row states it instead of
+        # an analyst re-deriving it from `status` plus the domain's
+        # `on_retry_exhausted` policy — which the CSV does not carry.
+        # S2: an absent path is "unknown", not "". A blank cell reads as "this
+        # column does not apply here"; the truth is that a caller reached the
+        # audit writer without stating which branch ran, and the analyst should
+        # be able to filter those rows out by name. "unknown" is part of the
+        # documented enum for exactly that reason.
+        if corrected:
+            executed_extra["execution_path"] = execution_path or "unknown"
 
         # 6W-B6: PROPOSED-parameter columns, OPT-IN via
         # global_config.audit.param_columns (default OFF). Same key-gated
@@ -317,9 +569,17 @@ class AuditMixin:
             # row-builder reads it directly instead of inferring from the
             # status string. REJECTED_FALLBACK = retries exhausted and the
             # registry default skill executed (genuine fallback activation).
+            #
+            # PR-3: that test reads the BLOCKED skill's approval status, so a
+            # plain-REJECTED row records False even though the registry
+            # default is precisely what the engine ran. Under
+            # corrected_status_columns the flag is derived from what
+            # EXECUTED, which is the question the column name asks.
             "fallback_activated": (
-                approved_skill is not None
-                and approved_skill.approval_status == "REJECTED_FALLBACK"
+                bool(executed_via_fallback) if corrected else (
+                    approved_skill is not None
+                    and approved_skill.approval_status == "REJECTED_FALLBACK"
+                )
             ),
             "_audit_priority": audit_priority,
             "input": prompt,
@@ -333,7 +593,13 @@ class AuditMixin:
             # columns carry real validator-category counts instead of placeholder
             # zeros. Imported lazily here to avoid a startup-time circular
             # import (governance pkg imports core types).
-            "rule_breakdown": _safe_rule_breakdown(all_validation_history),
+            # PR-3: `allow_metadata_fallback` under corrected_status_columns —
+            # the production AgentValidator sets metadata["tier"], never
+            # metadata["category"], so without it four of the five
+            # rules_*_hit columns are zero on every row by construction.
+            "rule_breakdown": _safe_rule_breakdown(
+                all_validation_history, allow_metadata_fallback=corrected
+            ),
             # Phase 6Q-D-3 (2026-05-26): populate `triggered_rules` so the
             # audit CSV column of the same name carries a deduped list of
             # rule IDs that fired (BLOCK + WARN). Pre-fix the schema +
