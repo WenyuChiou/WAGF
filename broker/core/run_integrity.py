@@ -24,10 +24,56 @@ See broker/INVARIANTS.md Invariant 6.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from broker.utils.logging import logger
+
+# ──────────────────────────────────────────────────────────────────────
+# PR-6 P1-a: world-rule EVALUABILITY tally
+# ──────────────────────────────────────────────────────────────────────
+# A world-grounded rule whose variable the environment never published does not
+# fire — the safe direction, and the documented one. But a run where that is
+# true of EVERY grounded rule on EVERY row is not a run in which the world
+# agreed with the model; it is a run in which the grounded profile was
+# decorative, and the audit CSV of that run is identical to a clean one.
+#
+# Counted per audit ROW (not per validation pass, which would over-count
+# retries), incremented from the same place the grounding columns are computed,
+# and reported in run_integrity.json. Process-global with a lock for the same
+# reason as the uncategorised-rule tally: audit rows are built concurrently when
+# a run sets workers > 1, and a bare += loses updates in the one number that
+# exists to say "this evidence is not there".
+_WORLD_EVALUABILITY_LOCK = threading.Lock()
+_WORLD_GROUNDED_ROWS = 0
+_WORLD_UNEVALUABLE_ROWS = 0
+
+
+def note_world_grounded_row(unevaluable: bool) -> None:
+    """Record one audit row written under a world-grounded profile. Never raises."""
+    global _WORLD_GROUNDED_ROWS, _WORLD_UNEVALUABLE_ROWS
+    with _WORLD_EVALUABILITY_LOCK:
+        _WORLD_GROUNDED_ROWS += 1
+        if unevaluable:
+            _WORLD_UNEVALUABLE_ROWS += 1
+
+
+def get_world_rule_evaluability() -> Dict[str, int]:
+    """The tally, for ``run_integrity.json``."""
+    with _WORLD_EVALUABILITY_LOCK:
+        return {
+            "world_grounded_rows": _WORLD_GROUNDED_ROWS,
+            "world_rules_unevaluable_rows": _WORLD_UNEVALUABLE_ROWS,
+        }
+
+
+def reset_world_rule_evaluability() -> None:
+    """Clear the tally. Called from ``SkillBrokerEngine.__init__`` and by tests."""
+    global _WORLD_GROUNDED_ROWS, _WORLD_UNEVALUABLE_ROWS
+    with _WORLD_EVALUABILITY_LOCK:
+        _WORLD_GROUNDED_ROWS = 0
+        _WORLD_UNEVALUABLE_ROWS = 0
 
 # Sentinel for ``reflection_engine``: distinguishes "the caller did not pass a
 # reflection engine object" (leave unset) from "reflection exists and is None".
@@ -279,6 +325,62 @@ def record_run_integrity(
     except Exception as exc:
         logger.debug(f"[Integrity] uncategorised-rule tally skipped: {exc}")
 
+    # PR-6 P1-a: how many rows ran under a world-grounded profile, and on how
+    # many of them EVERY grounded rule was unevaluable because the environment
+    # did not publish its variable.
+    world_eval = get_world_rule_evaluability()
+    audit.update(world_eval)
+    _wg_rows = world_eval["world_grounded_rows"]
+    _wu_rows = world_eval["world_rules_unevaluable_rows"]
+    # The denominator is the tally itself, `_wg_rows` — NOT `audit_rows` from
+    # the CSV. `note_world_grounded_row()` is only called from
+    # `AuditMixin._write_audit_trace`; an aborted sentinel row (status
+    # ABORTED / ABORTED_EXCEPTION, written by `_write_aborted_trace` when a
+    # step raises) bypasses that call site entirely and never reaches the
+    # tally. `audit_rows` counts the sentinel row anyway, so using it as the
+    # denominator inflates the count past what the tally actually saw — one
+    # aborted agent-year was enough to make `_wu_rows == _denominator` false
+    # even when EVERY row the tally did see was unevaluable, silently
+    # disabling the flag. The tally's own row count is the only denominator
+    # that answers "was the grounded rule ever in a position to say
+    # anything, among the rows this tally actually counted?".
+    _denominator = _wg_rows
+    world_rules_never_evaluable = bool(_wu_rows) and _wu_rows == _denominator
+
+    # Separately: rows that finished normally (not aborted) but still never
+    # reached the tally are a coverage hole worth naming on their own — some
+    # code path wrote a completed row without calling
+    # `note_world_grounded_row()`. Null when the CSV-side counts are not
+    # available (coverage unmeasured / no CSV yet), OR when `_wg_rows == 0` —
+    # verified empirically (2026-09, a plain default-profile flood run):
+    # `note_world_grounded_row()` is called only from the ONE call site gated
+    # by `AgentTypeConfig.get_audit_grounding_columns()`
+    # (`broker/core/_audit_helpers.py`), which is OFF for every non-grounded
+    # profile. On such a run `_wg_rows` is 0 for its entire duration BY
+    # DESIGN, not because of a coverage hole, so comparing it against
+    # `audit_rows` would report every ordinary row as "missing" and warn on
+    # every default-profile run in the fleet — the same false-alarm shape the
+    # uncategorised-rule tally's C1 fix (this module's sibling in
+    # `broker/validators/governance/__init__.py`) already exists to avoid.
+    # `_wg_rows > 0` is the cheapest available signal that the tally was
+    # actually live for this run, so the gap is only measured then.
+    _audit_rows = audit.get("audit_rows")
+    _audit_aborted_rows = audit.get("audit_aborted_rows")
+    if _wg_rows > 0 and isinstance(_audit_rows, int) and isinstance(_audit_aborted_rows, int):
+        world_grounded_coverage_gap = (_audit_rows - _audit_aborted_rows) - _wg_rows
+    else:
+        world_grounded_coverage_gap = None
+    audit["world_grounded_coverage_gap"] = world_grounded_coverage_gap
+    if world_grounded_coverage_gap:
+        logger.warning(
+            "[Integrity] %d completed (non-aborted) row(s) ran without "
+            "reaching the world-grounded-evaluability tally — a coverage "
+            "hole: some path wrote a finished audit row without calling "
+            "note_world_grounded_row(). audit_rows=%s audit_aborted_rows=%s "
+            "world_grounded_rows=%s.",
+            world_grounded_coverage_gap, _audit_rows, _audit_aborted_rows, _wg_rows,
+        )
+
     if extra:
         audit.update(extra)
 
@@ -286,7 +388,7 @@ def record_run_integrity(
     # (refl_count <= 0 also catches the -1 "exists but unreadable" sentinel — the
     # conservative direction: flag rather than silently pass).
     mismatch = reflection_expected and refl_count <= 0
-    audit["integrity_ok"] = not mismatch
+    audit["integrity_ok"] = not (mismatch or world_rules_never_evaluable)
 
     try:
         # default=str so a non-JSON-serializable value in ``extra`` (e.g. numpy int,
@@ -300,6 +402,19 @@ def record_run_integrity(
             print(f" [Integrity] WARNING: could not write run_integrity.json ({exc})")
 
     if verbose:
+        if world_rules_never_evaluable:
+            print("\n" + "!" * 72)
+            print(" [INTEGRITY GUARDRAIL] a world-grounded governance profile was "
+                  "active,")
+            print(f" but on ALL {_wu_rows} of {_denominator} row(s) every grounded "
+                  "rule was")
+            print(" unevaluable — the environment never published the variable it "
+                  "reads.")
+            print(" The rules did not agree with the world; they never saw it. This "
+                  "run's")
+            print(" audit CSV is indistinguishable from a self-report-only run.")
+            print(" Check the domain publishes the variable, and the rule's `scope:`.")
+            print("!" * 72 + "\n")
         if mismatch:
             print("\n" + "!" * 72)
             print(" [INTEGRITY GUARDRAIL] humancentric memory engine but "
@@ -308,7 +423,7 @@ def record_run_integrity(
             print(" this run is NOT comparable to reflection-on runs (the 2026-05-30")
             print(" data-defect failure mode).")
             print("!" * 72 + "\n")
-        else:
+        if not (mismatch or world_rules_never_evaluable):
             engine = effective_type or memory_engine_class or "unknown"
             print(f" [Integrity] reflection={refl_count} entries | engine={engine} | "
                   f"mode={governance_mode} | OK")

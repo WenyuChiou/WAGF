@@ -182,6 +182,7 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "coupling",     # see KNOWN_COUPLING_KEYS (two-layer flag, Phase 6V)
     "audit",        # see KNOWN_AUDIT_KEYS (opt-in column flags, all default OFF)
     "parsing",      # see KNOWN_PARSING_KEYS (PR-4 hardened-parsing flag, default OFF)
+    "validators",   # see KNOWN_VALIDATORS_KEYS (PR-6 label-resolution flag, default OFF)
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {
@@ -205,6 +206,11 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     "intervention_framing",      # agent_config.get_governance_intervention_framing
     "require_profile",           # agent_config.get_governance_require_profile
     "on_retry_exhausted",        # agent_config.get_governance_on_retry_exhausted
+    # PR-6 soft-rule channel. Note it is `advise_mode`, NOT `advise` — the two
+    # are different features (`advise` demotes ERROR rules for an experiment
+    # arm; `advise_mode` governs rules already authored as WARNING) and writing
+    # one where you meant the other is the mistake this entry exists to name.
+    "advise_mode",               # agent_config.get_governance_advise_mode
 }
 
 KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
@@ -228,6 +234,7 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "initial_proposal_columns",  # agent_config.get_audit_initial_proposal_columns (P0-1a)
     "advise_columns",            # agent_config.get_audit_advise_columns (P0-1c)
     "param_columns",             # agent_config.get_audit_param_columns (6W-B6)
+    "grounding_columns",         # agent_config.get_audit_grounding_columns (PR-6)
 }
 
 # PR-4: the single opt-in parsing-hardening flag, default-OFF, same fail-open
@@ -235,6 +242,14 @@ KNOWN_AUDIT_KEYS: Set[str] = {
 # naked-digit layer keeps firing) with zero warnings anywhere else.
 KNOWN_PARSING_KEYS: Set[str] = {
     "strict_layers",  # agent_config.get_parsing_strict_layers (PR-4)
+}
+
+# PR-6: validator-behaviour flags, default-OFF, same fail-closed rationale as
+# KNOWN_AUDIT_KEYS — a typo'd key resolves to feature-OFF, the run keeps the
+# hardcoded five-level label alphabet, and every rule written against another
+# framework's labels silently never fires with nothing anywhere saying so.
+KNOWN_VALIDATORS_KEYS: Set[str] = {
+    "framework_aware_labels",  # agent_config.get_validators_framework_aware_labels
 }
 
 
@@ -363,8 +378,22 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     _check_block("social_feeds", KNOWN_SOCIAL_FEEDS_KEYS)
     _check_block("coupling", KNOWN_COUPLING_KEYS)
     _check_block("audit", KNOWN_AUDIT_KEYS)
+    _check_block("validators", KNOWN_VALIDATORS_KEYS)
     parsing_block = _check_block("parsing", KNOWN_PARSING_KEYS)
     issues.extend(_check_strict_layers_value(parsing_block, f"{loc}.parsing"))
+
+    # PR-6: `advise_mode` must name a real mode. The config getter raises on a
+    # bad value, but that happens at RUN time, after the operator has walked
+    # away from a launched batch; catching it here costs one character to fix.
+    if "advise_mode" in gov:
+        _mode = str(gov.get("advise_mode")).strip().lower()
+        if _mode not in ("off", "record", "feedback"):
+            issues.append(Issue(
+                "ERROR", f"{loc}.governance",
+                f"advise_mode {gov.get('advise_mode')!r} is not one of "
+                f"['feedback', 'off', 'record']. The soft-rule channel refuses "
+                f"to start on an unknown mode rather than silently reading it off.",
+            ))
 
     dispatch = gov.get("dispatch_domain_physical")
     if isinstance(dispatch, dict):
@@ -402,6 +431,9 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
 _THINKING_RULE_CONSUMED_KEYS: Set[str] = {
     "id", "construct", "conditions", "when_above", "when_true",
     "blocked_skills", "level", "message",
+    # PR-6: read by `resolve_rule_grounding` to stamp CoherenceRule.grounding,
+    # which decides the `rules_world_grounded` / `rules_self_report` split.
+    "grounding",
 }
 # Condition dicts: canonical short shape {construct, values}; the verbose
 # 6N-E shape evaluates via the `field` fallback but `type`/`operator` are
@@ -413,6 +445,114 @@ _THINKING_RULE_CONSUMED_KEYS: Set[str] = {
 # specific; `identity_rules` has a DIFFERENT loader that reads `precondition`
 # as live — extending this lint to identity_rules needs its own key set.
 _CONDITION_CONSUMED_KEYS: Set[str] = {"construct", "values", "field"}
+
+# PR-6: a WORLD condition consumes a DIFFERENT key set. `{variable, scope,
+# operator, value|values}` are all live there
+# (broker/utils/agent_config.py::world_condition_target,
+# broker/validators/agent/agent_validator.py::_evaluate_world_condition), and
+# `type` selects the verbose dataclass shape. Kept as a separate set rather than
+# merged into the one above, because on a CONSTRUCT condition `operator` alone
+# still has no semantics — that is the 6N-E finding this lint exists to report,
+# and widening one set to accommodate the other would delete it.
+_WORLD_CONDITION_CONSUMED_KEYS: Set[str] = {
+    "variable", "scope", "operator", "value", "values", "type", "field",
+}
+
+# On a construct condition, `operator` + `value` TOGETHER select the numeric
+# comparison branch (`if "operator" in cond and "value" in cond`), so the pair is
+# live. `operator` on its own is not.
+_CONSTRUCT_NUMERIC_KEYS: Set[str] = {"operator", "value"}
+
+
+def _consumed_condition_keys(cond: Dict[str, Any]) -> Set[str]:
+    """Which keys this particular condition shape actually consumes."""
+    from broker.utils.agent_config import world_condition_target
+
+    name, _scope = world_condition_target(cond)
+    if name:
+        return _WORLD_CONDITION_CONSUMED_KEYS
+    if _CONSTRUCT_NUMERIC_KEYS <= set(cond):
+        return _CONDITION_CONSUMED_KEYS | _CONSTRUCT_NUMERIC_KEYS
+    return _CONDITION_CONSUMED_KEYS
+
+
+def _iter_thinking_rule_blocks(cfg: Dict[str, Any]):
+    """Yield ``(location, rules_list)`` for EVERY thinking-rule block in a config.
+
+    Three shapes exist and all three are in production use:
+
+    * ``<agent_type>.thinking_rules`` — the flat legacy form;
+    * ``governance.<profile>.<agent_type>.thinking_rules`` — the top-level form;
+    * ``<agent_type>.governance.<profile>.thinking_rules`` — the form BOTH
+      shipped reference configs actually use, and the one
+      :func:`check_rule_shapes` does not walk.
+
+    Kept as one iterator so a new check cannot inherit that gap by copying the
+    old walk.
+    """
+    for atype, block in (cfg or {}).items():
+        if not isinstance(block, dict):
+            continue
+        if str(atype) == "governance":
+            for profile, types in block.items():
+                if not isinstance(types, dict):
+                    continue
+                for at, sub in types.items():
+                    if isinstance(sub, dict):
+                        yield (f"yaml: governance.{profile}.{at}.thinking_rules",
+                               sub.get("thinking_rules"))
+            continue
+        if str(atype) == "global_config":
+            continue
+        yield (f"yaml: {atype}.thinking_rules", block.get("thinking_rules"))
+        yield (f"yaml: {atype}.coherence_rules", block.get("coherence_rules"))
+        gov = block.get("governance")
+        if isinstance(gov, dict):
+            for profile, sub in gov.items():
+                if isinstance(sub, dict):
+                    yield (f"yaml: {atype}.governance.{profile}.thinking_rules",
+                           sub.get("thinking_rules"))
+
+
+def check_world_condition_scopes(cfg: Dict[str, Any]) -> List[Issue]:
+    """W5: ERROR on a ``scope:`` the resolver does not recognise.
+
+    An unrecognised scope is COERCED to ``auto`` at load time, and ``auto``
+    searches env first — so ``scope: environment`` (a plausible typo) appears to
+    work, and keeps appearing to work until the agent's own state carries the
+    same variable name. Then the rule reads the wrong plane, with nothing in the
+    run saying the scope was never honoured. The coercion warns once at runtime;
+    this catches it before a batch is launched, which is when it is still one
+    character to fix.
+    """
+    from broker.utils.agent_config import WORLD_CONDITION_SCOPES
+
+    issues: List[Issue] = []
+    for loc, rules in _iter_thinking_rule_blocks(cfg):
+        if not isinstance(rules, list):
+            continue
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            rid = rule.get("id", rule.get("construct", "?"))
+            conds = rule.get("conditions")
+            if not isinstance(conds, list):
+                continue
+            for cond in conds:
+                if not isinstance(cond, dict) or "scope" not in cond:
+                    continue
+                scope = str(cond.get("scope") or "").strip().lower()
+                if scope in WORLD_CONDITION_SCOPES:
+                    continue
+                issues.append(Issue(
+                    "ERROR", loc,
+                    f"rule {rid!r}: condition scope {cond.get('scope')!r} is not "
+                    f"one of {sorted(WORLD_CONDITION_SCOPES)}. It is COERCED to "
+                    f"'auto' at load time, which searches env then agent state "
+                    f"then the flattened context — so the rule keeps firing, "
+                    f"against whichever plane wins, not the one you named.",
+                ))
+    return issues
 
 
 def check_rule_shapes(cfg: Dict[str, Any]) -> List[Issue]:
@@ -458,7 +598,7 @@ def check_rule_shapes(cfg: Dict[str, Any]) -> List[Issue]:
                 for c in conds:
                     if not isinstance(c, dict):
                         continue
-                    ce = set(c) - _CONDITION_CONSUMED_KEYS
+                    ce = set(c) - _consumed_condition_keys(c)
                     if ce:
                         issues.append(Issue(
                             "ERROR", loc,
@@ -1034,6 +1174,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     all_issues.extend(check_global_config_keys(cfg))
     # 2026-06-10 (G4): silently-dead rule-shape lint (the 6N-E class).
     all_issues.extend(check_rule_shapes(cfg))
+    # PR-6 (W5): world-condition `scope:` allowlist. An unrecognised scope is
+    # coerced to `auto` at load time and the rule keeps firing against a plane
+    # nobody named, so it has to be caught before the batch, not after.
+    all_issues.extend(check_world_condition_scopes(cfg))
     # Phase 6R-B-3: resolve domain-specific placeholder extensions once
     # per CLI invocation. The hook is keyed on
     # ``global_config.governance.domain``.
