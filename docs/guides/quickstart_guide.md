@@ -34,7 +34,7 @@ Done!
 - Broker parses, validates, and approves the decision
 - Simulation engine applies state changes
 
-**Source:** `examples/quickstart/01_barebone.py` (< 90 lines)
+**Source:** `examples/quickstart/01_barebone.py` (~110 lines)
 
 ---
 

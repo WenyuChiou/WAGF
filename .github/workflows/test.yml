@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main, "refactor/**"]
+    branches: [main, "refactor/**", "stack/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "stack/**"]
 
 jobs:
   test:
@@ -53,3 +53,35 @@ jobs:
           python -m pytest tests/ broker/ -ra --tb=short \
             --continue-on-collection-errors \
             -k "not real_llm"
+
+  scaffold-smoke:
+    # Proves the documented onboarding front door -- scaffold_domain ->
+    # validate_prompt -> run_experiment.py -- actually runs end to end, on
+    # the tool's own untouched defaults, on every push/PR that matches the
+    # `on:` branch filters above (main, refactor/**, stack/**). A bare
+    # `import {domain}` bug in the generated runner broke exactly this
+    # chain silently (no test caught it because no test ran the generated
+    # code); this job is the regression guard so that can't happen again
+    # unnoticed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package (core only -- no LLM/analysis/web extras needed for a mock-mode smoke)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Scaffold a throwaway domain and run its generated runner (mock LLM, 1 step)
+        run: |
+          python -m broker.tools.scaffold_domain ci_smoke_domain --skills "action_a,action_b"
+          python -m broker.tools.validate_prompt examples/ci_smoke_domain_demo/config/agent_types.yaml
+          python examples/ci_smoke_domain_demo/run_experiment.py --model mock --years 1 --agents 1
+          rm -rf examples/ci_smoke_domain_demo

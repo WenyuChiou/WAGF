@@ -29,6 +29,46 @@ Reference:
 - ``docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`` — full schema + walkthrough
 - ``examples/vaccination_demo/`` — production reference example
 
+Generated runner: sys.path / import safety
+--------------------------------------------
+``gen_run_experiment()`` below emits a runner script that inserts two
+things onto ``sys.path`` and imports the scaffolded package by its
+on-disk directory name rather than a hardcoded domain literal. Both
+choices are deliberate and were tightened after a 2026-08 review found
+the first cut unsafe with a custom ``--output``:
+
+* **Repo-root insert is guarded, not unconditional.** The runner always
+  adds its own container directory (``_CONTAINER_DIR``, e.g. ``examples/``
+  for the default layout) to ``sys.path`` so the scaffolded package
+  imports. It also wants the *repo root* on the path, so a sibling WAGF
+  checkout's installed ``broker`` package can't silently shadow the one
+  next to this file. With the *default* output location
+  (``examples/<domain>_demo/``) that repo root is exactly
+  ``_CONTAINER_DIR.parent``, harmless to insert. But with a **custom**
+  ``--output`` (e.g. a directory outside the repo entirely),
+  ``_CONTAINER_DIR.parent`` can be an arbitrary directory — inserting an
+  arbitrary path at ``sys.path[0]`` risks a same-named module or package
+  sitting in that directory shadowing a stdlib or site-packages module
+  for the rest of the process. The runner therefore only inserts
+  ``_REPO_ROOT`` when it actually looks like the WAGF repo root (a
+  ``broker/__init__.py`` exists directly under it); otherwise it's
+  skipped and ``broker`` falls back to the normal pip-install lookup.
+* **Import target is the on-disk directory name, not a hardcoded domain
+  literal**, because ``--output``'s basename need not equal the domain
+  name (default output is ``<domain>_demo/``, e.g. domain
+  ``energy_consumer`` writes to ``energy_consumer_demo/``). Deriving the
+  import target from the runner's own file location means it can't
+  diverge from where the package was actually written, even if the
+  directory is later renamed or copied.
+* **The import-identity check after that import** (comparing
+  ``Path(_pkg.__file__).resolve().parent`` against ``_PKG_DIR``) guards
+  against the remaining failure mode: a *different*, already-installed
+  package happening to share the scaffolded directory's name (a
+  site-packages name collision) would otherwise import silently and
+  the runner would proceed against the wrong code with no error. The
+  check turns that into an immediate, actionable ``SystemExit`` instead
+  of confusing runtime behavior.
+
 Added: 2026-05-10.
 """
 from __future__ import annotations
@@ -482,13 +522,26 @@ def gen_run_experiment(domain: str) -> str:
         import sys
         from pathlib import Path
 
-        # Add package to path so imports resolve when run as a script.
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        # Path setup + package import below are guarded/checked on purpose --
+        # see scaffold_domain.py's "Generated runner: sys.path / import
+        # safety" docstring section for the rationale.
+        _PKG_DIR = Path(__file__).resolve().parent
+        _CONTAINER_DIR = _PKG_DIR.parent  # e.g. examples/, for the default output layout
+        sys.path.insert(0, str(_CONTAINER_DIR))
+        _REPO_ROOT = _CONTAINER_DIR.parent
+        if (_REPO_ROOT / "broker" / "__init__.py").exists():
+            sys.path.insert(0, str(_REPO_ROOT))
 
         import yaml  # noqa: E402
 
-        # Register DomainPack + validators (side-effect imports).
-        import {domain}  # noqa: E402,F401
+        import importlib  # noqa: E402
+        _pkg = importlib.import_module(_PKG_DIR.name)  # noqa: E402
+        _pkg_file = getattr(_pkg, "__file__", None)  # noqa: E402
+        if _pkg_file is None or Path(_pkg_file).resolve().parent != _PKG_DIR:
+            raise SystemExit(
+                f"Imported '{{_PKG_DIR.name}}' from {{_pkg_file}}, not "
+                f"{{_PKG_DIR}}. Rename the scaffold directory to something unique."
+            )
 
         from broker.agents import AgentConfig, BaseAgent, Skill  # noqa: E402
         from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402

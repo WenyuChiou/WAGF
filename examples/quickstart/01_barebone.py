@@ -8,7 +8,9 @@ No Ollama required (uses mock LLM).
 
 Usage:
   python 01_barebone.py
+  python 01_barebone.py --output results/rerun   # re-run without clearing
 """
+import argparse
 import sys
 from pathlib import Path
 
@@ -20,6 +22,18 @@ from broker.components.memory.engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from broker.agents import BaseAgent, AgentConfig
 from broker.agents.base import StateParam, Skill
+
+# --- 0. CLI args --- a second run against the same results/ dir is refused
+# by broker/components/analytics/audit.py ("already holds a completed run")
+# and points the user at --output; this script needs to actually have one.
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "--output",
+    default=None,
+    help="Results directory (default: examples/quickstart/results). Point "
+         "this at a fresh directory to re-run without moving the old one.",
+)
+args = parser.parse_args()
 
 # --- 1. One agent, two skills ---
 agent_cfg = AgentConfig(
@@ -51,6 +65,15 @@ class TinySimulation:
 
 # --- 3. Build experiment ---
 script_dir = Path(__file__).resolve().parent
+# A relative --output resolves against this script's own directory (not the
+# caller's cwd), mirroring scaffold_domain.py's generated-runner behavior --
+# see that module's docstring for the rationale.
+if args.output:
+    output_dir = Path(args.output)
+    if not output_dir.is_absolute():
+        output_dir = script_dir / output_dir
+else:
+    output_dir = script_dir / "results"
 
 runner = (
     ExperimentBuilder()
@@ -61,7 +84,7 @@ runner = (
     .with_skill_registry(str(script_dir / "skill_registry.yaml"))
     .with_memory_engine(WindowMemoryEngine(window_size=3))
     .with_governance("strict", str(script_dir / "agent_types.yaml"))
-    .with_exact_output(str(script_dir / "results"))
+    .with_exact_output(str(output_dir))
     .with_workers(1)
     .with_seed(42)
 ).build()
@@ -82,4 +105,4 @@ runner.hooks = {"pre_year": on_pre_year, "post_step": on_post_step}
 print("WAGF Quickstart — Barebone Decision Loop")
 print("=" * 40)
 runner.run()
-print("\nDone! Check examples/quickstart/results/ for audit CSV.")
+print(f"\nDone! Check {output_dir} for audit CSV.")
