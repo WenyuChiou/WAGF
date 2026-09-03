@@ -413,6 +413,47 @@ class AgentTypeConfig:
             return False
         return bool(block.get("corrected_status_columns", False))
 
+    def get_parsing_strict_layers(self) -> bool:
+        """PR-4 (2026-09-01): opt-in HARDENED parsing layers (default-OFF).
+
+        When ``global_config.parsing.strict_layers: true``, ``UnifiedAdapter``
+        stops treating a stray digit anywhere in the model's free text as a
+        reasoned decision: every digit route that is not scoped to a decision
+        line is disabled (each suppression recorded as a ``parsing_warnings``
+        entry naming the candidate it rejected), the two decision-line digit
+        routes survive re-anchored so the digit must BE the decision value
+        rather than merely appear on the line, and a row an APPROVED proposal
+        owes to the parser's own domain-default substitution is reported as
+        ``decision_source == "default_substituted"`` instead of
+        ``"llm_reasoned"``.
+
+        Under ``parsing.strict_mode: true`` (the default) a suppressed row
+        returns ``None`` and retries, ending ``REJECTED_FALLBACK`` or an
+        ``ABORTED`` sentinel if every retry also fails. Under
+        ``parsing.strict_mode: false`` a suppressed row falls through to
+        ``parsing.default_skill`` instead, carrying the suppression warning.
+
+        OPT-IN, default-OFF by byte-identity necessity, exactly as for the
+        ``audit.*`` flags above: this changes ``parse_layer`` /
+        ``parse_confidence`` / ``parsing_warnings`` values and the JSONL-only
+        ``decision_source`` field on rows that would otherwise be
+        digit-inferred, so every published corpus must reproduce
+        byte-identically with it absent. Enable together with
+        ``audit.corrected_status_columns`` — otherwise a step that now aborts
+        instead of guessing writes no audit row at all, shrinking the
+        denominator of whichever arm the model struggled with more.
+
+        Full route-by-route behaviour, the ``strict_mode`` interaction, and
+        the YAML surface: ``docs/references/yaml_configuration_reference.md``
+        §2.1.7. Column semantics and the readiness-report counters
+        (``parse_layer_digit_share`` / ``parse_layer_default_share``):
+        ``docs/AUDIT_SCHEMA.md``.
+        """
+        block = self._config.get("global_config", {}).get("parsing", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("strict_layers", False))
+
     def get_governance_on_retry_exhausted(self) -> str:
         """What executes when governance retries are exhausted: a MODEL-BUILDER choice.
 

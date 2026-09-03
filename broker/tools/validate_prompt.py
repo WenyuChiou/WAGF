@@ -181,6 +181,7 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "social_feeds", # see KNOWN_SOCIAL_FEEDS_KEYS (two-layer flag, Phase 6T-E.B)
     "coupling",     # see KNOWN_COUPLING_KEYS (two-layer flag, Phase 6V)
     "audit",        # see KNOWN_AUDIT_KEYS (opt-in column flags, all default OFF)
+    "parsing",      # see KNOWN_PARSING_KEYS (PR-4 hardened-parsing flag, default OFF)
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {
@@ -229,6 +230,84 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "param_columns",             # agent_config.get_audit_param_columns (6W-B6)
 }
 
+# PR-4: the single opt-in parsing-hardening flag, default-OFF, same fail-open
+# rationale as KNOWN_AUDIT_KEYS — a typo'd key resolves to feature-OFF (the
+# naked-digit layer keeps firing) with zero warnings anywhere else.
+KNOWN_PARSING_KEYS: Set[str] = {
+    "strict_layers",  # agent_config.get_parsing_strict_layers (PR-4)
+}
+
+
+def _check_strict_layers_value(parsing_block: Dict[str, Any], loc: str) -> List[Issue]:
+    """PR-4 (D8): ``strict_layers`` must be a real YAML bool.
+
+    ``resolve_strict_layers_flag`` requires ``isinstance(value, bool)`` and
+    resolves anything else OFF. That is the safe direction for byte identity
+    and the wrong one for whoever wrote the key, and the quoted string
+    ``"false"`` is the trap that costs the most: it is TRUTHY in Python, so a
+    reader skimming the YAML reads it as off while a naive consumer would read
+    it as on, and the resolver's answer (off, with one log line) matches
+    neither reading reliably. Fail it here, at config time, where the fix is
+    one character.
+    """
+    issues: List[Issue] = []
+    if not isinstance(parsing_block, dict) or "strict_layers" not in parsing_block:
+        return issues
+    value = parsing_block["strict_layers"]
+    if isinstance(value, bool):
+        return issues
+    hint = ""
+    if isinstance(value, str) and value.strip().lower() in ("true", "false", "yes", "no", "on", "off"):
+        # Lower-cased on purpose: the hint tells the reader what to type in
+        # YAML, and Python's `True`/`False` repr is not valid YAML boolean
+        # syntax — a hint that has to be translated before use is a hint that
+        # gets copied wrong.
+        meant = value.strip().lower() in ("true", "yes", "on")
+        hint = (
+            f" You almost certainly meant the bool: write "
+            f"`strict_layers: {str(meant).lower()}` without quotes."
+        )
+    issues.append(Issue(
+        "WARN", loc,
+        f"strict_layers must be a bool, got {type(value).__name__} ({value!r}) — "
+        f"the flag resolver rejects any non-bool and reads the feature OFF, so "
+        f"the hardened parse layers will NOT run.{hint}",
+    ))
+    return issues
+
+
+def _check_per_agent_strict_layers(cfg: Dict[str, Any]) -> List[Issue]:
+    """PR-4 (D8): ``strict_layers`` under a per-agent ``parsing:`` block does nothing.
+
+    ``strict_layers`` is read from ``global_config.parsing`` and nowhere else
+    (``AgentTypeConfig.get_parsing_strict_layers``), while everything else a
+    user writes under ``parsing:`` — ``strict_mode``, ``default_skill``,
+    ``decision_keywords``, ``constructs`` — IS per-agent-type. Putting it
+    beside them is the obvious mistake, and it is silent: the key is accepted,
+    ignored, and the run behaves exactly as if the flag were never set.
+    """
+    message = (
+        "'strict_layers' is read ONLY from global_config.parsing and is "
+        "silently ignored here — this run's parse layers are NOT hardened. "
+        "Move it to `global_config: {parsing: {strict_layers: true}}`. "
+        "(Per-agent-type `parsing.strict_mode` is a different, genuinely "
+        "per-agent key and stays where it is.)"
+    )
+    issues: List[Issue] = []
+    for atype, block in cfg.items():
+        if str(atype) in ("global_config", "shared", "governance") or not isinstance(block, dict):
+            continue
+        # A TOP-LEVEL `parsing:` block is the same mistake one level up, and
+        # is just as silent — nothing reads it either.
+        if str(atype) == "parsing":
+            if "strict_layers" in block:
+                issues.append(Issue("WARN", "yaml: parsing", message))
+            continue
+        parsing = block.get("parsing")
+        if isinstance(parsing, dict) and "strict_layers" in parsing:
+            issues.append(Issue("WARN", f"yaml: {atype}.parsing", message))
+    return issues
+
 
 def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     """Validate ``global_config`` against the canonical key registry.
@@ -240,6 +319,10 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     and the explicitly-requested dispatch silently no-ops.
     """
     issues: List[Issue] = []
+    # PR-4 (D8): runs BEFORE the global_config early-return on purpose — a YAML
+    # that puts strict_layers under an agent type and has no global_config block
+    # at all is the exact config this warning exists for.
+    issues.extend(_check_per_agent_strict_layers(cfg))
     gc = cfg.get("global_config")
     if not isinstance(gc, dict):
         return issues
@@ -280,6 +363,8 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     _check_block("social_feeds", KNOWN_SOCIAL_FEEDS_KEYS)
     _check_block("coupling", KNOWN_COUPLING_KEYS)
     _check_block("audit", KNOWN_AUDIT_KEYS)
+    parsing_block = _check_block("parsing", KNOWN_PARSING_KEYS)
+    issues.extend(_check_strict_layers_value(parsing_block, f"{loc}.parsing"))
 
     dispatch = gov.get("dispatch_domain_physical")
     if isinstance(dispatch, dict):

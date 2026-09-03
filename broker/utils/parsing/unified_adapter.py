@@ -8,6 +8,7 @@ Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocesso
 from typing import Dict, Any, Optional, List, Callable
 import re
 import json
+import threading
 
 from ...interfaces.skill_types import SkillProposal
 from ...utils.logging import logger
@@ -19,6 +20,108 @@ from ..agent_config import load_agent_config
 from .base import ModelAdapter
 
 
+#: PR-4 (D7). One warning per REASON per process, keyed on the reason token
+#: alone. The earlier draft keyed on ``(f"the getter raised {exc}", type(config))``,
+#: which defeats the purpose: a getter whose message carries anything variable
+#: (an agent id, a path) mints a fresh key every call, so the set grows without
+#: bound AND the "once" never holds. ``SkillBrokerEngine.__init__`` clears this,
+#: so a second engine in the same process is still told once — a warning
+#: silenced by an earlier run is a warning nobody sees.
+_PARSING_FLAG_WARNED: set = set()
+
+
+def _warn_once_parsing(reason: str, detail: str, config) -> None:
+    if reason in _PARSING_FLAG_WARNED:
+        return
+    _PARSING_FLAG_WARNED.add(reason)
+    logger.warning(
+        "[Parsing] global_config.parsing.strict_layers is being read OFF: %s "
+        "(config type %s). The parser will keep accepting a stray digit as the "
+        "decision and keep labelling a parser-substituted default as a reasoned "
+        "one. If you meant to enable the flag, this run did not.",
+        detail, type(config).__name__,
+    )
+
+
+def resolve_strict_layers_flag(config) -> bool:
+    """True iff this run opted into ``global_config.parsing.strict_layers``.
+
+    PR-4 (D5). Same fail-closed-with-one-warning discipline the audit flags use
+    (``broker/core/_audit_helpers.py::_corrected_status_flag``), and for the
+    same reason: every way of failing to read the flag resolves it OFF, which
+    is right for byte identity and wrong for whoever set it in YAML, so each
+    such path says so once. A config predating the flag has no getter and
+    resolves OFF in silence (correct — nothing to warn about); a getter that
+    raises or returns a non-bool resolves OFF and warns.
+
+    Never raises. Test doubles and ``MagicMock`` configs reach this, and
+    ``bool(MagicMock())`` is True — a bare truth test would silently switch the
+    hardened layers on in every mock-config run.
+    """
+    getter = getattr(config, "get_parsing_strict_layers", None)
+    if not callable(getter):
+        return False
+    try:
+        value = getter()
+    except (AttributeError, TypeError, ValueError) as exc:
+        # Narrow on purpose: a KeyboardInterrupt / SystemExit / genuine bug in
+        # the config layer must propagate, not be recorded as "OFF".
+        _warn_once_parsing(
+            "getter_raised", f"the getter raised {type(exc).__name__}: {exc}", config
+        )
+        return False
+    if isinstance(value, bool):
+        return value
+    _warn_once_parsing(
+        "getter_non_bool",
+        f"the getter returned {type(value).__name__} rather than a bool",
+        config,
+    )
+    return False
+
+
+def _sanitize_warning(text: str) -> str:
+    """PR-4 (D6). ``trace_to_csv_row`` joins ``parsing_warnings`` with ``"|"``
+    (``broker/components/analytics/audit.py``), so a literal pipe inside a
+    warning silently splits one warning into two when an analyst splits the
+    field back apart. Applied ONLY to the warnings this PR adds — rewriting the
+    pre-existing ones would change flag-OFF bytes.
+    """
+    return text.replace("|", "/")
+
+
+#: PR-4 (D2 i). The decision-line digit anchor, flag-ON. Module-level so the
+#: tests and the docs point at ONE definition — a regex retyped as a literal in
+#: a test asserts nothing about the code, and a regex retyped in a doc goes
+#: stale the first time the code moves.
+#:
+#: Shape: optional wrapper characters, an optional separator or copula, more
+#: optional wrappers, an optional short LEAD-IN, then the digit — and the digit
+#: must end on a word boundary. The wrapper class is not decoration. This layer
+#: sees PREPROCESSED text, and the decision line reaches it in shapes like
+#: ``: "3",`` (SmartRepairPreprocessor's rewrite of ``Decision: 3``), ``": 3``
+#: (a quote BEFORE the colon, from ``"decision": 3``), ``': 3,`` (single-quoted
+#: JSON, the most common malformed-JSON shape from small models — and precisely
+#: the case where the JSON layer fails and this route is what catches the
+#: contract), ``: [3]``, ``: (3)``, ``: `3` ``, ``**3**`` and ``is 3``.
+#:
+#: PR-4 reviewer follow-up. The LEAD-IN is a closed whitelist —
+#: ``option|choice|number|#|->|>+|is|my choice is`` — so ``Decision: Option 3``,
+#: ``Decision: #3``, ``Decision: number 3``, ``Decision: -> 3``,
+#: ``Decision: >>> 3`` and ``Decision: my choice is 3`` all resolve. What it
+#: must still reject is PROSE between the keyword and the digit:
+#: ``: i will revisit this in 2 or three years`` and ``: i will not relocate
+#: this year (option 3 is too costly for the 2 of us)`` both fail — the second
+#: one BECAUSE the anchor is not a search: ``option 3`` sits mid-string, not at
+#: the position immediately after the separator, so ``.match`` never reaches it.
+DECISION_VALUE_DIGIT_RE = re.compile(
+    r"^[\s\"'`\[(*_]*(?:is\b|was\b|[:=-])?[\s\"'`\[(*_]*"
+    r"(?:(?:option|choice|number)\b|#|->|>+|is\b|my\s+choice\s+is\b)?"
+    r"[\s\"'`\[(*_]*(\d)\b",
+    re.IGNORECASE,
+)
+
+
 class UnifiedAdapter(ModelAdapter):
     """
     Unified adapter supporting all models AND all agent types.
@@ -26,6 +129,39 @@ class UnifiedAdapter(ModelAdapter):
     Skills, decision keywords, and default settings are loaded from agent_types.yaml.
     Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
     """
+
+    #: PR-4 (D6). Per-THREAD storage for the warnings a ``return None`` parse
+    #: would otherwise discard. NOT a plain instance attribute: with
+    #: ``--workers > 1``, ``ExperimentRunner._run_agents_parallel`` submits one
+    #: shared engine — and therefore one shared adapter — to a
+    #: ThreadPoolExecutor, and an instance attribute there is a data race with
+    #: two demonstrated failure modes. Agent A stashes, agent B (already past
+    #: its own drain) reads A's stash and writes it onto B's audit row: a
+    #: fabricated per-row fact inside the one feature whose entire purpose is
+    #: per-row provenance. The mirror ordering is worse in a quieter way — B's
+    #: drain clears A's stash before A can read it, so A's suppression reason
+    #: reaches neither A's proposal nor A's ABORTED sentinel and the row simply
+    #: says nothing.
+    #:
+    #: Thread-local removes both without a lock, because one step's parse and
+    #: that step's drain always happen on one thread. Class-level rather than
+    #: built in ``__init__`` so adapters created via ``__new__`` (the test
+    #: doubles in ``test_corrected_status_columns_pr3.py``) work too.
+    _parse_warning_stash = threading.local()
+
+    @property
+    def last_parse_warnings(self) -> List[str]:
+        """Warnings stashed by the most recent ``return None`` ON THIS THREAD.
+
+        Empty unless ``parsing.strict_layers`` is on — flag-OFF nothing ever
+        writes here, so every consumer's truth test is False and no flag-OFF
+        byte changes.
+        """
+        return list(getattr(UnifiedAdapter._parse_warning_stash, "warnings", None) or [])
+
+    @last_parse_warnings.setter
+    def last_parse_warnings(self, value) -> None:
+        UnifiedAdapter._parse_warning_stash.warnings = list(value or [])
 
     def __init__(
         self,
@@ -175,6 +311,13 @@ class UnifiedAdapter(ModelAdapter):
         skill_map = self.agent_config.get_skill_map(agent_type, context)
         # Dynamic alias map per agent_type (not self.alias_map which may be stale)
         alias_map = self.agent_config.get_action_alias_map(agent_type)
+        # PR-4: global_config.parsing.strict_layers (default OFF). Read once
+        # per parse call, through the coercing resolver (never the raw getter:
+        # a MagicMock config would otherwise read truthy), and threaded through
+        # every gated branch below AND into _parse_keywords, so the parser is
+        # the single place this flag is decided. Flag-OFF is byte-identical to
+        # HEAD everywhere in this method.
+        strict_layers = resolve_strict_layers_flag(self.agent_config)
 
         # 0. Initialize results
         skill_name = None
@@ -376,13 +519,28 @@ class UnifiedAdapter(ModelAdapter):
                                     _magnitude_pct = float(digit_match.group(1))
 
                 # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
+                # PR-4 (D1): the leading group is OPTIONAL, so this pattern is
+                # not decision-scoped at all -- `(?:decision|choice|id|:)?\s*(\d)\b`
+                # matches the bare "3" in "3 of my neighbours moved" exactly as
+                # readily as the "3" in "Decision: 3". Under strict_layers the
+                # digit is not taken: the decision stays unresolved and the row
+                # falls through to the keyword / default layers, with one
+                # warning naming the candidate that was suppressed so the
+                # suppression is auditable rather than invisible.
                 if not skill_name:
                     after_json = cleaned_target[cleaned_target.rfind("}")+1:].strip()
                     # Look for digits at start OR with some context (like "Decision: 4")
                     digit_match = re.search(r'(?:decision|choice|id|:)?\s*(\d)\b', after_json, re.IGNORECASE)
                     if digit_match and digit_match.group(1) in skill_map:
-                        skill_name = skill_map[digit_match.group(1)]
-                        parse_layer = "json_plus_digit"
+                        _cand = digit_match.group(1)
+                        if strict_layers:
+                            parsing_warnings.append(_sanitize_warning(
+                                f"STRICT_LAYERS: suppressed candidate digit {_cand} -> "
+                                f"{skill_map[_cand]} (json_plus_digit recovery)"
+                            ))
+                        else:
+                            skill_name = skill_map[_cand]
+                            parse_layer = "json_plus_digit"
 
 
 
@@ -540,12 +698,30 @@ class UnifiedAdapter(ModelAdapter):
                                 reasoning[k_upper] = normalize_construct_value(v, custom_mapping=custom_mapping)
                             else:
                                 reasoning[k] = normalize_construct_value(v, custom_mapping=custom_mapping)
-        except (json.JSONDecodeError, AttributeError):
-            pass
+        except (json.JSONDecodeError, AttributeError) as exc:
+            # PR-4 (audit finding #5): this previously swallowed the failure
+            # with no trace of it anywhere -- a row that fell all the way
+            # through to keyword/digit/default parsing carried no record of
+            # WHY the JSON attempt failed. Flag-OFF keeps the silent `pass`
+            # byte-for-byte (parsing_warnings must not gain entries no
+            # existing corpus has).
+            if strict_layers:
+                parsing_warnings.append(_sanitize_warning(
+                    f"STRICT_LAYERS: JSON parse attempt failed "
+                    f"({type(exc).__name__}: {exc}); falling through to "
+                    f"keyword/default layers."
+                ))
 
         # 4. KEYWORD SEARCH (Fallback if JSON resolution failed)
         if not skill_name:
-            kw_res = self._parse_keywords(cleaned_target, agent_type, context)
+            # PR-4 (D5): strict_layers is PASSED, not re-read from config here.
+            # The parser resolves the flag once per parse call and is the single
+            # source of truth for it; a second read is a second chance to
+            # disagree with the first.
+            kw_res = self._parse_keywords(
+                cleaned_target, agent_type, context,
+                strict_layers=strict_layers, warnings_sink=parsing_warnings,
+            )
             if kw_res:
                 skill_name = kw_res.get("skill_name")
                 if _magnitude_pct is None:
@@ -553,14 +729,52 @@ class UnifiedAdapter(ModelAdapter):
                 # Merge keyword reasoning if json failed
                 if not reasoning.get("strategy"):
                     reasoning.update(kw_res.get("reasoning", {}))
-                parse_layer = f"{parse_layer}+keyword" if is_enclosed else "keyword"
+                # PR-4 (D2 ii / D3): the surviving keyword routes are still
+                # decision-scoped, but two of them decide from a DIGIT and one
+                # from a loose skill-name match, and flag-OFF all three land in
+                # the audit as a flat "keyword" -- so `parse_layer_digit_share`
+                # cannot see them and an analyst cannot tell a parsed
+                # `Decision: 3` from a parsed `Decision: buy_insurance`. Under
+                # the flag each keeps its own layer name. Flag-OFF the suffix
+                # is unconditionally "keyword", exactly as before.
+                _kw_mode = (kw_res.get("reasoning") or {}).get("parse_mode")
+                if strict_layers and skill_name and _kw_mode == "keyword_digit":
+                    _kw_suffix = "keyword+digit"
+                elif strict_layers and skill_name and _kw_mode == "fuzzy_name":
+                    _kw_suffix = "fuzzy_name"
+                else:
+                    _kw_suffix = "keyword"
+                parse_layer = f"{parse_layer}+{_kw_suffix}" if is_enclosed else _kw_suffix
 
         # 5. NAKED DIGIT SEARCH (Last Resort)
+        # PR-4 (D1): flag-OFF this takes the FIRST standalone single digit
+        # ANYWHERE in cleaned_target as the decision -- entirely ungated by the
+        # per-agent-type `parsing.strict_mode` YAML key (a digit inside an
+        # unrelated JSON field like `"confidence": 3` is just as eligible as a
+        # real choice). In a TAE submission run 343/3,276 rows (10.47%) were
+        # decided this way. Gating it on strict_mode unconditionally would
+        # change flag-OFF output for every strict_mode:true config that happens
+        # to rely on it (a byte-identity violation), so the new gate is opt-in
+        # via global_config.parsing.strict_layers: flag-OFF this branch is
+        # untouched; flag-ON the layer is disabled outright and the row falls
+        # through to the bracket/default layers below.
+        #
+        # The warning fires only when a digit would ACTUALLY have been taken.
+        # An unconditional "this layer is disabled" line on every row that
+        # reaches step 5 says nothing about that row -- it restates the config
+        # -- and buries the rows where the flag genuinely changed the answer.
         if not skill_name:
             digit_match = re.search(r'\b(\d)\b', cleaned_target)
             if digit_match and digit_match.group(1) in skill_map:
-                skill_name = skill_map[digit_match.group(1)]
-                parse_layer = f"{parse_layer}+digit" if is_enclosed else "digit"
+                _cand = digit_match.group(1)
+                if strict_layers:
+                    parsing_warnings.append(_sanitize_warning(
+                        f"STRICT_LAYERS: suppressed candidate digit {_cand} -> "
+                        f"{skill_map[_cand]} (naked-digit layer)"
+                    ))
+                else:
+                    skill_name = skill_map[_cand]
+                    parse_layer = f"{parse_layer}+digit" if is_enclosed else "digit"
 
         # 6. CONSTRUCT EXTRACTION (Regex based, applied to cleaned_target)
         constructs_cfg = parsing_cfg.get("constructs", {})
@@ -594,7 +808,7 @@ class UnifiedAdapter(ModelAdapter):
 
                                 # Phase 6N-D-4 (2026-05-24): whitelist filter.
                                 # The free-text fallback scans reasoning prose,
-                                # and ``(VL|L|M|H|VH)`` matches the bare
+                                # and ``\b(VL|L|M|H|VH)\b`` matches the bare
                                 # ``m`` between ``'`` and ``space`` inside
                                 # contractions like ``I'm``. Smoke #6 of L3-1C
                                 # caught a 1/45 leak; flood Group_C paper data
@@ -648,12 +862,34 @@ class UnifiedAdapter(ModelAdapter):
             # Allow digit extraction as last resort during retries even in strict mode
             is_retry = context.get("retry_attempt", 0) > 0
 
+            # PR-4 (D1): BOTH arms of this gate are digit routes that are not
+            # scoped to a decision line -- `digit_matches` is every digit in the
+            # text, and `candidates[-1]` is simply the last one. The
+            # strict_mode:false arm fires for any relaxed domain; the `is_retry`
+            # arm fires for a strict_mode:true domain on every retry_attempt>0,
+            # which is exactly the run where the model already failed to answer
+            # cleanly once. Under strict_layers neither takes the digit.
             if candidates and (not strict_mode or is_retry):
                 last_digit = candidates[-1]
                 if last_digit in skill_map:
-                    skill_name = skill_name or skill_map[last_digit]
-                    parse_layer = parse_layer or "digit_fallback"
-                    parsing_warnings.append(f"Retry-based extraction from digit: {last_digit}")
+                    if strict_layers:
+                        parsing_warnings.append(_sanitize_warning(
+                            f"STRICT_LAYERS: suppressed candidate digit {last_digit} -> "
+                            f"{skill_map[last_digit]} (bracket/digit last-resort layer, "
+                            f"strict_mode={strict_mode}, retry={is_retry})"
+                        ))
+                    else:
+                        skill_name = skill_name or skill_map[last_digit]
+                        # PR-4 (D4): this `or` is a provenance bug, left as-is
+                        # for byte identity -- when parse_layer is already
+                        # "enclosure" the digit that actually decided the row is
+                        # never recorded, so a digit-decided row is filed under
+                        # "enclosure". See docs/AUDIT_SCHEMA.md known
+                        # limitations: parse_layer_digit_share is a LOWER BOUND
+                        # on any corpus produced without this flag. Under the
+                        # flag this branch does not run at all.
+                        parse_layer = parse_layer or "digit_fallback"
+                        parsing_warnings.append(f"Retry-based extraction from digit: {last_digit}")
             elif candidates and strict_mode and not skill_name:
                 # Log the failed parse attempt for audit but do NOT use the digit
                 parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
@@ -691,6 +927,26 @@ class UnifiedAdapter(ModelAdapter):
                 )
                 parsing_warnings.append(msg)
                 logger.error(f" [Adapter:Error] {msg}{diag}")
+                if strict_layers:
+                    # PR-4 (D6): there is no proposal on this path, so the
+                    # STRICT_LAYERS suppression lines that explain WHY the row
+                    # failed have nowhere to go and are discarded. Stash them
+                    # for the retry loop to fold into the next attempt's
+                    # proposal, or for the ABORTED sentinel row to carry.
+                    #
+                    # ONLY the STRICT_LAYERS lines, and tagged with the attempt
+                    # they came from. Stashing the whole list would prepend
+                    # this attempt's "STRICT_MODE: Failed to parse any valid
+                    # decision" diagnostic onto whichever LATER attempt
+                    # succeeded, so any analyst counting rows whose
+                    # parsing_warnings mention a failed parse would over-count
+                    # exactly under the flag. The tag is what keeps a merged
+                    # warning distinguishable from one this row produced.
+                    attempt = context.get("retry_attempt", 0)
+                    self.last_parse_warnings = [
+                        _sanitize_warning(f"attempt {attempt}: {w}")
+                        for w in parsing_warnings if w.startswith("STRICT_LAYERS:")
+                    ]
                 return None # Return None to trigger retry/abort in Broker
             else:
                 skill_name = parsing_cfg.get("default_skill")
@@ -796,7 +1052,23 @@ class UnifiedAdapter(ModelAdapter):
 
         # 9. Parse metadata (confidence + construct completeness)
         base_layer = "fallback"
-        if "json" in parse_layer:
+        # PR-4 (audit finding #2): flag-OFF this checks "json" in parse_layer
+        # BEFORE "digit", so a row parsed as e.g. "enclosure+json+digit"
+        # (JSON present but unusable, decision recovered from a stray digit)
+        # is stamped parse_confidence=0.95 -- the schema's highest -- even
+        # though the actual decision came from the least reliable layer.
+        # Flag-ON any parse_layer containing "digit" outranks "json"
+        # regardless of order; flag-OFF the original ordering is unchanged.
+        # "fuzzy_name" (PR-4 D3) is a flag-ON-only layer and gets the same 0.50
+        # tier as a digit: a loose skill-name match inside a decision line is a
+        # recovery, not a parse.
+        if strict_layers and "digit" in parse_layer:
+            base_layer = "digit"
+            parse_confidence = 0.50
+        elif strict_layers and "fuzzy_name" in parse_layer:
+            base_layer = "fuzzy_name"
+            parse_confidence = 0.50
+        elif "json" in parse_layer:
             base_layer = "json"
             parse_confidence = 0.95
         elif "keyword" in parse_layer:
@@ -883,7 +1155,7 @@ class UnifiedAdapter(ModelAdapter):
 
         reasoning["_parse_metadata"] = parse_metadata
 
-        return SkillProposal(
+        proposal = SkillProposal(
             agent_id=agent_id,
             skill_name=skill_name,
             reasoning=reasoning,
@@ -903,11 +1175,44 @@ class UnifiedAdapter(ModelAdapter):
                 else {}
             ),
         )
+        if strict_layers:
+            # PR-4 (D5): the PARSER decides whether the hardened layers applied,
+            # and the proposal carries that decision downstream. Before this,
+            # the parser read the flag off the adapter's config and the audit
+            # layer re-derived it from the ENGINE's config — two objects that
+            # are the same in production and routinely different in tests and
+            # in any embedding that builds them separately. A proposal parsed
+            # under the flag could then be classified as though it had not
+            # been. Set as a plain attribute rather than a dataclass field on
+            # purpose: `SkillProposal.to_dict()` serialises an explicit key
+            # list, so an absent attribute cannot leak into flag-OFF JSONL/CSV
+            # bytes (pinned by a test), and a flag-ON row gains no key either.
+            proposal.strict_layers_applied = True
+        return proposal
 
-    def _parse_keywords(self, text: str, agent_type: str, context: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+    def _parse_keywords(
+        self, text: str, agent_type: str, context: Dict[str, Any] = None,
+        *, strict_layers: bool = False, warnings_sink: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Fallback keyword/regex based parsing.
+
+        ``strict_layers`` is PASSED IN (PR-4 D5), never re-read from config:
+        ``parse_output`` resolves the flag once per parse call and this method
+        must not be able to disagree with it. Default ``False`` so the direct
+        callers in the test suite keep working unchanged.
+
+        ``warnings_sink`` is ``parse_output``'s own ``parsing_warnings`` list.
+        The flag-ON warnings raised in here have to reach it even on the paths
+        that ``return None``, and a return value cannot carry them then — which
+        is exactly the case that matters, because a decision-line digit
+        REJECTED by the anchor is a suppression, and a suppression the audit
+        cannot count is the one thing this flag exists to prevent. Only ever
+        appended to under the flag.
         """
+        def _warn(text_):
+            if strict_layers and warnings_sink is not None:
+                warnings_sink.append(_sanitize_warning(text_))
         parsing_cfg = self.agent_config.get_parsing_config(agent_type)
         if not parsing_cfg: return None
 
@@ -933,6 +1238,11 @@ class UnifiedAdapter(ModelAdapter):
                 found_mag = float(mag_match.group(1))
 
         # 1. DECISION LINE SEARCH
+        # PR-4 (D3): remember the FIRST decision line's value text. Under
+        # strict_layers the skill-name recovery at step 2b is scoped to it
+        # instead of scanning the whole response; None means the model never
+        # emitted a decision line, and step 2b then cannot fire at all.
+        decision_value_text = None
         lines = text.split('\n')
         for line in lines:
             line_lower = line.strip().lower()
@@ -942,10 +1252,50 @@ class UnifiedAdapter(ModelAdapter):
                     split_parts = re.split(rf"\b{re.escape(kw.lower())}\b", line_lower, maxsplit=1)
                     if len(split_parts) > 1:
                         raw_val = split_parts[1].strip()
-                        # 1a. Try Digit in keyword line
-                        digit_match = re.search(r'(\d)', raw_val)
+                        if decision_value_text is None:
+                            decision_value_text = raw_val
+                        # 1a. Try Digit in keyword line.
+                        # PR-4 (D2 i): this route is KEPT under strict_layers --
+                        # `Decision: 3` is the documented prompt contract and the
+                        # digit here IS decision-scoped. But `re.search(r'(\d)')`
+                        # scopes it only to the line, not to the value: for
+                        # "Decision: I will revisit this in 2 or three years" it
+                        # returns 2, and skill 2 becomes the recorded decision.
+                        # Under the flag the digit must be the value itself --
+                        # optionally behind a separator -- and must end on a word
+                        # boundary, so "in 2 or three years" no longer resolves.
+                        # The anchor itself, and why its wrapper class is wide,
+                        # is documented at DECISION_VALUE_DIGIT_RE.
+                        if strict_layers:
+                            digit_match = DECISION_VALUE_DIGIT_RE.match(raw_val)
+                            # A digit the OLD path would have taken and this one
+                            # does not is a SUPPRESSION, and every other
+                            # suppression under this flag records itself. Left
+                            # silent, an over-tight anchor would show up only as
+                            # a mysterious rise in `default` / ABORTED rows with
+                            # nothing in the audit to attribute it to.
+                            if not digit_match:
+                                loose = re.search(r'(\d)', raw_val)
+                                if loose and loose.group(1) in skill_map:
+                                    _warn(
+                                        f"STRICT_LAYERS: decision-line digit "
+                                        f"{loose.group(1)} -> {skill_map[loose.group(1)]} "
+                                        f"rejected by the value anchor (the digit is not "
+                                        f"the decision value): {raw_val[:80]!r}"
+                                    )
+                        else:
+                            digit_match = re.search(r'(\d)', raw_val)
                         if digit_match and digit_match.group(1) in skill_map:
-                            return {"skill_name": skill_map[digit_match.group(1)], "magnitude_pct": found_mag, "reasoning": {}}
+                            return {
+                                "skill_name": skill_map[digit_match.group(1)],
+                                "magnitude_pct": found_mag,
+                                # PR-4 (D2 ii): flag-ON, tell parse_output this
+                                # decision came from a digit so it can stamp
+                                # parse_layer "keyword+digit" and
+                                # parse_layer_digit_share can see it. Flag-OFF
+                                # the reasoning dict stays exactly {}.
+                                "reasoning": {"parse_mode": "keyword_digit"} if strict_layers else {},
+                            }
                         # 1b. Try exact skill name match in this line
                         for s in valid_skills:
                             if re.search(rf"\b{re.escape(s.lower())}\b", raw_val):
@@ -962,24 +1312,72 @@ class UnifiedAdapter(ModelAdapter):
             r"\bchoice\s*(\d)\b",
             r"\bskill\s*(\d)\b"
         ]
+        # PR-4 (D2): these patterns are KEPT under strict_layers. Unlike the
+        # naked-digit layers they each require an explicit choice phrase
+        # ("I choose 3", "choice 3", "skill 3"), which is decision-scoped by
+        # construction. Flag-ON they report parse_mode "keyword_digit" like
+        # route 1a, so the layer lands in the audit as "keyword+digit" and every
+        # surviving digit route stays countable in parse_layer_digit_share
+        # rather than hiding behind a flat "keyword".
         for pattern in choice_patterns:
             matches = list(re.finditer(pattern, text_lower))
             if matches:
                 last_digit = matches[-1].group(1)
                 if last_digit in skill_map:
-                    return {"skill_name": skill_map[last_digit], "magnitude_pct": found_mag, "reasoning": {"parse_mode": "fuzzy_regex"}}
+                    return {
+                        "skill_name": skill_map[last_digit],
+                        "magnitude_pct": found_mag,
+                        "reasoning": {
+                            "parse_mode": "keyword_digit" if strict_layers else "fuzzy_regex"
+                        },
+                    }
 
-        # 2b. Look for unique skill names
+        # 2b. Look for unique skill names.
+        #
+        # Flag-OFF this line is DEAD and is kept verbatim so it stays dead:
+        # `rf"\b{...}\b" in text_lower` tests whether the model's own text
+        # contains the regex SOURCE (the six characters `\b`, the skill name,
+        # `\b`) as a literal substring. It can only fire if the model emits
+        # that source text itself, which no corpus has. Turning it on for an
+        # existing corpus would start matching skill names that corpus never
+        # matched, so the working form is flag-ON only.
+        #
+        # Flag-ON (PR-4 D3) it does NOT simply become a whole-text `re.search`.
+        # A whole-text search is a verified false positive generator: on
+        # "...so I will not purchase insurance this year" it matches the single
+        # skill "insurance" and returns buy_insurance -- the exact opposite of
+        # what the agent said -- at parse_confidence 0.70, the keyword tier. So
+        # under the flag it is scoped to the decision line only (the same
+        # scoping route 1a uses), requires that line to exist at all, gets its
+        # own parse_layer "fuzzy_name" at the 0.50 recovery tier rather than
+        # hiding inside "keyword", and records a warning naming the match.
         found_skills = []
-        for s in valid_skills:
-            s_variants = [s.lower(), s.lower().replace("_", " ")]
-            for variant in s_variants:
-                if rf"\b{re.escape(variant)}\b" in text_lower:
-                    found_skills.append(s)
-                    break
+        if strict_layers:
+            if decision_value_text is not None:
+                for s in valid_skills:
+                    for variant in (s.lower(), s.lower().replace("_", " ")):
+                        if re.search(rf"\b{re.escape(variant)}\b", decision_value_text):
+                            found_skills.append(s)
+                            break
+        else:
+            for s in valid_skills:
+                s_variants = [s.lower(), s.lower().replace("_", " ")]
+                for variant in s_variants:
+                    if rf"\b{re.escape(variant)}\b" in text_lower:  # dead on purpose, see above
+                        found_skills.append(s)
+                        break
 
         if len(set(found_skills)) == 1:
-            return {"skill_name": found_skills[0], "magnitude_pct": found_mag, "reasoning": {"parse_mode": "fuzzy_name"}}
+            # Truncated: this quotes MODEL-AUTHORED text into a CSV column, and
+            # an unbounded quote turns one audit field into a paragraph of the
+            # response the raw_output column already holds in full.
+            _warn(
+                f"STRICT_LAYERS: decision-line skill-name recovery resolved "
+                f"'{(decision_value_text or '')[:80]}' -> {found_skills[0]} "
+                f"(parse_layer fuzzy_name, confidence 0.50)"
+            )
+            return {"skill_name": found_skills[0], "magnitude_pct": found_mag,
+                    "reasoning": {"parse_mode": "fuzzy_name"}}
 
         # If we found magnitude but no skill, we still return just magnitude in case it helps
         if found_mag:
