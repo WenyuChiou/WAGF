@@ -15,11 +15,36 @@ from ..interfaces.skill_types import (
 from ..utils.logging import logger
 
 
-def _classify_decision_source(approved_skill) -> str:
-    """Classify how the final action was determined."""
+def _classify_decision_source(approved_skill, skill_proposal=None) -> str:
+    """Classify how the final action was determined.
+
+    PR-4 (audit finding #4): this never consulted ``skill_proposal.parse_layer``,
+    so a proposal the PARSER substituted because nothing else parsed
+    (``parse_layer == "default"``) that happened to pass governance was
+    classified ``"llm_reasoned"`` — indistinguishable in the JSONL from a
+    genuine model decision. When the hardened layers applied, an APPROVED
+    proposal whose ``parse_layer`` is/contains ``"default"`` is reclassified
+    ``"default_substituted"`` instead.
+
+    PR-4 (D5): whether they applied is read off the PROPOSAL
+    (``strict_layers_applied``, stamped by ``UnifiedAdapter.parse_output``),
+    not re-derived from this object's config. The earlier draft read
+    ``global_config.parsing.strict_layers`` off the ENGINE's config while the
+    parser read it off the ADAPTER's config — the same object in production,
+    routinely different objects in tests and in any embedding that builds them
+    separately, so a proposal parsed under the flag could be classified as
+    though it had not been. The parser is the single source of truth; a
+    proposal parsed with the flag OFF (and every proposal from a non-WAGF
+    adapter) simply has no such attribute and ``getattr`` resolves False, which
+    is byte-for-byte the pre-PR-4 classification.
+    """
     if approved_skill is None:
         return "parse_failure"
     status = approved_skill.approval_status
+    if status == "APPROVED" and getattr(skill_proposal, "strict_layers_applied", False):
+        parse_layer = str(getattr(skill_proposal, "parse_layer", "") or "")
+        if "default" in parse_layer.lower():
+            return "default_substituted"
     if status == "APPROVED":
         return "llm_reasoned"
     elif status == "REJECTED_FALLBACK":
@@ -231,10 +256,17 @@ def _sentinel_llm_stats(stats: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 #: warning per call would emit the same line thousands of times per run and
 #: train the operator to filter it out — which is how the silent failure this
 #: warning exists to surface gets re-buried.
+#:
+#: PR-4: the key is the REASON TOKEN, never the exception's message. Keying on
+#: the message (as this did) lets a getter whose text carries anything variable
+#: — an agent id, a path — mint a fresh key on every call, so the set grows
+#: without bound and the "once" never holds. Same defect, same fix, as
+#: ``broker/utils/parsing/unified_adapter.py::_PARSING_FLAG_WARNED``. Log-only:
+#: no audit value depends on it.
 _FLAG_WARNED: set = set()
 
 
-def _warn_once(reason: str, config) -> None:
+def _warn_once(reason: str, detail: str, config) -> None:
     key = (reason, type(config).__name__)
     if key in _FLAG_WARNED:
         return
@@ -245,7 +277,7 @@ def _warn_once(reason: str, config) -> None:
         "`fallback_activated` from the blocked proposal, `rules_*_hit` "
         "structurally zero, no `execution_path`, no row for aborted steps. "
         "If you meant to enable the flag, this run did not.",
-        reason, type(config).__name__,
+        detail, type(config).__name__,
     )
 
 
@@ -273,14 +305,24 @@ def _corrected_status_flag(config) -> bool:
     except (AttributeError, TypeError, ValueError) as exc:
         # Narrow on purpose. A KeyboardInterrupt / SystemExit / genuine bug in
         # the config layer must propagate rather than be recorded as "OFF".
-        _warn_once(f"the getter raised {type(exc).__name__}: {exc}", config)
+        _warn_once("getter_raised",
+                   f"the getter raised {type(exc).__name__}: {exc}", config)
         return False
     if isinstance(value, bool):
         return value
-    _warn_once(
-        f"the getter returned {type(value).__name__} rather than a bool", config
-    )
+    _warn_once("getter_non_bool",
+               f"the getter returned {type(value).__name__} rather than a bool",
+               config)
     return False
+
+
+#: PR-4 (D5): there is deliberately NO parsing-flag resolver here. The parser
+#: resolves ``global_config.parsing.strict_layers`` once per parse call
+#: (``broker/utils/parsing/unified_adapter.py::resolve_strict_layers_flag``,
+#: which owns the fail-closed-with-one-warning discipline) and stamps the
+#: answer on the proposal. The audit layer reads the proposal, never the
+#: config: two independent reads of one flag is how the two sides come to
+#: disagree.
 
 
 class AuditMixin:
@@ -296,6 +338,7 @@ class AuditMixin:
         llm_stats: Optional[Dict[str, Any]] = None,
         memory_pre: Optional[List] = None,
         prompt: str = "",
+        parsing_warnings: Optional[List[str]] = None,
     ) -> None:
         """PR-3: emit one audit row for a step that returned ``ABORTED``.
 
@@ -322,6 +365,16 @@ class AuditMixin:
         that retrieved nothing. A sentinel that lies about the call it records
         is worse than the missing row it replaces. Whatever genuinely was not
         measured is written as ``""`` — never as 0, never as True.
+
+        ``parsing_warnings`` (PR-4 D6) carries the warnings the parser
+        collected on the attempt that returned ``None``. They are the only
+        record of WHY this step aborted — which candidate digits were
+        suppressed, which JSON error was hit — and without them they die with
+        the discarded proposal. Populated only under
+        ``parsing.strict_layers``; when empty, ``skill_proposal`` stays
+        ``None`` exactly as before, so the row is byte-identical to PR-3's.
+        The dict form repeats ``raw_output`` because ``trace_to_csv_row`` reads
+        that column off ``skill_proposal`` first and would otherwise blank it.
         """
         try:
             agent_type_final = agent_type or "default"
@@ -342,7 +395,11 @@ class AuditMixin:
                 "raw_output": raw_output,
                 "input": prompt,
                 "llm_stats": _sentinel_llm_stats(llm_stats),
-                "skill_proposal": None,
+                "skill_proposal": (
+                    {"parsing_warnings": list(parsing_warnings),
+                     "raw_output": raw_output}
+                    if parsing_warnings else None
+                ),
                 # trace_to_csv_row reads status off approved_skill; an empty
                 # skill_name keeps final_skill blank, which is the truth here.
                 "approved_skill": {
@@ -563,7 +620,7 @@ class AuditMixin:
             "seed": seed,
             "agent_id": agent_id,
             "model": getattr(self, '_model_name', 'unknown'),
-            "decision_source": _classify_decision_source(approved_skill),
+            "decision_source": _classify_decision_source(approved_skill, skill_proposal),
             "validated": all_valid,
             # Phase 6G #4a: write fallback_activated at source so the audit
             # row-builder reads it directly instead of inferring from the

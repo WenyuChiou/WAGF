@@ -16,6 +16,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # PR-4: full history, not the default depth-1 clone. The
+          # parsing-hardening byte-identity guard
+          # (broker/tests/test_parsing_strict_layers_pr4.py) reconstructs the
+          # PRE-flag parser via `git show <commit>:...` and compares against
+          # it. On a shallow clone that commit is absent, and the test would
+          # go from proving byte identity to proving nothing -- while CI stays
+          # green. It now FAILS rather than skips when the commit is
+          # unreachable, so this setting is load-bearing.
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -66,6 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # No fetch-depth: 0 here -- unlike the `test` job, this job never runs
+      # broker/tests/test_parsing_strict_layers_pr4.py (or any pytest at all),
+      # so it never reaches the HEAD-snapshot byte-identity guard that full
+      # history is for. A shallow clone is enough for scaffold/validate/run.
       - uses: actions/checkout@v4
 
       - name: Set up Python

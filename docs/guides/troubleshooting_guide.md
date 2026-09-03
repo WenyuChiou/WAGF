@@ -345,7 +345,12 @@ allow the combination, remove the `conflicts_with` entry from the skill registry
 The `UnifiedAdapter` in `model_adapter.py` uses a multi-layer parsing strategy:
 enclosure extraction, JSON parsing, keyword search, digit extraction, and finally
 a default fallback. Errors here mean the LLM's output could not be converted into
-a valid `SkillProposal`.
+a valid `SkillProposal`. "Digit extraction" is not one stage: it is five
+separate routes with different gating (see §2.1 root cause 4 below), only one
+of which `parsing.strict_mode` gates. `global_config.parsing.strict_layers`
+(default OFF, v0.8) disables every route that is not scoped to a decision line;
+per-route table in `docs/references/yaml_configuration_reference.md` §2.1.7,
+audit consequences in `docs/AUDIT_SCHEMA.md` "Parsing hardening".
 
 ### 2.1 "Unparsable output" / Parse Error After Retries
 
@@ -378,8 +383,24 @@ The audit CSV shows `status=REJECTED_FALLBACK` and `parse_layer=default`.
    trailing comma removal) could not fix it.
 
 4. **Strict mode rejection**: When `strict_mode: true` (default), the adapter refuses
-   to extract decisions from stray digits in reasoning text. This prevents false
-   positives but means a poorly formatted response returns `None`.
+   to extract decisions from stray digits in reasoning text via the LAST-RESORT
+   bracket/digit layer (`[N]` or trailing digit, gated on `strict_mode` and
+   `retry_attempt`). This prevents false positives but means a poorly formatted
+   response returns `None`.
+
+   **Caveat (PR-4 audit finding, v0.8)**: `strict_mode: true` blocks far less
+   than its name suggests. Three other digit routes are not gated by it at all
+   — the "naked digit" layer (the first standalone digit found ANYWHERE in the
+   free text), the `json_plus_digit` recovery after a JSON block, and the
+   decision-line digit — and the bracket/digit layer it does gate is bypassed
+   on every `retry_attempt > 0`, which is exactly the attempt where the model
+   already failed once. In a TAE submission run 343/3,276 rows (10.47%) were
+   decided by the ungated naked-digit layer alone. Set
+   `global_config.parsing.strict_layers: true` (default OFF, see
+   `docs/references/yaml_configuration_reference.md` §2.1.7) to disable every
+   route that is not scoped to a decision line; `strict_mode: true` alone does
+   not. Enable `audit.corrected_status_columns` alongside it, or the rows that
+   now abort instead of guessing leave no audit row at all.
 
 **Diagnosis**
 
