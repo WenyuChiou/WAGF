@@ -66,8 +66,21 @@ year. -->
 - Missing input file or lookup key: <<RESPONSE>>
 - Duplicate rows or duplicate keys: <<RESPONSE>>
 
-<!-- Allowed responses: fail_loud, last_good with warning, quarantine.
-Never silently zero-fill. -->
+<!-- The CONTRACT-level response is always fail_loud — broker/coupling/
+contract.py `VarSpec.__post_init__` REJECTS `on_missing="last_good"` and
+REJECTS `on_missing="quarantine"` at construction (no runtime executor
+exists for either; a declared-but-unexecutable policy is refused rather
+than silently ignored). Never silently zero-fill.
+
+If your source/adapter genuinely needs a reuse-last-good or skip-and-flag
+policy, implement it INSIDE the adapter — BEFORE the value reaches the
+contract boundary — the way
+`.claude/skills/wagf-coupling-designer/templates/adapter_A_file_replay.py.tmpl`
+does: it caches the last good payload itself, tags the returned dict with
+its own `external_model_status` ("ok" / "fallback_last_good"), and only
+raises when there is no cached value to fall back to. The contract still
+only ever sees `fail_loud`; the fallback is your adapter's own tested,
+visible behaviour, not an unexecuted contract vocabulary word. -->
 
 ## Units audit checklist
 

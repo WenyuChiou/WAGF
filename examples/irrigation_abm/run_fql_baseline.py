@@ -504,8 +504,22 @@ def main():
             p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
 
     # Create environment
+    # PR-9 review P1-a: same flag, same getter as run_experiment.py and
+    # run_ungoverned_experiment.py, so all three arms of a comparison are
+    # guarded or unguarded TOGETHER. The .exists() check mirrors this
+    # function's own handling of the config a few lines above — this runner
+    # tolerates a missing agent_types.yaml, and asking the loader for a path
+    # that is not there would fall back to a DIFFERENT file (the packaged
+    # default), which must not be allowed to switch a guard on.
+    from broker.utils.agent_config import AgentTypeConfig
+    coupling_contract_active = (
+        AgentTypeConfig.load(str(agent_config_path)).get_coupling_context_contract()
+        if agent_config_path.exists() else False
+    )
+    if coupling_contract_active:
+        print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config = WaterSystemConfig(seed=seed)
-    env = IrrigationEnvironment(config)
+    env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
     # Load CRSS precipitation if available

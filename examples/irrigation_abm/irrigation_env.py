@@ -124,9 +124,34 @@ class IrrigationEnvironment:
         [895.0, 950.0, 1000.0, 1025.0, 1050.0, 1075.0, 1100.0, 1150.0, 1200.0, 1220.0]
     )
 
-    def __init__(self, config: Optional[WaterSystemConfig] = None):
+    def __init__(
+        self,
+        config: Optional[WaterSystemConfig] = None,
+        *,
+        coupling_contract_active: bool = False,
+    ):
         self.config = config or WaterSystemConfig()
         self.rng = np.random.default_rng(self.config.seed)
+
+        # PR-9 coupling-retrofit (F1): default OFF so every existing caller
+        # (positional `IrrigationEnvironment(config)`) is byte-identical.
+        # See examples/irrigation_abm/irrigation_coupling.py for what the
+        # guard checks and why it is not a plain EnvironmentCouplingAdapter
+        # wrap. Import is local to __init__ (not module-level) so a
+        # flag-OFF run never even imports broker.coupling.
+        self._coupling_contract_active = bool(coupling_contract_active)
+        self._irrigation_contract = None
+        # Review P2: "the flag was on" is an INTENT; "the guard ran N times"
+        # is the EVIDENCE. A run whose flag is true but whose guard never
+        # fired (a runner that builds the env but never reads a context, an
+        # agent set that is empty) looks in the manifest exactly like a run
+        # the guard protected end to end, unless the count is recorded too.
+        self._coupling_guard_calls = 0
+        if self._coupling_contract_active:
+            from examples.irrigation_abm.irrigation_coupling import (
+                build_irrigation_agent_context_contract,
+            )
+            self._irrigation_contract = build_irrigation_agent_context_contract()
 
         # Timeline
         self._current_year: int = self.config.sim_start_year
@@ -172,6 +197,13 @@ class IrrigationEnvironment:
 
         # Real CRSS precipitation data (None = use synthetic)
         self._crss_precip: Optional[Any] = None  # pandas DataFrame when loaded
+        # Review P2: years for which real CRSS data was LOADED but did not
+        # cover the simulated year, so _generate_precipitation fell back to
+        # the synthetic drying trend. Warned about once per run (see there):
+        # a run that believes it used real projections and silently used
+        # synthetic numbers for part of its span is a provenance claim the
+        # artifacts cannot otherwise contradict.
+        self._precip_synthetic_fallback_years: List[int] = []
 
     # -----------------------------------------------------------------
     # Initialization
@@ -381,14 +413,62 @@ class IrrigationEnvironment:
         Upper Basin average: WY, UT1-3, CO1-3
         Lower Basin average: NM, AZ
 
+        A blank cell FAILS THE LOAD, naming the year and column (PR-9 review
+        P1-e). ``pandas`` reads a blank as ``NaN``, and nothing downstream
+        ever reports one — it is laundered into a plausible number twice
+        over:
+
+        * A FEW blank cells in a year: ``_generate_precipitation`` takes
+          ``.mean()`` over the seven Upper Basin columns, and pandas' mean
+          SKIPS NaN, so the year silently becomes the average of whichever
+          stations reported. No error, no NaN, just a different number than
+          the file was supposed to give.
+        * A WHOLE blank Upper Basin row: the mean of nothing is ``NaN``, and
+          the clamps then convert it into the most extreme legal value in
+          each direction, because every comparison with NaN is False.
+          ``max(6.0, min(17.0, NaN))`` returns ``17.0`` — the operational
+          CEILING on natural flow — while
+          ``max(0.0, min(1.0, 1.0 - NaN/baseline))`` in
+          ``_compute_drought_index`` returns ``1.0``, MAXIMUM drought. One
+          missing row thus reaches the agent as "wettest possible inflow,
+          worst possible drought", and no artifact anywhere records that a
+          cell was blank.
+
+        Refusing at LOAD time is the only point where the year and the column
+        are still known.
+
+        This check runs only when real CRSS data is loaded, which the
+        ``--model mock`` byte-identity runs never do (they leave
+        ``_crss_precip`` as ``None`` and take the synthetic path), so no
+        frozen corpus is affected.
+
         Args:
             csv_path: Path to PrismWinterPrecip_ST_NOAA_Future.csv
+
+        Raises:
+            ValueError: if any cell in the file is blank / non-numeric.
         """
         import pandas as pd
 
         df = pd.read_csv(csv_path, index_col=0)
         # Convert inches to mm (1 inch = 25.4 mm)
-        self._crss_precip = df * 25.4
+        mm = df * 25.4
+        nan_mask = mm.isna()
+        if bool(nan_mask.to_numpy().any()):
+            bad = [
+                f"{index_label}/{column}"
+                for column in mm.columns
+                for index_label in mm.index[nan_mask[column]]
+            ]
+            raise ValueError(
+                f"load_crss_precipitation: {len(bad)} blank/non-numeric cell(s) in "
+                f"{csv_path} at year/column {bad[:20]}"
+                f"{' (first 20 shown)' if len(bad) > 20 else ''}. A blank precipitation "
+                f"cell becomes NaN, and the min/max clamps downstream turn NaN into "
+                f"maximum inflow and maximum drought rather than an error. Fix the "
+                f"source file, or drop the affected year(s) deliberately."
+            )
+        self._crss_precip = mm
 
     # -----------------------------------------------------------------
     # TieredEnvironmentProtocol interface
@@ -512,6 +592,25 @@ class IrrigationEnvironment:
         agent = self._agents.get(agent_id, {})
         basin_key = agent.get("basin", "lower_basin")
         basin = self._basins.get(basin_key, {})
+
+        # PR-9 coupling-retrofit (F1): with the flag ON, fail loud on a
+        # genuinely missing field INSTEAD of the .get(key, 0) defaults
+        # below silently manufacturing a plausible-looking zero. No-op
+        # (and no output change) when every field below is actually
+        # present — see irrigation_coupling.guard_agent_context_sources.
+        if self._coupling_contract_active:
+            from examples.irrigation_abm.irrigation_coupling import (
+                guard_agent_context_sources,
+            )
+            guard_agent_context_sources(
+                self._irrigation_contract,
+                agent=agent, basin_key=basin_key, basin=basin,
+                global_state=self._global,
+            )
+            # Counted AFTER the guard returns, so the number means "calls
+            # that passed", not "calls attempted" — a run that raised is
+            # reported by the exception, not by this tally.
+            self._coupling_guard_calls += 1
 
         return {
             # Agent state
@@ -712,6 +811,25 @@ class IrrigationEnvironment:
                 precip = float(self._crss_precip.loc[self._current_year, ub_cols].mean())
                 self._precip_history.append(precip)
                 return precip
+            # Review P2: real data was loaded but does not reach this year, so
+            # the synthetic trend below produces it. Said ONCE per run, naming
+            # the year(s) and the span the file actually covers — silently
+            # mixing synthetic years into a run labelled "real CRSS
+            # projections" is a provenance defect no output artifact records.
+            self._precip_synthetic_fallback_years.append(self._current_year)
+            if len(self._precip_synthetic_fallback_years) == 1:
+                from broker.utils.logging import logger as _logger
+
+                index = self._crss_precip.index
+                _logger.warning(
+                    "[irrigation_env] real CRSS precipitation is loaded but does "
+                    "not cover year %s (file covers %s-%s); this year and any "
+                    "later uncovered year use the SYNTHETIC drying trend instead. "
+                    "Read self._precip_synthetic_fallback_years for the full list.",
+                    self._current_year,
+                    min(index) if len(index) else "?",
+                    max(index) if len(index) else "?",
+                )
 
         # Synthetic fallback: drying trend matching CRSS winter precip range
         base = self.config.precip_baseline_mm
@@ -846,8 +964,26 @@ class IrrigationEnvironment:
 
         Returns:
             0 = Normal, 1 = Tier 1, 2 = Tier 2, 3 = Tier 3 (most severe).
+
+        Raises:
+            KeyError: when the coupling context contract is active and
+                ``lake_mead_level`` is absent. Review P2: the legacy default
+                of 1100 ft is above ``mead_shortage_tier1``, so a MISSING
+                reservoir level silently produced tier 0 — "no shortage, no
+                curtailment" — which is both the most consequential answer
+                this function can give and indistinguishable from a real
+                healthy reservoir. Under the flag whose whole purpose is to
+                refuse manufactured physical state, it must fail instead.
         """
-        mead = self._basins["lower_basin"].get("lake_mead_level", 1100)
+        lower = self._basins["lower_basin"]
+        if self._coupling_contract_active and "lake_mead_level" not in lower:
+            raise KeyError(
+                "lake_mead_level is missing from lower_basin and "
+                "coupling.context_contract is ON: refusing to fall back to the "
+                "1100 ft default, which would report shortage tier 0 (no "
+                "curtailment) for a reservoir whose level was never set."
+            )
+        mead = lower.get("lake_mead_level", 1100)
         cfg = self.config
         if mead >= cfg.mead_shortage_tier1:
             return 0
@@ -905,6 +1041,38 @@ class IrrigationEnvironment:
     # -----------------------------------------------------------------
     # Utility
     # -----------------------------------------------------------------
+
+    def get_coupling_retrofit_metadata(self) -> Dict[str, Any]:
+        """PR-9 coupling-retrofit provenance (F1): reports whether the
+        ``coupling.context_contract`` fail-loud guard is active on this
+        run's ``get_agent_context()`` physical-state handoff, WHICH CHECK
+        each covered field actually got, which returned keys it does NOT
+        cover, and how many times the guard actually ran. Read generically
+        (by method name only — no irrigation-specific code in broker/) by
+        ``ExperimentRunner._collect_reproducibility_metadata`` and merged
+        into ``run_integrity.json`` as a side artifact; never touches the
+        audit CSV. Distinct from ``EnvironmentCouplingAdapter.get_provenance``
+        on purpose: this env is never wrapped in the adapter (see
+        irrigation_coupling.py's module docstring for why), so reporting via
+        the adapter's own hook would falsely claim ``coupling_adapter: True``.
+
+        ``coupling_contract_fields`` is a MAPPING (field -> check kind), not
+        a bare list: five of the fifteen fields are bool/str and get a
+        presence+type check rather than a range one, and a flat list read as
+        though all fifteen were range-guarded (review P1-c).
+        ``coupling_guard_calls`` separates intent from evidence — flag true
+        with zero calls is a run the guard never touched.
+        """
+        from examples.irrigation_abm.irrigation_coupling import (
+            IRRIGATION_CONTEXT_UNCOVERED_KEYS,
+            irrigation_contract_field_checks,
+        )
+        return {
+            "coupling_contract_active": self._coupling_contract_active,
+            "coupling_contract_fields": irrigation_contract_field_checks(),
+            "coupling_contract_uncovered_keys": list(IRRIGATION_CONTEXT_UNCOVERED_KEYS),
+            "coupling_guard_calls": self._coupling_guard_calls,
+        }
 
     @property
     def current_year(self) -> int:

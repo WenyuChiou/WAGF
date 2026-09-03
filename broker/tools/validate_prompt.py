@@ -220,7 +220,8 @@ KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
 }
 
 KNOWN_COUPLING_KEYS: Set[str] = {
-    "enable",  # broker/coupling/flag.py
+    "enable",           # broker/coupling/flag.py
+    "context_contract", # agent_config.get_coupling_context_contract (PR-9, F1)
 }
 
 # Every opt-in audit column flag, all default-OFF and all read through

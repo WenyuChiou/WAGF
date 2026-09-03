@@ -187,6 +187,31 @@ class IrrigationLifecycleHooks:
         self.metrics_tracker = None
         self.feedback_config: Dict = {}
 
+    # -- the simulation-log's Lake Mead column, under the same flag --
+    def _log_lake_mead_level(self):
+        """Read ``lower_basin.lake_mead_level`` for the simulation log.
+
+        Review P1-b: this column was the ONE physical-state read that stayed
+        outside the ``coupling.context_contract`` guard. ``get_agent_context``
+        (guarded) and this logger (unguarded, ``get_local(..., 0)``) read the
+        SAME field, so with the flag ON a missing reservoir level would raise
+        for the prompt and quietly write 0 into the analysis CSV — the two
+        artifacts of one run disagreeing about whether the value existed.
+        With the flag OFF the expression is character-for-character the old
+        one, so every frozen corpus reproduces byte-identically.
+        """
+        if getattr(self.env, "_coupling_contract_active", False):
+            level = self.env.get_local("lower_basin", "lake_mead_level")
+            if level is None:
+                raise KeyError(
+                    "lake_mead_level is missing from lower_basin and "
+                    "coupling.context_contract is ON: refusing to log 0 ft for a "
+                    "reservoir level that was never set (the prompt path fails "
+                    "loud on the same field, and the two must not disagree)."
+                )
+            return level
+        return self.env.get_local("lower_basin", "lake_mead_level", 0)
+
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
         for aid, agent in agents.items():
@@ -337,7 +362,7 @@ class IrrigationLifecycleHooks:
                 "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
-                "lake_mead_level": self.env.get_local("lower_basin", "lake_mead_level", 0),
+                "lake_mead_level": self._log_lake_mead_level(),
                 "mead_storage_maf": self.env._mead_storage[-1] if self.env._mead_storage else 0,
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
                 "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
@@ -601,8 +626,24 @@ def main():
         p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
 
     # --- Create environment and initialize ---
+    # PR-9 coupling-retrofit (F1): opt-in fail-loud physical-state guard,
+    # default OFF (byte-identical to pre-PR-9 behaviour). See
+    # AgentTypeConfig.get_coupling_context_contract for what the flag
+    # does and examples/irrigation_abm/irrigation_coupling.py for the guard.
+    # The SAME two lines appear in run_ungoverned_experiment.py and
+    # run_fql_baseline.py (review P1-a): a flag that reached only the
+    # governed arm would make the two arms of a comparison differ in
+    # something other than governance. AgentTypeConfig.load caches per
+    # resolved path, so this is one parse per config per process, not one
+    # per call site.
+    from broker.utils.agent_config import AgentTypeConfig
+    coupling_contract_active = AgentTypeConfig.load(
+        str(agent_config_path)
+    ).get_coupling_context_contract()
+    if coupling_contract_active:
+        print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config = WaterSystemConfig(seed=seed)
-    env = IrrigationEnvironment(config)
+    env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
     # Load real CRSS precipitation projections when available

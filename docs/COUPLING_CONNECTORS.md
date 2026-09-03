@@ -36,14 +36,61 @@ drops in identically). Multi-variable traces: pack them into `Event.payload`.
 A CONTINUOUS replay (no events): implement the four BMI verbs over your file
 (~15 lines) and feed `ContinuousBundle`.
 
-### C. Service model (REST / subprocess) — one rule to respect
-The Protocols fit (an `EventSource` whose `draw_events` calls HTTP); put
-`{"endpoint": ..., "model_version": ...}` in `get_provenance`. THE RULE:
-`VarSpec.on_missing` accepts only `fail_loud` — `last_good` / `quarantine`
-are REJECTED at construction because no runtime executor exists (a policy
-you can write but that silently doesn't run is the worst failure class in
-this repo). A flaky endpoint needs YOUR retry/cache INSIDE the source;
-mid-run failures then surface as `CouplingViolation`, loudly.
+### C. Service model (REST / subprocess) — SUBPROCESS ready, REST deferred
+(PR-9 coupling-retrofit, finding F2: this section previously described the
+pattern with zero shipped code. `broker.coupling.SubprocessModelConnector`
+closes the subprocess half.)
+
+**Subprocess — READY.** `SubprocessModelConnector(command, contract=...,
+value_var=..., timeout_sec=...)` (`broker/coupling/subprocess_source.py`)
+drives an external process once per period: JSON on stdin
+(`{"period": <int>}`), one JSON object back on stdout, exit 0 required. The
+reply is validated against `contract.observations` with the same fail-loud
++ range-check logic `EnvironmentCouplingAdapter` uses; a non-zero exit, a
+timeout, or a non-JSON/wrong-shape reply all raise `CouplingViolation`
+(the last two carry the exit code / stderr tail / wall time so the failure
+is diagnosable without re-running the process by hand). Worked example:
+`examples/coupling_examples/archetype_c_subprocess/` (a governed
+single-agent run driving a real ~25-line subprocess "sensor" model,
+`--model mock`, completes in under 4 seconds).
+
+**REST — still deferred, and here is why.** No first-party domain needs
+one yet (the same "no consumer exists" reasoning the "What NOT to build"
+list below already applied to an async/retry REST adapter), and an HTTP
+client adds a real dependency + auth/retry surface that would ship
+untested against any actual endpoint. The Protocol fit is unchanged from
+before this PR: an `EventSource` whose `draw_events` calls `requests.get`
+(or your HTTP client of choice) instead of `subprocess.run`, put
+`{"endpoint": ..., "model_version": ...}` in `get_provenance`, same
+fail-loud discipline. When a domain needs it, copy
+`subprocess_source.py`'s validation logic (`_guard_reply`) rather than
+reinventing it — the reply-checking code is transport-agnostic already.
+
+**THE RULE, either transport:** `VarSpec.on_missing` accepts only
+`fail_loud` — `last_good` / `quarantine` are REJECTED at construction
+because no runtime executor exists (a policy you can write but that
+silently doesn't run is the worst failure class in this repo). A flaky
+endpoint or subprocess needs YOUR retry/cache INSIDE the source; mid-run
+failures then surface as `CouplingViolation`, loudly.
+
+**What the guard on this path DOES and DOES NOT check.** Archetype C runs
+two of the four numerical-correctness checks, not four — say so in a paper
+rather than crediting the whole set:
+
+| When | What is enforced | By |
+|---|---|---|
+| Contract construction | check #3 direction (observations must be `world_to_agent`) and check #4 double-count (one `consumer_of_record` per quantity) | `CouplingContract.__post_init__` |
+| Contract construction | a numeric variable declares a non-empty unit; `lo <= hi` | `VarSpec.__post_init__` |
+| Every call, per declared observation | presence (`on_missing="fail_loud"`), then finite (no NaN/±inf), inside `[lo, hi]`, and of the declared dtype (a bool or a `"55"` in a numeric slot is refused, not coerced) | `VarSpec.range_violation`, via `_guard_reply` |
+| Every call, whole reply | `NaN` / `Infinity` / `-Infinity` tokens refused at parse time; non-JSON, non-object, non-zero exit and timeout refused | `SubprocessModelConnector.draw_events` |
+
+NOT checked at any point on this path: `check_units()` and
+`check_cadence()` are never called, and NO unit conversion is verified. The
+contract RECORDS that a variable is metres or acre-feet; nothing compares
+that declaration against what the external model actually sends, so a
+wrong-unit value that lands inside the declared range passes silently. Keys
+the reply carries but the contract does not declare are logged as a warning
+and otherwise ignored.
 
 ### D. Another ABM, two-way — READY for period-lagged exchange
 Pass the external ABM as `real_engine` (the adapter pumps it once per period
@@ -109,6 +156,27 @@ One bundle per adapter, one `event_src` slot — compose INSIDE one bundle:
 `run_pipeline` pumps both models and merges their env projections; contract
 checks operate on the merged env unchanged; report both identities in
 `bundle_provenance`. Worth this paragraph, not worth an orchestrator.
+
+## Two orderings, two different things
+
+(PR-9 naming audit.) Two config knobs share the word "order" and nothing
+else — a multi-agent coupled domain sets BOTH, independently, and setting
+one does not configure or imply the other:
+
+| Knob | Lives on | Orders | Meaningless without |
+|---|---|---|---|
+| `ExperimentBuilder.with_phase_order([[...], [...]])` | the WAGF execution loop | WHICH AGENT TYPES run before which others within one period (e.g. government decides before household) | nothing — applies whether or not coupling is in use at all |
+| `CouplingContract.operation_order` | one coupled bundle | the STAGES inside that bundle's `InterfaceBundle.run_pipeline` (e.g. `("hazard", "exposure", "vulnerability", "financial")` — cat_model's chain) | a bundle; a domain with no coupling has no `operation_order` to set |
+
+Concretely: `with_phase_order` decides that the insurer agent proposes a
+payout before the household agent reflects on it THIS period.
+`operation_order` decides that, INSIDE the insurer's own coupled world
+update, hazard is computed before exposure, before vulnerability, before
+the financial ledger — a sequence that has nothing to do with which agent
+type runs when. Confusing the two produces a domain that pins the wrong
+sequence: reordering `operation_order` will not change agent-type
+execution order, and reordering `with_phase_order` will not change a
+bundle's internal pipeline stages.
 
 ## What NOT to build (review-confirmed)
 Connector SDK / per-archetype base classes (each is ≤30 lines over existing

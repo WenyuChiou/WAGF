@@ -961,6 +961,42 @@ class ExperimentRunner:
         if coupling_prov is not None:
             metadata["coupling_provenance"] = coupling_prov
 
+        # 5.6. Coupling-RETROFIT provenance (PR-9, F1 remediation). A domain
+        #     that validates its own physical-state handoff inline (because
+        #     its shape does not fit EnvironmentCouplingAdapter's single-dict
+        #     model — see examples/irrigation_abm/irrigation_coupling.py)
+        #     reports that fact via this DISTINCT, generically-named hook
+        #     rather than ``get_provenance`` — reusing that hook would make
+        #     this block's sibling below falsely claim
+        #     ``coupling_adapter: True`` for an engine that was never
+        #     wrapped. Same duck-typed / no-import-on-absence discipline as
+        #     5.5: a raw engine without this method leaves the manifest
+        #     unchanged.
+        retrofit_meta = None
+        retrofit_error = None
+        try:
+            retrofit_fn = getattr(self.sim_engine, "get_coupling_retrofit_metadata", None)
+            if callable(retrofit_fn):
+                candidate = retrofit_fn()
+                if isinstance(candidate, dict):
+                    retrofit_meta = candidate
+        except Exception as exc:
+            # Review P2: this used to be logger.debug and nothing else, so an
+            # engine whose hook RAISED produced a manifest that looked exactly
+            # like an engine with no hook at all — the guard reporting its own
+            # status is the last place a swallowed failure should hide. Record
+            # WHICH failure, and say it at warning level.
+            retrofit_error = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "[Integrity] coupling retrofit metadata unavailable (%s) — "
+                "run_integrity.json records the failure rather than an absent "
+                "hook.", retrofit_error,
+            )
+        if retrofit_meta is not None:
+            metadata["coupling_retrofit_metadata"] = retrofit_meta
+        if retrofit_error is not None:
+            metadata["coupling_retrofit_metadata_error"] = retrofit_error
+
         # 6. Run-integrity provenance contract (Invariant 6): record the RUNTIME memory
         #    engine actually instantiated. config_snapshot.yaml records the CONFIG;
         #    self.memory_engine is the runtime truth, and __init__ silently falls back to
@@ -982,6 +1018,18 @@ class ExperimentRunner:
                 refl_kwargs["extra"] = {
                     "coupling_adapter": True,
                     "sim_engine_class": type(self.sim_engine).__name__,
+                }
+            # PR-9 (F1): a distinct key from "coupling_adapter" above — this
+            # engine reports its OWN inline contract guard, it was never
+            # wrapped in EnvironmentCouplingAdapter, so it must never set
+            # coupling_adapter=True. Merged (not overwritten) in case a
+            # future domain reports both from the same run.
+            if retrofit_meta is not None:
+                refl_kwargs["extra"] = {**refl_kwargs.get("extra", {}), **retrofit_meta}
+            if retrofit_error is not None:
+                refl_kwargs["extra"] = {
+                    **refl_kwargs.get("extra", {}),
+                    "coupling_retrofit_metadata_error": retrofit_error,
                 }
             # The configured grid, set by _finalize_experiment just before this
             # runs. Absent on any path that reaches here without finalizing, in
