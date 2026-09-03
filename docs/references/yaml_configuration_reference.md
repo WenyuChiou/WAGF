@@ -293,6 +293,7 @@ published corpus byte-identical. Turn them on for all NEW runs.
 | `advise_columns` | bool | No | false | Adds the advisory-arm payload plus a per-decision `llm_calls` count |
 | `param_columns` | bool | No | false | Adds one `proposed_param_<name>` column per multi-field setpoint |
 | `grounding_columns` | bool | No | false | Forces `rules_world_grounded` + `rules_self_report` on. Already ON automatically whenever the active profile declares a world-grounded rule, so set this only to get the columns in a self-report-only profile. |
+| `decider_columns` | bool | No | false | Forces `decider` + `decider_path` on. Already ON automatically whenever any agent type declares a `decider:` other than `llm` (see §2.3.5), so set this only to record provenance in an all-`llm` run. |
 
 **`corrected_status_columns` (v0.7)** is the one to set if you are starting a
 new study. Without it the audit CSV reports the BLOCKED proposal as if it were
@@ -544,6 +545,7 @@ corresponding dictionary.
 | `feedback` | object | No | {} | Feedback dashboard configuration |
 | `actions` | list[object] | No | [] | Action definitions (legacy path -- may also be under `parsing.actions`) |
 | `governance` | object | No | {} | Inline governance profile (for agent types that nest rules inside their block) |
+| `decider` | string \| object | No | `llm` | WHO decides for this agent type (see §2.3.5) |
 
 #### 2.3.1 multi_skill
 
@@ -649,6 +651,106 @@ parsing:
       keywords: [threat, severity, vulnerability]
       regex: '(?i)(?:reason|why|because|explanation)[:\s\*]*(.*)'
 ```
+
+#### 2.3.5 decider
+
+**`decider` (v0.9, PR-8)** names WHO decides for this agent type. Absent means
+`llm`, which is what every config written before v0.9 means — and the resolved
+callable is then the identical object `ExperimentRunner.get_llm_invoke` returns,
+so adding this key to the schema changed nothing for a config that does not use
+it.
+
+Two forms:
+
+```yaml
+household_owner:
+  decider: llm                 # a bare registered name
+
+household_renter:
+  decider:                     # or a {name, params} mapping
+    name: rule_based
+    params:
+      default_action: do_nothing
+      reasoning: {TP_LABEL: M, CP_LABEL: M}
+      rules:
+        - id: repeat_loss_relocate
+          action: relocate
+          when:
+            flood_zone: {not_in: [LOW]}
+            flood_count: {gte: 2}
+          reasoning: {TP_LABEL: VH, CP_LABEL: L}
+```
+
+| Name | Decides how | Params |
+|------|-------------|--------|
+| `llm` | the agent type's language model — the default | -- |
+| `rule_based` | a rule table, top to bottom, first match wins | `rules`, `default_action` (**required**), `reasoning` |
+| `hybrid` | the rule table first; the model answers what no rule matched | `rules`, `reasoning` (`default_action` is **refused**) |
+| `parametric` | a decision object the domain supplies | `target` (`module.path:Attr`), `init`, `method`, `fields` |
+
+Domains register deciders of their own through the `DomainPack` hook
+`decider_factories()`; those names are then usable here exactly like a built-in.
+
+**Rule tables.** Each rule is `{id, action, when, reasoning}`. `when` maps a
+field name to a literal, a list (membership), or an operator mapping using
+`eq` / `ne` / `gt` / `gte` / `lt` / `lte` / `in` / `not_in`. Every condition
+must hold. Field names resolve against `agent_id` / `agent_type` first, then
+this period's environment dict, then the agent — its `custom_attributes`,
+`fixed_attributes` and `dynamic_state`, its raw state params and its plain
+attributes. So `agent_id: {in: [...]}` expresses a literal subset of the
+population without the domain inventing a marker attribute. A field nothing in
+scope carries never matches; absence is not satisfaction, and each such field
+is logged once and counted into `run_integrity.json` → `rule_field_unresolved`,
+because a permanently-false condition otherwise reads exactly like one that was
+evaluated and did not match.
+
+**`scope:` (per field).** A condition mapping may carry `scope:` alongside its
+operators — `{gte: 1.2, scope: env}`. It is not an operator; it names which
+plane the field is read from, and is stripped before the condition is
+evaluated. `auto` (the default) reads the environment then the agent; `env`
+reads the environment only; `agent` reads the agent only. Write `env` when the
+rule is about a world variable the agent also keeps a copy of: the agent's copy
+is typically refreshed at the END of the period, so `auto` would answer with
+last period's number while the environment publishes this one. An unrecognised
+scope raises when the table is built rather than being coerced, which is the
+opposite of the world-variable `scope:` in §2.4 and deliberately so — a rule
+table is built once at run start, so raising costs nothing and coercing would
+read a plane the config did not name.
+
+**`reasoning` is a declaration, not a self-report.** The labels a rule reports
+are the appraisals its author says the rule encodes — the way a behavioural rule
+is specified in a conventional ABM — and declaring them is what lets the same
+governance rules evaluate this agent type and the model-driven ones. Omit them
+and the rules reading those constructs simply do not fire on these rows, which
+is recorded rather than assumed. The audit `decider` column is what tells a
+reader which kind of label they are looking at.
+
+**Failure behaviour.** An unregistered name is refused at BOTH ends —
+`validate_prompt` reports a BLOCKER before the batch, and every declared
+non-default decider is BUILT once at run start, before the first row, so an
+unregistered name, a missing `default_action`, an unimportable `parametric`
+target or an unknown `scope:` stops the run there with a traceback naming the
+agent type. Nothing falls back to `llm`: a silent fallback would produce an
+all-LLM corpus from a mixed-population config with nothing in the artifacts
+saying so. Writing `decider:` under `global_config`, `shared:` or any other
+non-agent top-level block is read by nothing at all, does not switch the audit
+columns on, and is warned about for the same reason.
+
+A rule's `reasoning` must report either NOTHING or every `*_LABEL` in this
+agent type's `parsing.constructs`. A PARTIAL report makes the retry loop ask
+for the missing ones; a rule table answers the retry identically, so every row
+that rule produces exhausts its retries and lands ABORTED. `validate_prompt`
+reports a partial report as a BLOCKER.
+
+`llm` takes no `params:` and is refused if given any — it resolves to the agent
+type's own callable and reads none of them, so params there are dead config
+that also make "is this the default?" ambiguous. Configure the model under
+`llm_params:`.
+
+Declaring any non-`llm` decider turns on the `decider` / `decider_path` audit
+columns for the whole run (§2.1.6). Full guide, including how the LLM statistic
+columns read on a row no model produced:
+`docs/guides/mixed_populations.md`.
 
 ---
 

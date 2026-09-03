@@ -226,6 +226,13 @@ class DefaultDomainPack:
         # ``BROKER_FILLED_PLACEHOLDERS`` alone.
         return set()
 
+    def decider_factories(self) -> Dict[str, Any]:
+        # PR-8 default contract: this domain ships no decider of its
+        # own, so only the built-in names (llm / rule_based / hybrid /
+        # parametric) are available to its configs. See
+        # DomainPack.decider_factories.
+        return {}
+
     def context_mask_defaults(self) -> Dict[str, Any]:
         # PR-5 (stack/pr5-replay-ablate): default contract — this domain
         # declares no ablatable context factors, so

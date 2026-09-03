@@ -235,6 +235,7 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "advise_columns",            # agent_config.get_audit_advise_columns (P0-1c)
     "param_columns",             # agent_config.get_audit_param_columns (6W-B6)
     "grounding_columns",         # agent_config.get_audit_grounding_columns (PR-6)
+    "decider_columns",           # agent_config.get_audit_decider_columns (PR-8)
 }
 
 # PR-4: the single opt-in parsing-hardening flag, default-OFF, same fail-open
@@ -512,6 +513,187 @@ def _iter_thinking_rule_blocks(cfg: Dict[str, Any]):
                 if isinstance(sub, dict):
                     yield (f"yaml: {atype}.governance.{profile}.thinking_rules",
                            sub.get("thinking_rules"))
+
+
+def _check_rule_table(
+    atype: str, block: Dict[str, Any], spec, loc: str,
+) -> List[Issue]:
+    """PR-8 W5: a rule table's own shape, checked before the batch.
+
+    Two BLOCKERs, neither visible until the run is finished.
+
+    A table that will not parse at all — a bad ``scope:``, a rule with no
+    ``action``, ``rule_based`` with no ``default_action`` — now raises at
+    run start rather than mid-loop, but that is still one launch wasted.
+
+    The second is the one nothing catches afterwards. When a proposal
+    reports SOME constructs, ``_retry_loop`` requires every ``*_LABEL``
+    in this agent type's ``parsing.constructs``, retries when one is
+    missing, and a rule table answers the retry with the identical
+    proposal — so the row exhausts its retries and lands ABORTED. Every
+    row of that agent type. The CSV then holds an arm with the right
+    ``decider`` column, a full row count, and no decisions in it.
+    Reporting nothing at all is fine: the loop skips the check when a
+    proposal's ``reasoning`` is empty.
+    """
+    issues: List[Issue] = []
+    if spec.name not in ("rule_based", "hybrid"):
+        return issues
+    try:
+        from broker.agents.deciders import build_rule_table
+    except Exception:  # noqa: BLE001
+        return issues
+    try:
+        table = build_rule_table(spec.params, where=f"{atype}.decider")
+    except ValueError as exc:
+        return [Issue("ERROR", loc, str(exc))]
+
+    parsing = block.get("parsing")
+    parsing = parsing if isinstance(parsing, dict) else {}
+    constructs = parsing.get("constructs")
+    constructs = constructs if isinstance(constructs, dict) else {}
+    required = {k for k in constructs if "_LABEL" in str(k)}
+    if not required:
+        return issues
+    shared_reasoning = spec.params.get("reasoning")
+    shared_keys = set(shared_reasoning) if isinstance(shared_reasoning, dict) else set()
+    for rule in table:
+        declared = shared_keys | set(rule.reasoning)
+        if not declared:
+            continue  # reports nothing -> the retry check does not run
+        missing = sorted(required - declared)
+        if missing:
+            issues.append(Issue(
+                "ERROR", loc,
+                f"rule '{rule.rule_id}' reports {sorted(declared)} but "
+                f"'{atype}' requires {sorted(required)}. A PARTIAL report "
+                f"makes the retry loop ask for {missing}; a rule table "
+                f"answers the retry identically, so every row this rule "
+                f"produces exhausts its retries and lands ABORTED. Declare "
+                f"the missing label(s) here or in the decider's shared "
+                f"`reasoning:`, or report none at all.",
+            ))
+    return issues
+
+
+def check_decider_declarations(cfg: Dict[str, Any]) -> List[Issue]:
+    """PR-8: every ``decider:`` must name a REGISTERED decider.
+
+    Two failures, both silent without this check.
+
+    An unregistered name is an ERROR. Nothing falls back to ``llm`` —
+    ``DeciderRegistry.build`` raises — so the run dies at the first
+    agent of that type, minutes into a batch, with a traceback rather
+    than a config location. Catching it here costs one line to fix.
+
+    ``decider:`` under a NON-AGENT top-level block (``global_config``,
+    ``shared``, ``metadata``, ...) is a WARN, and it is the more
+    dangerous of the two: it is read by nothing at all, the run starts
+    fine, every agent silently uses the LLM default, and the resulting
+    CSV is a correct all-LLM corpus wearing a mixed-population config's
+    name. There is nothing in the artifacts to catch it afterwards.
+    ``shared:`` is included (review C1) because it is the one people
+    reach for — it is where the response format and the rating scale
+    live, so it looks like the place a population-wide setting goes.
+
+    A rule table's declared ``reasoning`` is checked too (review W5).
+    A rule that reports SOME of an agent type's required ``*_LABEL``
+    constructs and not all of them makes the retry loop ask for the
+    missing ones — and a rule table answers the retry with the same
+    proposal, so the row loops to ABORTED. Every row. Empty reasoning is
+    fine: the loop skips the check entirely when a proposal reports no
+    constructs at all.
+
+    The registry is consulted AFTER the domain's own deciders are
+    registered (via ``global_config.governance.domain``), so a domain
+    that ships its own decider validates without the operator having to
+    import anything by hand.
+    """
+    issues: List[Issue] = []
+    try:
+        from broker.agents.deciders import (
+            DeciderRegistry, parse_decider_spec, register_domain_deciders,
+        )
+    except Exception as exc:  # noqa: BLE001 — never break the CLI over a lint
+        return [Issue("WARN", "yaml", f"decider check skipped: {exc}")]
+
+    from broker.utils.agent_config import NON_AGENT_TOP_LEVEL_KEYS
+
+    gc = cfg.get("global_config")
+    for reserved in sorted(NON_AGENT_TOP_LEVEL_KEYS):
+        block = cfg.get(reserved)
+        if isinstance(block, dict) and "decider" in block:
+            issues.append(Issue(
+                "WARN", f"yaml: {reserved}",
+                "'decider' is a PER-AGENT-TYPE key and is read by nothing "
+                f"under '{reserved}' — the run will start and every agent "
+                "will use the default 'llm', producing an all-LLM corpus "
+                "from a config that reads as mixed. Move it into the agent "
+                "type block(s) it was meant for.",
+            ))
+
+    domain = None
+    if isinstance(gc, dict):
+        domain = (gc.get("governance") or {}).get("domain")
+    # "Was any DomainPack loaded at all?" A CLI invocation that never
+    # imported the example package has none, and every domain decider
+    # would then look unregistered — see _resolve_domain_extensions for
+    # the same import convention.
+    pack_available = False
+    try:
+        from broker.domains.registry import DomainPackRegistry
+        if domain:
+            pack_available = DomainPackRegistry.get(domain) is not None
+        else:
+            pack_available = bool(DomainPackRegistry.domains())
+    except Exception:  # noqa: BLE001
+        pack_available = False
+    try:
+        register_domain_deciders(domain)
+    except Exception as exc:  # noqa: BLE001
+        pack_available = False
+        issues.append(Issue(
+            "WARN", "yaml: global_config.governance.domain",
+            f"could not load domain '{domain}' deciders ({exc}).",
+        ))
+
+    for atype, block in cfg.items():
+        if not isinstance(block, dict) or "decider" not in block:
+            continue
+        if str(atype) in NON_AGENT_TOP_LEVEL_KEYS:
+            continue
+        loc = f"yaml: {atype}.decider"
+        try:
+            spec = parse_decider_spec(block["decider"], where=str(atype))
+        except ValueError as exc:
+            issues.append(Issue("ERROR", loc, str(exc)))
+            continue
+        if DeciderRegistry.has(spec.name):
+            issues.extend(_check_rule_table(str(atype), block, spec, loc))
+            continue
+        if not pack_available:
+            # The pack import convention (see _resolve_domain_extensions)
+            # means the CLI often runs without the domain's package
+            # loaded. Calling a name it may well ship an ERROR would
+            # train operators to ignore this check.
+            issues.append(Issue(
+                "WARN", loc,
+                f"'{spec.name}' is not registered here, but no DomainPack "
+                f"is imported in this process, so a decider a domain "
+                f"ships would look exactly like this. Re-run after "
+                f"`python -m examples.<your_example>` to check it for "
+                f"real. Built-ins: {DeciderRegistry.names()}.",
+            ))
+            continue
+        issues.append(Issue(
+            "ERROR", loc,
+            f"'{spec.name}' is not a registered decider — the run will "
+            f"raise at this agent type's first decision. Registered: "
+            f"{DeciderRegistry.names()}. A domain ships its own through "
+            f"the DomainPack hook `decider_factories()`; if this is a "
+            f"domain decider, check `global_config.governance.domain`.",
+        ))
+    return issues
 
 
 def check_world_condition_scopes(cfg: Dict[str, Any]) -> List[Issue]:
@@ -1178,6 +1360,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # coerced to `auto` at load time and the rule keeps firing against a plane
     # nobody named, so it has to be caught before the batch, not after.
     all_issues.extend(check_world_condition_scopes(cfg))
+    # PR-8: every declared `decider:` must name a registered one, and the
+    # key must be where something reads it.
+    all_issues.extend(check_decider_declarations(cfg))
     # Phase 6R-B-3: resolve domain-specific placeholder extensions once
     # per CLI invocation. The hook is keyed on
     # ``global_config.governance.domain``.

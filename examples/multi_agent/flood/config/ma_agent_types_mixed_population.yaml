@@ -1,0 +1,1231 @@
+# =====================================================================
+# MIXED-POPULATION variant of ma_agent_types.yaml (PR-8).
+#
+# Byte-for-byte the frozen paper-3 config, plus a `decider:` key on
+# three of the four live agent types. Reached with
+# `run_unified_experiment.py --mixed-population`; the frozen file is
+# untouched and stays the default, so every paper-3 run is unaffected.
+#
+# WHAT THIS RUN HOLDS, and why the mixture is the point:
+#
+#   household_owner   flood_household_parametric  a calibrated logistic,
+#                                                 no model call
+#   household_renter  rule_based                  a rule table written
+#                                                 out below in YAML
+#   insurance         hybrid                      rule table first, the
+#                                                 model for the rest
+#   government        (absent -> llm)             unchanged
+#
+# All four go through the same context build, the same validators, the
+# same governance retry loop, and land in the same audit CSV with the
+# same columns. Two extra columns say which is which: `decider` names
+# what produced the row and `decider_path` names which way a hybrid
+# went. Turn them on automatically by declaring any non-`llm` decider —
+# which this file does — see docs/guides/mixed_populations.md.
+#
+# What is NOT the same, and must be read accordingly: a rule-based row
+# reports no threat or coping appraisal, because the rule has none.
+# Governance rules written against self-reported constructs therefore
+# do not fire on those rows. World-grounded rules still do. That is a
+# property of the comparison, not a defect in it.
+# =====================================================================
+
+shared:
+  rating_scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High
+  criteria_definitions: 'Protection Motivation Theory (PMT) Constructs. Rate each
+    based on YOUR specific situation, not a generic assumption. Use the level anchors
+    below.
+
+    - TP (Threat Perception): How serious do you perceive the flood risk?
+
+      * VL: No flood risk concern (LOW zone, no history)
+
+      * L: Minor concern (infrequent flooding, minimal damage)
+
+      * M: Moderate concern (baseline for flood-prone area, typical residents)
+
+      * H: Serious concern (recent severe flood or multiple events)
+
+      * VH: Extreme concern (catastrophic damage, imminent threat)
+
+    - CP (Coping Perception): How CAPABLE are you of taking effective protective
+    action (afford it, execute it, benefit from it)?
+
+      * VL: Cannot afford or execute any protective action
+
+      * L: Can only afford minimal action (basic insurance)
+
+      * M: Baseline — can afford insurance, elevation is a stretch
+
+      * H: Can realistically afford and execute elevation or buyout
+
+      * VH: Full financial and practical capacity for any adaptation
+
+    - SP (Stakeholder Perception): How much do you trust institutions (NJDEP, FEMA/NFIP)
+    to provide reliable support?
+
+      * VL: No trust in government or insurance institutions
+
+      * L: Low trust, expect programs to fail or be unfair
+
+      * M: Baseline — cautiously willing to work with institutions
+
+      * H: Trust institutions to deliver on their promises
+
+      * VH: Full confidence in institutional support
+
+    - SC (Social Capital): How connected are you with neighbors taking protective
+    actions?
+
+      * VL: Isolated, no neighbor connections
+
+      * L: Minimal neighbor contact
+
+      * M: Baseline — know neighbors, occasional interaction
+
+      * H: Close neighbor network, share flood information
+
+      * VH: Tight community, coordinated protective action
+
+    - PA (Place Attachment): How emotionally attached are you to your home AND COMMUNITY?
+    Attachment should reflect genuine roots, not just ownership. A single-generation
+    resident is typically M (Medium), not H.
+
+      * VL: Recently moved, minimal local ties, would relocate easily
+
+      * L: Established but could relocate without major loss
+
+      * M: BASELINE for most 1-2 generation residents; some attachment but pragmatic
+      about relocation if needed
+
+      * H: Strong community roots (3+ generations, long-term family presence, central
+      role in community)
+
+      * VH: Deeply rooted identity (5+ generations, irreplaceable family heritage,
+      unthinkable to leave)
+
+    '
+  response_format:
+    delimiter_start: <<<DECISION_START>>>
+    delimiter_end: <<<DECISION_END>>>
+    fields:
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: false
+global_config:
+  # Phase 6T-E.B (2026-05-28): social-media propagation channel.
+  # Default ``enable: false`` preserves paper-3 v21 5-seed gemma3:4b
+  # byte-identity. Set ``enable: true`` for NEW experiments only,
+  # AFTER the v0.5.1 runner integration lands.
+  social_feeds:
+    enable: false
+    top_k: 5
+    half_life_years: 2.0
+    suppressed_tiers: []   # operator override of pack.suppressed_tiers()
+
+
+  # Memory write policy (MA flood ratchet fix, 2026-04-11).
+  # Memory write policy (MA flood ratchet fix, broker-level generalization 2026-04-11).
+  # Field names correspond to MemoryContentType enum values. Setting to false
+  # causes the PolicyFilteredMemoryEngine to silently drop writes of that type.
+  # Omitting this block entirely falls back to LEGACY_POLICY (pre-fix behavior)
+  # for reproducibility of older experiments. See .ai/broker_memory_governance_architecture.md.
+  memory_write_policy:
+    # Safe content types (default allowed)
+    allow_external_event: true
+    allow_agent_action: true
+    allow_social_observation: true
+    allow_institutional_state: true
+    allow_institutional_reflection: true
+    allow_initial_factual: true
+    # Risky content types ??default denied under CLEAN_POLICY
+    allow_agent_self_report: false         # block the rationalization ratchet
+    allow_agent_reflection_quote: false    # block memory-of-memory quoting
+    allow_initial_narrative: false         # drop first-person PA/SP seed memories
+
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+    arousal_threshold: 1.0
+    ema_alpha: 0.3
+    stimulus_key: flood_depth_m
+    ranking_mode: weighted
+  cognitive_config:
+    household_owner:
+      stimulus_key: flood_depth_m
+      arousal_threshold: 1.0
+      ema_alpha: 0.3
+      engine: humancentric
+    household_renter:
+      stimulus_key: flood_depth_m
+      arousal_threshold: 0.8
+      ema_alpha: 0.3
+      engine: humancentric
+    nj_government:
+      stimulus_key: adaptation_gap
+      arousal_threshold: 0.15
+      ema_alpha: 0.2
+      engine: window
+    fema_nfip:
+      stimulus_key: loss_ratio
+      arousal_threshold: 0.3
+      ema_alpha: 0.25
+      engine: window
+  memory_config:
+    household:
+      retrieval_tags:
+      - general
+      - adaptation
+      - risk
+      emotional_weights:
+        critical: 1.0
+        fear: 1.2
+        major: 0.9
+        positive: 0.8
+        observation: 0.4
+      source_weights:
+        personal: 1.0
+        neighbor: 0.7
+        news: 0.5
+        social_media: 0.3
+      emotion_keywords:
+        fear:
+        - flood
+        - damage
+        - loss
+        - destroy
+        - water
+        - inundation
+        hope:
+        - subsidy
+        - elevated
+        - safe
+        - protected
+        - insurance
+        - grant
+        anxiety:
+        - premium
+        - cost
+        - afford
+        - expense
+        - budget
+    household_mg:
+      retrieval_tags:
+      - subsidy
+      - vulnerability
+      - financial_hardship
+      - financial_barrier
+      - cost_concern
+      - general
+    household_nmg:
+      retrieval_tags:
+      - insurance
+      - elevation
+      - adaptation
+      - general
+    institutional:
+      emotional_weights: null
+      source_weights:
+        policy_data: 1.0
+        statistics: 0.9
+        reports: 0.7
+      ranking_mode: recency
+  reflection:
+    interval: 1
+    batch_size: 10
+    importance_boost: 0.9
+    # Phase 6H Item 4: domain-wide reflection questions for the MA-flood
+    # individual-reflection path. NOTE: lifecycle_hooks.py currently reads
+    # this global_config set for ALL institutional agents -- government and
+    # insurance share it. The get_reflection_questions() resolver does
+    # support per-agent-type `<type>.reflection.questions`, but wiring
+    # lifecycle_hooks to per-type resolution is a tracked follow-up.
+    questions:
+      - "Which communities or risk segments are most exposed this year?"
+      - "Are your programs and pricing reaching the households that need them?"
+      - "What single adjustment would most improve outcomes next year?"
+    triggers:
+      crisis: true
+      periodic_interval: 5
+      decision_types:
+        - elevate_house
+        - buyout_program
+        - relocate
+      institutional_threshold: 0.05
+    method: hybrid
+  llm:
+    temperature: 0.7  # Harmonized with ICC probing (was 0.1)
+    top_p: 0.9
+    top_k: 40
+    max_retries: 2
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    shuffle_options: true  # Randomize skill option order per call to mitigate positional bias
+floodabm_parameters:
+  tp_distribution:
+    mg:
+      alpha: 4.44
+      beta: 2.89
+    nmg:
+      alpha: 5.35
+      beta: 3.62
+  cp_distribution:
+    mg:
+      alpha: 4.07
+      beta: 3.3
+    nmg:
+      alpha: 5.27
+      beta: 4.18
+  sp_distribution:
+    mg:
+      alpha: 1.37
+      beta: 1.69
+    nmg:
+      alpha: 1.73
+      beta: 1.93
+  sc_distribution:
+    mg:
+      alpha: 2.37
+      beta: 3.11
+    nmg:
+      alpha: 4.56
+      beta: 2.39
+  pa_distribution:
+    mg:
+      alpha: 2.56
+      beta: 2.17
+    nmg:
+      alpha: 4.01
+      beta: 2.79
+  tp_decay:
+    mg:
+      alpha: 0.5
+      beta: 0.21
+      tau_0: 1.0
+      tau_inf: 32.19
+      k: 0.03
+    nmg:
+      alpha: 0.22
+      beta: 0.1
+      tau_0: 2.72
+      tau_inf: 50.1
+      k: 0.01
+    theta: 0.5
+    shock_scale: 0.3
+  insurance:
+    r1k_structure: 3.56
+    r1k_contents: 4.9
+    limit_structure: 250000
+    limit_contents: 100000
+    deductible_structure: 1000
+    deductible_contents: 1000
+    reserve_fund_factor: 1.15
+    small_fee: 100
+  initial_uptake:
+    flood_prone_owner: 0.25
+    flood_prone_renter: 0.08
+    non_flood_prone_owner: 0.03
+    non_flood_prone_renter: 0.01
+  elevation:
+    h_elevate_ft: 5.0
+    ffe_default_ft: 1.0
+  csrv: 0.57
+  rcv_lognormal:
+    homeowner:
+      ln_mu: 12.46
+      ln_sigma: 0.63
+      mean_rcv_usd: 313250
+      cv: 0.69
+    renter:
+      ln_mu: 12.82
+      ln_sigma: 1.2
+      mean_rcv_usd: 766352
+      cv: 1.81
+household_owner:
+  description: Homeowner household agent in Passaic River Basin, NJ.
+  # PR-8: decided by the calibrated logistic in
+  # examples/multi_agent/flood/parametric/household_decider.py, shipped
+  # by FloodDomainPack.decider_factories() — no LLM call for this type.
+  # `seed` enters every draw, so the whole owner population reproduces
+  # exactly; leave it out and the run seed is used.
+  decider:
+    name: flood_household_parametric
+    params:
+      seed: 42
+      # The logistic reports TP_LABEL / CP_LABEL itself — they are its
+      # own inputs. It models none of the other three constructs, and
+      # will not invent them, so the values this agent type is evaluated
+      # under are declared here where a reviewer can see them. Remove
+      # them and the rules that read those constructs stop firing on
+      # owner rows; the run records that rather than assuming a middle
+      # value. These are the RULE's stated appraisals, not a model's
+      # self-report — the `decider` audit column is how a reader tells.
+      reasoning:
+        SP_LABEL: M
+        SC_LABEL: M
+        PA_LABEL: M
+  default_skill: do_nothing
+  llm_params:
+    num_ctx: 16384
+    num_predict: 2048
+  multi_skill:
+    enabled: true
+    max_skills: 2
+    execution_order: sequential
+    secondary_field: secondary_decision
+    conflicts:
+      elevate_house: [buyout_program]
+      buyout_program: [elevate_house, buy_insurance]
+  response_format:
+    fields:
+    - key: threat_perception
+      type: appraisal
+      required: true
+      construct: TP_LABEL
+    - key: coping_perception
+      type: appraisal
+      required: true
+      construct: CP_LABEL
+    - key: stakeholder_perception
+      type: appraisal
+      required: true
+      construct: SP_LABEL
+    - key: social_capital
+      type: appraisal
+      required: true
+      construct: SC_LABEL
+    - key: place_attachment
+      type: appraisal
+      required: true
+      construct: PA_LABEL
+    - key: decision
+      type: choice
+      required: true
+    - key: elevation_feet
+      type: numeric
+      min: 3
+      max: 8
+      unit: feet
+      required: false
+      description: "If elevating, how many feet above BFE? (3, 5, or 8)"
+    - key: insurance_coverage
+      type: choice
+      required: false
+      description: "If buying insurance: 1=Structure+Contents, 2=Contents-only"
+    - key: secondary_decision
+      type: secondary_choice
+      required: false
+    - key: reasoning
+      type: text
+      required: false
+  prompt_template_file: prompts/household_owner.txt
+  parsing:
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: do_nothing
+      aliases:
+      - DN
+      - nothing
+      - wait
+      - Do nothing
+      - Do Nothing
+      - Take no action
+      - '[DN]'
+      description: Take no action this year
+    - id: buy_insurance
+      aliases:
+      - FI
+      - insurance
+      - buy_insurance
+      - Buy insurance
+      - Purchase flood insurance
+      - '[FI]'
+      description: Purchase NFIP flood insurance
+    - id: elevate_house
+      aliases:
+      - HE
+      - elevate
+      - elevation
+      - elevate_house
+      - Elevate house
+      - '[HE]'
+      description: 'Elevate house structure (Cost: $45K-$150K depending on height * (1 - subsidy rate))'
+    - id: buyout_program
+      aliases:
+      - BT
+      - buyout
+      - Blue Acres
+      - Accept buyout
+      - '[BT]'
+      description: Accept NJ Blue Acres buyout
+    constructs:
+      TP_LABEL:
+        keywords:
+        - threat
+        - severity
+        - vulnerability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      TP_REASON:
+        keywords:
+        - threat
+        - severity
+        - vulnerability
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      CP_LABEL:
+        keywords:
+        - coping
+        - efficacy
+        - ability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      CP_REASON:
+        keywords:
+        - coping
+        - efficacy
+        - ability
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      SP_LABEL:
+        keywords:
+        - stakeholder
+        - trust
+        - government
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SP_REASON:
+        keywords:
+        - stakeholder
+        - trust
+        - government
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      SC_LABEL:
+        keywords:
+        - social
+        - neighbor
+        - community
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SC_REASON:
+        keywords:
+        - social
+        - neighbor
+        - community
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      PA_LABEL:
+        keywords:
+        - place
+        - attachment
+        - belonging
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      PA_REASON:
+        keywords:
+        - place
+        - attachment
+        - belonging
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+  log_fields:
+  - threat_perception
+  - coping_perception
+  - stakeholder_perception
+  - social_capital
+  - place_attachment
+household_renter:
+  description: Renter household agent in Passaic River Basin, NJ.
+  # PR-8: decided by the GENERIC rule_based decider — the table below is
+  # the whole model, and the broker knows nothing about floods to run
+  # it. Rules are tried in order and the first match wins; when none
+  # matches, `default_action` is proposed. `agent_id` and `agent_type`
+  # are always resolvable, so a rule can also name a literal subset of
+  # agents (`agent_id: {in: [H0001, H0007]}`) when a study needs one.
+  decider:
+    name: rule_based
+    params:
+      default_action: do_nothing
+      # Appraisal labels every rule reports unless it overrides them.
+      # A behavioural rule in a conventional ABM is specified this way —
+      # the modeller states the appraisal the rule encodes — and stating
+      # it here is what lets the SAME governance rules evaluate this
+      # agent type and the model-driven ones. It is a declaration, not a
+      # self-report; the `decider` audit column keeps the two apart.
+      reasoning:
+        TP_LABEL: M
+        CP_LABEL: M
+        SP_LABEL: M
+        SC_LABEL: M
+        PA_LABEL: M
+      rules:
+      # A renter who has already been flooded twice and is in a
+      # non-LOW zone leaves rather than insures.
+      #
+      # `scope: agent` is load-bearing on both fields here (code-reviewer):
+      # nothing publishes a region-wide `flood_zone` or `flood_count` into
+      # the environment TODAY, so `auto` (env-first) falls through to the
+      # agent's own value and these three rules read correctly by
+      # accident. The day something DOES publish an env-level
+      # `flood_count` — a community flood tally, say — `auto` would start
+      # reading THAT number instead of this renter's own history, exactly
+      # the stale-vs-live-shadowing failure `scope:` exists to name (see
+      # the `insurance` hybrid rules below for the mirror case, where
+      # `scope: env` is load-bearing the other way). Pinning `agent` here
+      # says explicitly "this renter's own zone and flood count", so a
+      # later env addition cannot silently change what these rules mean.
+      - id: repeat_loss_relocate
+        action: relocate
+        when:
+          flood_zone: {not_in: [LOW], scope: agent}
+          flood_count: {gte: 2, scope: agent}
+        reasoning: {TP_LABEL: VH, CP_LABEL: L}
+      # A high-risk zone, flooded or not: buy contents cover.
+      # The zone vocabulary is HIGH / MEDIUM / LOW (generate_agents.py:79
+      # and :407). An earlier draft also listed VERY_HIGH, which nothing
+      # in this domain ever emits — a value in an `in:` list that cannot
+      # occur is dead config that reads as a wider rule than it is.
+      - id: exposed_contents_cover
+        action: buy_contents_insurance
+        when:
+          flood_zone: {in: [HIGH], scope: agent}
+        reasoning: {TP_LABEL: H, CP_LABEL: M}
+      - id: post_flood_contents_cover
+        action: buy_contents_insurance
+        when:
+          flood_count: {gte: 1, scope: agent}
+        reasoning: {TP_LABEL: H, CP_LABEL: M}
+  default_skill: do_nothing
+  llm_params:
+    num_ctx: 16384
+    num_predict: 2048
+  multi_skill:
+    enabled: true
+    max_skills: 2
+    execution_order: sequential
+    secondary_field: secondary_decision
+    conflicts:
+      relocate: [buy_contents_insurance]
+  response_format:
+    fields:
+    - key: threat_perception
+      type: appraisal
+      required: true
+      construct: TP_LABEL
+    - key: coping_perception
+      type: appraisal
+      required: true
+      construct: CP_LABEL
+    - key: stakeholder_perception
+      type: appraisal
+      required: true
+      construct: SP_LABEL
+    - key: social_capital
+      type: appraisal
+      required: true
+      construct: SC_LABEL
+    - key: place_attachment
+      type: appraisal
+      required: true
+      construct: PA_LABEL
+    - key: decision
+      type: choice
+      required: true
+    - key: relocation_destination
+      type: choice
+      required: false
+      description: "If relocating: 1=Within PRB, 2=Out of basin"
+    - key: secondary_decision
+      type: secondary_choice
+      required: false
+    - key: reasoning
+      type: text
+      required: false
+  log_fields:
+  - threat_perception
+  - coping_perception
+  - stakeholder_perception
+  - social_capital
+  - place_attachment
+  prompt_template_file: prompts/household_renter.txt
+  parsing:
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: do_nothing
+      aliases:
+      - DN
+      - nothing
+      - wait
+      - Do nothing
+      - Do Nothing
+      - Take no action
+      - '[DN]'
+      description: Take no action this year
+    - id: buy_contents_insurance
+      aliases:
+      - CI
+      - contents_insurance
+      - Buy contents insurance
+      - insurance
+      - '[CI]'
+      description: Purchase NFIP contents-only flood insurance
+    - id: relocate
+      aliases:
+      - RL
+      - move
+      - relocate
+      - Relocation
+      - Move
+      - '[RL]'
+      description: Relocate to lower flood-risk area
+    constructs:
+      TP_LABEL:
+        keywords:
+        - threat
+        - severity
+        - vulnerability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      CP_LABEL:
+        keywords:
+        - coping
+        - efficacy
+        - ability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SP_LABEL:
+        keywords:
+        - stakeholder
+        - trust
+        - government
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SC_LABEL:
+        keywords:
+        - social
+        - neighbor
+        - community
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      PA_LABEL:
+        keywords:
+        - place
+        - attachment
+        - belonging
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+nj_government:
+  description: New Jersey Department of Environmental Protection - Blue Acres Buyout
+    Program
+  llm_params:
+    num_ctx: 16384
+    num_predict: 1024
+  prompt_template: "### IDENTITY\nYou are the New Jersey Department of Environmental\
+    \ Protection (NJDEP),\nadministering the Blue Acres Floodplain Buyout Program\
+    \ and elevation subsidies\nfor the Passaic River Basin communities.\n\n### PROGRAM\
+    \ BACKGROUND\nThe Blue Acres program is a voluntary buyout initiative that purchases\n\
+    flood-prone properties from willing sellers, converting them to open space.\n\
+    Elevation subsidies help homeowners raise structures above flood levels.\n\n###\
+    \ CURRENT CONTEXT\n- Year: {year}\n- Current Elevation Subsidy Rate: {subsidy_rate:.0%}\n\
+    - Community Adaptation Status: {elevated_count} of {total_households} households\
+    \ elevated\n- Buyout Applications Pending: {buyout_pending}\n- Marginalized Group\
+    \ (MG) Households: {mg_count} ({mg_ratio:.0%})\n\n### POLICY OPTIONS\nChoose ONE\
+    \ of the following:\n- \"large_increase_subsidy\": Raise elevation subsidy by 5%\n\
+    - \"small_increase_subsidy\": Raise elevation subsidy by 2.5%\n\
+    - \"maintain_subsidy\": Keep current subsidy rate unchanged\n\
+    - \"small_decrease_subsidy\": Reduce subsidy by 2.5%\n\
+    - \"large_decrease_subsidy\": Reduce subsidy by 5%\n\n### RESPONSE\
+    \ FORMAT\nRespond ONLY with a valid JSON object:\n{\n  \"decision\": \"large_increase_subsidy\
+    \ | small_increase_subsidy | maintain_subsidy | small_decrease_subsidy | large_decrease_subsidy\",\n  \"reasoning\": \"Your policy rationale\
+    \ here\"\n}\n"
+  response_format:
+    fields:
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_subsidy
+    strict_mode: false
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: large_increase_subsidy
+      aliases:
+      - LARGE_INCREASE
+      - large_increase
+      - INCREASE
+      - increase
+      - INCREASE_SUBSIDY
+      - '1'
+      - '[1]'
+      description: Increase elevation subsidy by 5%
+    - id: small_increase_subsidy
+      aliases:
+      - SMALL_INCREASE
+      - small_increase
+      - '2'
+      - '[2]'
+      description: Increase elevation subsidy by 2.5%
+    - id: maintain_subsidy
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
+      description: Maintain current subsidy rate
+    - id: small_decrease_subsidy
+      aliases:
+      - SMALL_DECREASE
+      - small_decrease
+      - '4'
+      - '[4]'
+      description: Decrease elevation subsidy by 2.5%
+    - id: large_decrease_subsidy
+      aliases:
+      - LARGE_DECREASE
+      - large_decrease
+      - DECREASE
+      - decrease
+      - DECREASE_SUBSIDY
+      - '5'
+      - '[5]'
+      description: Decrease elevation subsidy by 5%
+government:
+  description: State Government Agency (alias for nj_government).
+  llm_params:
+    num_ctx: 16384
+    num_predict: 1024
+  prompt_template_file: prompts/government.txt
+  response_format:
+    fields:
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_subsidy
+    strict_mode: false
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: large_increase_subsidy
+      aliases:
+      - LARGE_INCREASE
+      - large_increase
+      - '1'
+      - '[1]'
+    - id: small_increase_subsidy
+      aliases:
+      - SMALL_INCREASE
+      - small_increase
+      - '2'
+      - '[2]'
+    - id: maintain_subsidy
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
+    - id: small_decrease_subsidy
+      aliases:
+      - SMALL_DECREASE
+      - small_decrease
+      - '4'
+      - '[4]'
+    - id: large_decrease_subsidy
+      aliases:
+      - LARGE_DECREASE
+      - large_decrease
+      - '5'
+      - '[5]'
+fema_nfip:
+  description: FEMA NFIP — Community Rating System (CRS) Administrator
+  llm_params:
+    num_ctx: 16384
+    num_predict: 1024
+  prompt_template: "### IDENTITY\nYou are the FEMA National Flood Insurance Program\
+    \ (NFIP) Community Rating System (CRS)\nadministrator for the Passaic River Basin\
+    \ communities.\n\n### PROGRAM BACKGROUND\nThe NFIP provides federally-backed flood\
+    \ insurance. Premiums are set nationally\nunder Risk Rating 2.0 (effective 2021)\
+    \ based on individual property risk factors.\nYou CANNOT set premiums directly —\
+    \ they are determined by federal actuarial\nmethodology. However, you manage the\
+    \ Community Rating System (CRS), which\nprovides premium discounts (5-45%) to policyholders\
+    \ in communities that\nimplement floodplain management activities exceeding minimum\
+    \ NFIP requirements.\n\n### CRS CLASS SYSTEM\nCRS classes range from Class 10 (no\
+    \ discount) to Class 1 (45% discount).\nEach class improvement requires documented\
+    \ community mitigation activities:\n- Public information, mapping, regulatory measures\n\
+    - Flood damage reduction, warning systems\n- Current CRS Class discount: {crs_discount:.0%}\n\
+    \n### MARKET STATISTICS\n- Base Average Premium Rate (Risk Rating 2.0): {premium_rate:.3%}\
+    \ of coverage\n- Effective Rate After CRS Discount: {effective_rate:.3%}\n- Insured\
+    \ Households: {insured_count} of {total_households}\n- Program Loss Ratio: {loss_ratio:.2f}\
+    \ (Target: 0.60-0.80)\n- Recent Claims: {recent_claims} in past year\n- Community\
+    \ Mitigation Score: {mitigation_score}/100\n\n### POLICY OPTIONS\nChoose ONE of\
+    \ the following:\n- \"significantly_improve_crs\": Increase CRS discount by 5%\n\
+    - \"improve_crs\": Increase CRS discount by 2.5%\n\
+    - \"maintain_crs\": Keep current CRS class and discount level\n\
+    - \"reduce_crs\": Reduce CRS discount by 2.5%\n\
+    - \"significantly_reduce_crs\": Reduce CRS discount by 5%\n\n### OBJECTIVES\n1. Encourage community-level flood risk\
+    \ reduction through CRS incentives\n2. Support affordable insurance access through\
+    \ earned premium discounts\n3. Balance CRS investment costs against premium savings\
+    \ for residents\n4. Prioritize mitigation activities that reduce losses for vulnerable\
+    \ populations\n\n### RESPONSE FORMAT\nRespond ONLY with a valid JSON object:\n{\n\
+    \  \"decision\": \"significantly_improve_crs | improve_crs | maintain_crs | reduce_crs | significantly_reduce_crs\",\n  \"reasoning\":\
+    \ \"Your policy rationale here\"\n}\n"
+  response_format:
+    fields:
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_crs
+    strict_mode: false
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: significantly_improve_crs
+      aliases:
+      - SIGNIFICANTLY_IMPROVE
+      - significantly_improve
+      - sig_improve
+      - IMPROVE_CRS
+      - '1'
+      - '[1]'
+      description: Significantly improve CRS class — increase discount by 5%
+    - id: improve_crs
+      aliases:
+      - IMPROVE
+      - improve
+      - '2'
+      - '[2]'
+      description: Improve CRS class — increase discount by 2.5%
+    - id: maintain_crs
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
+      description: Maintain current CRS class and discount
+    - id: reduce_crs
+      aliases:
+      - REDUCE
+      - reduce
+      - REDUCE_CRS
+      - '4'
+      - '[4]'
+      description: Reduce CRS class — decrease discount by 2.5%
+    - id: significantly_reduce_crs
+      aliases:
+      - SIGNIFICANTLY_REDUCE
+      - significantly_reduce
+      - sig_reduce
+      - '5'
+      - '[5]'
+      description: Significantly reduce CRS class — decrease discount by 5%
+insurance:
+  description: Regional CRS Administrator (alias for fema_nfip).
+  # PR-8: HYBRID — the two situations with an obvious answer are
+  # answered by rule, and every other year goes to the model. The point
+  # of the arrangement is that the model's budget is spent on the years
+  # nobody could write a rule for; `decider_path` on each audit row says
+  # which of the two answered, so the arm is readable afterwards.
+  decider:
+    name: hybrid
+    params:
+      rules:
+      # Claims have overrun premiums: tighten, no deliberation needed.
+      # `scope: env` is load-bearing. The insurer agent carries its own
+      # `loss_ratio` in dynamic_state, refreshed AFTER the decision, so
+      # an agent-first read answers this rule with last period's value —
+      # 0.0 in year 1 — while the environment the same step publishes
+      # the live one. The rule never fired. Naming the plane fixes it and
+      # says which number the rule is about.
+      - id: loss_ratio_crisis
+        action: significantly_improve_crs
+        when:
+          loss_ratio: {gte: 1.2, scope: env}
+      # Year 1 has no loss history to reason about, so there is nothing
+      # for a model to deliberate over: hold the class and spend the
+      # call budget on the years that do have evidence.
+      - id: program_startup_hold
+        action: maintain_crs
+        when:
+          year: {lte: 1, scope: env}
+  llm_params:
+    num_ctx: 16384
+    num_predict: 1024
+  prompt_template_file: prompts/insurance.txt
+  response_format:
+    fields:
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_crs
+    strict_mode: false
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: significantly_improve_crs
+      aliases:
+      - SIGNIFICANTLY_IMPROVE
+      - significantly_improve
+      - sig_improve
+      - '1'
+      - '[1]'
+    - id: improve_crs
+      aliases:
+      - IMPROVE
+      - improve
+      - '2'
+      - '[2]'
+    - id: maintain_crs
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
+    - id: reduce_crs
+      aliases:
+      - REDUCE
+      - reduce
+      - '4'
+      - '[4]'
+    - id: significantly_reduce_crs
+      aliases:
+      - SIGNIFICANTLY_REDUCE
+      - significantly_reduce
+      - sig_reduce
+      - '5'
+      - '[5]'
+memory_config:
+  household_owner:
+    engine: symbolic
+    window_size: 5
+    top_k_significant: 3
+    consolidation_prob: 0.7
+    decay_rate: 0.1
+    sensors:
+    - path: flood_depth_m
+      name: FLOOD
+      bins:
+      - label: SAFE
+        max: 0.3
+      - label: MINOR
+        max: 1.0
+      - label: MODERATE
+        max: 2.0
+      - label: SEVERE
+        max: 99.0
+    arousal_threshold: 0.5
+    scorer: flood
+  household_renter:
+    engine: symbolic
+    window_size: 5
+    top_k_significant: 3
+  government:
+    engine: window
+    window_size: 10
+  insurance:
+    engine: window
+    window_size: 10
+retrieval_config:
+  household:
+    strategy: importance_weighted
+    emotional_weights:
+      critical: 1.0
+      major: 0.9
+      positive: 0.8
+      observation: 0.4
+    source_weights:
+      personal: 1.0
+      neighbor: 0.7
+      community: 0.5
+  institutional:
+    strategy: recency
+    top_k: 5
+social_memory_config:
+  gossip_enabled: true
+  max_gossip: 2
+  gossip_categories:
+  - decision_reasoning
+  - flood_experience
+  - adaptation_outcome
+  gossip_importance_threshold: 0.5
+governance:
+  strict:
+    household_owner:
+      identity_rules:
+      - id: elevated_already
+        precondition: elevated
+        blocked_skills:
+        - elevate_house
+        level: ERROR
+      - id: relocated_already
+        precondition: relocated
+        blocked_skills:
+        - buy_insurance
+        - elevate_house
+        - buyout_program
+        level: ERROR
+      thinking_rules:
+      # Only block do_nothing for the extreme case: VH threat + VH coping
+      # (agent perceives extreme danger AND believes they are fully capable)
+      - id: owner_inaction_high_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+        - construct: CP_LABEL
+          values:
+          - VH
+        blocked_skills:
+        - do_nothing
+        level: ERROR
+        message: With very high threat AND very high coping capacity, inaction is not justified.
+      # PMT fatalism pathway: TP=H/VH + CP=L/VL → do_nothing is ALLOWED
+      # (Grothmann & Reusswig 2006: low coping → non-protective responses)
+      - id: owner_fatalism_allowed
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills: []
+        level: INFO
+        message: High threat with low coping — fatalism or resource constraints may lead to inaction.
+      - id: owner_complex_action_low_coping
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - elevate_house
+        - buyout_program
+        level: ERROR
+        message: Complex actions are blocked due to your low confidence in your ability
+          to cope.
+      - id: high_pa_blocks_buyout
+        construct: PA_LABEL
+        conditions:
+        - construct: PA_LABEL
+          values:
+          - VH
+          - H
+        blocked_skills:
+        - buyout_program
+        level: ERROR
+        message: High place attachment makes buyout psychologically infeasible. Agents
+          with strong community ties and emotional bonds to their home rarely accept
+          voluntary relocation (Binder et al. 2015, de Vries & Fraser 2012).
+    household_renter:
+      identity_rules:
+      - id: relocated_already
+        precondition: relocated
+        blocked_skills:
+        - buy_contents_insurance
+        - relocate
+        level: ERROR
+      thinking_rules:
+      - id: renter_inaction_high_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+        - construct: CP_LABEL
+          values:
+          - H
+          - VH
+        blocked_skills:
+        - do_nothing
+        level: ERROR
+        message: With very high threat AND strong coping capacity, inaction is not justified.
+      - id: renter_inaction_moderate_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - M
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+        message: High threat with moderate coping — consider taking protective action, but inaction may reflect status quo bias or financial constraints.
+      - id: renter_fatalism_allowed
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+        message: High threat with low coping — inaction may reflect resource constraints or fatalism.
+      - id: renter_complex_action_very_low_coping
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - VL
+        blocked_skills:
+        - relocate
+        level: ERROR
+        message: Relocation is blocked due to very low confidence in your ability to cope.
+      - id: renter_relocation_low_coping_warning
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - L
+        blocked_skills:
+        - relocate
+        level: WARNING
+        message: Low coping capacity makes relocation difficult but not impossible if flood damage is severe.
+    nj_government:
+      identity_rules: []
+      thinking_rules: []
+    fema_nfip:
+      identity_rules: []
+      thinking_rules: []
+    government:
+      identity_rules: []
+      thinking_rules: []
+    insurance:
+      identity_rules: []
+      thinking_rules: []
+metadata:
+  version: v24-nj-fema-pmt-refactored
