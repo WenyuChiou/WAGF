@@ -76,6 +76,7 @@ def validate_all(
     agent_type: Optional[str] = None,
     registry: Optional["AgentTypeRegistry"] = None,
     domain: Optional[str] = None,
+    config: Optional[object] = None,
 ) -> List[ValidationResult]:
     """
     Run all validators against a skill proposal.
@@ -90,6 +91,19 @@ def validate_all(
         agent_type: Optional agent type ID for per-type validation.
         registry: Optional AgentTypeRegistry instance for type validation.
         domain: Domain identifier controlling built-in checks.
+        config: Optional ``AgentTypeConfig`` (or duck-typed equivalent) to
+            resolve ``validators.framework_aware_labels`` from. P2 (PR-6
+            review): without this, ``build_domain_validators`` below resolves
+            the flag against ``AgentTypeConfig._instance`` — the most
+            recently loaded config PROCESS-WIDE — every time it runs. A
+            mid-run ``load_agent_config(other_path)`` on an unrelated path
+            (``broker/components/context/tiered.py``,
+            ``broker/components/response_format.py``) flips that global, so
+            the SAME rule on the SAME decision could silently start reading a
+            different flag value than the ``AgentValidator`` it is meant to
+            agree with. Pass the caller's own config to pin it; ``None``
+            preserves the old (global-singleton) resolution for callers that
+            have no config object of their own.
 
     Returns:
         Combined list of ValidationResult from all validators
@@ -122,7 +136,16 @@ def validate_all(
     # decisions to PMT, government to utility, insurance to financial.
     # Pre-6T-B the agent_type was accepted by validate_all but dropped
     # before the dispatcher call — closing engineering-audit Y6.
-    validators = build_domain_validators(resolved_domain, agent_type=agent_type)
+    #
+    # P2 (PR-6 review): also plumb `config` through, for the same reason —
+    # `build_domain_validators` resolves `framework_aware_labels` from
+    # `config` when given one, and from the process-global
+    # `AgentTypeConfig._instance` otherwise. Dropping it here the same way
+    # `agent_type` used to be dropped pre-6T-B would leave every caller that
+    # DOES hold a config at the mercy of whichever config a concurrent
+    # `load_agent_config(other_path)` call loaded last.
+    validators = build_domain_validators(
+        resolved_domain, agent_type=agent_type, config=config)
 
     all_results = []
     for validator in validators:

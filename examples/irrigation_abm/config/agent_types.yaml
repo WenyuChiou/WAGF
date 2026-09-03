@@ -400,6 +400,104 @@ irrigation_farmer:
             level: WARNING,
           }
 
+    # PR-6: strict, PLUS world-grounded ERROR rules.
+    #
+    # `strict` conditions only on WSA_LABEL / ACA_LABEL — labels the model wrote
+    # in the same generation — so a farmer who reports low water scarcity is
+    # never contradicted, however dry the basin actually is. `grounded_v1` keeps
+    # those rules verbatim and adds one whose antecedent is the simulator's own
+    # drought index.
+    #
+    # Select with `--governance-mode grounded_v1`.
+    grounded_v1:
+      thinking_rules:
+        - {
+            id: high_threat_no_maintain,
+            construct: WSA_LABEL,
+            when_above: ["VH"],
+            blocked_skills: ["maintain_demand"],
+            level: WARNING,
+            message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
+          }
+        - {
+            id: low_threat_no_increase,
+            conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
+          }
+        - {
+            id: high_threat_high_cope_no_increase,
+            conditions:
+              [
+                { construct: WSA_LABEL, values: ["H", "VH"] },
+                { construct: ACA_LABEL, values: ["H", "VH"] },
+              ],
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
+          }
+        # WORLD-GROUNDED. `drought_index` is computed by the environment from
+        # precipitation and reservoir elevation and published in the environment
+        # context; no agent can write it. The rule fires when the basin is
+        # measurably short of water AND the farmer rated scarcity low AND asked
+        # for more — the world contradicting the self-report, which no rule
+        # conditioned on WSA_LABEL alone can detect.
+        #
+        # THRESHOLD 0.08 is the ~85th percentile of this synthetic basin's own
+        # drought index (126 basin-years, seeds 42/43/44: median 0.017, p85
+        # 0.083, max 0.160) — roughly the driest one year in six. It is derived
+        # from the environment's distribution, NOT chosen to make a rule fire:
+        # a "sounds severe" 0.4 would never be reached in 42 years here, and a
+        # rule that cannot fire is the exact defect this profile exists to
+        # remove. RECALIBRATE for a real basin, where the index has a different
+        # scale — copy the number and you have copied this testbed's climate.
+        #
+        # TWO OTHER THRESHOLDS READ THIS SAME VARIABLE, at very different
+        # values, and NONE of the three are cross-referenced in code — moving
+        # one does not move the others and nothing checks they stay coherent:
+        #   * learning/fql_skill_mapper.py::compute_wsa_label — `< 0.2 -> VL`,
+        #     `< 0.4 -> L`, ... Used ONLY by run_fql_baseline.py (the
+        #     reinforcement-learning baseline arm), which runs the twelve
+        #     hand-written irrigation validators directly and never reaches
+        #     these YAML thinking_rules. So this rule is NOT tautological for
+        #     the LLM arm: there, WSA_LABEL comes from the model's own reasoning
+        #     block (run_experiment.py reads it out of the parsed response), so
+        #     the two conditions below are genuinely independent. It WOULD be
+        #     near-tautological if the FQL arm were ever routed through this
+        #     path, because there wsa_label is a pure function of drought_index.
+        #   * adapters/irrigation_pack.py::appraisal_grounding_map —
+        #     `drought_index_bump_threshold: 0.6`, used by the post-hoc
+        #     appraisal-grounding audit tool, not by governance.
+        # Caveat worth stating in any write-up: the LLM arm's prompt DOES quote
+        # the drought index (irrigation_personas.build_water_situation_text), so
+        # this rule asks whether the model used what it was shown — a weaker
+        # claim than a hidden-variable contradiction.
+        # Full table: docs/guides/governance_layers.md, "Picking a threshold".
+        - id: observed_scarcity_low_wsa_increase
+          grounding: world
+          conditions:
+            - { variable: drought_index, scope: env, operator: ">", value: 0.08 }
+            - { construct: WSA_LABEL, values: ["VL", "L"] }
+          blocked_skills: ["increase_large", "increase_small"]
+          level: ERROR
+          message: "Demand increase blocked: the basin drought index is high this year, which your own low scarcity rating does not account for. Re-appraise scarcity against the water actually available, then choose."
+      identity_rules:
+        - {
+            id: water_right_cap,
+            precondition: at_allocation_cap,
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Cannot increase demand — already at maximum water right allocation.",
+          }
+        - {
+            id: minimum_utilisation_floor,
+            precondition: below_minimum_utilisation,
+            blocked_skills: ["decrease_large", "decrease_small"],
+            level: ERROR,
+            message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
+          }
+
     disabled:
       thinking_rules: []
       identity_rules: []

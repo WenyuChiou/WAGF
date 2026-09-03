@@ -177,6 +177,129 @@ def render_intervention_prompt(
     return adapter.format_retry_prompt(original_prompt, reports, max_reports=max_reports), len(reports)
 
 
+# Validator categories the soft channel can name, longest-prefix first so
+# ``thinking_construct_missing`` resolves to ``thinking`` rather than to nothing.
+# The prefix is what makes ``advise_findings`` readable: the same cell can carry a
+# Tier-2 coherence finding, a social finding and a missing-construct finding, and
+# without the category a reader cannot tell which layer produced which id.
+_SOFT_FINDING_CATEGORIES = (
+    "thinking", "identity", "social", "personal", "physical", "semantic",
+)
+
+
+def _soft_finding_category(v) -> str:
+    """The validator category a soft finding came from, or ``"unknown"``.
+
+    Reads ``metadata["category"]`` when the producer set one; otherwise infers
+    from the validator name, which is either ``AgentValidator:<tier>_<level>``
+    or a class name such as ``SocialValidator``. Never raises and never guesses
+    past the table above — an unrecognised producer is reported as ``unknown``
+    rather than filed under a plausible category, the same discipline
+    ``_infer_category`` follows for the ``rules_*_hit`` buckets.
+    """
+    meta = getattr(v, "metadata", None) or {}
+    declared = str(meta.get("category") or "").strip().lower()
+    if declared:
+        return declared
+    name = str(getattr(v, "validator_name", "") or "").strip()
+    tail = name.split(":", 1)[1] if ":" in name else name
+    tail = tail.strip().lower()
+    for known in _SOFT_FINDING_CATEGORIES:
+        if tail.startswith(known):
+            return known
+    return "unknown"
+
+
+def _soft_finding_labels(v) -> List[str]:
+    """Category-prefixed ids for one soft finding, e.g. ``thinking:low_coping_block``.
+
+    ``construct_missing`` is special-cased to ``construct_missing:<field>``: the
+    rule id is the same string for every unreported construct, so without the
+    field the cell would collapse two different findings into one id and a
+    reader could not tell which construct was missing.
+    """
+    meta = getattr(v, "metadata", None) or {}
+    hits = meta.get("rules_hit") or ([meta["rule_id"]] if meta.get("rule_id") else [])
+    category = _soft_finding_category(v)
+    out: List[str] = []
+    for h in hits:
+        if not h:
+            continue
+        rid = str(h)
+        if rid in ("construct_missing", "world_variable_missing"):
+            field = str(meta.get("field") or "").strip()
+            out.append(f"{rid}:{field}" if field else rid)
+        else:
+            out.append(f"{category}:{rid}")
+    return out
+
+
+def _is_soft_finding(v) -> bool:
+    """The shape test, WITHOUT the id requirement (C2 counts the id-less ones)."""
+    if v is None or not getattr(v, "valid", True):
+        return False
+    meta = getattr(v, "metadata", None) or {}
+    if meta.get("disposition") == "ADVISE":
+        return False
+    # Shadow mode already converted a BLOCKING result into an observe-only one
+    # (``BaseValidator._to_shadow``), and it is recorded in its own
+    # ``shadow_blocked`` column. Counting it again here would show a rule the
+    # operator asked to observe as a soft finding, and under ``feedback`` would
+    # feed a suppressed enforcement rule back to the model as advice — turning a
+    # shadow arm into a quiet advice arm with nothing in the row saying so.
+    if meta.get("shadow_blocked"):
+        return False
+    if not (getattr(v, "warnings", None) or []):
+        return False
+    return True
+
+
+def collect_soft_findings(results: Optional[List[ValidationResult]]) -> List[ValidationResult]:
+    """PR-6: the NON-BLOCKING WARNING findings of one validation pass.
+
+    This is the framework's soft rule layer as it actually exists: results with
+    ``valid=True`` and a non-empty ``warnings`` list, carrying a rule id. They
+    never block, and before PR-6 they never reached the model either, so a
+    WARNING rule could not change anything and could not be shown to have failed
+    to — which is why the "WARNING rules produce ~0% behaviour change" claim was
+    unpublishable rather than merely unsupported.
+
+    Results already demoted by :func:`demote` are EXCLUDED. Those belong to the
+    P0-1c arm machinery, which issues its own advisory call; counting them here
+    too would show one finding to the model twice and double-count it in the
+    audit row. Shadow-converted results are excluded for the same reason from
+    the other direction — they are suppressed ENFORCEMENT, not advice.
+
+    Results with NO rule id are also excluded, and counted separately by
+    :func:`count_unidentified_soft_findings`. Including them produced a row with
+    ``advise_shown=True`` and ``advise_findings=""``: an advisory call was made,
+    the model was told something, and the audit row named nothing — the exact
+    unreadable state the ``advise_shown`` column exists to prevent.
+    """
+    return [v for v in (results or []) if _is_soft_finding(v) and _soft_finding_labels(v)]
+
+
+def count_unidentified_soft_findings(results: Optional[List[ValidationResult]]) -> int:
+    """How many WARNING results carried no rule id, so could not be named.
+
+    Recorded as ``soft_findings_unidentified`` under the soft channel. A non-zero
+    count is the honest reading of a short ``advise_findings`` cell: warnings
+    fired that this channel cannot name, not that nothing warned.
+    """
+    return sum(
+        1 for v in (results or [])
+        if _is_soft_finding(v) and not _soft_finding_labels(v)
+    )
+
+
+def soft_finding_ids(results: Optional[List[ValidationResult]]) -> List[str]:
+    """Sorted, deduped category-prefixed ids — the ``advise_findings`` cell."""
+    ids = set()
+    for v in collect_soft_findings(results):
+        ids.update(_soft_finding_labels(v))
+    return sorted(ids)
+
+
 def build_intervention_reports(
     validation_results: List[ValidationResult],
     skill_proposal,
@@ -193,12 +316,19 @@ def build_intervention_reports(
     ``source="advisories"`` — the advise path. Iterates the ``warnings`` of results
     demoted by :func:`demote`, so an advisory prompt is built from exactly the
     rules the arm config advised on, and nothing else.
+
+    ``source="warnings"``   — PR-6's soft-rule path. Iterates the ``warnings`` of
+    results that were AUTHORED as WARNING (never demoted), so the same renderer
+    serves advice and enforcement and no wording can drift between them.
     """
     reports: List[InterventionReport] = []
     for v in validation_results:
         if not v:
             continue
-        if source == "advisories":
+        if source == "warnings":
+            messages = getattr(v, "warnings", None) or []
+            sev = severity or "ADVICE"
+        elif source == "advisories":
             if (getattr(v, "metadata", None) or {}).get("disposition") != "ADVISE":
                 continue
             messages = getattr(v, "warnings", None) or []

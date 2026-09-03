@@ -189,6 +189,7 @@ per retry prompt.
 | `max_reports_per_retry` | int | No | 3 | Maximum `InterventionReport` objects injected per retry |
 | `shuffle_options` | bool | No | false | Randomize skill option order per LLM call (mitigates positional bias) |
 | `domain` | string | No | (none) | Domain selector for domain-specific validator injection (e.g., `irrigation`) |
+| `advise_mode` | string | No | `off` | Soft-rule channel: `off` / `record` / `feedback`. See below. |
 
 **Example:**
 
@@ -198,6 +199,81 @@ global_config:
     max_retries: 3
     max_reports_per_retry: 3
     shuffle_options: true
+```
+
+**`advise_mode` (v0.8, PR-6)** gives WARNING-level rules a channel they did not
+have. The governance retry loop comprehends only `v.errors`, and a WARNING
+result carries an empty `errors` list by construction, so before this key a
+WARNING rule could not reach the model at all — and the audit row recorded that
+it fired without recording whether anything was done about it.
+
+| Value | Extra LLM calls | Model told? | Columns added |
+|---|---|---|---|
+| `off` (default) | 0 | no | none — byte-identical to a pre-PR-6 run |
+| `record` | 0 | no | the eleven soft-rule columns; `advise_shown` always `False` |
+| `feedback` | at most 1 per decision | yes | the same eleven, with `advise_shown=True` on decisions where the advice was rendered |
+
+The eleven are `soft_advise_mode`, `advise_findings`, `advise_shown`,
+`advise_reports_shown`, `advise_skill_before`, `advise_skill_after`,
+`advise_executed_stage`, `advise_parse_failed`,
+`advise_post_validation_invalid`, `advise_post_validation_rules` and
+`soft_findings_unidentified`. Full semantics: `docs/AUDIT_SCHEMA.md`.
+
+Under `feedback` the proposal is **never blocked** by a soft rule. The single
+advisory call is issued only when the proposal is otherwise APPROVED — with a
+hard rule already blocking, the retry loop is about to re-prompt anyway — and if
+the model's post-advice proposal would itself fail validation it is DISCARDED
+rather than retried: the pre-advice proposal executes,
+`advise_executed_stage` reads `pre`, and `advise_post_validation_invalid`
+records what happened. An unknown value raises at config load rather than
+reading as `off`, because a run with no soft-rule record and nothing saying the
+channel was requested is exactly the silent-wrong-data failure this key exists
+to avoid.
+
+Not the same key as `governance.advise` (P0-1c), which *demotes* rules authored
+as ERROR into advisories for an experiment arm. Read by
+`AgentTypeConfig.get_governance_advise_mode()`. Full semantics:
+`docs/guides/governance_layers.md`.
+
+---
+
+#### 2.1.5b global_config.validators
+
+Opt-in validator-behaviour flags. **Default OFF for byte-identity reasons.**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `framework_aware_labels` | bool | No | false | Resolve construct labels against the agent type's own registered framework alphabet, and record `construct_missing` instead of assuming a middle value. See below. |
+
+**`framework_aware_labels` (v0.8, PR-6)** fixes a genericity gap that stops at
+enforcement. Framework *registration* is generic — a domain declares
+`psychological_framework: financial` and the frameworks registry supplies
+`AGGRESSIVE -> A`, `CONSERVATIVE -> C`. Enforcement was not:
+`AgentValidator.get_label` normalised every label through a hardcoded
+`VL / L / M / H / VH` alphabet and, on a miss, truncated to two characters, so
+`AGGRESSIVE` became `"AG"`, matched nothing, and **every `financial` rule
+silently never fired**. A rule that never fires and a rule that is never
+violated leave the same audit trail, which is why this survived.
+
+With the flag on:
+
+- labels resolve against the framework's registered alphabet, on **both** sides
+  of the comparison (a rule written `values: ["AGGRESSIVE"]` matches a model
+  that answered `A`, and the reverse);
+- the two-character truncation is gone;
+- a construct the model did not report makes its rules **not fire** and records
+  a `construct_missing` WARNING finding — never a fabricated middle value. This
+  reconciles three formerly divergent behaviours (see
+  `docs/guides/governance_layers.md` §3).
+
+A five-level domain behaves identically either way. Default OFF because the
+truncation defect is load bearing for the frozen corpora. Read by
+`AgentTypeConfig.get_validators_framework_aware_labels()`.
+
+```yaml
+global_config:
+  validators:
+    framework_aware_labels: true
 ```
 
 ---
@@ -216,6 +292,7 @@ published corpus byte-identical. Turn them on for all NEW runs.
 | `initial_proposal_columns` | bool | No | false | Adds `initial_skill`, `initial_labels`, `attempt_skills` — the FIRST proposal, before the retry loop overwrote it |
 | `advise_columns` | bool | No | false | Adds the advisory-arm payload plus a per-decision `llm_calls` count |
 | `param_columns` | bool | No | false | Adds one `proposed_param_<name>` column per multi-field setpoint |
+| `grounding_columns` | bool | No | false | Forces `rules_world_grounded` + `rules_self_report` on. Already ON automatically whenever the active profile declares a world-grounded rule, so set this only to get the columns in a self-report-only profile. |
 
 **`corrected_status_columns` (v0.7)** is the one to set if you are starting a
 new study. Without it the audit CSV reports the BLOCKED proposal as if it were
@@ -614,6 +691,18 @@ governance:
       thinking_rules: []
 ```
 
+The profile is chosen per run by the `GOVERNANCE_PROFILE` environment variable,
+which `ExperimentBuilder.with_governance()` sets from the runner's
+`--governance-mode`. A profile name the config does not declare falls back to
+`default` **silently** unless `global_config.governance.require_profile: true`
+is set — turn it on for any sweep, or a typo'd arm name runs the wrong rule set
+and the run still looks healthy.
+
+**`grounded_v1`** (v0.8, PR-6) ships for both reference domains. It repeats the
+`strict` rules verbatim and adds one world-grounded ERROR rule, so a
+`strict`-versus-`grounded_v1` comparison isolates that one rule. Select it with
+`--governance-mode grounded_v1`. See `docs/guides/governance_layers.md`.
+
 #### 2.4.2 thinking_rules
 
 Thinking rules check LLM-reported behavioral construct labels (appraisals)
@@ -630,16 +719,68 @@ There are two syntax variants:
 | `blocked_skills` | list[string] | Yes | -- | Skill IDs blocked when the rule triggers |
 | `level` | string | No | `"ERROR"` | Enforcement level. Valid values: `ERROR` (block + retry), `WARNING` (log only) |
 | `message` | string | No | "" | Human-readable explanation included in `InterventionReport` |
+| `grounding` | string | No | (inferred) | `world` or `self_report`. Override the inference. See "Grounding" below. |
 
-**Condition sub-fields** (`thinking_rules[].conditions[]`):
+**Condition sub-fields** (`thinking_rules[].conditions[]`) -- a condition reads
+EITHER a construct label the model emitted, OR a world variable it cannot author:
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `construct` | string | Yes | -- | Construct label key (e.g., `TP_LABEL`, `WSA_LABEL`) |
-| `values` | list[string] | Yes | -- | Construct values that satisfy this condition (e.g., `["H", "VH"]`) |
+| `construct` | string | one of | -- | Construct label key (e.g., `TP_LABEL`, `WSA_LABEL`). Self-report. |
+| `variable` | string | one of | -- | World-state variable name published by the environment or the agent's state tier. |
+| `scope` | string | No | `auto` | Where to look up `variable`: `env`, `state`, `social`, `context`, or `auto` (env, then agent state, then the flattened context). Any other value is coerced to `auto` with a warning, and `validate_prompt` rejects it. |
+| `values` | list | with `in` / `not_in` | -- | Values that satisfy this condition (e.g., `["H", "VH"]`) |
+| `value` | scalar | with a comparison | -- | Right-hand side for `==`, `!=`, `<`, `>`, `<=`, `>=` |
+| `operator` | string | No | `in` for a construct, `==` for a variable | `in`, `not_in`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `is_true`, `is_false` |
+
+`is_true` / `is_false` test IDENTITY against Python's `True` / `False`, not
+truthiness: `1.0`, `"true"` and a numpy boolean all fail them. That is
+deliberate — `1.0 == True` is true in Python, so an `==`-based flag test would
+start matching a magnitude that happens to equal 1, and the audit row would show
+the rule firing with nothing in it to explain why. Publish a real `bool` from
+the environment adapter, or write `operator: "==", value: true`, which coerces.
 
 All conditions are evaluated with AND logic -- every condition must match for the
 rule to fire.
+
+**Grounding.** A rule is `world` when at least one condition reads a `variable`
+(or uses the `expression` / `precondition` / `social` dataclass shape), and
+`self_report` otherwise; an explicit `grounding:` key wins. An `identity_rules`
+entry's top-level `precondition:` also counts as world — those test simulator
+state the model cannot author. Only a world-grounded rule can catch a decision
+the *world* contradicts; a rule conditioned only on labels the model just wrote
+checks one JSON object against itself. The audit row splits the rules that fired
+into `rules_world_grounded` and `rules_self_report` accordingly. See
+`docs/guides/governance_layers.md`.
+
+A rule whose `variable` the environment did not publish does **not** fire, and
+records a `world_variable_missing` WARNING naming the rule and the variable, so
+"the world had nothing to object to" and "the rule could not read the world" are
+different rows. When that is true of every grounded rule on every row,
+`run_integrity.json` flags the run.
+
+**Always write `scope:` on a world condition.** The broker builds its validation
+context as `{"env_state": env, **agent_state, **env}`, so a name carried by both
+planes resolves to the env copy and the agent's own value is unreachable.
+A variable that cannot be read makes the rule **not fire** — the safe direction:
+blocking an action on evidence nobody has is worse than missing a violation.
+
+**Example (world-grounded):**
+
+```yaml
+- id: observed_event_low_appraisal_inaction
+  grounding: world
+  conditions:
+    - { variable: hazard_observed, scope: env, operator: is_true }
+    - { construct: PRIMARY_LABEL, values: ["VL", "L"] }
+  blocked_skills: ["stand_by"]
+  level: ERROR
+  message: "The event happened and your appraisal does not account for it."
+```
+
+Only variables the domain actually publishes are visible. To ground on
+something new, publish it from the domain's environment first -- never add a
+domain name to `broker/` (Invariant 5, and the genericity test enforces it).
 
 **Legacy syntax (single-construct):**
 
@@ -728,9 +869,16 @@ The `broker/governance/rule_types.py` module implements a more expressive
 | Condition Type | Context Key | Operators | Description |
 |----------------|-------------|-----------|-------------|
 | `construct` | `reasoning` | `in`, `==`, `!=`, `>`, `<`, `>=`, `<=` | Behavioral construct label check |
-| `precondition` | `state` | `==`, `!=` | Boolean/value state field check |
-| `expression` | `state` | `>`, `<`, `>=`, `<=`, `==`, `!=` | Numeric expression on state fields |
+| `precondition` | `env_state`, then `state` | `==`, `!=` | Boolean/value state field check |
+| `expression` | `env_state`, then `state` | `>`, `<`, `>=`, `<=`, `==`, `!=` | Numeric expression on world/state fields |
 | `social` | `social_context` | `>`, `<`, `>=`, `<=`, `in` | Social context field check (e.g., adoption rate) |
+
+`precondition` and `expression` search the environment plane before the agent
+state plane (PR-6). Before that they read `context["state"]` only, so a rule
+naming a variable the simulator publishes in `env_state` — the broker's declared
+source of truth for world state — resolved to `None` and silently never fired.
+A value that is still not found leaves the condition unsatisfied, which is the
+one missing-value rule all three condition evaluators share.
 
 **Valid operators for all condition types:**
 

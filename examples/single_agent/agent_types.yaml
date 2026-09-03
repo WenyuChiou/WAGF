@@ -427,6 +427,71 @@ household:
             level: ERROR,
           }
 
+    # PR-6: strict, PLUS world-grounded ERROR rules.
+    #
+    # Every rule in `strict` conditions only on a label the model emitted in the
+    # same generation, so the rule checks one JSON object against itself: an
+    # agent that reports low threat is never contradicted, however often its
+    # parcel actually floods. `grounded_v1` keeps those rules verbatim — it is
+    # additive, not a replacement — and adds one whose antecedent is simulator
+    # state the model cannot author.
+    #
+    # Select with `--governance-mode grounded_v1`.
+    grounded_v1:
+      thinking_rules:
+        - {
+            id: extreme_threat_block,
+            construct: TP_LABEL,
+            when_above: ["H", "VH"],
+            blocked_skills: ["do_nothing"],
+            level: ERROR,
+          }
+        - {
+            id: low_coping_block,
+            construct: CP_LABEL,
+            conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["elevate_house", "relocate"],
+            level: WARNING,
+            message: "Low coping appraisal: agent perceives low self-efficacy for complex actions.",
+          }
+        - {
+            id: relocation_threat_low,
+            conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["relocate"],
+            level: ERROR,
+            message: "Relocation blocked: Threat level is too low to justify abandoning property.",
+          }
+        - {
+            id: elevation_threat_low,
+            conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
+          }
+        # WORLD-GROUNDED. The first condition reads `flood_event`, which the
+        # simulation publishes in the environment context each year; the agent
+        # has no way to write it. The rule therefore fires exactly when the
+        # world contradicts the self-report — a flood happened AND the agent
+        # rated the threat low AND chose to do nothing about it. `scope: env`
+        # is explicit because the broker flattens agent state and environment
+        # into one dict, and a name carried by both would otherwise resolve to
+        # whichever won that merge.
+        - id: observed_flood_low_threat_inaction
+          grounding: world
+          conditions:
+            - { variable: flood_event, scope: env, operator: is_true }
+            - { construct: TP_LABEL, values: ["VL", "L"] }
+          blocked_skills: ["do_nothing"]
+          level: ERROR
+          message: "Inaction blocked: a flood occurred this year, which your own low threat rating does not account for. Re-appraise the threat against what happened, then choose."
+      identity_rules:
+        - {
+            id: elevation_block,
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+          }
+
     disabled:
       thinking_rules: []
       identity_rules: []

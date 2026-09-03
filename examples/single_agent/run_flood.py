@@ -911,6 +911,17 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     agent_config_path = base_path / "agent_types.yaml"
     with open(agent_config_path, 'r', encoding='utf-8') as f:
         agent_cfg_data = yaml.safe_load(f)
+        # PR-6 review P1-e: refuse a profile this config does not declare.
+        # `--governance-mode`'s `choices=` list guards the in-tree config only;
+        # a `--config-root` campaign points at a COPY, and a copy that predates
+        # (or typo'd) an arm resolves to `default` silently — the whole batch
+        # then runs the wrong rule set and every artifact looks healthy. Checked
+        # here rather than in the config layer because
+        # `global_config.governance.require_profile` is part of the frozen
+        # configs' contents and turning it on would change them.
+        from broker.utils.agent_config import assert_governance_profile_declared
+        assert_governance_profile_declared(
+            agent_cfg_data, governance_mode, "household", agent_config_path)
         household_cfg = agent_cfg_data.get('household', {})
         # Load prompt from external file if specified, otherwise fallback to inline
         prompt_file = household_cfg.get('prompt_template_file', '')
@@ -1391,7 +1402,11 @@ if __name__ == "__main__":
                         help="Isolated directory holding agent_types.yaml + skill_registry.yaml "
                              "(+ prompts). Lets a campaign run new arms without editing the frozen "
                              "paper configs. Default: alongside this script.")
-    parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled", "strict_no_etb"], help="Governance strictness profile")
+    # `grounded_v1` (PR-6) is strict PLUS a world-grounded ERROR rule; see
+    # docs/guides/governance_layers.md. Kept as an explicit choice rather than a
+    # free string so a typo'd profile fails at the CLI instead of silently
+    # falling back to `default` and running a whole batch on the wrong rule set.
+    parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled", "strict_no_etb", "grounded_v1"], help="Governance strictness profile")
     # LLM sampling parameters (None = use Ollama default)
     parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
     parser.add_argument("--top-p", type=float, default=None, help="Top-p sampling (e.g., 0.9, 0.95). None=Ollama default")

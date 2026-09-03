@@ -111,13 +111,20 @@ class RuleCondition:
             reasoning = context.get("reasoning", {})
             raw = reasoning.get(self.field)
             return raw.upper().strip() if isinstance(raw, str) else raw
-        elif self.type == "precondition":
-            # Look in state dict
+        elif self.type in ("precondition", "expression"):
+            # PR-6: world-state planes, env first. Pre-PR-6 both branches read
+            # ONLY ``context["state"]``, so a precondition or expression naming
+            # a variable the simulator publishes in ``env_state`` — the broker's
+            # declared source of truth for world state — resolved to None and
+            # the rule silently never fired. A missing variable still returns
+            # None, which ``evaluate`` turns into "does not fire": the one
+            # missing-value rule shared by all three condition evaluators.
+            env = context.get("env_state")
+            env = env if isinstance(env, dict) else {}
             state = context.get("state", {})
-            return state.get(self.field)
-        elif self.type == "expression":
-            # Look in state dict for numeric values
-            state = context.get("state", {})
+            state = state if isinstance(state, dict) else {}
+            if self.field in env:
+                return env[self.field]
             return state.get(self.field)
         elif self.type == "social":
             # Look in social_context dict

@@ -48,7 +48,10 @@ from ..utils.model_adapter import ModelAdapter
 from ..validators import AgentValidator
 from ..components.memory.engine import MemoryEngine
 from ..components.context.builder import ContextBuilder, BaseAgentContextBuilder
-from ..utils.agent_config import GovernanceAuditor, load_agent_config
+from ..utils.agent_config import (
+    GovernanceAuditor, load_agent_config,
+    resolve_framework_aware_labels as _resolve_framework_aware_labels,
+)
 from ..components.analytics.interaction import InteractionHub
 from ..components.analytics.audit import AuditWriter
 from ..components.governance.retriever import SkillRetriever
@@ -222,6 +225,22 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_ore = getattr(self.config, "get_governance_on_retry_exhausted", None)
         _ore = _get_ore() if callable(_get_ore) else "default"
         self._on_retry_exhausted = _ore if _ore in ("default", "keep_proposal") else "default"
+        # PR-6: the SOFT-RULE channel (off | record | feedback). Distinct from
+        # `_advise_mode` above, which is the P0-1c arm spec that DEMOTES rules
+        # authored as ERROR. This one governs rules already authored as WARNING.
+        # Coerced to a known string for the same MagicMock reason as the rest.
+        _get_soft = getattr(self.config, "get_governance_advise_mode", None)
+        _soft = _get_soft() if callable(_get_soft) else "off"
+        self._soft_advise_mode = _soft if _soft in ("off", "record", "feedback") else "off"
+        # PR-6 review P1-b: FRAMEWORK-AWARE LABELS parity. Two evaluators read
+        # this flag from two places — AgentValidator from the config object it
+        # was constructed with, the ThinkingValidator from whatever the
+        # dispatcher resolved — and before this check they could disagree
+        # silently, so one evaluator recorded a `construct_missing` WARNING for a
+        # construct the other fabricated as "M" and fired on. State the resolved
+        # value once per engine and say so loudly when the two do not match.
+        self._framework_aware_labels = _resolve_framework_aware_labels(self.config)
+        self._log_framework_aware_label_parity()
         # PR-3: opt-in corrected status/truth columns. Resolved once, coerced to
         # a real bool for the same reason as _count_llm_calls above.
         self._corrected_status_columns = _corrected_status_flag(self.config)
@@ -244,6 +263,15 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # here, next to the counter above, because engine construction is the
         # one point every run passes through exactly once.
         _reset_uncategorised_rules()
+        # PR-6 P1-a: same reasoning for the world-rule evaluability tally — a
+        # seed sweep in one interpreter would otherwise carry the first run's
+        # unevaluable-row count into the second run's run_integrity.json.
+        try:
+            from broker.core.run_integrity import reset_world_rule_evaluability
+
+            reset_world_rule_evaluability()
+        except Exception as exc:  # noqa: BLE001 — side-artifact tally only
+            logger.debug(f"[Integrity] world-rule tally reset skipped: {exc}")
         
         self.stats = {
             "total": 0,
@@ -254,7 +282,47 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         }
         self.auditor = GovernanceAuditor()
 
-    
+    def _log_framework_aware_label_parity(self) -> None:
+        """PR-6 P1-b: state the resolved flag once, and name any disagreement.
+
+        Two evaluators answer "the model did not report this construct"
+        differently unless they read the same flag: ``AgentValidator`` records a
+        ``construct_missing`` WARNING and does not fire; ``ThinkingValidator``
+        with the flag OFF fabricates ``"M"`` and fires. Half-wiring the flag
+        therefore does not produce a half-fixed run — it produces a run where
+        the two disagree about the SAME rule on the SAME decision, with nothing
+        in the audit trail saying so. Log-only: this must never stop an engine
+        from being built, and the mismatch is a configuration problem the
+        operator has to see, not an exception mid-batch.
+        """
+        try:
+            engine_value = bool(self._framework_aware_labels)
+            dispatch_value = _resolve_framework_aware_labels(None)
+            seen = {"engine/AgentValidator": engine_value,
+                    "dispatch/ThinkingValidator": dispatch_value}
+            for v in getattr(self, "validators", None) or []:
+                if hasattr(v, "framework_aware_labels"):
+                    seen[f"validator:{type(v).__name__}"] = bool(
+                        v.framework_aware_labels)
+            if len(set(seen.values())) > 1:
+                logger.warning(
+                    "[Validators] validators.framework_aware_labels DISAGREES "
+                    "across evaluators: %s. The two condition evaluators then "
+                    "answer a missing construct differently on the same "
+                    "decision — one records construct_missing and does not "
+                    "fire, the other assumes 'M' and fires. Load one config, or "
+                    "pass the flag explicitly to build_domain_validators().",
+                    seen,
+                )
+            elif engine_value:
+                logger.info(
+                    "[Validators] framework_aware_labels=True (labels resolve "
+                    "against the agent type's registered alphabet; a missing "
+                    "construct records construct_missing and never assumes a "
+                    "middle value)")
+        except Exception as exc:  # noqa: BLE001 — a log must not break construction
+            logger.debug(f"[Validators] framework-aware parity check skipped: {exc}")
+
     def process_step(
         self,
         agent_id: str,
@@ -479,6 +547,26 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             )
         )
 
+        # PR-6: the SOFT-RULE channel. No-op (returns its inputs and an EMPTY info
+        # dict, zero LLM calls) unless a config sets
+        # global_config.governance.advise_mode. Runs after the P0-1c advisory pass
+        # so `record` reports the findings of whatever proposal is actually going
+        # into the retry loop, and before that loop so `feedback`'s advice reaches
+        # the model while the decision is still open.
+        skill_proposal, raw_output, validation_results, all_valid, soft_advise_info = (
+            self._soft_rule_pass(
+                all_valid=all_valid, skill_proposal=skill_proposal,
+                validation_results=validation_results,
+                all_validation_history=all_validation_history,
+                validation_context=validation_context,
+                prompt=prompt, llm_invoke=llm_invoke, context=context,
+                agent_id=agent_id, agent_type=agent_type,
+                env_context=env_context, raw_output=raw_output,
+                total_llm_stats=total_llm_stats,
+                attempt_skills=attempt_skills,
+            )
+        )
+
         # Governance retry loop
         skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count = (
             self._governance_retry_loop(
@@ -680,6 +768,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 initial_labels=initial_labels,
                 attempt_skills=attempt_skills,
                 advise_info=advise_info,
+                soft_advise_info=soft_advise_info,
             )
 
         return SkillBrokerResult(

@@ -514,6 +514,17 @@ def main():
 
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
+    # PR-6 review P1-e: refuse a profile this config does not declare. This
+    # runner takes `--governance-mode` as a FREE STRING (any custom profile the
+    # YAML defines), so there is no `choices=` list to catch a typo, and
+    # `get_thinking_rules` falls back to `default` in silence — a whole sweep
+    # runs the wrong rule set and every artifact looks healthy. Checked in the
+    # runner rather than by turning on
+    # `global_config.governance.require_profile`, which lives inside the frozen
+    # config and would change its contents.
+    from broker.utils.agent_config import assert_governance_profile_declared
+    assert_governance_profile_declared(
+        cfg_data, args.governance_mode, "irrigation_farmer", agent_config_path)
     global_cfg = cfg_data.get("global_config", {})
 
     # --- Optional: strip magnitude_pct from schema to reduce context size ---
@@ -778,7 +789,10 @@ def parse_args():
                         "run new arms without editing the frozen paper configs. Default: in-tree.")
     p.add_argument("--governance-mode", type=str, default="strict",
                    help="Governance profile name from agent_types.yaml "
-                        "(strict | disabled | any custom profile defined there)")
+                        "(strict | relaxed | grounded_v1 | disabled | any custom "
+                        "profile defined there). A name the config does not "
+                        "declare is REFUSED at startup rather than falling back "
+                        "to 'default' silently.")
     return p.parse_args()
 
 
