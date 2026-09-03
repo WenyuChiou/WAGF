@@ -51,6 +51,7 @@ Phase 6R-D-5 mock-LLM ``broker.tools.compare_audit_csv`` smoke.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Set
 
 from broker.components.memory.content_types import MemoryContentType
@@ -69,6 +70,8 @@ from examples.governed_flood.adapters.flood_perception import (
     PERCENTAGE_FIELDS,
     PERCEPTION_DESCRIPTORS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -735,6 +738,36 @@ class FloodSetupMixin:
             "years_remaining", "years_since_last_flood",
             "years_since_severe_flood", "years_to_depletion",
         }
+
+    def decider_factories(self):
+        """PR-8: the flood domain's own non-LLM household decider.
+
+        Declaring ``decider: flood_household_parametric`` on an agent
+        type in ``ma_agent_types_mixed_population.yaml`` routes that
+        type through the calibrated logistic in
+        ``examples/multi_agent/flood/parametric/household_decider.py``
+        instead of a model — same context build, same validators, same
+        retry loop, same audit row. Nothing about it lives in
+        ``broker/``: base rates and PMT slopes are flood science, and
+        the generic namespace stays free of them.
+
+        Imported lazily. A module-level import would make
+        ``examples.governed_flood`` — which the single-agent flood
+        example and several tests import — depend on the multi-agent
+        tree, and every one of them would pay for a decider they never
+        use.
+        """
+        try:
+            from examples.multi_agent.flood.parametric.household_decider import (
+                make_decider_factory,
+            )
+        except Exception as exc:  # noqa: BLE001 — a missing example is not fatal
+            logger.debug(
+                "[FloodPack] household decider unavailable (%s); "
+                "'flood_household_parametric' will not be registered.", exc,
+            )
+            return {}
+        return {"flood_household_parametric": make_decider_factory()}
 
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
         """Reproduces the Passaic-specific text in ``providers.py:706-712``.

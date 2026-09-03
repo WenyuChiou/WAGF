@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from broker.utils.logging import logger
 
@@ -74,6 +74,130 @@ def reset_world_rule_evaluability() -> None:
     with _WORLD_EVALUABILITY_LOCK:
         _WORLD_GROUNDED_ROWS = 0
         _WORLD_UNEVALUABLE_ROWS = 0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# PR-8: rows per decider
+# ──────────────────────────────────────────────────────────────────────
+# A mixed-population run is a claim about composition: so many agents
+# decided by rule, so many by a model. The claim is checkable only if the
+# run says how many rows each actually produced — a config can declare a
+# rule-based arm that, because of an agent-type name that never matched,
+# contributed zero rows, and the CSV of that run looks exactly like a
+# correctly-composed one until someone groups by `decider` and finds a
+# category missing.
+#
+# Counted per audit ROW from the same place the decider columns are
+# computed, so the census and the columns can never disagree. Same lock
+# rationale as the tally above: rows are built concurrently at workers > 1.
+_DECIDER_ROWS_LOCK = threading.Lock()
+_DECIDER_ROWS: Dict[str, int] = {}
+# Rows whose decider fell back to its declared `default_action` because no
+# rule matched, and rows written by an aborted-step sentinel. Both are
+# subsets of _DECIDER_ROWS, kept apart because both are ways for an arm to
+# produce a full row count while producing no rule-driven decision at all.
+_RULE_DEFAULT_ROWS: Dict[str, int] = {}
+_DECIDER_ABORTED_ROWS: Dict[str, int] = {}
+# Rule ids that fired, per agent type. A firing is a DECISION, not a row:
+# a governance retry re-walks the table and counts again. Reported so a
+# table's shape is checkable against the artifact rather than against the
+# config that was supposed to produce it.
+_RULE_FIRINGS: Dict[str, Dict[str, int]] = {}
+# Rule fields nothing in scope carried, per agent type. Each one is a
+# condition that can never hold, so the rule can never fire.
+_RULE_FIELD_UNRESOLVED: Dict[str, Dict[str, int]] = {}
+# Decider names the CONFIG declared, recorded at engine construction. The
+# census can only see arms that produced a row; this is how it knows about
+# the arm that produced none.
+_DECLARED_DECIDERS: List[str] = []
+
+
+def note_decider_row(decider: str, path: Optional[str] = None) -> None:
+    """Record one audit row produced by ``decider``. Never raises.
+
+    ``path`` is the row's ``decider_path``, so the sub-censuses below are
+    incremented from the SAME call that increments the main one and the
+    three cannot drift apart.
+    """
+    name = str(decider or "llm")
+    key = str(path or "")
+    with _DECIDER_ROWS_LOCK:
+        _DECIDER_ROWS[name] = _DECIDER_ROWS.get(name, 0) + 1
+        if key == "rule_default":
+            _RULE_DEFAULT_ROWS[name] = _RULE_DEFAULT_ROWS.get(name, 0) + 1
+        elif key == "aborted":
+            _DECIDER_ABORTED_ROWS[name] = _DECIDER_ABORTED_ROWS.get(name, 0) + 1
+
+
+def note_rule_firing(agent_type: str, rule_id: str) -> None:
+    """Record one firing of one rule id, for the rule-level census."""
+    atype, rid = str(agent_type or "?"), str(rule_id or "?")
+    with _DECIDER_ROWS_LOCK:
+        per_type = _RULE_FIRINGS.setdefault(atype, {})
+        per_type[rid] = per_type.get(rid, 0) + 1
+
+
+def note_rule_field_unresolved(agent_type: str, field_name: str) -> None:
+    """Record one evaluation of a rule field nothing in scope carried."""
+    atype, fname = str(agent_type or "?"), str(field_name)
+    with _DECIDER_ROWS_LOCK:
+        per_type = _RULE_FIELD_UNRESOLVED.setdefault(atype, {})
+        per_type[fname] = per_type.get(fname, 0) + 1
+
+
+def set_declared_deciders(names) -> None:
+    """Record the decider names the active config declares."""
+    with _DECIDER_ROWS_LOCK:
+        _DECLARED_DECIDERS[:] = sorted({str(n) for n in (names or [])})
+
+
+def get_declared_deciders() -> List[str]:
+    with _DECIDER_ROWS_LOCK:
+        return list(_DECLARED_DECIDERS)
+
+
+def get_decider_row_counts() -> Dict[str, int]:
+    """The per-decider census, for ``run_integrity.json``."""
+    with _DECIDER_ROWS_LOCK:
+        return dict(sorted(_DECIDER_ROWS.items()))
+
+
+def get_rule_default_row_counts() -> Dict[str, int]:
+    with _DECIDER_ROWS_LOCK:
+        return dict(sorted(_RULE_DEFAULT_ROWS.items()))
+
+
+def get_decider_aborted_row_counts() -> Dict[str, int]:
+    with _DECIDER_ROWS_LOCK:
+        return dict(sorted(_DECIDER_ABORTED_ROWS.items()))
+
+
+def get_rule_firings() -> Dict[str, Dict[str, int]]:
+    with _DECIDER_ROWS_LOCK:
+        return {k: dict(sorted(v.items())) for k, v in sorted(_RULE_FIRINGS.items())}
+
+
+def get_rule_field_unresolved() -> Dict[str, Dict[str, int]]:
+    with _DECIDER_ROWS_LOCK:
+        return {k: dict(sorted(v.items()))
+                for k, v in sorted(_RULE_FIELD_UNRESOLVED.items())}
+
+
+def reset_decider_row_counts() -> None:
+    """Clear every decider census. From ``SkillBrokerEngine.__init__`` and tests."""
+    with _DECIDER_ROWS_LOCK:
+        _DECIDER_ROWS.clear()
+        _RULE_DEFAULT_ROWS.clear()
+        _DECIDER_ABORTED_ROWS.clear()
+        _RULE_FIRINGS.clear()
+        _RULE_FIELD_UNRESOLVED.clear()
+        _DECLARED_DECIDERS.clear()
+    try:
+        from broker.agents.deciders import reset_unresolved_field_warnings
+
+        reset_unresolved_field_warnings()
+    except Exception as exc:  # noqa: BLE001 — a log memo, never fatal
+        logger.debug(f"[Integrity] unresolved-field memo reset skipped: {exc}")
 
 # Sentinel for ``reflection_engine``: distinguishes "the caller did not pass a
 # reflection engine object" (leave unset) from "reflection exists and is None".
@@ -380,6 +504,114 @@ def record_run_integrity(
             "world_grounded_rows=%s.",
             world_grounded_coverage_gap, _audit_rows, _audit_aborted_rows, _wg_rows,
         )
+
+    # PR-8: how many audit rows each decider produced. Recorded only when
+    # the decider columns are on, so a plain all-LLM run leaves the key
+    # absent rather than asserting a one-entry census that says nothing.
+    decider_rows = get_decider_row_counts()
+    declared_deciders = get_declared_deciders()
+    if decider_rows or declared_deciders:
+        audit["decider_rows"] = decider_rows
+        audit["decider_rows_total"] = sum(decider_rows.values())
+        audit["decider_declared"] = declared_deciders
+        _seen = sorted(decider_rows)
+        if len(_seen) == 1 and _seen[0] != "llm":
+            logger.warning(
+                "[Integrity] every audit row was produced by '%s' — this run "
+                "declared a non-default decider but holds no mixed population, "
+                "so nothing in it can be compared against a model-driven "
+                "agent. Check that the agent types you meant to leave on 'llm' "
+                "are named as they are in the config.",
+                _seen[0],
+            )
+
+        # P1-b: an arm that produced NO rows. The warning above only fires
+        # when exactly one arm produced rows, so a config with three
+        # declared arms and one silently empty passed it — and a CSV
+        # missing one `decider` category looks exactly like a correct one
+        # until somebody groups by it. A domain that REPLACED a built-in
+        # writes `<name>@<domain>` in the column, so compare on the bare
+        # name (see DeciderRegistry.audit_label).
+        _seen_bare = {k.split("@", 1)[0] for k in decider_rows}
+        zero_row_arms = sorted(set(declared_deciders) - _seen_bare)
+        audit["decider_arms_with_zero_rows"] = zero_row_arms
+        if zero_row_arms:
+            logger.warning(
+                "[Integrity] the config declared decider(s) %s and NOT ONE "
+                "audit row came from them. The arm is missing from this run, "
+                "not merely small: check that the agent types naming those "
+                "deciders exist, are populated, and are spelled as the loader "
+                "spells them. Rows seen: %s.",
+                zero_row_arms, decider_rows,
+            )
+
+        # P1-b (code-reviewer focus 3): does the census account for every
+        # row the CSV holds? Compared as TOTALS — decider_rows_total
+        # against audit_rows — rather than each side's completed-row
+        # remainder after subtracting its own aborted count.
+        #
+        # The subtraction used to false-positive with
+        # audit.corrected_status_columns OFF: the F1 exception sentinel's
+        # CSV `status` cell then reads UNKNOWN, not ABORTED_EXCEPTION
+        # (docs/AUDIT_SCHEMA.md), because `approved_skill` — the column
+        # `trace_to_csv_row` actually reads `status` off — is only
+        # populated for that sentinel under the flag (see
+        # `ExperimentRunner._write_aborted_trace`). So `audit_aborted_rows`
+        # (read from that CSV column) MISSES the row, while
+        # `decider_aborted_rows` (recorded at write time by
+        # `_decider_audit_extra(..., path="aborted")`, gated on the
+        # decider-columns flag only — never on corrected_status_columns)
+        # still counts it. Subtracting each side's aborted count then
+        # left the CSV side one row HIGHER than the census side for every
+        # such run, and warned that some path skipped the decider column
+        # builder — when the row HAD gone through it; only the CSV
+        # status-column detector was blind to it.
+        #
+        # `decider_rows_total` and `audit_rows` are both un-subtracted
+        # totals: every row this run wrote, both sentinel classes
+        # included, land in each one the same way regardless of the
+        # corrected_status_columns flag — so comparing them sidesteps
+        # that flag-dependent blind spot entirely.
+        aborted_by_decider = get_decider_aborted_row_counts()
+        audit["decider_aborted_rows"] = aborted_by_decider
+        if isinstance(_audit_rows, int):
+            _decider_rows_total = audit["decider_rows_total"]
+            if _decider_rows_total != _audit_rows:
+                logger.warning(
+                    "[Integrity] the per-decider census counted %d row(s) "
+                    "total and the audit CSV holds %d — some path wrote a "
+                    "row without going through the decider column builder, "
+                    "so `decider_rows` under-reports whichever arm produced "
+                    "them. audit_rows=%s decider_rows=%s.",
+                    _decider_rows_total, _audit_rows, _audit_rows, decider_rows,
+                )
+
+        # P1-a: an arm whose every row was its `default_action` fall-through
+        # is a CONSTANT, whatever its rule table says. Reported per decider
+        # and warned about when it is the whole arm.
+        rule_default_rows = get_rule_default_row_counts()
+        if rule_default_rows:
+            audit["rule_default_rows"] = rule_default_rows
+            for _name, _count in sorted(rule_default_rows.items()):
+                if _count and _count == decider_rows.get(_name):
+                    logger.warning(
+                        "[Integrity] every one of '%s''s %d row(s) fell "
+                        "through to its declared default_action — no rule in "
+                        "its table ever matched, so this arm is a constant "
+                        "and not a rule-based model. Check "
+                        "`rule_field_unresolved` below: the usual cause is a "
+                        "field name the agents do not carry, which makes "
+                        "every condition about it permanently false.",
+                        _name, _count,
+                    )
+
+        # P1-a: the fields that made it so.
+        unresolved = get_rule_field_unresolved()
+        if unresolved:
+            audit["rule_field_unresolved"] = unresolved
+        firings = get_rule_firings()
+        if firings:
+            audit["rule_firings"] = firings
 
     if extra:
         audit.update(extra)

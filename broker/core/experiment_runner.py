@@ -160,6 +160,13 @@ class ExperimentRunner:
         # Cache for llm_invoke functions per agent type
         self._llm_cache = {}
 
+        # PR-8: per-agent-type decider declarations, read once from config.
+        # The CALLABLE is not cached for non-default deciders — see
+        # get_decider — only the declaration is.
+        self._decider_spec_cache = {}
+        self._decider_factory_cache = {}
+        self._domain_deciders_registered = False
+
         # [Efficiency Hub] Cognitive Caching for decision reuse — opt-in (F4).
         # None = disabled: hash/get/put are skipped (all side-effect-free).
         # The early context build itself stays UNCONDITIONAL — universal-engine
@@ -231,6 +238,229 @@ class ExperimentRunner:
             )
         return self._llm_cache[agent_type]
 
+    # ------------------------------------------------------------------
+    # PR-8: deciders — get_llm_invoke generalised to "whatever decides"
+    # ------------------------------------------------------------------
+
+    def get_decider_spec(self, agent_type: str):
+        """The ``decider:`` this agent type declares, defaulting to ``llm``.
+
+        Cached per type: the answer comes from config and cannot change
+        during a run, and it is consulted once per agent per step.
+        """
+        # getattr, not self._decider_spec_cache: several tests (and the
+        # audit-conservation harness) build a runner with
+        # ``ExperimentRunner.__new__`` and never run __init__, and a
+        # provenance cache is not a reason for those to stop working.
+        cache = getattr(self, "_decider_spec_cache", None)
+        if cache is None:
+            cache = {}
+            self._decider_spec_cache = cache
+        cached = cache.get(agent_type)
+        if cached is not None:
+            return cached
+        from broker.agents.deciders import DEFAULT_DECIDER_SPEC
+        spec = DEFAULT_DECIDER_SPEC
+        config = getattr(getattr(self, "broker", None), "config", None)
+        getter = getattr(config, "get_decider", None) if config else None
+        if callable(getter):
+            spec = getter(agent_type)
+        cache[agent_type] = spec
+        return spec
+
+    def get_decider(
+        self,
+        agent_type: str,
+        *,
+        agent: Any = None,
+        agent_id: Optional[str] = None,
+        env: Optional[Dict] = None,
+    ) -> Callable:
+        """The callable that decides for this agent — LLM or otherwise.
+
+        The generalisation of :meth:`get_llm_invoke`, and its superset:
+        for an agent type that declares no ``decider:`` (every type in
+        every frozen config) this returns the SAME OBJECT
+        ``get_llm_invoke(agent_type)`` returns, from the same cache. So
+        the call sites below could be switched from one to the other
+        without a single byte moving in any existing corpus — which is
+        the property that let this land at all.
+
+        The BINDING to this agent and this period is redone per step
+        rather than cached, because a rule table reads the agent's
+        CURRENT state and this period's environment; a decider cached at
+        year one would answer year thirteen from year one's numbers, and
+        the audit trail would look entirely reasonable. What IS cached
+        per agent type is the resolved factory and the config block it
+        reads — the registry lookup and the domain-pack registration
+        sweep, which cannot change during a run (review P1-c).
+        """
+        spec = self.get_decider_spec(agent_type)
+        if spec.is_default:
+            return self.get_llm_invoke(agent_type)
+
+        factory, type_block = self._resolve_decider_factory(agent_type, spec)
+        # A decider that never calls a model must not force one into
+        # existence. `create_llm_invoke` constructs a provider client,
+        # and for a cloud provider that means credentials — a purely
+        # rule-based population would otherwise fail for want of a key
+        # it was never going to use. `hybrid` resolves it on the first
+        # decision no rule matched; `llm` resolves it here, so the plain
+        # default keeps returning the identical cached object.
+        if spec.name == "llm":
+            llm_invoke = self.get_llm_invoke(agent_type)
+        else:
+            def llm_invoke(prompt, **kw):
+                fn = self.get_llm_invoke(agent_type)
+                return fn(prompt, **kw) if kw else fn(prompt)
+
+        return self._build_decider(spec, factory, type_block, {
+            "llm_invoke": llm_invoke,
+            "agent": agent,
+            "agent_id": agent_id if agent_id is not None else getattr(agent, "id", None),
+            "agent_type": agent_type,
+            "env": env,
+            "seed": getattr(getattr(self, "config", None), "seed", None),
+            "runner": self,
+        })
+
+    def _resolve_decider_factory(self, agent_type: str, spec):
+        """``(factory, agent_type_config)`` for a declared decider, cached.
+
+        The registry lookup and the DomainPack registration sweep are
+        answered from config and cannot change during a run, so doing
+        them per agent per step was pure repetition. Cached here; the
+        per-step binding stays per-step.
+        """
+        cache = getattr(self, "_decider_factory_cache", None)
+        if cache is None:
+            cache = {}
+            self._decider_factory_cache = cache
+        cached = cache.get(agent_type)
+        if cached is not None:
+            return cached
+
+        from broker.agents.deciders import DeciderRegistry, register_domain_deciders
+        if not getattr(self, "_domain_deciders_registered", False):
+            register_domain_deciders(self._resolve_governance_domain())
+            self._domain_deciders_registered = True
+
+        factory = DeciderRegistry.get(spec.name)
+        config = getattr(getattr(self, "broker", None), "config", None)
+        type_block = {}
+        if config is not None and hasattr(config, "get"):
+            try:
+                type_block = config.get(agent_type) or {}
+            except Exception:  # noqa: BLE001 — a config read must not abort a step
+                type_block = {}
+        cache[agent_type] = (factory, type_block)
+        return factory, type_block
+
+    @staticmethod
+    def _build_decider(spec, factory, type_block, runtime):
+        """``DeciderRegistry.build`` with the factory already resolved."""
+        from broker.agents.deciders import DeciderRegistry
+
+        return DeciderRegistry.build(spec, type_block, runtime, factory=factory)
+
+    def _resolve_declared_deciders(self) -> Dict[str, str]:
+        """Build every DECLARED non-default decider once, before year one.
+
+        Review P1-c. Before this, ``get_decider`` was evaluated inside the
+        per-agent ``try``, so a factory that could not be built at all —
+        an unregistered name, a rule table with no ``default_action``, a
+        ``parametric`` target whose module does not import — was caught by
+        the exception handler that exists for a model timing out. Every
+        agent of that type became an ABORTED sentinel stamped with the
+        decider it never ran, the run finished, and the process exited 0
+        with a CSV that looks like a mixed-population corpus in which one
+        arm simply crashed a lot. That is precisely the "no silent
+        fallback to llm" promise the module docstrings make, broken by the
+        placement of a ``try``.
+
+        Building here means the traceback arrives before any row is
+        written, naming the agent type and the decider. Nothing is cached
+        from the probe build except the factory: the probe binds no agent,
+        so it cannot be reused as a decision-maker.
+        """
+        resolved: Dict[str, str] = {}
+        agents = getattr(self, "agents", None) or {}
+        values = agents.values() if hasattr(agents, "values") else agents
+        types = []
+        for agent in values:
+            atype = getattr(agent, "agent_type", "default")
+            if atype not in types:
+                types.append(atype)
+        for agent_type in types:
+            spec = self.get_decider_spec(agent_type)
+            if spec.is_default:
+                continue
+            factory, type_block = self._resolve_decider_factory(agent_type, spec)
+            # The probe binds no agent on purpose: every built-in does its
+            # validation (rule-table parse, `default_action` presence,
+            # target import) at BUILD time, and a probe carrying a real
+            # agent would be one more object that could be mistaken for a
+            # live decider.
+            self._build_decider(spec, factory, type_block, {
+                "llm_invoke": self.get_llm_invoke(agent_type),
+                "agent": None,
+                "agent_id": None,
+                "agent_type": agent_type,
+                "env": None,
+                "seed": getattr(getattr(self, "config", None), "seed", None),
+                "runner": self,
+            })
+            resolved[agent_type] = spec.name
+        if resolved:
+            logger.info(
+                "[Decider] resolved declared deciders before year 1: %s",
+                ", ".join(f"{k}={v}" for k, v in sorted(resolved.items())),
+            )
+        return resolved
+
+    def _decider_kwargs(self, agent_type: str) -> Dict[str, Any]:
+        """``{"decider": name}`` for a declared decider, ``{}`` for the default.
+
+        Omitted rather than passed as ``"llm"`` on the default path so
+        the ``process_step`` call is argument-for-argument what it was
+        before PR-8. Brokers that are not ``SkillBrokerEngine`` — test
+        doubles, and any downstream engine implementing the same seam —
+        keep working untouched, and only a run that actually declares a
+        decider needs a broker that understands the keyword.
+        """
+        spec = self.get_decider_spec(agent_type)
+        return {} if spec.is_default else {
+            "decider": self._decider_audit_name(agent_type)}
+
+    def _decider_audit_name(self, agent_type: str) -> str:
+        """The name the ``decider`` audit column should carry for this type.
+
+        Normally the declared name. When a domain has deliberately
+        REPLACED a built-in (P1-d), ``<name>@<domain>`` — otherwise a CSV
+        holding rows from the built-in ``rule_based`` and from a domain's
+        replacement for it calls both ``rule_based`` and cannot be read.
+        """
+        name = self.get_decider_spec(agent_type).name
+        try:
+            from broker.agents.deciders import DeciderRegistry
+
+            return DeciderRegistry.audit_label(name)
+        except Exception:  # noqa: BLE001 — provenance label only
+            return name
+
+    def _resolve_governance_domain(self) -> Optional[str]:
+        """``global_config.governance.domain``, or None when undeclared."""
+        config = getattr(self.broker, "config", None)
+        raw = getattr(config, "_config", None) if config is not None else None
+        if not isinstance(raw, dict):
+            return None
+        domain = (
+            raw.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        return str(domain) if domain else None
+
     @property
     def current_step(self) -> int:
         """Alias for the simulation loop cycle."""
@@ -299,6 +529,15 @@ class ExperimentRunner:
                 issues = config.validate_schema(atype)
                 for issue in issues:
                     logger.warning(f"[Governance:Diagnostic] {issue}")
+
+        # PR-8 review P1-c: build every DECLARED decider now, before the
+        # first row exists. A decider that cannot be built at all is a
+        # config error, and a config error must not arrive as a per-agent
+        # exception inside the loop's handler — that handler turns it into
+        # an ABORTED sentinel and the run exits 0. Nothing here runs for a
+        # config that declares no decider: `get_decider_spec` answers from
+        # the cache and every type is the default.
+        self._resolve_declared_deciders()
 
         # Determine total iterations (backward compatible)
         iterations = self.config.num_steps or self.config.num_years
@@ -894,6 +1133,20 @@ class ExperimentRunner:
         """Execute agent steps sequentially. Default mode."""
         results = []
         for agent in agents:
+            # PR-8 review P1-c: a DECLARED decider is bound OUTSIDE the try.
+            # The handler below exists for a decision that failed at
+            # runtime — a model timing out — and turns what it catches into
+            # an ABORTED sentinel. A decider that cannot be built is not
+            # that: it is a config error, and swallowing it produced a run
+            # that exited 0 with one arm entirely aborted. The default path
+            # is untouched — `llm` still resolves inside the try, from the
+            # same cache, at the same point it always did.
+            _atype = getattr(agent, 'agent_type', 'default')
+            _declared_decider = (
+                None if self.get_decider_spec(_atype).is_default
+                else self.get_decider(
+                    _atype, agent=agent, agent_id=agent.id, env=env)
+            )
             try:
                 self.step_counter += 1
 
@@ -981,9 +1234,13 @@ class ExperimentRunner:
                     step_id=self.step_counter,
                     run_id=run_id,
                     seed=self.config.seed + self.step_counter,
-                    llm_invoke=self.get_llm_invoke(getattr(agent, 'agent_type', 'default')),
-                    agent_type=getattr(agent, 'agent_type', 'default'),
-                    env_context=env
+                    # PR-8: argument-for-argument what it was before for
+                    # every agent type that declares no `decider:`.
+                    llm_invoke=(_declared_decider if _declared_decider is not None
+                                else self.get_llm_invoke(_atype)),
+                    agent_type=_atype,
+                    env_context=env,
+                    **self._decider_kwargs(_atype),
                 )
 
                 # Store validated result in cache (opt-in, F4)
@@ -1102,6 +1359,23 @@ class ExperimentRunner:
                 trace["executed_skill"] = ""
                 trace["executed_via_fallback"] = False
                 trace["execution_path"] = "aborted"
+            # PR-8: attribute the crashed step to whatever was SUPPOSED to
+            # decide it. Without this the one row written to make a crash
+            # visible is the one row with no decider, so a mixed-population
+            # CSV grouped by `decider` shows a blank category and the
+            # per-decider census silently loses the row. Emits nothing when
+            # the columns are off, so no frozen corpus gains a key.
+            # The PATH is forced to "aborted" (review P1-c): the step
+            # crashed, so no decision path was taken, and letting the
+            # sentinel inherit the decider's default path would put a row
+            # in the per-decider census as though it had decided.
+            decider_extra = getattr(self.broker, "_decider_audit_extra", None)
+            if callable(decider_extra):
+                try:
+                    trace.update(decider_extra(
+                        self._decider_audit_name(agent_type), path="aborted"))
+                except Exception as exc:  # noqa: BLE001 — provenance only
+                    logger.debug(f"[AbortedTrace] decider provenance: {exc}")
             audit_writer.write_trace(agent_type, trace)
         except Exception as audit_err:
             # P2d: count it. This is a row that should exist and does not —
@@ -1121,7 +1395,12 @@ class ExperimentRunner:
         """Execute agent steps in parallel using ThreadPoolExecutor."""
         results = []
 
-        def process_agent(agent, step_id):
+        def process_agent(agent, step_id, declared_decider=None):
+            # ``declared_decider`` is bound on the SUBMITTING thread (see
+            # the submit loop) — PR-8 review P1-c. Everything raised inside
+            # this function is caught at ``future.result()`` and turned into
+            # an ABORTED sentinel, which is right for a decision that failed
+            # at runtime and wrong for a decider that could not be built.
             # [Efficiency Hub] Cognitive Cache Check (opt-in, F4). Early
             # context build is UNCONDITIONAL — see the sequential-path note
             # (universal engine's EMA updates per build; frozen baselines
@@ -1189,14 +1468,19 @@ class ExperimentRunner:
                 else:
                     return agent, result
 
+            _atype = getattr(agent, 'agent_type', 'default')
             result = self.broker.process_step(
                 agent_id=agent.id,
                 step_id=step_id,
                 run_id=run_id,
                 seed=self.config.seed + step_id,
-                llm_invoke=self.get_llm_invoke(getattr(agent, 'agent_type', 'default')),
-                agent_type=getattr(agent, 'agent_type', 'default'),
-                env_context=env
+                # PR-8: argument-for-argument what it was before for every
+                # agent type that declares no `decider:`.
+                llm_invoke=(declared_decider if declared_decider is not None
+                            else self.get_llm_invoke(_atype)),
+                agent_type=_atype,
+                env_context=env,
+                **self._decider_kwargs(_atype),
             )
 
             if self.efficiency is not None and result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
@@ -1208,10 +1492,22 @@ class ExperimentRunner:
             futures = {}
             for agent in agents:
                 self.step_counter += 1
+                # PR-8 review P1-c: bind a DECLARED decider here, on the
+                # submitting thread, so a build failure raises out of this
+                # loop instead of arriving at `future.result()` where the
+                # F4 handler would file it as an aborted agent-year.
+                _atype = getattr(agent, 'agent_type', 'default')
+                _declared = (
+                    None if self.get_decider_spec(_atype).is_default
+                    else self.get_decider(
+                        _atype, agent=agent, agent_id=agent.id, env=env)
+                )
                 # F6: keep the SUBMITTED step_id with the future so a failure
                 # sentinel carries the right step/seed (post-submission,
                 # self.step_counter is already the last agent's value).
-                futures[executor.submit(process_agent, agent, self.step_counter)] = (agent, self.step_counter)
+                futures[executor.submit(
+                    process_agent, agent, self.step_counter, _declared,
+                )] = (agent, self.step_counter)
 
             for future in as_completed(futures):
                 try:

@@ -121,6 +121,12 @@ class TestSubProtocolMethodOwnership:
             # of bespoke flood code deferred to Phase 6T-F.
             "institutional_lifecycle_handlers",
             "multi_agent_env_keys",
+            # PR-8 (2026-09-03): the domain's own deciders. A calibrated
+            # behavioural rule is domain science and cannot live in
+            # broker/; this hook is how a domain contributes one without
+            # editing generic code. SetupPack because it is agent
+            # machinery the runner assembles, alongside the loaders.
+            "decider_factories",
         },
     }
 
@@ -143,8 +149,8 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_45(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 45 —
+    def test_total_method_count_is_46(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 46 —
         the original 32 (per ``.research/domain_pack_protocol_reference.md``)
         plus 3 Phase 6T-A EventPack additions
         (``event_type_to_domain``, ``event_persistence_policy``,
@@ -156,9 +162,10 @@ class TestSubProtocolMethodOwnership:
         ``verbalise_post``, ``suppressed_tiers``,
         ``social_media_post_filter``) plus 1 Phase 6T-E.B PerceptionPack
         addition (``social_feeds_default_enabled``) plus 1 Phase 6W-B3
-        SkillPack addition (``param_specs``)."""
+        SkillPack addition (``param_specs``) plus 1 PR-8 SetupPack
+        addition (``decider_factories``)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 45
+        assert total == 46
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol
