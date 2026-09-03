@@ -68,20 +68,21 @@ class L1Metrics:
         """Check if metrics pass publication thresholds.
 
         Threshold justifications:
-            CACR >= 0.75: Derived from inter-rater reliability conventions.
-                Cohen's kappa >= 0.60 is "substantial agreement" (Landis & Koch, 1977).
-                CACR maps to agreement rate; kappa=0.60 corresponds to ~75% agreement
-                for typical marginal distributions (Sim & Wright, 2005). Additionally,
-                human inter-coder reliability in behavioral coding studies typically
-                achieves 70-85% (Bakeman & Gottman, 1997). The 0.75 threshold
-                represents the lower bound of acceptable human-level coherence.
+            CACR >= 0.80: Derived from inter-rater reliability conventions.
+                Cohen's kappa >= 0.60 is "substantial agreement" (Landis & Koch, 1977),
+                corresponding to ~75% agreement for typical marginal distributions
+                (Sim & Wright, 2005); human inter-coder reliability in behavioral
+                coding typically achieves 70-85% (Bakeman & Gottman, 1997). We adopt
+                0.80 as a CONSERVATIVE threshold — above the ~75% substantial-agreement
+                floor and in the upper half of the human-coder band. (Canonical across
+                calibration.yaml + PAPER3_COMPLETE_REFERENCE; v2 consistency 2026-06-12.)
             R_H <= 0.10: Physical impossibilities should be rare. 10% tolerance
                 accounts for LLM parsing errors and edge cases in state tracking.
             EBE ratio 0.1-0.9: Avoids degenerate distributions (all same action)
                 while allowing natural skew toward common actions.
         """
         return {
-            "CACR": self.cacr >= 0.75,
+            "CACR": self.cacr >= 0.80,  # 0.80 canonical (calibration.yaml/PAPER3_COMPLETE_REFERENCE); within Bakeman & Gottman 70-85% good range; v2 metric-consistency fix 2026-06-12
             "R_H": self.r_h <= 0.10,
             "EBE": 0.1 < self.ebe_ratio < 0.9 if self.ebe_max > 0 else False,
         }

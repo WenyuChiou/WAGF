@@ -132,6 +132,80 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
     return engine
 
 
+def _parametric_agent_depth_m(agent_id: str, agent: Any, env_context: Dict[str, Any], hooks: Any) -> float:
+    """Resolve the direct current-year flood depth for a parametric household."""
+    if getattr(hooks, "per_agent_depth", False):
+        depths = getattr(hooks, "agent_flood_depths", {}) or {}
+        return max(float(depths.get(agent_id, 0.0) or 0.0), 0.0)
+
+    dynamic = getattr(agent, "dynamic_state", None) or {}
+    if dynamic.get("flooded_this_year") is False:
+        return 0.0
+    if not env_context.get("flood_occurred", False):
+        return 0.0
+    if env_context.get("flood_depth_m") is not None:
+        return max(float(env_context.get("flood_depth_m") or 0.0), 0.0)
+    if env_context.get("flood_depth_ft") is not None:
+        return max(float(env_context.get("flood_depth_ft") or 0.0) / 3.28084, 0.0)
+    return 0.0
+
+
+def _install_parametric_household_decider(runner: Any, decider: Any, hooks: Any) -> None:
+    """Route household broker steps through a direct-state parametric decider."""
+    original_process_step = runner.broker.process_step
+
+    def _process_step(
+        *,
+        agent_id: str,
+        step_id: int,
+        run_id: str,
+        seed: int,
+        llm_invoke,
+        agent_type: str = "default",
+        env_context: Optional[Dict[str, Any]] = None,
+    ):
+        env = env_context or {}
+        if agent_type in {"household_owner", "household_renter"}:
+            agent = runner.agents.get(agent_id)
+            if agent is None:
+                # Fail loud: a household step dispatched for an agent_id absent
+                # from runner.agents is a population/dispatch mismatch. The bare
+                # subscript would raise KeyError into the broker's per-agent
+                # isolation, which swallows it -> a silently dropped decision row
+                # (indistinguishable from a normal skip) that biases the SQ1
+                # parametric action-distribution denominator.
+                raise KeyError(
+                    f"[parametric hook] agent_id={agent_id!r} "
+                    f"(agent_type={agent_type!r}) not in runner.agents -- "
+                    f"population/dispatch mismatch; refusing to silently drop "
+                    f"a household decision."
+                )
+            year = env.get("current_year", env.get("year", 1))
+            agent_depth_m = _parametric_agent_depth_m(agent_id, agent, env, hooks)
+
+            def _parametric_invoke(_prompt: str):
+                return decider.decide(
+                    agent,
+                    env,
+                    year=year,
+                    agent_depth_m=agent_depth_m,
+                )
+
+            llm_invoke = _parametric_invoke
+
+        return original_process_step(
+            agent_id=agent_id,
+            step_id=step_id,
+            run_id=run_id,
+            seed=seed,
+            llm_invoke=llm_invoke,
+            agent_type=agent_type,
+            env_context=env_context,
+        )
+
+    runner.broker.process_step = _process_step
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -163,6 +237,15 @@ def run_unified_experiment():
                         help="Enable custom income-based affordability checks from experiment script.")
     parser.add_argument("--enable-financial-constraints", action="store_true",
                         help="Enable income-based affordability checks in the validator.")
+    parser.add_argument("--population-v2", action="store_true",
+                        help="Enable Paper 3 v2 income/budget-share validator gates. Default off.")
+    parser.add_argument("--prompt-v3", type=str, default=None, metavar="DIR",
+                        help="Prompt-only override: swap the household owner/renter templates for the "
+                             "v3 FI-rebalance variant in DIR (relative to the flood dir, e.g. "
+                             "config/prompts_v3). Isolated from --population-v2's behavioral branches; "
+                             "off by default (byte-identical baseline).")
+    parser.add_argument("--parametric-households", action="store_true",
+                        help="Replace household LLM decisions with the SQ1 parametric PMT baseline. Default off.")
     parser.add_argument("--mock-response-file", type=str, default=None,
                         help="Path to a JSON file containing a mock response for the LLM.")
     # PRB Integration & Spatial Enhancement (Task-022)
@@ -217,6 +300,11 @@ def run_unified_experiment():
                              "legacy=allow all writes (ratchet active, for baseline runs). "
                              "clean=block self-report/narrative (ratchet fix, default in yaml).")
     args = parser.parse_args()
+    population_v2 = args.population_v2
+    if population_v2:
+        print("[INFO] Population v2 validator gates ENABLED")
+    if args.parametric_households:
+        print("[INFO] Parametric household decision arm ENABLED")
 
     # Apply thinking mode
     if args.thinking_mode is not None:
@@ -288,7 +376,29 @@ def run_unified_experiment():
         # elevation access. Elevation is still constrained by governance rules:
         # status_quo_bias (no flood experience) and low_coping (CP=L blocks).
 
-        if decision == "buyout_program" and is_mg:
+        if population_v2 and decision == "buyout_program":
+            if income < 35000:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="CustomAffordabilityValidator",
+                    errors=[f"AFFORDABILITY: Household income ${income:,.0f} too low for buyout transition costs"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule_id": "affordability_income_buyout",
+                        "rules_hit": ["affordability_income_buyout"],
+                        "field": "decision",
+                        "constraint": "income_buyout_barrier",
+                        "deterministic": True
+                    }
+                ))
+            # NOTE: do not early-return — fall through so the renter relocation
+            # income gate below still runs in v2 (buyout != relocate, so this
+            # block is a no-op for relocate decisions but the flow stays uniform).
+
+        # v1 MG buyout gate — guarded OFF under v2 (the income gate above
+        # replaces it). Under v1 (population_v2 False) this runs unchanged =>
+        # byte-identity preserved.
+        if not population_v2 and decision == "buyout_program" and is_mg:
             # MG agents face additional barriers to buyout participation
             # (lower savings, fewer housing options, relocation hardship)
             if income < 35000:
@@ -620,7 +730,9 @@ def run_unified_experiment():
 
         agent_data = context.get('agent_state', {})
         personal = agent_data.get('personal', {})
+        env = context.get('env_state', {})
 
+        income = personal.get('income', 50000)
         is_mg = personal.get('mg', False)
         flood_count = personal.get('flood_count', 0)
         flooded_this_year = personal.get('flooded_this_year', False)
@@ -633,6 +745,53 @@ def run_unified_experiment():
         # language access, bureaucratic complexity).
         # flood_count >= 1: prompt-guided (see mg_barrier_text in providers.py)
         # flood_count >= 2: fully allowed (repeated flooding overcomes barriers)
+        if population_v2 and flood_count == 0 and not flooded_this_year:
+            effective_rate = env.get('effective_rate')
+            rcv_building = personal.get('rcv_building')
+            rcv_contents = personal.get('rcv_contents')
+
+            premium_burden = None
+            if effective_rate is not None and rcv_building is not None and rcv_contents is not None:
+                effective_premium_annual = float(effective_rate) * (
+                    float(rcv_building) + float(rcv_contents)
+                )
+                premium_burden = effective_premium_annual / max(float(income), 1)
+                blocks_access = premium_burden > 0.05
+                constraint = "premium_burden_gt_5pct_income"
+            else:
+                blocks_access = income < 35000
+                constraint = "income_percentile_fallback"
+
+            if blocks_access:
+                burden_text = (
+                    f"premium burden {premium_burden:.1%}"
+                    if premium_burden is not None
+                    else f"income ${income:,.0f}"
+                )
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="InsuranceAccessBarrierValidator",
+                    errors=[
+                        f"INSURANCE_ACCESS_BUDGET_SHARE: Household with no flood "
+                        f"experience faces flood insurance access barriers because "
+                        f"{burden_text} exceeds the affordability gate. "
+                        f"Consider do_nothing until direct flood experience motivates enrollment."
+                    ],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule_id": "insurance_access_budget_share",
+                        "rules_hit": ["insurance_access_budget_share"],
+                        "field": "decision",
+                        "constraint": constraint,
+                        "deterministic": True,
+                    }
+                ))
+            # Early-return is SAFE wrt the renewal-fatigue rule below (review W1):
+            # this branch only runs for flood_count==0 agents, and the
+            # renewal-fatigue predicate requires flood_count>0, so it could never
+            # fire for them anyway. v2 thus loses no rule by returning here.
+            return results
+
         if is_mg and flood_count == 0 and not flooded_this_year:
             results.append(ValidationResult(
                 valid=False,
@@ -960,6 +1119,45 @@ def run_unified_experiment():
     _MA_CONFIG = str(MULTI_AGENT_DIR / "config" / (
         "ma_agent_types_influencer_experiment.yaml" if args.with_influencer
         else "ma_agent_types.yaml"))
+
+    # P3 (v2): prompt de-imperativization. Build the template dict once; under
+    # --population-v2, swap the household owner/renter templates for their
+    # de-imperativized (symmetric, grounded) v2 variants. Frozen v1 prompts +
+    # the frozen YAML are untouched; with the flag OFF this is byte-identical.
+    _prompt_templates = load_prompt_templates(_MA_CONFIG)
+    if population_v2:
+        _prompts_v2_dir = MULTI_AGENT_DIR / "config" / "prompts_v2"
+        for _at in ("household_owner", "household_renter"):
+            _pf = _prompts_v2_dir / f"{_at}.txt"
+            if _pf.exists():
+                _prompt_templates[_at] = _pf.read_text(encoding="utf-8")
+            else:
+                # Fail loud: the v2 prompts are load-bearing for the SQ1
+                # de-imperativization factor. Silently keeping v1 here would
+                # invalidate the SQ1 comparison with only a buried warning.
+                raise FileNotFoundError(
+                    f"--population-v2 requires the de-imperativized v2 prompt "
+                    f"{_pf}, but it is missing. Refusing to silently fall back "
+                    f"to the v1 template (which would invalidate the SQ1 "
+                    f"de-imperativization comparison)."
+                )
+
+    # A-2: prompt-only v3 override (FI-rebalance pilot, 2026-06-15). Swaps ONLY
+    # the two household templates, isolated from --population-v2's six behavioral
+    # branches (buyout/affordability/MG/memory-routing). With --prompt-v3 unset
+    # this block is a no-op => byte-identical to the v1 baseline.
+    if args.prompt_v3:
+        _prompts_v3_dir = MULTI_AGENT_DIR / args.prompt_v3
+        for _at in ("household_owner", "household_renter"):
+            _pf = _prompts_v3_dir / f"{_at}.txt"
+            if _pf.exists():
+                _prompt_templates[_at] = _pf.read_text(encoding="utf-8")
+            else:
+                raise FileNotFoundError(
+                    f"--prompt-v3 requires the prompt template {_pf}, but it "
+                    f"is missing. Refusing to silently fall back to the "
+                    f"baseline template (which would invalidate the pilot)."
+                )
     _SKILL_REGISTRY = str(MULTI_AGENT_DIR / "config" / (
         "skill_registry_influencer_experiment.yaml" if args.with_influencer
         else "skill_registry.yaml"))
@@ -1289,6 +1487,7 @@ def run_unified_experiment():
         # Phase 6L-D (2026-05-23): YAML / DomainPack resolution-importance
         # override threads to MemoryBridge via LifecycleHooks.
         bridge_importance_policy=agent_cfg.get_bridge_importance_config(),
+        population_v2=population_v2,  # P4: Option-A memory source-routing
     )
 
     # Phase 6T-F.5: per-step dispatch for the influencer. MultiAgentHooks.post_step
@@ -1423,7 +1622,7 @@ def run_unified_experiment():
                     "flood_urgency_label", "subsidy_level_label",
                     "annual_subsidy_cost", "years_to_depletion", "years_remaining",
                 ], # Phase 2 PR2: Allow institutional influence
-                prompt_templates=load_prompt_templates(_MA_CONFIG),
+                prompt_templates=_prompt_templates,
                 enable_financial_constraints=args.enable_financial_constraints,
                 # FinancialCostProvider: Phase 6H Item 7 — was in the
                 # generic tiered default list; now domain-wired here
@@ -1484,14 +1683,22 @@ def run_unified_experiment():
                 validate_insurance_decision,    # I1, I2, I7 hard constraints only
             ]),
         ]
-        if args.enable_custom_affordability:
-            # Add income-based affordability checks (alternative to --enable-financial-constraints)
+        if args.enable_custom_affordability or population_v2:
+            # Add income-based affordability checks, or the v2 buyout income gate.
             structural_validators.insert(0, validate_affordability)
 
     builder.with_custom_validators(structural_validators)
 
     # 6. Execute
     runner = builder.build()
+    if args.parametric_households:
+        from examples.multi_agent.flood.parametric.parametric_decider import (
+            ParametricHouseholdDecider,
+        )
+        parametric_decider = ParametricHouseholdDecider(
+            seed=args.seed if args.seed is not None else 42
+        )
+        _install_parametric_household_decider(runner, parametric_decider, ma_hooks)
     runner.run(runner.llm_invoke) # Use the selected llm_invoke
 
 

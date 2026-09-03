@@ -47,10 +47,18 @@ class MultiAgentHooks:
         fixed_policy_schedule: Optional[Dict[int, Dict[str, float]]] = None,  # RQ2 ablation
         reflection_config: Optional[Dict] = None,  # from global_config.reflection
         bridge_importance_policy: Optional[Dict[str, float]] = None,  # Phase 6L-D
+        population_v2: bool = False,  # P4: Option-A memory source-routing
     ):
         self.env = environment
         self.memory_engine = memory_engine
         self._reflection_config = reflection_config or {}
+        # P4 (v2): Option-A memory source-routing. When True, neighbour/gossip
+        # content is NOT written into the (manipulated) personal-memory engine
+        # — it stays a prompt-only channel ({social_gossip}/{neighbor_action_summary}),
+        # so the SQ1 memory factor isolates PERSONAL events and SQ3 social
+        # integration runs through the prompt+reflection, not silent memory
+        # accumulation. Default False = frozen v1 behaviour (gossip stored).
+        self.population_v2 = population_v2
         self._flood_adapter = FloodHouseholdAdapter()
         self.hazard = hazard_module or HazardModule()
         self.vuln = VulnerabilityModule()
@@ -918,8 +926,11 @@ class MultiAgentHooks:
                         agent_id, unread, year=year, max_store=3
                     )
 
-        # Store neighbor action observations as social memories (persists gossip)
-        if memory_engine and hasattr(self, '_interaction_hub') and self._interaction_hub:
+        # Store neighbor action observations as social memories (persists gossip).
+        # P4 (v2): under Option-A source-routing, skip this write entirely —
+        # gossip remains a prompt-only channel and never enters the manipulated
+        # personal-memory engine. (Flag OFF => unchanged v1 behaviour.)
+        if (not self.population_v2) and memory_engine and hasattr(self, '_interaction_hub') and self._interaction_hub:
             for agent in agents.values():
                 if agent.agent_type not in ["household_owner", "household_renter"]:
                     continue
