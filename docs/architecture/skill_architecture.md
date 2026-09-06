@@ -96,7 +96,6 @@ Version 0.3 adds **Multi-LLM Extensibility** with YAML-driven configuration.
 | `OllamaProvider` | `providers/ollama.py` | Local model support |
 | `OpenAIProvider` | `providers/openai_provider.py` | Cloud API support |
 | `RateLimiter` | `providers/rate_limiter.py` | API rate control |
-| `AsyncAdapter` | `broker/async_adapter.py` | Concurrent processing |
 | `DomainConfigLoader` | `config/loader.py` | YAML domain loading |
 | `ValidatorFactory` | `validators/factory.py` | Dynamic validator loading |
 
