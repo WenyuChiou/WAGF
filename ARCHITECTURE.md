@@ -1,5 +1,7 @@
 # Water Agent Governance Framework Architecture
 
+> Where things live: see [`docs/REPO_MAP.md`](docs/REPO_MAP.md).
+
 ## Overview
 
 The Water Agent Governance Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — including flood risk adaptation, irrigation water management, and water resource policy evaluation.
