@@ -15,6 +15,8 @@ Every LLM decision passes through a validation pipeline — domain rules, behavi
 
 </div>
 
+> Where things live: see [`docs/REPO_MAP.md`](docs/REPO_MAP.md).
+
 ## What is WAGF?
 
 WAGF is a **governed LLM-driven agent framework for coupled human-nature systems**. It represents human decision-makers (farmers, households) as LLM agents that reason in natural language about their environment, then screens every decision through a **Governance Broker** before it acts on the simulated system.
