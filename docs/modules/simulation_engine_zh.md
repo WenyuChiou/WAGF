@@ -97,16 +97,7 @@ for year in range(params.years):
 
 ## 多階段執行 (Multi-Phase Execution)
 
-在多 Agent 模擬中，扁平的 `for agent in agents` 迴圈被 `PhaseOrchestrator` (`broker/components/phase_orchestrator.py`) 取代，根據角色與依賴順序協調 Agent。
-
-### 預設階段順序
-
-| 階段 | 角色 | 說明 |
-| :--- | :--- | :--- |
-| 1. **INSTITUTIONAL** | 政府、保險 | 在家戶決策前設定政策、調整保費/補貼 |
-| 2. **HOUSEHOLD** | 家戶 Agent | 做出個人決策 (抬升、投保、遷移、不行動) |
-| 3. **RESOLUTION** | GameMaster | 偵測並解決衝突 (資源過度分配) |
-| 4. **OBSERVATION** | 全部 | 觀察結果，更新社會網絡 |
+2026-09 已移除（未使用的擴充功能）；詳見 CHANGELOG [Unreleased]。（`PhaseOrchestrator` 從未有正式管線引用。）
 
 ### GameMaster 協調
 

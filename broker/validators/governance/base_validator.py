@@ -71,7 +71,9 @@ class BaseValidator(ABC):
     #: Phase 6O-A-2 — default `constraint_type` for ValidationResult.metadata.
     #: Subclasses override: "hard" for physical/financial impossibility,
     #: "soft" for preferences/norms, "diagnostic" for informational rules
-    #: that never block. See `broker.interfaces.validation_metadata.ConstraintType`.
+    #: that never block. (The `ConstraintType` Literal alias used to live at
+    #: `broker.interfaces.validation_metadata`, removed 2026-09 as unused —
+    #: valid values are the three strings above.)
     _DEFAULT_CONSTRAINT_TYPE: str = "soft"
 
     def _recovery_keys(self, rule) -> dict:  # noqa: ARG002 (reserved for subclass override)

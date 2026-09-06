@@ -31,7 +31,7 @@ class DecisionConsistencySurprise:
     Frequency-based surprise from an agent's own action history.
 
     Implements the SurpriseStrategy protocol for pluggable integration
-    with HumanCentricMemoryEngine or UnifiedCognitiveEngine.
+    with HumanCentricMemoryEngine or UniversalCognitiveEngine.
 
     Modes:
         - "unigram": Surprise based on individual action frequency.

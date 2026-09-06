@@ -750,6 +750,16 @@ class TestNoFloodVocabInGenericEventGenerators:
     naming. Only *executable* string literals (return values, f-string
     templates, dict values used at runtime) are forbidden from
     containing the substring "flood".
+
+    Org-3 note (2026-09): the two generators this guard was written for
+    (``impact.py`` / ``policy.py``) were themselves deleted as dead code
+    — reachable only via the also-deleted MAEventManager, no production
+    runner instantiated either. ``GUARDED_DIR`` now legitimately
+    resolves to zero non-``__init__.py`` files; the test below skips
+    (with this dated reason) instead of failing the "path likely moved"
+    sanity check, which is meant to catch an accidental rename, not
+    this documented deletion. If a new generic generator is ever added
+    under this directory, the skip stops firing and the guard resumes.
     """
 
     # Auto-discover every generator under broker/components/events/generators/
@@ -796,10 +806,13 @@ class TestNoFloodVocabInGenericEventGenerators:
             p for p in guarded_dir.glob("*.py")
             if p.name != "__init__.py"
         )
-        assert guarded_files, (
-            f"GUARDED_DIR={self.GUARDED_DIR} resolved to zero files — "
-            f"path likely moved. Restore the directory or update GUARDED_DIR."
-        )
+        if not guarded_files:
+            pytest.skip(
+                f"GUARDED_DIR={self.GUARDED_DIR} has zero non-__init__.py "
+                "files: org-3 (2026-09) deleted impact.py/policy.py as "
+                "dead code, so there is nothing left to guard. Remove "
+                "this skip once a new generic generator lands here."
+            )
 
         violations = []
         for path in guarded_files:
@@ -866,17 +879,15 @@ class TestNoUSMediaTierLiteralsInBrokerSocial:
         "OFFICIAL", "VERIFIED", "INFLUENCER", "PEER", "BOT",
     })
     # Phase 6T-G (2026-05-28): channel-class labels (OFFICIAL / GLOBAL /
-    # PEER) used by ``dedup.py`` to RANK three distinct broker prompt
-    # channels are a different namespace from the US-media credibility-
-    # tier vocabulary this guard targets. The names happen to overlap
-    # (OFFICIAL, PEER) because both rank "authoritative vs lay" content,
-    # but the dedup module never names "VERIFIED" / "INFLUENCER" / "BOT"
-    # (the tier-only literals) so the channel-class semantics stay
-    # clearly separable. An explicit per-file exemption is cleaner than
-    # renaming the channels to avoid this collision.
-    EXEMPT_FILES = frozenset({
-        "broker/components/social/dedup.py",
-    })
+    # PEER) used by the (now-removed) cross-channel dedup module to
+    # RANK three distinct broker prompt channels were a different
+    # namespace from the US-media credibility-tier vocabulary this
+    # guard targets — hence the per-file exemption below. Org-3
+    # (2026-09) deleted ``broker/components/social/dedup.py`` as dead
+    # code (no production importer, only its own test), so the
+    # exemption set is empty again; keep this pattern in mind if a
+    # future file in this directory needs the same treatment.
+    EXEMPT_FILES = frozenset()
 
     def _docstring_line_ranges(self, tree):
         """Return a set of line numbers occupied by module / class /

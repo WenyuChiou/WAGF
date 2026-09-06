@@ -10,8 +10,8 @@ broker/ hot paths:
   ``broker/components/cognitive/reflection.py:301-313`` (C3)
 - ``skill_emotion_metadata`` — replaces
   ``broker/core/experiment_runner.py:383-388`` (W2)
-- ``event_handlers`` — replaces
-  ``broker/components/events/ma_manager.py:275-330`` chain (W5)
+- ``event_handlers`` — replaces the hardcoded if/elif chain that used
+  to live in the multi-agent event dispatcher (removed 2026-09) (W5)
 - ``mg_barrier_text`` — replaces the Passaic-specific text in
   ``broker/components/context/providers.py:704-712`` (C2)
 - ``extreme_actions`` — replaces the kwarg in
@@ -75,8 +75,9 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Event handlers — extracted verbatim from
-# broker/components/events/ma_manager.py:275-330
+# Event handlers — extracted verbatim from the multi-agent event
+# dispatcher's if/elif chain (that dispatcher was removed 2026-09 as
+# unused dead code; this DomainPack hook is the live replacement)
 # ─────────────────────────────────────────────────────────────────────
 
 def _handle_flood(event: Any, gs: Dict[str, Any]) -> None:
@@ -103,7 +104,8 @@ def _handle_premium_change(event: Any, gs: Dict[str, Any]) -> None:
 
 # ─────────────────────────────────────────────────────────────────────
 # Per-agent impact handlers — extracted verbatim from the flood
-# event-type chain in broker/components/events/ma_manager.py:get_agent_impact.
+# event-type chain in the (removed 2026-09) multi-agent event
+# dispatcher's get_agent_impact().
 # These AGGREGATE into a per-agent impact dict (max for depth, sum for
 # dollar amounts) rather than overwriting global env state.
 # ─────────────────────────────────────────────────────────────────────
@@ -307,7 +309,8 @@ class FloodEventMixin:
     payout events."""
 
     def event_handlers(self) -> Dict[str, EventHandler]:
-        """Replaces the ``ma_manager.py:275-289`` if/elif chain."""
+        """Replaces the if/elif chain that used to live in the
+        multi-agent event dispatcher (removed 2026-09)."""
         return {
             "flood": _handle_flood,
             "no_flood": _handle_no_flood,
@@ -316,8 +319,9 @@ class FloodEventMixin:
         }
 
     def agent_impact_handlers(self) -> Dict[str, EventHandler]:
-        """Replaces the flood event-type chain in
-        ``ma_manager.py:get_agent_impact()`` (Phase 6J-B)."""
+        """Replaces the flood event-type chain in the multi-agent
+        event dispatcher's ``get_agent_impact()`` (removed 2026-09;
+        Phase 6J-B)."""
         return {
             "flood": _impact_flood,
             "flood_damage": _impact_flood_damage,
@@ -343,9 +347,13 @@ class FloodEventMixin:
     # Phase 6T-E.B (2026-05-28): post auto-emission
     # ───────────────────────────────────────────────────────────────
     #
-    # The dispatcher at ``broker/components/events/ma_manager.py:
-    # _sync_event_to_env`` calls ``emit_posts_for_event(event, env)``
-    # AFTER the regular handler runs. Posts emitted here are appended
+    # The multi-agent event dispatcher's ``_sync_event_to_env`` (that
+    # dispatcher, MAEventManager, was removed 2026-09) used to call
+    # ``emit_posts_for_event(event, env)`` AFTER the regular handler
+    # ran. As of the 2026-09 removal, ``emit_posts_for_event`` has no
+    # production caller — it is retained here as the pack-side hook
+    # for whichever dispatcher wires it next. When it does run, posts
+    # emitted here are appended
     # to ``env.social_feeds`` via ``env.add_post``. The
     # SocialMediaProvider (Phase 6T-E.B) reads ``env.social_feeds``
     # to inject ``{social_media_feed}`` into household prompts.

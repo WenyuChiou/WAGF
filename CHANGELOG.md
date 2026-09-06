@@ -553,6 +553,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `run_batch_agents`, an async wrapper around `UnifiedAdapter` with no
   production or test caller; never imported anywhere in repo history;
   last touched 2026-02-11 (`60c4aa60`).
+- **`broker/core/unified_context_builder.py`** (776 LOC) — `UnifiedContextBuilder`
+  / `create_unified_context_builder` / `AgentTypeContextProvider` /
+  `SkillEligibilityProvider`; no production importer; production context
+  building goes through `broker.components.context.tiered.TieredContextBuilder`
+  instead. Kept only its own re-export in `broker/core/__init__.py` and
+  its own test suite (`tests/test_unified_context_builder.py`, 858 LOC).
+- **Unified/FAISS memory stack in `broker/memory/`** (2,890 LOC) —
+  `unified_engine.py` (`UnifiedCognitiveEngine`), `store.py`
+  (`UnifiedMemoryStore`), `retrieval.py` (`AdaptiveRetrievalEngine`),
+  `graph.py` (`MemoryGraph`), `persistence.py` (checkpoint save/load),
+  `vector_db.py` (FAISS `VectorMemoryIndex`), `embeddings.py`; no
+  production importer, reachable only via the lazy
+  `engine_type="unified"` registration in
+  `broker.components.memory.registry` (also removed). `broker/memory/strategies/`
+  and `broker/memory/config/` are KEPT — both are live production
+  dependencies of `broker.components.memory.engines.humancentric` /
+  `broker.components.memory.universal` / `broker.domains.water.*`.
+  Kept only their own tests: `tests/test_memory_config.py`,
+  `tests/test_memory_graph.py`, `tests/test_memory_persistence.py`,
+  `tests/test_vector_db.py` (whole files), plus the unified/vector-only
+  classes inside `tests/test_unified_memory.py`,
+  `broker/tests/test_cascade_defense_engine_registry.py`, and
+  `tests/test_cognitive_constraints.py`.
+- **`broker/components/events/ma_manager.py`** (659 LOC) —
+  `MAEventManager`; grep-confirmed test-only (no production runner ever
+  instantiated it — the production MA flood runner dispatches events
+  through a separate path). Kept only its own tests
+  (`broker/tests/test_ma_event_manager_isolation.py`,
+  `broker/tests/test_ma_manager_safety.py`,
+  `broker/tests/test_post_emission_in_flood_handler.py`,
+  `broker/tests/test_social_feeds_e2e_flag_on.py`) and the
+  `TestMAEventManager` / `TestImpactEventGenerator` /
+  `TestPolicyEventGenerator` classes inside `tests/test_ma_event_generators.py`.
+- **`broker/components/cognitive/reflection_orchestrator.py`** (144 LOC) —
+  `ReflectionOrchestrator`; no production importer. Kept only its own
+  test (`broker/tests/test_reflection_orchestrator.py`).
+- **`broker/components/orchestration/phases.py`** (444 LOC) —
+  `PhaseOrchestrator`; no production importer (the similarly-named
+  `ExperimentBuilder.with_phase_order` / `_phase_order`, used by the
+  production MA flood + cat-model runners, is an unrelated mechanism
+  that never touches this class). Kept only its own tests
+  (`tests/test_phase_orchestrator.py` and the PhaseOrchestrator-specific
+  tests inside `tests/integration/test_communication_layer.py` /
+  `tests/test_058_integration.py` / `broker/tests/test_ma_manager_safety.py`).
+- **`broker/components/events/generators/impact.py`** (382 LOC) /
+  **`policy.py`** (250 LOC) — `ImpactEventGenerator` / `PolicyEventGenerator`;
+  reachable only via the also-removed `MAEventManager`, no production
+  runner instantiated either. Kept only the corresponding test classes
+  in `tests/test_ma_event_generators.py` and one test method in
+  `tests/test_agent_config_rating_scale.py`.
+- **`broker/components/social/dedup.py`** (174 LOC) —
+  `dedup_by_canonical_event` / `CrossChannelDedupResult`; no production
+  importer (`SocialMediaProvider` and the flood MA runner never call
+  it). Kept only its own test (`broker/tests/test_cross_channel_dedup.py`).
+- **`broker/components/governance/permissions.py`** (142 LOC) —
+  `RoleEnforcer` / `PermissionResult`; never wired into any production
+  pipeline (only stale docstrings in `docs/modules/skill_registry*.md`
+  and `examples/multi_agent/flood/protocols/role_config.py` pointed at
+  it, via a path — `broker/components/role_permissions.py` — that never
+  existed). No dedicated test existed.
+- **`broker/interfaces/validation_metadata.py`** (150 LOC) —
+  `ValidatorMetadata` TypedDict contract; no production importer (no
+  validator ever populated the fields it documents). No dedicated test
+  existed.
+- **`broker/modules/` — KEPT, not removed.** Verification found real
+  production importers (`broker/core/agent_initializer.py`,
+  `examples/multi_agent/flood/survey/{flood_survey_loader,ma_initializer}.py`,
+  `examples/single_agent/run_flood.py`), contradicting the removal
+  candidate list; left untouched.
+
+All of the above pass the full `pytest tests/ broker/` gate (3,803
+passed / 5 skipped / 2 xfailed, 0 failed) plus flood + irrigation mock
+byte-identity (`compare_audit_csv` → IDENTICAL) and the MA flood
+Paper-3 mock smoke (`test_ma_flood_6r_regression.py`, 8/8).
+
+**Follow-up (not in this PR)** — consumer-less as a direct result of
+the removals above, left in place pending a separate decision:
+
+- The four `DomainPack` hooks now carrying only a dated
+  `DORMANT_HOOKS` justification in
+  `broker/tests/test_declaration_consumption.py` (sole consumer was
+  the removed `MAEventManager` / `PhaseOrchestrator`):
+  `agent_impact_handlers`, `event_type_to_domain`, `phase_layout`,
+  `silent_skip_event_types`.
+- Three exception classes in `broker/components/events/exceptions.py`
+  (`BrokerHandlerError`, `InvalidPhaseConfigError`,
+  `PhaseDependencyCycleError`) — raised/caught only by the removed
+  `MAEventManager`; grep-confirmed zero remaining referencing files.
+  `exceptions.py` itself stays (other classes in it are still live).
+- `get_policy_event_tiers_config()` in `broker/utils/agent_config.py`
+  — resolves YAML tiers that only the removed `PolicyEventGenerator`
+  ever consumed; now referenced only by its own test.
 
 ### Known Issues
 

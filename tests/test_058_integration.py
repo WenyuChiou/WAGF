@@ -1,4 +1,10 @@
-"""Integration wiring tests for Task-058F."""
+"""Integration wiring tests for Task-058F.
+
+Org-3 note (2026-09): PhaseOrchestrator (``broker.components.orchestration.phases``)
+was deleted as dead code (no production importer, only its own
+tests); the TestPhaseOrchestratorSaga class and the PhaseOrchestrator
+assertion in TestBackwardCompat were removed with it.
+"""
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 import logging
@@ -7,7 +13,6 @@ import pytest
 
 from broker.components.coordination.coordinator import GameMaster
 from broker.components.coordination.messages import MessagePool
-from broker.components.orchestration.phases import PhaseOrchestrator
 from broker.interfaces.artifacts import ArtifactEnvelope
 from broker.interfaces.coordination import ActionProposal
 from examples.multi_agent.flood.protocols.artifacts import PolicyArtifact
@@ -65,16 +70,6 @@ class TestGameMasterArtifacts:
         assert any("CrossValidation" in rec.message for rec in caplog.records)
 
 
-class TestPhaseOrchestratorSaga:
-    def test_saga_advance_called(self):
-        saga = MagicMock()
-        saga.advance_all.return_value = []
-        orchestrator = PhaseOrchestrator(saga_coordinator=saga)
-
-        orchestrator.advance_sagas(current_step=5)
-        saga.advance_all.assert_called_once()
-
-
 class TestLifecycleHooksDrift:
     def test_drift_detector_records(self):
         drift = MagicMock()
@@ -110,6 +105,3 @@ class TestBackwardCompat:
     def test_defaults_optional(self):
         gm = GameMaster()
         assert gm.cross_validator is None
-
-        orchestrator = PhaseOrchestrator()
-        assert orchestrator.saga_coordinator is None

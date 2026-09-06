@@ -113,6 +113,27 @@ map.
 | `plugins.py`            | Plugin registry for third-party additions  |
 | `audit_writer.py`       | Writes JSONL audit traces                  |
 
+**Removed 2026-09 as unused expansion** (org-3 cleanup, on top of the
+async_adapter/ReplayEngine/duplicate-BaseValidator removal above):
+`broker/core/unified_context_builder.py` (`UnifiedContextBuilder`;
+superseded in production by `TieredContextBuilder`), the unified/FAISS
+memory stack in `broker/memory/` (`unified_engine.py` / `store.py` /
+`retrieval.py` / `graph.py` / `persistence.py` / `vector_db.py` /
+`embeddings.py` — `broker/memory/strategies/` and `broker/memory/config/`
+stayed, they're live), `broker/components/events/ma_manager.py`
+(`MAEventManager`, grep-confirmed test-only), `broker/components/cognitive/reflection_orchestrator.py`
+(`ReflectionOrchestrator`), `broker/components/orchestration/phases.py`
+(`PhaseOrchestrator`), `broker/components/events/generators/impact.py`
++ `policy.py` (`ImpactEventGenerator` / `PolicyEventGenerator`, reachable
+only via the removed `MAEventManager`), `broker/components/social/dedup.py`
+(`dedup_by_canonical_event`), `broker/components/governance/permissions.py`
+(`RoleEnforcer`), and `broker/interfaces/validation_metadata.py`
+(`ValidatorMetadata`). Each had no production importer; where a module
+had its own test suite, that suite was removed with it. Full per-module
+LOC + verification detail: `CHANGELOG.md` `[Unreleased] > Removed`.
+`broker/modules/` was investigated as a removal candidate and KEPT —
+it has real production importers (survey loading for the flood domain).
+
 ### Interfaces (`interfaces/`)
 
 | File                          | Purpose                           |

@@ -3,5 +3,4 @@
 Modules:
     registry    — SkillRegistry
     retriever   — SkillRetriever
-    permissions — RoleEnforcer, PermissionResult
 """

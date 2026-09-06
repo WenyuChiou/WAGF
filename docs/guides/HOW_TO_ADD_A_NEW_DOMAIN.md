@@ -637,21 +637,7 @@ Use `--strict` to fail on warnings as well as errors (useful in CI).
 
 ### Multi-agent orchestration: `from_domain()`
 
-Multi-agent experiments use `PhaseOrchestrator` for execution ordering. The default `PhaseOrchestrator()` returns the flood-specific 4-phase template (government / insurance → household_* → resolution → observation). For non-water domains use `from_domain()`:
-
-```python
-from broker.components.orchestration.phases import PhaseOrchestrator
-
-# Flood (or omit domain — backward-compat default)
-orch = PhaseOrchestrator.from_domain("flood")
-
-# Anything else: vaccination, traffic, energy, ...
-orch = PhaseOrchestrator.from_domain("vaccination")
-```
-
-`from_domain("<any-non-flood-string>")` returns a 3-phase template with `agent_types=None` in the first phase, meaning **auto-discover all agents** regardless of `agent_type`. This is what makes a fresh non-water domain Just Work without enumerating every agent_type in YAML.
-
-If you need fully custom phase ordering, write a phase YAML and load it via `PhaseOrchestrator.from_yaml(...)`.
+Removed 2026-09 (unused expansion); see CHANGELOG [Unreleased]. (`PhaseOrchestrator` had no production importer; multi-agent runners order phases via `ExperimentBuilder.with_phase_order()` instead.)
 
 ### Custom social specs: `register_social_spec()`
 
