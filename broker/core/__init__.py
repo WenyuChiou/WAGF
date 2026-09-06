@@ -36,13 +36,6 @@ from .psychometric import (
     register_framework,
 )
 from .skill_broker_engine import SkillBrokerEngine
-from .unified_context_builder import (
-    AgentTypeContextProvider,
-    SkillEligibilityProvider,
-    TieredContextBuilder,
-    UnifiedContextBuilder,
-    create_unified_context_builder,
-)
 
 
 # Phase 6Q-F-1 — PEP 562 lazy access for water-namespace moved
@@ -65,7 +58,6 @@ def __getattr__(name):
 
 __all__ = [
     "AgentProfile",
-    "AgentTypeContextProvider",
     "CSVLoader",
     "CognitiveCache",
     "ConstructDef",
@@ -76,13 +68,9 @@ __all__ = [
     "PMTFramework",
     "PsychologicalFramework",
     "SkillBrokerEngine",
-    "SkillEligibilityProvider",
     "SyntheticLoader",
-    "TieredContextBuilder",
-    "UnifiedContextBuilder",
     "UtilityFramework",
     "ValidationResult",
-    "create_unified_context_builder",
     "generate_initial_memories",
     "get_framework",
     "initialize_agents",

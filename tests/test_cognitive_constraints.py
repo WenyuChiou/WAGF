@@ -203,29 +203,5 @@ class TestCognitiveConstraintsReferences:
         assert c.COWAN_2001_DOI == "10.1017/S0140525X01003922"
 
 
-class TestAdaptiveRetrievalEngineIntegration:
-    """Test integration with AdaptiveRetrievalEngine."""
-
-    def test_engine_accepts_cognitive_constraints(self):
-        """AdaptiveRetrievalEngine should accept cognitive_constraints."""
-        from broker.memory.retrieval import AdaptiveRetrievalEngine
-
-        constraints = CognitiveConstraints(
-            system1_memory_count=4,
-            system2_memory_count=8,
-        )
-        engine = AdaptiveRetrievalEngine(cognitive_constraints=constraints)
-        assert engine.constraints.system1_memory_count == 4
-        assert engine.constraints.system2_memory_count == 8
-
-    def test_engine_uses_miller_standard_by_default(self):
-        """AdaptiveRetrievalEngine should use MILLER_STANDARD by default."""
-        from broker.memory.retrieval import AdaptiveRetrievalEngine
-
-        engine = AdaptiveRetrievalEngine()
-        assert engine.constraints.system1_memory_count == MILLER_STANDARD.system1_memory_count
-        assert engine.constraints.system2_memory_count == MILLER_STANDARD.system2_memory_count
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1,20 +1,30 @@
 """Phase 6T-E.B regression: subprocess gate confirming that with the
-``social_feeds`` flag OFF, the SocialMediaProvider module + dedup
-module are NOT loaded into ``sys.modules``.
+``social_feeds`` flag OFF, the SocialMediaProvider module is NOT
+loaded into ``sys.modules``.
 
 This is the load-bearing byte-identity guard for paper-3:
 
-1. ``UnifiedContextBuilder`` lazy-imports ``SocialMediaProvider`` inside
-   ``_build_providers`` only when ``enable_social_feeds`` is True.
-2. The dedup module is imported only by SocialMediaProvider + the
-   Phase 6T-G test suite — never by any default broker path.
+1. ``TieredContextBuilder`` (``broker.components.context.tiered`` —
+   the production context builder used by every runner) lazy-imports
+   ``SocialMediaProvider`` inside ``__init__`` only when
+   ``enable_social_feeds`` is True.
+2. The (now-removed) cross-channel dedup module used to be imported
+   only by SocialMediaProvider + its own test suite — never by any
+   default broker path; org-3 (2026-09) deleted it as dead code since
+   nothing production called it, so it can no longer load at all.
 
-If either module loads when the flag is OFF, downstream consumers
-could trigger their side effects (most notably the AST genericity
-guards in ``broker/components/social/dedup.py`` could be evaluated
-out of order). This test fires a fresh Python interpreter, runs a
-minimal broker initialisation with flag OFF, and inspects
-``sys.modules`` after the fact.
+Org-3 note (2026-09): this test previously exercised
+``broker.core.unified_context_builder.UnifiedContextBuilder``, a
+parallel/legacy builder that was never wired into any production
+runner (production always used ``TieredContextBuilder``). That module
+was deleted as dead code; this test was repointed at the real
+production entry point so the guard keeps covering the actual paper-3
+code path.
+
+If the provider module loads when the flag is OFF, downstream
+consumers could trigger side effects out of order. This test fires a
+fresh Python interpreter, runs a minimal broker initialisation with
+flag OFF, and inspects ``sys.modules`` after the fact.
 """
 from __future__ import annotations
 
@@ -26,15 +36,15 @@ from pathlib import Path
 GATE_SCRIPT = r"""
 import sys
 
-# Step 1: import broker minimally. UnifiedContextBuilder is the entry
+# Step 1: import broker minimally. TieredContextBuilder is the entry
 # point that *could* import SocialMediaProvider — so importing it must
 # NOT pull the provider in.
-from broker.core.unified_context_builder import UnifiedContextBuilder
+from broker.components.context.tiered import TieredContextBuilder
 
 # Step 2: construct a builder with the flag OFF (the default).
-builder = UnifiedContextBuilder(
+builder = TieredContextBuilder(
     agents={},
-    mode="single_agent",
+    hub=None,
     enable_social_feeds=False,  # explicit for clarity
 )
 

@@ -578,7 +578,7 @@ runner = (
 # No social graph, no InteractionHub — just the core loop
 ```
 
-The social layer (`SocialGraph`, `InteractionHub`, `PhaseOrchestrator`) is fully optional. These components are only needed for multi-agent experiments with neighbor observations and gossip propagation.
+The social layer (`SocialGraph`, `InteractionHub`) is fully optional. These components are only needed for multi-agent experiments with neighbor observations and gossip propagation. (`PhaseOrchestrator` removed 2026-09 as unused expansion; see CHANGELOG [Unreleased].)
 
 ---
 

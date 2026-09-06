@@ -456,7 +456,7 @@ class SocialMediaProvider(ContextProvider):
     OFFICIAL / GLOBAL channel emissions.
 
     Phase 6T-E.B: paper-3 byte-identity guard — this class is
-    instantiated ONLY when ``UnifiedContextBuilder.enable_social_feeds``
+    instantiated ONLY when ``TieredContextBuilder.enable_social_feeds``
     is True. With the flag OFF (the default for paper-3 flood
     experiments), this class never lands in the provider chain.
     """

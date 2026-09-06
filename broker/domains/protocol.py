@@ -186,7 +186,7 @@ class SkillPack(Protocol):
 class EventPack(Protocol):
     """Multi-agent event handlers — global env + per-agent impact + dispatch / lifecycle (5 methods).
 
-    Consumed by ``broker/components/events/ma_manager.py``. See
+    Consumed by the multi-agent event dispatcher. See
     ``DomainPack`` for full docstrings. Methods:
     ``event_handlers``, ``agent_impact_handlers``,
     ``event_type_to_domain``, ``event_persistence_policy``,
@@ -427,8 +427,8 @@ class DomainPack(
         """Mapping of ``event_type → handler(event, env_state)``.
 
         Replaces the hardcoded ``if event.event_type == "flood": ...
-        elif "no_flood": ... elif "subsidy_change": ...`` chain in
-        ``broker/components/events/ma_manager.py:275-330``.
+        elif "no_flood": ... elif "subsidy_change": ...`` chain that
+        used to live in the (now-removed) multi-agent event dispatcher.
 
         New domains register their own event types (e.g., for
         vaccination: ``{"outbreak": ..., "vaccine_rollout": ...}``).
@@ -437,8 +437,8 @@ class DomainPack(
 
     def agent_impact_handlers(self) -> Dict[str, EventHandler]:
         """Mapping of ``event_type → handler(event, impact_state)`` used to
-        aggregate per-agent impact, consumed by
-        ``MAEventManager.get_agent_impact()``.
+        aggregate per-agent impact, consumed by the multi-agent event
+        dispatcher's ``get_agent_impact()``.
 
         Distinct from :meth:`event_handlers` (which mutates the *global*
         environment state): these handlers aggregate the events that
@@ -446,8 +446,9 @@ class DomainPack(
         accumulates rather than overwrites — e.g. ``impact["damage"] =
         impact.get("damage", 0.0) + event.data["damage"]``.
 
-        Replaces the hardcoded domain event-type chain in
-        ``broker/components/events/ma_manager.py:get_agent_impact()``.
+        Replaces the hardcoded domain event-type chain that used to
+        live in the (now-removed) multi-agent event dispatcher's
+        ``get_agent_impact()``.
         Default empty ``{}`` → ``get_agent_impact`` returns ``{}``; a
         domain supplies its hazard / damage / payout handlers via its
         own pack (the water pack lives under ``broker/domains/water``).
@@ -457,7 +458,7 @@ class DomainPack(
     # ─── Phase 6T-A (2026-05-27): dispatch + lifecycle hooks ─────
 
     def event_type_to_domain(self, event_type: str) -> Optional[str]:
-        """Phase 6T-A: explicit ownership claim for ``MAEventManager``
+        """Phase 6T-A: explicit ownership claim for multi-agent event
         dispatch.
 
         Return this pack's :attr:`name` iff it OWNS ``event_type``,
@@ -485,9 +486,9 @@ class DomainPack(
         ``EventPersistence`` import (Protocol modules avoid hard imports
         from broker subpackages by convention).
 
-        - ``EPHEMERAL`` — wiped at year boundary by
-          ``MAEventManager.clear_ephemeral_events`` (pre-6T-A default
-          behaviour).
+        - ``EPHEMERAL`` — wiped at year boundary by the multi-agent
+          event dispatcher's ``clear_ephemeral_events`` (pre-6T-A
+          default behaviour).
         - ``STICKY_YEAR_DECAY`` — preserved across years with weighted
           age decay (consumed by Phase 6T-E social-media propagation).
         - ``STICKY_INDEFINITE`` — never wiped.

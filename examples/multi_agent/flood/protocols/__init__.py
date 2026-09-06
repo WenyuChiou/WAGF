@@ -6,7 +6,7 @@ Domain-specific implementations for the flood ABM multi-agent coordination:
 - artifacts: Structured message types (PolicyArtifact, MarketArtifact, HouseholdIntention)
 - cross_validators: Domain validation rules for CrossAgentValidator
 - saga_definitions: Multi-step transaction workflows with compensation
-- role_config: Role-based permission definitions for RoleEnforcer
+- role_config: Role-based permission config data (RoleEnforcer removed 2026-09, unused)
 """
 
 from .artifacts import PolicyArtifact, MarketArtifact, HouseholdIntention

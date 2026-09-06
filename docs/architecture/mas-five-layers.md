@@ -192,19 +192,10 @@ class CognitiveMemory:
     working: List[MemoryItem]    # Recent, high-access
     episodic: List[MemoryItem]   # Long-term storage
 
-# broker/memory/unified_engine.py
-class UnifiedCognitiveEngine:
-    """v5 Memory engine with System 1/2 retrieval."""
-
-    def retrieve(
-        self,
-        agent_id: str,
-        query: str,
-        top_k: int = 5,
-        arousal: float = 0.0,  # Controls System 1/2
-    ) -> List[UnifiedMemoryItem]:
-        # Recency × Importance × Context scoring
-        pass
+# UnifiedCognitiveEngine (broker/memory/unified_engine.py) removed
+# 2026-09 as unused expansion — no production importer; see CHANGELOG
+# [Unreleased]. Production memory engines are registered via
+# broker.components.memory.registry (e.g. HumanCentricMemoryEngine).
 ```
 
 #### Reflection: ReflectionEngine
@@ -353,21 +344,9 @@ class HazardEventGenerator(EventGeneratorProtocol):
         """Generate flood events based on hazard model."""
         pass
 
-class PolicyEventGenerator(EventGeneratorProtocol):
-    def generate(self, year: int, step: int, context: Dict) -> List[EnvironmentEvent]:
-        """Generate policy change events."""
-        pass
-
-# broker/components/ma_event_manager.py
-class MAEventManager:
-    def register(self, domain: str, generator: EventGeneratorProtocol):
-        self.generators[domain] = generator
-
-    def generate_all(self, year: int, step: int) -> List[EnvironmentEvent]:
-        events = []
-        for gen in self.generators.values():
-            events.extend(gen.generate(year, step, self.context))
-        return events
+# PolicyEventGenerator and MAEventManager removed 2026-09 as unused
+# expansion — neither had a production importer; see CHANGELOG
+# [Unreleased]. HazardEventGenerator above is unaffected.
 ```
 
 #### Feedback Loop (5 Steps)
@@ -448,23 +427,7 @@ class InteractionHub:
 
 #### Broadcast: MAEventManager
 
-```python
-# broker/components/ma_event_manager.py
-class EventScope(Enum):
-    GLOBAL = "global"       # All agents
-    TYPE = "type"           # Same agent type
-    SPATIAL = "spatial"     # Nearby agents
-    TARGETED = "targeted"   # Specific agents
-
-class MAEventManager:
-    def broadcast(self, event: EnvironmentEvent, scope: EventScope):
-        """Broadcast event to agents based on scope."""
-        if scope == EventScope.GLOBAL:
-            targets = self.all_agents
-        elif scope == EventScope.TYPE:
-            targets = self.agents_by_type[event.target_type]
-        # ...
-```
+Removed 2026-09 (unused expansion); see CHANGELOG [Unreleased]. (`MAEventManager` had no production importer — grep-confirmed test-only.)
 
 #### Shared Message Pool (Task-054)
 
@@ -543,20 +506,7 @@ class ProportionalResolution:  # Split proportionally
 
 #### Phase Orchestration (Task-054)
 
-```python
-# broker/components/phase_orchestrator.py
-class PhaseOrchestrator:
-    """Configurable multi-phase execution ordering."""
-
-    def get_execution_plan(self, agents) -> List[Tuple[ExecutionPhase, List[str]]]:
-        """Topological sort of phase dependencies."""
-
-    @classmethod
-    def from_yaml(cls, path: str) -> "PhaseOrchestrator":
-        """Load from YAML configuration."""
-
-# Default phases: INSTITUTIONAL → HOUSEHOLD → RESOLUTION → OBSERVATION
-```
+Removed 2026-09 (unused expansion); see CHANGELOG [Unreleased]. (`PhaseOrchestrator` had no production importer; multi-agent runners order phases via `ExperimentBuilder.with_phase_order()` instead.)
 
 #### Synchronization: EventPhase
 
@@ -621,7 +571,7 @@ The following gaps identified in Task-052 were addressed in Task-054:
 |-----|-----------|------------|-------|
 | ❌ Game Master | ✅ `GameMaster` + strategy pattern | `coordinator.py` | 20 |
 | ❌ Conflict Resolution | ✅ `ConflictResolver` + Priority/Proportional | `conflict_resolver.py` | 15 |
-| ❌ Agent Ordering | ✅ `PhaseOrchestrator` + topological sort | `phase_orchestrator.py` | 21 |
+| ❌ Agent Ordering | ⚠️ `PhaseOrchestrator` + topological sort — removed 2026-09 (unused expansion; see CHANGELOG [Unreleased]) | `phase_orchestrator.py` (deleted) | 21 |
 | ❌ Shared Message Pool | ✅ `MessagePool` + pub-sub + mailbox | `message_pool.py` | 23 |
 | ❌ Pub-Sub | ✅ `Subscription` filtering in MessagePool | `message_pool.py` | included |
 | ⚠️ Context injection | ✅ `MessagePoolProvider` | `message_provider.py` | included |
@@ -698,9 +648,8 @@ broker/components/
 └── skill_retriever.py        # SkillRetriever
 
 broker/memory/
-├── unified_engine.py         # UnifiedCognitiveEngine v5
-├── retrieval.py              # AdaptiveRetrievalEngine
-├── store.py                  # UnifiedMemoryStore
+# unified_engine.py / retrieval.py / store.py removed 2026-09
+# (unused expansion; see CHANGELOG [Unreleased])
 └── config/
     └── cognitive_constraints.py  # CognitiveConstraints
 ```
@@ -715,12 +664,11 @@ broker/core/
 
 broker/components/
 ├── event_manager.py          # EventManager
-├── ma_event_manager.py       # MAEventManager
+# ma_event_manager.py removed 2026-09 (unused expansion; see CHANGELOG [Unreleased])
 └── event_generators/
     ├── flood.py              # FloodEventGenerator
     ├── hazard.py             # HazardEventGenerator
-    ├── policy.py             # PolicyEventGenerator
-    └── impact.py             # ImpactEventGenerator
+    # policy.py / impact.py removed 2026-09 (unused expansion)
 ```
 
 ### Communication Layer Files
@@ -739,8 +687,8 @@ broker/components/
 ├── message_pool.py           # MessagePool (Task-054): pub-sub + mailbox
 ├── message_provider.py       # MessagePoolProvider (Task-054): context injection
 ├── conflict_resolver.py      # ConflictResolver (Task-054): detection + resolution
-├── coordinator.py            # GameMaster (Task-054): action resolution
-└── phase_orchestrator.py     # PhaseOrchestrator (Task-054): execution ordering
+└── coordinator.py            # GameMaster (Task-054): action resolution
+# phase_orchestrator.py removed 2026-09 (unused expansion; see CHANGELOG [Unreleased])
 ```
 
 ### Communication Layer Tests

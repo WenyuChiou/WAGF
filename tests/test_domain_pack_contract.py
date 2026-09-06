@@ -596,7 +596,8 @@ class TestHotPathsUseDomainPack:
     @pytest.mark.parametrize("module_path", [
         "broker/components/cognitive/reflection.py",        # C3
         "broker/core/experiment_runner.py",                 # W2
-        "broker/components/events/ma_manager.py",           # W5
+        # W5 (broker/components/events/ma_manager.py) removed 2026-09 —
+        # was dead code with no production importer, only its own tests.
         # Phase 6P-A (2026-05-25): the dispatcher relocated from
         # `broker/domains/water/validator_bundles.py` to a generic
         # address. The water-side file is now a 3-line backwards-compat
