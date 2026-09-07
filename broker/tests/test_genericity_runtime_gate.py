@@ -95,12 +95,6 @@ class TestTrafficDomainStructuralGate:
         assert pack.csv_loader_class() is None
         assert pack.synthetic_loader_class() is None
 
-    def test_phase_layout_is_none(self):
-        """Non-water DomainPack default phase_layout is None →
-        broker uses generic 3-phase layout, not water 4-phase."""
-        pack = FakeTrafficDomainPack()
-        assert pack.phase_layout() is None
-
     def test_dispatcher_returns_empty_validators_for_unregistered_traffic(
         self, fresh_traffic_registry
     ):

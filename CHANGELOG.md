@@ -628,23 +628,66 @@ passed / 5 skipped / 2 xfailed, 0 failed) plus flood + irrigation mock
 byte-identity (`compare_audit_csv` → IDENTICAL) and the MA flood
 Paper-3 mock smoke (`test_ma_flood_6r_regression.py`, 8/8).
 
-**Follow-up (not in this PR)** — consumer-less as a direct result of
-the removals above, left in place pending a separate decision:
+- **DomainPack hooks `agent_impact_handlers` / `event_type_to_domain` /
+  `phase_layout` / `silent_skip_event_types` (org-4 follow-up)**:
+  removed from the `EventPack` / `SetupPack` sub-protocols and the
+  composite `DomainPack` in `broker/domains/protocol.py`,
+  `DefaultDomainPack` in `broker/domains/default.py`, and
+  `examples/governed_flood/adapters/flood_pack.py` (the only pack
+  implementation that overrode any of them) — sole consumer of each
+  was the `MAEventManager` / `PhaseOrchestrator` removed above,
+  grep-confirmed zero remaining callers outside each hook's own
+  contract tests. The three now-unreachable flood impact-handler
+  functions (`_impact_flood`, `_impact_flood_damage`,
+  `_impact_insurance_payout`) are removed with them; `event_handlers`
+  and `event_persistence_policy` are untouched. Updated alongside:
+  `broker/tests/test_declaration_consumption.py` (`DORMANT_HOOKS`
+  entries for the four removed — a nonexistent hook cannot be
+  dormant), `broker/tests/test_sub_protocol_split.py` (method-set
+  pins + total-method-count 46 → 42), `broker/tests/test_genericity_runtime_gate.py`,
+  and `tests/test_domain_pack_contract.py` (contract tests that
+  exercised the removed hooks directly).
+- **Five classes in `broker/components/events/exceptions.py` (org-4
+  follow-up)** — `BrokerHandlerError`, `InvalidPhaseConfigError`,
+  `PhaseDependencyCycleError`, `UnhandledEventError`, and
+  `EventDispatchMetrics`: all five were raised/caught/recorded only by
+  the removed `MAEventManager` (the first three also by
+  `PhaseOrchestrator`), grep-confirmed zero remaining referencing
+  files including tests. `exceptions.py` stays — `EventPersistence`
+  is the one class still live (`broker/domains/default.py`,
+  `broker/simulation/environment.py`), and the module docstring is
+  rewritten to describe only it. `UnhandledEventError` and
+  `EventDispatchMetrics` were first retyped away from the
+  already-removed `BrokerHandlerError` (`EventDispatchMetrics.errors`
+  moved `List[BrokerHandlerError]` → `List[Any]`) before a follow-up
+  review found both had zero importers of their own and should be
+  removed outright rather than kept as a half-live surface.
+- **`broker/domains/water/phase_layouts.py` (org-4 follow-up)** —
+  `water_default_phases()`, the module's only export, was the sole
+  return value of the now-removed `FloodEventMixin`/setup-mixin
+  `phase_layout()` override; with that gone the module had zero
+  importers anywhere (grep-confirmed, incl. `.md` docs beyond dated
+  CHANGELOG/INVARIANTS history), so the module is deleted rather than
+  left as a one-function orphan.
+- **`get_policy_event_tiers_config()` in `broker/utils/agent_config.py`
+  (org-4 follow-up)** — resolved YAML tiers that only the removed
+  `PolicyEventGenerator` ever consumed; had zero production callers,
+  only its own test class (removed with it:
+  `tests/test_agent_config_rating_scale.py::TestAgentTypeConfigPolicyEventTiers`).
+  This orphaned `DomainPack.policy_event_tiers()` (its sole caller) as
+  a side effect, so the `GovernancePack`/`DomainPack` hook itself is
+  removed too — from `broker/domains/protocol.py`,
+  `broker/domains/default.py` (no pack overrode it), the
+  `KNOWN_GOVERNANCE_KEYS` allowlist entry in
+  `broker/tools/validate_prompt.py` (grep-confirmed no repo YAML sets
+  the key), and its three contract tests in
+  `tests/test_domain_pack_contract.py`. `GovernancePack` method-count
+  9 → 8; sub-protocol total 42 → 41
+  (`broker/tests/test_sub_protocol_split.py`).
 
-- The four `DomainPack` hooks now carrying only a dated
-  `DORMANT_HOOKS` justification in
-  `broker/tests/test_declaration_consumption.py` (sole consumer was
-  the removed `MAEventManager` / `PhaseOrchestrator`):
-  `agent_impact_handlers`, `event_type_to_domain`, `phase_layout`,
-  `silent_skip_event_types`.
-- Three exception classes in `broker/components/events/exceptions.py`
-  (`BrokerHandlerError`, `InvalidPhaseConfigError`,
-  `PhaseDependencyCycleError`) — raised/caught only by the removed
-  `MAEventManager`; grep-confirmed zero remaining referencing files.
-  `exceptions.py` itself stays (other classes in it are still live).
-- `get_policy_event_tiers_config()` in `broker/utils/agent_config.py`
-  — resolves YAML tiers that only the removed `PolicyEventGenerator`
-  ever consumed; now referenced only by its own test.
+All of the above pass the same gates as the org-3 PR (full `pytest
+tests/ broker/` suite, flood + irrigation mock byte-identity via
+`compare_audit_csv`, MA flood Paper-3 mock regression).
 
 ### Known Issues
 
