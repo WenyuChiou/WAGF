@@ -57,6 +57,7 @@ from .tiered import (  # noqa: E402
     create_context_builder,
     load_prompt_templates,
     DEFAULT_PROMPT_TEMPLATE,
+    TIERED_DEFAULT_PROMPT_TEMPLATE,
     VERBOSE_PROMPT_TEMPLATE,
 )
 
@@ -78,5 +79,6 @@ __all__ = [
     "create_context_builder",
     "load_prompt_templates",
     "DEFAULT_PROMPT_TEMPLATE",
+    "TIERED_DEFAULT_PROMPT_TEMPLATE",
     "VERBOSE_PROMPT_TEMPLATE",
 ]
