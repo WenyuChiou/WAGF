@@ -36,6 +36,7 @@ from examples.cat_model.coupling_modules import (  # noqa: E402
 
 from broker.agents import AgentConfig, BaseAgent  # noqa: E402
 from broker.agents.base import Skill  # noqa: E402
+from broker.components.context.builder import TieredContextBuilder  # noqa: E402
 from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
 from broker.coupling import (  # noqa: E402
     CouplingContract,
@@ -119,6 +120,32 @@ def main(argv=None) -> int:
         raise SystemExit("cat_model requires global_config.coupling.enable: true")
     print(f"[coupling] enable=True (source={source}); adapter injected by the builder")
 
+    # Explicit TieredContextBuilder (hub=None), matching
+    # examples/vaccination_demo / examples/irrigation_abm's L3-1B fix
+    # (2026-05-23) and broker/tools/scaffold_domain.py's generated runner
+    # (2026-09 round 3): ExperimentBuilder.build()'s DEFAULT context
+    # builder (create_context_builder() with no hub -> plain
+    # BaseAgentContextBuilder) never reads context["personal"] at all, so
+    # {options_text} (written there by _inject_options_text) rendered
+    # "[N/A]" — a 2026-09 options-text-parity POST-RENDER check caught
+    # this as a real, pre-existing gap. examples/cat_model/run_cat_ma.py
+    # and examples/reservoir_control/run_reservoir_ops.py already work
+    # around the same gap with a STATIC agent.dynamic_state["options_text"]
+    # override (safe there because those menus never get RAG-reranked);
+    # run_cat.py had neither that workaround nor this one. Pinning
+    # TieredContextBuilder is the more robust fix: it renders the LIVE
+    # {options_text} correctly on every call, RAG re-rank or not, rather
+    # than adding a third copy of a static string that could drift.
+    mem_engine = WindowMemoryEngine(window_size=3)
+    insurer_prompt_template = yaml_cfg["insurer"]["prompt_template"]
+    ctx_builder = TieredContextBuilder(
+        agents=agents,
+        hub=None,
+        prompt_templates={"insurer": insurer_prompt_template},
+        yaml_path=str(CONFIG / "agent_types.yaml"),
+        memory_engine=mem_engine,
+    )
+
     # --- diagnostic hooks (wired via the builder so __init__ validates signatures) ---
     def on_pre_year(year, env, _agents):
         print(f"\n--- Year {year} --- depth={env.get('flood_depth_ft')}ft "
@@ -142,7 +169,8 @@ def main(argv=None) -> int:
         # build() and wraps the (absent -> None) sim engine in the adapter.
         .with_coupling(_build_contract(), bundle, domain="cat_model")
         .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
-        .with_memory_engine(WindowMemoryEngine(window_size=3))
+        .with_memory_engine(mem_engine)
+        .with_context_builder(ctx_builder)
         .with_governance("strict", str(CONFIG / "agent_types.yaml"))
         # No custom_validators bridge needed: cat_model's registry PHYSICAL check
         # (insurer_payout_solvency_check) is dispatched by the engine because the

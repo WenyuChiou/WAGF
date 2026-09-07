@@ -629,6 +629,18 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             # Inject dynamic_skill_map for parser (Priority 1 in get_skill_map)
             personal = context.setdefault("personal", {})
             personal["dynamic_skill_map"] = dynamic_skill_map
+            # NEW-8 (silent-failure hunter, round 5, 2026-09): this branch
+            # wrote dynamic_skill_map back into `personal` but never wrote
+            # `options_text` back alongside it, even though it is the SAME
+            # numbered list that gets rendered into the prompt just below
+            # via template_vars["options_text"]. The options-text-parity
+            # POST-RENDER check (broker/core/_skill_filtering.py) reads
+            # `personal["options_text"]` for its exact, fast-path option
+            # match — without this line it saw nothing here and had to
+            # fall through to a slower check, and any OTHER downstream
+            # consumer of `personal["options_text"]` (audit/logging) saw
+            # a stale or missing value too.
+            personal["options_text"] = options_text
 
             indices = [str(i + 1) for i in range(len(available_skills))]
             if len(indices) > 1:
@@ -671,13 +683,53 @@ class TieredContextBuilder(BaseAgentContextBuilder):
 
         # KV Cache Optimization: Static sections (System, Institutional, Global) placed first
         # to maximize prefix sharing across agents within the same simulation year.
-        default_template = (
-            "{system_prompt}\n\n{institutional_section}\n\n{global_section}\n\n"
-            "{priority_section}\n\n{personal_section}\n\n{local_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
-        )
-        template = self.prompt_templates.get(agent_type, default_template)
+        template = self.prompt_templates.get(agent_type, TIERED_DEFAULT_PROMPT_TEMPLATE)
         if "{system_prompt}" not in template:
             template = "{system_prompt}\n\n{priority_section}\n\n" + template
+
+        # Options-text parity guard (2026-09, added after silent-failure
+        # review): this method can build its OWN dynamic_skill_map (the
+        # ``if not options_text and agent:`` branch above) from a
+        # DIFFERENT source (``agent.get_available_skills()``) and a
+        # DIFFERENT shuffle (``context["_shuffle_skills"]``) than
+        # SkillFilterMixin._inject_options_text — a second, previously
+        # unchecked choke point. Re-checking here, against the FINAL
+        # resolved ``template``, is deliberately idempotent with the
+        # SkillBrokerEngine-side check (same inputs -> same verdict when
+        # that check already ran); it is the ONLY check that runs when
+        # this branch is the one that actually built the map.
+        dyn_map = context.get("personal", {}).get("dynamic_skill_map")
+        if dyn_map:
+            installed_order = [
+                dyn_map[k] for k in sorted(dyn_map, key=lambda x: int(x) if str(x).isdigit() else 0)
+            ]
+            from broker.core._skill_filtering import (
+                check_options_text_parity,
+                resolve_decision_field_is_numeric_choice,
+                resolve_registry_ids,
+                resolve_template_path,
+            )
+            try:
+                pcfg = load_agent_config(getattr(self, "yaml_path", None))
+                registry_ids = resolve_registry_ids(pcfg, agent_type)
+                decision_is_numeric = resolve_decision_field_is_numeric_choice(pcfg, agent_type)
+                template_path = resolve_template_path(pcfg, agent_type)
+            except Exception as exc:  # noqa: BLE001 — re-raised with context, never swallowed
+                raise RuntimeError(
+                    f"Options-text parity guard cannot verify agent_type={agent_type!r} "
+                    f"at render time: config resolution raised {exc!r} while a "
+                    f"dynamic_skill_map was installed in order {installed_order}. "
+                    f"Refusing to silently exempt an agent_type this check cannot "
+                    f"resolve."
+                ) from exc
+            check_options_text_parity(
+                agent_type=agent_type,
+                installed_order=installed_order,
+                registry_ids=registry_ids,
+                template=template,
+                template_path=template_path,
+                decision_field_is_numeric_choice=decision_is_numeric,
+            )
 
         formatted = SafeFormatter().format(template, **template_vars)
         token_estimate = len(formatted) // 4
@@ -744,6 +796,21 @@ ACT:{skills}
 OUTPUT:
 INTERPRET:[1-line summary of your situation]
 DECIDE:[action] ADJ:[0-0.15] REASON:[1-line]"""
+
+
+# TieredContextBuilder's own no-template fallback (used inside
+# format_prompt below when self.prompt_templates has no entry for the
+# agent_type). Promoted to a module-level constant (2026-09, silent-
+# failure review NEW-4) so broker/core/_skill_filtering.py's options-text
+# parity guard can IMPORT this exact string when evaluating what will
+# really render for a TieredContextBuilder with no registered template,
+# instead of hand-typing a second copy that could silently drift from
+# this one.
+TIERED_DEFAULT_PROMPT_TEMPLATE = (
+    "{system_prompt}\n\n{institutional_section}\n\n{global_section}\n\n"
+    "{priority_section}\n\n{personal_section}\n\n{local_section}\n\n"
+    "### [AVAILABLE OPTIONS]\n{options_text}"
+)
 
 
 VERBOSE_PROMPT_TEMPLATE = """You are {agent_name}, a {agent_type} agent.

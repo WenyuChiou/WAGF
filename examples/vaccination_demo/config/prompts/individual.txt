@@ -26,7 +26,8 @@ Work through the six HBM constructs in order before choosing an action:
   6. CUES TO ACTION — whether external signals (outbreak news,
      doctor / family advice) are nudging you toward action.
 
-Available actions: {skills}
+Available actions:
+{options_text}
 
 {rating_scale}
 

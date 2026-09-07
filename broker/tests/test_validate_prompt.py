@@ -93,7 +93,8 @@ def good_config(tmp_path: Path) -> Path:
     prompt_path.parent.mkdir(parents=True)
     prompt_path.write_text(textwrap.dedent("""
         {narrative_persona}
-        Decide: {skills}
+        Decide:
+        {options_text}
         {rating_scale}
         <<<DECISION_START>>>
         {{
@@ -335,6 +336,325 @@ def test_validate_parsing_actions_location(tmp_path: Path):
     # parsing.actions location should be accepted — no missing-actions error
     assert not any("missing 'actions:' block" in i.message for i in errors), \
         f"parsing.actions should be valid, got: {[i.message for i in errors]}"
+
+
+# ---------------------------------------------------------------------------
+# Options-text parity BLOCKER (2026-09 fix — the vaccination_demo bug)
+# ---------------------------------------------------------------------------
+
+def _multi_skill_yaml(*, prompt_body: str, full_disclosure: bool = False) -> str:
+    fd_line = "full_disclosure: true" if full_disclosure else "# full_disclosure: (absent)"
+    return textwrap.dedent(f"""
+        shared: {{}}
+        individual:
+          agent_type: individual
+          prompt_template_file: p.txt
+          actions:
+            - id: get_vaccinated
+              aliases: ["1"]
+            - id: delay
+              aliases: ["2"]
+            - id: refuse
+              aliases: ["3"]
+          parsing:
+            default_skill: "delay"
+            strict_mode: true
+            {fd_line}
+    """).strip()
+
+
+def test_validate_options_text_blocker_fires_on_prefix_vaccination_shape(tmp_path: Path):
+    """Falsification (fail-before): reproduces the EXACT pre-fix
+    vaccination_demo shape — 3 actions, prompt renders {skills} (never
+    filled by TieredContextBuilder) instead of {options_text}, no
+    full_disclosure. Must raise a BLOCKER (ERROR)."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text("Available actions: {skills}\n{response_format}", encoding="utf-8")
+    yaml_path.write_text(_multi_skill_yaml(prompt_body="{skills}"), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert any("eligible skills" in i.message for i in errors), \
+        f"expected options-text-parity BLOCKER, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_silent_with_options_text_placeholder(tmp_path: Path):
+    """Pass-after, fix path 1: rendering {options_text} clears the BLOCKER."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text("Available actions:\n{options_text}\n{response_format}", encoding="utf-8")
+    yaml_path.write_text(_multi_skill_yaml(prompt_body="{options_text}"), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"expected no options-text-parity BLOCKER, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_silent_with_full_disclosure(tmp_path: Path):
+    """Pass-after, fix path 2: full_disclosure: true clears the BLOCKER even
+    though the prompt still renders the never-filled {skills} placeholder —
+    the registry order is pinned so a static legend stays correct."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text("Available actions: {skills}\n{response_format}", encoding="utf-8")
+    yaml_path.write_text(
+        _multi_skill_yaml(prompt_body="{skills}", full_disclosure=True), encoding="utf-8",
+    )
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"expected no options-text-parity BLOCKER, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_silent_for_name_based_decisions(tmp_path: Path):
+    """Discovered mid-fix: MA flood's government/insurance institutional
+    agents (examples/multi_agent/flood/config/prompts/government.txt,
+    insurance.txt) render no {options_text} placeholder at all -- every
+    skill's literal id is hand-written into the template's own static
+    text, and the model answers with that literal NAME, not a digit. The
+    BLOCKER must not fire when every eligible skill id is spelled out in
+    the template (mirrors the runtime guard's identical exemption)."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text(
+        "### YOUR OPTIONS\n"
+        "- get_vaccinated: do it\n"
+        "- delay: wait\n"
+        "- refuse: decline\n"
+        '{{"decision": "get_vaccinated | delay | refuse"}}',
+        encoding="utf-8",
+    )
+    yaml_path.write_text(_multi_skill_yaml(prompt_body="named"), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"expected no options-text-parity BLOCKER for a name-based template, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_silent_when_choice_type_never_rendered(tmp_path: Path):
+    """Precision pass (2026-09): a declared response_format.decision
+    type: "choice" only matters if the template actually renders
+    {response_format} (the only broker code path that turns "choice"
+    into a numeric-ID instruction). MA flood's government/insurance
+    declare type: "choice" but hand-write their own JSON and never
+    reference {response_format} -- the declaration is inert, and the
+    BLOCKER must not fire on that shape."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text(
+        "### YOUR OPTIONS\n"
+        "- get_vaccinated: do it\n"
+        "- delay: wait\n"
+        "- refuse: decline\n"
+        '{{"decision": "<name>"}}',  # hand-written, no {response_format}
+        encoding="utf-8",
+    )
+    yaml_path.write_text(textwrap.dedent("""
+        shared: {}
+        individual:
+          agent_type: individual
+          prompt_template_file: p.txt
+          actions:
+            - id: get_vaccinated
+              aliases: ["1"]
+            - id: delay
+              aliases: ["2"]
+            - id: refuse
+              aliases: ["3"]
+          response_format:
+            fields:
+              - { key: "decision", type: "choice", required: true }
+          parsing:
+            default_skill: "delay"
+            strict_mode: true
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"declared-but-never-rendered type: choice must not trip the BLOCKER, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_fires_when_valid_choices_text_rendered_with_choice_type(tmp_path: Path):
+    """Companion / regression lock: {valid_choices_text} is
+    UNCONDITIONALLY a digit-count string, independent of declared type.
+    It must still trip the BLOCKER even with every skill name ALSO
+    spelled out and type: "choice" declared -- this placeholder's
+    disqualifying effect must never become conditional on the declared
+    type the way {response_format}'s is."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text(
+        "Options: get_vaccinated, delay, refuse. Answer with one of: "
+        "{valid_choices_text}",
+        encoding="utf-8",
+    )
+    yaml_path.write_text(textwrap.dedent("""
+        shared: {}
+        individual:
+          agent_type: individual
+          prompt_template_file: p.txt
+          actions:
+            - id: get_vaccinated
+              aliases: ["1"]
+            - id: delay
+              aliases: ["2"]
+            - id: refuse
+              aliases: ["3"]
+          response_format:
+            fields:
+              - { key: "decision", type: "choice", required: true }
+          parsing:
+            default_skill: "delay"
+            strict_mode: true
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert any("eligible skills" in i.message for i in errors), \
+        f"expected the BLOCKER to still fire with {{valid_choices_text}} rendered, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_fires_when_only_some_names_spelled_out(tmp_path: Path):
+    """The name-based exemption requires ALL eligible skills to be spelled
+    out literally -- partial documentation still trips the BLOCKER for the
+    undocumented skill(s)."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text(
+        "### YOUR OPTIONS\n- get_vaccinated: do it\n{response_format}",
+        encoding="utf-8",
+    )
+    yaml_path.write_text(_multi_skill_yaml(prompt_body="partial"), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert any("eligible skills" in i.message for i in errors), \
+        f"expected the BLOCKER to still fire, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_silent_for_single_skill_agent(tmp_path: Path):
+    """A single-skill agent has no menu to get out of sync — never fires."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text("Your only option: {skills}\n{response_format}", encoding="utf-8")
+    yaml_path.write_text(textwrap.dedent("""
+        shared: {}
+        individual:
+          agent_type: individual
+          prompt_template_file: p.txt
+          actions:
+            - id: do_nothing
+              aliases: ["1"]
+          parsing:
+            default_skill: "do_nothing"
+            strict_mode: true
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"single-skill agent should never trip the parity BLOCKER, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_fires_when_no_template_at_all(tmp_path: Path):
+    """Item 3 (silent-failure review): an agent block declaring neither
+    'prompt_template_file' nor inline 'prompt_template' used to emit a
+    plain WARN and `return` BEFORE the parity BLOCKER ever ran. The
+    broker default template in this case
+    (BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE) renders
+    'ACT:{skills}', not {options_text} — the exact vaccination_demo shape
+    — so a multi-skill, non-full_disclosure agent with NO template at all
+    must also BLOCK, not just WARN."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    yaml_path.write_text(textwrap.dedent("""
+        shared: {}
+        individual:
+          agent_type: individual
+          actions:
+            - id: get_vaccinated
+              aliases: ["1"]
+            - id: delay
+              aliases: ["2"]
+            - id: refuse
+              aliases: ["3"]
+          parsing:
+            default_skill: "delay"
+            strict_mode: true
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert any("eligible skills" in i.message for i in errors), \
+        f"expected the options-text-parity BLOCKER even with no template at all, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_silent_no_template_with_full_disclosure(tmp_path: Path):
+    """Companion: the same no-template shape, but full_disclosure: true —
+    the registry order is pinned, so the missing template is not (for
+    this check) unsafe. Still no BLOCKER."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    yaml_path.write_text(textwrap.dedent("""
+        shared: {}
+        individual:
+          agent_type: individual
+          actions:
+            - id: get_vaccinated
+              aliases: ["1"]
+            - id: delay
+              aliases: ["2"]
+            - id: refuse
+              aliases: ["3"]
+          parsing:
+            default_skill: "delay"
+            strict_mode: true
+            full_disclosure: true
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"expected no BLOCKER with full_disclosure set, got: {[i.message for i in issues]}"
+
+
+def test_validate_options_text_blocker_on_real_prefix_vaccination_config():
+    """Falsification against the REAL current config: the fixed, on-disk
+    vaccination_demo config must NOT trip the BLOCKER (companion
+    falsification against the pre-fix version of this same file is done
+    manually via `git stash` / a temp copy — see the PR report)."""
+    repo_root = Path(__file__).resolve().parents[2]
+    # The fixed, current, on-disk config — must be clean of this BLOCKER.
+    yaml_path = repo_root / "examples" / "vaccination_demo" / "config" / "agent_types.yaml"
+    import yaml as _yaml
+    cfg = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    errors = [i for i in issues if i.severity == "ERROR"]
+    assert not any("eligible skills" in i.message for i in errors), \
+        f"fixed vaccination config must not trip the BLOCKER, got: {[i.message for i in issues]}"
 
 
 # ---------------------------------------------------------------------------

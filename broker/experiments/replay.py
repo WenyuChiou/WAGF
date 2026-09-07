@@ -858,6 +858,23 @@ class ReplayDecider:
                 llm_invoke=invoke,
                 agent_type=snapshot.agent_type,
                 env_context=dict(snapshot.env_context),
+                # render_check=False (round 5, 2026-09) — LOAD-BEARING,
+                # not belt-and-braces: this call feeds a RECORDED prompt
+                # (`prompt`, above) from a PAST run into a freshly rebuilt
+                # engine, whose dynamic_skill_map is reconstructed
+                # independently right now via _SnapshotContextBuilder.
+                # assert_rendered_prompt_shows_options only accepts an
+                # exact options_text match or every skill id present by
+                # name (round 6 removed the shape/arity path that used to
+                # tolerate a differently-worded historical menu — it was
+                # unsound, see _skill_filtering.py); WITHOUT this opt-out,
+                # a recorded prompt whose label wording no longer matches
+                # what the engine would render today fails the
+                # POST-RENDER check even though nothing is actually
+                # wrong. Correct here regardless: replay's job is
+                # re-validating the decision against today's governance
+                # rules, not re-proving yesterday's render pipeline.
+                render_check=False,
             )
         finally:
             engine.context_builder = original_builder

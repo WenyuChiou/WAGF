@@ -200,12 +200,15 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
 
 def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
     framework_value = f"{domain}_framework" if framework == "custom" else framework
-    valid_choices = ", ".join(str(i + 1) for i in range(len(skills)))
-    decision_desc = (
-        f"Numeric ID, choose ONE from: {valid_choices} ("
-        + ", ".join(f"{i + 1}={s}" for i, s in enumerate(skills))
-        + ")"
-    )
+    # Options-text parity fix (2026-09): the decision field used to
+    # hand-roll a hardcoded digit legend here
+    # ("Numeric ID, choose ONE from: 1, 2, 3 (1=skill_a, 2=skill_b, ...)")
+    # via `description:` — exactly the vaccination_demo bug (a legend
+    # that goes stale the moment RAG re-ranks the menu). No `description:`
+    # is emitted for the decision field below; ResponseFormatBuilder falls
+    # back to its own dynamic "Numeric ID, choose ONE from:
+    # {valid_choices_text}" text (broker/components/response_format.py),
+    # matching examples/irrigation_abm's pattern.
 
     # Build skill actions block at the EXACT indent the final YAML needs.
     # `actions:` lives at column 2 under `agent:`, so list items go at 4.
@@ -279,7 +282,6 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
                   key: "decision",
                   type: "choice",
                   required: true,
-                  description: "{decision_desc}",
                 }}
 
         agent:
@@ -321,10 +323,18 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
 
 
 def gen_prompt(domain: str, skills: List[str]) -> str:
-    skill_list = "\n".join(
-        f"- {i + 1} = {s} (TODO: describe consequence)"
-        for i, s in enumerate(skills)
-    )
+    # Options-text parity fix (2026-09): the scaffolder used to render
+    # ``Available actions: {skills}`` plus a hand-written, hardcoded
+    # "1 = skill_a / 2 = skill_b" digit legend — exactly the
+    # vaccination_demo bug shape ({skills} is never filled by
+    # TieredContextBuilder, and a hardcoded legend goes stale the moment
+    # RAG skill retrieval re-ranks the menu). Every scaffolded domain now
+    # renders the live, broker-filled {options_text} list instead, which
+    # is built from (and always matches) the SAME order
+    # dynamic_skill_map decodes against, and picks up each skill's
+    # description from skill_registry.yaml (including the "TODO —
+    # describe..." placeholder gen_skill_registry() emits there, until
+    # the domain author fills it in — no duplicate TODO list needed here).
     return dedent(f"""
         {{narrative_persona}}
 
@@ -336,8 +346,8 @@ def gen_prompt(domain: str, skills: List[str]) -> str:
         Consider your situation, then assess your primary appraisal and choose
         ONE action below.
 
-        Available actions: {{skills}}
-        {skill_list}
+        Available actions:
+        {{options_text}}
 
         {{rating_scale}}
 
@@ -544,6 +554,7 @@ def gen_run_experiment(domain: str) -> str:
             )
 
         from broker.agents import AgentConfig, BaseAgent, Skill  # noqa: E402
+        from broker.components.context.builder import TieredContextBuilder  # noqa: E402
         from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
         from broker.core.experiment import ExperimentBuilder  # noqa: E402
         from broker.interfaces.skill_types import ExecutionResult  # noqa: E402
@@ -619,6 +630,27 @@ def gen_run_experiment(domain: str) -> str:
                 raise SystemExit("No skills found in config/skill_registry.yaml")
             agents = build_agents(args.agents, skills)
 
+            # Explicit TieredContextBuilder (hub=None), matching
+            # examples/vaccination_demo and examples/irrigation_abm's L3-1B
+            # fix (2026-05-23): ExperimentBuilder.build()'s DEFAULT context
+            # builder (create_context_builder() with no hub) is a plain
+            # BaseAgentContextBuilder, which does NOT render {{options_text}}
+            # or {{response_format}} at all -- both fall through to
+            # SafeFormatter's "[N/A]" default, leaving the LLM with no menu
+            # and no JSON schema example. Pinning TieredContextBuilder here
+            # is what makes prompts/agent.txt's {{options_text}} placeholder
+            # (see gen_prompt()) actually render the live skill list.
+            mem_engine = WindowMemoryEngine(window_size=3)
+            agent_types_path = CONFIG / "agent_types.yaml"
+            prompt_template = (CONFIG / "prompts" / "agent.txt").read_text(encoding="utf-8")
+            ctx_builder = TieredContextBuilder(
+                agents=agents,
+                hub=None,
+                prompt_templates={{"agent": prompt_template, "default": prompt_template}},
+                yaml_path=str(agent_types_path),
+                memory_engine=mem_engine,
+            )
+
             runner = (
                 ExperimentBuilder()
                 .with_model(args.model)
@@ -626,8 +658,9 @@ def gen_run_experiment(domain: str) -> str:
                 .with_agents(agents)
                 .with_simulation(SyntheticEnvironment())
                 .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
-                .with_memory_engine(WindowMemoryEngine(window_size=3))
-                .with_governance("strict", str(CONFIG / "agent_types.yaml"))
+                .with_memory_engine(mem_engine)
+                .with_context_builder(ctx_builder)
+                .with_governance("strict", str(agent_types_path))
                 .with_exact_output(str(output_path))
                 .with_workers(1)
                 .with_seed(args.seed)
