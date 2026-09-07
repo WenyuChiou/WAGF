@@ -24,8 +24,8 @@ Runs all 17 scripts in dependency order, streams their output, prints a PASS/FAI
 and exits non-zero if any sub-script fails. Options: `--core` (exogeneity + e1..e6 only),
 `--list` (print the plan, run nothing).
 
-Full sweep as of 2026-09-07 (post ministral-3:8b seed44 backfill): **17/17 PASS, ~84 s
-total, no GPU, no network.**
+Full sweep as of 2026-09-07 (post quarantine of the defective ministral-3:8b ungoverned
+seed44 backfill): **17/17 PASS, ~86 s total, no GPU, no network.**
 
 ## Files
 
@@ -33,7 +33,7 @@ total, no GPU, no network.**
 |---|---|---|
 | `run_all.py` | harness only — executes everything below in order, aggregates failures | `python reproduction/decomposition/run_all.py` |
 | `_loader.py` | canonical corpus loader (paths, arms, seeds, IBR/increase definitions). Imported by the estimators so they all count the corpus identically; run directly for a self-test | `python .../_loader.py` |
-| `seed_inventory.py` | which seeds exist per model cell, which cells are arm-balanced, headline rates per cell; ministral-3:8b is balanced since the 2026-08 backfill (regenerated 2026-09-07) (3 paired seeds 42/43/44 in both arms) | `python .../seed_inventory.py [--csv out.csv]` |
+| `seed_inventory.py` | which seeds exist per model cell, which cells are arm-balanced, headline rates per cell; ministral-3:8b is unbalanced again as of the 2026-09-07 quarantine of its defective seed44 backfill (governed 42/43/44, ungoverned 42/43) | `python .../seed_inventory.py [--csv out.csv]` |
 | `reproduce_published.py` | reproduces the published 36.05 / 59.07 conditional headline from the raw CSVs, per seed, without tuning the definition | `python .../reproduce_published.py` |
 | `linkage_check.py` | is `yearly_decision` really the executed action? 1:1 linkage between `simulation_log.csv` and the governance audit; proposed vs final; rejection/fallback shares | `python .../linkage_check.py` |
 | `../evidence/exogeneity_check.py` | **Phase 1A** — which environment columns are treatment-invariant, hence legal to condition on. Must run before e2/e3/e4. Lives in `evidence/` and writes its CSVs there | `python reproduction/evidence/exogeneity_check.py` |
@@ -62,13 +62,14 @@ total, no GPU, no network.**
 - No script writes outside `reproduction/` (verified by mtime sweep after a full run).
 - Unit of inference is the **seed**, n = 5 → paired t-test, df = 4. Per-seed values are always
   printed, never a pooled-only number.
-- As of the 2026-08 ministral-3:8b seed backfill (regenerated 2026-09-07), this model is
-  balanced (3 paired seeds 42/43/44 in both arms) and included in every paired contrast
-  like the rest, with `e2_stratified_strata.csv` / `e3_decomposition.csv` regenerated
-  accordingly. Including it moves the unconditional cross-model mean gap from −11.39 pp
-  (4 cells) to −4.68 pp (5 cells) because it is the only sign-flipping cell (+22.17 pp);
-  the per-model numbers, not this pooled mean, are the unit of reporting (see Provenance
-  below for why it is not pooled into any paired test).
+- ministral-3:8b is UNBALANCED again as of the 2026-09-07 quarantine of its defective
+  ungoverned seed44 backfill (governed 42/43/44 vs ungoverned 42/43) and is excluded from
+  every paired contrast, reported separately, by the data-driven balance logic — no code
+  change was needed to make this happen. Between the 2026-08 backfill and the 2026-09-07
+  quarantine it was briefly treated as balanced (3 paired seeds); pooling it in moved the
+  unconditional cross-model mean gap from −11.39 pp (4 cells, the current and correct
+  figure) to −4.68 pp (5 cells) purely because it is the only sign-flipping cell
+  (+22.17 pp) — exactly why it is not pooled without a clean rerun (see Provenance below).
 - Nothing is repaired to make it pass: a missing run raises, a divergence is reported.
 
 ## Provenance: the ministral-3:8b seed44 backfill
@@ -92,18 +93,35 @@ commit `10e190cf`): commit `8c6e48c4` (2026-05-24), a single 10-line additive hu
 a prompt-variable-source declaration) with zero deletions and no change to any governance,
 threshold, or magnitude field.
 
-Comparing the produced runs rather than only the manifests: mean `memory` content is 340
-chars/row in the backfilled run against 784–1013 in all five arm-mates (identical 22-column
-schema, 3276 rows each), so the prompt input did differ materially across the vintage
-boundary. The shared manifest fields match and the one `agent_types.yaml` change is
-additive, but that audit does not cover `broker/` memory-engine changes in the same window,
-and `git_dirty: true` means the code state is not pinned. The three seeds are pooled here
-with that difference on the record; a reader treating ministral-3:8b as a single clean cell
-should not. For that reason ministral-3:8b is used only as a cross-model robustness cell,
-never as a headline result, and any number quoted from it must carry this caveat.
+Comparing the produced runs rather than only the manifests surfaced a large, structural
+difference, not just a smaller one on the record: mean `memory` content is 340 chars/row
+in the backfilled run against 784–1013 in the five arm-mates (identical 22-column schema,
+3276 rows each), and the literal broken placeholder `Consolidated Reflection: {`
+(immediately followed by a raw year-by-year history dump instead of the normal generated
+prose) covers 3106/3198 = 97.1% of year-2-onward rows in the backfilled run, against
+20.4%–30.6% in the five arm-mates — there it is a transient early-warm-up artifact
+concentrated in each agent's first 2–3 years, not a persistent failure across the whole
+42-year run. `reflection_log.jsonl`'s own `summary` field shows the same collapse: median
+1 char in the backfilled run vs 232–253 chars in the arm-mates. The shared manifest fields
+still match and the one `agent_types.yaml` change is still additive, but that audit never
+covered `broker/` memory-engine changes in the same window, and `git_dirty: true` means
+the code that actually produced this run cannot be confirmed either way.
+
+**Decision (user, 2026-09-07): QUARANTINE rather than pool.** The run is moved to
+`examples/irrigation_abm/results/_QUARANTINE_reflection_truncated_2026-09-07/` (see that
+folder's `README.txt` for the full record, including the note that an earlier pass's
+"85.5% / 194.6 chars" figures did not reproduce from disk and have been superseded by the
+numbers above). It is excluded from every table here — `e2_stratified_strata.csv`,
+`e3_decomposition.csv`, `seed_inventory.py`, `run_all.py` — by the same data-driven
+balance logic that excludes any other unbalanced cell (`L.balanced()` / `L.paired_seeds()`
+in `_loader.py`); a quarantined run directory is simply absent from `RESULTS`, so no code
+change was needed. `e3_decomposition.csv` accordingly contains zero ministral-3:8b rows
+again (PART F reports unbalanced cells to the console only, never into the CSV), and
+`e2_stratified_strata.csv` is back to byte-identical with its pre-2026-08 content. A clean
+rerun of the ungoverned seed44 arm at a pinned (non-dirty) commit can lift the quarantine.
 
 Evidence — mean `memory` column length, all six ministral-3:8b runs (22 columns, 3276 rows
-each, `simulation_log.csv`):
+each, `simulation_log.csv`), as measured 2026-09-07:
 
 | run | arm | seed | rows | cols | mean memory chars/row |
 |---|---|---|---:|---:|---:|
@@ -112,4 +130,4 @@ each, `simulation_log.csv`):
 | `production_v21_42yr_ministral3_8b_seed44` | governed | 44 | 3276 | 22 | 935.4 |
 | `ungoverned_v21_42yr_ministral3_8b_seed42` | ungoverned | 42 | 3276 | 22 | 784.1 |
 | `ungoverned_v21_42yr_ministral3_8b_seed43` | ungoverned | 43 | 3276 | 22 | 836.1 |
-| `ungoverned_v21_42yr_ministral3_8b_seed44` | ungoverned (backfill) | 44 | 3276 | 22 | **339.8** |
+| `ungoverned_v21_42yr_ministral3_8b_seed44` | **QUARANTINED** (backfill) | 44 | 3276 | 22 | **339.8** |
