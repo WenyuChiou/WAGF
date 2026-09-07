@@ -103,36 +103,6 @@ def _handle_premium_change(event: Any, gs: Dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Per-agent impact handlers — extracted verbatim from the flood
-# event-type chain in the (removed 2026-09) multi-agent event
-# dispatcher's get_agent_impact().
-# These AGGREGATE into a per-agent impact dict (max for depth, sum for
-# dollar amounts) rather than overwriting global env state.
-# ─────────────────────────────────────────────────────────────────────
-
-def _impact_flood(event: Any, impact: Dict[str, Any]) -> None:
-    impact["flooded"] = True
-    impact["depth_m"] = max(
-        impact.get("depth_m", 0.0), event.data.get("depth_m", 0)
-    )
-
-
-def _impact_flood_damage(event: Any, impact: Dict[str, Any]) -> None:
-    impact["damage_amount"] = (
-        impact.get("damage_amount", 0.0) + event.data.get("damage_amount", 0)
-    )
-    impact["oop_cost"] = (
-        impact.get("oop_cost", 0.0) + event.data.get("oop_cost", 0)
-    )
-
-
-def _impact_insurance_payout(event: Any, impact: Dict[str, Any]) -> None:
-    impact["payout_amount"] = (
-        impact.get("payout_amount", 0.0) + event.data.get("payout_amount", 0)
-    )
-
-
-# ─────────────────────────────────────────────────────────────────────
 # Sub-pack mixins (Phase 6R-D-5, 2026-05-26)
 # ─────────────────────────────────────────────────────────────────────
 # Each mixin groups the FloodDomainPack overrides that satisfy a single
@@ -304,9 +274,8 @@ class FloodSkillMixin:
 
 
 class FloodEventMixin:
-    """EventPack methods — global env mutation + per-agent impact
-    aggregation for flood / no_flood / subsidy / premium / damage /
-    payout events."""
+    """EventPack methods — global env mutation for flood / no_flood /
+    subsidy / premium events."""
 
     def event_handlers(self) -> Dict[str, EventHandler]:
         """Replaces the if/elif chain that used to live in the
@@ -317,31 +286,6 @@ class FloodEventMixin:
             "subsidy_change": _handle_subsidy_change,
             "premium_change": _handle_premium_change,
         }
-
-    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
-        """Replaces the flood event-type chain in the multi-agent
-        event dispatcher's ``get_agent_impact()`` (removed 2026-09;
-        Phase 6J-B)."""
-        return {
-            "flood": _impact_flood,
-            "flood_damage": _impact_flood_damage,
-            "insurance_payout": _impact_insurance_payout,
-        }
-
-    def silent_skip_event_types(self) -> Set[str]:
-        """Phase 6T-A (2026-05-27): ``flood_damage`` and
-        ``insurance_payout`` are deliberately impact-only — they
-        appear in :meth:`agent_impact_handlers` but NOT in
-        :meth:`event_handlers` (they aggregate per-agent damage /
-        payout, not global env state). Pre-6T-A the env-sync
-        dispatcher silently skipped them; the 6T-A explicit-opt-in
-        contract requires this list to preserve that intentional
-        skip and avoid :class:`UnhandledEventError`. Code-review P1
-        catch — without this override the dispatcher raises on
-        every flood_damage / insurance_payout fed to
-        ``sync_to_environment``.
-        """
-        return {"flood_damage", "insurance_payout"}
 
     # ───────────────────────────────────────────────────────────────
     # Phase 6T-E.B (2026-05-28): post auto-emission
@@ -829,15 +773,6 @@ class FloodSetupMixin:
         """
         from broker.domains.water.loaders import FloodSyntheticLoader
         return FloodSyntheticLoader
-
-    def phase_layout(self) -> List[Any]:
-        """Phase 6P-B (2026-05-25): replaces the hardcoded
-        ``if domain.lower() == "flood":`` branch in
-        ``broker/components/orchestration/phases.py::from_domain``.
-        Returns the four-phase water MAS execution order
-        (institutional → household → resolution → observation)."""
-        from broker.domains.water.phase_layouts import water_default_phases
-        return water_default_phases()
 
     # Phase 6P-E (2026-05-25) added a ``hazard_severity_thresholds``
     # override here returning the four flood water-depth thresholds.

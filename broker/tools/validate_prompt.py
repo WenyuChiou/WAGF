@@ -200,7 +200,11 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     "retrieval",                 # agent_config.get_retrieval_config
     "drift",                     # agent_config.get_drift_config
     "population",                # agent_config.get_population_governance_config
-    "policy_event_tiers",        # agent_config.get_policy_event_tiers_config
+    # "policy_event_tiers" removed org-4 cleanup 2026-09 — the
+    # DomainPack.policy_event_tiers() hook and its sole consumer
+    # (AgentTypeConfig.get_policy_event_tiers_config) are both gone;
+    # grep-confirmed no repo YAML sets this key, so dropping it from
+    # the allowlist introduces no new "unknown key" WARN.
     # NOTE: governance.memory (bridge-importance / resolution_importance_policy
     # sub-block) is DISTINCT from the top-level global_config.memory block —
     # both are intentionally listed, one per level.

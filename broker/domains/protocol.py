@@ -56,11 +56,8 @@ from typing import (
 EventHandler = Callable[[Any, Dict[str, Any]], None]
 """(event, state) -> None. Mutates ``state`` in place.
 
-Reused for two distinct dispatch surfaces:
-- :meth:`DomainPack.event_handlers` — ``state`` is the global environment
-  dict; a handler overwrites env keys.
-- :meth:`DomainPack.agent_impact_handlers` — ``state`` is a per-agent
-  impact accumulator; a handler aggregates (max / sum), not overwrites.
+Consumed by :meth:`DomainPack.event_handlers` — ``state`` is the global
+environment dict; a handler overwrites env keys.
 """
 
 BuiltinCheck = Callable[..., List[Any]]
@@ -184,20 +181,14 @@ class SkillPack(Protocol):
 
 @runtime_checkable
 class EventPack(Protocol):
-    """Multi-agent event handlers — global env + per-agent impact + dispatch / lifecycle (5 methods).
+    """Multi-agent event handlers — global env mutation + lifecycle policy (2 methods).
 
     Consumed by the multi-agent event dispatcher. See
     ``DomainPack`` for full docstrings. Methods:
-    ``event_handlers``, ``agent_impact_handlers``,
-    ``event_type_to_domain``, ``event_persistence_policy``,
-    ``silent_skip_event_types`` (last three added Phase 6T-A
-    2026-05-27).
+    ``event_handlers``, ``event_persistence_policy``.
     """
     def event_handlers(self) -> Dict[str, EventHandler]: ...
-    def agent_impact_handlers(self) -> Dict[str, EventHandler]: ...
-    def event_type_to_domain(self, event_type: str) -> Optional[str]: ...
     def event_persistence_policy(self, event_type: str) -> Any: ...
-    def silent_skip_event_types(self) -> Set[str]: ...
 
 
 @runtime_checkable
@@ -227,7 +218,7 @@ class PerceptionPack(Protocol):
 
 @runtime_checkable
 class GovernancePack(Protocol):
-    """Validator dispatch + policy thresholds + placeholder allowlist (9 methods).
+    """Validator dispatch + policy thresholds + placeholder allowlist (8 methods).
 
     Consumed by ``broker/components/governance/*``,
     ``broker/validators/*``, and ``broker/tools/validate_prompt.py``.
@@ -244,7 +235,7 @@ class GovernancePack(Protocol):
     Methods: ``psychological_framework``,
     ``framework_for_agent_type`` (Phase 6T-B 2026-05-27),
     ``builtin_checks``, ``retrieval_policy``, ``drift_policy``,
-    ``population_governance_policy``, ``policy_event_tiers``,
+    ``population_governance_policy``,
     ``bridge_importance_policy``, ``prompt_placeholder_extensions``.
     """
     def psychological_framework(self) -> str: ...
@@ -253,7 +244,6 @@ class GovernancePack(Protocol):
     def retrieval_policy(self) -> Dict[str, Any]: ...
     def drift_policy(self) -> Dict[str, Any]: ...
     def population_governance_policy(self) -> Dict[str, Any]: ...
-    def policy_event_tiers(self) -> Dict[str, float]: ...
     def bridge_importance_policy(self) -> Dict[str, float]: ...
     def prompt_placeholder_extensions(self) -> Set[str]: ...
 
@@ -262,19 +252,17 @@ class GovernancePack(Protocol):
 class SetupPack(Protocol):
     """Agent initialisation + orchestration + per-agent narrative (7 methods).
 
-    Consumed by ``broker/core/agent_initializer.py``,
-    ``broker/components/orchestration/phases.py``, multi-agent
+    Consumed by ``broker/core/agent_initializer.py``, multi-agent
     runners, and per-agent context builders. See ``DomainPack`` for
     full docstrings. Methods: ``csv_loader_class``,
-    ``synthetic_loader_class``, ``phase_layout``,
-    ``initial_memory_templates``, ``mg_barrier_text``,
+    ``synthetic_loader_class``, ``initial_memory_templates``,
+    ``mg_barrier_text``,
     ``institutional_lifecycle_handlers`` (Phase 6T-C 2026-05-27),
     ``multi_agent_env_keys`` (Phase 6T-C 2026-05-27),
     ``decider_factories`` (PR-8 2026-09-03).
     """
     def csv_loader_class(self) -> Optional[Any]: ...
     def synthetic_loader_class(self) -> Optional[Any]: ...
-    def phase_layout(self) -> Optional[List[Any]]: ...
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]: ...
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str: ...
     def institutional_lifecycle_handlers(self) -> Dict[str, Any]: ...
@@ -435,47 +423,7 @@ class DomainPack(
         """
         ...
 
-    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
-        """Mapping of ``event_type → handler(event, impact_state)`` used to
-        aggregate per-agent impact, consumed by the multi-agent event
-        dispatcher's ``get_agent_impact()``.
-
-        Distinct from :meth:`event_handlers` (which mutates the *global*
-        environment state): these handlers aggregate the events that
-        affect a single agent into a per-agent impact dict. A handler
-        accumulates rather than overwrites — e.g. ``impact["damage"] =
-        impact.get("damage", 0.0) + event.data["damage"]``.
-
-        Replaces the hardcoded domain event-type chain that used to
-        live in the (now-removed) multi-agent event dispatcher's
-        ``get_agent_impact()``.
-        Default empty ``{}`` → ``get_agent_impact`` returns ``{}``; a
-        domain supplies its hazard / damage / payout handlers via its
-        own pack (the water pack lives under ``broker/domains/water``).
-        """
-        ...
-
-    # ─── Phase 6T-A (2026-05-27): dispatch + lifecycle hooks ─────
-
-    def event_type_to_domain(self, event_type: str) -> Optional[str]:
-        """Phase 6T-A: explicit ownership claim for multi-agent event
-        dispatch.
-
-        Return this pack's :attr:`name` iff it OWNS ``event_type``,
-        else ``None``. "Owns" defaults (in :class:`DefaultDomainPack`)
-        to "appears in :meth:`event_handlers` or
-        :meth:`agent_impact_handlers`" — the natural definition. Packs
-        that emit observational events they don't directly handle
-        (e.g. a flood pack emitting ``social_media_post`` events that
-        a separate social-media pack handles in Phase 6T-E) can
-        override to claim them.
-
-        Pre-6T-A the dispatcher silently fell through to scan-all-packs
-        when ``env.domain`` was unset, with no notion of who "owned"
-        each event_type. The explicit ownership API makes the dispatch
-        path deterministic + debuggable.
-        """
-        ...
+    # ─── Phase 6T-A (2026-05-27): lifecycle hooks ─────
 
     def event_persistence_policy(self, event_type: str) -> Any:
         """Phase 6T-A: lifecycle policy for an event of ``event_type``.
@@ -496,28 +444,6 @@ class DomainPack(
         Default in :class:`DefaultDomainPack`: ``EPHEMERAL`` for every
         event_type — matches pre-6T-A behaviour where ``clear_year``
         discarded everything.
-        """
-        ...
-
-    def silent_skip_event_types(self) -> Set[str]:
-        """Phase 6T-A: opt-in allowlist of event_types this pack
-        acknowledges are intentionally unhandled.
-
-        Events whose ``event_type`` appears in any registered pack's
-        silent-skip allowlist do NOT raise :class:`UnhandledEventError`
-        from the dispatcher — they're recorded as
-        ``handlers_silently_skipped`` on
-        :class:`EventDispatchMetrics` and the dispatch loop continues.
-
-        Use this for legitimate observational / metrics-only events
-        that domain code emits for downstream collectors but does not
-        itself respond to (e.g. ``audit_only_post_emitted``,
-        ``metrics_breadcrumb``). Do NOT use this as a workaround for
-        forgotten handlers — that's exactly the silent-failure mode
-        Phase 6T-A is closing.
-
-        Default: empty set. The legacy pre-6T-A scan-all-silent-skip
-        behaviour is now explicit per-pack opt-in.
         """
         ...
 
@@ -963,25 +889,12 @@ class DomainPack(
         """
         ...
 
-    # ─── Policy event severity tiers (Phase 6L-C 2026-05-23) ──────
-
-    def policy_event_tiers(self) -> Dict[str, float]:
-        """Severity-tier cutoffs consumed by
-        :class:`broker.components.events.generators.policy.PolicyEventGenerator`
-        when classifying a policy-change magnitude into
-        ``EventSeverity.{SEVERE, MODERATE, MINOR, INFO}``.
-
-        Recognised keys (all floats, lowercase severity names):
-        ``severe`` / ``moderate`` / ``minor``. A ``|change_pct|`` at or
-        above each threshold maps to that severity; below all three →
-        INFO. Defaults preserve the pre-6L-C hardcoded
-        0.20 / 0.10 / 0.05 cutoffs.
-
-        Default ``{}`` → ``PolicyEventConfig`` constructor defaults
-        apply. Also overridable via ``agent_types.yaml``
-        ``governance.policy_event_tiers`` (Phase 6L-C).
-        """
-        ...
+    # Phase 6L-C (2026-05-23) added a ``policy_event_tiers`` hook here.
+    # Removed org-4 cleanup (2026-09): sole consumer was
+    # ``AgentTypeConfig.get_policy_event_tiers_config`` (removed
+    # earlier the same cleanup as dead code — its own sole consumer,
+    # ``PolicyEventGenerator``, was already gone), leaving this hook
+    # with zero production callers, grep-confirmed.
 
     # Phase 6P-E (2026-05-25) added a ``hazard_severity_thresholds``
     # hook here. Phase 6Q-B (2026-05-26) removed it — Phase 6P-E's
@@ -1102,29 +1015,6 @@ class DomainPack(
         of ``broker.core.agent_initializer.SyntheticLoader``; the
         broker instantiates it with ``seed=seed``. Default ``None`` →
         generic ``SyntheticLoader``."""
-        ...
-
-    # ─── Phase orchestration (Phase 6P-B 2026-05-25) ──────────────
-
-    def phase_layout(self) -> Optional[List[Any]]:
-        """Multi-agent phase execution layout (``List[PhaseConfig]``).
-
-        Replaces the hardcoded ``if domain.lower() == "flood":`` branch
-        in ``broker/components/orchestration/phases.py::from_domain``.
-        Domains that need a custom phase split (institutional →
-        household → resolution → observation, etc.) return their list
-        here; domains with a single-phase pipeline return ``None`` and
-        the orchestrator falls back to a generic 3-phase layout
-        (CUSTOM → RESOLUTION → OBSERVATION).
-
-        Return type kept as ``Optional[List[Any]]`` (not the concrete
-        ``PhaseConfig`` class) to avoid forcing every pack import the
-        ``broker.interfaces.coordination`` module — most packs return
-        ``None`` and never touch the type.
-
-        Default ``None`` (no-op) → generic layout. The flood pack
-        overrides to return ``water_default_phases()``.
-        """
         ...
 
     # ─── Phase 6T-C (2026-05-27): institutional lifecycle dispatch ─
