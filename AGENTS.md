@@ -256,6 +256,31 @@ canonical routing guide.
 
 Full chooser table: [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md).
 
+## Bash discipline — never prepend `cd`
+
+Applies to every agent that runs shell here (Claude, Codex, anything else
+reading this file). The session cwd IS this repo. NEVER write
+`cd <path> && cmd`; run the script's full relative path directly (e.g.
+`python examples/governed_flood/run_experiment.py <config>`). If a
+command must run elsewhere, give the script an absolute path — do not
+`cd`. Measured 2026-09-07: 1697 of 2012 Bash calls in one session carried
+the prefix (84%) — pure output-token waste. The rule used to live only in
+a subagent that never fired (`broker-pipeline-runner`, retired in the
+dotfiles repo 6fb9165; ledger 2026-W23#14 part a moved it here, and here
+rather than CLAUDE.md because CLAUDE.md is gitignored in this repo).
+
+Canonical invocations (root-relative, no `cd`; paths verified 2026-09-07 —
+the earlier list copied from the retired subagent named root-level files
+that do not exist here):
+
+    python examples/governed_flood/run_experiment.py <config>     # also irrigation_abm/, vaccination_demo/
+    python examples/single_agent/run_flood.py <flood-config>
+    python paper/nature_water/scripts/compile_paper.py            # paper build; paper/ is gitignored (local only)
+
+Measurement caveat: the 1697 / 2012 figure was read from a session
+transcript that keeps growing (a re-run minutes later read 1703 / 2018);
+the 84% is the stable number, the absolute counts are not.
+
 <!-- OPENWIKI:START -->
 
 ## OpenWiki
