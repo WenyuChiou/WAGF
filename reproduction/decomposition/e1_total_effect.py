@@ -75,8 +75,10 @@ F2  Unparsed / missing actions. If a nonzero share of rows had a blank or
     illegal `yearly_decision`, the denominator would be partly outcome-selected.
     CHECKED (value inventory printed).
 F3  Unbalanced seed sets. A paired t on seeds that are not actually paired is
-    not a paired test. CHECKED per model; ministral-3:8b fails and is excluded
-    from every paired contrast and reported separately.
+    not a paired test. CHECKED per model at runtime via `L.balanced()`; any
+    model that fails is excluded from every paired contrast and reported
+    separately (see the balanced/unbalanced split printed below -- which
+    models land on which side is a property of the corpus, not of this text).
 F4  Sign instability across seeds. If per-seed differences straddled zero the
     5-seed mean would be an artefact. CHECKED (per-seed table + sign count).
 F5  Definition fragility. If the conclusion flipped when the action variable is
@@ -86,7 +88,8 @@ F5  Definition fragility. If the conclusion flipped when the action variable is
     `yearly_decision` is the INTENT label, not the executed action.
 F6  Disagreement with the published conditional gap in SIGN. Both estimands
     should at least agree that governance reduces increases. CHECKED per model;
-    one cell (the excluded ministral cell) does flip, and it is reported.
+    any model whose contrast disagrees in sign is flagged in the cross-model
+    table printed below rather than named here.
 
 =============================================================================
 SIGN CONVENTIONS, IN WORDS
