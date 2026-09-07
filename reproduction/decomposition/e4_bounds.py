@@ -558,8 +558,11 @@ def main():
         print(f"  {label:16s} governed={','.join(gs):14s} ungoverned={','.join(us):14s} "
               f"paired={len(pr)}  balanced={L.balanced(prefix)}")
     print()
-    print("  ministral-3:8b is UNBALANCED and is excluded from every paired contrast; it is")
-    print("  reported per-seed only, at the end.  gemma3:12b is balanced but has 3 seeds, not 5.")
+    unbal = [l for l, p in L.MODELS if not L.balanced(p)]
+    print(f"  UNBALANCED, excluded from every paired contrast: {unbal or 'none'}")
+    short = [(l, len(L.paired_seeds(p))) for l, p in L.MODELS
+             if L.balanced(p) and len(L.paired_seeds(p)) != 5]
+    print(f"  balanced but with paired-seed count != 5: {short or 'none'}")
 
     # -------------------------------------------------------------- Section 1
     head("SECTION 1 -- OBSERVED QUANTITIES, ANCHOR MODEL %s, PER SEED" % anchor_label)
@@ -827,7 +830,8 @@ def main():
     # -------------------------------------------------------------- Section 5
     head("SECTION 5 -- ALL MODEL CELLS (headline sharp Manski bound, Part 1b)")
     print("  Per-cell mean identified set for Delta_S, plus the published conditional gap for")
-    print("  reference.  Balanced cells only in the paired block; ministral-3:8b afterwards.")
+    print("  reference.  Balanced cells only in the paired block above; any unbalanced cells")
+    print("  (per L.balanced()) are reported per-seed afterwards.")
     print()
     print(f"  {'model':16s} {'seeds':>6s} {'pub gap':>9s} {'sharp LB':>9s} {'sharp UB':>9s} "
           f"{'IM lo':>8s} {'IM hi':>8s} {'excl 0?':>9s} {'uncond gap':>11s}")
