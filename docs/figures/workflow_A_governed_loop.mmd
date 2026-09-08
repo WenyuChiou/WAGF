@@ -1,0 +1,44 @@
+%% Diagram A — embedded in README.md under "How one decision moves through
+%% the framework" (the section directly below the intro paragraph).
+flowchart LR
+  ENV["Environment /<br/>physical model"]
+  CTX["Context providers<br/>state · memory · history"]
+  SOC["Social feed provider"]
+  PRM["Prompt<br/>persona + numbered options + JSON schema"]
+  DEC["Decider<br/>llm / rule_based / parametric / hybrid"]
+  PAR["Parser<br/>layered; numeric id → skill name"]
+  VAL["Validators — one pass<br/>hard ERROR + soft WARNING"]
+  ADV["Advise channel<br/>off / record / feedback"]
+  RTY{"retries left?"}
+  FB["Re-prompt with the rule's reason"]
+  DEF["Registry default skill"]
+  EXE["Executed skill"]
+  CPL["Coupling adapter<br/>contract checks"]
+  STP["Physical model step<br/>mass balance, state update"]
+  MEM["Memory write-back + reflection"]
+  AUD["Audit row<br/>raw/*.jsonl + governance_audit.csv"]
+  INT["run_integrity.json<br/>reproducibility_manifest.json"]
+
+  ENV -->|"one snapshot per period"| CTX
+  SOC -.->|"posts"| CTX
+  CTX -->|"rendered fields"| PRM
+  PRM -->|"one call"| DEC
+  DEC -->|"raw text"| PAR
+  PAR -->|"proposal + construct labels"| VAL
+  VAL -->|"findings"| ADV
+  ADV -->|"feeds retry decision"| RTY
+  RTY -->|"yes"| FB
+  RTY -->|"exhausted"| DEF
+  FB -->|"same context, added reason"| PRM
+  DEF --> EXE
+  VAL -->|"approved"| EXE
+  EXE --> MEM
+  MEM --> CTX
+  EXE --> AUD
+  AUD --> INT
+  EXE -.->|"end of period, aggregated"| CPL
+  CPL -->|"period commit"| STP
+  STP -->|"next period"| ENV
+
+  classDef optional stroke-dasharray:5 5,color:#555;
+  class SOC,ADV,CPL optional;
