@@ -1,0 +1,19 @@
+%% Diagram C — not yet embedded in README.md; suggested placement is the
+%% "Cases the framework hosts" section, after the case table (optional).
+flowchart TB
+  SEED["Seeds 42–46"]
+  SHR["Shared environment<br/>same skill registry, same rules, same prompts"]
+  A1["Arm 1 — LLM + validators<br/>governance_mode: strict"]
+  A2["Arm 2 — LLM, validators disabled<br/>--disable-governance"]
+  A3["Arm 3 — rule-based ABM decider<br/>FQL (irrigation) / PMT (flood)"]
+  AUD["One audit schema<br/>every arm, every decider"]
+  MET["Metrics<br/>appraisal–action inconsistency · action entropy<br/>rule-firing census · basin trajectory"]
+
+  SEED --> SHR
+  SHR --> A1
+  SHR --> A2
+  SHR --> A3
+  A1 --> AUD
+  A2 --> AUD
+  A3 --> AUD
+  AUD --> MET
