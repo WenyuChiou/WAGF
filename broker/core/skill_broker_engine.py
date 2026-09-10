@@ -63,7 +63,7 @@ from ._audit_helpers import (
 )
 from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
 from ._advise_pass import AdviseMixin
-from ._skill_filtering import SkillFilterMixin
+from ._skill_filtering import SkillFilterMixin, assert_rendered_prompt_shows_options
 
 
 def _reset_uncategorised_rules() -> None:
@@ -354,6 +354,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         agent_type: str = "default",
         env_context: Dict[str, Any] = None,
         decider: Optional[str] = None,
+        render_check: bool = True,
     ) -> SkillBrokerResult:
         """
         Process one complete decision step through skill governance.
@@ -373,6 +374,28 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         the audit row so a rule-based agent and a model-driven one are
         distinguishable in the CSV while going through identical
         validation. ``None`` means the default, ``"llm"``.
+
+        ``render_check`` (round 5, 2026-09): gates the options-text
+        parity POST-RENDER assertion (``assert_rendered_prompt_shows_options``)
+        that runs right after step ②'s prompt is built. Default ``True``
+        for every live call — this is the check that catches a prompt
+        template whose ``{options_text}``/name-based legend never
+        actually rendered (e.g. the ``BaseAgentContextBuilder`` +
+        ``{options_text}`` gap ``examples/cat_model/run_cat.py`` had).
+        ``broker/experiments/replay.py`` passes ``render_check=False`` —
+        LOAD-BEARING, not belt-and-braces: replay feeds a RECORDED
+        prompt from a PAST run into a freshly rebuilt engine, whose
+        ``dynamic_skill_map`` is reconstructed independently right now,
+        and the check only accepts an exact ``options_text`` match or
+        every skill id present by name (round 6 removed an earlier
+        shape/arity path that used to tolerate a differently-worded
+        historical menu of the same size — it was unsound, see
+        ``_skill_filtering.py``). Without this opt-out a replayed prompt
+        whose label wording no longer matches today's rendering would
+        fail the check even though nothing is actually wrong. Correct
+        here regardless: replay's entire point is re-validating an
+        already-happened decision against today's governance rules, not
+        re-proving that some earlier run's rendering pipeline worked.
         """
         self.stats["total"] += 1
         timestamp = datetime.now().isoformat()
@@ -423,7 +446,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             context["available_skills"] = [s.skill_id for s in retrieved_skills]
             # Also store full definitions for ContextBuilder to show descriptions if needed
             context["retrieved_skill_definitions"] = retrieved_skills
-            self._inject_options_text(context, [s.skill_id for s in retrieved_skills])
+            self._inject_options_text(
+                context, [s.skill_id for s in retrieved_skills], agent_type=agent_type,
+            )
 
         # Robust memory extraction for audit (handles nesting and stringification)
         raw_mem = context.get("memory")
@@ -438,6 +463,33 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         
         # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
         prompt = self.context_builder.format_prompt(context)
+        # Post-render options-text parity check (2026-09, round 4): every
+        # check upstream (_assert_options_text_parity et al.) verifies the
+        # un-rendered TEMPLATE STRING, not what actually made it into
+        # `prompt` above — a legend delivered through some OTHER filled
+        # placeholder is invisible to a template-only scan. This is the
+        # single point every rendered prompt in this broker passes
+        # through, right before the model sees it. `render_check=False`
+        # (round 5) is replay.py's documented opt-out — see this
+        # method's docstring for why.
+        if render_check:
+            _personal_for_render_check = context.get("personal", {}) if isinstance(context, dict) else {}
+            assert_rendered_prompt_shows_options(
+                agent_type,
+                prompt,
+                _personal_for_render_check.get("dynamic_skill_map"),
+                _personal_for_render_check.get("options_text"),
+            )
+        else:
+            # Round 6: make a skipped check countable, not just inferable
+            # from the `replay_` run_id prefix convention — surfaced as
+            # run_integrity.json's `render_check_skipped_rows` (absent,
+            # not zero, on every non-replay run).
+            try:
+                from broker.core.run_integrity import note_render_check_skipped
+                note_render_check_skipped()
+            except Exception as exc:  # noqa: BLE001 — a side counter must not break a step
+                logger.debug(f"[Integrity] render_check_skipped tally skipped: {exc}")
         skill_proposal, raw_output, format_retry_count, total_llm_stats = (
             self._invoke_llm_with_retries(prompt, llm_invoke, context, agent_id, agent_type, env_context)
         )

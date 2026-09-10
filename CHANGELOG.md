@@ -45,6 +45,468 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Options-text parity: vaccination_demo decoded digit answers against the
+  wrong skill from year 2 on (root-caused independently, verified on 3
+  runs)**: `examples/vaccination_demo/config/prompts/individual.txt:29`
+  rendered `Available actions: {skills}` — a placeholder
+  `TieredContextBuilder.format_prompt` never fills (it fills
+  `options_text` / `skills_text` / `valid_choices_text`, not `skills`), so
+  the model only ever saw the hardcoded digit legend that used to live in
+  `agent_types.yaml`'s `decision` field description
+  ("1=get_vaccinated, 2=delay, 3=refuse"). Meanwhile RAG skill retrieval
+  (`broker/core/skill_broker_engine.py:398-426` →
+  `broker/components/governance/retriever.py:76-82`) re-ranks the eligible
+  skills per call by memory-keyword relevance, and `_inject_options_text`
+  (`broker/core/_skill_filtering.py:82-98`) rebuilds
+  `personal["dynamic_skill_map"]` in THAT re-ranked order.
+  `broker/utils/parsing/unified_adapter.py:450-451` decodes the model's
+  numeric answer against `dynamic_skill_map` — so whenever the map order
+  differed from the static legend the model actually saw, the decoded
+  skill was WRONG. Year 1 (empty memory, nothing to rank on) always
+  matched; 57-63% of `proposed_skill` values mismatched from year 2 on.
+  **Blast radius: vaccination_demo only.** Flood and irrigation were
+  verified clean — both render the live `{options_text}` list (not
+  `{skills}`), and irrigation additionally sets `parsing.full_disclosure:
+  true`, which bypasses RAG re-ranking outright
+  (`SkillRetriever.retrieve`'s `full_disclosure_agent_types` short
+  circuit).
+  Fix (three layers): (1) `individual.txt` now renders `{options_text}`;
+  `agent_types.yaml`'s `decision` field no longer hand-rolls a digit
+  legend (falls back to `ResponseFormatBuilder`'s dynamic
+  `valid_choices_text`); `parsing.full_disclosure: true` added, mirroring
+  `examples/irrigation_abm`. (2) A new fail-loud runtime guard,
+  `SkillFilterMixin._assert_options_text_parity`
+  (`broker/core/_skill_filtering.py`), raises whenever a
+  `dynamic_skill_map` is installed in an order that diverges from the
+  registry (`actions:`) order while the agent's prompt template renders
+  neither `{options_text}` nor `{skills_text}` — this is the single choke
+  point every `dynamic_skill_map` in this broker passes through, so it
+  covers the RAG re-rank path and the `shuffle_options` path alike.
+  **Mid-fix finding, RESOLVED — see the hardening entry below for the
+  final, precise form of the exemption rule**: the guard's first version
+  legitimately tripped on MA flood's `government` / `insurance`
+  institutional agents under the new PR-8 `--mixed-population` LLM
+  decider path (`broker/tests/test_mixed_population_pr8.py`) and under
+  the plain default run — those two agent types ask for the decision by
+  literal skill NAME
+  (`examples/multi_agent/flood/config/prompts/government.txt` /
+  `insurance.txt` hand-write every option's id into their own "### YOUR
+  OPTIONS" text and inline JSON example, never rendering
+  `{options_text}`/`{response_format}`), so `unified_adapter.py`
+  ordinarily resolves their answer by alias match, not by
+  `dynamic_skill_map` position. A name-based exemption was added so a
+  template spelling out every skill's literal id is not blocked just for
+  lacking `{options_text}`. An intermediate version of the exemption
+  still did not clear MA flood's government/insurance (their frozen
+  config declares `response_format.fields[decision].type: "choice"`); the
+  hardening entry below explains the precise, placeholder-conditional
+  fix that clears them WITHOUT editing the frozen config, and the
+  empirical verification against the real paper-3 corpus. Verified
+  silent (no false trigger) throughout: flood, irrigation, MA flood's
+  `household_owner`/`household_renter`/`social_media_influencer`/
+  `government`/`insurance`, cat_model, reservoir, quickstart, and
+  `_test_fixtures`. (3) A new
+  config-time BLOCKER in `broker/tools/validate_prompt.py`
+  (`validate_agent_type`): an agent type with more than one eligible
+  skill whose prompt template lacks the options placeholder AND does not
+  set `parsing.full_disclosure: true` now fails `python -m
+  broker.tools.validate_prompt` with exit code 1, before any run starts.
+  New tests: `broker/tests/test_options_text_parity.py` (runtime guard +
+  config locks + the parity decode property) and 5 new cases in
+  `broker/tests/test_validate_prompt.py` (BLOCKER fires / both escape
+  hatches clear it / single-skill agents are exempt / the real fixed
+  config passes).
+  **Known issue, NOT fixed by this PR**: the guard at
+  `skill_broker_engine.py:401-407` meant to disable RAG retrieval for
+  `WindowMemoryEngine` is itself broken —
+  `getattr(self.context_builder, 'memory_engine', None)` reads an
+  attribute `TieredContextBuilder` doesn't expose under that name, so the
+  `isinstance(mem_engine, WindowMemoryEngine)` check never fires and RAG
+  stays on even for the "baseline" memory engine it was meant to exempt.
+  Left unchanged deliberately — fixing it would change RAG behavior (and
+  therefore audit output) for every other domain currently depending on
+  today's behavior, which is outside this PR's blast radius. Tracked here
+  as a known issue for a follow-up PR.
+- **Options-text parity guard hardened — 5 fail-open branches closed
+  (silent-failure review, 2026-09)**: the first version of the guard
+  above returned (silently exempted) in five places it could not actually
+  verify safety. Rule applied throughout: a branch that cannot verify
+  parity must RAISE, never return — a false BLOCK costs a rerun and a
+  clear message; a missed block silently corrupts `proposed_skill` with
+  no signal anywhere.
+  (1) A missing `prompt_templates` lookup (`_skill_filtering.py`) used to
+  `return` — now evaluates against the REAL per-builder-class fallback
+  (`BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE`, `'ACT:{skills}'` —
+  the vaccination_demo shape — vs. `TieredContextBuilder`'s own
+  `{options_text}`-bearing default) and raises when that fallback is
+  unsafe; an unrecognized builder class also raises rather than guessing.
+  (2) `TieredContextBuilder.format_prompt` (`tiered.py`) has its OWN
+  `dynamic_skill_map` builder (the `if not options_text and agent:`
+  branch, sourced from `agent.get_available_skills()`, shuffled via
+  `context["_shuffle_skills"]` — independent of
+  `SkillFilterMixin`/`shuffle_options`) that had NO parity check at all.
+  Both call sites now route through one shared function,
+  `check_options_text_parity` (`_skill_filtering.py`), so they can never
+  drift apart again. (3) `validate_prompt.py`'s missing-template branch
+  emitted a WARN and returned before the BLOCKER ever ran — now also
+  BLOCKs a multi-skill, non-`full_disclosure` agent with no template at
+  all. (4) The name-based exemption's `sid in template` was a bare
+  substring test (satisfiable by prose, or a shorter id inside a longer
+  one, e.g. `"insurance"` inside `"reinsurance_program"`) — replaced with
+  a SOUND rule, ALL required: every eligible skill id matches
+  `^[A-Za-z_]+$` (no digit in the id itself — see known issue (b) below);
+  every id appears in the template as a whole token (word-boundary
+  regex, not substring); no `{valid_choices_text}` (unconditionally a
+  digit-count string built by `_inject_options_text`, independent of any
+  declared type); no `{response_format}` WHILE the decision field is
+  declared `type: "choice"` (a two-part, PRECISE condition —
+  `ResponseFormatBuilder.build()` is the only broker code that turns
+  `type: "choice"` into a numeric-ID instruction, and only inside the
+  block it assigns to `{response_format}`, so a declared `type: "choice"`
+  the template never actually renders via `{response_format}` is inert
+  and must not disqualify the exemption); no literal numbered-example
+  decision value (`"decision": 1`-style) or hand-written numbered option
+  list (`1. .../2. ...`) either, catching a fully hand-rolled numeric
+  prompt using no broker placeholder at all.
+  **This precise, placeholder-conditional form of the rule is what lets
+  MA flood's `government`/`insurance` pass WITHOUT touching their frozen
+  config**: `examples/multi_agent/flood/config/ma_agent_types.yaml` (and
+  `ma_agent_types_mixed_population.yaml`) declare
+  `response_format.fields[decision].type: "choice"` for both, but
+  `government.txt`/`insurance.txt` hand-write their own JSON example and
+  never reference `{response_format}` — under the OLD (unconditional)
+  form of this rule that declaration was disqualifying (a real, if
+  false-positive, regression: the default `run_unified_experiment.py`
+  tripped the guard 12 times in a 12-agent/3-year mock run and 2/21
+  `test_mixed_population_pr8.py` cases failed); under the corrected rule
+  it is inert, and both are verified: **0 trips on the default mock run,
+  21/21 `test_mixed_population_pr8.py` passing, frozen config diff empty**.
+  Empirically confirmed on the REAL paper-3 corpus, read-only
+  (`examples/multi_agent/flood/paper3/results/paper3_gemma4_e4b_clean/`,
+  gemma4:e4b, seeds 42 and 123, parsing the `"decision": "..."` value out
+  of each row's `raw_output` column): across all 52 government + insurance
+  decisions (13 rows x 2 agent types x 2 seeds), **100% (52/52) equal a
+  skill id exactly, 0% contain any digit, 0% are pure digits** — the real
+  model genuinely always answers by name for these two agent types, with
+  zero digit contamination, exactly matching what the (now-precise) rule
+  assumes. (5) An unresolvable agent_type (`_get_action_ids` returning
+  `[]`, or raising) used to `return` silently while RAG could still
+  install a re-ranked map for it — now raises, naming the agent_type,
+  with no bare `except Exception: return` anywhere in the guard's path.
+  New tests (all shown to fail against the pre-hardening guard, per-item,
+  before passing): 15 additions to
+  `broker/tests/test_options_text_parity.py`, 4 to
+  `broker/tests/test_validate_prompt.py`.
+  **Known issues, report-only (not fixed, out of this PR's scope)**:
+  (a) `broker/utils/parsing/unified_adapter.py:464-478`'s decode path
+  falls back to substring/fuzzy alias matching (`skill_norm in
+  decision_norm`, then an alias-map substring pass) and finally a
+  configured default skill when nothing matches — a permissive layer
+  that can silently resolve a malformed or ambiguous model answer to the
+  wrong skill (or the default) with no error surfaced; not evaluated for
+  false-match rate in this PR (the 100%-exact-match empirical result
+  above suggests it rarely if ever engages for government/insurance in
+  practice, but it was not disabled or instrumented). (b) That same
+  file's Case 2 (`re.search(r'(\d+)', decision_val)`, ~line 454) extracts
+  the FIRST digit ANYWHERE in a string answer and decodes it POSITIONALLY
+  against `dynamic_skill_map` if that digit is a valid key — BEFORE ever
+  attempting name/alias resolution. A name-based agent whose answer text
+  happens to contain a digit for any reason (a digit-bearing skill id, or
+  the model prefixing its answer with "Option 2: ...") can still be
+  mis-decoded positionally even when every name is spelled out correctly
+  and the digit-in-id guard exemption above refuses to apply. Digit-free
+  ids are necessary but not sufficient — the model's free-text ANSWER,
+  not just the id vocabulary, can introduce a digit. Tracked for a later
+  PR behind `parsing.strict_layers` (this is a decode-precedence question
+  independent of the options-text parity mechanism).
+- **Options-text parity guard: 5 false BLOCKs from a full-suite run, plus
+  2 silent-failure hunter findings (round 3, 2026-09)**: running the
+  hardened guard against the WHOLE test suite (not just the domains it
+  was designed against) surfaced five false blocks and two more gaps the
+  hunter found by reading the code, not by running it.
+  (A) `broker/core/_skill_filtering.py`'s `check_options_text_parity`
+  (the `if not registry_ids:` branch) raised unconditionally whenever no
+  YAML `actions:` block could be resolved for an agent_type — correct
+  for a misconfigured YAML domain, but wrong for the OLDER, still-live
+  usage pattern where skills come straight from `AgentConfig.skills` or
+  the skill registry with no YAML config at all
+  (`tests/test_skill_retrieval.py::test_skill_broker_integration`,
+  `tests/test_v3_2_features.py::test_v3_2_full_integration`). Fixed in
+  two parts: (1) a single-skill `dynamic_skill_map` now returns early
+  regardless of registry resolvability — there is no ordering to
+  mis-decode; (2) when the registry is genuinely unresolvable, the check
+  now falls through to the SAME template-safety checks used elsewhere
+  (`{options_text}`/`{skills_text}`/`{skills}` present → OK; safe
+  name-based decision → OK; otherwise still raises) instead of
+  raising unconditionally — the fail-safe direction is unchanged for a
+  genuinely multi-skill, no-legend-anywhere template.
+  (B) `broker/tools/scaffold_domain.py` was scaffolding the
+  vaccination_demo bug into EVERY new domain: `gen_prompt()` emitted
+  `Available actions: {skills}` (never filled by
+  `TieredContextBuilder`) plus a hand-written, hardcoded
+  `"- 1 = skill_a (TODO: describe consequence)"` digit legend, and
+  `gen_agent_types_yaml()`'s decision field carried the same hardcoded
+  `"Numeric ID, choose ONE from: 1, 2 (1=skill_a, 2=skill_b)"` pattern
+  vaccination_demo's config used to have. Both are gone: the scaffolded
+  prompt now renders the live `{options_text}` list (descriptions come
+  from the skill_registry.yaml the scaffolder already generates, TODO
+  placeholders included), and the decision field's `description:` is
+  removed so it falls back to `ResponseFormatBuilder`'s dynamic text.
+  `parsing.full_disclosure: true` was deliberately NOT added —
+  `{options_text}` alone is order-safe regardless of any future RAG
+  re-rank, so the extra flag had no independent justification.
+  Verifying the fix end-to-end (scaffold -> validate_prompt -> mock run
+  -> inspect the rendered prompt in the raw trace, not just "did the
+  guard stay quiet") surfaced a SECOND, deeper pre-existing gap the
+  template edit alone did not fix: `gen_run_experiment()`'s generated
+  `run_experiment.py` built its `ExperimentBuilder` with no explicit
+  context builder, so `create_context_builder()`'s no-`hub` default
+  (a plain `BaseAgentContextBuilder`) was used — and that builder does
+  NOT render `{options_text}` (or `{response_format}`) AT ALL, only
+  `{skills}`. The rendered prompt showed a literal, unfilled `[N/A]`
+  where the options list should be — worse than the old hardcoded
+  legend, and invisible to both `validate_prompt` (config-time only) and
+  the options-text-parity guard (which never fired, correctly, since
+  this scaffold declares no RAG retriever and the order never diverges —
+  the guard checks ORDER SAFETY, not runtime rendering). Fixed by pinning
+  an explicit `TieredContextBuilder(hub=None, ...)` in the generated
+  runner, mirroring `examples/vaccination_demo` and
+  `examples/irrigation_abm`'s own L3-1B fix (2026-05-23) for this exact
+  builder gap. New regression lock: `broker/tests/test_scaffold_e2e.py`
+  now additionally inspects the raw trace's rendered prompt (not just
+  the audit CSV's row count) for a live numbered list, scoped to the
+  options section specifically (the scaffold's separate, unrelated,
+  out-of-scope `{narrative_persona}` placeholder legitimately renders
+  `[N/A]` too, since the scaffolded agent sets no persona string — the
+  test does not flag that). **Blast radius addition**: every domain
+  scaffolded by `broker.tools.scaffold_domain` before this fix inherited
+  BOTH the vaccination_demo bug shape (template) AND the unfilled-
+  `{options_text}` gap (runner wiring); scaffolded domains not yet
+  edited into production should regenerate or manually apply all three
+  changes (the two template edits plus the `TieredContextBuilder` pin).
+  (C) hunter NEW-1: `type: "secondary_choice"` (response_format.py:150-153,
+  "OPTIONAL: Numeric ID from: ..., or 0 for none") renders a numeric-ID
+  instruction exactly like `type: "choice"` does, but the numeric-choice
+  detection in both `_skill_filtering.py` and `validate_prompt.py` only
+  recognized `"choice"` — both now treat `("choice", "secondary_choice")`
+  as numeric.
+  (D) hunter NEW-2: that same detection required the field's `key` to be
+  in a guessed `decision_keywords` set, defaulting to `{"decision"}` —
+  narrower than `unified_adapter.py`'s own default
+  (`["decision", "choice", "action"]`, unified_adapter.py:427), which a
+  YAML need not declare explicitly to use. Both places now check the
+  `type` across ALL response_format fields regardless of key — simpler
+  and more conservative (fail-closed) than re-deriving the parser's
+  keyword list a second time.
+  (E) hunter NEW-4: the guard's "no template registered for a
+  `TieredContextBuilder`" fallback used to hand-type a SECOND copy of
+  that builder's own default template string, risking silent drift from
+  the real one. `TieredContextBuilder`'s default is now a proper
+  module-level constant, `TIERED_DEFAULT_PROMPT_TEMPLATE`
+  (`broker/components/context/tiered.py`, next to the existing
+  `DEFAULT_PROMPT_TEMPLATE`), re-exported from
+  `broker/components/context/builder.py` and IMPORTED (not retyped) by
+  `_skill_filtering.py`.
+  (F) hunter NEW-3, documented only (not fixed): every check in
+  `check_options_text_parity` scans the RAW, un-rendered template string.
+  A legend that only becomes visible after ANOTHER placeholder is filled
+  — e.g. a numbered list built dynamically and injected via
+  `{system_prompt}`, `{institutional_section}`, or an arbitrary
+  `template_vars` entry, rather than appearing literally in the template
+  file — is invisible to this scan in both directions (a legend that
+  would make an otherwise-bare template safe goes uncredited; a hidden
+  DIGIT legend delivered the same way would not be caught either). No
+  known instance of the dangerous direction exists in this repo as of
+  this PR. Documented in the guard's docstring
+  (`broker/core/_skill_filtering.py:check_options_text_parity`).
+  New tests, each shown to fail against the pre-round-3 code and pass
+  after (6 additions to `broker/tests/test_options_text_parity.py`):
+  `test_p3a_unresolvable_registry_single_skill_returns_early`,
+  `test_p3a_unresolvable_registry_multi_skill_falls_through_to_options_text`,
+  `test_p3a_unresolvable_registry_multi_skill_no_signal_still_raises`
+  (fail-safe-direction regression lock — correctly passes both before
+  and after, not a differentiator),
+  `test_p3c_secondary_choice_type_is_also_numeric`,
+  `test_p3d_choice_type_under_non_decision_key_is_still_numeric`,
+  `test_p3e_tiered_default_fallback_imports_the_real_constant`. Plus one
+  more in `broker/tests/test_scaffold_e2e.py`
+  (`test_scaffolded_generic_domain_validates_and_runs_with_mock`,
+  extended in place) locking the `TieredContextBuilder` runner-wiring fix
+  described in (B) above.
+- **Options-text parity guard, round 4 — one more false accept, one
+  residual verification gap closed, and a second `TieredContextBuilder`
+  wiring bug found while proving the fix (2026-09)**:
+  (1) `broker/core/_skill_filtering.py`'s no-registry fall-through
+  (`check_options_text_parity`) accepted a bare `{skills}` placeholder
+  unconditionally — but `{skills}` is not a safe legend on its own: under
+  `TieredContextBuilder` it is not a template var at all (renders
+  `[N/A]`), and even under `BaseAgentContextBuilder`, which does fill it,
+  it renders an UNNUMBERED list (`"- id: description"`, no `"1."`/`"2."`
+  prefix) — fine for a name-based decision, but not if the template ALSO
+  invites a digit answer some other way. The four digit-invitation checks
+  (`{valid_choices_text}`, `{response_format}` + numeric-choice field,
+  a literal numbered-example decision value, a hand-written numbered
+  list) are now factored into a shared `_invites_digit()` helper, reused
+  by both `_is_name_based_and_safe` and the `{skills}` acceptance, which
+  now requires `not _invites_digit(...)`. New tests (fail-before/
+  pass-after against the round-3 staged code):
+  `test_p4_1_skills_placeholder_not_accepted_when_template_invites_digit`,
+  `test_p4_1_skills_placeholder_still_accepted_without_digit_invitation`
+  (regression lock).
+  (2) Closed the residual gap every check up to this point still left
+  open: all of them verify the un-rendered TEMPLATE STRING, never what
+  the model actually received. `assert_rendered_prompt_shows_options`
+  (`broker/core/_skill_filtering.py`) is a new, cheap (one substring/
+  regex scan per decision, only when `dynamic_skill_map` has more than
+  one entry) POST-RENDER check, called from
+  `broker/core/skill_broker_engine.py` immediately after
+  `context_builder.format_prompt()` produces the final string — the
+  single point every rendered prompt in this broker passes through,
+  right before `llm_invoke`. It passes when either every
+  `_inject_options_text`-produced option line appears verbatim in the
+  rendered prompt, in map order, or every installed skill id appears as
+  a whole word (the name-based shape); otherwise it raises, naming the
+  agent_type and the first missing option. New tests:
+  `test_p4_2_post_render_check_raises_for_base_agent_context_builder_gap`,
+  `test_p4_2_post_render_check_passes_when_options_actually_rendered`,
+  `test_p4_2_post_render_check_passes_for_name_based_rendering`,
+  `test_p4_2_post_render_check_skipped_for_single_skill_map` (the first
+  fails against pre-round-4 code with an `ImportError` — the function did
+  not exist yet — and passes after).
+  **Verifying (2) against the "must not fire" domain list surfaced a
+  SECOND real instance of round 3's `TieredContextBuilder`-wiring bug**:
+  `examples/cat_model/run_cat.py` (single-agent variant) kept
+  `ExperimentBuilder`'s default context builder
+  (`BaseAgentContextBuilder`, no hub), and its `insurer` prompt renders
+  `{options_text}` — which that builder never reads (it does not consult
+  `context["personal"]` at all), so the option list rendered as a bare
+  `[N/A]` in every real run of this example, completely invisible to
+  every template-level check (the placeholder IS present in the
+  template — only the new post-render check can see it never actually
+  renders). This is the SAME gap `examples/cat_model/run_cat_ma.py` and
+  `examples/reservoir_control/run_reservoir_ops.py` already found and
+  worked around (`agent.dynamic_state["options_text"] = <static
+  string>`, safe there only because those menus are never RAG-reranked)
+  — `run_cat.py` had neither that workaround nor the more robust fix.
+  Fixed the same way as `examples/vaccination_demo` and the round-3
+  scaffolder fix: pinned an explicit `TieredContextBuilder(hub=None,
+  prompt_templates={"insurer": ...}, ...)` in `run_cat.py`, which
+  renders the LIVE `{options_text}` correctly on every call regardless of
+  RAG re-ranking, rather than adding a third copy of a static-string
+  workaround. Verified via the real mock recipe
+  (`python examples/cat_model/run_cat.py --model mock`): the rendered
+  prompt now shows the actual numbered claim options instead of `[N/A]`,
+  and the post-render check reports 0 violations (was 2, one per year).
+  `run_cat_ma.py`, `reservoir_control` (both variants), `quickstart`
+  (both tiers), the MA battery, and flood/irrigation/vaccination were all
+  independently re-verified clean (0 post-render violations) via their
+  own mock recipes — the workaround-based domains happen to already
+  satisfy the new check because their static override text matches
+  what `_inject_options_text` would have produced.
+  (3) Reviewer drift note: `validate_prompt.py`'s numeric-choice-type
+  tuple (`("choice", "secondary_choice")`) is now imported as
+  `_NUMERIC_CHOICE_FIELD_TYPES` from `broker.core._skill_filtering`
+  instead of being retyped, so a future third numeric field type needs
+  updating in only one place.
+- **Options-text parity guard, round 5 — a real regression in
+  `broker/experiments/replay.py`, a coverage gap in the round-4
+  post-render check itself, and a third silent-failure hunter finding
+  (2026-09)**:
+  (1) The round-4 post-render check (`assert_rendered_prompt_shows_options`,
+  `broker/core/_skill_filtering.py`) broke
+  `broker/tests/test_experiments_replay_pr5.py::TestGovernanceReplayExecutesOnce::test_available_skills_lets_governance_run`:
+  replay feeds a RECORDED prompt from a past run
+  (`broker/experiments/replay.py:~853`) into a freshly rebuilt engine
+  whose `dynamic_skill_map` is reconstructed independently right now —
+  the recorded prompt DOES carry the right-sized numbered menu, but with
+  DIFFERENT label wording than what `_inject_options_text` would
+  generate today, so the exact-line-match path failed even though
+  nothing was actually wrong. Fixed by giving `SkillBrokerEngine.process_step`
+  an explicit `render_check: bool = True` parameter
+  (`broker/core/skill_broker_engine.py:347-383`), with
+  `broker/experiments/replay.py:853-869` now passing `render_check=False`
+  and an inline comment explaining why: replay's entire point is
+  re-validating an already-happened decision against today's governance
+  rules, not re-proving that some earlier run's rendering pipeline
+  worked, so it should not depend on the render-check machinery at all.
+  (A same-round attempt to ALSO fix this by matching on numbered-list
+  SHAPE and ARITY rather than label text was reverted in round 6 as
+  unsound — see that entry below; `render_check=False` alone is what
+  actually fixes the replay regression.)
+  (2) Hunter NEW-8: `broker/components/context/tiered.py`'s OWN fallback
+  `dynamic_skill_map` builder (the `if not options_text and agent:`
+  branch, ~line 604-631) wrote `personal["dynamic_skill_map"]` back but
+  never wrote `personal["options_text"]` alongside it, even though it is
+  the exact numbered list that gets rendered into the prompt moments
+  later — the post-render check's fast, exact-line-match path (and any
+  other downstream consumer of `personal["options_text"]`) saw nothing
+  from this path. Now writes `personal["options_text"] = options_text`
+  right where `dynamic_skill_map` is written.
+  (3) Coverage gap (reviewer): every options-text-parity test up to this
+  point called `_inject_options_text`, `check_options_text_parity`, or
+  `assert_rendered_prompt_shows_options` directly — none of them proved
+  the post-render check is actually wired into
+  `SkillBrokerEngine.process_step`'s real call path, so silently
+  deleting the call site would not have turned any test red.
+  New tests, each shown to fail against the pre-round-5 code (fail-before
+  evidence in the round 5 report, not restated here) and pass after:
+  `test_p4_2b_tiered_fallback_writes_back_options_text_and_does_not_raise`
+  (item 2), `test_p4_3_post_render_check_runs_inside_process_step` +
+  `test_p4_3_post_render_check_can_be_opted_out_via_render_check_false`
+  (item 3 — the first fails with `DID NOT RAISE` when
+  `skill_broker_engine.py` alone is reverted to `origin/main`, proving it
+  actually exercises the wiring and not just the guard function).
+- **Options-text parity guard, round 6 — the round-5 shape/arity path was
+  itself unsound (silent-failure hunter finding NEW-9), plus a replay
+  skip marker (2026-09)**:
+  (1) The round-5 fix for the replay regression above accepted ANY
+  numbered list in the rendered prompt whose count matched
+  `len(dynamic_skill_map)`, regardless of what the list's lines actually
+  said. That is too permissive: a completely UNRELATED numbered
+  instruction block of the same length — a "1. Review your situation /
+  2. Assess the threat / 3. Answer in JSON" response-format walkthrough
+  for a 3-skill menu, or irrigation's 1-5 rating-scale legend
+  (VL/L/M/H/VH) for its 5-skill menu — satisfies the same count check
+  just as well as a real menu, silently masking a genuinely missing
+  `[N/A]` options list. Removed `_rendered_prompt_has_numbered_list_of_size()`
+  and its call entirely (`broker/core/_skill_filtering.py`). This is safe
+  because round 5's OTHER fix already covers replay on its own:
+  `SkillBrokerEngine.process_step`'s `render_check=False` (passed by
+  `broker/experiments/replay.py`) makes `assert_rendered_prompt_shows_options`
+  a documented no-op for every replayed decision, so replay never needs
+  this function to tolerate stale label wording in the first place — the
+  full replay suite (`broker/tests/test_experiments_replay_pr5.py`, 73
+  passed / 1 skipped) confirms this. `assert_rendered_prompt_shows_options`
+  is back to exactly two paths: exact `_inject_options_text` lines
+  present, or every skill id present by name (word boundaries) — the
+  same two the round-4 version shipped with.
+  (2) Replayed decisions are now distinguishable by a FIELD, not only by
+  the `replay_` run_id prefix convention: `broker/core/run_integrity.py`
+  gained a `render_check_skipped_rows` counter
+  (`note_render_check_skipped()` / `get_render_check_skipped_count()`,
+  reset alongside the other per-decider censuses in
+  `reset_decider_row_counts()`), incremented from
+  `broker/core/skill_broker_engine.py`'s `else` branch of the
+  `render_check` gate. Recorded into `run_integrity.json` ONLY when
+  non-zero (mirroring the existing `decider_rows` pattern) — the key is
+  ABSENT, not zero, for every non-replay run, so this is byte-neutral for
+  every mock recipe and does not touch any byte-locked CSV.
+  New tests: `test_p6_1_instruction_list_of_matching_length_does_not_mask_missing_menu`
+  (shown to pass — the hole — against the round-5 staged code, and raise
+  after removing the shape/arity path) and
+  `test_p6_2_render_check_skipped_is_countable_in_run_integrity` (fails
+  with `ImportError` against pre-round-6 `run_integrity.py`).
+- **Options-text parity guard, round 7 comment fixes — stale comments
+  left over from round 6's shape/arity removal (2026-09)**: three
+  comments describing the round-5 shape/arity path as still active (or
+  as merely "belt-and-braces") were stale after round 6 removed it —
+  `broker/experiments/replay.py`'s `render_check=False` call site and
+  `SkillBrokerEngine.process_step`'s docstring now both say the opt-out
+  is LOAD-BEARING (without it a replayed prompt's stale label wording
+  fails the exact-match/name-based check even though nothing is wrong),
+  and `broker/tests/test_options_text_parity.py`'s
+  `_FakeSkillRegistryWithLabels` docstring no longer names the deleted
+  path.
 - **`VarSpec.range_violation` was NaN-blind and type-blind (PR-9 review,
   P0)**: the one primitive every coupling guard calls accepted
   `float("nan")` through any bounded range (`nan < lo` and `nan > hi` are
@@ -71,6 +533,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clarifying that one orders agent-type execution and the other orders a
   coupled bundle's internal pipeline stages — independent knobs, neither
   configures the other.
+
+### Known Issues
+
+- **Options-text parity guard: post-render name-based branch does not
+  check digit invitation (P2, silent-failure hunter finding, 2026-09)**:
+  `assert_rendered_prompt_shows_options`'s name-based branch
+  (`broker/core/_skill_filtering.py`) accepts "every skill id present by
+  word boundary" even when the rendered prompt ALSO separately asks for
+  a numeric ID and shows no menu — e.g. a prompt that spells out every
+  skill name in prose AND says "Numeric ID, choose ONE from: 1, 2, or 3"
+  with no visible number->name mapping. The model may still answer with
+  a bare digit, which decodes POSITIONALLY against `dynamic_skill_map`
+  (`unified_adapter.py` Case 2), not by the name it saw in prose. A
+  round-7 fix closing this gap (threading a `decision_field_is_numeric_choice`
+  flag through and requiring `not _invites_digit(...)` on this branch
+  too) was reverted: it false-blocked the cat MA / reservoir domains,
+  which inject a static hand-written menu via `dynamic_state["options_text"]`
+  (missed by the exact-line-match path, since that menu is written
+  directly rather than produced by `_inject_options_text`) while
+  separately rendering `{response_format}` for an unrelated field — 136
+  false `RuntimeError`s across the MA cat/reservoir gates. **No shipped
+  template exercises the actual vulnerable shape today.** Fix direction:
+  compare against the RENDERED `personal['options_text']` (which would
+  see the real static override from `dynamic_state` and not misfire on
+  it) rather than re-deriving "is this numeric" from the template's
+  declared field type. Tracked by
+  `broker/tests/test_options_text_parity.py::test_p7_1_name_path_rejects_digit_invitation_without_menu`,
+  marked `xfail(strict=True)`.
 
 ## [0.6.0] - 2026-06-10
 
