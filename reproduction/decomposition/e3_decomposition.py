@@ -61,8 +61,8 @@ WHAT WOULD FALSIFY THE RESULT
    disagreed about the composition share, the result would be sensitive to an arbitrary
    binning choice.  Both are printed.
 4. If the result held only on the anchor model, it would be a property of gemma3:4b and
-   not of governance.  All four balanced models are run; the unbalanced ministral cell is
-   reported separately and excluded from every paired test.
+   not of governance.  Every model that is balanced per `L.balanced()` is run; any
+   unbalanced cell is reported separately and excluded from every paired test.
 5. If the conclusion flipped when the ACTION column is replaced by the genuinely executed
    action (Part E: rejected proposals do not move the world, so they execute as
    maintain_demand), the labelled-action decomposition would be describing intent rather
@@ -657,6 +657,9 @@ def main() -> int:
     print("\n" + BAR)
     print("PART F -- UNBALANCED CELLS, reported separately, NOT pooled, NO paired test")
     print(BAR)
+    unbal_models = [l for l, p in L.MODELS if not L.balanced(p)]
+    if not unbal_models:
+        print("none -- every model in L.MODELS is currently balanced (per L.balanced()).")
     for label, prefix in L.MODELS:
         if L.balanced(prefix):
             continue

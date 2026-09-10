@@ -705,18 +705,29 @@ def main() -> int:
     print("(the single most decisive line of evidence: if governance changed the SELF-REPORT")
     print(" directly, the high-appraisal gap would already be open at year 1 in every cell)")
     print(f"  {'model':16s} {'year-1 high-share gap':>22s} {'p':>10s}  significant?")
-    for label in [l for l, _ in L.MODELS]:
+    sig_by_model = {}
+    for label, prefix in L.MODELS:
         o = model_y1.get(label)
         if not o:
             continue
         r = o["high_share"]["rep"]
         sig = "no" if (r["p"] != r["p"] or r["p"] >= 0.05) else "YES"
+        sig_by_model[label] = sig
         print(f"  {label:16s} {fmt(r['mean']):>22s} {fmt(r['p'],5):>10s}  {sig}")
     print("  All cells: the composition shift is NOT open at year 1. It opens later,")
     print("  once the arms' worlds, memories and utilisation levels have diverged.")
-    print("  CAVEAT on this table: gemma3:12b has df=2 and ministral-3:8b is UNBALANCED")
-    print("  with df=1, so their 'no' is weak evidence. The three df=4 cells (gemma3:4b,")
-    print("  gemma4:e2b, gemma4:e4b) carry the weight, and all three agree.")
+    df_by_model = {l: len(L.paired_seeds(p)) - 1 for l, p in L.MODELS if l in sig_by_model}
+    low_df = sorted((l, d) for l, d in df_by_model.items() if d < 4)
+    high_df = sorted(l for l, d in df_by_model.items() if d == 4)
+    low_str = "; ".join(f"{l} df={d}" for l, d in low_df) if low_df else "none"
+    print(f"  CAVEAT on this table (from data, not assumed): lower-df cells = {low_str};")
+    print("  their 'no' is weaker evidence per cell.")
+    if high_df:
+        agree = all(sig_by_model[l] == "no" for l in high_df)
+        print(f"  The df=4 cells ({', '.join(high_df)}) carry the weight, and "
+              + ("all agree." if agree else "do NOT all agree."))
+    else:
+        print("  No df=4 cells are present in this corpus.")
     print("  CAVEAT 2: a null is not proof of no effect. What the year-1 intervals DO")
     print("  exclude is an effect anywhere near the published magnitude (Section 8).")
 
