@@ -164,65 +164,10 @@ def _register_builtins():
     except ImportError:
         pass
 
-    try:
-        from broker.memory.unified_engine import UnifiedCognitiveEngine as UnifiedEngine
-        from broker.memory.strategies import (
-            EMASurpriseStrategy,
-            SymbolicSurpriseStrategy,
-            HybridSurpriseStrategy,
-        )
-
-        def _unified_factory(**config):
-            mem_cfg = config
-            if "global_config" in config and "memory" in config.get("global_config", {}):
-                mem_cfg = config["global_config"]["memory"]
-            elif "memory" in config:
-                mem_cfg = config["memory"]
-
-            strategy_type = mem_cfg.get("surprise_strategy", "ema")
-            stimulus_key = mem_cfg.get("stimulus_key")
-            ema_alpha = mem_cfg.get("ema_alpha", 0.3)
-
-            # Phase 6Q-C (2026-05-26): raise with YAML context BEFORE
-            # delegating to the strategy constructor. The constructor
-            # also guards (defence-in-depth), but its error names
-            # `stimulus_key` without telling the author which YAML file
-            # is missing the key. This guard surfaces the actionable
-            # config location instead.
-            if not stimulus_key:
-                raise ValueError(
-                    f"MemoryEngineRegistry._unified_factory: the active "
-                    f"memory YAML block is missing `memory.stimulus_key` "
-                    f"(strategy_type={strategy_type!r}). Add "
-                    f"`stimulus_key: <your_key>` under the `memory:` "
-                    f"block of your agent_types.yaml, OR set "
-                    f"`DomainPack.memory_policy().stimulus_key` for the "
-                    f"active domain so the value flows through "
-                    f"UniversalCognitiveEngine. Phase 6Q-C (2026-05-26)."
-                )
-
-            if strategy_type == "symbolic":
-                strategy = SymbolicSurpriseStrategy(default_sensor_key=stimulus_key)
-            elif strategy_type == "hybrid":
-                strategy = HybridSurpriseStrategy(
-                    ema_weight=0.6, symbolic_weight=0.4,
-                    ema_stimulus_key=stimulus_key, ema_alpha=ema_alpha,
-                )
-            else:
-                strategy = EMASurpriseStrategy(stimulus_key=stimulus_key, alpha=ema_alpha)
-
-            return UnifiedEngine(
-                surprise_strategy=strategy,
-                arousal_threshold=mem_cfg.get("arousal_threshold", 0.5),
-                emotional_weights=mem_cfg.get("emotional_weights"),
-                source_weights=mem_cfg.get("source_weights"),
-                decay_rate=mem_cfg.get("decay_rate", 0.1),
-                seed=mem_cfg.get("seed", config.get("seed", 42)),
-            )
-
-        MemoryEngineRegistry.register("unified", _unified_factory)
-    except ImportError:
-        pass
+    # Org-3 (2026-09): the lazy `engine_type="unified"` registration
+    # (broker.memory.unified_engine.UnifiedCognitiveEngine) was removed
+    # here — that engine had no production importer, only its own test
+    # suite. Use `engine_type="humancentric"` or `"universal"` instead.
 
 
 _register_builtins()

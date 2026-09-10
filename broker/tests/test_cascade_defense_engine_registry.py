@@ -1,16 +1,16 @@
-"""Phase 6Q-D-5 (2026-05-26) — cascade-defense for the remaining
-two open boundary-audit pairs.
-
-Pair #4b (MED): ``UnifiedCognitiveEngine.__init__`` now wraps
-surprise-strategy construction in try/except, falling back to
-``self._strategy = None`` if Phase 6Q-C's strict-required-kwarg
-ValueError fires from an edge case.
+"""Phase 6Q-D-5 (2026-05-26) — cascade-defense for boundary-audit pair #5.
 
 Pair #5 (MED-HIGH): ``DomainPackRegistry.register`` now smoke-tests
 a representative subset of DomainPack methods at registration time
 so broken packs surface at module-import (where the trace points at
 the registration call site) instead of mysteriously during a
 multi-hour experiment run.
+
+Org-3 note (2026-09): this file previously also carried pair #4b
+(``UnifiedCognitiveEngine.__init__``'s strategy-construction fallback
+guard). ``broker.memory.unified_engine`` was deleted as dead code (no
+production importer, only this test); the pair #4b test class was
+removed with it.
 """
 from __future__ import annotations
 
@@ -22,63 +22,6 @@ import pytest
 import broker.domains.water  # noqa: F401
 from broker.domains.default import DefaultDomainPack
 from broker.domains.registry import DomainPackRegistry
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Pair #4b — UnifiedCognitiveEngine
-# ─────────────────────────────────────────────────────────────────────
-
-class TestUnifiedEngineStrategyConstructionGuard:
-    def test_invalid_stimulus_key_falls_back_to_null_strategy(
-        self, caplog, monkeypatch
-    ):
-        """Force a strategy-construction raise via monkey-patch of the
-        EMASurpriseStrategy class itself. Pre-6Q-D-5 this would have
-        crashed UnifiedCognitiveEngine; post-6Q-D-5 the engine logs +
-        falls back to ``self._strategy = None``. The engine's local
-        ``from .strategies import EMASurpriseStrategy`` line 229
-        picks up the patched class because Python's `from X import Y`
-        re-binds at call time when the import is inside a function."""
-        from broker.memory.unified_engine import UnifiedCognitiveEngine
-        from broker.memory.config import GlobalMemoryConfig, DomainMemoryConfig
-        import broker.memory.strategies as strategies_mod
-
-        class _RaisingEMA:
-            def __init__(self, *args, **kwargs):
-                raise ValueError("simulated 6Q-C strict-required raise")
-
-        monkeypatch.setattr(
-            strategies_mod, "EMASurpriseStrategy", _RaisingEMA, raising=True
-        )
-
-        caplog.set_level(
-            logging.WARNING, logger="broker.memory.unified_engine"
-        )
-        engine = UnifiedCognitiveEngine(
-            global_config=GlobalMemoryConfig(),
-            domain_config=DomainMemoryConfig(stimulus_key="depth_m"),
-        )
-        # Engine constructed despite strategy raise → null fallback.
-        assert engine._strategy is None
-        assert any(
-            "null strategy" in rec.getMessage()
-            for rec in caplog.records
-        ), "expected fallback warning"
-
-    def test_explicit_strategy_bypass_guard(self):
-        """If caller passes an explicit `surprise_strategy=`, the
-        guard never fires (no construction needed)."""
-        from broker.memory.strategies.ema import EMASurpriseStrategy
-        from broker.memory.unified_engine import UnifiedCognitiveEngine
-        from broker.memory.config import GlobalMemoryConfig, DomainMemoryConfig
-
-        strategy = EMASurpriseStrategy(stimulus_key="x")
-        engine = UnifiedCognitiveEngine(
-            global_config=GlobalMemoryConfig(),
-            domain_config=DomainMemoryConfig(),
-            surprise_strategy=strategy,
-        )
-        assert engine._strategy is strategy
 
 
 # ─────────────────────────────────────────────────────────────────────

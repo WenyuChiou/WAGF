@@ -2,7 +2,8 @@
 SurpriseStrategy Protocol - Interface for pluggable surprise calculation.
 
 All surprise strategies must implement this protocol to be compatible
-with the UnifiedCognitiveEngine.
+with the memory engines that consume them (e.g. HumanCentricMemoryEngine,
+UniversalCognitiveEngine).
 
 Reference: Task-040 Memory Module Optimization
 """

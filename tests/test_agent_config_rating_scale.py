@@ -476,33 +476,13 @@ class TestAgentTypeConfigPolicyEventTiers:
         assert cfg["moderate"] == 0.10
         assert cfg["minor"] == 0.05
 
-    def test_policy_event_tiers_threads_to_generator(self, tmp_path):
-        """End-to-end: get_policy_event_tiers_config()'s dict maps onto
-        ``PolicyEventConfig(severity_tiers=...)`` and the generator's
-        ``_determine_severity`` reads the overridden cutoffs."""
-        from broker.components.events.generators.policy import (
-            PolicyEventConfig,
-            PolicyEventGenerator,
-        )
-        from broker.interfaces.event_generator import EventSeverity
-        yaml_file = tmp_path / "t.yaml"
-        yaml_file.write_text(
-            "global_config:\n"
-            "  governance:\n"
-            "    policy_event_tiers:\n"
-            "      severe: 0.30\n"
-            "      moderate: 0.15\n"
-            "      minor: 0.06\n"
-        )
-        config = AgentTypeConfig.load(str(yaml_file))
-        tiers = config.get_policy_event_tiers_config()
-        gen = PolicyEventGenerator(PolicyEventConfig(severity_tiers=tiers))
-        # A 25% change is now MODERATE (above 0.15, below 0.30) where it
-        # would have been SEVERE (above 0.20) under the pre-6L-C
-        # hardcoded thresholds.
-        assert gen._determine_severity(
-            {"old_value": 1.0, "new_value": 1.25}
-        ) == EventSeverity.MODERATE
+    # Org-3 note (2026-09): test_policy_event_tiers_threads_to_generator
+    # (an end-to-end check against PolicyEventGenerator) was removed
+    # here — broker.components.events.generators.policy was deleted as
+    # dead code (reachable only via the also-deleted MAEventManager, no
+    # production runner instantiated it). get_policy_event_tiers_config()
+    # itself is kept (config surface may serve a future consumer); the
+    # tests below cover its resolution logic directly.
 
     def test_policy_event_tiers_malformed_value_raises_clear_error(self, tmp_path):
         """Non-numeric tier in YAML must fail at config-load time with

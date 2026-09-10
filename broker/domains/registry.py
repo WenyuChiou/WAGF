@@ -223,8 +223,8 @@ class DomainPackRegistry:
     def get_event_pack(cls, name: Optional[str]) -> EventPack:
         """Return the pack for ``name`` typed as :class:`EventPack`.
 
-        Consumer-narrowed accessor for the multi-agent event manager
-        (``broker/components/events/ma_manager.py``).
+        Consumer-narrowed accessor for the multi-agent event
+        dispatcher.
         """
         return cast(EventPack, cls.get_or_default(name))
 
