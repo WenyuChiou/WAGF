@@ -1,0 +1,26 @@
+%% Diagram B — not yet embedded in README.md; suggested placement is the
+%% "Quickstart" section, under the four-step command block.
+flowchart LR
+  CFG["Domain config<br/>skill_registry.yaml · agent_types.yaml · lifecycle_hooks.py"]
+  SCF["scaffold_domain"]
+  VAL["validate_prompt<br/>BLOCKERs fail here, before any token is spent"]
+  MOK["mock run<br/>--model mock"]
+  CMP["compare_audit_csv<br/>byte identity vs the frozen baseline"]
+  RUN["real-LLM run<br/>manifest · config snapshot · launch settings check"]
+  ITG["check_run_integrity<br/>row censuses, coupling provenance"]
+  REP["reviewer_prep scripts<br/>L1 interface · L2 micro · L3 macro"]
+  TAB["paper tables and figures<br/>reproduction/"]
+
+  SCF --> CFG
+  CFG --> VAL
+  VAL -->|"BLOCKER"| CFG
+  VAL -->|"clean"| MOK
+  MOK --> CMP
+  CMP -->|"differs unexpectedly"| CFG
+  CMP -->|"identical"| RUN
+  RUN --> ITG
+  ITG --> REP
+  REP --> TAB
+
+  classDef planned stroke-dasharray:5 5,color:#555;
+  class REP planned;

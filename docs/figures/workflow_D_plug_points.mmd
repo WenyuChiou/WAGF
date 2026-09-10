@@ -1,0 +1,12 @@
+%% Diagram D — embedded in README.md under "The two plug points" (the
+%% subsection directly beneath Diagram A, above the connector-archetype table).
+flowchart LR
+  DP["DomainPack<br/>skills · prompts · rules · theory registration"]
+  LOOP["The governed loop<br/>context → prompt → parse → validators → execute → audit"]
+  CC["CouplingContract + connector<br/>units · ranges · direction · double-count"]
+  MDL["External model"]
+
+  DP -->|"registers; zero edits to broker/"| LOOP
+  LOOP -->|"observe / commit"| CC
+  CC --> MDL
+  MDL -->|"world state"| CC
