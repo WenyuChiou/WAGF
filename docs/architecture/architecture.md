@@ -100,6 +100,10 @@ The framework separates concerns into three distinct layers with strict data flo
 
 ### Broker Layer (`broker/`)
 
+Paths below are historical (early flat layout) and most no longer exist
+at these exact locations; see `docs/REPO_MAP.md` for the current module
+map.
+
 | File                    | Purpose                                    |
 | ----------------------- | ------------------------------------------ |
 | `engine.py`             | Main orchestrator, coordinates 6-step flow |
@@ -108,7 +112,6 @@ The framework separates concerns into three distinct layers with strict data flo
 | `interfaces/schemas.py` | Pydantic schemas for strict validation     |
 | `plugins.py`            | Plugin registry for third-party additions  |
 | `audit_writer.py`       | Writes JSONL audit traces                  |
-| `replay.py`             | Deterministic replay from traces           |
 
 ### Interfaces (`interfaces/`)
 

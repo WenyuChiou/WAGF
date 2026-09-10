@@ -534,6 +534,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coupled bundle's internal pipeline stages — independent knobs, neither
   configures the other.
 
+### Removed
+
+- **`broker/validators/agent/base.py`** (135 LOC) — a second, unused
+  `BaseValidator` (+ `SchemaValidator` / `PolicyValidator` /
+  `FeasibilityValidator` / `LeakageValidator` / `MemoryIntegrityValidator`)
+  that duplicated the production `BaseValidator` at
+  `broker/validators/governance/base_validator.py`; never imported
+  anywhere in repo history; last touched 2026-02-11 (`60c4aa60`).
+- **`broker/utils/replay.py`** (132 LOC) — `ReplayEngine`, an
+  audit-trace replay helper superseded by the actively-used
+  `broker/experiments/replay.py`; had one test importer
+  (`from broker.replay import ReplayEngine`) at the project's initial
+  commit (`ff24e58c`), removed in `0992b747` before the module moved to
+  its current path (`ca2d331d`); no importers since 2026-02-11
+  (`60c4aa60`, its last touch).
+- **`broker/utils/async_adapter.py`** (117 LOC) — `AsyncModelAdapter` /
+  `run_batch_agents`, an async wrapper around `UnifiedAdapter` with no
+  production or test caller; never imported anywhere in repo history;
+  last touched 2026-02-11 (`60c4aa60`).
+
 ### Known Issues
 
 - **Options-text parity guard: post-render name-based branch does not

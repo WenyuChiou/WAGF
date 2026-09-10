@@ -68,13 +68,21 @@ action_catalog:
     effects:
       field2: "field2 - 10"
 
-# 驗證器
-validators:
-  enabled:
-    - SchemaValidator
-    - PolicyValidator
-  domain_validators:
-    - YourDomainValidator
+# 治理規則（governance profile，定義在同一份 agent_types.yaml）
+# ERROR = 硬規則，擋下並要求重新提案；WARNING = 軟規則，放行但記錄。
+# 完整說明見 docs/guides/governance_layers.md。
+governance:
+  strict:
+    thinking_rules:
+      - id: your_domain_rule
+        description: "描述此規則要擋下的情境"
+        conditions:
+          - field: "field2"
+            operator: "<"
+            value: 10
+        blocked_skills: [action_b]
+        level: ERROR
+        message: "field2 不足，無法執行 action_b。"
 
 # 重試策略
 retry_policy:
