@@ -138,11 +138,20 @@ shared:
           construct: "CUES_TO_ACTION_LABEL",
           reason_hint: "One sentence on whether external signals (outbreak news, doctor / family advice) are nudging you.",
         }
+      # No hardcoded `description:` here — options-text parity fix
+      # (2026-09): a fixed "1=get_vaccinated, 2=delay, 3=refuse" string
+      # goes stale the moment RAG skill retrieval re-ranks the options
+      # (see {options_text} in prompts/individual.txt, which always
+      # reflects the ACTUAL numbered order). Omitting `description`
+      # falls back to ResponseFormatBuilder's own dynamic
+      # "Numeric ID, choose ONE from: {valid_choices_text}" text
+      # (broker/components/response_format.py:147), matching the
+      # irrigation_farmer pattern (examples/irrigation_abm/config/
+      # agent_types.yaml:111).
       - {
           key: "decision",
           type: "choice",
           required: true,
-          description: "Numeric ID, choose ONE from: 1, 2, or 3 (1=get_vaccinated, 2=delay, 3=refuse)",
         }
 
 # =============================================================================
@@ -201,6 +210,13 @@ individual:
   parsing:
     decision_keywords: ["decision", "choice", "action", "selected_action"]
     default_skill: "delay"
+    # Options-text parity fix (2026-09): keep the RAG skill retriever from
+    # re-ranking the 3-skill menu (broker/components/governance/retriever.py
+    # full_disclosure_agent_types bypass). Mirrors
+    # examples/irrigation_abm/config/agent_types.yaml:131. Without this,
+    # any re-rank made the model's digit answer decode against the WRONG
+    # skill from year 2 on (empty-memory year 1 was always safe).
+    full_disclosure: true
     strict_mode: true
     preprocessor:
       { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }

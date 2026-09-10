@@ -110,6 +110,15 @@ _RULE_FIELD_UNRESOLVED: Dict[str, Dict[str, int]] = {}
 # census can only see arms that produced a row; this is how it knows about
 # the arm that produced none.
 _DECLARED_DECIDERS: List[str] = []
+# Round 6 (2026-09): rows where SkillBrokerEngine.process_step ran with
+# render_check=False (broker/experiments/replay.py's documented opt-out
+# from the options-text-parity POST-RENDER check). A replayed decision
+# was previously distinguishable only by its `replay_` run_id prefix —
+# a convention, not a checkable field. Zero for every live run (the only
+# caller of render_check=False is replay.py), so this stays absent from
+# run_integrity.json outside a replay run — byte-neutral for the mock
+# recipes.
+_RENDER_CHECK_SKIPPED_ROWS = 0
 
 
 def note_decider_row(decider: str, path: Optional[str] = None) -> None:
@@ -127,6 +136,21 @@ def note_decider_row(decider: str, path: Optional[str] = None) -> None:
             _RULE_DEFAULT_ROWS[name] = _RULE_DEFAULT_ROWS.get(name, 0) + 1
         elif key == "aborted":
             _DECIDER_ABORTED_ROWS[name] = _DECIDER_ABORTED_ROWS.get(name, 0) + 1
+
+
+def note_render_check_skipped() -> None:
+    """Record one ``process_step`` call made with ``render_check=False``
+    (round 6, 2026-09) — currently only ``broker/experiments/replay.py``.
+    Never raises; reuses ``_DECIDER_ROWS_LOCK`` rather than a dedicated
+    lock for one counter."""
+    global _RENDER_CHECK_SKIPPED_ROWS
+    with _DECIDER_ROWS_LOCK:
+        _RENDER_CHECK_SKIPPED_ROWS += 1
+
+
+def get_render_check_skipped_count() -> int:
+    with _DECIDER_ROWS_LOCK:
+        return _RENDER_CHECK_SKIPPED_ROWS
 
 
 def note_rule_firing(agent_type: str, rule_id: str) -> None:
@@ -185,6 +209,7 @@ def get_rule_field_unresolved() -> Dict[str, Dict[str, int]]:
 
 def reset_decider_row_counts() -> None:
     """Clear every decider census. From ``SkillBrokerEngine.__init__`` and tests."""
+    global _RENDER_CHECK_SKIPPED_ROWS
     with _DECIDER_ROWS_LOCK:
         _DECIDER_ROWS.clear()
         _RULE_DEFAULT_ROWS.clear()
@@ -192,6 +217,7 @@ def reset_decider_row_counts() -> None:
         _RULE_FIRINGS.clear()
         _RULE_FIELD_UNRESOLVED.clear()
         _DECLARED_DECIDERS.clear()
+        _RENDER_CHECK_SKIPPED_ROWS = 0
     try:
         from broker.agents.deciders import reset_unresolved_field_warnings
 
@@ -504,6 +530,17 @@ def record_run_integrity(
             "world_grounded_rows=%s.",
             world_grounded_coverage_gap, _audit_rows, _audit_aborted_rows, _wg_rows,
         )
+
+    # Round 6: how many process_step calls ran with render_check=False
+    # (replay.py's documented opt-out from the options-text-parity
+    # POST-RENDER check). Recorded only when non-zero, so a plain live
+    # run — mock or real-LLM, replay never involved — leaves the key
+    # absent: byte-neutral for every non-replay recipe. This is what
+    # makes a replayed run distinguishable by a field, not only by its
+    # `replay_` run_id prefix convention.
+    render_check_skipped = get_render_check_skipped_count()
+    if render_check_skipped:
+        audit["render_check_skipped_rows"] = render_check_skipped
 
     # PR-8: how many audit rows each decider produced. Recorded only when
     # the decider columns are on, so a plain all-LLM run leaves the key

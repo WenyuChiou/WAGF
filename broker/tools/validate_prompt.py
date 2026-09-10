@@ -51,6 +51,12 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 # ever can't be imported, the CLI was broken at startup, not here.
 from broker.domains.registry import DomainPackRegistry
 
+# Reviewer drift note (round 4, 2026-09): import the SAME tuple the
+# runtime guard uses (broker/core/_skill_filtering.py) instead of
+# retyping ("choice", "secondary_choice") here — a future third numeric
+# field type would otherwise need remembering to update BOTH places.
+from broker.core._skill_filtering import _NUMERIC_CHOICE_FIELD_TYPES
+
 
 # ---------------------------------------------------------------------------
 # Known broker-filled placeholders (auto-injected by TieredContextBuilder
@@ -1211,6 +1217,35 @@ def validate_agent_type(
             "no 'prompt_template_file' or inline 'prompt_template' set — "
             "agent will use the broker default template",
         ))
+        # Options-text parity BLOCKER, missing-template branch (2026-09,
+        # hardened after silent-failure review — this WARN used to
+        # `return` before the parity BLOCKER below ever ran). The broker
+        # default template renders {skills}, not {options_text}
+        # (BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE — the exact
+        # vaccination_demo shape); TieredContextBuilder's own default DOES
+        # carry {options_text}, but a static config check cannot know
+        # which builder a given run will use, so it must not assume the
+        # safe one. Fail closed: treat "no template at all" the same as
+        # "template lacks the placeholder" for a multi-skill, non-
+        # full_disclosure agent.
+        n_actions_no_template = len(actions) if isinstance(actions, list) else 0
+        full_disclosure_no_template = (
+            bool(parsing.get("full_disclosure")) if isinstance(parsing, dict) else False
+        )
+        if n_actions_no_template > 1 and not full_disclosure_no_template:
+            issues.append(Issue(
+                "ERROR", f"yaml: {agent_type}",
+                f"agent_type '{agent_type}' has {n_actions_no_template} eligible "
+                f"skills, declares no 'prompt_template_file' or inline "
+                f"'prompt_template', and 'parsing.full_disclosure' is not true. "
+                f"The broker default template used in this case "
+                f"(BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE) renders "
+                f"'ACT:{{skills}}', NOT {{options_text}} — the exact "
+                f"vaccination_demo bug shape. RAG skill retrieval can re-rank "
+                f"the menu per call while the model answers against a stale "
+                f"legend. Fix: add a prompt_template_file that renders "
+                f"{{options_text}}, or set 'parsing.full_disclosure: true'.",
+            ))
         return issues
 
     # ---- placeholder coverage -------------------------------------------
@@ -1240,6 +1275,109 @@ def validate_agent_type(
             f"these as '[N/A]'. Either add to response_format.fields or "
             f"ensure a domain lifecycle hook fills them via "
             f"template_vars.",
+        ))
+
+    # ---- options-text parity (2026-09 fix) --------------------------------
+    # BLOCKER: an agent with >1 eligible skill whose prompt never renders
+    # the live numbered list ({options_text}/{skills_text}) is vulnerable to
+    # the vaccination_demo bug — RAG skill retrieval (or shuffle_options)
+    # can re-rank the menu per call, and the model would then answer against
+    # a stale/hardcoded legend (or the never-filled {skills} placeholder)
+    # while the parser decodes the digit against the ACTUAL re-ranked
+    # dynamic_skill_map (broker/core/_skill_filtering.py:_inject_options_text).
+    # 'full_disclosure: true' is the one config-time escape hatch that keeps
+    # the map pinned to registry (actions:) order, so a static legend built
+    # from that order stays correct without {options_text}. See also the
+    # matching runtime guard: SkillFilterMixin._assert_options_text_parity.
+    n_actions = len(actions) if isinstance(actions, list) else 0
+    full_disclosure = bool(parsing.get("full_disclosure")) if isinstance(parsing, dict) else False
+    has_options_placeholder = "{options_text}" in template or "{skills_text}" in template
+    # Name-based decision design (e.g. MA flood's government/insurance
+    # institutional agents): every skill's literal id is hand-written into
+    # the template's own static text (an options bullet list, an inline
+    # JSON example asking for the literal name) instead of a broker-
+    # rendered numbered list. The parser resolves such an answer by
+    # NAME/alias match, not by re-ranked digit position, so order drift
+    # carries no decode risk — PROVIDED nothing about this agent's shape
+    # lets a digit sneak into the decode path anyway. Mirrors the runtime
+    # guard's identical, hardened exemption
+    # (SkillFilterMixin._is_name_based_and_safe), ALL required:
+    #   1. every id matches ^[A-Za-z_]+$ — no digits in the id itself.
+    #      unified_adapter.py Case 2 (`re.search(r'(\d+)', decision_val)`)
+    #      extracts the FIRST digit ANYWHERE in the model's answer string
+    #      and decodes POSITIONALLY if that digit is a dynamic_skill_map
+    #      key, before ever trying name/alias resolution — a digit-bearing
+    #      id could get silently mis-decoded via that digit even with
+    #      every name spelled out in full.
+    #   2. a whole-token regex per id (not a bare substring — "insurance"
+    #      must not match inside "reinsurance_program").
+    #   3. no {valid_choices_text} (unconditionally a digit-count string,
+    #      independent of any declared type); no {response_format} WHILE
+    #      the decision field is declared type: "choice" — ResponseFormat-
+    #      Builder.build() is the ONLY code that turns "choice" into a
+    #      numeric-ID instruction, and only inside the {response_format}
+    #      block, so a declared "choice" the template never renders via
+    #      {response_format} is inert (this is precisely MA flood's
+    #      government/insurance shape — declared type: "choice", but the
+    #      template hand-writes its own JSON and never references
+    #      {response_format}, so the declaration can never actually
+    #      render); no literal numbered-example decision value
+    #      ("decision": 1 -style) or hand-written numbered option list
+    #      (1. .../2. ...) either, catching a fully hand-rolled numeric
+    #      prompt using no broker placeholder at all.
+    action_ids = [
+        a.get("id") for a in actions
+        if isinstance(actions, list) and isinstance(a, dict) and a.get("id")
+    ] if isinstance(actions, list) else []
+
+    _name_like_id = re.compile(r"^[A-Za-z_]+$")
+    _numbered_decision_example = re.compile(r'"decision"\s*:\s*"?\d')
+    _numbered_option_list = re.compile(r"^\s*\d+\.\s", re.MULTILINE)
+
+    def _spelled_out(aid: str) -> bool:
+        if not _name_like_id.match(aid):
+            return False
+        pattern = rf"(?<![A-Za-z0-9_]){re.escape(aid)}(?![A-Za-z0-9_])"
+        return re.search(pattern, template) is not None
+
+    # Silent-failure hunter findings (2026-09), mirrored from
+    # broker/core/_skill_filtering.py:resolve_decision_field_is_numeric_choice:
+    # (NEW-1) "secondary_choice" also renders a numeric-ID instruction
+    # (response_format.py's `elif ftype == "secondary_choice":` branch,
+    # ~150-153) — not just "choice". (NEW-2) checking only fields whose
+    # key is in a guessed decision_keywords set (defaulting to just
+    # {"decision"}) can miss the real decision field: the parser's own
+    # default keyword list is wider (unified_adapter.py:427,
+    # ["decision", "choice", "action"]) and a YAML need not declare
+    # decision_keywords explicitly to use it. Check ALL fields instead —
+    # a numeric-choice field under any key is itself a live signal.
+    decision_is_numeric_choice = any(
+        isinstance(f, dict) and f.get("type") in _NUMERIC_CHOICE_FIELD_TYPES
+        for f in fields
+    )
+    invites_digit = (
+        "{valid_choices_text}" in template
+        or ("{response_format}" in template and decision_is_numeric_choice)
+        or bool(_numbered_decision_example.search(template))
+        or len(_numbered_option_list.findall(template)) >= 2
+    )
+    is_name_based = (
+        bool(action_ids) and all(_spelled_out(aid) for aid in action_ids) and not invites_digit
+    )
+    if n_actions > 1 and not full_disclosure and not has_options_placeholder and not is_name_based:
+        issues.append(Issue(
+            "ERROR", template_location,
+            f"agent_type '{agent_type}' has {n_actions} eligible skills but "
+            f"the prompt template renders neither {{options_text}} nor "
+            f"{{skills_text}}, and 'parsing.full_disclosure' is not true. "
+            f"RAG skill retrieval (or shuffle_options) can re-rank the menu "
+            f"per call; the model then answers against a stale/hardcoded "
+            f"legend while the parser decodes the digit against the actual "
+            f"re-ranked map — this is the vaccination_demo bug (57-63% of "
+            f"decisions decoded to the wrong skill from year 2 on, verified "
+            f"on 3 runs). Fix: render {{options_text}} in the prompt "
+            f"template, or set 'parsing.full_disclosure: true' to keep the "
+            f"menu order stable.",
         ))
 
     # ---- inline JSON key sync (Finding 4) --------------------------------
