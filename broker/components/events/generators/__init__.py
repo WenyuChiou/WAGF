@@ -1,8 +1,10 @@
 """Generic event generators.
 
-Modules:
-    impact — ImpactEventGenerator, ImpactEventConfig
-    policy — PolicyEventGenerator, PolicyEventConfig
+Org-3 note (2026-09): the ``impact`` (ImpactEventGenerator) and
+``policy`` (PolicyEventGenerator) modules that used to live here were
+deleted as dead code — reachable only via the also-deleted
+``broker.components.events.ma_manager.MAEventManager`` (no production
+runner instantiated either generator).
 
 Domain-specific generators live under their respective domain trees —
 the water-domain hazard generators are at

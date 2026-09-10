@@ -107,16 +107,12 @@ skills:
 
 ---
 
-## 5. 角色權限 (Role-Based Permissions)
+## 5. 角色權限 (Role-Based Permissions) — 已移除
 
-`RoleEnforcer` (`broker/components/role_permissions.py`) 新增獨立的權限層，驗證每種 Agent 類型的技能與狀態存取：
-
-- **技能權限**：每種 Agent 類型可提出哪些技能（例如僅 `government` 可 `set_subsidy_rate`）
-- **狀態讀寫權限**：每種 Agent 類型可讀寫哪些狀態鍵（例如 `insurance` Agent 可寫入 `premium_rate` 但不可寫入 `subsidy_rate`）
-
-此功能補充 Skill Registry 的資格檢查。Registry 驗證「此 Agent 是否_曾_可使用此技能」，RoleEnforcer 驗證「此 Agent 類型在此模擬中是否有_權限_」。
-
-角色由領域模組注入（例如洪水模擬定義 household/government/insurance 角色），非框架硬編碼。
+`RoleEnforcer` 每種 Agent 類型的技能／狀態權限層曾經實作於
+`broker/components/governance/permissions.py`，但從未接入任何正式管線，
+2026-09 已當作未使用程式碼移除（詳見 CHANGELOG）。技能資格檢查仍由
+Skill Registry 負責（見上方第 4 節）。
 
 ---
 

@@ -375,12 +375,14 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # social-feeds wiring. Commit eadde2a wired
         # run_unified_experiment.py to pass enable_social_feeds /
         # follower_network / social_feeds_* to THIS builder, but those
-        # params only ever landed on UnifiedContextBuilder
-        # (broker/core/unified_context_builder.py:325-333) — TieredContextBuilder
+        # params only ever landed on the parallel/legacy context
+        # builder that (pre-6T-F) accepted them — TieredContextBuilder
         # never accepted them, so every run_unified_experiment.py
         # construction raised ``TypeError: unexpected keyword argument
         # 'enable_social_feeds'`` (RED-ing the MA-flood mock smoke since
-        # eadde2a). Mirror the unified builder's gated append. When the flag
+        # eadde2a). Mirror that builder's gated append (that builder
+        # itself was removed 2026-09 as unused dead code — see
+        # CHANGELOG [Unreleased]). When the flag
         # is False (paper-3 default) nothing is added → byte-identical
         # provider chain. Inserted BEFORE extend_providers so the runner's
         # perception filter (documented LAST in extend_providers) stays last.

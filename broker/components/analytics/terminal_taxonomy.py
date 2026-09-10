@@ -2,9 +2,12 @@
 
 Classifies one audit trace row into one of 8 categories. Generic: reads
 only the **existing** audit CSV / JSONL columns plus the optional
-metadata contract defined in
-`broker/interfaces/validation_metadata.py::ValidatorMetadata`. Contains
-zero domain-specific strings — verified by the I5 token guard
+metadata contract (documented inline below: `rule_id` / `category` /
+`level` / `feasible_actions` / `recovery_hint` / `expected_terminal` /
+`constraint_type` — the `ValidatorMetadata` TypedDict that used to
+live at `broker/interfaces/validation_metadata.py` was removed 2026-09
+as unused; no validator ever populated it). Contains zero
+domain-specific strings — verified by the I5 token guard
 (`TestDomainGenericity`).
 
 Phase 6O-A-1 scope: classifier + tests only. Validators do NOT yet

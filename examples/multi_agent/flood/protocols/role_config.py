@@ -1,11 +1,11 @@
 """
 Flood-domain role permission configuration.
 
-Defines FLOOD_ROLES for use with broker.components.role_permissions.RoleEnforcer.
-
-Usage:
-    from examples.multi_agent.flood.ma_role_config import FLOOD_ROLES
-    enforcer = RoleEnforcer(roles=FLOOD_ROLES)
+Defines FLOOD_ROLES config data. Org-3 note (2026-09): the
+`RoleEnforcer` it was written for (`broker/components/governance/permissions.py`)
+was never wired into any production pipeline and was removed as
+unused dead code; FLOOD_ROLES itself is kept as config data in case a
+future consumer needs it.
 
 Reference: Task-058C (Drift Detection & Social Norms)
 """

@@ -1,7 +1,12 @@
 """Integration test for the full Communication Layer.
 
-Tests MessagePool + ConflictResolver + GameMaster + PhaseOrchestrator
-working together in a simulated multi-agent step.
+Tests MessagePool + ConflictResolver + GameMaster working together in
+a simulated multi-agent step.
+
+Org-3 note (2026-09): this file previously also covered
+PhaseOrchestrator (``broker.components.orchestration.phases``),
+deleted as dead code (no production importer, only its own tests).
+The PhaseOrchestrator-specific assertions/test were removed with it.
 
 Reference: Task-054 Communication Layer
 """
@@ -9,8 +14,6 @@ import pytest
 from unittest.mock import MagicMock
 
 from broker.interfaces.coordination import (
-    ExecutionPhase,
-    PhaseConfig,
     ActionProposal,
 )
 from broker.components.coordination.messages import MessagePool
@@ -25,16 +28,6 @@ from broker.components.coordination.coordinator import (
     ConflictAwareStrategy,
     create_game_master,
 )
-from broker.components.orchestration.phases import PhaseOrchestrator
-
-# Phase 6P-B (2026-05-25): `PhaseOrchestrator.from_domain("flood")` now
-# resolves the layout via `DomainPackRegistry`, so the flood example
-# package must be imported to register `FloodDomainPack` before the
-# lookup runs. Pre-6P-B the orchestrator imported `water_default_phases`
-# directly; 6P-B removed that cross-namespace coupling and 6P-B-fixup
-# (this commit) wires the explicit import where it was previously
-# implicit. Surfaced by CI integration test failure 2026-05-25.
-import examples.governed_flood  # noqa: F401,E402 — registers FloodDomainPack
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +63,6 @@ class TestFullPipeline:
         - 1 government, 1 insurance, 3 households
         - Government budget limit: 200,000
         - Two households compete for subsidies (150k each)
-        - Phase orchestrator orders execution
         - Game Master resolves conflicts
         - Message pool distributes outcomes
         """
@@ -83,22 +75,7 @@ class TestFullPipeline:
             "hh_3": make_agent("household_owner"),
         }
 
-        # --- 1. Phase Orchestrator: determine execution order ---
-        orchestrator = PhaseOrchestrator.from_domain("flood")
-        plan = orchestrator.get_execution_plan(agents)
-        assert len(plan) == 4
-
-        # Verify institutional phase has gov + ins
-        inst_phase, inst_ids = plan[0]
-        assert inst_phase == ExecutionPhase.INSTITUTIONAL
-        assert set(inst_ids) == {"gov_1", "ins_1"}
-
-        # Verify household phase has all households
-        hh_phase, hh_ids = plan[1]
-        assert hh_phase == ExecutionPhase.INDIVIDUAL
-        assert set(hh_ids) == {"hh_1", "hh_2", "hh_3"}
-
-        # --- 2. Message Pool: government broadcasts policy ---
+        # --- 1. Message Pool: government broadcasts policy ---
         pool = MessagePool()
         pool.register_agents(agents)
 
@@ -120,7 +97,7 @@ class TestFullPipeline:
         assert len(hh1_msgs) == 2
         assert hh1_msgs[0].priority == 10  # Policy first (higher priority)
 
-        # --- 3. Game Master: resolve household actions ---
+        # --- 2. Game Master: resolve household actions ---
         gm = create_game_master(
             resource_limits={"govt_budget": 200_000},
             message_pool=pool,
@@ -153,13 +130,13 @@ class TestFullPipeline:
         assert hh2_res.approved is True  # MG household wins
         assert hh1_res.approved is False  # NMG household denied
 
-        # --- 4. Verify resolution messages in pool ---
+        # --- 3. Verify resolution messages in pool ---
         # GameMaster broadcasts resolutions to affected agents
         hh1_all_msgs = pool.get_messages("hh_1")
         resolution_msgs = [m for m in hh1_all_msgs if m.message_type == "resolution"]
         assert len(resolution_msgs) >= 1
 
-        # --- 5. Summary statistics ---
+        # --- 4. Summary statistics ---
         gm_summary = gm.summary()
         assert gm_summary["total_resolutions"] == 3
         assert gm_summary["approved"] == 2
@@ -199,40 +176,6 @@ class TestFullPipeline:
         pool.advance_step(1)
         assert pool.peek_count("hh_1") == 0
 
-    def test_phase_orchestrator_with_custom_yaml(self, tmp_path):
-        """Test custom phase configuration from YAML."""
-        yaml_content = """\
-phases:
-  - phase: institutional
-    agent_types: [government]
-    ordering: sequential
-  - phase: household
-    agent_types: [household_owner, household_mg_owner]
-    ordering: random
-  - phase: resolution
-    agent_types: []
-    depends_on: [institutional, household]
-  - phase: observation
-    agent_types: []
-    depends_on: [resolution]
-"""
-        yaml_file = tmp_path / "custom_phases.yaml"
-        yaml_file.write_text(yaml_content, encoding="utf-8")
-
-        agents = {
-            "gov_1": make_agent("government"),
-            "hh_1": make_agent("household_owner"),
-            "hh_2": make_agent("household_mg_owner"),
-        }
-
-        orch = PhaseOrchestrator.from_yaml(str(yaml_file), seed=42)
-        plan = orch.get_execution_plan(agents)
-
-        assert len(plan) == 4
-        # Institutional phase should only have government
-        inst_ids = next(ids for ph, ids in plan if ph == ExecutionPhase.INSTITUTIONAL)
-        assert inst_ids == ["gov_1"]
-
     def test_coordinator_reset_between_steps(self):
         """Test that GameMaster properly resets between simulation steps."""
         gm = create_game_master()
@@ -257,13 +200,6 @@ phases:
 # ---------------------------------------------------------------------------
 
 class TestEdgeCases:
-    def test_empty_agents(self):
-        orch = PhaseOrchestrator()
-        plan = orch.get_execution_plan({})
-        # All phases should have empty agent lists
-        for phase, ids in plan:
-            assert ids == []
-
     def test_no_proposals(self):
         gm = GameMaster()
         resolutions = gm.resolve_phase()

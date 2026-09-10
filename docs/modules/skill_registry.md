@@ -107,16 +107,12 @@ Adds a new skill to the registry programmatically.
 
 ---
 
-## 5. Role-Based Permissions (Multi-Agent)
+## 5. Role-Based Permissions (Multi-Agent) — removed
 
-The `RoleEnforcer` (`broker/components/role_permissions.py`) adds a separate permission layer that validates skill and state access per agent type:
-
-- **Skill Permissions**: Which skills each agent type can propose (e.g., only `government` can `set_subsidy_rate`)
-- **State Read/Write Access**: Which state keys each agent type can read or modify (e.g., `insurance` agents can write `premium_rate` but not `subsidy_rate`)
-
-This supplements the existing Skill Registry's eligibility checks. While the Registry validates "can this agent _ever_ use this skill?", the RoleEnforcer validates "does this agent type have _permission_ in this simulation context?"
-
-Roles are injected by domain modules (e.g., flood simulation defines household/government/insurance roles), not hardcoded in the framework.
+A `RoleEnforcer` per-agent-type skill/state permission layer was built
+(`broker/components/governance/permissions.py`) but never wired into any
+production pipeline — removed 2026-09 as unused (see CHANGELOG). Skill
+eligibility is enforced by the Skill Registry (§4 above).
 
 ---
 
