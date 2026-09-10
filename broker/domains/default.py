@@ -77,39 +77,7 @@ class DefaultDomainPack:
     def event_handlers(self) -> Dict[str, EventHandler]:
         return {}
 
-    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
-        return {}
-
-    # ─── Phase 6T-A (2026-05-27): dispatch + lifecycle defaults ──
-
-    def event_type_to_domain(self, event_type: str) -> Optional[str]:
-        """Phase 6T-A default: this pack OWNS ``event_type`` for ENV
-        SYNC iff it appears in :meth:`event_handlers`. Returns
-        ``self.name`` on ownership, ``None`` otherwise.
-
-        Impact-only event types (in :meth:`agent_impact_handlers` but
-        NOT :meth:`event_handlers`) are dispatched via the separate
-        :meth:`MAEventManager.get_agent_impact` path and DO NOT count
-        as env-sync ownership. Pack authors who deliberately register
-        an event_type for impact-only aggregation MUST also list it
-        in :meth:`silent_skip_event_types` so the env-sync dispatcher
-        skips it instead of raising :class:`UnhandledEventError`.
-
-        Rationale (Phase 6T-A code-review P1 catch, 2026-05-27): the
-        pre-6T-A dispatcher silently skipped impact-only types
-        (because they weren't in ``event_handlers``); the 6T-A
-        explicit-opt-in contract requires the pack to declare
-        intentional env-sync skip via :meth:`silent_skip_event_types`.
-        Including impact handlers in the ownership check would
-        regress to "claimed but no handler" → raise, which is wrong.
-
-        Override in a pack to claim event_types the pack emits but
-        doesn't directly handle (Phase 6T-E social-media observer
-        pattern).
-        """
-        if event_type in self.event_handlers():
-            return self.name
-        return None
+    # ─── Phase 6T-A (2026-05-27): lifecycle defaults ──────────────
 
     def event_persistence_policy(self, event_type: str):
         """Phase 6T-A default: every event is ``EPHEMERAL``. Matches
@@ -122,14 +90,6 @@ class DefaultDomainPack:
         """
         from broker.components.events.exceptions import EventPersistence
         return EventPersistence.EPHEMERAL
-
-    def silent_skip_event_types(self) -> Set[str]:
-        """Phase 6T-A default: empty set — no event_types are
-        legitimately unhandled. Override to acknowledge
-        observational / metrics-only events the pack emits but does
-        not act on.
-        """
-        return set()
 
     # ─── Memory policy (Phase 6K-A) ───────────────────────────────
 
@@ -258,10 +218,8 @@ class DefaultDomainPack:
     def population_governance_policy(self) -> Dict[str, Any]:
         return {}
 
-    # ─── Policy event severity tiers (Phase 6L-C) ─────────────────
-
-    def policy_event_tiers(self) -> Dict[str, float]:
-        return {}
+    # Phase 6L-C added a ``policy_event_tiers`` default here — removed
+    # org-4 cleanup (2026-09), see broker/domains/protocol.py.
 
     # Phase 6Q-B (2026-05-26): the ``hazard_severity_thresholds``
     # default added in 6P-E was removed when ``HazardEventGenerator``
@@ -306,13 +264,6 @@ class DefaultDomainPack:
 
     def synthetic_loader_class(self) -> Optional[Any]:
         """Default → ``None`` → broker uses the generic ``SyntheticLoader``."""
-        return None
-
-    # ─── Phase orchestration (Phase 6P-B) ─────────────────────────
-
-    def phase_layout(self) -> Optional[List[Any]]:
-        """Default → ``None`` so the orchestrator falls back to a
-        generic 3-phase layout (CUSTOM → RESOLUTION → OBSERVATION)."""
         return None
 
     # ─── Phase 6T-C (2026-05-27): institutional lifecycle defaults ─

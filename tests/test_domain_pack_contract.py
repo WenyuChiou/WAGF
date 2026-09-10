@@ -93,9 +93,6 @@ class TestDefaultDomainPack:
     def test_event_handlers_is_empty(self):
         assert self.pack.event_handlers() == {}
 
-    def test_agent_impact_handlers_is_empty(self):
-        assert self.pack.agent_impact_handlers() == {}
-
     def test_memory_policy_is_none(self):
         # Phase 6K-A: DefaultDomainPack returns None — generic memory
         # subsystem falls back to its safe domain-agnostic behaviour
@@ -113,11 +110,6 @@ class TestDefaultDomainPack:
         # / CouncilValidator constructor defaults (0.8 / 0.5 / 0.5 / 0.5)
         # apply.
         assert self.pack.population_governance_policy() == {}
-
-    def test_policy_event_tiers_is_empty(self):
-        # Phase 6L-C: DefaultDomainPack returns {} — PolicyEventConfig
-        # default severity_tiers (0.20 / 0.10 / 0.05) apply.
-        assert self.pack.policy_event_tiers() == {}
 
     def test_bridge_importance_policy_is_empty(self):
         # Phase 6L-D: DefaultDomainPack returns {} — MemoryBridge
@@ -260,9 +252,6 @@ class TestIrrigationDomainPackByteIdentical:
     def test_irrigation_event_handlers_empty(self):
         assert self.pack.event_handlers() == {}
 
-    def test_irrigation_agent_impact_handlers_empty(self):
-        assert self.pack.agent_impact_handlers() == {}
-
     def test_irrigation_memory_policy_is_none(self):
         # Phase 6K-A: irrigation domain has no memory-subsystem
         # overrides today; the inherited default of None keeps generic
@@ -278,11 +267,6 @@ class TestIrrigationDomainPackByteIdentical:
         # Phase 6L-B: irrigation does not yet override population-
         # governance defaults; inherits the {} default.
         assert self.pack.population_governance_policy() == {}
-
-    def test_irrigation_policy_event_tiers_empty(self):
-        # Phase 6L-C: irrigation does not yet override PolicyEvent
-        # severity tiers; inherits the {} default.
-        assert self.pack.policy_event_tiers() == {}
 
     def test_irrigation_bridge_importance_policy_empty(self):
         # Phase 6L-D: irrigation does not yet override MemoryBridge
@@ -389,20 +373,6 @@ class TestFloodDomainPackByteIdentical:
         assert spec["elevate_house"]["income_multiplier"] == 3.0
         assert spec["elevate_house"]["default_subsidy_rate"] == 0.5
 
-    # Phase 6P-B (2026-05-25) — phase_layout dispatch
-    def test_phase_layout_returns_water_four_phase_order(self):
-        from broker.interfaces.coordination import ExecutionPhase
-        layout = self.pack.phase_layout()
-        assert layout is not None
-        assert len(layout) == 4
-        phases = [pc.phase for pc in layout]
-        assert phases == [
-            ExecutionPhase.INSTITUTIONAL,
-            ExecutionPhase.INDIVIDUAL,
-            ExecutionPhase.RESOLUTION,
-            ExecutionPhase.OBSERVATION,
-        ]
-
     # Phase 6P-C (2026-05-25) — loader dispatch via DomainPack
     def test_csv_loader_class_returns_flood_csv_loader(self):
         from broker.domains.water.loaders import FloodCSVLoader
@@ -474,45 +444,6 @@ class TestFloodDomainPackByteIdentical:
         assert gs["subsidy_rate"] == 0.8
         assert gs["govt_message"] == "Subsidy increased"
 
-    # Agent-impact handlers — preserves the ma_manager.py get_agent_impact
-    # flood event-type chain (Phase 6J-B)
-    def test_agent_impact_handlers_keys(self):
-        assert set(self.pack.agent_impact_handlers().keys()) == {
-            "flood", "flood_damage", "insurance_payout"
-        }
-
-    def test_impact_flood_handler_aggregates_depth(self):
-        class Event:
-            data = {"depth_m": 0.4}
-        handlers = self.pack.agent_impact_handlers()
-        impact = {}
-        handlers["flood"](Event(), impact)
-        assert impact["flooded"] is True
-        assert impact["depth_m"] == 0.4
-        # A second, deeper event takes the max.
-        class Deeper:
-            data = {"depth_m": 0.9}
-        handlers["flood"](Deeper(), impact)
-        assert impact["depth_m"] == 0.9
-
-    def test_impact_flood_damage_handler_sums(self):
-        class Event:
-            data = {"damage_amount": 25000, "oop_cost": 10000}
-        handlers = self.pack.agent_impact_handlers()
-        impact = {}
-        handlers["flood_damage"](Event(), impact)
-        handlers["flood_damage"](Event(), impact)
-        assert impact["damage_amount"] == 50000
-        assert impact["oop_cost"] == 20000
-
-    def test_impact_insurance_payout_handler_sums(self):
-        class Event:
-            data = {"payout_amount": 15000}
-        handlers = self.pack.agent_impact_handlers()
-        impact = {}
-        handlers["insurance_payout"](Event(), impact)
-        assert impact["payout_amount"] == 15000
-
     # Memory policy — preserves the three flood literals previously
     # hardcoded in generic broker/components/memory/ (Phase 6K-A).
     def test_memory_policy_returns_bundle(self):
@@ -550,12 +481,6 @@ class TestFloodDomainPackByteIdentical:
         # CrossAgentValidator / CouncilValidator constructor defaults
         # apply.
         assert self.pack.population_governance_policy() == {}
-
-    def test_policy_event_tiers_inherits_default(self):
-        # Phase 6L-C: flood domain does not yet override PolicyEvent
-        # severity-tier cutoffs; inherits the {} default so
-        # PolicyEventConfig defaults (0.20 / 0.10 / 0.05) apply.
-        assert self.pack.policy_event_tiers() == {}
 
     def test_bridge_importance_policy_inherits_default(self):
         # Phase 6L-D: flood domain does not yet override the MemoryBridge
