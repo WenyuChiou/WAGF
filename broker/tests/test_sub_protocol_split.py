@@ -67,13 +67,14 @@ class TestSubProtocolMethodOwnership:
         },
         EventPack: {
             "event_handlers",
-            "agent_impact_handlers",
-            # Phase 6T-A (2026-05-27) additions — dispatch safety +
-            # event lifecycle policy hooks. See
-            # broker/components/events/exceptions.py for rationale.
-            "event_type_to_domain",
+            # Phase 6T-A (2026-05-27) addition — event lifecycle
+            # policy hook. See broker/components/events/exceptions.py
+            # for rationale. (``agent_impact_handlers`` /
+            # ``event_type_to_domain`` / ``silent_skip_event_types``
+            # removed org-4 cleanup 2026-09: sole consumer was the
+            # removed MAEventManager, grep-confirmed zero production
+            # callers.)
             "event_persistence_policy",
-            "silent_skip_event_types",
         },
         PerceptionPack: {
             "perception_descriptors",
@@ -105,14 +106,19 @@ class TestSubProtocolMethodOwnership:
             "retrieval_policy",
             "drift_policy",
             "population_governance_policy",
-            "policy_event_tiers",
+            # ``policy_event_tiers`` removed org-4 cleanup 2026-09: sole
+            # consumer was AgentTypeConfig.get_policy_event_tiers_config,
+            # itself removed the same cleanup as dead code — grep-confirmed
+            # zero production callers.
             "bridge_importance_policy",
             "prompt_placeholder_extensions",
         },
         SetupPack: {
             "csv_loader_class",
             "synthetic_loader_class",
-            "phase_layout",
+            # ``phase_layout`` removed org-4 cleanup 2026-09: sole
+            # consumer was the removed PhaseOrchestrator, grep-confirmed
+            # zero production callers.
             "initial_memory_templates",
             "mg_barrier_text",
             # Phase 6T-C (2026-05-27) additions — institutional
@@ -149,23 +155,28 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_46(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 46 —
+    def test_total_method_count_is_41(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 41 —
         the original 32 (per ``.research/domain_pack_protocol_reference.md``)
-        plus 3 Phase 6T-A EventPack additions
-        (``event_type_to_domain``, ``event_persistence_policy``,
-        ``silent_skip_event_types``) plus 1 Phase 6T-B GovernancePack
-        addition (``framework_for_agent_type``) plus 2 Phase 6T-C
-        SetupPack additions (``institutional_lifecycle_handlers``,
+        plus 1 Phase 6T-A EventPack addition (``event_persistence_policy``;
+        ``event_type_to_domain`` / ``silent_skip_event_types`` also added
+        Phase 6T-A but removed org-4 cleanup 2026-09) plus 1 Phase 6T-B
+        GovernancePack addition (``framework_for_agent_type``) plus 2
+        Phase 6T-C SetupPack additions (``institutional_lifecycle_handlers``,
         ``multi_agent_env_keys``) plus 5 Phase 6T-E PerceptionPack
         additions (``credibility_tiers``, ``credibility_weight``,
         ``verbalise_post``, ``suppressed_tiers``,
         ``social_media_post_filter``) plus 1 Phase 6T-E.B PerceptionPack
         addition (``social_feeds_default_enabled``) plus 1 Phase 6W-B3
         SkillPack addition (``param_specs``) plus 1 PR-8 SetupPack
-        addition (``decider_factories``)."""
+        addition (``decider_factories``), minus 3 org-4 removals
+        (``agent_impact_handlers`` EventPack, ``phase_layout`` SetupPack —
+        sole consumers were the removed MAEventManager / PhaseOrchestrator;
+        ``policy_event_tiers`` GovernancePack, one of the original 32 —
+        sole consumer was ``AgentTypeConfig.get_policy_event_tiers_config``,
+        itself removed the same cleanup as dead code)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 46
+        assert total == 41
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol

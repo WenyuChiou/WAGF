@@ -79,35 +79,6 @@ DORMANT_HOOKS = {
         "name was itself removed 2026-09 as dead code — see org-3 notes "
         "below — so this hook still awaits its first real consumer.)"
     ),
-    "agent_impact_handlers": (
-        "Dormant 2026-09 (org-3 cleanup): sole consumer was "
-        "broker.components.events.ma_manager.MAEventManager.get_agent_impact, "
-        "deleted as dead code (no production runner ever instantiated "
-        "MAEventManager — grep-confirmed, only its own test suite did). "
-        "Wire a production multi-agent event dispatcher or remove this hook."
-    ),
-    "event_type_to_domain": (
-        "Dormant 2026-09 (org-3 cleanup): sole consumer was "
-        "broker.components.events.ma_manager.MAEventManager's Phase 6T-A "
-        "dispatch-safety ownership check, deleted as dead code (no "
-        "production runner ever instantiated MAEventManager). Wire a "
-        "production multi-agent event dispatcher or remove this hook."
-    ),
-    "phase_layout": (
-        "Dormant 2026-09 (org-3 cleanup): sole consumer was "
-        "broker.components.orchestration.phases.PhaseOrchestrator.from_domain, "
-        "deleted as dead code (no production importer, only its own test "
-        "suite — the production MA flood runner orders phases via "
-        "ExperimentBuilder.with_phase_order, an unrelated mechanism that "
-        "does not read this hook). Wire a production consumer or remove."
-    ),
-    "silent_skip_event_types": (
-        "Dormant 2026-09 (org-3 cleanup): sole consumer was "
-        "broker.components.events.ma_manager.MAEventManager's Phase 6T-A "
-        "observational-event allowlist, deleted as dead code (no "
-        "production runner ever instantiated MAEventManager). Wire a "
-        "production multi-agent event dispatcher or remove this hook."
-    ),
 }
 
 
