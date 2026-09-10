@@ -784,10 +784,12 @@ def main() -> int:
                              f"{pct(*reversed(g_all.get(k,[0,0]))):.4f}",
                              u_all.get(k, [0, 0])[0], u_all.get(k, [0, 0])[1],
                              f"{pct(*reversed(u_all.get(k,[0,0]))):.4f}", "", ""])
-    print("\n  Unbalanced-cell note: ministral-3:8b has 3 governed seeds and 2 ungoverned; only the")
-    print("  2 shared seeds enter the columns above and NO paired test is run on it.")
-
     bal_rows = [r for r in summary if r[1] and len(r[2]) >= 2]
+    bal_labels = {r[0] for r in bal_rows}
+    unbal = [l for l, p in L.MODELS if l not in bal_labels]
+    print(f"\n  Balance: {len(bal_rows)}/{len(L.MODELS)} cells balanced; "
+          f"unbalanced (no paired test) = {unbal or 'none'}")
+
     print(f"\n  Mean over the {len(bal_rows)} BALANCED cells: "
           f"standardized diff {L.mean([r[5] for r in bal_rows]):+.2f} pp   vs   "
           f"published-style conditional gap {L.mean([r[6] for r in bal_rows]):+.2f} pp")
