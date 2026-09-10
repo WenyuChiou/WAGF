@@ -1,5 +1,7 @@
 # Water Agent Governance Framework - Architecture
 
+> Read this after [`ARCHITECTURE.md`](../../ARCHITECTURE.md) — that document is the strategic overview; this one is the operational three-layer view. For where things live in the repo, see [`docs/REPO_MAP.md`](../REPO_MAP.md).
+
 ![Water Agent Governance Architecture](governed_broker_architecture_v3_1.png)
 
 ## Overview
