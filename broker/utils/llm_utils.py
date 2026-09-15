@@ -94,6 +94,25 @@ def _env_timeout_floor() -> int:
     return math.ceil(value)
 
 
+def timeout_env_status() -> Tuple[Optional[str], bool]:
+    """``(raw WAGF_LLM_TIMEOUT value, was it set but unusable)``.
+
+    For the reproducibility manifest. The effective timeout alone cannot
+    distinguish "the operator set nothing" from "the operator set 6000000 and
+    it was rejected" — both record 120 — and the second is a run someone
+    believed had 100 minutes of headroom. Recording the raw string and the
+    rejection flag makes that visible in the artifact instead of only in a
+    log line nobody kept.
+
+    A value that parsed fine but sits BELOW the configured timeout is not
+    "rejected": it was read and applied, the ``max()`` rule simply left the
+    configured value on top.
+    """
+    raw = os.environ.get(LLM_TIMEOUT_ENV_VAR)
+    was_set = bool(raw and raw.strip())
+    return raw, was_set and _env_timeout_floor() == 0
+
+
 # =============================================================================
 # Global LLM Configuration (can be modified before creating invoke functions)
 # =============================================================================

@@ -192,9 +192,18 @@ def test_the_ollama_call_uses_the_floored_timeout(config, monkeypatch):
     )
 
 
-@pytest.mark.parametrize("env_value, expected", [(None, 120), ("777", 777)])
+@pytest.mark.parametrize(
+    "env_value, expected, expect_rejected",
+    [
+        (None, 120, False),          # nothing set
+        ("777", 777, False),         # set and applied
+        ("30", 120, False),          # set, read, below the configured floor
+        ("6000000", 120, True),      # set and REJECTED (too large)
+        ("abc", 120, True),          # set and REJECTED (unparseable)
+    ],
+)
 def test_manifest_records_the_effective_timeout(
-    monkeypatch, tmp_path, config, env_value, expected
+    monkeypatch, tmp_path, config, env_value, expected, expect_rejected
 ):
     """`_collect_reproducibility_metadata` must write the value the run
     ACTUALLY used, so a run given extra headroom is distinguishable from one
@@ -235,3 +244,24 @@ def test_manifest_records_the_effective_timeout(
 
     metadata = runner._collect_reproducibility_metadata()
     assert metadata["llm_timeout_seconds_effective"] == expected
+    assert metadata["llm_timeout_env_raw"] == env_value
+    assert metadata["llm_timeout_env_rejected"] is expect_rejected
+
+
+def test_manifest_distinguishes_unset_from_rejected():
+    """The pair of fields exists precisely to separate these two cases, which
+    `llm_timeout_seconds_effective` alone renders identical."""
+    import os
+
+    from broker.utils.llm_utils import timeout_env_status
+
+    os.environ.pop(ENV_VAR, None)
+    assert timeout_env_status() == (None, False)
+
+    os.environ[ENV_VAR] = "6000000"
+    llm_utils._WARNED_BAD_TIMEOUT_VALUES.clear()
+    try:
+        raw, rejected = timeout_env_status()
+        assert raw == "6000000" and rejected is True
+    finally:
+        os.environ.pop(ENV_VAR, None)
