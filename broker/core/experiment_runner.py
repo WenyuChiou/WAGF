@@ -843,7 +843,7 @@ class ExperimentRunner:
 
         # 3. LLM config snapshot
         try:
-            from broker.utils.llm_utils import LLM_CONFIG
+            from broker.utils.llm_utils import LLM_CONFIG, timeout_env_status
             metadata["thinking_mode"] = LLM_CONFIG.thinking_mode
             metadata["temperature"] = LLM_CONFIG.temperature
             metadata["top_p"] = LLM_CONFIG.top_p
@@ -861,6 +861,12 @@ class ExperimentRunner:
             metadata["llm_timeout_seconds_effective"] = LLM_CONFIG.get_timeout(
                 self.config.model
             )
+            # The effective value alone cannot tell "nothing was set" from
+            # "something was set and rejected" — both record 120, and the
+            # second is a run whose operator believed it had more headroom.
+            _raw, _rejected = timeout_env_status()
+            metadata["llm_timeout_env_raw"] = _raw
+            metadata["llm_timeout_env_rejected"] = _rejected
         except Exception:
             pass
 

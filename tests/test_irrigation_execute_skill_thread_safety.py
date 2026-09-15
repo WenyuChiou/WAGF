@@ -213,6 +213,61 @@ def test_exploration_arm_is_actually_reached_and_not_reached():
     )
 
 
+def test_execute_skill_never_touches_the_env_level_generator():
+    """The main-thread-only invariant on ``self.rng``, stated directly.
+
+    The other tests here assert the *consequence* (the same agent gets the
+    same magnitude whatever the worker count). This one asserts the
+    *mechanism*: the decision phase must not consume the environment-level
+    stream at all, because that stream is also drawn by
+    ``_generate_precipitation`` on the main thread. If a future edit routes
+    one draw back through ``self.rng``, every test above could still pass at
+    ``--workers 1`` while the race quietly returns under ``--workers N``.
+
+    Fails on the pre-fix code, where every magnitude draw came from this
+    generator.
+    """
+    env = _build_env()
+    before = env.rng.bit_generator.state
+
+    for i in range(N_AGENTS):
+        env.execute_skill(_skill(_agent_id(i)))
+
+    assert env.rng.bit_generator.state == before, (
+        "execute_skill consumed the env-level generator; decision-phase draws "
+        "must come from _decision_rng so the precipitation stream stays "
+        "independent of how many agents decided."
+    )
+
+
+def test_exploration_arm_also_leaves_the_env_generator_alone():
+    """The ε-exploration arm draws twice per call — both must be off the
+    shared stream, not just the Gaussian."""
+    env = _build_exploring_env()
+    before = env.rng.bit_generator.state
+
+    results = [env.execute_skill(_skill(_agent_id(i))) for i in range(N_AGENTS)]
+
+    assert all(r.state_changes.get("is_exploration") for r in results), (
+        "fixture did not reach the exploration arm — the assertion below "
+        "would be vacuous."
+    )
+    assert env.rng.bit_generator.state == before
+
+
+def test_advance_year_does_still_use_the_env_generator():
+    """The complement, so the invariant cannot be satisfied by orphaning
+    ``self.rng`` entirely: the per-year precipitation noise is an env-level,
+    main-thread draw and must keep coming from it."""
+    env = _build_env()
+    before = env.rng.bit_generator.state
+    env.advance_year()
+    assert env.rng.bit_generator.state != before, (
+        "advance_year no longer draws from the env-level generator — the "
+        "main-thread/decision-phase split has been lost, not preserved."
+    )
+
+
 def test_magnitude_is_reproducible_across_environments():
     """Two freshly-seeded environments must hand each agent the same value."""
     _assert_same(
