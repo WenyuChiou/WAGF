@@ -45,6 +45,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Irrigation magnitude sampling raced under `--workers N`: which agent got
+  which draw was decided by thread scheduling**:
+  `examples/irrigation_abm/irrigation_env.py` held ONE environment-level
+  `self.rng` and drew from it inside `execute_skill()` (the v17 per-skill
+  Gaussian branch and the v12 legacy per-persona fallback, plus the
+  ε-exploration coin flip in both). `SkillBrokerEngine.process_step`
+  (`broker/core/skill_broker_engine.py:775`) calls that from inside
+  `ExperimentRunner._run_agents_parallel`'s `ThreadPoolExecutor`, so the
+  agents consumed one shared stream in thread-completion order. Measured
+  2026-09-15: 13 of 16 agents received a different magnitude under
+  `--workers 4` than under `--workers 1` in one measured pair and 9 of 16 in
+  another — the count moves with scheduling, the defect does not — and a
+  different assignment again between two `--workers 4` runs at the same seed;
+  end to end (8 agents × 4 years, seed 42, mock LLM) that is 138 differing
+  cells in `simulation_log.csv` between workers 1 and 4, and 143 between two
+  workers-4 runs. The
+  `*_governance_audit.csv` hid it completely — it carries no magnitude
+  column, so the audit trace compared IDENTICAL while the simulation
+  trajectory did not.
+  **Fix**: decision-phase draws now come from `_decision_rng(agent_id,
+  skill)`, a stateless generator keyed on
+  `(config.seed, current_year, crc32(agent_id), crc32(skill))`. There is no
+  shared stream left for the scheduler to reorder, no lock is needed, and
+  `zlib.crc32` is used instead of the builtin `hash` so the key is not
+  salted per process by `PYTHONHASHSEED`. `self.rng` is kept for the
+  env-level draws that all run on the main thread — the cluster shuffle in
+  `initialize_synthetic` and the precipitation noise in
+  `_generate_precipitation` — and is now documented as main-thread-only.
+  **Behavioural note (irrigation only; `examples/governed_flood` is
+  unaffected because all its draws happen in `pre_year` on the main thread,
+  verified IDENTICAL against `origin/main` via
+  `broker.tools.compare_audit_csv` — this is a claim about that path, NOT
+  about `examples/multi_agent/flood`)**: the magnitude *distribution* is
+  unchanged by construction and empirically (3,276 draws, two-sample KS
+  D=0.013, p=0.94), but the per-agent *assignment* differs from the
+  shared-stream code, and because `execute_skill` no longer consumes
+  `self.rng`, the precipitation noise moves up that stream, so year 2 onward
+  differs too (year 1's precipitation draw is unchanged; year-1 *magnitudes*
+  do change, which is the point of the fix). On a `--real` run the shift does
+  not arise at all: `_generate_precipitation` returns the CRSS value and
+  never reaches `self.rng` for a year the data covers, so only the magnitude
+  assignment moves. Over the synthetic 8×4 mock run: drought index max
+  Δ 0.0064, Lake Mead elevation max Δ 1.0 ft (0.09 % of the 1081 ft starting
+  elevation), storage max Δ 0.117 MAF (1.0 % of the 11.5 MAF starting
+  storage). This makes the env stream *more* stable, not less — it no longer
+  depends on how many proposals happened to be approved. Magnitudes are also
+  now common random numbers across arms: governed, ungoverned and FQL runs at
+  the same `--seed` get the same magnitude whenever the same agent picks the
+  same skill in the same year, which reduces variance in paired comparisons;
+  seed replicates still vary, since all three runners wire `--seed` into
+  `WaterSystemConfig(seed=...)`. Every irrigation corpus is regenerated at
+  this commit.
+  **New tests**: `tests/test_irrigation_execute_skill_thread_safety.py`
+  (7 tests covering the v17 per-skill branch, the v12 legacy branch and the
+  ε-exploration arm) — 4 of them fail against the pre-fix code, reliably over
+  5 repeats, and all 7 pass after. Placed under `tests/` because CI runs
+  `pytest tests/ broker/` and `pyproject.toml` sets `testpaths = ["tests"]`,
+  so a copy under `examples/irrigation_abm/tests/` would never be collected.
 - **Options-text parity: vaccination_demo decoded digit answers against the
   wrong skill from year 2 on (root-caused independently, verified on 3
   runs)**: `examples/vaccination_demo/config/prompts/individual.txt:29`
