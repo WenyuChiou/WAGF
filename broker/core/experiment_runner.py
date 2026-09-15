@@ -843,12 +843,30 @@ class ExperimentRunner:
 
         # 3. LLM config snapshot
         try:
-            from broker.utils.llm_utils import LLM_CONFIG
+            from broker.utils.llm_utils import LLM_CONFIG, timeout_env_status
             metadata["thinking_mode"] = LLM_CONFIG.thinking_mode
             metadata["temperature"] = LLM_CONFIG.temperature
             metadata["top_p"] = LLM_CONFIG.top_p
             metadata["num_ctx"] = LLM_CONFIG.num_ctx
             metadata["num_predict"] = LLM_CONFIG.num_predict
+            # The timeout this run ACTUALLY used, not the YAML constant: it is
+            # the larger of the configured value for this model and the
+            # WAGF_LLM_TIMEOUT floor (see LLMConfig.get_timeout). Recorded
+            # because a run that was given extra headroom and a run that hit
+            # the default are otherwise indistinguishable in the artifact —
+            # and "did this model time out, or is it slow?" is the first
+            # question asked of a partial batch. Additive field: nothing reads
+            # a fixed manifest key set, and byte-identity recipes compare the
+            # CSVs, not the manifest.
+            metadata["llm_timeout_seconds_effective"] = LLM_CONFIG.get_timeout(
+                self.config.model
+            )
+            # The effective value alone cannot tell "nothing was set" from
+            # "something was set and rejected" — both record 120, and the
+            # second is a run whose operator believed it had more headroom.
+            _raw, _rejected = timeout_env_status()
+            metadata["llm_timeout_env_raw"] = _raw
+            metadata["llm_timeout_env_rejected"] = _rejected
         except Exception:
             pass
 

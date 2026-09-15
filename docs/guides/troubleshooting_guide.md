@@ -687,6 +687,36 @@ on CPU or with limited GPU memory.
       timeout: 300
   ```
 
+- **For one slow host, prefer the environment variable over editing the YAML.**
+  `agent_types.yaml` is hashed into `config_hash` in every run's
+  reproducibility manifest, so raising a timeout by editing it makes every
+  later comparison look like a config change. `WAGF_LLM_TIMEOUT` raises the
+  floor for one shell instead:
+
+  ```bash
+  WAGF_LLM_TIMEOUT=900 python examples/irrigation_abm/run_experiment.py ...
+  ```
+  ```powershell
+  $env:WAGF_LLM_TIMEOUT = "900"     # PowerShell, current session only
+  ```
+
+  It only ever RAISES the timeout — the effective value is
+  `max(configured, WAGF_LLM_TIMEOUT)` — so it cannot shorten a run the YAML
+  says needs 600 s, and a large model still gets `timeout_large_model` if
+  that is higher. The value the run actually used is recorded in
+  `reproducibility_manifest.json` as `llm_timeout_seconds_effective`, so two
+  runs with the same `config_hash` but different headroom are still
+  distinguishable.
+
+  A value that is unset, blank, unparseable, zero, negative, or above 86400
+  is ignored with one warning line, and the configured timeout is used. Both
+  ends are guarded deliberately: 0 would make every call fail instantly, and
+  a value above ~2147483 makes every call raise `OverflowError` before it
+  connects — so an extra-zeros typo cannot quietly burn a batch either way.
+
+  Scope: this covers the direct-Ollama path that all experiments use. It does
+  not affect the separate `providers/` stack.
+
 ### 3.5 Empty Content from LLM
 
 **Symptom**
