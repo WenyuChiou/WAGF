@@ -10,6 +10,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`WAGF_LLM_TIMEOUT` raises the Ollama call timeout without editing YAML**:
+  `LLMConfig.get_timeout()` (`broker/utils/llm_utils.py`) now returns
+  `max(configured, WAGF_LLM_TIMEOUT)` for every model, so a slow host gets
+  headroom over the 120 s default (or 600 s for a large model) without
+  touching `agent_types.yaml` — which matters because that file is hashed
+  into `config_hash` in the reproducibility manifest, so raising a timeout by
+  editing it would look like a config change in every later comparison. The
+  variable can only RAISE the timeout, never shorten a run the YAML says
+  needs 600 s. It is read per call inside `get_timeout`, NOT in
+  `_load_global_config`, so `LLM_CONFIG` construction is unchanged (the
+  manifest's other `LLM_CONFIG` fields still describe the file, not the
+  shell) and a value exported after import still takes effect. A value that
+  is missing, unparseable, non-positive, or above 86400 s is ignored and
+  logged once. BOTH ends are guarded, for the same reason: 0 would turn every
+  request into an instant timeout, and anything above ~2147483 s makes
+  `requests.post` raise a bare `OverflowError` before it connects (a socket
+  timeout is an INT_MAX-millisecond deadline) — which
+  `_invoke_ollama_direct`'s catch-all turns into a failed call for every call
+  in the run. An extra-zeros typo on 600 lands in exactly that window, so it
+  is rejected rather than passed through. A fractional value rounds up.
+  Scope: the floor covers the direct-Ollama path every experiment uses, not
+  the separate `providers/` stack.
+  The reproducibility manifest gains ONE additive field,
+  `llm_timeout_seconds_effective`
+  (`broker/core/experiment_runner.py:_collect_reproducibility_metadata`),
+  recording the value the run actually used, so a run given extra headroom is
+  distinguishable from one that hit the default. Additive only: verified that
+  a flood mock run's manifest key set gains exactly that key and loses none,
+  and that the flood + irrigation shipped-mock audit CSVs and
+  `simulation_log.csv` remain byte-identical to `origin/main`. Note what that
+  byte-identity does and does not show: a `--model mock` run never calls
+  `requests`, so running it again with the variable set demonstrates
+  NON-INTERFERENCE (the new code path does not perturb a run that never
+  reaches it), not equivalence under the floor. The floor reaching the socket
+  is pinned by a unit test that patches `requests.post` instead. New tests:
+  `tests/test_llm_timeout_env_override.py` (28 tests) — 9 of them fail
+  against the pre-change code.
+  Operator guidance: `docs/guides/troubleshooting_guide.md` §3.4, which
+  previously offered only the hashed-YAML edit this replaces.
 - **Coupling retrofit + archetype C (PR-9)**: `broker.coupling.SubprocessModelConnector`
   (`broker/coupling/subprocess_source.py`) implements the previously
   documented-but-unbuilt archetype C (service-model) connector — a
