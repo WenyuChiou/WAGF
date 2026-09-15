@@ -1,0 +1,54 @@
+{
+  "experiment_name": "gemma3:4b",
+  "framework_version": "0.6.0",
+  "audit_schema_version": "2",
+  "git_commit_short": "e0eee08c141b",
+  "agent_types": {
+    "household": {
+      "total": 912,
+      "decisions": {
+        "do_nothing": 272,
+        "buy_insurance": 527,
+        "elevate_house": 96,
+        "relocate": 17
+      }
+    }
+  },
+  "total_traces": 912,
+  "validation_errors": 110,
+  "validation_warnings": 5,
+  "structural_faults_fixed": 7,
+  "total_format_retries": 8,
+  "validator_health": {
+    "elevation_threat_low": {
+      "rule_id": "elevation_threat_low",
+      "seen_count": 5,
+      "fire_count": 5,
+      "warn_count": 0,
+      "error_path_count": 0
+    },
+    "low_coping_block": {
+      "rule_id": "low_coping_block",
+      "seen_count": 5,
+      "fire_count": 0,
+      "warn_count": 5,
+      "error_path_count": 0
+    },
+    "extreme_threat_block": {
+      "rule_id": "extreme_threat_block",
+      "seen_count": 101,
+      "fire_count": 101,
+      "warn_count": 0,
+      "error_path_count": 0
+    },
+    "relocation_threat_low": {
+      "rule_id": "relocation_threat_low",
+      "seen_count": 4,
+      "fire_count": 4,
+      "warn_count": 0,
+      "error_path_count": 0
+    }
+  },
+  "jsonl_events_lost": 0,
+  "finalized_at": "2026-09-06T22:10:41.034286"
+}

@@ -1,0 +1,20 @@
+{
+  "experiment_name": "ministral-3:3b",
+  "agent_types": {
+    "household": {
+      "total": 714,
+      "decisions": {
+        "buy_insurance": 480,
+        "elevate_house": 96,
+        "do_nothing": 60,
+        "relocate": 78
+      }
+    }
+  },
+  "total_traces": 714,
+  "validation_errors": 96,
+  "validation_warnings": 48,
+  "structural_faults_fixed": 1,
+  "total_format_retries": 1,
+  "finalized_at": "2026-02-12T17:32:05.438916"
+}

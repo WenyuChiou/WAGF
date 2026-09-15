@@ -1,0 +1,12 @@
+Command: python run_flood_rulebased.py --seed 43 --output "results/rulebased_5seed_e0eee08c/Run_43"
+Working directory: C:/Users/wenyu/Desktop/Lehigh/wagf-main-runs\examples\single_agent
+Git commit (worktree): e0eee08c141b16cc0c683a0cfc43d36bad451da5
+Python: 3.14.0 (tags/v3.14.0:ebf955d, Oct  7 2025, 10:15:03) [MSC v.1944 64 bit (AMD64)]
+Output file mtime (proxy for finish time -- see note below): 2026-09-06T15:10:03.825455
+NOTE: this is a pure NumPy/Pandas rule-based simulation (100 agents x 10 years,
+no LLM calls, no network I/O). Each invocation completes in well under 1 second
+of wall-clock time, so a separately-logged start timestamp would be
+indistinguishable from the finish timestamp to the precision available from
+this shell's tool-call boundaries. The finish timestamp below is the
+simulation_log.csv filesystem mtime, captured immediately after the run in the
+same session (no other process touched this directory in between).

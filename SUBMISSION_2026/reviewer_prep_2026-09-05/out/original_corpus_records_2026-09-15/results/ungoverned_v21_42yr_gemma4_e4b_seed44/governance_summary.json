@@ -1,0 +1,26 @@
+{
+    "total_interventions": 236,
+    "rule_frequency": {
+        "precondition_violation": 236
+    },
+    "outcome_stats": {
+        "retry_success": 183,
+        "retry_exhausted": 53,
+        "parse_errors": 0
+    },
+    "structural_faults": {
+        "format_retry_attempts": 0,
+        "faults_fixed": 0,
+        "faults_terminal": 0
+    },
+    "llm_level_retries": {
+        "empty_content_retries": 1,
+        "empty_content_failures": 0,
+        "invalid_label_retries": 0,
+        "total_extra_llm_calls": 1
+    },
+    "warnings": {
+        "total_warnings": 0,
+        "warning_rule_frequency": {}
+    }
+}

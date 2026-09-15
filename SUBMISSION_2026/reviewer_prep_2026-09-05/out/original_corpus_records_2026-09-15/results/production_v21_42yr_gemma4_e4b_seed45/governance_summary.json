@@ -1,0 +1,29 @@
+{
+    "total_interventions": 4398,
+    "rule_frequency": {
+        "high_threat_high_cope_no_increase": 2895,
+        "low_threat_no_increase": 1503
+    },
+    "outcome_stats": {
+        "retry_success": 504,
+        "retry_exhausted": 543,
+        "parse_errors": 0
+    },
+    "structural_faults": {
+        "format_retry_attempts": 0,
+        "faults_fixed": 0,
+        "faults_terminal": 0
+    },
+    "llm_level_retries": {
+        "empty_content_retries": 0,
+        "empty_content_failures": 0,
+        "invalid_label_retries": 0,
+        "total_extra_llm_calls": 0
+    },
+    "warnings": {
+        "total_warnings": 46,
+        "warning_rule_frequency": {
+            "high_threat_no_maintain": 46
+        }
+    }
+}

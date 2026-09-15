@@ -1,0 +1,98 @@
+{
+  "memory_engine_type": null,
+  "memory_engine_class": "HumanCentricMemoryEngine",
+  "effective_memory_engine_type": "humancentric",
+  "reflection_tracked": false,
+  "reflection_expected": true,
+  "reflection_engine_wired": null,
+  "reflection_log_exists": true,
+  "reflection_log_entries": 2795,
+  "governance_mode": "strict",
+  "seed": 42,
+  "framework_provenance": {
+    "framework_version": "0.6.0",
+    "audit_schema_version": "2",
+    "git_commit_short": "e0eee08c141b"
+  },
+  "audit_rows": 3276,
+  "audit_aborted_rows": 0,
+  "audit_agents": 78,
+  "audit_years": 42,
+  "audit_grid_rows": 3276,
+  "audit_rows_missing_vs_grid": 0,
+  "expected_rows": 3276,
+  "expected_agents": 78,
+  "expected_years": 42,
+  "configured_grid_rows": 3276,
+  "audit_rows_missing_vs_configured_grid": 0,
+  "parse_layer_distribution": {
+    "(none)": 40,
+    "enclosure+json": 3135,
+    "enclosure+json+digit": 93,
+    "enclosure+json+keyword": 1,
+    "enclosure+keyword": 7
+  },
+  "parse_layer_digit_share": 0.0284,
+  "parse_layer_default_share": 0.0,
+  "audit_csv_files": [
+    "irrigation_farmer"
+  ],
+  "audit_coverage_by_file": {
+    "irrigation_farmer": {
+      "audit_rows": 3276,
+      "audit_aborted_rows": 0,
+      "audit_agents": 78,
+      "audit_years": 42,
+      "audit_grid_rows": 3276,
+      "audit_rows_missing_vs_grid": 0,
+      "expected_rows": 3276,
+      "expected_agents": 78,
+      "expected_years": 42,
+      "configured_grid_rows": 3276,
+      "audit_rows_missing_vs_configured_grid": 0,
+      "parse_layer_distribution": {
+        "(none)": 40,
+        "enclosure+json": 3135,
+        "enclosure+json+digit": 93,
+        "enclosure+json+keyword": 1,
+        "enclosure+keyword": 7
+      },
+      "parse_layer_digit_share": 0.0284,
+      "parse_layer_default_share": 0.0
+    }
+  },
+  "audit_corrected_status_columns": false,
+  "audit_aborted_rows_source": "csv_status_column",
+  "audit_corrected_status_columns_resolved": false,
+  "audit_sentinel_write_failures": 0,
+  "rules_uncategorised_total": 0,
+  "rules_uncategorised_ids": [],
+  "world_grounded_rows": 0,
+  "world_rules_unevaluable_rows": 0,
+  "world_grounded_coverage_gap": null,
+  "coupling_contract_active": false,
+  "coupling_contract_fields": {
+    "at_allocation_cap": "presence+type",
+    "basin": "presence+type",
+    "below_minimum_utilisation": "presence+type",
+    "cluster": "presence+type",
+    "current_diversion": "presence+range",
+    "current_request": "presence+range",
+    "curtailment_ratio": "presence+range",
+    "drought_index": "presence+range",
+    "has_efficient_system": "presence+type",
+    "lake_mead_level": "presence+range",
+    "preceding_factor": "presence+range",
+    "precipitation": "presence+range",
+    "total_available_water": "presence+range",
+    "total_basin_demand": "presence+range",
+    "water_right": "presence+range"
+  },
+  "coupling_contract_uncovered_keys": [
+    "agent_id",
+    "shortage_tier",
+    "year"
+  ],
+  "coupling_guard_calls": 0,
+  "integrity_ok": true
+}

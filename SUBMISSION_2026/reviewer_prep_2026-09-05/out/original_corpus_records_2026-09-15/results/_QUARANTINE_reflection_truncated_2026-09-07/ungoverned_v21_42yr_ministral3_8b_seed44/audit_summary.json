@@ -1,0 +1,34 @@
+{
+  "experiment_name": "ministral-3:8b",
+  "framework_version": "0.6.0",
+  "audit_schema_version": "2",
+  "git_commit_short": "10e190cf1f38",
+  "agent_types": {
+    "irrigation_farmer": {
+      "total": 3276,
+      "decisions": {
+        "increase_small": 933,
+        "maintain_demand": 204,
+        "decrease_small": 1814,
+        "decrease_large": 119,
+        "increase_large": 206
+      }
+    }
+  },
+  "total_traces": 3276,
+  "validation_errors": 80,
+  "validation_warnings": 0,
+  "structural_faults_fixed": 0,
+  "total_format_retries": 0,
+  "validator_health": {
+    "precondition_violation": {
+      "rule_id": "precondition_violation",
+      "seen_count": 80,
+      "fire_count": 80,
+      "warn_count": 0,
+      "error_path_count": 0
+    }
+  },
+  "jsonl_events_lost": 0,
+  "finalized_at": "2026-08-03T14:38:47.672260"
+}

@@ -1,0 +1,25 @@
+{
+  "experiment_name": "gemma3:4b",
+  "framework_version": "0.6.0",
+  "audit_schema_version": "2",
+  "git_commit_short": "e0eee08c141b",
+  "agent_types": {
+    "household": {
+      "total": 909,
+      "decisions": {
+        "do_nothing": 249,
+        "buy_insurance": 548,
+        "elevate_house": 95,
+        "relocate": 17
+      }
+    }
+  },
+  "total_traces": 909,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "structural_faults_fixed": 15,
+  "total_format_retries": 15,
+  "validator_health": {},
+  "jsonl_events_lost": 0,
+  "finalized_at": "2026-09-06T23:57:45.751180"
+}

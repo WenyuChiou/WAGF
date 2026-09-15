@@ -1,0 +1,59 @@
+{
+  "task": "T0-7 rule-based PMT ABM re-run (5 seeds)",
+  "worktree": "C:/Users/wenyu/Desktop/Lehigh/wagf-main-runs",
+  "git_commit": "e0eee08c141b16cc0c683a0cfc43d36bad451da5",
+  "python_version": "3.14.0 (tags/v3.14.0:ebf955d, Oct  7 2025, 10:15:03) [MSC v.1944 64 bit (AMD64)]",
+  "script_path": "examples/single_agent/run_flood_rulebased.py",
+  "script_sha256": "ba4dd65d46129f4591ad1ab4274fcaf7521c77d5e2f33220f8f2903f93e9ca00",
+  "input_files": {
+    "agent_initial_profiles.csv": {
+      "path": "examples/single_agent/agent_initial_profiles.csv",
+      "sha256": "ed0530a089b04eb7e6fdfe5339784939b000c612b7f4e5a7afa18e13a3a542ba",
+      "note": "Committed/tracked in git; loaded because it already exists in the script's own directory (base_path check), so agent initial states are FIXED across all seeds/runs -- seed only affects stochastic decision draws, per-agent flood realization, and yearly grant availability, not initial population or which years floods occur."
+    },
+    "flood_years.csv": {
+      "path": "examples/single_agent/flood_years.csv",
+      "sha256": "bdfd8a7b87550bfe8c864d4ff2f10f8dad56c357f798368abf030ab9a62a356b",
+      "content_years": [
+        3,
+        4,
+        9
+      ],
+      "note": "Committed/tracked in git; loaded for the same reason as agent_initial_profiles.csv, so all 5 seeds (and the published Run_1..3) share the same community flood years [3, 4, 9]."
+    }
+  },
+  "args": {
+    "seed": 43,
+    "output": "examples/single_agent/results/rulebased_5seed_e0eee08c/Run_43"
+  },
+  "command": "python run_flood_rulebased.py --seed 43 --output \"results/rulebased_5seed_e0eee08c/Run_43\"",
+  "cwd_at_invocation": "examples/single_agent",
+  "hardcoded_params": {
+    "NUM_AGENTS": 100,
+    "NUM_YEARS": 10,
+    "MEMORY_WINDOW": 5,
+    "FLOOD_PROB": 0.2,
+    "GRANT_PROB": 0.5,
+    "note": "Script exposes only --seed and --output as CLI flags; agent count and year count are module-level constants, not configurable via CLI. 100 agents x 10 years matches the published Group_C LLM single-agent flood runs, so no override was needed."
+  },
+  "outputs": {
+    "simulation_log.csv": {
+      "row_count": 1000,
+      "expected_row_count": "NUM_AGENTS * NUM_YEARS = 100 * 10 = 1000 (+1 header line in raw file)",
+      "sha256": "922afa5cd817a561ba3bbcc316d513d778747af6d95717dddabac36f560693bd"
+    },
+    "overall_adaptation_by_year.jpg": {
+      "present": true
+    }
+  },
+  "derived_metrics_for_this_run": {
+    "ehe_pooled_4action": 0.5903840685947239,
+    "action_shares_pooled_4action": {
+      "buy_insurance": 0.707,
+      "do_nothing": 0.148,
+      "elevate_house": 0.143,
+      "relocate": 0.002
+    },
+    "convention": "Pools all 1000 rows (100 agents x 10 years, including repeated 'already relocated' carry-forward rows) into 4 canonical actions (do_nothing/buy_insurance/elevate_house/relocate) via the same fold as reproduction/nature_water/gen_fig3_case2_flood.py's _rulebased_action/_ehe_from_decisions (elevated+insured folds into buy_insurance as the dominant action); EHE = H/log2(4) computed once per run on the pooled distribution."
+  }
+}

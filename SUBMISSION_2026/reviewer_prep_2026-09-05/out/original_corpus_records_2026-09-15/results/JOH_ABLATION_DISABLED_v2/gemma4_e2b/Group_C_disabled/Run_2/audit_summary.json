@@ -1,0 +1,20 @@
+{
+  "experiment_name": "gemma4:e2b",
+  "agent_types": {
+    "household": {
+      "total": 739,
+      "decisions": {
+        "elevate_house": 96,
+        "buy_insurance": 559,
+        "relocate": 58,
+        "do_nothing": 26
+      }
+    }
+  },
+  "total_traces": 739,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "structural_faults_fixed": 0,
+  "total_format_retries": 0,
+  "finalized_at": "2026-04-20T02:27:34.200819"
+}

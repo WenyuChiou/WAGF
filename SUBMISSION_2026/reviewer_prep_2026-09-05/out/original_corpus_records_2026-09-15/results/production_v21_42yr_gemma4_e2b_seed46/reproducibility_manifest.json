@@ -1,0 +1,21 @@
+{
+  "model": "gemma4:e2b",
+  "seed": 46,
+  "num_years": 42,
+  "governance_profile": "strict",
+  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\irrigation_abm\\config\\agent_types.yaml",
+  "model_digest": "2026-04-03T17:28:05.5838502-04:00",
+  "model_family": "gemma4",
+  "model_parameter_size": "5.1B",
+  "model_quantization": "Q4_K_M",
+  "git_commit": "b1358a5ff6a589a46f7b27c34b814815a4b00fba",
+  "git_dirty": true,
+  "thinking_mode": "auto",
+  "temperature": null,
+  "top_p": null,
+  "num_ctx": 8192,
+  "num_predict": 4096,
+  "config_hash": "75ad0628600f",
+  "timestamp": "2026-04-30T11:10:01.008600",
+  "python_version": "3.14.0"
+}

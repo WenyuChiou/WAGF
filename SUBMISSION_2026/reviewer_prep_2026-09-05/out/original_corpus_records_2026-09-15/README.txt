@@ -1,0 +1,1 @@
+Intact small files (manifests, LAUNCH_COMMAND.txt, config snapshots, summaries) salvaged on 2026-09-15 from the zero-filled VSS restore of the original run corpora. Zero-filled files were skipped. These are the only surviving primary records of the original runs' settings and commits; the run data itself is lost.

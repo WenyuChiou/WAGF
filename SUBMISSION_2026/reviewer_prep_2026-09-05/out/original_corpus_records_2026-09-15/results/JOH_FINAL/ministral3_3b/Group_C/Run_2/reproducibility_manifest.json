@@ -1,0 +1,7 @@
+{
+  "model": "ministral-3:3b",
+  "seed": 4202,
+  "num_years": 10,
+  "governance_profile": "strict",
+  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\single_agent\\agent_types.yaml"
+}

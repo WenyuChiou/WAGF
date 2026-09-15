@@ -1,0 +1,33 @@
+{
+    "total_interventions": 148,
+    "rule_frequency": {
+        "elevation_threat_low": 36,
+        "elevation_block": 49,
+        "precondition_violation": 23,
+        "low_coping_block": 1,
+        "extreme_threat_block": 27,
+        "relocation_threat_low": 12
+    },
+    "outcome_stats": {
+        "retry_success": 83,
+        "retry_exhausted": 0,
+        "parse_errors": 0
+    },
+    "structural_faults": {
+        "format_retry_attempts": 0,
+        "faults_fixed": 0,
+        "faults_terminal": 0
+    },
+    "llm_level_retries": {
+        "empty_content_retries": 0,
+        "empty_content_failures": 0,
+        "invalid_label_retries": 0,
+        "total_extra_llm_calls": 0
+    },
+    "warnings": {
+        "total_warnings": 4,
+        "warning_rule_frequency": {
+            "low_coping_block": 4
+        }
+    }
+}

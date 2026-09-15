@@ -1,0 +1,82 @@
+{
+  "memory_engine_type": "window",
+  "memory_engine_class": null,
+  "effective_memory_engine_type": "window",
+  "reflection_tracked": true,
+  "reflection_expected": false,
+  "reflection_engine_wired": false,
+  "reflection_log_exists": false,
+  "reflection_log_entries": 0,
+  "governance_mode": "disabled",
+  "seed": 45,
+  "framework_provenance": {
+    "framework_version": "0.6.0",
+    "audit_schema_version": "2",
+    "git_commit_short": "e0eee08c141b"
+  },
+  "audit_rows": 1000,
+  "audit_aborted_rows": 0,
+  "audit_agents": 100,
+  "audit_years": 10,
+  "audit_grid_rows": 1000,
+  "audit_rows_missing_vs_grid": 0,
+  "expected_rows": 1000,
+  "expected_agents": 100,
+  "expected_years": 10,
+  "configured_grid_rows": 1000,
+  "audit_rows_missing_vs_configured_grid": 0,
+  "parse_layer_distribution": {
+    "decider:rule_based": 1000
+  },
+  "parse_layer_digit_share": 0.0,
+  "parse_layer_default_share": 0.0,
+  "audit_csv_files": [
+    "household"
+  ],
+  "audit_coverage_by_file": {
+    "household": {
+      "audit_rows": 1000,
+      "audit_aborted_rows": 0,
+      "audit_agents": 100,
+      "audit_years": 10,
+      "audit_grid_rows": 1000,
+      "audit_rows_missing_vs_grid": 0,
+      "expected_rows": 1000,
+      "expected_agents": 100,
+      "expected_years": 10,
+      "configured_grid_rows": 1000,
+      "audit_rows_missing_vs_configured_grid": 0,
+      "parse_layer_distribution": {
+        "decider:rule_based": 1000
+      },
+      "parse_layer_digit_share": 0.0,
+      "parse_layer_default_share": 0.0
+    }
+  },
+  "audit_corrected_status_columns": false,
+  "audit_aborted_rows_source": "csv_status_column",
+  "audit_corrected_status_columns_resolved": false,
+  "audit_sentinel_write_failures": 0,
+  "rules_uncategorised_total": 0,
+  "rules_uncategorised_ids": [],
+  "world_grounded_rows": 0,
+  "world_rules_unevaluable_rows": 0,
+  "world_grounded_coverage_gap": null,
+  "decider_rows": {
+    "rule_based": 1000
+  },
+  "decider_rows_total": 1000,
+  "decider_declared": [
+    "rule_based"
+  ],
+  "decider_arms_with_zero_rows": [],
+  "decider_aborted_rows": {},
+  "rule_firings": {
+    "household": {
+      "default_insurance": 731,
+      "high_threat_high_vulnerability_elevate": 189,
+      "low_threat_do_nothing": 80
+    }
+  },
+  "integrity_ok": true
+}

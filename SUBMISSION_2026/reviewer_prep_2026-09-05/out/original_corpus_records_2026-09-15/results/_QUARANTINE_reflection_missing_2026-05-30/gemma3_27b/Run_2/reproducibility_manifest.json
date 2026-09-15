@@ -1,0 +1,7 @@
+{
+  "model": "gemma3:27b",
+  "seed": 43,
+  "num_years": 10,
+  "governance_profile": "disabled",
+  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\single_agent\\agent_types.yaml"
+}

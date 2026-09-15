@@ -1,0 +1,20 @@
+{
+  "experiment_name": "gemma3:27b",
+  "agent_types": {
+    "household": {
+      "total": 981,
+      "decisions": {
+        "do_nothing": 235,
+        "buy_insurance": 643,
+        "elevate_house": 96,
+        "relocate": 7
+      }
+    }
+  },
+  "total_traces": 981,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "structural_faults_fixed": 0,
+  "total_format_retries": 0,
+  "finalized_at": "2026-03-03T00:34:55.467813"
+}

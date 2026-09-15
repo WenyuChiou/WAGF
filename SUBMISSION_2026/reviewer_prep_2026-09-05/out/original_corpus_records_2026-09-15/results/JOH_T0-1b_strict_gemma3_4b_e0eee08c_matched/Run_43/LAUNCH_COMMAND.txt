@@ -1,0 +1,3 @@
+python examples\single_agent\run_flood.py --model gemma3:4b --seed 43 --governance-mode strict --num-ctx 8192 --num-predict 4096 --thinking-mode disabled --output examples\single_agent\results\JOH_T0-1b_strict_gemma3_4b_e0eee08c_matched\Run_43 
+Started: 2026/09/06 ถgค้ 21:09:10.35 
+Finished: 2026/09/06 ถgค้ 21:09:10.35 

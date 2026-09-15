@@ -1,0 +1,25 @@
+{
+  "experiment_name": "ministral-3:3b",
+  "framework_version": "0.5.1",
+  "audit_schema_version": "1",
+  "git_commit_short": "5a1d467faa34",
+  "agent_types": {
+    "household": {
+      "total": 765,
+      "decisions": {
+        "buy_insurance": 486,
+        "elevate_house": 116,
+        "relocate": 57,
+        "do_nothing": 106
+      }
+    }
+  },
+  "total_traces": 765,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "structural_faults_fixed": 3,
+  "total_format_retries": 3,
+  "validator_health": {},
+  "jsonl_events_lost": 0,
+  "finalized_at": "2026-05-30T11:12:49.782124"
+}
