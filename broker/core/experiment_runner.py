@@ -849,6 +849,18 @@ class ExperimentRunner:
             metadata["top_p"] = LLM_CONFIG.top_p
             metadata["num_ctx"] = LLM_CONFIG.num_ctx
             metadata["num_predict"] = LLM_CONFIG.num_predict
+            # The timeout this run ACTUALLY used, not the YAML constant: it is
+            # the larger of the configured value for this model and the
+            # WAGF_LLM_TIMEOUT floor (see LLMConfig.get_timeout). Recorded
+            # because a run that was given extra headroom and a run that hit
+            # the default are otherwise indistinguishable in the artifact —
+            # and "did this model time out, or is it slow?" is the first
+            # question asked of a partial batch. Additive field: nothing reads
+            # a fixed manifest key set, and byte-identity recipes compare the
+            # CSVs, not the manifest.
+            metadata["llm_timeout_seconds_effective"] = LLM_CONFIG.get_timeout(
+                self.config.model
+            )
         except Exception:
             pass
 
