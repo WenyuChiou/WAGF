@@ -1,0 +1,83 @@
+{
+  "experiment_name": "gemma3:4b",
+  "framework_version": "0.6.0",
+  "audit_schema_version": "2",
+  "git_commit_short": "e0eee08c141b",
+  "agent_types": {
+    "irrigation_farmer": {
+      "total": 3276,
+      "decisions": {
+        "increase_small": 832,
+        "maintain_demand": 1831,
+        "increase_large": 502,
+        "decrease_small": 92,
+        "decrease_large": 19
+      }
+    }
+  },
+  "total_traces": 3276,
+  "validation_errors": 9271,
+  "validation_warnings": 827,
+  "structural_faults_fixed": 27,
+  "total_format_retries": 27,
+  "validator_health": {
+    "curtailment_awareness": {
+      "rule_id": "curtailment_awareness",
+      "seen_count": 2018,
+      "fire_count": 1335,
+      "warn_count": 683,
+      "error_path_count": 0
+    },
+    "high_threat_high_cope_no_increase": {
+      "rule_id": "high_threat_high_cope_no_increase",
+      "seen_count": 1962,
+      "fire_count": 1962,
+      "warn_count": 0,
+      "error_path_count": 0
+    },
+    "demand_floor_stabilizer": {
+      "rule_id": "demand_floor_stabilizer",
+      "seen_count": 296,
+      "fire_count": 296,
+      "warn_count": 0,
+      "error_path_count": 0
+    },
+    "supply_gap_block_increase": {
+      "rule_id": "supply_gap_block_increase",
+      "seen_count": 667,
+      "fire_count": 667,
+      "warn_count": 0,
+      "error_path_count": 0
+    },
+    "demand_ceiling_stabilizer": {
+      "rule_id": "demand_ceiling_stabilizer",
+      "seen_count": 4973,
+      "fire_count": 4973,
+      "warn_count": 0,
+      "error_path_count": 0
+    },
+    "high_threat_no_maintain": {
+      "rule_id": "high_threat_no_maintain",
+      "seen_count": 120,
+      "fire_count": 0,
+      "warn_count": 120,
+      "error_path_count": 0
+    },
+    "non_negative_diversion": {
+      "rule_id": "non_negative_diversion",
+      "seen_count": 24,
+      "fire_count": 0,
+      "warn_count": 24,
+      "error_path_count": 0
+    },
+    "low_threat_no_increase": {
+      "rule_id": "low_threat_no_increase",
+      "seen_count": 38,
+      "fire_count": 38,
+      "warn_count": 0,
+      "error_path_count": 0
+    }
+  },
+  "jsonl_events_lost": 0,
+  "finalized_at": "2026-09-08T14:26:20.517803"
+}

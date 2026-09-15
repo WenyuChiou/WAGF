@@ -1,0 +1,13 @@
+{
+  "memory_engine_type": "humancentric",
+  "memory_engine_class": null,
+  "effective_memory_engine_type": "humancentric",
+  "reflection_tracked": true,
+  "reflection_expected": true,
+  "reflection_engine_wired": true,
+  "reflection_log_exists": true,
+  "reflection_log_entries": 703,
+  "governance_mode": "disabled",
+  "seed": 42,
+  "integrity_ok": true
+}

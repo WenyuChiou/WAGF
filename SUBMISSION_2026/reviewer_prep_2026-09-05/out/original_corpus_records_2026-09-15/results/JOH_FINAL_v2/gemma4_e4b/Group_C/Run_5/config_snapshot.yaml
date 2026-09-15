@@ -1,0 +1,440 @@
+global_config:
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+  reflection:
+    interval: 1
+    batch_size: 10
+    importance_boost: 0.9
+    questions:
+    - What risks feel most urgent to your family right now?
+    - Have your neighbors' choices influenced your thinking?
+    - What trade-offs have you faced between cost and safety?
+    triggers:
+      crisis: true
+      periodic_interval: 5
+      decision_types:
+      - elevate_house
+      - relocate
+      institutional_threshold: 0.05
+    method: hybrid
+  llm:
+    model: gemma4:e4b
+    temperature: 0.8
+    top_p: 0.9
+    top_k: 40
+    num_ctx: 8192
+    num_predict: 4096
+    max_retries: 2
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+shared:
+  rating_scale: '### RATING SCALE (You MUST use EXACTLY one of these codes):
+
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+    '
+  response_format:
+    delimiter_start: <<<DECISION_START>>>
+    delimiter_end: <<<DECISION_END>>>
+    fields:
+    - key: reasoning
+      type: text
+      required: true
+      description: Explain your thought process in 2-3 sentences.
+    - key: threat_appraisal
+      type: appraisal
+      required: true
+      construct: TP_LABEL
+      reason_hint: One sentence summary of how threatened you feel by any remaining
+        flood risks.
+    - key: coping_appraisal
+      type: appraisal
+      required: true
+      construct: CP_LABEL
+      reason_hint: One sentence summary of how well you think you can cope or act.
+    - key: decision
+      type: choice
+      required: true
+      description: Enter the numeric ID (1-4) of your chosen action.
+    - key: magnitude_pct
+      type: numeric
+      min: 1
+      max: 30
+      unit: '%'
+      required: false
+    - key: secondary_decision
+      type: secondary_choice
+      required: false
+    - key: secondary_magnitude_pct
+      type: numeric
+      min: 1
+      max: 30
+      unit: '%'
+      required: false
+household:
+  description: Household agents making adaptation decisions based on PMT
+  llm_params: null
+  prompt_template_file: config/prompts/household.txt
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    - action
+    - selected_action
+    default_skill: do_nothing
+    global_skills:
+    - do_nothing
+    - buy_insurance
+    - buy_contents_insurance
+    full_disclosure: true
+    strict_mode: true
+    preprocessor:
+      type: smart_repair
+      quote_values:
+      - VL
+      - L
+      - M
+      - H
+      - VH
+    proximity_window: 35
+    list_delimiters:
+    - /
+    - '|'
+    - \
+    audit_keywords:
+    - flood
+    - water
+    - damage
+    - cost
+    - neighbor
+    - money
+    - safe
+    - protect
+    - elevation
+    - insurance
+    - loss
+    audit_context_fields:
+    - narrative_persona
+    - flood_experience_summary
+    audit_blacklist:
+    - flood
+    - floods
+    - flooding
+    - risk
+    - water
+    - manageable
+    - resident
+    - household
+    audit_stopwords:
+    - flood
+    - floods
+    - flooding
+    - risk
+    - water
+    synonyms:
+      tp:
+      - severity
+      - vulnerability
+      - threat
+      - risk
+      - danger
+      - perceived_severity
+      - perceived_vulnerability
+      - consequence
+      - impact
+      - seriousness
+      cp:
+      - efficacy
+      - self_efficacy
+      - response_efficacy
+      - coping
+      - ability
+      - effectiveness
+      - response_cost
+      - preparedness
+      - capacity
+      - suitability
+    skill_map:
+      '1': buy_insurance
+      '2': elevate_house
+      '3': relocate
+      '4': do_nothing
+    skill_map_elevated:
+      '1': buy_insurance
+      '2': relocate
+      '3': do_nothing
+    constructs:
+      TP_LABEL:
+        keywords:
+        - threat_appraisal
+        - threat
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      TP_REASON:
+        keywords:
+        - threat_appraisal
+        - threat
+        regex: .*
+      CP_LABEL:
+        keywords:
+        - coping_appraisal
+        - coping
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      CP_REASON:
+        keywords:
+        - coping_appraisal
+        - coping
+        regex: .*
+  multi_skill:
+    enabled: false
+    max_skills: 2
+    execution_order: sequential
+    secondary_field: secondary_decision
+    secondary_magnitude_field: secondary_magnitude_pct
+  log_fields:
+  - threat_appraisal
+  - coping_appraisal
+  memory:
+    engine_type: human_centric
+    window_size: 5
+    top_k_significant: 2
+    emotion_keywords:
+      direct_impact:
+      - flood
+      - flooded
+      - damage
+      - destroyed
+      - loss
+      - trauma
+      strategic_choice:
+      - decision
+      - grant
+      - relocate
+      - elevate
+      - move
+      efficacy_gain:
+      - protected
+      - safe
+      - insurance
+      - saved
+      - relief
+      social_feedback:
+      - trust
+      - neighbor
+      - judgment
+      - observe
+    emotional_weights:
+      direct_impact: 1.0
+      strategic_choice: 0.8
+      efficacy_gain: 0.6
+      social_feedback: 0.4
+      baseline_observation: 0.1
+    source_weights:
+      personal: 1.0
+      neighbor: 0.8
+      community: 0.6
+      general_knowledge: 0.4
+    source_patterns:
+      personal:
+      - 'i '
+      - 'my '
+      - 'me '
+      - got flooded
+      - my house
+      neighbor:
+      - neighbor
+      - others
+      - friend
+      community:
+      - '%'
+      - residents
+      - community
+      - everyone
+    retrieval_weights:
+      recency: 0.3
+      importance: 0.5
+      context: 0.2
+    arousal_threshold: 0.5
+    ema_alpha: 0.3
+  actions:
+  - id: buy_insurance
+    aliases:
+    - FI
+    - insurance
+    - buy_insurance
+    - buy flood insurance
+    - Buy flood insurance
+    - '[FI]'
+    - '[insurance]'
+    - '[buy_insurance]'
+    - '[buy flood insurance]'
+    - '[Buy flood insurance]'
+    description: Buy flood insurance (Lower cost, provides partial financial protection
+      but does not reduce physical damage.)
+  - id: elevate_house
+    aliases:
+    - HE
+    - elevate
+    - elevation
+    - elevate_house
+    - elevate house
+    - Elevate your house
+    - Elevate house
+    - '[HE]'
+    - '[elevate]'
+    - '[elevation]'
+    - '[elevate_house]'
+    - '[elevate house]'
+    - '[Elevate your house]'
+    - '[Elevate house]'
+    description: Elevate your house (High upfront cost but can prevent most physical
+      damage.)
+  - id: relocate
+    aliases:
+    - RL
+    - move
+    - relocate
+    - Relocate
+    - '[RL]'
+    - '[move]'
+    - '[relocate]'
+    - '[Relocate]'
+    description: Relocate (Requires leaving your neighborhood but eliminates flood
+      risk permanently.)
+  - id: do_nothing
+    aliases:
+    - DN
+    - nothing
+    - wait
+    - do_nothing
+    - Do nothing
+    - Do Nothing
+    - '[DN]'
+    - '[nothing]'
+    - '[wait]'
+    - '[do_nothing]'
+    - '[Do nothing]'
+    - '[Do Nothing]'
+    description: Do nothing (Require no financial investment or effort this year,
+      but it might leave you exposed to future flood damage.)
+  governance:
+    strict:
+      thinking_rules:
+      - id: extreme_threat_block
+        construct: TP_LABEL
+        when_above:
+        - H
+        - VH
+        blocked_skills:
+        - do_nothing
+        level: ERROR
+      - id: low_coping_block
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - elevate_house
+        - relocate
+        level: WARNING
+        message: 'Low coping appraisal: agent perceives low self-efficacy for complex
+          actions.'
+      - id: relocation_threat_low
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - relocate
+        level: ERROR
+        message: 'Relocation blocked: Threat level is too low to justify abandoning
+          property.'
+      - id: elevation_threat_low
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - elevate_house
+        level: ERROR
+        message: 'Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is
+          too low. Consider scenarios with threat >= M.'
+      identity_rules:
+      - id: elevation_block
+        precondition: elevated
+        blocked_skills:
+        - elevate_house
+        level: ERROR
+    relaxed:
+      thinking_rules:
+      - construct: TP_LABEL
+        when_above:
+        - H
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+      identity_rules:
+      - id: elevation_block
+        precondition: elevated
+        blocked_skills:
+        - elevate_house
+        level: WARNING
+    strict_no_etb:
+      thinking_rules:
+      - id: low_coping_block
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - elevate_house
+        - relocate
+        level: WARNING
+        message: 'Low coping appraisal: agent perceives low self-efficacy for complex
+          actions.'
+      - id: relocation_threat_low
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - relocate
+        level: ERROR
+        message: 'Relocation blocked: Threat level is too low to justify abandoning
+          property.'
+      - id: elevation_threat_low
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - elevate_house
+        level: ERROR
+        message: 'Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is
+          too low. Consider scenarios with threat >= M.'
+      identity_rules:
+      - id: elevation_block
+        precondition: elevated
+        blocked_skills:
+        - elevate_house
+        level: ERROR
+    disabled:
+      thinking_rules: []
+      identity_rules: []
+metadata:
+  version: v22-sa-final-parity-robust
+  actual_model: gemma4:e4b
+  seed: 46
+  governance_profile: strict

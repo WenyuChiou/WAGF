@@ -1,0 +1,21 @@
+{
+  "experiment_name": "gemma4:e2b",
+  "agent_types": {
+    "irrigation_farmer": {
+      "total": 3276,
+      "decisions": {
+        "maintain_demand": 1791,
+        "increase_small": 413,
+        "decrease_small": 645,
+        "increase_large": 389,
+        "decrease_large": 38
+      }
+    }
+  },
+  "total_traces": 3276,
+  "validation_errors": 8318,
+  "validation_warnings": 355,
+  "structural_faults_fixed": 1,
+  "total_format_retries": 1,
+  "finalized_at": "2026-04-25T12:24:18.680774"
+}

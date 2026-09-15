@@ -1,0 +1,324 @@
+global_config:
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+  reflection:
+    interval: 1
+    batch_size: 5
+    importance_boost: 0.85
+    persona_instruction: Summarize each agent's vaccination journey into a 2-sentence
+      'Lesson Learned'. Speak in FIRST PERSON (e.g., 'I realized...') and reflect
+      the agent's HBM appraisals.
+    questions:
+    - Has your perceived susceptibility to infection changed this year?
+    - Did the perceived benefits of vaccination outweigh the barriers you experienced?
+    - What information or events would have changed your decision?
+    triggers:
+      crisis: true
+      periodic_interval: 2
+      decision_types:
+      - get_vaccinated
+      - refuse
+      institutional_threshold: 0.05
+    method: hybrid
+  llm:
+    model: gemma3:4b
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: vaccination
+  vaccination_system:
+    simulation_start: 2024
+    vaccine_supply_default: 1000
+    outbreak_schedule:
+    - year: 2
+      severity: 0.6
+    side_effect_base_rate: 0.02
+shared:
+  rating_scale: '### RATING SCALE (You MUST use EXACTLY one of these codes):
+
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+    '
+  response_format:
+    delimiter_start: <<<DECISION_START>>>
+    delimiter_end: <<<DECISION_END>>>
+    fields:
+    - key: reasoning
+      type: text
+      required: true
+      description: Explain your thought process in 2-3 sentences BEFORE choosing.
+    - key: susceptibility_assessment
+      type: appraisal
+      required: true
+      construct: SUSCEPTIBILITY_LABEL
+      reason_hint: One sentence on how likely you feel to be infected.
+    - key: severity_assessment
+      type: appraisal
+      required: true
+      construct: SEVERITY_LABEL
+      reason_hint: One sentence on how bad infection would be for your household.
+    - key: benefits_assessment
+      type: appraisal
+      required: true
+      construct: BENEFITS_LABEL
+      reason_hint: One sentence on how much vaccination would protect you.
+    - key: barriers_assessment
+      type: appraisal
+      required: true
+      construct: BARRIERS_LABEL
+      reason_hint: One sentence on the cost / time / side-effect / trust concerns
+        you face.
+    - key: self_efficacy_assessment
+      type: appraisal
+      required: true
+      construct: SELF_EFFICACY_LABEL
+      reason_hint: One sentence on your confidence to seek and complete vaccination.
+    - key: cues_to_action_assessment
+      type: appraisal
+      required: false
+      construct: CUES_TO_ACTION_LABEL
+      reason_hint: One sentence on whether external signals (outbreak news, doctor
+        / family advice) are nudging you.
+    - key: decision
+      type: choice
+      required: true
+individual:
+  agent_type: individual
+  psychological_framework: hbm
+  prompt_template_file: prompts/individual.txt
+  inherit_shared: true
+  actions:
+  - id: get_vaccinated
+    aliases:
+    - '1'
+    - get_vaccinated
+    - vaccinate
+    - '[get_vaccinated]'
+    description: 'Receive a single dose of the seasonal vaccine this year.
+
+      '
+  - id: delay
+    aliases:
+    - '2'
+    - delay
+    - wait
+    - postpone
+    - '[delay]'
+    description: 'Postpone the decision; reconsider next year after observing more
+      information.
+
+      '
+  - id: refuse
+    aliases:
+    - '3'
+    - refuse
+    - decline
+    - skip
+    - '[refuse]'
+    description: 'Decline vaccination this year.
+
+      '
+  constructs:
+    primary:
+    - SUSCEPTIBILITY_LABEL
+    - SEVERITY_LABEL
+    - BENEFITS_LABEL
+    - BARRIERS_LABEL
+    - SELF_EFFICACY_LABEL
+    secondary:
+    - CUES_TO_ACTION_LABEL
+    all:
+    - SUSCEPTIBILITY_LABEL
+    - SEVERITY_LABEL
+    - BENEFITS_LABEL
+    - BARRIERS_LABEL
+    - SELF_EFFICACY_LABEL
+    - CUES_TO_ACTION_LABEL
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    - action
+    - selected_action
+    default_skill: delay
+    full_disclosure: true
+    strict_mode: true
+    preprocessor:
+      type: smart_repair
+      quote_values:
+      - VL
+      - L
+      - M
+      - H
+      - VH
+    proximity_window: 35
+    constructs:
+      SUSCEPTIBILITY_LABEL:
+        keywords:
+        - susceptibility_assessment
+        - perceived_susceptibility
+        - susceptibility
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      SUSCEPTIBILITY_REASON:
+        keywords:
+        - susceptibility_assessment
+        - perceived_susceptibility
+        - susceptibility
+        regex: .*
+      SEVERITY_LABEL:
+        keywords:
+        - severity_assessment
+        - perceived_severity
+        - severity
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      SEVERITY_REASON:
+        keywords:
+        - severity_assessment
+        - perceived_severity
+        - severity
+        regex: .*
+      BENEFITS_LABEL:
+        keywords:
+        - benefits_assessment
+        - perceived_benefits
+        - benefits
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      BENEFITS_REASON:
+        keywords:
+        - benefits_assessment
+        - perceived_benefits
+        - benefits
+        regex: .*
+      BARRIERS_LABEL:
+        keywords:
+        - barriers_assessment
+        - perceived_barriers
+        - barriers
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      BARRIERS_REASON:
+        keywords:
+        - barriers_assessment
+        - perceived_barriers
+        - barriers
+        regex: .*
+      SELF_EFFICACY_LABEL:
+        keywords:
+        - self_efficacy_assessment
+        - perceived_self_efficacy
+        - self_efficacy
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      SELF_EFFICACY_REASON:
+        keywords:
+        - self_efficacy_assessment
+        - perceived_self_efficacy
+        - self_efficacy
+        regex: .*
+      CUES_TO_ACTION_LABEL:
+        keywords:
+        - cues_to_action_assessment
+        - perceived_cues
+        - cues_to_action
+        - cues
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      CUES_TO_ACTION_REASON:
+        keywords:
+        - cues_to_action_assessment
+        - perceived_cues
+        - cues_to_action
+        - cues
+        regex: .*
+  log_fields:
+  - susceptibility_assessment
+  - severity_assessment
+  - benefits_assessment
+  - barriers_assessment
+  - self_efficacy_assessment
+  - cues_to_action_assessment
+  thinking_rules:
+  - id: high_susceptibility_high_severity_high_efficacy_no_refuse
+    level: ERROR
+    blocked_skills:
+    - refuse
+    conditions:
+    - construct: SUSCEPTIBILITY_LABEL
+      values:
+      - H
+      - VH
+    - construct: SEVERITY_LABEL
+      values:
+      - H
+      - VH
+    - construct: SELF_EFFICACY_LABEL
+      values:
+      - H
+      - VH
+    message: 'HBM coherence: high perceived susceptibility + high severity + high
+      self-efficacy should not lead to refusal.'
+  - id: low_susceptibility_no_get_vaccinated
+    level: WARNING
+    blocked_skills:
+    - get_vaccinated
+    conditions:
+    - construct: SUSCEPTIBILITY_LABEL
+      values:
+      - VL
+    message: 'HBM coherence: very low perceived susceptibility plus immediate vaccination
+      is unusual — worth reflecting on motive.'
+  - id: high_barriers_high_self_efficacy_no_action_required
+    level: WARNING
+    blocked_skills:
+    - delay
+    - refuse
+    conditions:
+    - construct: BARRIERS_LABEL
+      values:
+      - H
+      - VH
+    - construct: SELF_EFFICACY_LABEL
+      values:
+      - H
+      - VH
+    message: 'HBM coherence note: high self-efficacy is supposed to overcome perceived
+      barriers — inaction here is worth reflecting on.'
+  - id: low_severity_low_benefits_get_vaccinated
+    level: WARNING
+    blocked_skills:
+    - get_vaccinated
+    conditions:
+    - construct: SEVERITY_LABEL
+      values:
+      - VL
+      - L
+    - construct: BENEFITS_LABEL
+      values:
+      - VL
+      - L
+    message: 'HBM coherence note: low severity + low benefits + get_vaccinated has
+      no clear HBM driver — verify reasoning trace.'
+  - id: high_cues_low_barriers_refuse_inconsistent
+    level: ERROR
+    blocked_skills:
+    - refuse
+    conditions:
+    - construct: CUES_TO_ACTION_LABEL
+      values:
+      - H
+      - VH
+    - construct: BARRIERS_LABEL
+      values:
+      - VL
+      - L
+    message: 'HBM coherence: high cues-to-action (outbreak news / doctor advice) +
+      low barriers + refuse is inconsistent — strong external pressure with no documented
+      obstacle should not lead to refusal.'
+metadata:
+  actual_model: gemma3:4b
+  seed: 44
+  governance_profile: strict

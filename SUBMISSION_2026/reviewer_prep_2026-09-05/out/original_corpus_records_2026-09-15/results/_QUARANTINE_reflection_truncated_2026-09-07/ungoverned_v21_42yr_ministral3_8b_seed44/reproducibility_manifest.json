@@ -1,0 +1,41 @@
+{
+  "model": "ministral-3:8b",
+  "seed": 44,
+  "num_years": 42,
+  "governance_profile": "disabled",
+  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\irrigation_abm\\config\\agent_types.yaml",
+  "model_digest": "2026-01-31T12:45:56.1728064-05:00",
+  "model_family": "mistral3",
+  "model_parameter_size": "8.9B",
+  "model_quantization": "Q4_K_M",
+  "git_commit": "10e190cf1f3805e2869e91b52d8c178a01b0f5f3",
+  "git_dirty": true,
+  "thinking_mode": "auto",
+  "temperature": null,
+  "top_p": null,
+  "num_ctx": 8192,
+  "num_predict": 4096,
+  "config_hash": "df4078fc67c3",
+  "timestamp": "2026-08-03T14:38:47.643266",
+  "python_version": "3.14.0",
+  "governance_profile_resolved": "disabled",
+  "thinking_rules_resolved_counts": {
+    "irrigation_farmer": 0
+  },
+  "advise_spec_resolved": null,
+  "intervention_framing_resolved": "legacy",
+  "max_retries_resolved": 3,
+  "run_integrity": {
+    "memory_engine_type": null,
+    "memory_engine_class": "HumanCentricMemoryEngine",
+    "effective_memory_engine_type": "humancentric",
+    "reflection_tracked": false,
+    "reflection_expected": true,
+    "reflection_engine_wired": null,
+    "reflection_log_exists": true,
+    "reflection_log_entries": 3073,
+    "governance_mode": "disabled",
+    "seed": 44,
+    "integrity_ok": true
+  }
+}

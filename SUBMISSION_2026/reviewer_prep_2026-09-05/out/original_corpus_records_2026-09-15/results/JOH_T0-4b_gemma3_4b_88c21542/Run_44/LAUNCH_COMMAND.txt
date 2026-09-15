@@ -1,0 +1,3 @@
+python examples\vaccination_demo\run_experiment.py --model gemma3:4b --seed 44 --agents 100 --years 10 --num-ctx 8192 --num-predict 4096 --output examples\vaccination_demo\results\JOH_T0-4b_gemma3_4b_88c21542\Run_44 
+Started: 2026/09/09 ¶g¤T 11:52:37.01 
+Finished: 2026/09/09 ¶g¤T 13:14:55.22 

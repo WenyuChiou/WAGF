@@ -1,0 +1,24 @@
+{
+  "experiment_name": "mock",
+  "framework_version": "0.6.0",
+  "audit_schema_version": "2",
+  "git_commit_short": "e0eee08c141b",
+  "agent_types": {
+    "household": {
+      "total": 1000,
+      "decisions": {
+        "buy_insurance": 731,
+        "do_nothing": 80,
+        "elevate_house": 189
+      }
+    }
+  },
+  "total_traces": 1000,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "structural_faults_fixed": 0,
+  "total_format_retries": 0,
+  "validator_health": {},
+  "jsonl_events_lost": 0,
+  "finalized_at": "2026-09-06T11:33:50.653869"
+}
