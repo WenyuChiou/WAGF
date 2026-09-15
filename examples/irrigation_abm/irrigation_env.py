@@ -25,6 +25,7 @@ References:
 
 from __future__ import annotations
 
+import zlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -131,6 +132,16 @@ class IrrigationEnvironment:
         coupling_contract_active: bool = False,
     ):
         self.config = config or WaterSystemConfig()
+        # ENV-LEVEL generator — MAIN THREAD ONLY.
+        #
+        # Everything that draws from this one runs on the main thread:
+        # `initialize_synthetic`'s cluster shuffle (setup) and
+        # `_generate_precipitation`'s noise (called from `advance_year`,
+        # once per year, before any agent decides).  The per-agent DECISION
+        # phase must NOT touch it — `ExperimentRunner._run_agents_parallel`
+        # runs that phase in a ThreadPoolExecutor under `--workers N`, and a
+        # shared stream there hands out draws in thread-completion order.
+        # Decision-phase draws go through `_decision_rng()` instead.
         self.rng = np.random.default_rng(self.config.seed)
 
         # PR-9 coupling-retrofit (F1): default OFF so every existing caller
@@ -662,6 +673,49 @@ class IrrigationEnvironment:
         curtailment = agent.get("curtailment_ratio", 0.0)
         agent["diversion"] = new_request * (1.0 - curtailment)
 
+    def _decision_rng(self, agent_id: str, skill: str) -> np.random.Generator:
+        """A generator private to one ``(seed, year, agent, skill)``.
+
+        The decision phase runs inside
+        ``ExperimentRunner._run_agents_parallel``'s ThreadPoolExecutor, so
+        any draw taken from the shared env-level ``self.rng`` is handed out
+        in thread-completion order rather than agent order.  The same seed
+        then yields a different agent -> magnitude assignment under
+        ``--workers 4`` than under ``--workers 1``, and a different one again
+        between two ``--workers 4`` runs at that seed (measured 2026-09-15:
+        13 of 16 agents diverged).  The distribution stays correct; which
+        agent receives which sample does not, which is what an audit trace
+        and every per-agent analysis read.
+
+        Deriving a fresh generator per call removes the shared stream
+        entirely, so no amount of thread interleaving can reach the draw:
+        the value depends only on the four keys below.  Creation is cheap
+        relative to one governed LLM step, and stateless, so no lock is
+        needed and none is taken.
+
+        ``zlib.crc32`` hashes the string keys, NOT the builtin ``hash``:
+        the builtin is salted per process (``PYTHONHASHSEED``), which would
+        trade a thread-order dependence for a process-launch dependence.
+
+        INVARIANT this leans on: calling it twice with the same key returns
+        the same value, so a domain that draws twice per ``(agent, year,
+        skill)`` would get the same magnitude both times. That is safe here
+        only because the engine executes at most one magnitude-drawing skill
+        per key — ``broker/core/skill_broker_engine.py:716-718`` rejects a
+        secondary skill whose name equals the primary's, the
+        rejected-fallback execution lives in an ``elif`` arm that cannot run
+        alongside the approved one, and ``advance_year`` increments
+        ``_current_year`` unconditionally so a year never repeats. A future
+        multi-decision-per-year domain must add a fifth key component (an
+        attempt index) rather than assume this still holds.
+        """
+        return np.random.default_rng([
+            int(self.config.seed) & 0xFFFF_FFFF,
+            int(self._current_year) & 0xFFFF_FFFF,
+            zlib.crc32(agent_id.encode("utf-8")),
+            zlib.crc32(skill.encode("utf-8")),
+        ])
+
     def execute_skill(self, approved_skill) -> "ExecutionResult":
         """Execute an approved irrigation skill.
 
@@ -723,13 +777,17 @@ class IrrigationEnvironment:
             sigma = base_sigma * persona_scale
 
             if sigma > 0:
-                if exploration_rate > 0 and self.rng.random() < exploration_rate:
-                    noise = self.rng.normal(0, sigma * 2.0)
+                # Per-(agent, year, skill) stream — see _decision_rng: this
+                # runs on a worker thread, so a shared stream would make the
+                # assignment depend on thread scheduling.
+                rng = self._decision_rng(aid, skill)
+                if exploration_rate > 0 and rng.random() < exploration_rate:
+                    noise = rng.normal(0, sigma * 2.0)
                     magnitude_pct = mu + noise
                     magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
                     is_exploration = True
                 else:
-                    noise = self.rng.normal(0, sigma)
+                    noise = rng.normal(0, sigma)
                     magnitude_pct = mu + noise
                     magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
             else:
@@ -743,13 +801,17 @@ class IrrigationEnvironment:
             mag_max = agent.get("magnitude_max", 30.0) or 30.0
 
             if mag_sigma > 0:
-                if exploration_rate > 0 and self.rng.random() < exploration_rate:
-                    noise = self.rng.normal(0, mag_sigma * 2.0)
+                # Same per-(agent, year, skill) stream as the v17 branch
+                # above; the two branches are mutually exclusive, so they
+                # never draw from one key twice.
+                rng = self._decision_rng(aid, skill)
+                if exploration_rate > 0 and rng.random() < exploration_rate:
+                    noise = rng.normal(0, mag_sigma * 2.0)
                     magnitude_pct = mag_default + noise
                     magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
                     is_exploration = True
                 else:
-                    noise = self.rng.normal(0, mag_sigma)
+                    noise = rng.normal(0, mag_sigma)
                     magnitude_pct = mag_default + noise
                     magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
             else:

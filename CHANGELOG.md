@@ -10,6 +10,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`WAGF_LLM_TIMEOUT` raises the Ollama call timeout without editing YAML**:
+  `LLMConfig.get_timeout()` (`broker/utils/llm_utils.py`) now returns
+  `max(configured, WAGF_LLM_TIMEOUT)` for every model, so a slow host gets
+  headroom over the 120 s default (or 600 s for a large model) without
+  touching `agent_types.yaml` — which matters because that file is hashed
+  into `config_hash` in the reproducibility manifest, so raising a timeout by
+  editing it would look like a config change in every later comparison. The
+  variable can only RAISE the timeout, never shorten a run the YAML says
+  needs 600 s. It is read per call inside `get_timeout`, NOT in
+  `_load_global_config`, so `LLM_CONFIG` construction is unchanged (the
+  manifest's other `LLM_CONFIG` fields still describe the file, not the
+  shell) and a value exported after import still takes effect. A value that
+  is missing, unparseable, non-positive, or above 86400 s is ignored and
+  logged once. BOTH ends are guarded, for the same reason: 0 would turn every
+  request into an instant timeout, and anything above ~2147483 s makes
+  `requests.post` raise a bare `OverflowError` before it connects (a socket
+  timeout is an INT_MAX-millisecond deadline) — which
+  `_invoke_ollama_direct`'s catch-all turns into a failed call for every call
+  in the run. An extra-zeros typo on 600 lands in exactly that window, so it
+  is rejected rather than passed through. A fractional value rounds up.
+  Scope: the floor covers the direct-Ollama path every experiment uses, not
+  the separate `providers/` stack.
+  The reproducibility manifest gains three additive fields
+  (`broker/core/experiment_runner.py:_collect_reproducibility_metadata`):
+  `llm_timeout_seconds_effective`, the value the run actually used, so a run
+  given extra headroom is distinguishable from one that hit the default; plus
+  `llm_timeout_env_raw` and `llm_timeout_env_rejected`, because the effective
+  value alone cannot tell "nothing was set" from "6000000 was set and
+  rejected" — both record 120, and the second is a run whose operator
+  believed it had 100 minutes of headroom. A value that parsed but sat below
+  the configured timeout counts as applied, not rejected. Additive only:
+  verified that a flood mock run's manifest key set gains exactly those keys
+  and loses none, and that the flood + irrigation shipped-mock audit CSVs and
+  `simulation_log.csv` remain byte-identical to `origin/main`. Note what that
+  byte-identity does and does not show: a `--model mock` run never calls
+  `requests`, so running it again with the variable set demonstrates
+  NON-INTERFERENCE (the new code path does not perturb a run that never
+  reaches it), not equivalence under the floor. The floor reaching the socket
+  is pinned by a unit test that patches `requests.post` instead. New tests:
+  `tests/test_llm_timeout_env_override.py` (32 tests) — 10 test functions
+  (14 parametrised cases) fail against the pre-change code.
+  Operator guidance: `docs/guides/troubleshooting_guide.md` §3.4, which
+  previously offered only the hashed-YAML edit this replaces.
 - **Coupling retrofit + archetype C (PR-9)**: `broker.coupling.SubprocessModelConnector`
   (`broker/coupling/subprocess_source.py`) implements the previously
   documented-but-unbuilt archetype C (service-model) connector — a
@@ -45,6 +88,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Irrigation magnitude sampling raced under `--workers N`: which agent got
+  which draw was decided by thread scheduling**:
+  `examples/irrigation_abm/irrigation_env.py` held ONE environment-level
+  `self.rng` and drew from it inside `execute_skill()` (the v17 per-skill
+  Gaussian branch and the v12 legacy per-persona fallback, plus the
+  ε-exploration coin flip in both). `SkillBrokerEngine.process_step`
+  (`broker/core/skill_broker_engine.py:775`) calls that from inside
+  `ExperimentRunner._run_agents_parallel`'s `ThreadPoolExecutor`, so the
+  agents consumed one shared stream in thread-completion order. Measured
+  2026-09-15 over 16 agents at seed 42: a different magnitude under
+  `--workers 4` than under `--workers 1` for 13 of 16 agents in one measured
+  pair and 9 of 16 in another — the count moves with scheduling, the defect
+  does not — and a different assignment again between two `--workers 4` runs
+  at the same seed. `tests/test_irrigation_execute_skill_thread_safety.py` is
+  the reproduction; an end-to-end reproduction needs an LLM stub that gets a
+  magnitude-drawing skill APPROVED (see the next paragraph), for which the
+  harness used here is `scratchpad/rng_fix/e2e_run.py`.
+  **Why no frozen corpus caught this**: `*_governance_audit.csv` carries no
+  magnitude column, so the audit trace compares IDENTICAL while the
+  simulation trajectory underneath it differs. The repo's `--model mock`
+  byte-identity recipes cannot observe the change at all: the shipped mock's
+  reply omits the required reasoning constructs, so every irrigation proposal
+  is REJECTED and only the `maintain_demand` fallback executes, which draws
+  no magnitude. An `IDENTICAL` verdict from those recipes is therefore
+  evidence of NON-INTERFERENCE, not of equivalence on the affected path.
+  **Fix**: decision-phase draws now come from `_decision_rng(agent_id,
+  skill)`, a stateless generator keyed on
+  `(config.seed, current_year, crc32(agent_id), crc32(skill))`. There is no
+  shared stream left for the scheduler to reorder, no lock is needed, and
+  `zlib.crc32` is used instead of the builtin `hash` so the key is not
+  salted per process by `PYTHONHASHSEED`. `self.rng` is kept for the
+  env-level draws that all run on the main thread — the cluster shuffle in
+  `initialize_synthetic` and the precipitation noise in
+  `_generate_precipitation` — and is now documented as main-thread-only.
+  **Behavioural note (irrigation only; `examples/governed_flood` is not
+  touched by this change because all its DOMAIN-level draws happen in
+  `pre_year` on the main thread, verified IDENTICAL against `origin/main` via
+  `broker.tools.compare_audit_csv` — a claim about that path, NOT about
+  `examples/multi_agent/flood`, and NOT a claim that flood is free of
+  order-dependence: see the scope limit below)**: the magnitude *distribution* is
+  unchanged by construction and empirically (3,276 draws, two-sample KS
+  D=0.013, p=0.94), but the per-agent *assignment* differs from the
+  shared-stream code, and because `execute_skill` no longer consumes
+  `self.rng`, the precipitation noise moves up that stream, so year 2 onward
+  differs too (year 1's precipitation draw is unchanged; year-1 *magnitudes*
+  do change, which is the point of the fix).
+  On a `--real` run the precipitation shift is confined to years the CRSS
+  file does NOT cover. `_generate_precipitation` returns the data value and
+  never reaches `self.rng` for a covered year — but the file spans 2017-2060
+  while a run starting at `sim_start_year` 2019 reaches 2061 in year 42, so
+  the LAST year of a 42-year run falls to the synthetic branch and does
+  shift. For every other year of such a run, only the magnitude assignment
+  moves. A related trap worth checking on any `--real` run: if the CRSS file
+  is missing, the run goes synthetic for ALL years with no error — confirm
+  `[Data] Loaded real CRSS precipitation projections` is in the log before
+  treating a run as CRSS-driven.
+  **How to read arm contrasts after this change**: magnitudes are now common
+  random numbers across arms. Governed, ungoverned and FQL runs at the same
+  `--seed` draw the same magnitude whenever the same agent picks the same
+  skill in the same year, so an arm contrast is now a PAIRED design and
+  should be analysed as one; the shared draw is a variance reduction, not an
+  independent replicate. Seed replicates still vary, since all three runners
+  wire `--seed` into `WaterSystemConfig(seed=...)`. The env stream is also
+  *more* stable than before — it no longer depends on how many proposals
+  happened to be approved in a year.
+  **This guarantee covers irrigation only, and does not extend to flood.**
+  A second, independent order-dependence remains in the generic path:
+  `_run_agents_parallel` collects results with `as_completed`, so
+  `_apply_state_changes` — and the memory write inside it — runs in
+  thread-completion order on the main thread. That write draws the
+  HumanCentric consolidation RNG (`humancentric.py:91`, used at `:263`) when
+  an item's importance reaches the 0.6 threshold. Irrigation is unaffected
+  because `IrrigationPack.skill_emotion_metadata` returns `{}` and every
+  memory takes the routine 0.1 default, below the threshold — measured: zero
+  draws across a full irrigation run, which is why the worker-count
+  comparisons above come out at zero differing cells. Flood DOES cross it
+  (`elevate_house`/`relocate` 0.7, `buy_insurance` 0.6), so flood corpora are
+  regenerated at `--workers 1` until that path is fixed separately. No code
+  in this commit touches it.
+  Every irrigation corpus is regenerated at this commit — including the FQL
+  baseline, which reaches the same code by calling `env.execute_skill`
+  directly (`examples/irrigation_abm/run_fql_baseline.py:284`).
+  **New tests**: `tests/test_irrigation_execute_skill_thread_safety.py`
+  (10 tests covering the v17 per-skill branch, the v12 legacy branch, the
+  ε-exploration arm, and the main-thread-only invariant on `self.rng`
+  asserted directly via `bit_generator.state`) — 6 of them fail against the
+  pre-fix code, reliably over repeats, and all 10 pass after. Placed under
+  `tests/` because CI runs `pytest tests/ broker/` and `pyproject.toml` sets
+  `testpaths = ["tests"]`, so a copy under `examples/irrigation_abm/tests/`
+  would never be collected.
 - **Options-text parity: vaccination_demo decoded digit answers against the
   wrong skill from year 2 on (root-caused independently, verified on 3
   runs)**: `examples/vaccination_demo/config/prompts/individual.txt:29`

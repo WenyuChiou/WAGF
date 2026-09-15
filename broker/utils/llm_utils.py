@@ -11,12 +11,106 @@ v2.0: invoke functions now return (content, stats) tuple for thread-safety.
 v2.1: Added global LLM_CONFIG for configurable parameters.
 """
 import logging
+import math
 import os
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Union, Optional, Any
+from typing import Callable, Dict, Set, Tuple, Union, Optional, Any
 from dataclasses import dataclass, field
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# Name of the env var that raises a floor under LLMConfig.get_timeout().
+LLM_TIMEOUT_ENV_VAR = "WAGF_LLM_TIMEOUT"
+
+# Upper bound on an accepted floor. A socket timeout is handed to select()/poll()
+# as an INT_MAX-millisecond deadline, so anything above ~2_147_483 s raises a bare
+# OverflowError ("timeout doesn't fit into C timeval") inside requests.post —
+# BEFORE the connection is even attempted, and NOT as a requests.exceptions.*, so
+# `_invoke_ollama_direct`'s catch-all turns it into a failed call for EVERY call
+# in the run. A plausible extra-zeros typo (600 -> 6000000) lands squarely in that
+# window. The cap sits well below the hard limit: no single model call is a day.
+_MAX_TIMEOUT_SECONDS = 86_400
+
+# Raw env values already reported as unusable, so a per-call read does not
+# emit one warning line per LLM invocation. Keyed on the raw string, so
+# correcting the value and then breaking it again still says so.
+_WARNED_BAD_TIMEOUT_VALUES: Set[str] = set()
+
+
+def _env_timeout_floor() -> int:
+    """Minimum LLM timeout requested via ``WAGF_LLM_TIMEOUT``, else 0.
+
+    Returns 0 — meaning "no floor", not "no time" — when the variable is
+    unset, blank, unparseable, non-positive, or above
+    ``_MAX_TIMEOUT_SECONDS``. A bad value is logged once rather than
+    swallowed: a typo must not decide how the run behaves silently. Both ends
+    are guarded, and for the same reason — reading 0 seconds out of a typo
+    would make every Ollama call time out instantly, and accepting 6000000
+    would make every one raise OverflowError before connecting. Either way
+    the batch fails and looks like a model fault rather than a shell mistake.
+
+    A fractional value rounds UP, so the floor is never lower than asked.
+    """
+    raw = os.environ.get(LLM_TIMEOUT_ENV_VAR)
+    if raw is None or not raw.strip():
+        return 0
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        if raw not in _WARNED_BAD_TIMEOUT_VALUES:
+            _WARNED_BAD_TIMEOUT_VALUES.add(raw)
+            _LOGGER.warning(
+                "%s=%r is not a number — IGNORING it and using the configured "
+                "timeout. Set it to a positive number of seconds.",
+                LLM_TIMEOUT_ENV_VAR, raw,
+            )
+        return 0
+    # isfinite rejects nan and ±inf; `<= 0` rejects zero and negatives. The
+    # isfinite check is what catches NaN — `nan <= 0` is False, so the
+    # comparison alone would let it through. (Either order works in an `or`
+    # chain; what matters is that both checks are present.)
+    if not math.isfinite(value) or value <= 0:
+        if raw not in _WARNED_BAD_TIMEOUT_VALUES:
+            _WARNED_BAD_TIMEOUT_VALUES.add(raw)
+            _LOGGER.warning(
+                "%s=%r is not a positive finite number of seconds — IGNORING "
+                "it and using the configured timeout.",
+                LLM_TIMEOUT_ENV_VAR, raw,
+            )
+        return 0
+    if value > _MAX_TIMEOUT_SECONDS:
+        if raw not in _WARNED_BAD_TIMEOUT_VALUES:
+            _WARNED_BAD_TIMEOUT_VALUES.add(raw)
+            _LOGGER.warning(
+                "%s=%r is above the %d s maximum — IGNORING it and using the "
+                "configured timeout. A socket timeout that large raises "
+                "OverflowError inside requests, failing every call. Did you "
+                "mean %d?",
+                LLM_TIMEOUT_ENV_VAR, raw, _MAX_TIMEOUT_SECONDS,
+                _MAX_TIMEOUT_SECONDS,
+            )
+        return 0
+    return math.ceil(value)
+
+
+def timeout_env_status() -> Tuple[Optional[str], bool]:
+    """``(raw WAGF_LLM_TIMEOUT value, was it set but unusable)``.
+
+    For the reproducibility manifest. The effective timeout alone cannot
+    distinguish "the operator set nothing" from "the operator set 6000000 and
+    it was rejected" — both record 120 — and the second is a run someone
+    believed had 100 minutes of headroom. Recording the raw string and the
+    rejection flag makes that visible in the artifact instead of only in a
+    log line nobody kept.
+
+    A value that parsed fine but sits BELOW the configured timeout is not
+    "rejected": it was read and applied, the ``max()`` rule simply left the
+    configured value on top.
+    """
+    raw = os.environ.get(LLM_TIMEOUT_ENV_VAR)
+    was_set = bool(raw and raw.strip())
+    return raw, was_set and _env_timeout_floor() == 0
 
 
 # =============================================================================
@@ -86,11 +180,41 @@ class LLMConfig:
         return params
 
     def get_timeout(self, model: str) -> int:
-        """Return appropriate timeout based on model name patterns."""
+        """Return appropriate timeout based on model name patterns.
+
+        ``WAGF_LLM_TIMEOUT`` raises a FLOOR under the configured value for
+        every model: the result is ``max(configured, env)``, never less. A
+        slow host can therefore be given more headroom without editing
+        ``agent_types.yaml`` — which matters because that file is hashed into
+        ``config_hash`` in the reproducibility manifest, so raising a timeout
+        by editing it would look like a config change in every later
+        comparison.
+
+        The env var is read HERE, per call, not in
+        :func:`_load_global_config`. That keeps ``LLM_CONFIG`` construction
+        byte-for-byte what the YAML says (so ``config_hash`` and the manifest's
+        other ``LLM_CONFIG`` fields still describe the file, not the shell),
+        and it means a value exported after import still takes effect. The cost
+        is one ``os.environ`` lookup per Ollama call, against a call that is
+        about to wait seconds for a model.
+
+        A value that is missing, unparseable, non-positive, or absurdly large
+        is IGNORED and logged once — never silently treated as zero (every
+        request would time out instantly) and never passed through at a size
+        a socket cannot carry (every request would raise before connecting).
+
+        SCOPE: this covers the direct-Ollama path every experiment runs on
+        (``_invoke_ollama_direct``). It does NOT reach the separate
+        ``providers/`` stack (``providers/llm_provider.py``'s own
+        ``LLMConfig.timeout``, used by httpx), which no experiment path
+        currently reaches — only ``providers.factory`` / ``providers/smoke.py``.
+        """
         model_lower = model.lower()
         if any(p in model_lower for p in self.large_model_patterns):
-            return self.timeout_large_model
-        return self.timeout
+            configured = self.timeout_large_model
+        else:
+            configured = self.timeout
+        return max(int(configured), _env_timeout_floor())
 
     def apply_model_quirks(self, model: str, prompt: str, max_retries: int) -> tuple:
         """Apply model-specific quirks and return (modified_prompt, modified_max_retries)."""
