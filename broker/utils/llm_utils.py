@@ -13,6 +13,7 @@ v2.1: Added global LLM_CONFIG for configurable parameters.
 import logging
 import math
 import os
+import time
 from pathlib import Path
 from typing import Callable, Dict, Set, Tuple, Union, Optional, Any
 from dataclasses import dataclass, field
@@ -315,6 +316,11 @@ def _load_global_config() -> LLMConfig:
 
 LLM_CONFIG = _load_global_config()
 
+def _elapsed_ms(t0: float) -> float:
+    """Milliseconds since ``t0`` (a ``time.perf_counter()`` reading)."""
+    return (time.perf_counter() - t0) * 1000.0
+
+
 @dataclass
 class LLMStats:
     """Statistics from a single LLM invocation."""
@@ -328,6 +334,22 @@ class LLMStats:
     response_tokens: int = 0  # Response token count from Ollama (eval_count)
     num_ctx: int = 0          # Context window size used for this call
     context_utilization: float = 0.0  # prompt_tokens / num_ctx
+    # 2026-09-15: per-call timing + multi-attempt accounting.
+    #
+    # `latency_ms` / `tokens_per_second` describe the LAST provider call this
+    # object reports on; `calls` / `prompt_tokens_total` / `response_tokens_total`
+    # cover EVERY call it made, which for `create_llm_invoke`'s returned function
+    # includes its internal empty-content retries.
+    #
+    # 0.0 in a timing field means "this invoke path reported no timing" — the
+    # mock model, a rule/parametric decider, a provider that raised before the
+    # request left — NOT a call that took no time. Same reading as the token
+    # fields, which have meant "not reported" since R5-C.
+    latency_ms: float = 0.0
+    tokens_per_second: float = 0.0
+    calls: int = 1
+    prompt_tokens_total: int = 0
+    response_tokens_total: int = 0
 
     def to_dict(self) -> Dict:
         d = {
@@ -342,6 +364,108 @@ class LLMStats:
             d["num_ctx"] = self.num_ctx
             d["context_utilization"] = round(self.context_utilization, 4)
         return d
+
+
+def accumulate_llm_stats(total: Dict[str, Any], stats: Any) -> None:
+    """Fold one ``LLMStats`` into a decision's ``total_llm_stats`` dict.
+
+    Single source of truth for the four sites that aggregate LLM statistics
+    into ONE audit row: the two loops in ``broker/core/_retry_loop.py`` and the
+    two advisory passes in ``broker/core/_advise_pass.py``. They previously
+    carried four near-identical copies of this arithmetic, which is how the
+    advisory copy came to use ``getattr`` defaults the retry-loop copy did not.
+
+    Column semantics, stated once so the CSV reader does not have to infer them:
+
+    * ``prompt_tokens`` / ``response_tokens`` / ``num_ctx`` /
+      ``context_utilization`` / ``llm_latency_ms`` / ``tokens_per_second``
+      describe the LAST attempt that reported tokens — all six, one call. They
+      are per-call measurements, so ``context_utilization`` equals
+      ``prompt_tokens / num_ctx`` for the same call, which a running sum never
+      could, and throughput computed from the row is that call's throughput.
+    * ``prompt_tokens_peak`` / ``num_ctx_peak`` are the widest single attempt of
+      the decision, kept because the LAST attempt is not always the widest: the
+      advisory pass runs BEFORE the governance retry loop and its prompt appends
+      header + rule text, so an advised decision can peak mid-way. They stay out
+      of the CSV projection (JSONL only) and exist so the context-budget
+      tripwire in ``GenericAuditWriter.write_trace`` keeps watching the worst
+      call rather than the last one.
+    * ``prompt_tokens_total`` / ``response_tokens_total`` answer the BUDGET
+      question — summed over every attempt of the decision, including the
+      empty-content retries inside a single ``llm_invoke`` call.
+    * ``llm_calls_total`` counts those attempts. It differs from the flag-gated
+      ``llm_calls``, which counts ``llm_invoke`` CALLS and so under-counts a
+      decision whose provider retried internally.
+
+    A caller whose ``llm_invoke`` RAISED or returned a bare string never reaches
+    this function and must add its own ``+= 1`` — both retry loops and both
+    advisory passes do. Counting at the call site INSTEAD, as a flat 1, is not
+    equivalent and was briefly wrong here: ``stats.calls`` is N when the
+    provider returned empty content N-1 times inside one ``llm_invoke``, so a
+    flat 1 left ``llm_calls_total`` and ``prompt_tokens_total`` computed over
+    different attempt sets, and the per-call average derived from the pair was
+    wrong by exactly the internal-retry factor.
+
+    ``getattr`` throughout: deciders and test doubles hand back stats objects
+    that predate these fields, and an audit row must never fail to be written
+    because a stats object was thin.
+    """
+    total["llm_calls_total"] = (
+        total.get("llm_calls_total", 0)
+        + max(int(getattr(stats, "calls", 1) or 1), 1)
+    )
+
+    prompt_tokens = int(getattr(stats, "prompt_tokens", 0) or 0)
+    response_tokens = int(getattr(stats, "response_tokens", 0) or 0)
+    if prompt_tokens > 0:
+        num_ctx = int(getattr(stats, "num_ctx", 0) or 0)
+        utilization = round(
+            float(getattr(stats, "context_utilization", 0.0) or 0.0), 4)
+        total["prompt_tokens"] = prompt_tokens
+        total["response_tokens"] = response_tokens
+        total["num_ctx"] = num_ctx
+        total["context_utilization"] = utilization
+        # Timing belongs to the SAME attempt as the tokens beside it. Writing it
+        # outside this branch spliced two calls into one row: a decision whose
+        # last attempt timed out after an earlier one succeeded published that
+        # attempt's tokens next to the timeout's 600 000 ms and a
+        # `tokens_per_second` of 0.0, so throughput computed per row was wrong by
+        # two orders of magnitude and the 0.0 looked like "not measured" next to
+        # a non-zero response_tokens. A failed final attempt now leaves the
+        # previous attempt's six numbers standing, which is the reading the
+        # column names already promise.
+        total["llm_latency_ms"] = round(
+            float(getattr(stats, "latency_ms", 0.0) or 0.0), 3)
+        total["tokens_per_second"] = round(
+            float(getattr(stats, "tokens_per_second", 0.0) or 0.0), 3)
+        # Widest attempt, not last: `>=` alone is not enough because the cloud
+        # path reports num_ctx=0 and so utilization 0.0 on EVERY call, which
+        # would let a 100-token final attempt overwrite a 5000-token peak. Tie
+        # on utilization, break on the prompt.
+        peak_util = float(total.get("context_utilization_peak", 0.0) or 0.0)
+        peak_prompt = int(total.get("prompt_tokens_peak", 0) or 0)
+        if (utilization, prompt_tokens) >= (peak_util, peak_prompt):
+            total["context_utilization_peak"] = utilization
+            total["prompt_tokens_peak"] = prompt_tokens
+            total["num_ctx_peak"] = num_ctx
+
+    # A stats object that predates the `*_total` fields — a legacy provider
+    # shim, a test double, anything not built by this module — still made a call
+    # whose tokens belong in the decision's budget. Falling back to the per-call
+    # number keeps a total from reading 0 next to a non-zero per-call count,
+    # which is the shape of an undercount nobody would question. Each side falls
+    # back INDEPENDENTLY: an object carrying one field and not the other is
+    # exactly the half-migrated shim this guard exists for.
+    reported_prompt_total = getattr(stats, "prompt_tokens_total", None)
+    if reported_prompt_total is None:
+        reported_prompt_total = prompt_tokens
+    reported_response_total = getattr(stats, "response_tokens_total", None)
+    if reported_response_total is None:
+        reported_response_total = response_tokens
+    total["prompt_tokens_total"] = (
+        total.get("prompt_tokens_total", 0) + int(reported_prompt_total or 0))
+    total["response_tokens_total"] = (
+        total.get("response_tokens_total", 0) + int(reported_response_total or 0))
 
 
 # =============================================================================
@@ -426,11 +550,16 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         if verbose:
             _LOGGER.debug(f" [LLM:Direct] Setting top-level think={think_flag} for model '{model}'")
     
+    # Wall clock around the request itself, so the recorded latency is the cost
+    # the run actually paid for this call (queueing at the server included) and
+    # not a figure derived from the server's own self-report.
+    t0 = time.perf_counter()
     try:
         # Config-driven timeout: large/slow models get extended timeout
         timeout = LLM_CONFIG.get_timeout(model)
         response = requests.post(url, json=data, timeout=timeout)
-        
+        latency_ms = _elapsed_ms(t0)
+
         if response.status_code == 200:
             result = response.json()
             content = result.get('response', '')
@@ -441,26 +570,46 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
             response_tokens = result.get('eval_count', 0) or 0
             ctx = options.get("num_ctx", 4096)
             ctx_util = prompt_tokens / ctx if ctx > 0 and prompt_tokens > 0 else 0.0
+            # `eval_duration` is generation-only nanoseconds (it excludes prompt
+            # evaluation and model load), so eval_count / eval_duration is the
+            # decode rate — comparable across models in a way that
+            # response_tokens / latency_ms is not. Guarded on its own: a server
+            # that reports the duration as a string or omits it must not turn a
+            # good reply into a failed call via the catch-all below, which the
+            # retry loop would then read as empty content.
+            try:
+                eval_duration_ns = float(result.get('eval_duration', 0) or 0)
+                tokens_per_second = (
+                    response_tokens / (eval_duration_ns / 1e9)
+                    if eval_duration_ns > 0 and response_tokens > 0 else 0.0
+                )
+            except (TypeError, ValueError, ZeroDivisionError):
+                tokens_per_second = 0.0
             stats = LLMStats(
                 retries=0, success=True,
                 prompt_tokens=prompt_tokens,
                 response_tokens=response_tokens,
                 num_ctx=ctx,
                 context_utilization=ctx_util,
+                latency_ms=latency_ms,
+                tokens_per_second=tokens_per_second,
+                calls=1,
+                prompt_tokens_total=prompt_tokens,
+                response_tokens_total=response_tokens,
             )
             return content, stats
         else:
             _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
-            return "", LLMStats(retries=0, success=False)
+            return "", LLMStats(retries=0, success=False, latency_ms=latency_ms)
     except requests.exceptions.Timeout:
         _LOGGER.error(f" [LLM:Direct] Model '{model}' timed out after {timeout}s. Consider increasing timeout for this model.")
-        return "", LLMStats(retries=0, success=False)
+        return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
     except requests.exceptions.ConnectionError:
         _LOGGER.error(f" [LLM:Direct] Model '{model}' connection refused. Is Ollama running at {url}?")
-        return "", LLMStats(retries=0, success=False)
+        return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
     except Exception as e:
         _LOGGER.error(f" [LLM:Direct] Model '{model}' unexpected error: {type(e).__name__}: {e}")
-        return "", LLMStats(retries=0, success=False)
+        return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
 
 
 def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dict[str, Any]] = None) -> LLMInvokeFunc:
@@ -559,7 +708,37 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
 
             llm_retries = 0
             empty_content_retries = 0  # 045-H: Track empty content retries specifically
-            
+
+            # 2026-09-15: every return below used to build a FRESH LLMStats and
+            # so threw away everything `_invoke_ollama_direct` had measured —
+            # which is why `prompt_tokens` / `response_tokens` / `num_ctx` /
+            # `context_utilization` read 0 on every row of every released audit
+            # CSV despite the extraction working since R5-C. These carry the
+            # measurement across.
+            calls_made = 0
+            acc_prompt_tokens = 0
+            acc_response_tokens = 0
+            last_stats = LLMStats(retries=0, success=False, calls=0)
+
+            def _final_stats(success: bool, *, empty_failure: bool = False) -> LLMStats:
+                """The loop's stats: last attempt's measurements + all-attempt totals."""
+                return LLMStats(
+                    retries=llm_retries, success=success,
+                    empty_content_retries=empty_content_retries,
+                    empty_content_failure=empty_failure,
+                    prompt_tokens=last_stats.prompt_tokens,
+                    response_tokens=last_stats.response_tokens,
+                    num_ctx=last_stats.num_ctx,
+                    context_utilization=last_stats.context_utilization,
+                    latency_ms=last_stats.latency_ms,
+                    tokens_per_second=last_stats.tokens_per_second,
+                    # A call that raised before returning stats still happened;
+                    # counting 0 would under-report the run's call budget.
+                    calls=max(calls_made, 1),
+                    prompt_tokens_total=acc_prompt_tokens,
+                    response_tokens_total=acc_response_tokens,
+                )
+
             for attempt in range(max_llm_retries):
                 try:
                     # Phase 46F: UNIVERSAL DIRECT API for ALL Ollama models
@@ -569,7 +748,11 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     # 3. Avoids Python 3.14 compatibility issues
                     # LangChain path is deprecated but preserved for potential cloud providers
                     content, stats = _invoke_ollama_direct(model, current_prompt, ollama_params, debug_llm)
-                    
+                    calls_made += 1
+                    acc_prompt_tokens += stats.prompt_tokens
+                    acc_response_tokens += stats.response_tokens
+                    last_stats = stats
+
                     if debug_llm:
                         _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
                     
@@ -584,7 +767,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                         stripped_content = content.strip()
                     
                     if stripped_content and stripped_content.strip():
-                        return content, LLMStats(retries=llm_retries, success=True, empty_content_retries=empty_content_retries)  # Return full content for logging
+                        return content, _final_stats(True)  # Return full content for logging
                     else:
                         llm_retries += 1
                         empty_content_retries += 1  # 045-H: Track empty content retries
@@ -597,22 +780,22 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                                 current_prompt += " "
                         else:
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
-                            return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries, empty_content_failure=True)
+                            return "", _final_stats(False, empty_failure=True)
                 except (ConnectionError, OSError) as e:
                     llm_retries += 1
                     _LOGGER.error(f" [LLM:Error] Connection to Ollama failed for '{model}': {e}")
                     if attempt < max_llm_retries - 1:
                         current_prompt += " "
                         continue
-                    return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
+                    return "", _final_stats(False)
                 except Exception as e:
                     llm_retries += 1
                     _LOGGER.error(f" [LLM:Error] {type(e).__name__} during call to '{model}': {e}")
                     if attempt < max_llm_retries - 1:
                         current_prompt += " "
                         continue
-                    return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
-            return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
+                    return "", _final_stats(False)
+            return "", _final_stats(False)
         
         return invoke
     # Both branches below previously returned ``lambda p: ('{"decision": 1}', LLMStats())``
@@ -664,26 +847,59 @@ def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLM
         if verbose:
             _LOGGER.debug(f"\n [LLM:Input] {provider.provider_name}:{provider.config.model} Prompt begins: {repr(prompt[:100])}...")
         
+        t0 = time.perf_counter()
         try:
             # Note: Provider handles its own internal configuration (temp, tokens)
             response = provider.invoke(prompt)
-            
-            # Map usage stats to framework standard
+            latency_ms = _elapsed_ms(t0)
+
+            # Map usage stats to framework standard. Every shipped provider
+            # (`providers/ollama.py`, `openai_provider.py`, `anthropic.py`,
+            # `gemini.py`) fills LLMResponse.usage with prompt_tokens /
+            # completion_tokens; this function used to build an empty LLMStats
+            # and drop all of it, which is the cloud-provider twin of the
+            # `create_llm_invoke` drop. `num_ctx` stays 0: a hosted provider
+            # does not report the window it used, and inventing one would make
+            # context_utilization a fabricated ratio.
+            # Guarded on its own, NOT by the catch-all below. `usage` is only
+            # annotated as a dict (providers/llm_provider.py) and a third-party
+            # provider can hand back an SDK object, or counts as strings —
+            # either of which would raise, be caught below, and turn a
+            # SUCCESSFUL model reply into `("", success=False)`, which the retry
+            # loop reads as empty content. Instrumentation must never decide
+            # whether a call succeeded.
+            try:
+                usage = getattr(response, "usage", None) or {}
+                prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
+                response_tokens = int(usage.get("completion_tokens", 0) or 0)
+            except (AttributeError, TypeError, ValueError):
+                _LOGGER.warning(
+                    " [LLM:Stats] %s returned an unreadable `usage`; the reply "
+                    "stands, token counts for this call are recorded as 0.",
+                    provider.provider_name,
+                )
+                prompt_tokens = response_tokens = 0
             stats = LLMStats(
-                retries=0, 
-                success=True
+                retries=0,
+                success=True,
+                prompt_tokens=prompt_tokens,
+                response_tokens=response_tokens,
+                latency_ms=latency_ms,
+                calls=1,
+                prompt_tokens_total=prompt_tokens,
+                response_tokens_total=response_tokens,
             )
-            
+
             if verbose:
                 _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(response.content[:200])}...")
-                
+
             return response.content, stats
         except (ConnectionError, OSError) as e:
             _LOGGER.error(f" [LLM:Error] {provider.provider_name} connection failed: {e}")
-            return "", LLMStats(retries=0, success=False)
+            return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
         except Exception as e:
             _LOGGER.error(f" [LLM:Error] {provider.provider_name} {type(e).__name__}: {e}")
-            return "", LLMStats(retries=0, success=False)
+            return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
             
     return invoke
 

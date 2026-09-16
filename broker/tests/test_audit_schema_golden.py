@@ -232,6 +232,43 @@ def test_proposed_param_columns_are_key_gated_and_sorted_after_priority():
     assert set(base_fields) - set(param_fields) == set()  # nothing dropped/reordered out
 
 
+def test_cost_columns_are_key_gated_and_sorted_after_priority():
+    """2026-09-15: the token/latency columns add EXACTLY five names and reorder
+    nothing. A trace whose stats dict predates them (every JSONL written before
+    this change, and every trace the recovery CLI replays from one) still
+    produces GOLDEN_FIELDNAMES, which is why this is additive rather than a
+    schema bump."""
+    trace = _synthetic_trace()
+    cost_trace = deepcopy(trace)
+    cost_trace["llm_stats"].update({
+        "prompt_tokens_total": 303,
+        "response_tokens_total": 404,
+        "llm_calls_total": 3,
+        "llm_latency_ms": 812.5,
+        "tokens_per_second": 41.2,
+        # JSONL-only: read by the context-budget tripwire, never projected.
+        "context_utilization_peak": 0.44,
+        "prompt_tokens_peak": 1802,
+        "num_ctx_peak": 4096,
+    })
+
+    base_fields = _fieldnames(trace)
+    cost_fields = _fieldnames(cost_trace)
+
+    assert base_fields == GOLDEN_FIELDNAMES
+    assert set(cost_fields) - set(base_fields) == {
+        "prompt_tokens_total",
+        "response_tokens_total",
+        "llm_calls_total",
+        "llm_latency_ms",
+        "tokens_per_second",
+    }
+    assert set(base_fields) - set(cost_fields) == set()
+    # Relative order of every frozen column is untouched; the five land in the
+    # alphabetical tail, exactly as `llm_calls` and `executed_skill` did.
+    assert [c for c in cost_fields if c in GOLDEN_FIELDNAMES] == GOLDEN_FIELDNAMES
+
+
 def test_schema_sidecar_matches_csv_header(tmp_path):
     writer = GenericAuditWriter(
         AuditConfig(output_dir=str(tmp_path), experiment_name="schema-golden")

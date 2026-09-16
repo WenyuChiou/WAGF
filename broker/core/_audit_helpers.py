@@ -326,6 +326,22 @@ UNOBSERVED = "unobserved"
 #: harmless (the run genuinely reported no tokens); on the ABORTED sentinel it
 #: would be a fabricated measurement of a call that DID happen, so the sentinel
 #: writes "" for each key its stats dict does not carry.
+#:
+#: The 2026-09-15 cost columns (`llm_calls_total`, `llm_latency_ms`,
+#: `tokens_per_second`, `prompt_tokens_total`, `response_tokens_total`)
+#: deliberately do NOT join this list. Those keys are KEY-GATED in
+#: `trace_to_csv_row`, so blanking an absent one here would CREATE the column on
+#: the sentinel row alone — and CSV fieldnames are the union over rows, so one
+#: sentinel would widen the header for the whole run. That is the exact failure
+#: `test_aborted_sentinel_introduces_no_new_columns` exists to catch.
+#:
+#: Leaving them out is also the honest reading, though not for the reason it
+#: would be tempting to write. A sentinel CAN lack them while its neighbours
+#: carry them — if `llm_invoke` raised on every attempt of one step, that
+#: step's dict never reached `accumulate_llm_stats`. What happens then is that
+#: `DictWriter` restval-fills the cell with "", which is the same "" this
+#: blanking would have produced. The gap is marked either way; only the header
+#: differs, and the narrower header is the correct one.
 _TOKEN_STAT_KEYS = ("prompt_tokens", "response_tokens", "num_ctx",
                     "context_utilization")
 
