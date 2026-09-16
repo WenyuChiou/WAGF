@@ -107,9 +107,68 @@ _SUSPICIOUS_COLUMN_DEFAULTS: Dict[str, Tuple[Any, ...]] = {
     # Social pipeline — quieter but same failure pattern is possible
     "social_gossip_count": (0,),
     "social_network_density": (0.0, 0),
+    # LLM cost plane. Absent from this map until 2026-09-15, which is the
+    # DIRECT reason `prompt_tokens` sat at 0 across five releases and a
+    # 3,000-test suite without one alarm: the seam that dropped the
+    # measurement was invisible, and so was its result. A real-LLM corpus
+    # whose every row reports zero tokens is the same failure shape as the
+    # 2026-04-19 memory leak this detector was built for, and it is now the
+    # same warning. (A `--model mock` corpus IS legitimately all-zero here and
+    # will warn; that is correct — such a corpus carries no token data and
+    # nothing should be averaged out of these columns.)
+    #
+    # WHICH of the five fire WHERE, because it is not all five everywhere.
+    # `detect_audit_sentinels` skips a column absent from the rows, and
+    # `accumulate_llm_stats` writes `prompt_tokens` / `response_tokens` /
+    # `context_utilization` only when tokens were reported — so on precisely
+    # the all-zero corpus these exist to catch, those three keys are ABSENT at
+    # finalize and only the two seeded timing keys raise the alarm. The alarm
+    # still fires, and the three are fully live on the CSV path
+    # (`detect_audit_sentinels_in_csv`), where every column is present. Do not
+    # read this map as proof that `prompt_tokens` is watched at finalize.
+    "prompt_tokens": (0,),
+    "response_tokens": (0,),
+    "context_utilization": (0.0, 0),
+    "llm_latency_ms": (0.0, 0),
+    "tokens_per_second": (0.0, 0),
 }
 
 _SENTINEL_MIN_ROWS = 50  # fewer than this → skip (tiny sanity runs)
+
+#: Stats keys the constancy sentinel watches that live NESTED under
+#: ``trace["llm_stats"]`` rather than at the top level of a trace.
+_NESTED_STAT_SENTINEL_KEYS = (
+    "prompt_tokens", "response_tokens", "context_utilization",
+    "llm_latency_ms", "tokens_per_second",
+)
+
+
+def _sentinel_scan_rows(traces: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Traces, with the watched ``llm_stats`` keys lifted to the top level.
+
+    ``detect_audit_sentinels`` reads ``row.get(column)``, and on a TRACE the
+    token/cost columns are one level down. Registering them in
+    ``_SUSPICIOUS_COLUMN_DEFAULTS`` without this would add five entries that
+    can never fire on a live run and would look, to the next reader, exactly
+    like coverage — the same "wired but dead" shape as the bug the columns
+    were added to fix. The CSV path (``detect_audit_sentinels_in_csv``) needs
+    no lifting: there they are already flat columns.
+
+    Shallow copies; the traces themselves are about to be serialised and must
+    not be mutated.
+    """
+    lifted: List[Dict[str, Any]] = []
+    for trace in traces:
+        stats = trace.get("llm_stats")
+        if not isinstance(stats, dict):
+            lifted.append(trace)
+            continue
+        row = dict(trace)
+        for key in _NESTED_STAT_SENTINEL_KEYS:
+            if key in stats:
+                row[key] = stats[key]
+        lifted.append(row)
+    return lifted
 
 
 def detect_audit_sentinels(
@@ -153,6 +212,27 @@ def detect_audit_sentinels(
     return warnings
 
 
+def _coerce_cell(value: Any) -> Any:
+    """A CSV cell as the typed value the placeholder tables are written in.
+
+    Numbers and booleans only; anything else is returned untouched, so a real
+    string column ("", "neutral", "unobserved") still compares as itself.
+    """
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if text in ("True", "False"):
+        return text == "True"
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        return value
+
+
 def detect_audit_sentinels_in_csv(csv_path: str, min_rows: int = _SENTINEL_MIN_ROWS) -> List[str]:
     """Convenience wrapper: read a *.csv and run detect_audit_sentinels on its rows.
 
@@ -166,8 +246,22 @@ def detect_audit_sentinels_in_csv(csv_path: str, min_rows: int = _SENTINEL_MIN_R
         df = pd.read_csv(csv_path, encoding="utf-8-sig")
         rows = df.to_dict(orient="records")
     except Exception:
+        # csv.DictReader yields STRINGS, and the placeholders in
+        # `_SUSPICIOUS_COLUMN_DEFAULTS` are typed (0, 0.0, False), so
+        # `"0" in (0,)` is False and every numeric entry in the map was dead on
+        # this branch — `mem_surprise`, `social_gossip_count`,
+        # `cog_surprise_value` and the whole cost plane. The pandas branch
+        # type-infers and never showed it, so the detector looked fine on the
+        # machine it was written on and was inert on any machine without
+        # pandas. Coercing here fixes every NUMERIC entry at once — not full
+        # parity between the branches: pandas reads an all-empty string column
+        # as NaN, which matches no placeholder, so the pandas branch still
+        # misses the all-"" case that the coerced fallback now catches.
         with open(csv_path, newline="", encoding="utf-8-sig") as fh:
-            rows = list(csv.DictReader(fh))
+            rows = [
+                {key: _coerce_cell(value) for key, value in row.items()}
+                for row in csv.DictReader(fh)
+            ]
     return detect_audit_sentinels(rows, min_rows=min_rows)
 
 
@@ -512,11 +606,29 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     row["llm_retries"] = llm_stats.get("llm_retries", t.get("llm_retries", 0))
     row["llm_success"] = llm_stats.get("llm_success", t.get("llm_success", True))
 
-    # 1.5b. R5-C: Token monitoring
+    # 1.5b. R5-C: Token monitoring. These four describe the LAST attempt of the
+    # decision that reported tokens — see `accumulate_llm_stats` in
+    # broker/utils/llm_utils.py for why per-call and not a running sum.
     row["prompt_tokens"] = llm_stats.get("prompt_tokens", 0)
     row["response_tokens"] = llm_stats.get("response_tokens", 0)
     row["num_ctx"] = llm_stats.get("num_ctx", 0)
     row["context_utilization"] = llm_stats.get("context_utilization", 0.0)
+
+    # 1.5c. Cost/latency instrumentation (2026-09-15), KEY-GATED the same way
+    # every additive column in this function is: a trace whose stats dict lacks
+    # the key derives no column, so legacy JSONL replayed through
+    # `recover_csv_from_jsonl` reproduces its original column set exactly.
+    # `llm_calls_total` counts every provider attempt behind the row (format
+    # retries, governance retries, the advisory call, and the empty-content
+    # retries inside one llm_invoke); `llm_calls` counts llm_invoke CALLS and
+    # is flag-gated, so the two differ on any decision whose provider retried
+    # internally. `llm_latency_ms` / `tokens_per_second` are the LAST attempt's
+    # and read 0.0 when the invoke path reported no timing (mock model, rule
+    # decider) — that is "not measured", not "instant".
+    for _k in ("prompt_tokens_total", "response_tokens_total",
+               "llm_calls_total", "llm_latency_ms", "tokens_per_second"):
+        if _k in llm_stats:
+            row[_k] = llm_stats.get(_k)
 
     # 1.6. Structural fault tracking (format/parsing issues fixed by retry)
     row["format_retries"] = t.get("format_retries", 0)
@@ -1005,8 +1117,18 @@ class GenericAuditWriter:
         if not isinstance(llm_stats, dict):
             llm_stats = {}
         try:
-            _pt = float(llm_stats.get("prompt_tokens") or 0)
-            _nc = float(llm_stats.get("num_ctx") or 0)
+            # Read the WIDEST attempt of the decision, not the last one. Since
+            # 2026-09-15 `prompt_tokens` is the last attempt's (so it and
+            # `num_ctx` describe one call and `context_utilization` is their
+            # true ratio); the advisory pass runs before the governance retry
+            # loop and can be the widest call, so a decision that truncated
+            # mid-way would otherwise go unwarned. `*_peak` is JSONL-only and
+            # absent from legacy traces, which then fall back to the pair that
+            # is present.
+            _pt = float(llm_stats.get("prompt_tokens_peak")
+                        or llm_stats.get("prompt_tokens") or 0)
+            _nc = float(llm_stats.get("num_ctx_peak")
+                        or llm_stats.get("num_ctx") or 0)
             if _nc > 0 and _pt / _nc > 0.9:
                 # cap at 10 so every >=100% case shares one bucket
                 _bucket = (agent_type, min(int((_pt / _nc) * 10), 10))
@@ -1272,7 +1394,8 @@ class GenericAuditWriter:
         # ALSO land in the summary so the artifact carries the evidence.
         sentinel_warnings: Dict[str, List[str]] = {}
         for agent_type, traces in self._trace_buffer.items():
-            warnings_found = detect_audit_sentinels(traces)
+            warnings_found = detect_audit_sentinels(
+                _sentinel_scan_rows(traces))
             for warning in warnings_found:
                 logger.warning(f"[Audit:{agent_type}] {warning}")
             if warnings_found:

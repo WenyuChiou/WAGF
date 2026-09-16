@@ -482,11 +482,19 @@ def test_advisory_call_failure_keeps_attempt_zero_without_a_second_call():
     assert t["advisory_skill_after"] == "increase_large"
 
 
-def test_advisory_stats_take_running_max_and_surface_failure():
+def test_advisory_stats_are_accounted_and_surface_failure():
     """WARNING regression. The advisory prompt is the LONGEST in the decision, so
-    excluding it from the context-utilisation max under-reported peak pressure on
-    exactly the decisions where advice fired; and a failed advisory call was
-    masked by attempt 0's success flag."""
+    excluding it under-reported peak pressure on exactly the decisions where
+    advice fired; and a failed advisory call was masked by attempt 0's success
+    flag.
+
+    2026-09-15 rewrite of the ASSERTIONS, not of the property. The per-call
+    columns stopped being a running sum/max (a sum of prompt tokens over three
+    attempts is not a prompt anyone sent, and it made `context_utilization`
+    disagree with `prompt_tokens / num_ctx`), so the budget claim this test
+    protects moved to `prompt_tokens_total` and the peak claim to
+    `context_utilization_peak`. Both still fail if the advisory call is
+    dropped from the accounting, which is what the test is for."""
     stats0 = SimpleNamespace(retries=0, success=True, prompt_tokens=100,
                              response_tokens=10, num_ctx=8192, context_utilization=0.10)
     stats1 = SimpleNamespace(retries=0, success=False, prompt_tokens=400,
@@ -498,8 +506,12 @@ def test_advisory_stats_take_running_max_and_surface_failure():
     eng.process_step(agent_id="A1", step_id=1, run_id="r", seed=42,
                      llm_invoke=lambda p: ("raw", next(seq)), agent_type="farmer")
     ls = writer.traces[0]["llm_stats"]
-    assert ls["prompt_tokens"] == 500, "token totals must accumulate"
-    assert ls["context_utilization"] == 0.55, "must take the running max"
+    assert ls["prompt_tokens_total"] == 500, "token totals must accumulate"
+    assert ls["response_tokens_total"] == 30
+    assert ls["llm_calls_total"] == 2, "the advisory call is a call"
+    assert ls["prompt_tokens"] == 400, "per-call columns describe ONE call"
+    assert ls["context_utilization"] == 0.55
+    assert ls["context_utilization_peak"] == 0.55, "the peak must survive"
     assert ls["llm_success"] is False, "a failed advisory call must not be masked"
 
 

@@ -24,7 +24,9 @@ raw CSV byte hashes as the data contract when nondeterministic cells are known.
 |---|---|---|---|
 | Identity and timing | `step_id`, `year`, `timestamp`, `agent_id` | `broker/components/analytics/audit.py:trace_to_csv_row` | Basic row identity. `timestamp` is wall-clock trace time. |
 | Final status | `status`, `retry_count`, `validated` | `broker/components/analytics/audit.py:trace_to_csv_row` | `status` comes from `approved_skill.status`; `validated` is final-attempt state. |
-| LLM stats | `llm_retries`, `llm_success`, `prompt_tokens`, `response_tokens`, `num_ctx`, `context_utilization` | `broker/components/analytics/audit.py:trace_to_csv_row` | Reads `trace.llm_stats` first, then legacy top-level retry fields. |
+| LLM stats | `llm_retries`, `llm_success`, `prompt_tokens`, `response_tokens`, `num_ctx`, `context_utilization` | `broker/components/analytics/audit.py:trace_to_csv_row` | Reads `trace.llm_stats` first, then legacy top-level retry fields. The four token columns describe the LAST attempt of the decision that reported tokens, so `context_utilization` equals `prompt_tokens / num_ctx` for one real call. **They read 0 on every row written before 2026-09-15** — see the cost-column row below. |
+| LLM cost — cloud caveat | `num_ctx`, `context_utilization`, `tokens_per_second` | `broker/utils/llm_utils.py:create_provider_invoke` | On a run through the `providers/` stack (OpenAI / Anthropic / Gemini / the provider-factory Ollama path) these three read 0 on EVERY row while `prompt_tokens` / `response_tokens` are real: a hosted provider reports token usage but not the context window it used, and inventing one would make `context_utilization` a fabricated ratio. The `[Audit:ContextBudget]` truncation tripwire is therefore inert on a cloud corpus. Read 0 there as "not reported", and do not compare context utilisation between a cloud arm and a direct-Ollama arm. |
+| LLM cost (key-gated, v0.10) | `prompt_tokens_total`, `response_tokens_total`, `llm_calls_total`, `llm_latency_ms`, `tokens_per_second` | `broker/components/analytics/audit.py:trace_to_csv_row` | Present only on traces written 2026-09-15 or later; a legacy trace replayed through `recover_csv_from_jsonl` derives none of them. Totals sum every attempt of the decision (format retries, governance retries, the advisory call, and the empty-content retries inside one `llm_invoke`); `llm_latency_ms` / `tokens_per_second` are the last attempt's. One floor: when an `llm_invoke` RAISES, the provider reported nothing, so that call counts as 1 attempt and its internal retries (if any) are unknowable — `llm_calls_total` can under-count there. |
 | Parse quality | `format_retries`, `parsing_warnings`, `parse_layer`, `parse_confidence`, `construct_completeness`, `raw_output` | `broker/components/analytics/audit.py:trace_to_csv_row` | `raw_output` prefers `skill_proposal.raw_output`, then top-level `raw_output`. Newlines are sanitized for CSV. |
 | Skill logic | `proposed_skill`, `final_skill`, `status` | `broker/components/analytics/audit.py:trace_to_csv_row` | `proposed_skill` is the model proposal. `final_skill` is `approved_skill.skill_name`. |
 | Rejected-row discipline | `proposed_skill`, `final_skill`, `status` | `broker/components/analytics/audit.py:trace_to_csv_row` | On `REJECTED`, `final_skill` is the BLOCKED proposal, not what executed. **What actually executed depends on the domain's `global_config.governance.on_retry_exhausted` policy**: `default` (the default) runs the registry `default_skill`, whose name is then absent from the row; `keep_proposal` runs the blocked proposal itself, in which case `final_skill` and the executed action coincide. The row alone cannot tell you which — enable `global_config.audit.corrected_status_columns` and read `execution_path` (which names the branch outright) plus `executed_skill`, or `global_config.audit.executed_skill_columns` for `executed_skill` / `executed_via_fallback` alone, or check `advise_spec_resolved`/policy in the run manifest. Analysts must remap by `status` and use executed-only discipline. |
@@ -43,7 +45,7 @@ raw CSV byte hashes as the data contract when nondeterministic cells are known.
 | World coupling | `world_*`, `world_contention_rule` | `broker/components/analytics/audit.py:trace_to_csv_row` | Key-gated. Columns appear only when `execution_result.action_context.world_delta` is present. |
 | Executed truth | `executed_skill`, `executed_via_fallback`, `execution_path` | `broker/core/skill_broker_engine.py:process_step`; `broker/core/_audit_helpers.py:_write_audit_trace` | Key-gated. `executed_skill` / `executed_via_fallback` appear under `global_config.audit.executed_skill_columns` **or** `global_config.audit.corrected_status_columns`; `execution_path` under the latter only. See "Corrected status columns" below. |
 | Field ordering | all CSV columns | `broker/components/analytics/audit.py:compute_csv_fieldnames` | Priority columns first, construct columns sorted, remaining columns alphabetical. |
-| Schema sidecar | `fieldnames`, `audit_schema_version`, `git_commit_short`, `row_count`, `corrected_status_columns` | `broker/components/analytics/audit.py:GenericAuditWriter._export_csv` | Sidecar fieldnames must match the CSV header exactly. `audit_schema_version` is `"2"` for the flag-OFF column set and `"3"` for the corrected one. `corrected_status_columns: true` appears only when the flag was ON; its ABSENCE means OFF (a flag-OFF sidecar is byte-identical to a pre-v0.7 one). |
+| Schema sidecar | `fieldnames`, `audit_schema_version`, `git_commit_short`, `row_count`, `corrected_status_columns` | `broker/components/analytics/audit.py:GenericAuditWriter._export_csv` | Sidecar fieldnames must match the CSV header exactly. `audit_schema_version` is `"2"` for the flag-OFF column set and `"3"` for the corrected one. **`"2"` no longer identifies ONE column set**: a run from 2026-09-15 (v0.10) on emits five more columns (the LLM cost group) under the same stamp, because they are additive and key-gated rather than a schema change. Read the sidecar's explicit `fieldnames`, never the version number, when the question is which columns a corpus has. `corrected_status_columns: true` appears only when the flag was ON; its ABSENCE means OFF (a flag-OFF sidecar is byte-identical to a pre-v0.7 one). |
 
 ## Stable Column Inventory
 
@@ -99,6 +101,8 @@ trace covers the standard audit projection.
 | `demo_anchors` | reasoning | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `demo_score` | reasoning | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `error_messages` | validation failures | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `llm_calls_total` | LLM cost (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `llm_latency_ms` | LLM cost (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `llm_retries` | LLM stats | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `llm_success` | LLM stats | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `mem_retrieval_mode` | memory | `broker/components/analytics/audit.py:trace_to_csv_row` |
@@ -107,15 +111,18 @@ trace covers the standard audit projection.
 | `num_ctx` | LLM stats | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `parsing_warnings` | parse quality | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `prompt_tokens` | LLM stats | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `prompt_tokens_total` | LLM cost (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `raw_output` | parse quality | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `reason_budget_util` | reasoning | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `reason_plain_text` | reasoning | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `reason_plan_gap` | reasoning | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `reason_threat_label` | reasoning | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `response_tokens` | LLM stats | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `response_tokens_total` | LLM cost (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `social_network_density` | social | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `social_request_upgrade_neighbors` | social | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `timestamp` | identity | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `tokens_per_second` | LLM cost (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `warning_messages` | validation warnings | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `warning_rules` | validation warnings | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `world_<key>` | world coupling | `broker/components/analytics/audit.py:trace_to_csv_row` |
@@ -166,6 +173,50 @@ artifact by design. Nothing repairs an existing corpus in place.
 | `mem_top_emotion`, `mem_top_source` | Per-row summary of the retrieved memories' dominant emotion/source. | In corpora where the upstream memory dict never populates real `emotion`/`source` values, this is the constant placeholder `"neutral"` / `"personal"` on every row, not a computed summary. | `broker/core/_audit_helpers.py`'s `_write_audit_trace` builds `memory_audit["memories"]` via `memory.get("emotion", "neutral")` and `memory.get("source", "personal")`; `broker/components/analytics/audit.py`'s `trace_to_csv_row` then takes the mode of those values. If the upstream memory records never carry real `emotion`/`source` keys, the default is what gets aggregated, indistinguishable in the CSV from a genuine unanimous mode. This is the same failure class the 2026-04-19 NW flood post-mortem documented (`broker/INVARIANTS.md` Invariant 2, born from this exact incident) and the reason `_SUSPICIOUS_COLUMN_DEFAULTS` in `audit.py` flags these two columns for sentinel-constancy detection. | Fixed under `audit.corrected_status_columns=true` from v0.7: an absent `emotion`/`source` key is written as `"unobserved"`, which no analysis can mistake for a unanimous observation. Observed values are untouched, so a run whose memory records carry real values reads identically under both settings. Otherwise mitigated only: `detect_audit_sentinels` / `AuditWriter.finalize()` WARN on suspicious constancy, but do not repair historical rows. Check the run's sentinel warnings (or `audit_summary.json`) before trusting these two columns for any given corpus. |
 | Row-count parity between arms | Two experiment arms with the same agent/year/seed grid are expected to produce the same number of CSV rows. | Not guaranteed. A step whose LLM output fails to parse after retries returns `SkillOutcome.ABORTED` directly (`broker/core/skill_broker_engine.py`, the early return right after `_invoke_llm_with_retries`), before the function reaches its single `_write_audit_trace` call site later in the same method. An ABORTED step is therefore never written to the JSONL trace or the CSV. | Verified structurally: `_write_audit_trace` has exactly one call site in `skill_broker_engine.py`, and the ABORTED branch `return`s before reaching it. So an arm with more parse failures than the other silently has fewer audit rows, not more ABORTED rows — the asymmetry is invisible unless you cross-check row counts against the expected agent x year x seed grid. | Fixed under `audit.corrected_status_columns=true` from v0.7: the ABORTED branch emits a sentinel row (`status=ABORTED`, `executed_skill` empty, `execution_path=aborted`) before returning, so the count is conserved and the failure is visible rather than absent. `run_integrity.json` additionally records `audit_rows` / `audit_aborted_rows` / `audit_grid_rows` on every run, flag or no flag. For corpora without the flag, cross-check CSV row counts against the expected grid before comparing rejection/rate statistics between arms; do not assume equal row counts imply equal step counts. |
 
+## The token columns read 0 in every corpus before 2026-09-15
+
+`prompt_tokens`, `response_tokens`, `num_ctx` and `context_utilization` are 0 on
+**every row of every audit CSV released before 2026-09-15**, whatever model
+produced it. Not "small", not "sometimes" — structurally 0, including runs where
+a 16k-context prompt was genuinely sent and answered.
+
+**Mechanism (verified).** `broker/utils/llm_utils.py::_invoke_ollama_direct` has
+read Ollama's `prompt_eval_count` / `eval_count` into an `LLMStats` since R5-C,
+and the governance retry loop has had code to fold them into the trace for just
+as long. Between the two sat the retry wrapper that `create_llm_invoke` returns:
+on success it built a **fresh** `LLMStats` carrying only the retry counters and
+returned that instead of the one the call produced. The loop's guard
+(`if llm_stats_obj.prompt_tokens > 0`) therefore never fired, the keys never
+entered `llm_stats`, and `trace_to_csv_row` wrote its 0 / 0.0 defaults. Every
+frame read correctly in isolation, which is why five green releases shipped over
+it.
+
+**Consequences for existing corpora.** Nothing repairs them; the numbers were
+never captured, so they are not recoverable from the JSONL either. Do not report
+token counts, context utilisation or per-call cost from any corpus predating
+this fix, and do not read a 0 as "short prompt". The one live guard that
+depended on the column — the `[Audit:ContextBudget]` tripwire that warns when a
+prompt approaches `num_ctx` — was silently inert for the same reason, so no run
+before this date was ever checked for prompt-head truncation.
+
+**Fixed from 2026-09-15 (v0.10), no flag.** The wrapper now carries the
+measurement through, and `broker/utils/llm_utils.py::accumulate_llm_stats` is
+the single place the four per-call columns and the five new cost columns are
+folded into a row. Reruns from this version on:
+
+* fill the four token columns with real values on a real-LLM run (`--model mock`
+  still writes 0 — there is no provider to report anything);
+* gain the five key-gated cost columns on **every** row, mock runs included;
+* are byte-identical to a pre-fix mock rerun in every other column — verified on
+  the flood and irrigation mock recipes, whose normalised content matches
+  exactly once the five new columns are removed.
+
+A rerun meant to reproduce a pre-v0.10 corpus byte-for-byte will therefore
+differ: by five added columns on any run, and by the four token columns on a
+real-LLM run. That is the fix working, not drift — but pin the commit in the
+directory name, as the repo convention requires, so the two eras stay
+distinguishable.
+
 ## Corrected status columns (`audit.corrected_status_columns`, v0.7)
 
 Setting `global_config.audit.corrected_status_columns: true` makes the audit
@@ -210,9 +261,13 @@ empty string, never a zero, into every field it did not measure. Which
 fields those are depends on what the retry loop had accumulated before the
 abort: `llm_success`, `llm_retries`, `prompt_tokens`, `response_tokens` and
 `num_ctx` carry REAL values whenever the stats dict holds them (the retry
-loop seeds the first two and accumulates the token counts), and are `""`
-only for keys the stats dict lacks; `context_utilization` and `mem_surprise`
-are always `""` on a sentinel row. So a `True` in `llm_success` does not
+loop seeds the first two and records the token counts of the last attempt
+that reported any), and are `""` only for keys the stats dict lacks;
+`context_utilization` and `mem_surprise` are always `""` on a sentinel row.
+The five cost columns are NOT blanked this way — they are key-gated, so
+writing `""` for an absent one would create the column on the sentinel row
+alone and widen the header for the whole run; when the retry loop ran at all
+it wrote them, so an aborted step carries its real counts. So a `True` in `llm_success` does not
 prove a row is not a sentinel — use `status` / `execution_path` for that. A
 zero in any of these would be a fabricated measurement of a call that did
 happen, and it would silently drag any mean computed over the column.
@@ -576,12 +631,16 @@ nothing falls back to that decider's declared default path.
 same context build, the same validators, the same governance retry loop and the
 same execution as an LLM row — that is the point of the column existing at all.
 What differs is the call that never happened: `llm_retries` reads `0`,
-`llm_success` reads `True`, the token columns are absent or zero, and
+`llm_success` reads `True`, the token and cost columns are zero (`llm_calls_total`
+is the exception — see below), and
 `parse_layer` reads `decider:<name>` rather than a parser route. Two more
 belong on that list and are easy to miss. `llm_calls` reads **`1`**, not `0`:
 the retry loop increments it as soon as the decider callable returns, before it
 inspects what came back, so a rule-answered row counts as one call and summing
-the column overstates model usage by exactly the number of such rows. The
+the column overstates model usage by exactly the number of such rows.
+`llm_calls_total` reads `1` on such a row for the same reason and carries the
+same warning; `llm_latency_ms` reads `0.0`, which here means "no provider call
+was timed", not "the call was instant". The
 `mem_*` family (`mem_top_source`, `mem_top_score`, ...) describes a retrieval
 that genuinely happened — the context build is identical for every decider,
 which is what keeps the arms comparable — but that nothing consumed, because a
@@ -786,9 +845,10 @@ evidence and document the schema era in any paper or replication package.
 | 3 | Treat JSONL as canonical for raw text, validator metadata, and internals. |
 | 4 | Use CSV for flat final-action, final-status, retry, rule-union, and construct analyses. |
 | 5 | Exclude reserved/dead columns from statistical analysis. |
+| 5a | Before reporting ANY token, cost or context-utilisation figure, check whether the corpus predates 2026-09-15 (v0.10). If it does, the four token columns are structurally 0 and the five cost columns are absent — see "The token columns read 0 in every corpus before 2026-09-15" above. There is no repair and no recovery from the JSONL. |
 | 5b | Check the sidecar for `corrected_status_columns`. When absent, apply the known-limitation table above before reading `fallback_activated`, `rules_*_hit`, `mem_top_*`, or any row count. When present, read `executed_skill` (not `final_skill`) for executed-only analysis. |
 | 5c | Check `run_integrity.json` → `audit_coverage.parse_layer_digit_share`. A non-trivial digit share on a corpus produced without `parsing.strict_layers` means some `parse_confidence=0.95` rows were decided by a stray digit, not a clean JSON parse — see "Parsing hardening" above. |
-| 5d | If the CSV carries a `decider` column, the run held a mixed population. Group by it before averaging ANY LLM statistic (`llm_retries`, `llm_success`, `llm_calls`, the token columns) — rows a rule produced could not retry, had no call to succeed, and still count `llm_calls: 1`, so pooling them dilutes the model arm's rates and overstates its call budget. Cross-check the composition against `run_integrity.json` → `decider_rows`, and check `decider_arms_with_zero_rows`, `rule_default_rows` and `rule_field_unresolved` before treating any rule-based arm as a model of anything: an arm whose every row is `rule_default` is a constant. |
+| 5d | If the CSV carries a `decider` column, the run held a mixed population. Group by it before averaging ANY LLM statistic (`llm_retries`, `llm_success`, `llm_calls`, `llm_calls_total`, `llm_latency_ms`, the token columns) — rows a rule produced could not retry, had no call to succeed, and still count `llm_calls: 1`, so pooling them dilutes the model arm's rates and overstates its call budget. Cross-check the composition against `run_integrity.json` → `decider_rows`, and check `decider_arms_with_zero_rows`, `rule_default_rows` and `rule_field_unresolved` before treating any rule-based arm as a model of anything: an arm whose every row is `rule_default` is a constant. |
 | 6 | For recovered artifacts, cite that `recover_csv_from_jsonl` shares `trace_to_csv_row` with the live writer. |
 
 ## Derived artifact: `ablation_samples.csv`
