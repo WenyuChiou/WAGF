@@ -21,6 +21,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
@@ -117,6 +118,38 @@ def _engine():
     return engine, writer
 
 
+def _install_fake_ollama(monkeypatch):
+    """Satisfy ``create_llm_invoke``'s langchain gate without langchain.
+
+    `langchain-ollama` is an OPTIONAL runtime dependency and the "Tests (no
+    LLM)" CI job deliberately does not install it, so a test that reaches
+    `create_llm_invoke("gemma3:4b")` for real dies in the fixture with
+    `RuntimeError: Cannot construct an LLM for model 'gemma3:4b'`.
+
+    Stubbing it costs nothing in coverage: on the Ollama-direct path the
+    constructed `ChatOllama` / `OllamaLLM` object is never touched again —
+    `invoke` calls `_invoke_ollama_direct` and nothing else — so the import is
+    a GATE, not a collaborator. Everything these tests assert on (parameter
+    building, the `invoke` closure, its retry accounting, `_invoke_ollama_direct`,
+    `_final_stats`) is the real code.
+
+    Installed unconditionally, not only when the import would fail: a test that
+    exercises one code path on CI and a different one on a developer box is how
+    a green suite stops meaning anything. Same shape as
+    `broker/tests/test_cloud_provider_routing.py::_install_fake_ollama`.
+    """
+    fake = ModuleType("langchain_ollama")
+
+    class _FakeOllama:
+        def __init__(self, model, **params):
+            self.model = model
+            self.params = params
+
+    fake.ChatOllama = _FakeOllama
+    fake.OllamaLLM = _FakeOllama
+    monkeypatch.setitem(sys.modules, "langchain_ollama", fake)
+
+
 @pytest.fixture()
 def ollama_invoke(monkeypatch):
     """A real ``create_llm_invoke`` function whose HTTP call is faked."""
@@ -124,9 +157,9 @@ def ollama_invoke(monkeypatch):
 
     from broker.utils import llm_utils
 
+    _install_fake_ollama(monkeypatch)
     monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResponse())
-    # ChatOllama/OllamaLLM construction must not need a live server; it does not
-    # contact one, but pin the params so the recorded num_ctx is predictable.
+    # Pin the context window so the recorded num_ctx is predictable.
     monkeypatch.setattr(llm_utils.LLM_CONFIG, "num_ctx", 4096)
     return llm_utils.create_llm_invoke("gemma3:4b")
 
