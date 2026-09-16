@@ -154,6 +154,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   healthy on the machine it was written on and was inert on any machine without
   pandas. Cells are coerced before the membership test.
 
+### Changed
+
+- irrigation: physics doc corrected (no 12 MAF Powell ceiling in code), README validator count clarified (compact_allocation_check inactive), new docs/irrigation_model_caveats.md with the ten Methods/SI caveats from the 2026-09-16 model review, centroid provenance note, UB group-count assertion.
+
 ### Fixed
 
 - **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
