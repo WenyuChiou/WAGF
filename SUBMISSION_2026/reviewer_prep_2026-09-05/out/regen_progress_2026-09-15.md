@@ -460,3 +460,68 @@ Review trail: r23 script + outputs reviewed by a sonnet code-reviewer in two
 rounds (round 1 REQUEST CHANGES: the .md had been hand-written with wrong
 per-seed cells; round 2 APPROVE after the .md became a script output
 rendered from the CSV rows, 0 cell mismatches, deterministic re-run).
+
+
+# 2026-09-17 update — flood DISABLED (no-validator) arm regenerated; governed-vs-ungoverned contrast checked on both corpora
+
+Full tables: `out/r24_flood_contrast_regen.md` (rendered by
+`scripts/r24_flood_contrast_regen.py` from the same rows as
+`out/r24_flood_contrast_regen.csv`; imports r23's per-run metric code).
+Runs: `examples/single_agent/results/JOH_disabled_gemma3_4b_faf1bb12/
+Run_{42..46}`, `--workers 1`, `--thinking-mode disabled`; every row
+APPROVED (no validator), `llm_success==False` count 0 on all five seeds,
+0.79–0.97 h per run. Queue log: QUEUE_END 2026-09-17 02:26.
+
+## (1) Disabled arm — band check (new 5-seed mean vs old mean ± 2·sd(old), ddof=1): 3 of 4 inside
+
+| metric | old mean ± sd | new mean ± sd | band | verdict |
+|---|---:|---:|---|:---:|
+| IBR unconditional (%) | 7.412 ± 0.761 | 8.912 ± 0.722 | [5.891, 8.933] | PASS |
+| IBR tp_not_medium (%) | 14.218 ± 0.772 | 17.268 ± 0.824 | [12.675, 15.761] | **FAIL** |
+| IBR tp_high (%) | 22.560 ± 3.640 | 20.935 ± 1.548 | [15.280, 29.841] | PASS |
+| EHE pooled simlog | 0.786 ± 0.040 | 0.863 ± 0.030 | [0.707, 0.865] | PASS |
+| Rejection / retry rate (%) | 0 / 0 | 0 / 0 | no band (old all zero) | n.a. |
+
+**Not baselined, stated as found.** The new no-validator arm is more
+appraisal-inconsistent than the old one under the threat-relevant
+conditioning: tp_not_medium IBR is higher on every seed (+1.5 to +4.9 pp;
+new 17.27 % vs old 14.22 %, band upper 15.76 %). Unconditional IBR (8.91 %)
+and EHE (0.863) sit just inside their upper bounds. The old band is narrow
+because the old arm's between-seed sd was 0.77 pp. Two known vintage
+differences between the corpora are candidate explanations and are
+recorded rather than tested here: (i) the old no-validator arm mixes two
+Feb-2026 runs (mean injected memory 876 and 902 chars) with three
+May-2026 backfilled runs (1036 to 1085 chars), per r16, so the old arm is
+not one vintage; (ii) the new corpus runs at faf1bb12 with the
+per-agent RNG keying and the timeout floor. The old seeds for this arm are
+literally {42..46} (r4's 4202/4203 columns are empty for arm=ungoverned),
+so this is a same-seed comparison.
+
+## (2) Governed-vs-ungoverned contrast (ungoverned − governed), NEW corpus (paired by seed) vs OLD corpus (paired by run position)
+
+| metric | NEW Δ ± sd | NEW p (paired t, df 4) | NEW all 5 signs agree | OLD Δ ± sd | OLD p | OLD all 5 signs agree |
+|---|---:|---:|:---:|---:|---:|:---:|
+| IBR unconditional (%) | 8.124 ± 0.543 | < 0.0001 | yes | 6.544 ± 0.915 | 0.0001 | yes |
+| IBR tp_not_medium (%) | 15.645 ± 0.654 | < 0.0001 | yes | 12.615 ± 1.450 | < 0.0001 | yes |
+| IBR tp_high (%) | 18.731 ± 2.179 | < 0.0001 | yes | 20.050 ± 2.410 | < 0.0001 | yes |
+| EHE pooled simlog | 0.003 ± 0.023 | 0.752 | no | −0.075 ± 0.072 | 0.079 | no |
+| Rejection rate (%) | −0.882 ± 0.462 | 0.013 | yes | −1.071 ± 1.060 | 0.087 | yes |
+| Retry rate (%) | −8.727 ± 1.467 | 0.0002 | yes | −8.357 ± 3.823 | 0.008 | yes |
+
+Exact permutation p is at the n=5 floor (0.0625) wherever all five signs
+agree. The OLD-corpus contrast is cross-checked at runtime against r7's
+`run_index_n5_published` rows (tolerance 5e-4; IBR ×3 and EHE all match).
+
+## Read
+
+The published flood story is the contrast, and it reproduces on the new
+corpus with the same sign on every seed and a larger effect (unconditional
+IBR gap 8.1 pp vs 6.5 pp). EHE does not differ between arms in either
+corpus. What did not reproduce at the pre-registered tolerance is one
+absolute level of the no-validator arm (tp_not_medium IBR), which is
+reported above and will be disclosed in Methods/SI alongside the
+irrigation and flood strict-arm band checks, all of which passed.
+
+Review trail: r24 reviewed by the same sonnet code-reviewer as r23
+(APPROVE; band arithmetic, seed-44 IBR, paired t and permutation p, r7
+cross-check, md-vs-CSV 0 mismatches, deterministic re-run all verified).
