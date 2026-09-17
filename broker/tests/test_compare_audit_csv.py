@@ -15,8 +15,10 @@ from pathlib import Path
 import pytest
 
 from broker.tools.compare_audit_csv import (
+    _VOLATILE_COLUMN_NAMES,
     _sort_set_repr_in_cell,
     _timestamp_columns,
+    _volatile_columns,
     compare,
     main,
     normalise_rows,
@@ -186,3 +188,95 @@ class TestCLI:
         captured = capsys.readouterr()
         assert rc == 2
         assert "file not found" in captured.err
+
+
+class TestVolatileColumns:
+    """Elapsed-time columns (2026-09-15).
+
+    Every other transform in this module has a test class; without one a rename
+    or typo in `_VOLATILE_COLUMN_NAMES` silently reverts to comparing raw
+    milliseconds, and every real-LLM byte-identity check then fails for a reason
+    that has nothing to do with the simulation, with nothing to say so.
+    """
+
+    def test_the_named_columns_are_found(self):
+        header = ["step_id", "llm_latency_ms", "timestamp", "tokens_per_second"]
+        assert _volatile_columns(header) == [1, 3]
+
+    def test_lookup_is_case_insensitive_and_whitespace_tolerant(self):
+        assert _volatile_columns([" LLM_Latency_MS "]) == [0]
+
+    def test_unrelated_columns_are_untouched(self):
+        assert _volatile_columns(["prompt_tokens", "llm_retries"]) == []
+
+    def test_the_names_match_what_the_audit_writer_emits(self):
+        """Guards against the column being renamed on one side only."""
+        from broker.components.analytics.audit import trace_to_csv_row
+
+        row = trace_to_csv_row({
+            "step_id": 1,
+            "approved_skill": {"skill_name": "x", "status": "APPROVED"},
+            "llm_stats": {"llm_latency_ms": 12.5, "tokens_per_second": 4.0},
+        })
+        for name in _VOLATILE_COLUMN_NAMES:
+            assert name in row, (
+                f"{name} is normalised as volatile but is not a column the "
+                f"audit writer emits — one side was renamed"
+            )
+
+    def test_two_runs_differing_only_in_timing_compare_identical(self, tmp_path, capsys):
+        header = ["step_id", "final_skill", "llm_latency_ms", "tokens_per_second"]
+        left, right = tmp_path / "l.csv", tmp_path / "r.csv"
+        _write_csv(left, header, [["1", "elevate", "812.5", "41.2"]])
+        _write_csv(right, header, [["1", "elevate", "903.1", "38.7"]])
+        assert compare(left, right) == 0
+        assert "IDENTICAL" in capsys.readouterr().out
+
+    def test_a_real_difference_beside_timing_still_fails(self, tmp_path):
+        header = ["step_id", "final_skill", "llm_latency_ms"]
+        left, right = tmp_path / "l.csv", tmp_path / "r.csv"
+        _write_csv(left, header, [["1", "elevate", "812.5"]])
+        _write_csv(right, header, [["1", "relocate", "903.1"]])
+        assert compare(left, right) == 1
+
+
+class TestIgnoreColumns:
+    """`--ignore-columns`, added with the v0.10 cost columns.
+
+    A corpus frozen before a schema addition has a narrower header, so the
+    header check fails outright and there is otherwise no way to re-verify that
+    corpus once the addition lands.
+    """
+
+    def test_a_frozen_corpus_verifies_against_a_wider_current_run(self, tmp_path, capsys):
+        old_csv, new_csv = tmp_path / "frozen.csv", tmp_path / "current.csv"
+        _write_csv(old_csv, ["step_id", "final_skill"], [["1", "elevate"]])
+        _write_csv(new_csv, ["step_id", "final_skill", "llm_calls_total"],
+                   [["1", "elevate", "6"]])
+        assert compare(old_csv, new_csv) == 1  # header mismatch without the flag
+        assert compare(old_csv, new_csv, drop_columns=["llm_calls_total"]) == 0
+        assert "ignoring ['llm_calls_total']" in capsys.readouterr().out
+
+    def test_the_result_line_says_what_was_ignored(self, tmp_path, capsys):
+        """A comparison that dropped columns is a weaker claim than one that did
+        not, so the output has to say which it is."""
+        p1, p2 = tmp_path / "a.csv", tmp_path / "b.csv"
+        _write_csv(p1, ["step_id", "x"], [["1", "9"]])
+        _write_csv(p2, ["step_id", "x"], [["1", "9"]])
+        compare(p1, p2, drop_columns=["x"])
+        assert "ignoring ['x']" in capsys.readouterr().out
+
+    def test_dropping_hides_a_difference_only_in_the_named_column(self, tmp_path):
+        p1, p2 = tmp_path / "a.csv", tmp_path / "b.csv"
+        _write_csv(p1, ["step_id", "x", "y"], [["1", "9", "same"]])
+        _write_csv(p2, ["step_id", "x", "y"], [["1", "8", "same"]])
+        assert compare(p1, p2) == 1
+        assert compare(p1, p2, drop_columns=["x"]) == 0
+        assert compare(p1, p2, drop_columns=["y"]) == 1
+
+    def test_cli_parses_the_comma_list(self, tmp_path, capsys):
+        p1, p2 = tmp_path / "a.csv", tmp_path / "b.csv"
+        _write_csv(p1, ["step_id", "x", "y"], [["1", "9", "7"]])
+        _write_csv(p2, ["step_id", "x", "y"], [["1", "8", "6"]])
+        assert main([str(p1), str(p2)]) == 1
+        assert main([str(p1), str(p2), "--ignore-columns", "x, y"]) == 0

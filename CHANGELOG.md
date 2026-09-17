@@ -86,7 +86,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `examples/single_agent/analysis/check_run_integrity.py` flags a pair of
   compared runs whose `coupling_contract_active` disagree.
 
+- **Five additive audit columns for LLM cost and latency**
+  (`prompt_tokens_total`, `response_tokens_total`, `llm_calls_total`,
+  `llm_latency_ms`, `tokens_per_second`): what a decision cost was not
+  answerable from the audit plane at all — there was a per-decision `timestamp`
+  but no per-call duration, and no attempt count outside the flag-gated
+  `llm_calls`. The two `*_total` columns sum every attempt of the decision
+  (format retries, governance retries, the advisory call, and the empty-content
+  retries inside one `llm_invoke`, which `llm_calls` cannot see). `llm_calls_total`
+  counts those attempts. `llm_latency_ms` is wall clock around the provider
+  request on the final attempt, and `tokens_per_second` is
+  `eval_count / eval_duration` from Ollama's own reply — generation-only, so it
+  is comparable across models in a way `response_tokens / latency` is not.
+  Key-gated like every additive column here: a trace whose stats dict lacks the
+  key derives no column, so JSONL written before this change replays through
+  `recover_csv_from_jsonl` with its original header, `AUDIT_SCHEMA_VERSION`
+  stays `"2"`, and the golden fieldname test is unchanged. New runs DO carry all
+  five on every row, mock runs included, so a rerun intended to reproduce a
+  pre-v0.10 corpus byte-for-byte will differ by exactly these five columns —
+  verified on both mock recipes (flood `--agents 5 --years 3 --seed 42
+  --governance-mode strict`, irrigation `--agents 4 --years 3 --seed 42
+  --governance-mode strict`, `PYTHONHASHSEED=0`): normalised content is
+  byte-identical to the pre-change tree in every other column, and the mock path
+  writes a constant `0.0` latency so mock reruns stay reproducible.
+  `broker.tools.compare_audit_csv` now normalises `llm_latency_ms` and
+  `tokens_per_second` the way it already normalised wall-clock timestamps, so a
+  real-LLM byte-identity check does not fail on how many milliseconds the hour
+  cost.
+
+- **`compare_audit_csv --ignore-columns A,B,C`**: a corpus frozen before a
+  schema addition has a narrower header, and the tool fails outright on header
+  inequality — so once additive columns land there is no way to re-verify the
+  frozen corpus, and the next person does it by hand-editing CSVs, which is how
+  provenance dies. The flag drops the named columns from BOTH sides, and the
+  result line names what was dropped, because a comparison that ignored columns
+  is a weaker claim than one that did not. Verifying a pre-v0.10 corpus against
+  a current run:
+  `--ignore-columns prompt_tokens_total,response_tokens_total,llm_calls_total,llm_latency_ms,tokens_per_second`
+  — which is how the byte-identity evidence for this change was produced
+  (flood and irrigation mock recipes, IDENTICAL both ways).
+
+- **The constancy sentinel now watches the LLM cost plane**
+  (`_SUSPICIOUS_COLUMN_DEFAULTS` in `broker/components/analytics/audit.py`):
+  `prompt_tokens`, `response_tokens`, `context_utilization`, `llm_latency_ms`,
+  `tokens_per_second`. Their absence from that map is the DIRECT reason the
+  all-zero corpus survived five releases — the detector built after the
+  2026-04-19 memory-pipeline leak was watching the memory columns and nothing
+  else, so a token column pinned at 0 across an entire real-LLM run raised
+  nothing. The live call site passes TRACES, where these live nested under
+  `llm_stats`, so registering them alone would have added five entries that
+  could never fire and would read, to the next person, exactly like coverage;
+  `_sentinel_scan_rows` lifts the keys first. A `--model mock` corpus is
+  legitimately all-zero here and will warn, which is the right reading: such a
+  corpus carries no token data and nothing should be averaged out of those
+  columns. Note which of the five fire WHERE: `detect_audit_sentinels` skips a
+  column absent from the rows, and the three token keys are written only when
+  tokens were reported — so at finalize, on exactly the all-zero corpus, the
+  alarm is raised by the two seeded timing keys, and all five are live on the
+  CSV path where every column is present.
+
+- **`detect_audit_sentinels_in_csv` could not match a numeric placeholder
+  without pandas**: the `csv.DictReader` fallback yields strings while the
+  placeholder tables are typed, so `"0" in (0,)` was False and EVERY numeric
+  entry in the map was dead on that branch — `mem_surprise`,
+  `social_gossip_count`, `cog_surprise_value`, and the five cost columns above.
+  The pandas branch type-infers and never showed it, so the detector looked
+  healthy on the machine it was written on and was inert on any machine without
+  pandas. Cells are coerced before the membership test.
+
 ### Fixed
+
+- **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
+  the retry wrapper threw the measurement away one frame above where it was
+  taken**: `prompt_tokens`, `response_tokens`, `num_ctx` and
+  `context_utilization` read 0 on every row of every corpus this repo has ever
+  produced. `broker/utils/llm_utils.py::_invoke_ollama_direct` has parsed
+  Ollama's `prompt_eval_count` / `eval_count` into an `LLMStats` since R5-C, and
+  `broker/core/_retry_loop.py` has had code to fold them into the trace for just
+  as long. Between them sat the retry wrapper `create_llm_invoke` returns: its
+  success path built a **fresh** `LLMStats` carrying only the retry counters and
+  returned that instead of the one the call produced, so the loop's guard
+  (`if llm_stats_obj.prompt_tokens > 0`) never fired, the keys never reached
+  `llm_stats`, and `trace_to_csv_row` wrote its defaults. Every frame was
+  correct read on its own; only the seam was wrong, which is why the zeros
+  survived five releases and a 3,882-test suite. The wrapper now carries the
+  per-call measurement through (and sums the tokens of its own empty-content
+  retries), and the same drop is closed on the cloud path — `create_provider_invoke`
+  discarded `LLMResponse.usage`, which every shipped provider fills.
+  A live guard was inert for the same reason: the `[Audit:ContextBudget]`
+  tripwire that warns when a prompt approaches `num_ctx` reads `prompt_tokens`,
+  so no run before this change was ever checked for prompt-head truncation. It
+  now fires, and reads the WIDEST attempt of the decision rather than the last
+  one (`prompt_tokens_peak` / `num_ctx_peak`, JSONL-only, no CSV column),
+  because the advisory pass runs BEFORE the governance retry loop and its prompt
+  — header plus rule text — can be the widest call of the decision.
+
+- **`prompt_tokens` / `response_tokens` / `num_ctx` / `context_utilization` are
+  now the LAST attempt's, not a running sum with a running max**: a sum of the
+  prompt tokens of three attempts is not a prompt anyone sent, and it made
+  `context_utilization` (a max) disagree with `prompt_tokens / num_ctx` on the
+  same row — so the ratio the tripwire computed would have been the sum of a
+  decision's attempts over one window. The four are per-call measurements and
+  now read as such. **No released value changes**, because every released value
+  in these columns is 0. The budget question moved to the new `*_total` columns
+  below; `broker/utils/llm_utils.py::accumulate_llm_stats` is now the single
+  place all of this arithmetic lives, replacing four near-identical copies in
+  `_retry_loop.py` (x2) and `_advise_pass.py` (x2) that had already drifted
+  apart in their `getattr` handling.
 
 - **Irrigation magnitude sampling raced under `--workers N`: which agent got
   which draw was decided by thread scheduling**:

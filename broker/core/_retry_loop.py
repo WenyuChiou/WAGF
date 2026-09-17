@@ -33,6 +33,7 @@ from typing import Callable, Dict, List, Optional
 from ..interfaces.skill_types import (
     SkillProposal, InterventionReport, ValidationResult,
 )
+from ..utils.llm_utils import accumulate_llm_stats
 from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
 
@@ -57,6 +58,23 @@ class RetryMixin:
         format_retry_count = 0
         max_initial_attempts = 2
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
+        # 2026-09-15 cost columns, SEEDED rather than created on first use. The
+        # five are one era marker — an analyst dates a corpus by whether the
+        # header carries them — so a decision must never publish some of them
+        # and not others. Creating them inside accumulate_llm_stats did exactly
+        # that: a step whose llm_invoke returns a bare string (still supported,
+        # see broker/agents/deciders.py) or raises on every attempt reached only
+        # the llm_calls_total line, and the row carried one of the five while
+        # its neighbours carried all five. Seeding touches new runs only —
+        # trace_to_csv_row stays key-gated, so legacy JSONL replayed through
+        # recover_csv_from_jsonl still derives no column.
+        total_llm_stats.update({
+            "prompt_tokens_total": 0,
+            "response_tokens_total": 0,
+            "llm_calls_total": 0,
+            "llm_latency_ms": 0.0,
+            "tokens_per_second": 0.0,
+        })
         # P0-1c: per-decision LLM call counter. Sample-matching between the advise
         # and placebo arms is the load-bearing assumption of the whole decomposition,
         # so it is MEASURED per row, not asserted in the Methods. Seeded only when the
@@ -91,16 +109,9 @@ class RetryMixin:
                     raw_output, llm_stats_obj = res
                     total_llm_stats["llm_retries"] += llm_stats_obj.retries
                     total_llm_stats["llm_success"] = llm_stats_obj.success
-                    # R5-C: Accumulate token counts across retries
-                    if getattr(llm_stats_obj, 'prompt_tokens', 0) > 0:
-                        total_llm_stats["prompt_tokens"] = total_llm_stats.get("prompt_tokens", 0) + llm_stats_obj.prompt_tokens
-                        total_llm_stats["response_tokens"] = total_llm_stats.get("response_tokens", 0) + llm_stats_obj.response_tokens
-                        total_llm_stats["num_ctx"] = llm_stats_obj.num_ctx
-                        # Keep the highest context utilization across calls
-                        total_llm_stats["context_utilization"] = max(
-                            total_llm_stats.get("context_utilization", 0.0),
-                            round(llm_stats_obj.context_utilization, 4),
-                        )
+                    # R5-C token counts + 2026-09-15 latency/total columns.
+                    # Semantics live in one place — see accumulate_llm_stats.
+                    accumulate_llm_stats(total_llm_stats, llm_stats_obj)
                     if hasattr(llm_stats_obj, 'empty_content_retries'):
                         for _ in range(llm_stats_obj.empty_content_retries):
                             self.auditor.log_empty_content_retry()
@@ -112,6 +123,12 @@ class RetryMixin:
                     stats = get_llm_stats()
                     total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
                     total_llm_stats["llm_success"] = stats.get("current_success", True)
+                    # The legacy string-returning path reports no stats object,
+                    # but the call still happened. The other four cost keys keep
+                    # their seeded values: nothing measured them, and 0 is what
+                    # "not measured" reads as in all five.
+                    total_llm_stats["llm_calls_total"] = (
+                        total_llm_stats.get("llm_calls_total", 0) + 1)
 
                 if isinstance(raw_output, SkillProposal):
                     skill_proposal = raw_output
@@ -266,6 +283,17 @@ class RetryMixin:
         list is only surfaced when the ``initial_proposal_columns`` audit flag
         is ON, keeping flag-OFF traces byte-identical.
         """
+        # The five cost keys are seeded by _invoke_llm_with_retries, which in
+        # production always runs first — but this method is also entered
+        # DIRECTLY (tests and domain code do), and a caller-supplied dict
+        # without them would publish llm_calls_total alone while every other row
+        # in the run carried all five. The five are one era marker; they travel
+        # together or not at all.
+        for _key, _seed in (("prompt_tokens_total", 0), ("response_tokens_total", 0),
+                            ("llm_calls_total", 0), ("llm_latency_ms", 0.0),
+                            ("tokens_per_second", 0.0)):
+            total_llm_stats.setdefault(_key, _seed)
+
         retry_count = 0
         prev_blocking_rules = self._extract_blocking_rule_ids(validation_results)
         while not all_valid and retry_count < self.max_retries:
@@ -308,21 +336,21 @@ class RetryMixin:
                 raw_output, llm_stats_obj = res
                 total_llm_stats["llm_retries"] += llm_stats_obj.retries
                 total_llm_stats["llm_success"] = llm_stats_obj.success
-                # R5-C: Accumulate token counts across governance retries
-                if getattr(llm_stats_obj, 'prompt_tokens', 0) > 0:
-                    total_llm_stats["prompt_tokens"] = total_llm_stats.get("prompt_tokens", 0) + llm_stats_obj.prompt_tokens
-                    total_llm_stats["response_tokens"] = total_llm_stats.get("response_tokens", 0) + llm_stats_obj.response_tokens
-                    total_llm_stats["num_ctx"] = llm_stats_obj.num_ctx
-                    total_llm_stats["context_utilization"] = max(
-                        total_llm_stats.get("context_utilization", 0.0),
-                        round(llm_stats_obj.context_utilization, 4),
-                    )
+                # R5-C token counts + 2026-09-15 latency/total columns.
+                accumulate_llm_stats(total_llm_stats, llm_stats_obj)
             else:
                 raw_output = res
                 from ..utils.llm_utils import get_llm_stats
                 stats = get_llm_stats()
                 total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
                 total_llm_stats["llm_success"] = stats.get("current_success", True)
+                # `.get` rather than `+=`: _governance_retry_loop is reached
+                # with a caller-supplied stats dict (tests and domain code call
+                # it directly), and a KeyError here would abort the step over
+                # instrumentation. _invoke_llm_with_retries seeds the key; this
+                # path must not depend on that.
+                total_llm_stats["llm_calls_total"] = (
+                    total_llm_stats.get("llm_calls_total", 0) + 1)
 
             if isinstance(raw_output, SkillProposal):
                 skill_proposal = raw_output
