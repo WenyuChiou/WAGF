@@ -12,9 +12,9 @@ All quantities in MAF (million acre-feet), annual resolution. The system compute
 
 $$Q_{Nat} = 12 \times \frac{P_{winter}}{100}, \quad Q_{Nat} \in [6,\, 17] \;\text{MAF}$$
 
-**2. Water release from Lake Powell** — min release: 7 MAF; max release: 12 MAF
+**2. Water release from Lake Powell** — min release: 7.0 MAF floor via UB diversion cap; no max release ceiling
 
-$$Q_{Powell}(t) = \max\!\bigl(7,\; \min(Q_{raw},\; 12)\bigr), \qquad Q_{raw}(t) = Q_{Nat} - \sum_{i=1}^{n} Div\_UB_{i,t}$$
+$$Q_{Powell}(t) = Q_{Nat} - Div\_UB_{effective}, \qquad Div\_UB_{effective} = \min\bigl(Div\_UB,\; \max(0,\, Q_{Nat} - 7.0),\, Cap_{infra}\bigr)$$
 
 **3. Inflow of Lake Mead** — streamflow from tributaries: 1 MAF
 
@@ -73,11 +73,12 @@ advance_year()
   |-- 1. _generate_precipitation()          <- P_winter from CRSS PRISM (UB 7-state avg)
   |-- 2. _generate_lake_mead_level()        <- Steps 1-5 above
   |        Q_Nat    = 12.0 * (P / 100)              [bounded 6-17 MAF]
-  |        Q_raw    = Q_Nat - sum(Div_UB)
-  |        Q_Powell = max(7, min(Q_raw, 12))
+  |        Div_UB_eff = min(sum(Div_UB), max(0.0, Q_Nat - 7.0), 5.0)
+  |        Q_Powell = Q_Nat - Div_UB_eff            [7.0 floor via UB cap only when Q_Nat >= 7.0; no max release ceiling]
   |        Q_in     = Q_Powell + 1.0                 [tributaries]
   |        Q_out    = sum(Div_LB) + M_DCP(h) + ET(S) + 5.0
-  |        S(t+1)   = clip(S(t) + Q_in - Q_out, 2.0, 26.1)
+  |        delta    = clip(Q_in - Q_out, -3.5, 3.5)  [Glen Canyon buffering +/-3.5 MAF/yr]
+  |        S(t+1)   = clip(S(t) + delta, 2.0, 26.1)
   |        h        = USBR storage-elevation lookup(S)
   |-- 3. _update_preceding_factors()        <- Binary: did precip/Mead rise?
   |-- 4. _compute_drought_index()           <- Composite severity index
@@ -179,7 +180,7 @@ The Colorado River system has two major reservoirs — Lake Powell (upstream, Gl
 
 1. **Lake Mead is the decision-relevant reservoir.** All DCP shortage tiers, curtailment ratios, and Mexico treaty reductions are triggered by Lake Mead elevation. Lake Powell's operational role is to regulate releases to Lake Mead, captured through the Powell minimum release constraint (Eq. 5) and the UB infrastructure ceiling.
 
-2. **Powell is implicitly represented.** Step 2 ($Q_{Powell} = \max(7, \min(Q_{raw}, 12))$) encodes Powell's operational constraints: (a) 7.0 MAF/yr DCP minimum release floor, (b) 12 MAF/yr max release, (c) UB diversions subtracted before clamping.
+2. **Powell is implicitly represented.** The code calculates `powell_release = natural_flow - ub_div_effective` (`irrigation_env.py:936-949`), where Upper Basin diversions are clamped at `ub_div_effective = min(ub_div_maf, max(0.0, natural_flow - 7.0), 5.0)`. This enforces a 7.0 MAF/yr minimum-release floor from Lake Powell whenever natural flow is at or above 7.0 MAF/yr (by restricting Upper Basin diversions rather than clamping release directly). Downstream, Glen Canyon Dam buffering caps the annual Lake Mead storage change at $\pm 3.5$ MAF/yr (`irrigation_env.py:981-983`). A 12 MAF/yr maximum release is NOT implemented; earlier versions of this document stated it was (corrected 2026-09-16).
 
 3. **Hung & Yang (2021) uses the same approach.** Their FQL model also uses a reduced-form mass balance with CRSS inputs rather than independent Powell modeling.
 

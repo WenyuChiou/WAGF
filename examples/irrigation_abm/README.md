@@ -97,7 +97,7 @@ Note: v20 results are deprecated due to the execute_skill base asymmetry bug. Al
 
 | Pillar | Name | Effect |
 | :----- | :--- | :----- |
-| 1 | **Strict Governance** | 12 validators block physically impossible or redundant actions |
+| 1 | **Strict Governance** | 12 configured validators (11 active; `compact_allocation_check` never fires because the `basin_allocation` context key is not injected — see docs/irrigation_model_caveats.md) block physically impossible or redundant actions |
 | 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` (basic ranking mode) + year-end reflection |
 | 3 | **Reflection Loop** | Year-end consolidation with domain-specific guidance questions |
 
@@ -114,7 +114,7 @@ flowchart TD
             C --> D["Retrieve memories<br/>(window + top-k)"]
             D --> E["Build prompt<br/>persona + WSA/ACA + env context"]
             E --> F["LLM call<br/>→ parse WSA, ACA, skill choice"]
-            F --> G{"Governance<br/>validation<br/>(12 validators)"}
+            F --> G{"Governance<br/>validation<br/>(12 validators, 11 active)"}
             G -->|APPROVED| H["Execute skill<br/>Gaussian magnitude sampling"]
             G -->|ERROR| I{"Retry<br/>≤ 3 attempts?"}
             I -->|Yes| J["Re-prompt with<br/>rejection reason"]
@@ -176,6 +176,8 @@ Three k-means clusters from Hung & Yang (2021), mapped from FQL parameters to LL
 | **Forward-Looking Conservative** | 5 | Cautious, future-oriented | 7.5% |
 | **Myopic Conservative** | 6 | Tradition-oriented, slow updates | 4.0% |
 
+The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/20) is opt-in and was OFF in every LLM run. The FQL baseline exists in both variants (`fql_raw_faf1bb12` rebalanced, `fql_raw_norebalance_faf1bb12` matched).
+
 ### Action Space (5 Skills)
 
 | Skill | Real-World Analog |
@@ -192,7 +194,7 @@ The LLM chooses the skill (qualitative direction); actual magnitude is sampled f
 
 ## 6. Governance System
 
-12 validators in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+12 configured validators (11 active; `compact_allocation_check` never fires because the `basin_allocation` context key is not injected — see docs/irrigation_model_caveats.md) in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
 
 | # | Validator | Blocks | Level | Category |
 | - | :-------- | :----- | :---- | :------- |
@@ -205,7 +207,7 @@ The LLM chooses the skill (qualitative direction); actual magnitude is sampled f
 | 7 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
 | 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
 | 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
-| 10 | `compact_allocation_check` | increase (basin>Compact) | WARNING | Social |
+| 10 | `compact_allocation_check` | increase (basin>Compact) — inactive in shipped runs (context key never injected) | WARNING | Social |
 | 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
 | 12 | `zero_escape_check` | maintain (<15% util) | ERROR | Behavioral |
 
