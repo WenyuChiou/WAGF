@@ -1022,14 +1022,111 @@ def test_the_advisory_call_tokens_are_accounted():
     e = _Engine("feedback")
     e.llm_invoke = lambda prompt: ("take_action", _Stats())
     stats = {"llm_calls": 0, "llm_retries": 0, "prompt_tokens": 5,
-             "response_tokens": 2, "context_utilization": 0.1, "num_ctx": 4096}
+             "response_tokens": 2, "context_utilization": 0.1, "num_ctx": 4096,
+             "prompt_tokens_total": 5, "response_tokens_total": 2,
+             "llm_calls_total": 1}
     _soft_call(e, [_warning_result("soft_a")], total_llm_stats=stats)
     assert stats["llm_calls"] == 1
     assert stats["llm_retries"] == 1
-    assert stats["prompt_tokens"] == 125
-    assert stats["response_tokens"] == 42
+    # 2026-09-15: the four per-call columns describe the LAST call, so they now
+    # read the advisory call's own numbers instead of a sum nobody sent. The
+    # budget claim this test exists to make moved to the `*_total` columns, and
+    # still fails if the advisory call is left out of the accounting.
+    assert stats["prompt_tokens_total"] == 125
+    assert stats["response_tokens_total"] == 42
+    assert stats["llm_calls_total"] == 2
+    assert stats["prompt_tokens"] == 120
+    assert stats["response_tokens"] == 40
     assert stats["num_ctx"] == 8192
     assert stats["context_utilization"] == 0.42
+
+
+def test_llm_calls_total_counts_an_advisory_call_that_raised():
+    """Regression, 2026-09-15. `llm_calls_total` was only incremented inside
+    `accumulate_llm_stats`, which runs only on the tuple-returning branch — so
+    an advisory call that RAISED, or that returned a bare string, bumped
+    `llm_calls` and not `llm_calls_total`.
+
+    That inverts the relationship every doc states (`llm_calls` under-counts
+    relative to `llm_calls_total`, never the reverse), and it does so on exactly
+    the rows where the advise and placebo arms stopped being call-matched —
+    which is the one thing P0-1c claims to MEASURE per row rather than assert.
+    An analyst checking call-matching with the unflagged, always-present column
+    would have been told those rows were fine."""
+    def _boom(prompt):
+        raise RuntimeError("provider down")
+
+    e = _Engine("feedback")
+    e.llm_invoke = _boom
+    stats = {"llm_calls": 0, "llm_retries": 0, "llm_calls_total": 0}
+    _soft_call(e, [_warning_result("soft_a")], total_llm_stats=stats)
+    assert stats["llm_calls"] == 1
+    assert stats["llm_calls_total"] >= stats["llm_calls"], (
+        "llm_calls_total must never read below llm_calls"
+    )
+    assert stats["llm_calls_total"] == 1
+
+
+def test_llm_calls_total_counts_a_string_returning_advisory_call():
+    """Same defect, the other untupled path: `llm_invoke` may return a bare
+    string (still supported — broker/agents/deciders.py), which also skips
+    `accumulate_llm_stats`."""
+    e = _Engine("feedback")
+    e.llm_invoke = lambda prompt: "take_action"
+    stats = {"llm_calls": 0, "llm_retries": 0, "llm_calls_total": 0}
+    _soft_call(e, [_warning_result("soft_a")], total_llm_stats=stats)
+    assert stats["llm_calls"] == 1
+    assert stats["llm_calls_total"] == 1
+
+
+def test_the_advisory_call_is_counted_exactly_once_on_the_normal_path():
+    """Counted once per attempt the provider made — never zero, never twice."""
+    e = _Engine("feedback")
+    e.llm_invoke = lambda prompt: ("take_action", _Stats())
+    stats = {"llm_calls": 0, "llm_retries": 0, "llm_calls_total": 0}
+    _soft_call(e, [_warning_result("soft_a")], total_llm_stats=stats)
+    assert stats["llm_calls"] == 1
+    assert stats["llm_calls_total"] == 1
+
+
+def test_the_advisory_call_counts_the_providers_internal_retries():
+    """`llm_calls_total` must count ATTEMPTS, not `llm_invoke` calls.
+
+    `create_llm_invoke`'s returned function reports `calls = N` when the
+    provider returned empty content N-1 times inside ONE `llm_invoke`, and
+    `prompt_tokens_total` already sums all N. An advisory path that counted a
+    flat 1 therefore computed the two columns over different attempt sets, and
+    the per-call average an analyst derives from the pair came out too high by
+    exactly the internal-retry factor — reading as "the advise arm's prompts
+    are bigger", which is the one comparison the advise-vs-placebo contrast
+    exists to make.
+
+    `_Stats` has no `calls` attribute, so it cannot tell a flat 1 from
+    `stats.calls`; this double can."""
+    class _RetriedStats:
+        retries = 2
+        success = True
+        calls = 3
+        prompt_tokens = 120
+        response_tokens = 40
+        num_ctx = 8192
+        context_utilization = 0.42
+        prompt_tokens_total = 360
+        response_tokens_total = 120
+
+    e = _Engine("feedback")
+    e.llm_invoke = lambda prompt: ("take_action", _RetriedStats())
+    stats = {"llm_calls": 0, "llm_retries": 0, "llm_calls_total": 0,
+             "prompt_tokens_total": 0, "response_tokens_total": 0}
+    _soft_call(e, [_warning_result("soft_a")], total_llm_stats=stats)
+
+    assert stats["llm_calls"] == 1, "one llm_invoke call"
+    assert stats["llm_calls_total"] == 3, "three provider attempts"
+    assert stats["prompt_tokens_total"] == 360
+    # The invariant behind both this bug and the round-1 one: the two columns
+    # are computed over the SAME attempt set, so their ratio is a real
+    # per-attempt prompt size.
+    assert stats["prompt_tokens_total"] / stats["llm_calls_total"] == 120
 
 
 def test_a_raised_advisory_call_records_the_attempt_and_the_failure():

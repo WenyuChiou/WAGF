@@ -3,7 +3,7 @@
 Background
 ==========
 The broker's audit writer emits ``*_governance_audit.csv`` files with
-two sources of non-determinism that prevent direct SHA256 byte-identity
+three sources of non-determinism that prevent direct SHA256 byte-identity
 checks across runs:
 
 1. **Wall-clock timestamps** — every row ends with a column like
@@ -13,10 +13,15 @@ checks across runs:
    (e.g. ``Missing constructs for 'household': ['CP_LABEL',
    'CP_REASON', 'TP_LABEL', 'TP_REASON']``) drift between runs because
    set iteration is hash-seed-dependent.
+3. **Elapsed-time columns** (``llm_latency_ms``, ``tokens_per_second``,
+   added 2026-09-15) — how long the model took is a property of the
+   machine and the hour, not of the decision. A ``--model mock`` run
+   writes a constant ``0.0`` in both, so these only ever vary on a
+   real-LLM comparison.
 
 Two consecutive runs at the SAME commit produce different hashes (see
 ``.baselines/BASELINE_HASHES.md`` for evidence). This tool normalises
-both sources of drift to enable structural byte-identity verification
+all three sources of drift to enable structural byte-identity verification
 for Phase 6R-C (AgentProfile / SyntheticLoader split) and 6R-D-5
 (FloodDomainPack internal refactor).
 
@@ -25,6 +30,9 @@ Normalisation strategy
 - **Timestamp column**: detected by header name containing ``"timestamp"``
   (case-insensitive). All values in that column are replaced by the
   literal ``"<TIMESTAMP>"``.
+- **Elapsed-time columns**: the columns named in
+  ``_VOLATILE_COLUMN_NAMES`` are replaced by the literal
+  ``"<VOLATILE>"``.
 - **Set-repr in any cell**: any value matching ``[...]`` containing
   comma-separated quoted items is parsed and the items are
   alphabetically sorted before re-formatting. Example:
@@ -107,13 +115,39 @@ def _timestamp_columns(header: Sequence[str]) -> List[int]:
     ]
 
 
+#: Columns that measure elapsed time rather than a decision. Two runs of the
+#: same commit on the same seed take different numbers of milliseconds, so
+#: leaving these raw would make every real-LLM byte-identity check fail for a
+#: reason that has nothing to do with the simulation. Same treatment, and the
+#: same reason, as the wall-clock ``timestamp`` column above. Added with the
+#: columns themselves (2026-09-15).
+#:
+#: NOTE the cost: this blanks the two columns on EVERY plane, mock included. A
+#: ``--model mock`` run writes a constant ``0.0`` in both today, so blanking
+#: changes no verdict now — but if a later change started timing the mock path,
+#: mock reproducibility would break and this tool would still print IDENTICAL.
+#: A test pins the mock constants directly
+#: (`test_audit_token_latency_columns.py`) rather than relying on this tool to
+#: notice.
+_VOLATILE_COLUMN_NAMES = ("llm_latency_ms", "tokens_per_second")
+
+
+def _volatile_columns(header: Sequence[str]) -> List[int]:
+    """Indices of the timing columns listed in ``_VOLATILE_COLUMN_NAMES``."""
+    return [
+        i for i, col in enumerate(header)
+        if (col or "").strip().lower() in _VOLATILE_COLUMN_NAMES
+    ]
+
+
 def normalise_rows(
     header: Sequence[str], rows: Iterable[Sequence[str]],
 ) -> Tuple[List[str], List[List[str]]]:
-    """Apply both normalisations to the rows. Returns ``(header,
+    """Apply all three normalisations to the rows. Returns ``(header,
     normalised_rows)`` — header is returned as-is so callers can
     pass it back into ``csv.writer``."""
     ts_cols = _timestamp_columns(header)
+    vol_cols = _volatile_columns(header)
     out: List[List[str]] = []
     for row in rows:
         norm = list(row)
@@ -121,6 +155,10 @@ def normalise_rows(
         for idx in ts_cols:
             if idx < len(norm):
                 norm[idx] = "<TIMESTAMP>"
+        # Replace elapsed-time columns.
+        for idx in vol_cols:
+            if idx < len(norm):
+                norm[idx] = "<VOLATILE>"
         # Sort any set-repr fragments in every cell.
         norm = [_sort_set_repr_in_cell(cell) for cell in norm]
         out.append(norm)
@@ -131,7 +169,32 @@ def normalise_rows(
 # Diff
 # ---------------------------------------------------------------------------
 
-def _load_normalised(path: Path) -> Tuple[List[str], List[List[str]]]:
+def _drop_columns(
+    header: Sequence[str], rows: Iterable[Sequence[str]], drop: Sequence[str],
+) -> Tuple[List[str], List[List[str]]]:
+    """Remove the named columns (case-insensitive) from header and rows.
+
+    For comparing a corpus across a schema ADDITION. A frozen corpus predates
+    whatever columns the current code adds, so a header-vs-header check fails
+    outright and there is otherwise no way to re-verify that corpus after the
+    addition lands — which is how people end up hand-editing CSVs, and how
+    provenance dies. Dropping a column is an explicit, named, printed act: the
+    caller says which columns are out of scope, and the report says so too.
+    """
+    lowered = {c.strip().lower() for c in drop}
+    keep = [
+        i for i, col in enumerate(header)
+        if (col or "").strip().lower().lstrip("﻿").strip('"') not in lowered
+        and (col or "").strip().lower() not in lowered
+    ]
+    new_header = [header[i] for i in keep]
+    new_rows = [[row[i] for i in keep if i < len(row)] for row in rows]
+    return new_header, new_rows
+
+
+def _load_normalised(
+    path: Path, drop_columns: Sequence[str] = (),
+) -> Tuple[List[str], List[List[str]]]:
     with path.open("r", encoding="utf-8", newline="") as fh:
         reader = csv.reader(fh)
         try:
@@ -139,15 +202,33 @@ def _load_normalised(path: Path) -> Tuple[List[str], List[List[str]]]:
         except StopIteration:
             return [], []
         rows = list(reader)
-    return normalise_rows(header, rows)
+    header, rows = normalise_rows(header, rows)
+    if drop_columns:
+        header, rows = _drop_columns(header, rows, drop_columns)
+    return header, rows
 
 
-def compare(left: Path, right: Path, max_samples: int = 3) -> int:
+def compare(left: Path, right: Path, max_samples: int = 3,
+            drop_columns: Sequence[str] = ()) -> int:
     """Compare two governance_audit CSVs. Returns 0 if normalised
     contents match, 1 otherwise. Prints up to ``max_samples`` differing
-    rows (first divergence onward)."""
-    l_header, l_rows = _load_normalised(left)
-    r_header, r_rows = _load_normalised(right)
+    rows (first divergence onward).
+
+    ``drop_columns`` removes the named columns from BOTH sides before
+    comparing, so a corpus frozen before a schema addition can still be
+    verified against a current run. What was dropped is printed with the
+    result, because a comparison that ignored columns is a weaker claim than
+    one that did not and the output has to say which it is.
+    """
+    l_header, l_rows = _load_normalised(left, drop_columns)
+    r_header, r_rows = _load_normalised(right, drop_columns)
+
+    # Printed on EVERY outcome, not just success: a failure report pasted into
+    # an issue or a lab notebook otherwise loses the fact that the comparison
+    # was scoped, and a scoped comparison is a weaker claim than a full one.
+    scope = f", ignoring {sorted(set(drop_columns))}" if drop_columns else ""
+    if scope:
+        print(f"SCOPE: comparing{scope}")
 
     if l_header != r_header:
         print(f"HEADER MISMATCH")
@@ -174,7 +255,8 @@ def compare(left: Path, right: Path, max_samples: int = 3) -> int:
         h.update(",".join(l_header).encode("utf-8"))
         for row in l_rows:
             h.update(",".join(row).encode("utf-8"))
-        print(f"IDENTICAL ({len(l_rows)} rows, canonical sha256={h.hexdigest()})")
+        print(f"IDENTICAL ({len(l_rows)} rows, "
+              f"canonical sha256={h.hexdigest()}{scope})")
         return 0
 
     print(f"DIFFERS — first {len(diffs)} divergent rows of {len(l_rows)}:")
@@ -195,7 +277,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="python -m broker.tools.compare_audit_csv",
         description=(
             "Column-aware diff for broker governance_audit CSVs. Strips "
-            "wall-clock timestamps and sorts set-repr fragments before "
+            "wall-clock timestamps and elapsed-time columns, and sorts "
+            "set-repr fragments, before "
             "comparing — enables byte-identity-equivalent checks across "
             "runs whose only differences are run-time noise. Phase 6R-C-0."
         ),
@@ -206,14 +289,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--max-samples", type=int, default=3,
         help="how many divergent rows to print (default: 3)",
     )
+    parser.add_argument(
+        "--ignore-columns", default="", metavar="A,B,C",
+        help=(
+            "comma-separated column names to drop from BOTH sides before "
+            "comparing. Use it to verify a corpus frozen before a schema "
+            "addition (e.g. --ignore-columns "
+            "prompt_tokens_total,response_tokens_total,llm_calls_total,"
+            "llm_latency_ms,tokens_per_second for a pre-2026-09-15 corpus). "
+            "The result line names what was ignored."
+        ),
+    )
     args = parser.parse_args(argv)
+    drop = [c.strip() for c in args.ignore_columns.split(",") if c.strip()]
 
     for p in (args.left, args.right):
         if not p.exists():
             print(f"ERROR: file not found: {p}", file=sys.stderr)
             return 2
 
-    return compare(args.left, args.right, max_samples=args.max_samples)
+    return compare(args.left, args.right, max_samples=args.max_samples,
+                   drop_columns=drop)
 
 
 if __name__ == "__main__":

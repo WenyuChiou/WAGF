@@ -31,6 +31,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from ..interfaces.skill_types import SkillProposal
+from ..utils.llm_utils import accumulate_llm_stats
 from ..utils.logging import logger
 from ._advise import (
     build_intervention_reports,
@@ -183,6 +184,15 @@ class AdviseMixin:
         try:
             res = llm_invoke(advisory_prompt)
         except Exception as exc:
+            # The call happened, so it counts. accumulate_llm_stats is only
+            # reached on the tuple branch below, so without this an advisory
+            # call that raised left llm_calls_total BELOW llm_calls — the
+            # opposite of the relationship every doc states, on exactly the rows
+            # where the advise and placebo arms stopped being call-matched. One
+            # attempt is all that can be claimed here: the provider reported
+            # nothing, so its internal retries are unknowable.
+            total_llm_stats["llm_calls_total"] = (
+                total_llm_stats.get("llm_calls_total", 0) + 1)
             info["advise_parse_failed"] = True
             info["advise_skill_after"] = info["advise_skill_before"]
             if attempt_skills is not None:
@@ -200,26 +210,19 @@ class AdviseMixin:
             new_raw, stats_obj = res
             total_llm_stats["llm_retries"] += getattr(stats_obj, "retries", 0)
             # Aggregate exactly as _advisory_pass and the governance retry loop
-            # do — token totals accumulate, context fields take the running MAX.
-            # The advisory prompt appends header + rule text to the longest
-            # prompt in the decision, so leaving it out under-reports peak
-            # context pressure on precisely the decisions where advice fired,
-            # and under-reports the arm's token cost against the `record` arm it
-            # is meant to be compared with.
-            if getattr(stats_obj, "prompt_tokens", 0) > 0:
-                total_llm_stats["prompt_tokens"] = (
-                    total_llm_stats.get("prompt_tokens", 0) + stats_obj.prompt_tokens)
-                total_llm_stats["response_tokens"] = (
-                    total_llm_stats.get("response_tokens", 0) + stats_obj.response_tokens)
-                total_llm_stats["num_ctx"] = getattr(
-                    stats_obj, "num_ctx", total_llm_stats.get("num_ctx"))
-                total_llm_stats["context_utilization"] = max(
-                    total_llm_stats.get("context_utilization", 0.0),
-                    round(getattr(stats_obj, "context_utilization", 0.0) or 0.0, 4),
-                )
+            # do — one shared helper, so the three cannot drift apart again.
+            # The advisory call must be counted: its prompt appends header +
+            # rule text, so leaving it out under-reports peak context pressure
+            # on precisely the decisions where advice fired, and under-reports
+            # the arm's token cost against the `record` arm it is meant to be
+            # compared with.
+            accumulate_llm_stats(total_llm_stats, stats_obj)
             if not getattr(stats_obj, "success", True):
                 total_llm_stats["llm_success"] = False
         else:
+            # A bare string reports no stats object, but the call happened.
+            total_llm_stats["llm_calls_total"] = (
+                total_llm_stats.get("llm_calls_total", 0) + 1)
             new_raw = res
 
         if isinstance(new_raw, SkillProposal):
@@ -369,6 +372,11 @@ class AdviseMixin:
         try:
             res = llm_invoke(advisory_prompt)
         except Exception as exc:
+            # Counted for the reason given in `_soft_rule_pass`: the call
+            # happened, and the helper that would have counted it runs only on
+            # the tuple branch.
+            total_llm_stats["llm_calls_total"] = (
+                total_llm_stats.get("llm_calls_total", 0) + 1)
             info["advisory_parse_failed"] = True
             info["advisory_skill_after"] = info["advisory_skill_before"]
             if attempt_skills is not None:
@@ -383,24 +391,18 @@ class AdviseMixin:
             new_raw, stats_obj = res
             total_llm_stats["llm_retries"] += getattr(stats_obj, "retries", 0)
             # Aggregate exactly as _invoke_llm_with_retries and the governance retry
-            # loop do -- token totals accumulate, context fields take the running MAX.
+            # loop do -- one shared helper, so the three cannot drift apart again.
             # The advisory prompt is by construction the LONGEST in the decision (it
             # appends header + rule text), so excluding it would under-report peak
             # context pressure on precisely the decisions where advice fired.
-            if getattr(stats_obj, "prompt_tokens", 0) > 0:
-                total_llm_stats["prompt_tokens"] = (
-                    total_llm_stats.get("prompt_tokens", 0) + stats_obj.prompt_tokens)
-                total_llm_stats["response_tokens"] = (
-                    total_llm_stats.get("response_tokens", 0) + stats_obj.response_tokens)
-                total_llm_stats["num_ctx"] = getattr(stats_obj, "num_ctx", total_llm_stats.get("num_ctx"))
-                total_llm_stats["context_utilization"] = max(
-                    total_llm_stats.get("context_utilization", 0.0),
-                    round(getattr(stats_obj, "context_utilization", 0.0) or 0.0, 4),
-                )
+            accumulate_llm_stats(total_llm_stats, stats_obj)
             # A failed advisory call must not be masked by attempt 0's success flag.
             if not getattr(stats_obj, "success", True):
                 total_llm_stats["llm_success"] = False
         else:
+            # A bare string reports no stats object, but the call happened.
+            total_llm_stats["llm_calls_total"] = (
+                total_llm_stats.get("llm_calls_total", 0) + 1)
             new_raw = res
 
         if isinstance(new_raw, SkillProposal):
