@@ -454,9 +454,7 @@ def create_profiles_from_csv(
 
 
 def _infer_cluster(mu: float, sigma: float, alpha: float, regret: float) -> str:
-    """Simple cluster inference based on Hung & Yang (2021) centroids.
-
-    Uses Euclidean distance to the three canonical cluster centroids.
+    """Cluster inference by Euclidean distance to three 4-D centroids (mu, sigma, alpha, regret). PROVENANCE NOTE (2026-09-16): the centroid values below are not traced to a specific table of Hung & Yang (2021) in this repository; treat them as WAGF-side constants until a citation is added.
     """
     centroids = {
         "aggressive": np.array([0.36, 1.22, 0.62, 0.78]),
@@ -657,6 +655,7 @@ def _build_ub_state_group_map(ub_agent_names: List[str]) -> Dict[str, str]:
     """Map each UB agent name to its CSV state-group using positional slicing."""
     mapping: Dict[str, str] = {}
     offset = 0
+    assert sum(_UB_GROUP_AGENT_COUNTS) == len(ub_agent_names), ("_UB_GROUP_AGENT_COUNTS must sum to the number of UB agents", sum(_UB_GROUP_AGENT_COUNTS), len(ub_agent_names))
     for sg, count in zip(_UB_STATE_GROUPS, _UB_GROUP_AGENT_COUNTS):
         for agent in ub_agent_names[offset: offset + count]:
             mapping[agent] = sg
