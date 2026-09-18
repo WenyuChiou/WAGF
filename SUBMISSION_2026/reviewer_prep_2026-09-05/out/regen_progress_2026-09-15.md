@@ -525,3 +525,63 @@ irrigation and flood strict-arm band checks, all of which passed.
 Review trail: r24 reviewed by the same sonnet code-reviewer as r23
 (APPROVE; band arithmetic, seed-44 IBR, paired t and permutation p, r7
 cross-check, md-vs-CSV 0 mismatches, deterministic re-run all verified).
+
+
+# 2026-09-18 update — cross-model arm: gemma4:12b flood, both arms (code c3391a53)
+
+Full tables: `out/r26_flood_crossmodel_gemma4_12b.md` (rendered by
+`scripts/r26_flood_crossmodel_gemma4_12b.py` from the same rows as its
+CSV). Runs: `examples/single_agent/results/JOH_{strict,disabled}_gemma4_12b_
+c3391a53/Run_{42..46}`, `--workers 1`, `--thinking-mode disabled`,
+`WAGF_LLM_TIMEOUT=1800`, Q4_K_M; launched 2026-09-17 12:08, strict done
+20:14, disabled done 2026-09-18 04:15; about 1.6 h per run; every run
+`llm_success==False` count 0; token and latency columns are measured at
+this commit (about 920 prompt and 220 response tokens per call, 5.7 s per
+call). Code c3391a53 was gated against faf1bb12 by the mock byte-identity
+recipe for both domains (IDENTICAL after ignoring the five additive
+telemetry columns).
+
+## Model-paired comparison, gemma4:12b − gemma3:4b (same seed), n = 5
+
+| arm | metric | Δ ± sd | p (paired t) | all 5 signs agree |
+|---|---|---:|---:|:---:|
+| strict | IBR unconditional (%) | −0.71 ± 0.45 | 0.024 | yes |
+| strict | EHE pooled | −0.25 ± 0.03 | < 0.001 | yes |
+| strict | rejection rate (%) | −0.80 ± 0.47 | 0.019 | yes |
+| strict | retry rate (%) | −6.59 ± 1.16 | < 0.001 | yes |
+| disabled | IBR unconditional (%) | −6.81 ± 1.30 | < 0.001 | yes |
+| disabled | IBR tp_not_medium (%) | −14.73 ± 1.43 | < 0.001 | yes |
+| disabled | EHE pooled | −0.32 ± 0.02 | < 0.001 | yes |
+
+## Governed-vs-ungoverned contrast (ungoverned − governed), by model
+
+| metric | gemma4:12b Δ ± sd (p) | gemma3:4b Δ ± sd (p) | same sign |
+|---|---:|---:|:---:|
+| IBR unconditional (%) | 2.02 ± 0.74 (0.004) | 8.12 ± 0.54 (< 0.001) | yes |
+| IBR tp_not_medium (%) | 2.44 ± 0.85 (0.003) | 15.65 ± 0.65 (< 0.001) | yes |
+| IBR tp_high (%) | 12.61 ± 6.04 (0.010) | 18.73 ± 2.18 (< 0.001) | yes |
+| EHE pooled | −0.064 ± 0.028 (0.007) | 0.003 ± 0.023 (0.75) | no |
+| rejection rate (%) | −0.08 ± 0.11 (0.18) | −0.88 ± 0.46 (0.013) | yes |
+| retry rate (%) | −2.14 ± 0.40 (< 0.001) | −8.73 ± 1.47 (< 0.001) | yes |
+
+## Read
+
+The governance effect keeps its sign on the larger model for the three
+IBR conditionings and the retry rate, with a smaller magnitude
+(unconditional IBR gap 2.0 pp vs 8.1 pp). The reason is visible in the
+arm levels: gemma4:12b commits few appraisal-inconsistent actions even
+without a validator (ungoverned IBR 2.1 % vs 8.9 % on gemma3:4b), so the
+validator has less to correct (strict-arm rejection 0.08 % vs 0.88 %).
+gemma4:12b is also markedly less diverse: pooled EHE 0.61 (strict) and
+0.54 (ungoverned) against 0.86 on gemma3:4b and 0.60 for the rule-based
+baseline, and under gemma4:12b governance raises EHE slightly rather than
+leaving it unchanged. Two of six contrast rows therefore change sign
+across models (EHE, rejection rate); this is reported as found. Irrigation
+gemma4:12b arms are running next (thinking disabled through the
+`run_thinking_disabled.py` wrapper because the irrigation runners expose
+no `--thinking-mode` flag; each run carries `think_request_log.jsonl` as
+wire-level evidence).
+
+Review trail: r26 reviewed by the same sonnet code-reviewer (APPROVE;
+seed-44 strict and seed-42 disabled metrics recomputed, all paired stats
+recomputed, 4b columns byte-equal to r23/r24, manifests read directly).
