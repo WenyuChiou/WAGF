@@ -585,3 +585,96 @@ wire-level evidence).
 Review trail: r26 reviewed by the same sonnet code-reviewer (APPROVE;
 seed-44 strict and seed-42 disabled metrics recomputed, all paired stats
 recomputed, 4b columns byte-equal to r23/r24, manifests read directly).
+
+
+# 2026-09-19 update — cross-model arm: gemma4:12b irrigation, both arms (code c3391a53); queue complete
+
+Full tables: `out/r27_irrigation_crossmodel_gemma4_12b.md` (rendered by
+`scripts/r27_irrigation_crossmodel_gemma4_12b.py` from the same rows as
+its CSV). Runs: `examples/irrigation_abm/results/{strict,ungoverned}_42yr_
+gemma4_12b_c3391a53_seed{42..46}`, `--workers 4`, `WAGF_LLM_TIMEOUT=1800`,
+Q4_K_M, thinking disabled through `tools_local/run_thinking_disabled.py`
+(the irrigation runners expose no `--thinking-mode` flag; every run's
+`think_request_log.jsonl` shows `think: false` on every request, checked
+by the script). Strict 4.0 h per run, ungoverned 3.0 h; every run
+`llm_success==False` count 0. The gemma4:12b queue ended 2026-09-19 15:28.
+
+## What the recorded proposal is
+
+`docs/AUDIT_SCHEMA.md` lists the per-attempt retry sequence as an
+accepted gap, and the audit writer's comment states that `proposed_skill`
+records the LAST attempt (it is reassigned on every governance retry).
+The `initial_proposal_columns` flag was off for both corpora and the raw
+JSONL holds one record per decision, so the first-attempt proposal is not
+recoverable. Proposal-level IBR in a governed arm is therefore the
+proposal after governance negotiation; the ungoverned arm is the
+un-nudged reference. Methods must say "last recorded proposal". The
+attempt-level trace is the first P0.5 item.
+
+## gemma4:12b strict — why IBR is 0.000 on every seed
+
+Pooled over five seeds: 4540 of 16380 rows carry high self-reported
+water scarcity (H/VH) and none of them ends with an increase proposal;
+the denominator is large. 73.6 % of decisions were sent back by a
+validator at least once (gemma3:4b: 63.8 %), yet only 0.2 % end REJECTED:
+the model complies on retry. The rules that send the two models back are
+almost opposite:
+
+| rule sending a decision back (share of retried rows) | gemma4:12b | gemma3:4b |
+|---|---:|---:|
+| demand_ceiling_stabilizer | 69.1 % | 82.2 % |
+| low_threat_no_increase | 37.3 % | 2.0 % |
+| high_threat_high_cope_no_increase | 10.5 % | 53.2 % |
+| curtailment_awareness | 15.0 % | 30.5 % |
+
+## Model-paired comparison, gemma4:12b − gemma3:4b (same seed), n = 5
+
+| arm | metric | Δ ± sd | p (paired t) | all 5 signs agree |
+|---|---|---:|---:|:---:|
+| strict | IBR headline (pp) | −31.41 ± 5.47 | 0.0002 | yes |
+| strict | EHE pooled, proposal | −0.43 ± 0.04 | < 0.0001 | yes |
+| strict | rejection rate (pp) | −38.04 ± 4.16 | < 0.0001 | yes |
+| strict | retry rate (pp) | +9.79 ± 3.80 | 0.005 | yes |
+| ungoverned | IBR headline (pp) | −45.07 ± 2.62 | < 0.0001 | yes |
+| ungoverned | shortage years | −1.60 ± 0.55 | 0.003 | yes |
+| ungoverned | Mead minimum (ft) | +16.6 ± 18.0 | 0.11 | no |
+
+## Governed-vs-ungoverned contrast (ungoverned − governed), by model
+
+| metric | gemma4:12b Δ ± sd (p) | gemma3:4b Δ ± sd (p) | same sign |
+|---|---:|---:|:---:|
+| IBR headline (pp) | 11.57 ± 1.53 (0.0001) | 25.23 ± 7.05 (0.0013) | yes |
+| EHE pooled, executed | 0.648 ± 0.026 (< 0.0001) | 0.664 ± 0.045 (< 0.0001) | yes |
+
+## Compute cost (r21, 8 arms; measured token columns exist only at c3391a53)
+
+| arm | h / run | LLM calls / run | est. prompt tok (chars/4) | measured, last attempt | measured, all attempts | retry multiplier |
+|---|---:|---:|---:|---:|---:|---:|
+| flood strict 4b | 1.01 | 977 | 0.75 M | n.a. | n.a. | n.a. |
+| flood strict 12b | 1.61 | 1008 | 0.85 M | 0.90 M | 0.92 M | 1.03 |
+| flood disabled 12b | 1.59 | 999 | 0.86 M | 0.91 M | 0.91 M | 1.00 |
+| irrigation strict 4b | 3.18 | 8477 | 3.91 M | n.a. | n.a. | n.a. |
+| irrigation strict 12b | 4.01 | 5973 | 3.98 M | 4.12 M | 7.30 M | 1.77 |
+| irrigation ungoverned 12b | 2.97 | 3753 | 4.07 M | 3.95 M | 4.52 M | 1.15 |
+
+Estimate vs measured last-attempt tokens differ by 3 to 6 % (the
+tokenizer effect); the gap between all-attempt and last-attempt tokens is
+the retry multiplier, 1.77 for governed irrigation on gemma4:12b. The
+gemma3:4b corpus has `prompt_tokens` columns filled with zeros
+(never wired before c3391a53); r21 leaves those cells blank.
+
+## Read
+
+Governance changes the recorded outcome on gemma4:12b in the same
+direction as on gemma3:4b in both cases (irrigation IBR gap 11.6 pp vs
+25.2 pp; flood 2.0 pp vs 8.1 pp), with the same executed-diversity effect
+in irrigation (EHE gap 0.65 vs 0.66). The larger model needs the
+validator less often to reach a coherent recorded proposal, but is sent
+back more often in irrigation by the low-threat rule and the demand
+ceiling, so the cost of governance in tokens rises (retry multiplier
+1.77) even as the behavioural gap shrinks.
+
+Review trail: r27 APPROVE (round 6: seed-level recomputation both arms,
+census recomputed from raw audit rows, AUDIT_SCHEMA and audit-writer
+quotes opened at source, manifests and think logs read directly); r21
+extension reviewed in round 7.
