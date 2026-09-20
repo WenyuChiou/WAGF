@@ -959,6 +959,132 @@ def main() -> int:
     add_cell("flood", "rule-based", "wall h per run", om, osd, nm, nsd)
 
     # =====================================================================
+    # MEAD KGE COLUMN (2026-09-20 follow-up) + gemma4:12b cross-model block
+    # =====================================================================
+    # Read out/r28_trajectory_vs_traditional.csv (READ-ONLY -- r28 is under
+    # review, not modified here, not even imported as a module, just its
+    # own already-committed output CSV). row_type=irr_pair rows carry one
+    # KGE value per (model, arm, seed, series, reference); this script
+    # aggregates them, it does not recompute the KGE itself.
+    r28_path = os.path.join(C.OUT, "r28_trajectory_vs_traditional.csv")
+    if not os.path.isfile(r28_path):
+        raise PrepError(f"missing {r28_path} -- run r28_trajectory_vs_traditional.py first")
+    r28_rows_all = C.read_csv(r28_path)
+
+    def _kge_from_r28(model: str, arm: str) -> tuple:
+        matches = [r for r in r28_rows_all if r["row_type"] == "irr_pair"
+                   and r["model"] == model and r["arm"] == arm
+                   and r["series"] == "mead_elevation" and r["reference"] == "matched"]
+        seeds = sorted({r["seed"] for r in matches})
+        if len(matches) != 5 or len(seeds) != 5:
+            raise PrepError(f"r28_trajectory_vs_traditional.csv: expected 5 irr_pair rows "
+                             f"(one per seed) for model={model} arm={arm} "
+                             f"series=mead_elevation reference=matched, got {len(matches)} "
+                             f"rows across seeds {seeds} -- re-run r28 first")
+        vals = [float(r["kge"]) for r in matches]
+        return C.mean(vals), C.sd(vals)
+
+    # ---- existing (case, arm) rows: irrigation governed/ungoverned get a
+    # real number; irrigation FQL rows and all flood rows are n.a. with an
+    # explicit reason (per task: "reference model itself" / "not
+    # applicable, categorical") -- old side is `no old record`/`n.a.`
+    # either way, since this KGE analysis (r28) never existed for any old
+    # corpus.
+    nm, nsd = _kge_from_r28("gemma3_4b", "strict")
+    add_cell("irrigation", "governed (strict)", KGE_COL, new_mean=nm, new_sd=nsd,
+             old_status="no_record", n_old=0)
+    nm, nsd = _kge_from_r28("gemma3_4b", "ungoverned")
+    add_cell("irrigation", "ungoverned", KGE_COL, new_mean=nm, new_sd=nsd,
+             old_status="no_record", n_old=0)
+    for arm in ("irrigation rule-based FQL matched (no-rebalance)",
+                "irrigation rule-based FQL rebalanced"):
+        add_cell("irrigation", arm, KGE_COL, old_status="na", new_status="na",
+                 note="reference model itself")
+    for arm in ("governed (strict)", "no-validator", "rule-based"):
+        add_cell("flood", arm, KGE_COL, old_status="na", new_status="na",
+                 note="not applicable, categorical")
+
+    # ---- gemma4:12b (c3391a53), new corpus only -- second Table 1 block.
+    # Values are READ from r26/r27's own already-computed per-seed
+    # row_type=metrics rows and aggregated here (mean/sd over the 5
+    # seeds) -- never recomputed from raw audit/simulation_log files.
+    # Distinct case labels ("irrigation (gemma4:12b)" / "flood
+    # (gemma4:12b)") keep these cells from colliding with the
+    # gemma3:4b-corpus cells above in the shared `cells` lookup dict.
+    r26_path = os.path.join(C.OUT, "r26_flood_crossmodel_gemma4_12b.csv")
+    r27_path = os.path.join(C.OUT, "r27_irrigation_crossmodel_gemma4_12b.csv")
+    for p in (r26_path, r27_path):
+        if not os.path.isfile(p):
+            raise PrepError(f"missing {p} -- run its generating script first")
+    r26_metrics = [r for r in C.read_csv(r26_path) if r["row_type"] == "metrics"]
+    r27_metrics = [r for r in C.read_csv(r27_path) if r["row_type"] == "metrics"]
+
+    def _agg_metric_rows(src_rows: list, arm: str, src_col: str) -> tuple:
+        sub = [r for r in src_rows if r["arm"] == arm]
+        seeds = sorted({r["seed"] for r in sub})
+        if len(sub) != 5 or len(seeds) != 5:
+            raise PrepError(f"expected 5 metrics rows (one per seed) for arm={arm!r}, got "
+                             f"{len(sub)} across seeds {seeds}")
+        vals = [float(r[src_col]) for r in sub]
+        return C.mean(vals), C.sd(vals)
+
+    # NOTE on row count: the task described this block as "the six
+    # irrigation/flood LLM rows (strict/no-validator x two cases)", but
+    # r26 (flood) only has 2 gemma4:12b arms on disk (strict, disabled)
+    # and r27 (irrigation) only has 2 (strict, ungoverned) -- 2 arms x 2
+    # cases = 4 distinct (case, arm) combinations exist in the data, not
+    # 6. Implemented all 4 that actually exist rather than fabricate 2
+    # more; flagged for the coordinator rather than silently matching an
+    # unreachable count.
+    IRR_12B_COLMAP = [
+        ("IBR headline", "metric__IBR headline"),
+        ("EHE pooled (executed)", "metric__EHE pooled (executed)"),
+        ("EHE pooled (proposal)", "metric__EHE pooled (proposal)"),
+        ("domain outcome: Mead min (ft)", "metric__Mead minimum (ft)"),
+        ("domain outcome: shortage years", "metric__Shortage years"),
+        ("rejection rate %", "metric__Rejection rate (%)"),
+        ("retry rate %", "metric__Retry rate (%)"),
+        ("LLM failures", "llm_fail_n"),
+        ("governance fallback %", "fallback_share_pct"),
+        ("wall h per run", "wall_hours"),
+    ]
+    for src_arm, disp_arm in (("strict", "governed (strict)"), ("ungoverned", "ungoverned")):
+        for disp_col, src_col in IRR_12B_COLMAP:
+            nm, nsd = _agg_metric_rows(r27_metrics, src_arm, src_col)
+            add_cell("irrigation (gemma4:12b)", disp_arm, disp_col, new_mean=nm, new_sd=nsd,
+                     old_status="no_record", n_old=0)
+        nm, nsd = _kge_from_r28("gemma4_12b", src_arm)
+        add_cell("irrigation (gemma4:12b)", disp_arm, KGE_COL, new_mean=nm, new_sd=nsd,
+                 old_status="no_record", n_old=0)
+
+    # metric__EHE pooled simlog maps onto BOTH the executed and proposal
+    # columns for flood -- identical, same convention r25 already uses
+    # for flood governed/no-validator above ("identical to EHE pooled
+    # (executed) -- flood's proposal/final/executed levels coincide").
+    FLOOD_12B_COLMAP = [
+        ("IBR headline", "metric__IBR unconditional (%)"),
+        ("EHE pooled (executed)", "metric__EHE pooled simlog"),
+        ("EHE pooled (proposal)", "metric__EHE pooled simlog"),
+        ("rejection rate %", "metric__Rejection rate (%)"),
+        ("retry rate %", "metric__Retry rate (%)"),
+        ("LLM failures", "llm_fail_n"),
+        ("governance fallback %", "fallback_share_pct"),
+        ("wall h per run", "wall_hours"),
+    ]
+    for src_arm, disp_arm in (("strict", "governed (strict)"), ("disabled", "no-validator")):
+        for disp_col, src_col in FLOOD_12B_COLMAP:
+            nm, nsd = _agg_metric_rows(r26_metrics, src_arm, src_col)
+            add_cell("flood (gemma4:12b)", disp_arm, disp_col, new_mean=nm, new_sd=nsd,
+                     old_status="no_record", n_old=0)
+        add_cell("flood (gemma4:12b)", disp_arm, "domain outcome: final-year protection %",
+                 old_status="na", new_status="na",
+                 note="not computed by r26 for the gemma4:12b corpus -- would require "
+                      "recomputation from simulation_log.csv, out of scope for this "
+                      "reuse-only cross-model block (task: do not recompute)")
+        add_cell("flood (gemma4:12b)", disp_arm, KGE_COL, old_status="na", new_status="na",
+                 note="not applicable, categorical")
+
+    # =====================================================================
     # CONTRAST BLOCK -- governed vs ungoverned, diff = ungoverned - governed
     # =====================================================================
     def emit_contrast(case, metric_label, gov_old, ungov_old, gov_new, ungov_new, seeds):
@@ -1050,12 +1176,25 @@ ROW_ORDER = [
     ("irrigation", "irrigation rule-based FQL matched (no-rebalance)"),
     ("flood", "governed (strict)"), ("flood", "no-validator"), ("flood", "rule-based"),
 ]
+# 2026-09-20 follow-up: gemma4:12b (c3391a53), new-corpus-only second Table 1
+# block. Distinct case labels keep these cells out of the gemma3:4b `cells`
+# lookup namespace above. See main()'s NOTE on why this is 4 rows, not the
+# 6 the task described -- r26/r27 only have 2 gemma4:12b arms each on disk.
+ROW_ORDER_12B = [
+    ("irrigation (gemma4:12b)", "governed (strict)"),
+    ("irrigation (gemma4:12b)", "ungoverned"),
+    ("flood (gemma4:12b)", "governed (strict)"),
+    ("flood (gemma4:12b)", "no-validator"),
+]
+KGE_COL = "Mead KGE vs FQL (matched)"
 COLUMN_ORDER = [
     "IBR headline", "EHE pooled (executed)", "EHE pooled (proposal)",
     "domain outcome: Mead min (ft)",
     "domain outcome: shortage years", "domain outcome: final-year protection %",
     "rejection rate %", "retry rate %", "LLM failures", "governance fallback %",
     "wall h per run",
+    KGE_COL,  # 2026-09-20 follow-up, appended at the END so every pre-existing
+              # cell/column position is unchanged.
 ]
 
 
@@ -1146,7 +1285,7 @@ def render_md(rows: list) -> str:
         f"as a reference note only, a different metric, never substituted."
     )
     lines.append("")
-    header = "| case / arm | n | " + " | ".join(COLUMN_ORDER) + " |"
+    header = "| case / arm | n (old / new seeds) | " + " | ".join(COLUMN_ORDER) + " |"
     lines.append(header)
     lines.append("|" + "---|" * (len(COLUMN_ORDER) + 2))
     for case, arm in ROW_ORDER:
@@ -1176,6 +1315,52 @@ def render_md(rows: list) -> str:
     if notes:
         lines.append("Per-cell caveats:")
         for k, note in notes:
+            lines.append(f"- {k}: {note}")
+        lines.append("")
+
+    # =========================================================================
+    # SECOND TABLE 1 BLOCK -- gemma4:12b (c3391a53), new corpus only
+    # (2026-09-20 follow-up). Every cell's old side is `no old record` or
+    # `n.a.` -- no old corpus exists for gemma4:12b at all, by definition.
+    # =========================================================================
+    lines.append("## Table 1 -- gemma4:12b (c3391a53), new corpus only")
+    lines.append("")
+    lines.append(
+        "Same columns as the table above (last column `Mead KGE vs FQL (matched)` added "
+        "2026-09-20, sourced from `out/r28_trajectory_vs_traditional.csv`). Every cell here "
+        "has NO old-corpus counterpart -- gemma4:12b never had an old/pre-loss run -- so "
+        "every old side reads `no old record` (for a real new-side number) or `n.a.` (where "
+        "the metric does not apply, same as the table above). Values are READ from "
+        "`out/r26_flood_crossmodel_gemma4_12b.csv` / "
+        "`out/r27_irrigation_crossmodel_gemma4_12b.csv` row_type=metrics and aggregated "
+        "here (mean +/- sd over 5 seeds), never recomputed from raw audit/simulation_log "
+        "files. NOTE: only 4 (case, arm) rows exist on disk for gemma4:12b (irrigation "
+        "strict/ungoverned from r27, flood strict/disabled from r26) -- 2 arms x 2 domains, "
+        "not 6."
+    )
+    lines.append("")
+    lines.append(header)
+    lines.append("|" + "---|" * (len(COLUMN_ORDER) + 2))
+    for case, arm in ROW_ORDER_12B:
+        any_cell = next((cells[(case, arm, c)] for c in COLUMN_ORDER
+                          if (case, arm, c) in cells), None)
+        n_str = f"{any_cell['n_old']}/{any_cell['n_new']}" if any_cell else "?"
+        cell_strs = []
+        for col in COLUMN_ORDER:
+            key = (case, arm, col)
+            if key not in cells:
+                cell_strs.append(NA)
+                continue
+            cell_strs.append(_cell_str(cells[key]))
+        lines.append(f"| {case}: {arm} | {n_str} | " + " | ".join(cell_strs) + " |")
+    lines.append("")
+
+    notes_12b = [(f"{case}/{arm}/{col}", cells[(case, arm, col)]["note"])
+                 for case, arm in ROW_ORDER_12B for col in COLUMN_ORDER
+                 if (case, arm, col) in cells and cells[(case, arm, col)].get("note")]
+    if notes_12b:
+        lines.append("Per-cell caveats (gemma4:12b block):")
+        for k, note in notes_12b:
             lines.append(f"- {k}: {note}")
         lines.append("")
 
