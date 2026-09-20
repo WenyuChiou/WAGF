@@ -678,3 +678,66 @@ Review trail: r27 APPROVE (round 6: seed-level recomputation both arms,
 census recomputed from raw audit rows, AUDIT_SCHEMA and audit-writer
 quotes opened at source, manifests and think logs read directly); r21
 extension reviewed in round 7.
+
+
+# 2026-09-20 update — trajectory similarity to the traditional ABM (r28)
+
+Full tables: `out/r28_trajectory_vs_traditional.md` (rendered by
+`scripts/r28_trajectory_vs_traditional.py` from the same rows as its CSV).
+Question: do the LLM arms reproduce the traditional model's system
+trajectory, and does the validator matter for that. Metric: Kling–Gupta
+efficiency against the FQL reference model at the same seed (not against
+observations), KGE = 1 − sqrt((r−1)² + (β−1)² + (α−1)²), on the 42-year
+Lake Mead elevation (`lake_mead_level`, ft) and total basin demand
+(sum of agent `request`, acre-ft); primary reference the matched-cluster
+FQL (`fql_raw_norebalance_faf1bb12`), rebalanced FQL as sensitivity
+(within 2 %); RMSE alongside.
+
+## Lake Mead elevation, KGE and RMSE against FQL (n = 5 seeds)
+
+| model | arm | KGE | RMSE (ft) |
+|---|---|---:|---:|
+| gemma3:4b | governed | 0.946 ± 0.008 | 7.8 ± 4.9 |
+| gemma3:4b | ungoverned | 0.282 ± 0.133 | 119.6 ± 13.0 |
+| gemma4:12b | governed | 0.944 ± 0.036 | 9.1 ± 3.8 |
+| gemma4:12b | ungoverned | 0.610 ± 0.074 | 82.5 ± 10.5 |
+| FQL rebalanced vs FQL matched | (two traditional runs) | 0.982 ± 0.015 | 4.0 ± 1.2 |
+
+Governed − ungoverned is sign-consistent on all five seeds for both
+models, both series and both references (16 of 16 cells at the n=5
+permutation floor; paired t p ≤ 0.0013). Total basin demand is a noisy
+series even between two FQL runs (KGE 0.38, RMSE 140k acre-ft); the
+governed LLM arms sit at that noise floor (RMSE 143k on gemma3:4b, 211k
+on gemma4:12b) while the ungoverned arms are 20 to 40 times off
+(3.3 to 6.0 M acre-ft).
+
+## Flood (SI diagnostic only)
+
+KGE does not apply to a categorical composition. Jensen–Shannon
+distance (base 2) of the yearly five-state protection distribution to
+the rule-based baseline: governed 0.455 ± 0.034, no-validator 0.467 ±
+0.041, governed vs no-validator directly 0.120 ± 0.018; the paired
+governed − no-validator difference (−0.012, p 0.29) is not
+sign-consistent. The two LLM arms are close to each other and both far
+from rule-based, largely because relocation shares differ (rule-based
+0.0–0.7 % of agent-years, governed 15.7 %, no-validator 13.8 %), so the
+flood case supports the coherence claim (Fig 3b), not the trajectory
+claim.
+
+## Read
+
+In irrigation the governed LLM arm tracks the traditional model's
+reservoir trajectory almost as closely as two traditional runs track
+each other (KGE 0.95 vs 0.98), and removing the validator breaks the
+match on every seed and on both models. In flood the population
+trajectory converges with or without the validator; the validator's
+contribution there is individual-level coherence. The two cases
+therefore divide the claim: the validator decides whether the coupled
+system stays on the traditional trajectory when the environment feeds
+back strongly, and it changes individual coherence even when the
+aggregate trajectory does not depend on it.
+
+Review trail: r28 reviewed in round 8 (REQUEST CHANGES on one premise:
+the rule-based flood baseline does relocate 0–0.7 % of agent-years,
+corrected by computing and rendering the relocation shares; all KGE,
+RMSE and JS numbers verified by independent recomputation).
