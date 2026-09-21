@@ -741,3 +741,101 @@ Review trail: r28 reviewed in round 8 (REQUEST CHANGES on one premise:
 the rule-based flood baseline does relocate 0–0.7 % of agent-years,
 corrected by computing and rendering the relocation shares; all KGE,
 RMSE and JS numbers verified by independent recomputation).
+# 2026-09-21 update — contribution stress test and the three follow-up analyses (r29–r31)
+
+Three red-team reviewers (socio-hydrology, ABM methods, LLM-agent simulation) read the same evidence package
+(r19 to r28, the figures, Table 1, the 2026-09-17 literature sweep) against the author's intended claim, and
+all three returned HOLDS WITH REFRAMING. The memo `out/r32_contribution_stress_test_2026-09-21.md` records
+those verdicts and eight ranked objections, and commissioned the three CPU analyses reported here.
+
+## r29: is the Mead KGE bought by the demand ceiling? (objection 2)
+| Lake Mead series | KGE vs FQL matched | RMSE (ft) |
+|---|---:|---:|
+| FQL rebalanced vs FQL matched, two traditional runs (r28) | 0.982 ± 0.015 | 4.0 ± 1.2 |
+| governed, gemma3:4b (r28) | 0.946 ± 0.008 | 7.8 ± 4.9 |
+| governed, gemma4:12b (r28) | 0.944 ± 0.036 | 9.1 ± 3.8 |
+| ungoverned, gemma3:4b (r28) | 0.282 ± 0.133 | 119.6 ± 13.0 |
+| ungoverned, gemma4:12b (r28) | 0.610 ± 0.074 | 82.5 ± 10.5 |
+| constant-demand null, seeded from FQL matched year-1 | 0.8720 ± 0.0110 | 23.3917 ± 3.0089 |
+| constant-demand null, seeded from governed year-1 | 0.9033 ± 0.0116 | 13.9777 ± 2.6374 |
+
+| arm | basin demand mean (acre-ft) | % of years above the 6.0 MAF ceiling |
+|---|---:|---:|
+| irrigation strict, gemma3:4b | 6087065 ± 65646 | 86.7% |
+| irrigation ungoverned, gemma3:4b | 11761867 ± 196654 | 100.0% |
+| irrigation strict, gemma4:12b | 6115657 ± 23611 | 76.2% |
+| irrigation ungoverned, gemma4:12b | 9265114 ± 688668 | 100.0% |
+| fql_matched | 6125065 ± 27348 | 89.5% |
+| fql_rebalanced | 6133741 ± 34766 | 87.1% |
+
+**Read.** The null holds every agent at its own year-1 request for 42 years; replay fidelity passed 10 of 10
+(source, seed) pairs at RMSE 0.0000 ft. A run that never changes demand already scores 0.8720 to 0.9033, so
+most of the governed arm's 0.946 is shared forcing plus the 6,000,000 acre-ft ceiling. Governance holds the
+envelope instead: mean demand 6,087,065 acre-ft against the traditional model's 6,125,065, above the ceiling
+in 86.7% of years against 89.5%. Remove it and demand runs at about twice that level (11,761,867 acre-ft,
+100.0% of years) with Mead at dead pool in 5 of 5 runs, and both ungoverned arms score below the null.
+
+## r30: does the coherence direction survive environment conditioning? (objection 4)
+Denominator shift, share of agent-years with self-reported WSA in {H, VH}: 37.1% ± 3.5% governed against
+81.8% ± 2.0% ungoverned (gemma3:4b), 27.7% ± 1.7% against 75.9% ± 3.1% (gemma4:12b).
+
+| model | condition | mean_diff (pp) | t | p (paired t) | p (perm) | 5/5 signs |
+|---|---|---:|---:|---:|---:|:---:|
+| gemma3:4b | drought_index ≥ 0.35 | −19.06 | −9.662 | 0.0006 | 0.0625 | yes |
+| gemma3:4b | drought_index ≥ 0.50 (sensitivity) | −15.98 | −6.239 | 0.0034 | 0.0625 | yes |
+| gemma3:4b | curtailment_ratio > 0 | −17.85 | −7.145 | 0.0020 | 0.0625 | yes |
+| gemma3:4b | self-reported WSA {H, VH} (reference) | −25.23 | −7.997 | 0.0013 | 0.0625 | yes |
+| gemma4:12b | drought_index ≥ 0.35 | −10.35 | −14.838 | 0.0001 | 0.0625 | yes |
+| gemma4:12b | drought_index ≥ 0.50 (sensitivity) | −9.43 | −5.423 | 0.0056 | 0.0625 | yes |
+| gemma4:12b | curtailment_ratio > 0 | −11.80 | −17.089 | 0.0001 | 0.0625 | yes |
+| gemma4:12b | self-reported WSA {H, VH} (reference) | −11.57 | −16.892 | 0.0001 | 0.0625 | yes |
+
+**Read.** The shift is real and is now stated, and the direction does not depend on it: on all four
+environment-conditioned checks, for both models, the governed arm proposes fewer increases and all five seeds
+agree in sign. Only the precipitation condition is fully exogenous and identical across arms (checked to 1e-6
+every run, not assumed): drought_index and curtailment_ratio are half precipitation, half Lake Mead elevation,
+which accumulates each arm's own demand history and diverges between arms (seed 42, gemma3:4b: identical at
+year 1, up to 0.358 apart at year 33, mean |Δ| 0.188). On that one truly exogenous check (precip/baseline ≤
+0.78), the governed − ungoverned contrast is −22.48 pp (gemma3:4b, p=0.0625) and −18.12 pp (gemma4:12b,
+p=0.0625), both at the n=5 permutation floor, same direction as the self-report. FQL proposes an increase in
+72.22% ± 1.16% of fql_matched agent-years under the same drought cut.
+
+## r31: flood coherence and population composition without relocation (objection 5)
+| metric, model | version | mean_diff | t | p (paired t) | 5/5 signs |
+|---|---|---:|---:|---:|:---:|
+| IBR headline, gemma3:4b | original | −8.12 pp | −33.476 | 0.0000 | yes |
+| IBR headline, gemma3:4b | relocate excluded | −8.16 pp | −35.264 | 0.0000 | yes |
+| IBR headline, gemma4:12b | original | −2.02 pp | −6.128 | 0.0036 | yes |
+| IBR headline, gemma4:12b | relocate excluded | −2.02 pp | −6.126 | 0.0036 | yes |
+| JS to rule-based, governed − no-validator | original | −0.0121 | −1.209 | 0.2934 | no |
+| JS to rule-based, governed − no-validator | relocate excluded | −0.0221 | −2.683 | 0.0551 | yes |
+
+| arm | JS to rule-based | JS, relocate excluded | relocation share (%) | diversity | diversity, excl. |
+|---|---:|---:|---:|---:|---:|
+| governed | 0.4553 ± 0.0339 | 0.3739 ± 0.0636 | 15.72 ± 4.02 | 0.8545 | 0.6932 |
+| no-validator | 0.4674 ± 0.0408 | 0.3960 ± 0.0726 | 13.82 ± 7.19 | 0.8404 | 0.6856 |
+| rule-based | — | — | 0.30 ± 0.33 | 0.7963 | 0.7860 |
+
+**Read.** The exclusion leaves the flood IBR contrast where it was (−8.12 to −8.16 pp on gemma3:4b, −2.02 pp
+unchanged on gemma4:12b), so the flood case still supports the coherence claim. The composition result
+changes: in r28 the governed arm was no closer to the rule-based baseline than the no-validator arm, and with
+relocate removed it is closer on all five seeds, at the n=5 permutation floor of 0.0625. Relocation was
+covering that, and no rule covers relocation: governed relocates 15.72% of agent-years and no-validator
+13.82%, against 0.30% rule-based, reported in the main text as a limitation.
+
+## Claim as now stated
+Governance keeps the coupled system inside the operating envelope the traditional model also respects, an
+envelope claim and not a trajectory claim: the reservoir agreement is mostly shared forcing plus the demand
+ceiling, and without governance basin demand runs at about twice the ceiling and Mead reaches dead pool in 5
+of 5 runs. The validator's measurable effect is the coherence of the last negotiated proposal with the
+agent's stated situation, and it survives conditioning on environment state (drought and curtailment, which
+include reservoir state that diverges between arms over the horizon) as well as the one fully exogenous check
+(precipitation alone) instead of the self-report. Validators bound only the actions their rules cover, as the
+flood relocation share shows. The
+result transfers across two domains and a 3× model-size change, and the literature gap is written as "not
+reported", since the five closest works are unclear or silent on pre-execution validation.
+
+## Open items
+- First-attempt proposal: one-seed irrigation rerun with `initial_proposal_columns` on (objection 1), launched 18:37; r33 follows.
+- Placebo-retry arm: generic reconsider feedback on the validator's schedule (objection 3), branch `feat/placebo-retry-feedback`.
+- Review trail: (review trail filled by the orchestrator after round 10).
