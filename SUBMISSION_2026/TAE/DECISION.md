@@ -82,6 +82,14 @@
 >
 > Written 2026-08-06 on the author's explicit instruction, during the seed-42 first-attempt run.
 
+> ## PAUSED, 2026-09-22. All top-conference submissions paused by the author.
+>
+> **ICLR 2027 main track (deadline 25 September 2026 AoE, confirmed above on 2026-08-06) is skipped.**
+> The TAE workshop had already been withdrawn by its organisers on 2026-08-05. No conference
+> destination is active for this material. The remaining target is a WRR-class framework methods
+> paper with no deadline. Open items are tracked in
+> `SUBMISSION_2026/reviewer_prep_2026-09-05/out/paper_readiness_audit_2026-09-22.md`.
+
 > ## ✅ SCOPE CONFIRMED — LLM arms only. No rule-based comparator. Author, 2026-08-06.
 >
 > **The ICLR paper uses the LLM experiments only: validator-on against validator-off, and

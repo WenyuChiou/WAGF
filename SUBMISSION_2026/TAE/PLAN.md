@@ -5,6 +5,10 @@
 > by `evidence/corpus_inventory.py`, `evidence/run_all.py` and `paper/submission_gate.py` --
 > prefer those three to any sentence here.
 
+> **The NeurIPS 2026 TAE workshop named in this file was withdrawn by its organisers on 2026-08-05.**
+> The 29 August 2026 deadline is dead. As of 2026-09-22 all top-conference submissions are paused;
+> see `DECISION.md`.
+
 > ## The calendar in this file is about two weeks overtaken. Do not follow it day by day.
 >
 > Written **2026-07-31**, when there was no manuscript. There is now a finished draft, a built PDF

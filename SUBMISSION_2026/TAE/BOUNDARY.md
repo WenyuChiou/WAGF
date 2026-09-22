@@ -5,6 +5,10 @@
 > by `evidence/corpus_inventory.py`, `evidence/run_all.py` and `paper/submission_gate.py` --
 > prefer those three to any sentence here.
 
+> **The NeurIPS 2026 TAE workshop named in this file was withdrawn by its organisers on 2026-08-05.**
+> The 29 August 2026 deadline is dead. As of 2026-09-22 all top-conference submissions are paused;
+> see `DECISION.md`.
+
 `SUBMISSION_2026/TAE/` is the whole of one paper: NeurIPS 2026 TAE workshop, 8 pages, 29 Aug 2026 AoE.
 This file is the contract that keeps it that way. It was written 2026-07-31 after an audit of every
 inbound and outbound dependency, and every statement in it was checked against the tree rather than

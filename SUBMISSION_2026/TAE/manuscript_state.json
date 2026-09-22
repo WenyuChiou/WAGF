@@ -107,7 +107,8 @@
     {"id": "ISSUE-TABLE1-PROVENANCE", "scope": "cross-file", "severity": "S2", "evidence_status": "CONFIRMED", "status": "RESOLVED", "description": "table1_manuscript_crosscheck.py now resolves manuscript claim markers in memory, parses the source table, and compares all five irrigation rows plus the aggregate flood range against the canonical table1_cells.csv. The check runs in the evidence pipeline and passed in the final 15/15 run.", "authority": "academic-writing review + verified evidence pipeline", "affected_artifacts": ["main-source", "release-pdf", "evidence", "figures"]}
   ],
   "release": {
-    "status": "READY_TO_SUBMIT",
+    "status": "PAUSED_2026-09-22",
+    "status_note": "All top-conference submissions paused by the author on 2026-09-22; anchors below are pre-2026-09-15 corpus values and are not yet re-derived, see SUBMISSION_2026/reviewer_prep_2026-09-05/out/paper_readiness_audit_2026-09-22.md",
     "candidate_artifact_ids": ["main-source", "release-pdf"],
     "required_checks": ["argument_structure", "evidence_scope", "scholarly_writing", "venue_contract", "delivery_integrity", "functional_completeness"],
     "completed_checks": ["baseline_corpus", "baseline_evidence", "baseline_build", "baseline_visual_review", "argument_structure", "evidence_scope", "scholarly_writing", "venue_contract", "delivery_integrity", "functional_completeness"],
