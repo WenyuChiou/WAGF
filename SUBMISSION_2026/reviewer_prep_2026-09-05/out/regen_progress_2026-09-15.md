@@ -889,3 +889,46 @@ of retry pressure, 1.29% against 32.97%. Consequence for wording: every governed
 
 Review trail: r33 reviewed in round 11 (APPROVE; six-way IBR, transition table, references and manifest
 recomputed; the manifest census was then completed with thinking mode, timeout, quantization and digest).
+# 2026-09-22 update — placebo retry feedback, flood (r34)
+
+Full tables: `out/r34_placebo_retry_flood.md`, rendered by its script from the same rows as its CSV. The arm
+answers r32 objection 3, that the measured governance gain could be a generic extra-attempt effect. The
+validators are unchanged and fire as they always did; only the retry prompt changes, rendered through the
+adapter's wrapper-only control so the rule identity, the reason and the suggestion are removed and nothing
+remains but the framing that the previous response was flagged and should be reconsidered. Flood gemma3:4b,
+seeds 42 and 43, code 83fa97e1 from PR #46, about one hour per seed (1.036 h and 1.080 h); Run_43 was
+relaunched after a silent stop. `retry_feedback_mode` is value-enforced as `placebo` in both placebo
+manifests and reported as absent in the faf1bb12 strict and disabled comparators.
+
+| metric | seed | placebo | strict | disabled | share on the strict-to-disabled line |
+|---|---|---:|---:|---:|---:|
+| IBR unconditional (%) | 42 | 1.281 | 1.254 | 9.709 | 0.003 |
+| IBR unconditional (%) | 43 | 2.063 | 0.226 | 8.891 | 0.212 |
+| IBR tp_not_medium (%) | 42 | 2.594 | 2.494 | 18.405 | 0.006 |
+| IBR tp_not_medium (%) | 43 | 4.299 | 0.496 | 17.089 | 0.229 |
+| IBR tp_high (%) | 42 | 3.374 | 3.583 | 22.157 | -0.011 |
+| IBR tp_high (%) | 43 | 6.250 | 0.667 | 22.849 | 0.252 |
+| EHE pooled simlog | 42 | 0.865 | 0.863 | 0.844 | -0.140 |
+| EHE pooled simlog | 43 | 0.846 | 0.864 | 0.862 | 6.967 |
+
+| seed | placebo retry rate (%) | strict retry rate (%) | top rule, both arms | placebo / strict / disabled fallback (%) |
+|---|---:|---:|---|---|
+| 42 | 9.55 | 10.83 | extreme_threat_block | 0.23 / 0.00 / 0.00 |
+| 43 | 11.40 | 8.59 | extreme_threat_block | 0.11 / 0.11 / 0.00 |
+
+## Read
+On the three IBR conditionings the placebo arm sits between -0.011 and 0.252 of the way from strict to
+disabled, which is the strict end of that line. Taking the rule identity, the reason and the suggestion out of
+the retry prompt costs almost nothing, so in flood most of the coherence gain comes from the validator
+blocking the action and sending it back with the framing that it was not accepted, and the rule content in
+the feedback adds little on top. The two EHE shares (-0.140 and 6.967) are undefined in practice, since the
+strict-to-disabled denominator is about 0.02 (0.844 against 0.863 on seed 42, 0.862 against 0.864 on seed
+43), and they are not read as evidence either way. The manipulation itself looks clean: the validator fires on
+a comparable schedule in both arms (retry rate 9.55% against 10.83% on seed 42, 11.40% against 8.59% on seed
+43) with `extreme_threat_block` the top rule in every case, and fallback stays at or below 0.23%. This is two
+seeds with no significance test computed anywhere, so it is suggestive and is reported that way. Consequence
+for the claim: in flood the validator's decision about when to block does the work, not the wording it
+returns. Whether rule content matters more in irrigation, where the action space is five wide and the retry
+rate runs 64 to 74% (r27, r33), is the open question the irrigation placebo arm would answer.
+
+Review trail: Review trail: r34 reviewed in round 12 (REQUEST CHANGES: the plain read averaged the share over all eight cells and was flipped by the two EHE cells whose denominator is below 0.02; fixed by flagging degenerate denominators and computing the verdict over the six IBR cells; all metric values, manifests and rule census verified by recomputation)..
