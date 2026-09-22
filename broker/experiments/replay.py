@@ -1152,6 +1152,44 @@ def build_replay_decider(
         custom_validators=custom_validators,
         domain_physical_dispatch=config.get_governance_physical_dispatch(),
     )
+
+    # Silent-failure P1 (review round 2): `config` above is RELOADED from
+    # disk (config_snapshot.yaml / the recorded agent_types_config), and a
+    # CLI override the ORIGINAL run used (examples/single_agent/run_flood.py
+    # --retry-feedback-mode) changes only the LIVE engine attribute at run
+    # time -- it never touches that on-disk YAML. Left alone, the engine
+    # just constructed above would resolve `_retry_feedback_mode` from the
+    # reloaded config and silently replay a "placebo" run's decisions as
+    # "full" (or the reverse) with nothing in the replay output flagging the
+    # mismatch. The manifest's OWN `retry_feedback_mode` field (recorded by
+    # `ExperimentRunner._collect_reproducibility_metadata` off the RESOLVED
+    # broker attribute) is the run's actual setting, so it wins when present
+    # -- named here, at whichever value, so a reader of replay logs can tell
+    # the two sources agreed from a case where the manifest corrected a stale
+    # or hand-edited config.
+    _manifest_rfm = manifest.get("retry_feedback_mode")
+    if _manifest_rfm in ("full", "placebo"):
+        if _manifest_rfm != engine._retry_feedback_mode:
+            logger.warning(
+                "[Replay] retry_feedback_mode: manifest says %r, reloaded "
+                "config %s resolved %r — using the MANIFEST value (the "
+                "run's actual resolved setting; the config may predate a "
+                "CLI override, or have changed since the run).",
+                _manifest_rfm, config_path, engine._retry_feedback_mode,
+            )
+        else:
+            logger.debug(
+                "[Replay] retry_feedback_mode: manifest and reloaded config "
+                "agree (%r).", _manifest_rfm,
+            )
+        engine._retry_feedback_mode = _manifest_rfm
+    else:
+        logger.debug(
+            "[Replay] retry_feedback_mode: no manifest value found for "
+            "%s; using the reloaded config's resolution (%r).",
+            run_dir, engine._retry_feedback_mode,
+        )
+
     return ReplayDecider(
         model_adapter=adapter, engine=engine, source=str(config_path),
         validators_source=(

@@ -89,6 +89,66 @@ a bare id does not say which layer produced it. `construct_missing` and
 > governs rules already authored as WARNING. Writing one where you meant the
 > other is the mistake `validate_prompt` now names for you.
 
+### `retry_feedback_mode` — red-team objection 3: is it the content, or just another try?
+
+`global_config.governance.retry_feedback_mode` is `full` (default) or `placebo`.
+It governs only the **Hard** row above: the BLOCKING governance retry loop
+(`RetryMixin._governance_retry_loop`), which fires after an ERROR-level
+validator rejection and re-prompts up to `max_retries` times.
+
+A published effect of governance could, in principle, be nothing more than
+"the model got a second attempt" — not "the model was told which rule it
+broke and why". `retry_feedback_mode` makes that separable, and states
+precisely WHAT it isolates: **rule-specific content (identity, reason,
+suggestion) is removed; the governance framing (that the previous answer was
+not accepted) is kept.** The arm therefore tests "rule-specific information"
+against "another attempt with the same framing" — not against "another
+attempt with no framing at all" (nothing states or implies the latter).
+
+| Value | Validator behaviour | Content in the retry prompt | Audit (`failed_rules`, `error_messages`) |
+|---|---|---|---|
+| `full` (default) | rejects on the same rules, same schedule, same `on_retry_exhausted` fallback | the rendered `InterventionReport`(s): rule id, reason, suggestion | the real validation results |
+| `placebo` | identical — same rules, same schedule, same fallback | the adapter's wrapper only — header + closer + the original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`, the same "A''" mechanism `governance.advise`'s own `mode="wrapper"` uses for the advisory channel). Header/closer text still depends on `intervention_framing` ("was flagged by..." / "triggered..."), but neither wording names a rule id, a blocked skill, a reason, or a suggestion. | the real validation results — unchanged |
+
+**What changes is exactly one thing: the text of the retry prompt.** The
+validator still decides *when* a proposal is rejected; the retry count, the
+early-exit logic, and the `on_retry_exhausted` fallback are all untouched. The
+audit CSV's `failed_rules` / `error_messages` columns are built from the
+`ValidationResult` objects the validators returned, never from the retry
+prompt text, so they read identically in both modes — a reader of the CSV can
+always see what actually blocked a decision, even in the arm where the model
+itself was never told. The synthetic `format_violation` report built for an
+UNPARSABLE retry attempt is covered the same way — it, too, is only ever
+turned into text by the report-rendering path, which `placebo` never calls.
+
+This is a **separate switch from `governance.advise`'s own placebo mode**
+(P0-1c, `_advise_pass.py`, arm B'). Both happen to be named `"placebo"`, but
+they are mechanically different: `governance.advise`'s `mode="placebo"` keeps
+the SAME report count/shape and replaces each report's text with a fixed
+sentence, for the separate, NON-BLOCKING single advisory call issued for
+rules *demoted* from ERROR. `retry_feedback_mode: placebo` renders NO reports
+at all (the wrapper-only A'' control), for the actual BLOCKING retry loop.
+They gate different code paths, different config keys, and never share
+state — running one does not imply or affect the other.
+
+**Interaction warning.** If `retry_feedback_mode: placebo` is set while
+`governance.advise` (`_advise_mode`) or the soft-rule channel's `advise_mode`
+(`_soft_advise_mode`) is anything other than `off`, the engine logs a
+WARNING at construction: the retry PROMPT is content-free, but either
+advisory channel can still show the SAME decision rule-specific content in a
+*different* prompt (the one-shot advisory call), so a "placebo" corpus meant
+to be content-free end-to-end needs both set to `off` too.
+
+Default `full` reproduces the shipped retry prompt byte-for-byte; every
+frozen baseline (v21 / paper-3 mock) reruns unchanged unless the key is set
+explicitly. CLI: `examples/single_agent/run_flood.py --retry-feedback-mode
+{full,placebo}` overrides the resolved config value for that run; the
+resolved mode is logged in the SAME shape both at engine construction and
+again (if overridden) after the CLI override is applied
+(`[Governance] retry_feedback_mode=...`, so the LAST such line in a run's
+output always names the value in effect), and recorded in the reproducibility
+manifest's `retry_feedback_mode` field.
+
 ---
 
 ## 2. Grounding: what a rule's antecedent is anchored in
