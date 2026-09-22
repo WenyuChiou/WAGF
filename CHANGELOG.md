@@ -54,6 +54,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mechanically distinct. Documented in `docs/guides/governance_layers.md`
   ("`retry_feedback_mode` — red-team objection 3"). Default-OFF byte-identity
   verified against the flood and irrigation mock recipes.
+- **`initial_proposal_columns` records the agent's FIRST proposal, before any
+  governance retry (default OFF)**: `global_config.audit.initial_proposal_columns: true`
+  (getter `AgentTypeConfig.get_audit_initial_proposal_columns` in
+  `broker/utils/agent_config.py`) adds three key-gated CSV columns:
+  `initial_skill` (the skill proposed on attempt 0, `None` if that attempt
+  failed to parse), `initial_labels` (the attempt-0 construct labels), and
+  `attempt_skills` (every attempt's skill in order, pipe-joined; an empty
+  segment marks an unparsable attempt). `SkillBrokerEngine.process_step`
+  (`broker/core/skill_broker_engine.py`) snapshots the proposal before
+  `RetryMixin._governance_retry_loop` (`broker/core/_retry_loop.py`)
+  reassigns it on each retry; `AuditMixin._write_audit_trace`
+  (`broker/core/_audit_helpers.py`) and `trace_to_csv_row`
+  (`broker/components/analytics/audit.py`) write the three columns into the
+  trace and the CSV row. This matters because `skill_proposal` is reassigned
+  on every governance retry, so the existing `proposed_skill` CSV column and
+  the JSONL's `skill_proposal` already record only the LAST (post-retry)
+  attempt; measured over the shipped corpus, `proposed_skill == final_skill`
+  on 100% of rows in all three reference domains despite heavy retrying, so
+  a first-attempt versus last-proposal comparison needs these columns to
+  exist at all. OPT-IN, default OFF by the same byte-identity discipline as
+  `executed_skill_columns` and `param_columns`: flag-OFF emits no key, so
+  frozen v21 / paper-3 mock reruns stay byte-identical. Tested in
+  `broker/tests/test_initial_proposal_columns_p0_1a.py`.
 - **`WAGF_LLM_TIMEOUT` raises the Ollama call timeout without editing YAML**:
   `LLMConfig.get_timeout()` (`broker/utils/llm_utils.py`) now returns
   `max(configured, WAGF_LLM_TIMEOUT)` for every model, so a slow host gets
