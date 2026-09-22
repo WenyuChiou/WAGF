@@ -190,6 +190,7 @@ per retry prompt.
 | `shuffle_options` | bool | No | false | Randomize skill option order per LLM call (mitigates positional bias) |
 | `domain` | string | No | (none) | Domain selector for domain-specific validator injection (e.g., `irrigation`) |
 | `advise_mode` | string | No | `off` | Soft-rule channel: `off` / `record` / `feedback`. See below. |
+| `retry_feedback_mode` | string | No | `full` | Red-team objection 3 ablation on the BLOCKING retry loop: `full` / `placebo`. See below. |
 
 **Example:**
 
@@ -233,6 +234,40 @@ to avoid.
 Not the same key as `governance.advise` (P0-1c), which *demotes* rules authored
 as ERROR into advisories for an experiment arm. Read by
 `AgentTypeConfig.get_governance_advise_mode()`. Full semantics:
+`docs/guides/governance_layers.md`.
+
+**`retry_feedback_mode` (red-team objection 3)** governs ONLY the BLOCKING
+governance retry loop (`RetryMixin._governance_retry_loop`) — the loop that
+fires after an ERROR-level rejection and re-prompts up to `max_retries`
+times. It answers the objection that a measured governance effect could be
+nothing more than "the model got another attempt", not "the model was told a
+specific rule".
+
+| Value | Validator decides WHEN a proposal is rejected | LLM-facing retry text |
+|---|---|---|
+| `full` (default) | same rules, same schedule, same `on_retry_exhausted` fallback | the rendered `InterventionReport`(s): rule id, reason, suggestion |
+| `placebo` | identical | the adapter's wrapper-only rendering — header + closer + original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`) |
+
+`placebo` removes rule-SPECIFIC content (identity, reason, suggestion) from the
+retry prompt while KEEPING the governance framing ("your previous response was
+flagged / triggered the governance layer... please reconsider") — the
+contrast is "rule-specific information" vs. "another attempt with the same
+framing", not vs. "another attempt with no framing at all". `failed_rules` /
+`error_messages` in the audit CSV are unaffected in either mode — they read
+from the real `ValidationResult` objects, never from the retry prompt text.
+
+This is mechanically the **A'' wrapper-only control** already used by
+`governance.advise`'s own `mode="wrapper"` for the advisory channel — NOT the
+same mechanism as that channel's `mode="placebo"` (which keeps the same
+report count/shape and replaces each report's text, for the separate,
+NON-BLOCKING single advisory call). Same knob NAME (`placebo`), different
+mechanism, different code path, no shared state. Read by
+`AgentTypeConfig.get_governance_retry_feedback_mode()`. An unknown value
+raises at config load, and `_governance_retry_loop` raises again if it ever
+sees an unrecognised value on the resolved attribute — a config/override bug
+here must never silently run as `full` and leak rule content into a run an
+operator believed was content-free. CLI: `examples/single_agent/run_flood.py
+--retry-feedback-mode {full,placebo}`. Full semantics:
 `docs/guides/governance_layers.md`.
 
 ---
@@ -1252,6 +1287,7 @@ Implemented in `broker/utils/agent_config.py`. Key methods:
 | `.get_shared(key)` | Any | Value from the `shared` section |
 | `.get_governance_retries()` | int | `global_config.governance.max_retries` (default: 3) |
 | `.get_governance_max_reports()` | int | `global_config.governance.max_reports_per_retry` (default: 3) |
+| `.get_governance_retry_feedback_mode()` | str | `global_config.governance.retry_feedback_mode` (default: `"full"`; `"full"`/`"placebo"`, raises on any other value) |
 | `.get_llm_retries()` | int | `global_config.llm.max_retries` (default: 2) |
 | `.get_reflection_config()` | dict | Merged reflection config (global > shared > defaults) |
 | `.get_valid_actions(agent_type)` | list[str] | All valid skill IDs and aliases for the agent type |
