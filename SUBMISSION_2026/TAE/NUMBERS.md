@@ -1,5 +1,15 @@
 # NUMBERS.md — every numeric claim, and the line of stdout it comes from
 
+> **DATA STATUS - 2026-09-15.** The numbers in this table are pre-2026-09-15
+> corpus values. The corpus was lost and regenerated on 2026-09-15 with fresh
+> seeds. The regenerated values pass the pre-registered band check but differ
+> in point value from the numbers below (irrigation IBR 36.05 / 59.07 old vs
+> 31.41 / 56.64 regenerated, per
+> `SUBMISSION_2026/reviewer_prep_2026-09-05/out/r25_table1_regen.md`). The
+> current table for any paper is
+> `SUBMISSION_2026/reviewer_prep_2026-09-05/out/r25_table1_regen.md`, not this
+> file. All conference submissions are paused as of 2026-09-22.
+
 This is the red-team's file. One row per number the paper may print. If a number is in the
 manuscript and not in this table, it is unsourced and must not ship.
 

@@ -51,9 +51,44 @@ From the repository root, in this order (r0 first - the rest are independent):
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r12b_vaccination_t04b.py --old-arm
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r14_advise_arm.py
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r16_vintage_prompt_check.py
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r17_strict_arm_vintage_check.py  # strict irrigation arm vintage and seed-46 outlier check
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r21_compute_cost.py  # compute cost and runtime metrics across experimental arms
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r23_flood_strict_regen.py  # flood governed arm: regen at faf1bb12 vs old published
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r24_flood_contrast_regen.py  # flood no-validator arm regen vs old, plus contrast
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r25_table1_regen.py  # paper Table 1, old vs new, across all arms
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r26_flood_crossmodel_gemma4_12b.py  # flood gemma4:12b cross-model arms vs gemma3:4b comparison
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r27_irrigation_crossmodel_gemma4_12b.py  # irrigation gemma4:12b cross-model arms vs gemma3:4b comparison
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r28_trajectory_vs_traditional.py  # do LLM arms reproduce the traditional model's trajectory
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r29_kge_null_and_demand.py  # constant-demand KGE null plus basin-demand descriptive stats
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r30_grounded_coherence.py  # irrigation increase rate conditioned on environment, not self-report
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r31_flood_relocation_sensitivity.py  # flood IBR and JS distance excluding relocated agent-years
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r33_first_vs_last_proposal.py  # first vs last irrigation proposal, using initial_proposal_columns
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r34_placebo_retry_flood.py  # placebo-retry flood: rule content value vs extra attempt
+
+None of r17-r34 takes a command-line argument (checked: no `argparse` /
+`add_argument` in any of them); all are run from the repository root like
+r0-r16 above. r18, r19, r22 and r32 are memos under `out/` with no
+corresponding runnable file; the numbers r15 and r20 were never assigned.
 
 r13 is not in this list: its data lives only in the sibling `wagf-main-runs`
 checkout (see its own entry in "Corpora read" below).
+
+## Pending, runs still in the GPU queue (2026-09-22)
+
+Queue state per `out/paper_readiness_audit_2026-09-22.md`: step [1] running,
+steps [2] through [5] pending. These four scripts exist and are run-ready,
+but the runs their tables depend on have not landed; their `out/*.md` and
+`out/*.csv` write-ups are pre-landing placeholders and live in
+`out/_pending/` until the runs land.
+
+- **[1]** `r35_placebo_retry_irrigation.py` - irrigation placebo retry-feedback arm,
+  seeds 42-43 (seed 42 running as of this pass, seed 43 not yet started).
+- **[2]** `r36_no_ceiling_ablation.py` - no-demand-ceiling ablation.
+- **[3a]/[3b]** flood initprop seeds 42-46 and irrigation initprop seeds 43-44 -
+  extends `r33_first_vs_last_proposal.py` (currently single-seed, commit
+  c3391a53) to five seeds; no separate r-numbered script exists for this step.
+- **[4]** `r37_flood_n10_update.py` - flood seeds 47-51 (n=10 update).
+- **[5]** `r38_paraphrase_robustness.py` - paraphrase-prompt robustness check.
 
 Standard library only. No pandas, no scipy, no pytest. Each script raises on a
 missing file, a missing column or an empty denominator; none of them fills a gap with
