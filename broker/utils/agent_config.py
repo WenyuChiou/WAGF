@@ -685,6 +685,51 @@ class AgentTypeConfig:
             )
         return mode
 
+    def get_governance_retry_feedback_mode(self) -> str:
+        """Red-team objection 3 ablation: ``full`` (default) / ``placebo``.
+
+        Governs ONLY the text of the ENFORCE governance retry loop
+        (``RetryMixin._governance_retry_loop`` in ``broker/core/_retry_loop.py``),
+        which fires after a BINDING validator rejection. It answers a
+        red-team objection that the framework's measured effect could just be
+        "the model gets another attempt", not "the model was told a specific
+        rule". Under ``placebo`` the validator still decides WHEN a proposal
+        is rejected — same rules, same retry schedule, same
+        ``on_retry_exhausted`` fallback — but the LLM-facing retry prompt
+        carries a fixed, content-free sentence instead of the rule id,
+        reason, and suggestion. The audit trail is UNCHANGED either way:
+        ``failed_rules`` / ``error_messages`` are derived from the real
+        ``ValidationResult`` objects, never from the (possibly placebo'd)
+        retry prompt text.
+
+        Distinct from ``global_config.governance.advise`` (P0-1c) and
+        ``global_config.governance.advise_mode`` (PR-6): both of those govern
+        the separate, NON-BLOCKING advisory channel (demoted or
+        WARNING-authored rules, at most one extra call, never opens this
+        retry loop). This key governs the BLOCKING retry loop only, and the
+        two mechanisms share no config, no state, and no code path — reusing
+        the advisory placebo machinery here would silently couple two
+        independently-toggled experiment arms.
+
+        OPT-IN via an explicit ``full``/``placebo`` string; default ``full``
+        reproduces the shipped retry prompt byte-for-byte, so every frozen
+        baseline (v21 / paper-3 mock) stays byte-identical without the
+        operator doing anything.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return "full"
+        mode = str(gov.get("retry_feedback_mode", "full")).strip().lower()
+        if mode not in ("full", "placebo"):
+            raise ValueError(
+                f"global_config.governance.retry_feedback_mode {mode!r} is not "
+                "one of ['full', 'placebo']. Silently reading it as 'full' "
+                "would run a published corpus WITHOUT the content-free retry "
+                "text an operator explicitly asked for, with nothing in the "
+                "run saying the config was misread."
+            )
+        return mode
+
     def has_world_grounded_rules(self) -> bool:
         """PR-6: True iff the ACTIVE governance profile declares a world-grounded rule.
 

@@ -719,6 +719,17 @@ class ExperimentRunner:
                     config_data['metadata']['actual_model'] = self.config.model
                     config_data['metadata']['seed'] = self.config.seed
                     config_data['metadata']['governance_profile'] = self.config.governance_profile
+                    # Silent-failure P1 (review round 2): record the RESOLVED
+                    # retry_feedback_mode here too. A CLI override
+                    # (examples/single_agent/run_flood.py
+                    # --retry-feedback-mode) changes the ENGINE attribute
+                    # only -- it never touches the on-disk YAML this block
+                    # just read -- so without this line the snapshot silently
+                    # showed the pre-override YAML value (almost always
+                    # "full") for exactly the runs where an operator most
+                    # needed the snapshot to say "placebo".
+                    config_data['metadata']['retry_feedback_mode'] = getattr(
+                        self.broker, "_retry_feedback_mode", "full")
 
                     with open(self.config.output_dir / "config_snapshot.yaml", 'w', encoding='utf-8') as f:
                         yaml.dump(config_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -869,6 +880,32 @@ class ExperimentRunner:
             metadata["llm_timeout_env_rejected"] = _rejected
         except Exception:
             pass
+
+        # 3b. Red-team objection 3 ablation (default "full"; see
+        # AgentTypeConfig.get_governance_retry_feedback_mode and
+        # RetryMixin._governance_retry_loop). Read off the RESOLVED broker
+        # attribute, not re-derived from config, so a CLI override
+        # (examples/single_agent/run_flood.py --retry-feedback-mode) is
+        # reflected here too. Additive field, same as
+        # llm_timeout_seconds_effective above: byte-identity recipes compare
+        # the CSVs, not the manifest.
+        #
+        # ITS OWN try/except (review round 2, S3), not folded into block 3
+        # above: this field must be recorded independently of whatever else
+        # is or is not available on `self` (a partially-built runner reaching
+        # this method before `self.broker` is assigned, or a test double
+        # carrying only `.config`, e.g. test_llm_timeout_env_override.py's
+        # manifest test) and must never be ABLE to take thinking_mode /
+        # temperature / the timeout fields down with it if it were ever to
+        # raise. Double-getattr belt-and-braces on top of the isolated try:
+        # `self.broker` itself can raise AttributeError (there is no
+        # `.broker` attribute at all) before getattr's default would apply to
+        # `_retry_feedback_mode`.
+        try:
+            metadata["retry_feedback_mode"] = getattr(
+                getattr(self, "broker", None), "_retry_feedback_mode", "full")
+        except Exception:
+            metadata["retry_feedback_mode"] = "full"
 
         # 4. Hash config files
         try:

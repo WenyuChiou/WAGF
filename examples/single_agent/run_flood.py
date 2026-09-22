@@ -38,6 +38,7 @@ from broker.interfaces.skill_types import ExecutionResult
 # from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
+from broker.utils.logging import logger
 
 # Phase 6J-D (2026-05-22): import the flood example package so its
 # DomainPack + builtin validator checks both register before
@@ -882,7 +883,7 @@ def _preflight_isolated_root(base_path: Path, script_dir: Path) -> None:
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
 
     # 1. Load Registry & Prompt Template
@@ -1023,7 +1024,17 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     print(f" Flood Years scheduled: {flood_years}")
 
     # 4. Setup Components
-    premium_rate = getattr(args, 'premium_rate', None) or 0.02
+    # `globals().get('args')`, not the bare name `args`: this function is
+    # normally called from the `if __name__ == "__main__":` block below,
+    # AFTER that block has set a module-global `args = parser.parse_args()`
+    # -- but it is also called directly (a library caller, or a unit test
+    # exercising e.g. the retry_feedback_mode CLI-override path in-process
+    # without going through argparse), where no such global exists at all.
+    # The bare name `getattr(args, ...)` raised NameError in that case before
+    # `getattr`'s default could ever apply -- `globals().get(...)` degrades
+    # to None instead, which reproduces the exact pre-existing behaviour
+    # (premium_rate falls back to 0.02) when invoked outside the CLI.
+    premium_rate = getattr(globals().get('args'), 'premium_rate', None) or 0.02
     sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode,
                              premium_rate=premium_rate,
                              governance_mode=governance_mode)
@@ -1238,10 +1249,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     perf_config = get_optimal_config(model)
     
     # Apply settings (Manual overrides from CLI take precedence)
+    # `globals().get('args')`, not the bare name `args` -- same reason as the
+    # premium_rate line above (W3/W5, review round 2): this function is
+    # callable directly, with no module-global `args` in scope at all.
+    _cli_args = globals().get('args')
     apply_to_llm_config(
-        perf_config, 
-        num_ctx_override=getattr(args, 'num_ctx', None),
-        num_predict_override=getattr(args, 'num_predict', None)
+        perf_config,
+        num_ctx_override=getattr(_cli_args, 'num_ctx', None),
+        num_predict_override=getattr(_cli_args, 'num_predict', None)
     )
 
     # If workers not explicitly set (==0), use tuner's recommendation
@@ -1298,6 +1313,36 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     
     # Enable detailed broker logging if verbose is on
     runner.broker.log_prompt = verbose
+
+    # Red-team objection 3: retry-feedback ablation (default None = whatever
+    # global_config.governance.retry_feedback_mode in agent_types.yaml
+    # resolved to on the engine, normally "full"). Mirrors --thinking-mode's
+    # "None means leave the resolved default alone" contract. Overriding the
+    # already-constructed broker attribute, exactly like log_prompt above,
+    # rather than the loaded (and process-cached) AgentTypeConfig.
+    if retry_feedback_mode is not None:
+        # W3 (review round 2): the CLI's `choices=["full","placebo"]` guards
+        # the argparse entry point only -- `run_parity_benchmark` is a public
+        # function a library caller can invoke directly with an arbitrary
+        # string, bypassing argparse entirely. Validate here too, or a typo'd
+        # value would silently reach `_governance_retry_loop`'s own "unknown
+        # value is an error, not full" check LATER, deep in the first
+        # decision of the run, instead of failing immediately at the call
+        # that caused it.
+        if retry_feedback_mode not in ("full", "placebo"):
+            raise ValueError(
+                f"retry_feedback_mode={retry_feedback_mode!r} is not 'full' "
+                "or 'placebo'."
+            )
+        runner.broker._retry_feedback_mode = retry_feedback_mode
+        # C2 (review round 2): re-log in the SAME shape as the engine's own
+        # startup line (SkillBrokerEngine.__init__: "[Governance]
+        # retry_feedback_mode=%s") so the LAST such line in the run's output
+        # always names the value actually in effect -- before this, the
+        # override was announced with different wording ("overridden via
+        # CLI: ...") that a log-grep for the engine's shape would miss
+        # entirely, silently reading the pre-override YAML default instead.
+        logger.info("[Governance] retry_feedback_mode=%s", retry_feedback_mode)
 
     # 5. Execute Run
     # This uses the enhanced llm_invoke in llm_utils.py with 3-attempt LLM-level retry
@@ -1425,6 +1470,15 @@ if __name__ == "__main__":
     parser.add_argument("--thinking-mode", type=str, default=None,
                         choices=["auto", "disabled", "enabled"],
                         help="Control thinking mode for reasoning models (auto=strip tags, disabled=prevent thinking, enabled=keep tags)")
+    parser.add_argument("--retry-feedback-mode", type=str, default=None,
+                        choices=["full", "placebo"],
+                        help="Red-team objection 3 ablation. 'full' (default behaviour): the "
+                             "governance retry prompt carries the real rule id/reason/suggestion. "
+                             "'placebo': the validator still rejects on the same rules/schedule/"
+                             "fallback, but the LLM-facing retry text is a fixed, content-free "
+                             "sentence -- isolating 'got another attempt' from 'was told the rule'. "
+                             "None (default) leaves global_config.governance.retry_feedback_mode "
+                             "(default 'full') in agent_types.yaml unchanged.")
     parser.add_argument("--premium-rate", type=float, default=None,
                         help="Override insurance premium rate (default 0.02). "
                              "Use 0.04 for doubled-premium counterfactual.")
@@ -1474,5 +1528,6 @@ if __name__ == "__main__":
         memory_ranking_mode=args.memory_ranking_mode,
         initial_agents_path=args.initial_agents,
         shuffle_skills=args.shuffle_skills,
-        default_skill=args.default_skill
+        default_skill=args.default_skill,
+        retry_feedback_mode=args.retry_feedback_mode
     )
