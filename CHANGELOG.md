@@ -10,6 +10,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Retry-feedback ablation for red-team objection 3 (default OFF)**:
+  `global_config.governance.retry_feedback_mode: full | placebo` (default
+  `full`) governs only the LLM-facing TEXT of the blocking governance retry
+  loop (`RetryMixin._governance_retry_loop`, `broker/core/_retry_loop.py`).
+  Under `placebo`, the validator still decides WHEN a proposal is rejected —
+  same rules, same retry schedule, same `on_retry_exhausted` fallback — but
+  the retry prompt is rendered by the adapter's existing WRAPPER-ONLY control
+  (`format_intervention_prompt(..., include_reports=False)`: header + closer
+  + the original prompt, no rules block — review round 2 / opus W1 design;
+  the same "A''" mechanism `governance.advise`'s own `mode="wrapper"` already
+  uses for the advisory channel). States exactly what the contrast isolates:
+  rule-SPECIFIC content (rule identity, reason, suggestion) is removed; the
+  governance FRAMING (that the previous answer was not accepted) is kept — so
+  the arm tests "rule-specific information" against "another attempt with the
+  same framing", not against "another attempt with no framing". A hand-written
+  fixed sentence is used only as a fallback for a third-party adapter that
+  predates P0-1c and cannot render `include_reports=False` at all (every
+  adapter shipped in this repo can). The audit CSV's `failed_rules` /
+  `error_messages` are unaffected in either mode — they are derived from the
+  real `ValidationResult` objects, never from the retry prompt text; the
+  synthetic `format_violation` report built on an unparsable retry attempt is
+  suppressed the same way. An unrecognised mode value raises rather than
+  silently running as `full`, both at config load and again in the retry loop
+  itself. New getter `AgentTypeConfig.get_governance_retry_feedback_mode()`
+  (`broker/utils/agent_config.py`, added to `validate_prompt.py`'s
+  `KNOWN_GOVERNANCE_KEYS` and to `docs/references/yaml_configuration_reference.md`),
+  engine wiring + startup log line in `SkillBrokerEngine.__init__` (re-logged
+  in the same shape if the CLI overrides it, so the LAST such line always
+  names the value in effect) plus a WARNING when `placebo` is set while the
+  advise/soft-advise advisory channels are not `off` (they can still leak
+  rule content into a *different* prompt within the same decision), CLI flag
+  `--retry-feedback-mode {full,placebo}` on `examples/single_agent/run_flood.py`
+  only, and an additive `retry_feedback_mode` field in the reproducibility
+  manifest AND `config_snapshot.yaml` next to `thinking_mode`/model/seed;
+  `broker/experiments/replay.py::build_replay_decider` now prefers the
+  manifest's `retry_feedback_mode` over a reloaded config's, logging which
+  source won. Distinct from — and shares no state or mechanism with — the
+  existing `governance.advise` placebo mode (P0-1c, `_advise_pass.py`, arm
+  B'), which keeps the same report count/shape and replaces each report's
+  TEXT, for the separate, NON-BLOCKING single advisory call issued for
+  demoted rules; the two happen to share the value name `"placebo"` but are
+  mechanically distinct. Documented in `docs/guides/governance_layers.md`
+  ("`retry_feedback_mode` — red-team objection 3"). Default-OFF byte-identity
+  verified against the flood and irrigation mock recipes.
 - **`WAGF_LLM_TIMEOUT` raises the Ollama call timeout without editing YAML**:
   `LLMConfig.get_timeout()` (`broker/utils/llm_utils.py`) now returns
   `max(configured, WAGF_LLM_TIMEOUT)` for every model, so a slow host gets

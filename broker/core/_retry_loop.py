@@ -37,6 +37,42 @@ from ..utils.llm_utils import accumulate_llm_stats
 from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
 
+# Red-team objection 3 (retry-feedback ablation, `global_config.governance.
+# retry_feedback_mode: placebo`): review round 2 (opus W1) settled the design
+# as the WRAPPER-ONLY control the adapter already ships --
+# `UnifiedAdapter.format_intervention_prompt(..., include_reports=False)`
+# (broker/utils/parsing/unified_adapter.py ~1461-1467), the same "A''"
+# mechanism `_advise_pass.py`'s `mode="wrapper"` already uses for the
+# ADVISORY channel. Under `include_reports=False` the adapter renders ONLY
+# its header + closer + the original prompt -- no rules block, so no rule
+# id, blocked-skill name, reason, or suggestion ever reaches the model --
+# while KEEPING the governance framing ("your previous response was flagged
+# / triggered the governance layer... please reconsider"). That framing is
+# deliberately NOT stripped: the ablation isolates rule-SPECIFIC information
+# from "another attempt with the same governance framing", not from "another
+# attempt with no framing at all" (the latter is what `_advise_pass.py`'s
+# `mode="resample"` already measures, for the advisory channel).
+#
+# `_governance_retry_loop` below reaches this by calling
+# `render_intervention_prompt(..., include_reports=False)`; see there for the
+# fallback when `self.model_adapter` predates P0-1c and cannot render that
+# argument at all (`render_intervention_prompt` raises `ValueError` for such
+# an adapter -- see `_advise.py`). This constant is that fallback's fixed
+# sentence ONLY -- it is NOT used on the normal path with a P0-1c-capable
+# adapter (i.e. every adapter shipped in this repo).
+#
+# NOT the same "placebo" as `global_config.governance.advise`'s own
+# `mode="placebo"` (P0-1c arm B', `_advise_pass.py`): that one keeps the SAME
+# report COUNT/shape and replaces each report's text with a fixed sentence,
+# for the separate, NON-BLOCKING advisory channel. This one renders NO
+# reports at all (the A'' wrapper), for the BLOCKING governance retry loop.
+# Same knob NAME on purpose (opus W1 decision) -- keep it, but do not assume
+# the same mechanism.
+RETRY_FEEDBACK_PLACEBO_TEXT = (
+    "Your previous decision was not accepted. Please reconsider and answer "
+    "again in the required format."
+)
+
 
 class RetryMixin:
     """Mixin providing LLM retry and governance retry loop logic."""
@@ -320,14 +356,68 @@ class RetryMixin:
                     e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors
                 ]
 
-            # P0-1c: framing defaults to "legacy", which delegates to the byte-identical
-            # published prompt. Arms B/B'/C set "neutral" so the enforce arm's text
-            # matches the advisory arms' exactly and (C-B) carries no wording delta.
-            retry_prompt, _reports_shown = render_intervention_prompt(
-                self.model_adapter, prompt, errors_to_send,
-                max_reports=self.max_reports,
-                framing=getattr(self, "_intervention_framing", "legacy"),
-            )
+            # Red-team objection 3: retry-feedback ablation (opus W1 design: the
+            # A'' wrapper-only control -- see the module-level comment on
+            # RETRY_FEEDBACK_PLACEBO_TEXT above for exactly what this isolates
+            # and how it differs from `advise.mode="placebo"`). `errors_to_send`
+            # above is still built from the REAL validation results -- WHEN a
+            # proposal is rejected, and the retry schedule, are completely
+            # unchanged -- but under "placebo" none of that rule content
+            # reaches the model: `include_reports=False` renders ONLY the
+            # adapter's header + closer + original prompt, so `errors_to_send`
+            # (built above either way, including the synthetic
+            # `format_violation` report on the parse-failure branch) is never
+            # turned into text. The audit trail is unaffected: failed_rules /
+            # error_messages (broker/components/analytics/audit.py) are
+            # derived from validation_results / all_validation_history below,
+            # never from errors_to_send or retry_prompt.
+            #
+            # `_intervention_framing` STILL applies under placebo: the
+            # wrapper's header/closer text differs between "legacy" ("was
+            # flagged by the governance layer...") and "neutral" ("triggered
+            # the governance layer...") even with include_reports=False --
+            # only the RULES block is suppressed, not the framing choice.
+            _retry_feedback_mode = getattr(self, "_retry_feedback_mode", "full")
+            if _retry_feedback_mode not in ("full", "placebo"):
+                # Fail loud, not "full": a config/override bug that sets this
+                # to an unrecognised value must never silently run as "full"
+                # -- that would send rule content to the model in exactly the
+                # run an operator believed was the content-free placebo arm.
+                raise ValueError(
+                    f"_retry_feedback_mode={_retry_feedback_mode!r} is not "
+                    "'full' or 'placebo'. Refusing to guess; see "
+                    "AgentTypeConfig.get_governance_retry_feedback_mode."
+                )
+            if _retry_feedback_mode == "placebo" and hasattr(
+                self.model_adapter, "format_intervention_prompt"
+            ):
+                retry_prompt, _reports_shown = render_intervention_prompt(
+                    self.model_adapter, prompt, errors_to_send,
+                    max_reports=self.max_reports,
+                    framing=getattr(self, "_intervention_framing", "legacy"),
+                    include_reports=False,
+                )
+            elif _retry_feedback_mode == "placebo":
+                # Adapter predates P0-1c (implements only `format_retry_prompt`,
+                # not `format_intervention_prompt`) and so CANNOT render
+                # include_reports=False -- render_intervention_prompt raises
+                # ValueError for such an adapter rather than silently falling
+                # back to full content (see _advise.py). Degrade to the fixed
+                # sentence instead of crashing an old custom adapter's placebo
+                # run. Every adapter shipped in this repo implements
+                # format_intervention_prompt, so this branch is untaken on any
+                # in-repo run; it exists for a third-party adapter only.
+                retry_prompt = f"{RETRY_FEEDBACK_PLACEBO_TEXT}\n\n{prompt}"
+                _reports_shown = 0
+            else:
+                # P0-1c: framing defaults to "legacy", which delegates to the byte-identical
+                # published prompt. Arms B/B'/C set "neutral" so the enforce arm's text
+                # matches the advisory arms' exactly and (C-B) carries no wording delta.
+                retry_prompt, _reports_shown = render_intervention_prompt(
+                    self.model_adapter, prompt, errors_to_send,
+                    max_reports=self.max_reports,
+                    framing=getattr(self, "_intervention_framing", "legacy"),
+                )
             res = llm_invoke(retry_prompt)
             if "llm_calls" in total_llm_stats:
                 total_llm_stats["llm_calls"] += 1
