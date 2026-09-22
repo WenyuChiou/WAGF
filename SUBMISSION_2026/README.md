@@ -1,10 +1,17 @@
 # SUBMISSION_2026 — campaign workspace
 
-Gitignored (`.gitignore:291`). This repo is public; nothing here is for the public tree.
+> **2026-09-22: all conference submissions paused.** The author paused every
+> top-conference submission track (ICLR 2027 skipped, TAE withdrawn
+> 2026-08-05). The current target is a WRR-class framework methods paper with
+> no deadline. See `TAE/DECISION.md` for the venue history and
+> `reviewer_prep_2026-09-05/out/paper_readiness_audit_2026-09-22.md` for the
+> current readiness verdict (NOT READY).
+
+Gitignored (`.gitignore:291`). This repo is private (confirmed 2026-09-22 via `gh repo view`).
 
 ## What this is
 
-Getting WAGF into a top venue, on two tracks:
+Getting WAGF into a top venue, on two tracks (paused 2026-09-22, see banner above):
 
 | tier | target | deadline | GPU | odds |
 |---|---|---|---|---|
@@ -100,3 +107,19 @@ and the separation is still COMPLETE.
 347-run corpus (`evidence/claude_verified_facts.md`), but the workshop abstract attributes it to the
 14 model x testbed cells, which hold **216,020** decision rows. The abstract must say 216,020, or say
 347 runs without implying the cells.
+
+### Provenance: where runs and analysis live
+
+Runs execute from the `wagf-main-runs` worktree at framework main commit
+`83fa97e1`; results reach this clone only through junctions into
+`examples/*/results/`, not as tracked copies. Analysis, meaning the r-series
+scripts and their `out/` write-ups, lives only on branch `p0-1`
+(`p0-1-governance-instrumentation`); it does not exist on `main`. Of the
+r-series scripts, `r29_kge_null_and_demand.py` is the only one that imports
+domain code directly rather than reading only audit and simulation-log CSVs.
+It was re-run on 2026-09-22 with the `examples.*` imports resolved from the
+`83fa97e1` worktree; both runs were byte-identical to the committed
+`out/r29_kge_null_and_demand.{md,csv}` (SHA-256 values and the recipe are
+recorded in the Resolution log at the end of
+`reviewer_prep_2026-09-05/out/paper_readiness_audit_2026-09-22.md`), which
+closes audit item M15.

@@ -47,7 +47,7 @@ From the repository root, in this order (r0 first - the rest are independent):
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r10_rule_type_attribution.py
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r11_flood_seed_matched.py
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r12_vaccination_t04.py
-    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r12b_vaccination_t04b.py
+    python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r12b_vaccination_t04b.py  # corpus lost 2026-09-15, not regenerated; command kept for the record
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r12b_vaccination_t04b.py --old-arm
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r14_advise_arm.py
     python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r16_vintage_prompt_check.py
@@ -73,17 +73,21 @@ corresponding runnable file; the numbers r15 and r20 were never assigned.
 r13 is not in this list: its data lives only in the sibling `wagf-main-runs`
 checkout (see its own entry in "Corpora read" below).
 
-## Pending, runs still in the GPU queue (2026-09-22)
+## Runs landed / pending in the GPU queue (2026-09-22)
 
-Queue state per `out/paper_readiness_audit_2026-09-22.md`: step [1] running,
-steps [2] through [5] pending. These four scripts exist and are run-ready,
-but the runs their tables depend on have not landed; their `out/*.md` and
-`out/*.csv` write-ups are pre-landing placeholders and live in
-`out/_pending/` until the runs land.
+Queue state per `out/paper_readiness_audit_2026-09-22.md`, updated same day:
+step [1] landed, step [2] running, steps [3] through [5] pending. The three
+still-pending scripts below exist and are run-ready, but the runs their
+tables depend on have not landed; their `out/*.md` and `out/*.csv`
+write-ups are pre-landing placeholders and live in `out/_pending/` until the
+runs land.
 
+**Landed 2026-09-22:**
 - **[1]** `r35_placebo_retry_irrigation.py` - irrigation placebo retry-feedback arm,
-  seeds 42-43 (seed 42 running as of this pass, seed 43 not yet started).
-- **[2]** `r36_no_ceiling_ablation.py` - no-demand-ceiling ablation.
+  seeds 42-43 - output landed (`out/r35_placebo_retry_irrigation.md`).
+
+**Pending:**
+- **[2]** `r36_no_ceiling_ablation.py` - no-demand-ceiling ablation (running as of this pass).
 - **[3a]/[3b]** flood initprop seeds 42-46 and irrigation initprop seeds 43-44 -
   extends `r33_first_vs_last_proposal.py` (currently single-seed, commit
   c3391a53) to five seeds; no separate r-numbered script exists for this step.
