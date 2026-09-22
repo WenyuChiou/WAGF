@@ -839,3 +839,53 @@ reported", since the five closest works are unclear or silent on pre-execution v
 - First-attempt proposal: one-seed irrigation rerun with `initial_proposal_columns` on (objection 1), launched 18:37; r33 follows.
 - Placebo-retry arm: generic reconsider feedback on the validator's schedule (objection 3), branch `feat/placebo-retry-feedback`.
 - Review trail: (review trail filled by the orchestrator after round 10).
+# 2026-09-21 update — first-attempt versus last-recorded proposal (r33)
+
+Full tables: `out/r33_first_vs_last_proposal.md`, rendered by its script from the same rows as its CSV. One
+irrigation run closes the gap: gemma3:4b strict, seed 42, code c3391a53, with `audit.initial_proposal_columns`
+on, launched 18:37 and landed 23:52. It is the first run in the package to carry the per-attempt retry sequence
+`docs/AUDIT_SCHEMA.md` lists as an accepted gap, so first-attempt proposals and labels are read, not inferred.
+The new columns are verified against this run's own rows: the attempt list length matches `retry_count+1`, its
+last entry matches `proposed_skill`, and the audit-based headline matches the simulation_log-based one to 1e-6.
+Manifest census: thinking_mode `auto`, value-enforced and matching strict_42yr_gemma3_4b_faf1bb12_seed42's own
+manifest; llm_timeout_seconds_effective 600; model_quantization Q4_K_M; model_digest
+2026-01-29T12:50:07.405621-05:00; `initial_proposal_columns` absent from `reproducibility_manifest.json` and
+True in `config_snapshot.yaml`, recorded not resolved.
+
+## IBR six ways: three action columns against two label sources
+| action | label source | numerator / denominator | rate (%) |
+|---|---|---:|---:|
+| initial_skill | initial | 779 / 1150 | 67.74 |
+| initial_skill | final | 741 / 1089 | 68.04 |
+| proposed_skill | initial | 493 / 1150 | 42.87 |
+| proposed_skill | final (published IBR headline definition) | 359 / 1089 | 32.97 |
+| executed | initial | 35 / 1150 | 3.04 |
+| executed | final | 14 / 1089 | 1.29 |
+
+Retry census on the same 3,276 rows: 63.58% carry `retry_count>0`, mean 2.620 attempts, 0 rows with an
+unparsable first attempt. Walk-back: of the 779 rows whose first attempt was an increase under high
+first-attempt WSA, 321 (41.21%) end the last attempt as maintain or decrease, negotiation not relabelling.
+
+| faf1bb12 seed 42 reference (last proposal only) | proposal-level IBR (%) | executed IBR (%) |
+|---|---:|---:|
+| strict | 26.64 | 1.50 |
+| ungoverned | 59.33 | 27.58 |
+
+Preview corpus, SI only and not pooled with the run above: `SUBMISSION_2026/TAE/runs/firstattempt_gov_seed42`
+through `seed46`, an earlier pilot at different commits (seed 42 `0237cb5f`, seed 43 `4b49bf46`, seeds 44 to 46
+`bcee993f`, verified per seed) with thinking_mode `auto` reported from each manifest rather than value-enforced.
+The same six-way computation, in code independent of Part 1, gives 5-seed means of 65.93 ± 4.51% for the first
+attempt under first-attempt labels, 32.19 ± 6.80% for the last proposal under final labels, and 2.82 ± 1.51%
+executed, with retry share 60.923 ± 3.287%, mean 2.477 ± 0.124 attempts and walk-back 49.40 ± 6.36%.
+
+## Read
+Most of the governed arm's proposal-level coherence on this run is negotiated rather than first impulse: the
+first attempt scored under its own first-attempt labels is 67.74% against the published last-proposal headline
+of 32.97%. The un-nudged reference is the ungoverned last proposal, 59.33% on the same seed, which the governed
+first attempt sits above: before the validator speaks the governed model is no more coherent than an agent
+nobody corrects (reference faf1bb12, run c3391a53). The executed column adds the registry-default remap on top
+of retry pressure, 1.29% against 32.97%. Consequence for wording: every governed proposal-level number reads
+"last recorded proposal", since the agent's own first answer is twice as high.
+
+Review trail: r33 reviewed in round 11 (APPROVE; six-way IBR, transition table, references and manifest
+recomputed; the manifest census was then completed with thinking mode, timeout, quantization and digest).
