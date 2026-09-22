@@ -1,5 +1,12 @@
 # Anticipated reviewer questions — framework paper (follow-up to Yang, WRR 2026, 10.1029/2025WR042111)
 
+> **Written before the 2026-09-15 corpus loss.** Every number below is a
+> frozen-corpus value computed 2026-09-05...09-10; the underlying corpora
+> were lost 2026-09-15 and have since been partially regenerated. Regenerated
+> values are in `out/r25_table1_regen.md`. Item E3 and the "What the paper
+> can claim safely" list below are pending re-derivation against the
+> regenerated corpus.
+
 Referees assumed: socio-hydrology / water resources (WRR, EM&S, HESS).
 
 **IBR (appraisal–action inconsistency rate)** — share of decisions where the requested action
