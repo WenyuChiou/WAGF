@@ -368,6 +368,19 @@ mem = cfg.get_memory_config("household_owner")
 For release-to-release migration notes see `CHANGELOG.md`. Notable
 historical migrations:
 
+- **Unreleased**: `initial_proposal_columns` (opt-in via
+  `global_config.audit.initial_proposal_columns`, default OFF) adds three
+  key-gated audit CSV columns, `initial_skill`, `initial_labels`, and
+  `attempt_skills`, recording the agent's FIRST proposal before any
+  governance retry. `SkillBrokerEngine.process_step`
+  (`broker/core/skill_broker_engine.py`) snapshots the attempt-0 proposal
+  before `RetryMixin._governance_retry_loop` (`broker/core/_retry_loop.py`)
+  reassigns `skill_proposal` on each retry, so the existing `proposed_skill`
+  column already records only the LAST attempt; these columns restore the
+  proposal-stage value so first-attempt and last-proposal analyses can be
+  told apart. Same byte-identity discipline as the v0.6.0 EXECUTED-stage
+  columns below: flag-OFF emits no key, so frozen baselines are unaffected.
+  Tested in `broker/tests/test_initial_proposal_columns_p0_1a.py`.
 - **v0.6.0 (2026-06-10)**: Phase 6V environment-coupling layer
   (`broker/coupling/`: contract + adapter + BMI hosting + ContinuousBundle;
   three worked examples incl. multi-agent period-end settlement and

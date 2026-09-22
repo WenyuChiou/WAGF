@@ -83,8 +83,8 @@ Every column in an audit CSV MUST correspond to one of:
 4. Aggregated columns (e.g., `mem_top_emotion` = max-frequency over retrieved memories) MUST document in the schema that they are aggregates, not per-row observations. Per-memory detail, if needed, belongs in a separate JSONL sidecar, not collapsed into single CSV cells.
 
 ### Detection / enforcement
-- `test_audit_no_hardcoded_sentinels_leak` — synthetic run asserts `mem_top_emotion` shows variety when input memories have variety.
-- `test_dormant_field_policy` — grep-scans that every audit column name has at least one writer in the codebase.
+- `broker/tests/test_framework_invariants.py::TestAuditSentinelDetection` (`test_constant_neutral_emotion_flagged`) — reproduces the exact 2026-04-19 NW flood leak pattern (every row carrying `mem_top_emotion="neutral"`) and asserts `detect_audit_sentinels` fires a warning naming the column and the constant value.
+- `broker/tests/test_framework_invariants.py::TestDormantFieldPolicy` (`test_audit_aggregate_keys_have_upstream_writers`) — grep-scans that every audit aggregate dict key (`memory_audit`, `social_audit`, `cognitive_audit`, `rule_breakdown`) has at least one writer in `broker/` production code, or is listed in `_RESERVED_DICT_KEYS`.
 - Runtime: `AuditWriter.finalize()` checks for suspicious constancy (same value across 100+ rows) and logs WARNING.
 - **Phase 6G (2026-05-15)**: audit CSV column ordering + per-row schema is computed by the module-level functions `trace_to_csv_row()` and `compute_csv_fieldnames()` in `broker/components/analytics/audit.py`. These are the single source of truth used by BOTH the live writer (`GenericAuditWriter._export_csv`) and the crash-recovery CLI (`broker.tools.recover_csv_from_jsonl`). Any schema change MUST update both consumers via the shared functions — drift between live-finalized CSV and crash-recovered CSV is enforced against by `tests/test_recover_csv_from_jsonl.py::test_recovered_csv_matches_live_finalize_schema`.
 
@@ -107,7 +107,7 @@ Parallel API methods on the same domain concept MUST preserve identical metadata
 3. Domain-facing code (examples/<domain>/) SHOULD call the agent-aware variant; if it must use the non-agent variant, it MUST pass explicit `metadata={"emotion": ..., "importance": ..., "source": ...}` to avoid fallback to a different classifier.
 
 ### Detection / enforcement
-- `test_parallel_api_consistency` — adds the same content through both `add_memory` and `add_memory_for_agent`; asserts stored emotion classification is identical.
+- `broker/tests/test_framework_invariants.py::TestParallelAPIConsistency` (`test_add_memory_and_add_memory_for_agent_classify_identically`) — adds the same content through both `add_memory` and `add_memory_for_agent`; asserts stored emotion classification is identical.
 - Code review checklist in `CONTRIBUTING.md` (to be added): "Does this new method have a parallel variant? If yes, do both route through `_classify_metadata`?"
 
 ### Known current state
@@ -127,7 +127,7 @@ Schema fields, dataclasses, and code paths MUST be either production-live or exp
 4. Constructor parameters accepted but never used MUST either be removed or documented in the docstring with a TODO for activation.
 
 ### Detection / enforcement
-- `test_dormant_field_policy` — ties audit columns to writer grep results (same test as Invariant 2 rule 3).
+- `broker/tests/test_framework_invariants.py::TestDormantFieldPolicy` (`test_audit_aggregate_keys_have_upstream_writers`) — ties audit columns to writer grep results (same test as Invariant 2 rule 3).
 - Manual review: quarterly scan for `@deprecated` markers older than 6 months; decide to activate or remove.
 
 ### Known current state (dormant items identified by 2026-04-19 audit)
