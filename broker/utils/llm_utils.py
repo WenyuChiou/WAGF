@@ -316,6 +316,40 @@ def _load_global_config() -> LLMConfig:
 
 LLM_CONFIG = _load_global_config()
 
+
+def resolve_ollama_params(overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Merge ``overrides`` onto ``LLM_CONFIG`` exactly as ``create_llm_invoke`` does.
+
+    Single source of truth for "what sampling/context params does this run
+    actually send for a given agent type" (Ollama requests only; see
+    ``is_cloud_provider_model`` for why a cloud-provider agent type is
+    recorded differently). Reused by ``create_llm_invoke`` (to build the
+    invoke closure's Ollama options) and by
+    ``ExperimentRunner._collect_reproducibility_metadata`` (to record
+    ``llm_params_resolved`` in the reproducibility manifest, r19 G7/G8).
+
+    Before this helper existed, the manifest read the ``LLM_CONFIG`` singleton
+    directly and never saw the per-agent-type override
+    (``AgentTypeConfig.get_llm_params(agent_type)``, merged in as overrides by
+    ``ExperimentRunner.get_llm_invoke``): one domain's per-type block sending
+    temperature=0.8/top_p=0.9/top_k=40 and another sending none of the three
+    (Ollama's modelfile defaults apply instead) both recorded
+    whatever ``LLM_CONFIG`` held globally (null for both), even though the
+    actual sampled values differed. Any future caller that needs "what does
+    this run really send" must call this function rather than read
+    ``LLM_CONFIG`` or an overrides dict alone, so the two paths cannot drift
+    apart again.
+
+    ``overrides`` is read-only here: a fresh dict is returned and the input is
+    never mutated.
+    """
+    params = LLM_CONFIG.to_ollama_params()
+    if overrides:
+        params.update(overrides)
+    params.pop("model", None)
+    return params
+
+
 def _elapsed_ms(t0: float) -> float:
     """Milliseconds since ``t0`` (a ``time.perf_counter()`` reading)."""
     return (time.perf_counter() - t0) * 1000.0
@@ -505,17 +539,43 @@ class LLMProvider(ABC):
 LLMInvokeFunc = Callable[[str], Tuple[str, LLMStats]]
 
 
-def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbose: bool) -> Tuple[str, LLMStats]:
+# Cloud providers create_llm_invoke routes to the modern provider factory
+# (create_provider_invoke) instead of the direct-Ollama path, given a model
+# string of the shape "<provider>:<name>". Hoisted to module level (it used
+# to be a local inside create_llm_invoke) so is_cloud_provider_model below can
+# reuse the SAME list rather than a second, possibly-drifting copy.
+KNOWN_CLOUD_PROVIDERS = ("gemini", "openai", "azure", "anthropic", "claude")
+
+
+def is_cloud_provider_model(model: str) -> bool:
+    """Whether ``model`` routes through the cloud-provider factory, not Ollama.
+
+    Mirrors ``create_llm_invoke``'s own routing check exactly (a ``mock``-
+    prefixed name never counts, even if it happens to contain a colon), so
+    this can be reused elsewhere (the reproducibility manifest gates
+    ``llm_model_defaults`` / ``llm_sampling_seeded`` on it, since neither
+    concept applies to a request Ollama never receives) without a second,
+    independently-maintained copy of the same rule.
     """
-    Phase 46: Invoke Ollama direct via API to avoid LangChain/Python 3.14 issues
-    and enable native JSON-mode.
+    if not isinstance(model, str) or model.lower().startswith("mock"):
+        return False
+    if ":" not in model:
+        return False
+    provider_type = model.split(":", 1)[0].lower()
+    return provider_type in KNOWN_CLOUD_PROVIDERS
+
+
+def _build_ollama_options(model: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the Ollama ``options`` dict exactly as ``_invoke_ollama_direct`` sends it.
+
+    Extracted so ``ollama_sampling_is_seeded`` can inspect the REAL request
+    options for a ``seed`` key instead of a hardcoded belief about whether one
+    is sent (the two must never drift apart the way the manifest's
+    ``temperature``/``top_p`` singleton drifted from the per-call overrides,
+    r19 G7/G8). Behaviour is unchanged: this is the same dict construction
+    that lived inline in ``_invoke_ollama_direct`` before.
     """
-    import requests
-    import json
-    
-    url = "http://localhost:11434/api/generate"
-    
-    # Standardize options — only include sampling params if explicitly set
+    # Standardize options: only include sampling params if explicitly set
     # (None / missing = use Ollama model default, e.g. temperature ~0.8)
     options = {
         "num_predict": params.get("num_predict", 2048),
@@ -527,13 +587,132 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         options["top_p"] = params["top_p"]
     if "top_k" in params:
         options["top_k"] = params["top_k"]
-    
+
+    # Apply thinking budget (if any) into options; think flag is top-level
+    # (set at the request-dict level in _invoke_ollama_direct, not here).
+    options = LLM_CONFIG.apply_thinking_control(model, options)
+    return options
+
+
+def ollama_sampling_is_seeded() -> bool:
+    """Whether the Ollama request options this run sends include a ``seed`` key.
+
+    Reads the truth from :func:`_build_ollama_options`, the same builder
+    ``_invoke_ollama_direct`` calls for every request, instead of a hardcoded
+    ``False``. Ollama's ``seed`` option is not added anywhere in the options
+    builder today, so this reads ``False``; the day a seed IS wired in, this
+    flips automatically with no reproducibility-manifest code to remember to
+    update (r19 G8: today's runs are unseeded and that fact was previously
+    unstated in the manifest). Model-independent by design: the builder is
+    shared code, so whether a seed is sent does not vary by model. Callers
+    that need "is Ollama even in the request path for this run" (a cloud
+    provider never reaches this builder at all) check
+    :func:`is_cloud_provider_model` separately.
+    """
+    probe_options = _build_ollama_options("probe-model", {})
+    return "seed" in probe_options
+
+
+def _parse_ollama_modelfile_parameters(modelfile_text: str) -> Dict[str, Any]:
+    """Parse ``PARAMETER`` lines out of an ``ollama show --modelfile`` output.
+
+    Each line has the shape ``PARAMETER <key> <value>``; ``value`` may be
+    quoted (e.g. ``PARAMETER stop "<end_of_turn>"``). ``stop`` is ALWAYS
+    returned as a list, even when the modelfile has exactly one ``PARAMETER
+    stop ...`` line: a caller iterating stop tokens should never have to
+    branch on ``isinstance(..., list)`` first, and Ollama's own format treats
+    stop as inherently multi-valued (one line per token). Any OTHER repeated
+    key also collects into a list. Numeric-looking values are coerced to
+    int/float; everything else stays a string. Unparseable or unrelated lines
+    are skipped, never raised on: this feeds a best-effort manifest field,
+    not a control path.
+    """
+    params: Dict[str, Any] = {}
+    for line in modelfile_text.splitlines():
+        line = line.strip()
+        if not line.startswith("PARAMETER "):
+            continue
+        rest = line[len("PARAMETER "):].strip()
+        parts = rest.split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, raw_value = parts
+        value = raw_value.strip()
+        if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+        parsed_value: Any = value
+        try:
+            parsed_value = int(value)
+        except ValueError:
+            try:
+                parsed_value = float(value)
+            except ValueError:
+                parsed_value = value
+        if key == "stop":
+            params.setdefault("stop", []).append(parsed_value)
+        elif key in params:
+            existing = params[key]
+            if isinstance(existing, list):
+                existing.append(parsed_value)
+            else:
+                params[key] = [existing, parsed_value]
+        else:
+            params[key] = parsed_value
+    return params
+
+
+def capture_ollama_modelfile_defaults(
+    model: str, timeout: int = 10,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Return ``(parsed PARAMETER dict, error message)`` from ``ollama show <model> --modelfile``.
+
+    For the reproducibility manifest's ``llm_model_defaults`` (r19 G7): the
+    per-call overrides recorded by :func:`resolve_ollama_params` describe what
+    THIS run explicitly sent; a key that run never set (e.g. a type sends
+    no ``top_k`` override) falls through to whatever the model's own Ollama
+    modelfile declares, and that value was previously invisible in any
+    artifact. Never raises: Ollama being absent, the model being unknown to
+    it, or a slow/hung daemon must not fail manifest collection. On any
+    failure the first element is ``None`` and the second names why.
+
+    Decoding: ``encoding="utf-8", errors="replace"`` so a modelfile containing
+    non-UTF-8 bytes (a stray byte in a LICENSE block, an odd locale on the
+    host) degrades to replacement characters in that field rather than
+    raising ``UnicodeDecodeError`` and losing the whole manifest field to the
+    catch-all below.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["ollama", "show", model, "--modelfile"],
+            capture_output=True, encoding="utf-8", errors="replace", timeout=timeout,
+        )
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()[:200]
+            return None, f"'ollama show {model} --modelfile' exited {result.returncode}: {stderr}"
+        return _parse_ollama_modelfile_parameters(result.stdout), None
+    except FileNotFoundError:
+        return None, "ollama executable not found on PATH"
+    except subprocess.TimeoutExpired:
+        return None, f"'ollama show {model} --modelfile' timed out after {timeout}s"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
+def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbose: bool) -> Tuple[str, LLMStats]:
+    """
+    Phase 46: Invoke Ollama direct via API to avoid LangChain/Python 3.14 issues
+    and enable native JSON-mode.
+    """
+    import requests
+    import json
+
+    url = "http://localhost:11434/api/generate"
+
     # Phase 47: Global Disable of Strict JSON Mode
     # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.
     # We rely on the prompt to enforce JSON structure.
-
-    # Apply thinking budget (if any) into options; think flag is top-level (below)
-    options = LLM_CONFIG.apply_thinking_control(model, options)
+    options = _build_ollama_options(model, params)
 
     data = {
         "model": model,
@@ -627,27 +806,31 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     """
     # Phase 0.3: Route to modern provider factory ONLY for known cloud providers
     # This prevents "gemma3:4b" from being split into provider="gemma3"
-    KNOWN_PROVIDERS = ["gemini", "openai", "azure", "anthropic", "claude"]
-    
-    if ":" in model and not model.startswith("mock"):
+    # (is_cloud_provider_model / KNOWN_CLOUD_PROVIDERS, module-level so the
+    # reproducibility manifest can reuse the identical check, not a second
+    # locally-scoped copy of the same list).
+    if is_cloud_provider_model(model):
         parts = model.split(":", 1)
         provider_type = parts[0].lower()
-        
-        # Only route to factory if it's a known cloud provider
-        if provider_type in KNOWN_PROVIDERS:
-            model_name = parts[1]
-            
-            # Build config dict for factory
-            config = {
-                "type": provider_type,
-                "model": model_name
-            }
-            
-            # Apply overrides if present (e.g. temperature)
-            if overrides:
-                config.update(overrides)
-            
-            return create_provider_invoke(config, verbose=verbose)
+        model_name = parts[1]
+
+        # Build config dict for factory
+        config = {
+            "type": provider_type,
+            "model": model_name
+        }
+
+        # Apply overrides if present (e.g. temperature). Note for anything
+        # reading llm_params_resolved in the manifest: this is the RAW
+        # overrides dict, never merged with LLM_CONFIG/resolve_ollama_params
+        # (those are Ollama-request concepts; num_ctx/num_predict/etc. from
+        # LLM_CONFIG are never applied here). See ExperimentRunner.get_llm_invoke,
+        # which records this same raw dict for a cloud-provider agent type,
+        # for exactly this reason.
+        if overrides:
+            config.update(overrides)
+
+        return create_provider_invoke(config, verbose=verbose)
 
 
     # Domain-agnostic mock for testing — returns minimal JSON that
@@ -673,15 +856,12 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         from langchain_ollama import ChatOllama
         from langchain_ollama import OllamaLLM
 
-        # Build params from global config
-        ollama_params = LLM_CONFIG.to_ollama_params()
-
-        # Apply any runtime overrides
-        if overrides:
-            ollama_params.update(overrides)
-
-        # Remove 'model' from params if present (it's passed explicitly above)
-        ollama_params.pop("model", None)
+        # Build params from global config, merged with any per-agent-type
+        # overrides, via the shared helper, so this can never diverge from
+        # what ExperimentRunner records in the reproducibility manifest's
+        # llm_params_resolved (r19 G7/G8, see resolve_ollama_params docstring).
+        # 'model' is stripped by the helper (it's passed explicitly above).
+        ollama_params = resolve_ollama_params(overrides)
 
         # Select provider based on config
         if LLM_CONFIG.use_chat_api:
