@@ -10,6 +10,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Reproducibility manifest records the LLM sampling params actually sent,
+  not just the global singleton, for Ollama runs (r19 G7/G8, verified
+  2026-09-23, hardened per review the same day)**: the manifest's existing
+  `temperature`/`top_p` keys read only the module-level `LLM_CONFIG`
+  singleton (`broker/utils/llm_utils.py`); the per-call values come from
+  `ExperimentRunner.get_llm_invoke` merging
+  `AgentTypeConfig.get_llm_params(agent_type)` in as overrides
+  (`create_llm_invoke`, `_invoke_ollama_direct`). A flood run sending
+  `temperature=0.8`/`top_p=0.9`/`top_k=40` and an irrigation run sending none
+  of the three (Ollama's own modelfile default then applies) both recorded
+  `null` for both fields, `top_k` was never recorded at all, and no Ollama
+  `seed` is sent (unstated). Three additive manifest keys close the gap, all
+  computed via a new shared helper `resolve_ollama_params` (also now used
+  internally by `create_llm_invoke`, replacing its inline merge, so the two
+  paths cannot diverge): `llm_params_resolved` (dict keyed by agent type,
+  populated lazily by `get_llm_invoke`; only agent types this run actually
+  created an LLM invoke for appear. Each entry is the MERGED dict Ollama
+  actually received, run-wide `num_ctx`/`num_predict` from `LLM_CONFIG` plus
+  whatever that type's own `llm_params` block overrode, PLUS `"model"`, the
+  resolved model name for that type, since a per-type `llm_params.model`
+  override means different agent types in one run can send to different
+  models. A cloud-provider agent type, e.g. `llm_params.model: gemini:pro`,
+  records its RAW overrides dict instead, since `create_provider_invoke`
+  never merges with `LLM_CONFIG` at all, that IS what the provider path
+  receives); `llm_model_defaults` (dict keyed by every DISTINCT model this
+  run resolved, each value the model's own
+  `ollama show <model> --modelfile` `PARAMETER` lines, parsed by new
+  `capture_ollama_modelfile_defaults`, captured once per distinct model at
+  finalize inside its own try/except; `null` + a matching entry in
+  `llm_model_defaults_error` on failure. The `mock` model is omitted
+  entirely; a cloud-provider model, checked via new
+  `is_cloud_provider_model`/`KNOWN_CLOUD_PROVIDERS`, hoisted to module level
+  so `create_llm_invoke`'s own routing check and the manifest share one list,
+  gets `null` paired with `"not an Ollama model"`, never an actual
+  `ollama show` call); and `llm_sampling_seeded` (new
+  `ollama_sampling_is_seeded()`, which inspects the actual Ollama request
+  options via extracted helper `_build_ollama_options` for a `seed` key
+  rather than hard-coding `false`, so it cannot silently go stale; `null`,
+  not `false`, when every distinct model this run resolved is a cloud
+  provider, since no Ollama request was ever built to be (un)seeded). All
+  three keys describe Ollama runs; a fully cloud-provider run still gets
+  `llm_params_resolved` (see above) but `llm_model_defaults`/
+  `llm_sampling_seeded` reflect that no Ollama call was made. The
+  pre-existing `temperature`/`top_p`/`num_ctx`/`num_predict` keys are
+  unchanged (backward-compatible with golden tests) and now carry a comment
+  clarifying they reflect the singleton only, not any per-agent-type merge.
+  `capture_ollama_modelfile_defaults` decodes with `encoding="utf-8",
+  errors="replace"` (a non-UTF-8 byte in a modelfile degrades gracefully
+  instead of losing the whole field to `UnicodeDecodeError`), and its parser
+  always returns `stop` as a list, even for a modelfile with exactly one
+  `PARAMETER stop ...` line. New tests:
+  `broker/tests/test_manifest_llm_params.py` (27 cases, including a
+  characterization test that freezes the exact JSON body
+  `_invoke_ollama_direct` posts for a small temperature/top_k/thinking_mode
+  grid as literals, so a future edit to the request builder trips a test
+  instead of silently changing what goes out on the wire). Documented in
+  `docs/guides/troubleshooting_guide.md` §3.4.
+
 - **Irrigation domain wired to the v0.6 coupling layer (default OFF)**:
   `examples/irrigation_abm/coupling_modules.py` adds `IrrigationBundle`
   (a `broker.coupling.InterfaceBundle` that wraps, never reimplements,
