@@ -216,5 +216,48 @@ class EnvironmentCouplingAdapter:
                     prov["event_source_provenance"] = {"error": repr(exc)}
         return prov
 
+    # ------------------------------------------------------------------
+    # Generic hook forwarding (narrow, explicit allowlist - not a general
+    # attribute proxy). A domain may validate a SEPARATE physical-state
+    # handoff inline, because its shape does not fit this adapter's single
+    # flat-dict advance_step() model (a per-agent accessor reading several
+    # source dicts lazily, rather than one dict produced per period), and
+    # report that fact via get_coupling_retrofit_metadata() on the domain
+    # environment itself. Wrapping that environment in this adapter must
+    # not make the report silently vanish from
+    # ExperimentRunner._collect_reproducibility_metadata, which discovers
+    # the hook via getattr(self.sim_engine, name, None): before this
+    # method existed, that getattr found nothing on the adapter and always
+    # returned None, so a wrapped domain's own retrofit metadata dropped
+    # out of run_integrity.json / the reproducibility manifest with no
+    # error and no warning.
+    # ------------------------------------------------------------------
+    _FORWARDED_HOOK_NAMES = frozenset({"get_coupling_retrofit_metadata"})
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward one of ``_FORWARDED_HOOK_NAMES`` to ``real_engine`` when
+        it defines the hook; otherwise behave exactly as if this method did
+        not exist (``__getattr__`` only runs when normal attribute lookup
+        already failed, so it never shadows a name this class, or Python
+        itself, defines - ``advance_step`` / ``get_provenance`` / etc. are
+        found by normal lookup and this is never consulted for them).
+
+        Reads ``real_engine`` via ``self.__dict__.get(...)``, NOT
+        ``self.real_engine``: the plain attribute access would itself
+        recurse into ``__getattr__("real_engine")`` on a partially
+        constructed instance (``real_engine`` not in
+        ``_FORWARDED_HOOK_NAMES``), and THAT AttributeError, naming
+        ``real_engine``, would propagate instead of this method's own
+        AttributeError naming ``name`` (the attribute someone actually
+        asked for) - confusing whoever is debugging the original lookup.
+        """
+        if name in EnvironmentCouplingAdapter._FORWARDED_HOOK_NAMES:
+            fn = getattr(self.__dict__.get("real_engine"), name, None)
+            if callable(fn):
+                return fn
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+
 
 __all__ = ["EnvironmentCouplingAdapter", "CouplingViolation"]

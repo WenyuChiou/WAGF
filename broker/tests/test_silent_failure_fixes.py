@@ -330,7 +330,15 @@ class TestF3SummaryWriteIndependentOfManifestWrite:
         manifest_path = tmp_path / "reproducibility_manifest.json"
         assert manifest_path.exists()
         # Content is valid JSON:
-        assert "model" in json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert "model" in manifest
+        # runner.broker is a MagicMock with no `_derived_from_config` set, so
+        # a bare `getattr` returns an auto-generated child Mock, not None.
+        # MagicMock implements `__fspath__` (Python 3.8+), so a prior
+        # `isinstance(v, (str, os.PathLike))` guard let that Mock through
+        # and wrote a junk string here; the isinstance(v, (str, Path)) guard
+        # must reject it and write None instead.
+        assert manifest["derived_from_config"] is None
 
     def test_save_summary_runs_when_manifest_write_fails(self, tmp_path):
         """The critical invariant: even if the manifest write
