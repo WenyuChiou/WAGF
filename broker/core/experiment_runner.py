@@ -683,6 +683,26 @@ class ExperimentRunner:
             "num_years": iterations,
             "governance_profile": self.config.governance_profile,
             "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown",
+            # Generic, additive: a domain runner that derives agent_types_config
+            # from an original file (e.g. a domain runner that adds a coupling key
+            # --coupling flag, which writes an isolated copy with one added key)
+            # sets `runner.broker._derived_from_config` to the ORIGINAL path right
+            # after build() - same pattern as `_retry_feedback_mode` below. None
+            # when no runner ever sets it, so an un-derived config is unaffected.
+            # isinstance-guarded the same way `memory_seed` above is: tests
+            # construct the runner with a MagicMock broker, and a bare getattr
+            # returns a Mock (not JSON-serialisable, takes the whole manifest
+            # write down) rather than None. Checked against the CONCRETE
+            # ``pathlib.Path`` class, not ``os.PathLike``: ``MagicMock``
+            # implements ``__fspath__`` (Python 3.8+), so
+            # ``isinstance(mock, os.PathLike)`` is True for an unconfigured
+            # Mock and would let a junk string through here.
+            "derived_from_config": (
+                str(_dfc) if isinstance(
+                    _dfc := getattr(self.broker, "_derived_from_config", None),
+                    (str, Path),
+                ) else None
+            ),
         }
         manifest.update(self._collect_reproducibility_metadata())
         # Memory write policy snapshot (populated if the engine is wrapped by
@@ -919,6 +939,35 @@ class ExperimentRunner:
                     metadata["config_hash"] = h
         except Exception:
             pass
+
+        # 4b. Hash of the ORIGINAL config a derived copy came from (additive;
+        # same isinstance guard as `derived_from_config` above, so a MagicMock
+        # test double never reaches hashlib.sha256 / the JSON write). config_hash
+        # above is a byte hash of the DERIVED file (config_path, which a
+        # deriving runner repoints at the copy) and is therefore not comparable
+        # to this one - see that runner's derive helper docstring.
+        # ALWAYS present, default None: every domain's manifest carries this
+        # key (matches `derived_from_config`, and the CHANGELOG sentence that
+        # both are null unless a runner sets `_derived_from_config`).
+        metadata["derived_from_config_sha256"] = None
+        try:
+            import hashlib
+            from pathlib import Path
+            _dfc = getattr(self.broker, "_derived_from_config", None)
+            # Checked against the CONCRETE `pathlib.Path` class, not
+            # `os.PathLike`: `MagicMock` implements `__fspath__` (Python
+            # 3.8+), so `isinstance(mock, os.PathLike)` is True for an
+            # unconfigured Mock and would let a junk string through here.
+            if isinstance(_dfc, (str, Path)):
+                _dfc_path = Path(_dfc)
+                if _dfc_path.exists():
+                    metadata["derived_from_config_sha256"] = hashlib.sha256(
+                        _dfc_path.read_bytes()
+                    ).hexdigest()[:12]
+        except Exception as exc:
+            logger.warning(
+                "[Finalize] derived_from_config_sha256 skipped: %s", exc
+            )
 
         # 5. Timestamp and Python version
         import sys

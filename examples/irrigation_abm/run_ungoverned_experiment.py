@@ -41,6 +41,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from examples.irrigation_abm.run_experiment import (
     _profiles_to_agents,
     _create_synthetic_profiles,
+    _resolve_irrigation_coupling,
     IrrigationLifecycleHooks,
     IRRIGATION_SKILLS,
 )
@@ -115,6 +116,15 @@ def main():
     random.seed(seed)
     np.random.seed(seed)
 
+    # --- Output (moved early: a --coupling derived config file, below, is
+    # written into this directory so it persists with the rest of the run's
+    # artifacts instead of living in a temp dir) ---
+    if args.output:
+        output_dir = Path(args.output)
+    else:
+        output_dir = base / "results" / f"ungoverned_v20_42yr_seed{seed}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # --- LLM config overrides ---
     from broker.utils.llm_utils import LLM_CONFIG
     if args.num_ctx:
@@ -126,6 +136,17 @@ def main():
     agent_config_path = config_dir / "agent_types.yaml"
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
+
+    # --- v0.6 coupling-layer flag (--coupling CLI flag, default OFF) ---
+    # Same single-switch resolution as run_experiment.py; see
+    # _resolve_irrigation_coupling's docstring there. original_agent_config_path
+    # is kept so the manifest can record where a derived copy came from.
+    original_agent_config_path = agent_config_path
+    agent_config_path, coupling_active = _resolve_irrigation_coupling(
+        cfg_data, agent_config_path, args.coupling, output_dir)
+    if coupling_active:
+        print("[coupling] enable=True - v0.6 EnvironmentCouplingAdapter wraps IrrigationEnvironment")
+
     global_cfg = cfg_data.get("global_config", {})
 
     # --- Load prompt template ---
@@ -245,13 +266,6 @@ def main():
             FeedbackDashboardProvider(_metrics_tracker, feedback_cfg)
         )
 
-    # --- Output directory (isolated from governed results) ---
-    if args.output:
-        output_dir = Path(args.output)
-    else:
-        output_dir = base / "results" / f"ungoverned_v20_42yr_seed{seed}"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     # --- Performance tuning ---
     from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
     perf = get_optimal_config(args.model)
@@ -275,7 +289,16 @@ def main():
         .with_workers(args.workers)
         .with_seed(seed)
     )
+    if coupling_active:
+        from examples.irrigation_abm.coupling_modules import (
+            IrrigationBundle,
+            build_irrigation_coupling_contract,
+        )
+        builder = builder.with_coupling(
+            build_irrigation_coupling_contract(env), IrrigationBundle(env), domain="irrigation")
     runner = builder.build()
+    if agent_config_path != original_agent_config_path:
+        runner.broker._derived_from_config = str(original_agent_config_path)
 
     # --- Reflection engine (same as governed) ---
     refl_cfg = global_cfg.get("reflection", {})
@@ -340,6 +363,15 @@ def parse_args():
     p.add_argument("--output", type=str, default=None)
     p.add_argument("--num-ctx", type=int, default=None)
     p.add_argument("--num-predict", type=int, default=None)
+    p.add_argument("--coupling", action="store_true",
+                   help="Enable the v0.6 coupling layer (see run_experiment.py --coupling "
+                        "for the full description). Default OFF; OVERRIDES an explicit "
+                        "enable: false already in the YAML (source is then reported as "
+                        "cli, not yaml). With the contract on, simulation_log.csv is "
+                        "byte-identical to a contract-off run at the same "
+                        "seed/years/agents, and the governance audit CSV is identical "
+                        "under broker.tools.compare_audit_csv apart from two added "
+                        "world_request / world_contention_rule columns.")
     return p.parse_args()
 
 
