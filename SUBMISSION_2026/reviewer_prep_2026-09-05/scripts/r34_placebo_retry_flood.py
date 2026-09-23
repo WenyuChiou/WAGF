@@ -400,6 +400,29 @@ def _find(rows, row_type, **kw):
     return out
 
 
+def _manifest_commit_hashes(rows: list, placebo_arms: list, comparator_arms: list) -> tuple:
+    """(placebo_hash, comparator_hash), pulled from `manifest_check` rows'
+    `git_commit_short` -- never hard-coded, so a Method-section caveat built
+    from this cannot drift from the actual run. Raises if the arm(s) have no
+    manifest rows yet, or if git_commit_short disagrees within an arm (across
+    seeds) or between the comparator arms -- a disagreement there would mean
+    the provenance claim itself is false, never something to paper over.
+    Identical helper to r35_placebo_retry_irrigation.py's own -- not shared
+    via import since neither script exports helpers for reuse by the other,
+    same convention `_rule_id_census` already established between them."""
+    def _one(arms: list) -> str:
+        vals = {r["git_commit_short"] for r in _find(rows, "manifest_check") if r["arm"] in arms}
+        if not vals:
+            raise PrepError(f"no manifest_check rows yet for arm(s) {arms} -- cannot render "
+                             f"the code-provenance caveat")
+        if len(vals) > 1:
+            raise PrepError(f"manifest_check git_commit_short disagrees within/between "
+                             f"arm(s) {arms}: {sorted(vals)} -- the code-provenance caveat "
+                             f"cannot be rendered as a single hash")
+        return next(iter(vals))
+    return _one(placebo_arms), _one(comparator_arms)
+
+
 def render_md(rows: list) -> str:
     lines = []
     lines.append("# R34 -- placebo-retry flood: extra attempt vs rule content")
@@ -659,6 +682,31 @@ def render_md(rows: list) -> str:
         "(placebo-strict)/(disabled-strict): 0 = placebo behaves like strict (attempt "
         "count matters), 1 = placebo behaves like disabled (rule content matters); raises "
         "on a zero denominator rather than reporting inf/nan."
+    )
+    lines.append("")
+
+    # 2026-09-22 review fix (round 2): code-provenance caveat, pulled live from this
+    # run's own manifest_check rows (never hard-coded) so it cannot drift from what
+    # actually ran. Round-1 text overclaimed "unchanged" for the retry-prompt path
+    # the mock check cannot see; replaced with the three-piece evidence chain
+    # (framework-change scope, retry-prompt golden text, mock CSV identity for BOTH
+    # domains) recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md.
+    placebo_hash, comparator_hash = _manifest_commit_hashes(
+        rows, placebo_arms=["placebo"], comparator_arms=["strict", "disabled"])
+    lines.append(
+        f"The placebo arm was run at code {placebo_hash} while the strict and disabled "
+        f"comparators come from {comparator_hash}. The comparison is accepted on three "
+        f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
+        f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven files, "
+        f"all plumbing for the retry_feedback_mode feature), whose only behaviour-changing "
+        f"branch is in the domain-generic retry loop broker/core/_retry_loop.py (RetryMixin."
+        f"_governance_retry_loop); the full-mode retry prompt rendered by that loop is "
+        f"byte-identical across the two commits for both the rule-violation and the "
+        f"format-violation branch; and mock runs at both commits give identical "
+        f"governance-audit and simulation logs for flood (4 of 4 comparisons) and for "
+        f"irrigation (4 of 4, strict and disabled, synthetic agents). The earlier "
+        f"faf1bb12 -> c3391a53 gate in out/regen_progress_2026-09-15.md covers both "
+        f"domains."
     )
     lines.append("")
 

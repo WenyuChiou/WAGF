@@ -932,3 +932,71 @@ returns. Whether rule content matters more in irrigation, where the action space
 rate runs 64 to 74% (r27, r33), is the open question the irrigation placebo arm would answer.
 
 Review trail: Review trail: r34 reviewed in round 12 (REQUEST CHANGES: the plain read averaged the share over all eight cells and was flipped by the two EHE cells whose denominator is below 0.02; fixed by flagging degenerate denominators and computing the verdict over the six IBR cells; all metric values, manifests and rule census verified by recomputation)..
+
+## 2026-09-22 update, step [1]: irrigation placebo retry-feedback arm (r35)
+
+Full tables: `out/r35_placebo_retry_irrigation.md`, rendered by its script from the same rows as its CSV. This
+is the irrigation half of the r34 question: the validators are unchanged and fire as they always did, and only
+the retry prompt loses the rule identity, the reason and the suggestion. Irrigation gemma3:4b, seeds 42 and 43,
+code 83fa97e1, config `config_variants/placebo_gemma3_4b` with
+`global_config.governance.retry_feedback_mode: placebo`; both seed logs print
+`[Governance] retry_feedback_mode=placebo`. Both placebo manifests are present, record `retry_feedback_mode`
+as `placebo` (value-enforced) and `thinking_mode` as `auto`. Wall time 3.161 h (seed 42) and 3.051 h (seed
+43). The strict and ungoverned comparators are the faf1bb12 runs.
+
+Shares below are on the strict-to-ungoverned line (0 behaves like strict, 1 like ungoverned). All ten cells in
+r35's Part 2 are non-degenerate, unlike the two flood EHE cells in r34, so every cell enters its part of the
+verdict.
+
+## Read
+The Part 4 verdict, verbatim: "Across the 2 non-degenerate IBR (seed) cells, placebo sits close to UNGOVERNED
+on IBR (mean share 0.962, range 0.934 to 0.990, i.e. near 1) -- most of governance's measured value here looks
+like it comes from the SPECIFIC RULE CONTENT in the retry prompt, not just from having another attempt." A first
+draft of the script averaged all ten cells and printed "close to STRICT", which hid this; the corrected rule is
+the one r34 uses. Part 4b, verbatim:
+
+- "IBR headline (%) (proposal level): share 0.934 / 0.990, mean 0.962: tracks UNGOVERNED."
+- "EHE pooled proposal (proposal level): share 0.368 / 0.188, mean 0.278: tracks STRICT."
+- "EHE pooled executed (executed level): share -0.026 / 0.028, mean 0.001: tracks STRICT."
+- "Mead min (ft) (executed level): share 0.000 / 0.018, mean 0.009: tracks STRICT."
+- "Shortage years (executed level): share 0.038 / 0.000, mean 0.019: tracks STRICT."
+- "On the coherence metric the placebo tracks UNGOVERNED while every executed outcome tracks STRICT: in
+  irrigation, rule text in the retry prompt is what moves the agent's last recorded proposal, and blocking alone
+  protects the water system. Compare r34 (flood), where placebo tracked STRICT on IBR as well."
+
+Mechanism. IBR is computed on the last recorded proposal, `proposed_skill`. Under placebo seed 42, 586 of the
+1025 high-WSA rows propose an increase, and 584 of those 586 end REJECTED, so `_common.py (irr_executed)` maps
+them to `maintain_demand` and the increase never reaches the water system. The 0.34% fallback is only the narrow
+REJECTED_FALLBACK status class, not the ordinary REJECTED rows. Without the rule text the agent keeps asking for
+the incoherent increase through its retries, so proposal-level coherence collapses to the ungoverned level,
+while the executed outcomes stay at the strict level because blocking still stops the action.
+
+Contrast with flood. r34's verdict reads "Across the 6 non-degenerate IBR (conditioning, seed) cells, placebo
+sits close to STRICT on IBR (mean share 0.115, range -0.011 to 0.252, i.e. near 0)". So B5 of the readiness
+audit is now domain-dependent: in flood the blocking decision does the work, in irrigation the rule text is what
+moves the last proposal. One way to reword B5 (proposal, not yet applied): governance acts as a package
+whose parts weigh differently by domain, rather than rule content never mattering. M7 weakens, since a
+cross-model transfer claim now rests on two domains that disagree on the mechanism. Each domain has n = 2 seeds and, per the script's own
+caveat, no significance test is computed, so this is a direction, not a test.
+
+Provenance caveat. The placebo arm runs at 83fa97e1, its comparators at faf1bb12. Both r34 and r35 now render
+the same caveat (r34 substitutes "disabled" for "ungoverned"); in r35's words: "The placebo arm was run at code
+83fa97e1 while the strict and ungoverned comparators come from faf1bb12. The comparison is accepted on three
+pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: the only framework change between
+c3391a53 and 83fa97e1 is PR #46 (eleven files, all plumbing for the retry_feedback_mode feature), whose only
+behaviour-changing branch is in the domain-generic retry loop broker/core/_retry_loop.py
+(RetryMixin._governance_retry_loop); the full-mode retry prompt rendered by that loop is byte-identical across
+the two commits for both the rule-violation and the format-violation branch; and mock runs at both commits give
+identical governance-audit and simulation logs for flood (4 of 4 comparisons) and for irrigation (4 of 4, strict
+and disabled, synthetic agents). The earlier faf1bb12 -> c3391a53 gate in out/regen_progress_2026-09-15.md covers
+both domains." The flood mock recipe is also in `.baselines/MOCK_EQUIV_c3391a53_83fa97e1_flood.md`.
+
+Files: `scripts/r35_placebo_retry_irrigation.py` (new), `out/r35_placebo_retry_irrigation.md` (new),
+`scripts/r34_placebo_retry_flood.py` and `out/r34_placebo_retry_flood.md` (provenance caveat added).
+`out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md` (new) records flood and irrigation mock byte-identity (4 of 4
+each) and the retry-prompt golden-text check across c3391a53 and 83fa97e1. The r35
+script was run twice with byte-identical output; SHA-256 of the r35 .md is
+6f8cbe72b99e0bb2346d39f621eb8001ca94887d7a6d62a18222946c87df3469.
+
+Review trail: r35 reviewed by a sonnet adversarial reviewer in two rounds, covering the corrected Part 4
+verdict (non-degenerate IBR cells only, as in r34) and the new Part 4b split.
