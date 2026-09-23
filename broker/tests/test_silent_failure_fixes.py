@@ -312,7 +312,12 @@ class TestF3SummaryWriteIndependentOfManifestWrite:
         runner.broker.model_adapter.config_path = None
         runner.memory_engine = MagicMock()
         runner.config = MagicMock()
-        runner.config.model = "test_model"
+        # "mock"-prefixed: _collect_reproducibility_metadata is mocked out
+        # below regardless, but a model name starting with "mock" means this
+        # stays true even if that mock is ever removed (r19 review hardening,
+        # 2026-09-23): a real model name here would make llm_model_defaults
+        # collection shell out to `ollama show`.
+        runner.config.model = "mock_test_model"
         runner.config.seed = 42
         runner.config.governance_profile = "strict"
         runner.config.output_dir = tmp_path
