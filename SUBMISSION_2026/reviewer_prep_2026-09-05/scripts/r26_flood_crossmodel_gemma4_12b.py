@@ -69,9 +69,24 @@ OUTPUTS
     directly from that same `rows` list (no number typed by hand).
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r26_flood_crossmodel_gemma4_12b.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r26_flood_crossmodel_gemma4_12b.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs)
+  v08 (default): EXACTLY the behaviour documented above, byte-identical
+  output (12b arms at commit c3391a53, 4b comparator = faf1bb12).
+  defaults: 12b arms at commit 83fa97e1 (`JOH_{strict,disabled}_defaults_
+  gemma4_12b_83fa97e1`); 4b comparator = the defaults gemma3:4b strict/
+  disabled dirs (not faf1bb12); Part 3's gemma3:4b contrast reference is
+  read from `out/r24_flood_contrast_regen_defaults.csv` instead of the
+  v08 file, and is reported as pending (not raised) if that file has no
+  contrast_stat rows yet. Every per-run completeness gate already in this
+  script (SKIPPED rows, "pending" notes) is reused as-is -- it was already
+  written to tolerate 0/5 seeds landed, which is exactly today's state for
+  every defaults dir. Writes out/r26_flood_crossmodel_gemma4_12b_defaults.{md,csv}.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -84,10 +99,10 @@ from _common import PrepError  # noqa: E402
 import r23_flood_strict_regen as R23  # noqa: E402
 import r24_flood_contrast_regen as R24  # noqa: E402
 
-SEEDS5 = R23.NEW_SEEDS  # ["42", "43", "44", "45", "46"]
-STRICT_12B_ROOT = "JOH_strict_gemma4_12b_c3391a53"
-DISABLED_12B_ROOT = "JOH_disabled_gemma4_12b_c3391a53"
-STRICT_4B_ROOT = R23.NEW_ROOT  # "JOH_strict_gemma3_4b_faf1bb12"
+SEEDS5 = R23.NEW_SEEDS  # ["42", "43", "44", "45", "46"] -- v08 default, see main()
+STRICT_12B_ROOT = C.flood_corpus_dirs("v08")["strict_gemma4_12b"][0]
+DISABLED_12B_ROOT = C.flood_corpus_dirs("v08")["disabled_gemma4_12b"][0]
+STRICT_4B_ROOT = R23.NEW_ROOT  # "JOH_strict_gemma3_4b_faf1bb12" -- v08 default
 
 TELEMETRY_COLS = ["prompt_tokens", "response_tokens", "llm_latency_ms", "tokens_per_second"]
 DISPLAY_METRICS = R23.DISPLAY_METRICS  # 6 collapsed metrics, shared with r23/r24/r25
@@ -131,7 +146,7 @@ def _telemetry_means(run_dir: str) -> dict:
     return out
 
 
-def _manifest_fields(run_dir: str) -> dict:
+def _manifest_fields(run_dir: str, expected_commit_prefix: str = "c3391a53") -> dict:
     p = os.path.join(run_dir, "reproducibility_manifest.json")
     if not os.path.isfile(p):
         raise PrepError(f"missing reproducibility_manifest.json in {run_dir}")
@@ -142,9 +157,12 @@ def _manifest_fields(run_dir: str) -> dict:
         if key not in m:
             raise PrepError(f"{run_dir}: manifest missing key {key!r}")
     # Value-level checks (not just key presence) -- every one of these is the
-    # task's own stated premise about this c3391a53 gemma4:12b corpus; a
-    # silent drift on any of them would make every other number in this
-    # report untrustworthy, so each mismatch raises naming run + field + value.
+    # task's own stated premise about this gemma4:12b corpus; a silent drift
+    # on any of them would make every other number in this report
+    # untrustworthy, so each mismatch raises naming run + field + value.
+    # `expected_commit_prefix` is corpus-dependent: c3391a53 for --corpus v08
+    # (unchanged default, preserves byte-identical v08 output), 83fa97e1 for
+    # --corpus defaults (passed explicitly by main()).
     if m["thinking_mode"] != "disabled":
         raise PrepError(f"{run_dir}: manifest field thinking_mode={m['thinking_mode']!r}, "
                          f"expected 'disabled' -- the task's premise that flood runs pass "
@@ -159,9 +177,9 @@ def _manifest_fields(run_dir: str) -> dict:
     if not str(m["model"]).startswith("gemma4:12b"):
         raise PrepError(f"{run_dir}: manifest field model={m['model']!r}, expected to "
                          f"start with 'gemma4:12b'")
-    if not str(m["git_commit"]).startswith("c3391a53"):
+    if not str(m["git_commit"]).startswith(expected_commit_prefix):
         raise PrepError(f"{run_dir}: manifest field git_commit={m['git_commit']!r}, "
-                         f"expected to start with 'c3391a53'")
+                         f"expected to start with {expected_commit_prefix!r}")
     return {
         "model": m["model"], "thinking_mode": m["thinking_mode"],
         "llm_timeout_seconds_effective": m["llm_timeout_seconds_effective"],
@@ -177,18 +195,32 @@ def _rep_metric(label: str, cond) -> str:
 
 
 def main() -> int:
-    C.banner("R26  flood gemma4:12b cross-model arms (c3391a53) vs gemma3:4b (faf1bb12)")
+    parser = argparse.ArgumentParser(
+        description="R26 -- flood gemma4:12b cross-model arms vs gemma3:4b")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+
+    strict_12b_root, seeds5 = C.flood_corpus_dirs(corpus)["strict_gemma4_12b"]
+    disabled_12b_root, _ = C.flood_corpus_dirs(corpus)["disabled_gemma4_12b"]
+    strict_4b_root, _ = C.flood_corpus_dirs(corpus)["strict"]
+    disabled_4b_root, _ = C.flood_corpus_dirs(corpus)["disabled"]
+    commit_prefix = "c3391a53" if corpus == "v08" else "83fa97e1"
+    band_label = "faf1bb12" if corpus == "v08" else corpus
+
+    C.banner(f"R26  flood gemma4:12b cross-model arms ({corpus}) vs gemma3:4b ({band_label})")
 
     rows = []
 
     # =====================================================================
     # PART 1 -- per-seed metrics, every gemma4:12b run present
     # =====================================================================
-    arm_roots = {"strict": STRICT_12B_ROOT, "disabled": DISABLED_12B_ROOT}
+    arm_roots = {"strict": strict_12b_root, "disabled": disabled_12b_root}
     metrics_12b = {"strict": {}, "disabled": {}}
     manifest_12b = {"strict": {}, "disabled": {}}
     for arm, root in arm_roots.items():
-        for s in SEEDS5:
+        for s in seeds5:
             run_dir = os.path.join(C.FLOOD_RESULTS, root, f"Run_{s}")
             status, reason = _flood_run_completeness(run_dir, s)
             if status == "skipped":
@@ -197,7 +229,7 @@ def main() -> int:
                 continue
             m = R23._metrics_for(run_dir)
             tel = _telemetry_means(run_dir)
-            mf = _manifest_fields(run_dir)
+            mf = _manifest_fields(run_dir, expected_commit_prefix=commit_prefix)
             manifest_12b[arm][s] = mf
             rec = dict(m)
             rec.update(tel)
@@ -225,46 +257,54 @@ def main() -> int:
                 row[f"metric__{label}"] = m[metric] if cond is not None else m[metric]
             rows.append(row)
 
-    strict_complete = len(metrics_12b["strict"]) == 5
-    disabled_complete = len(metrics_12b["disabled"]) == 5
-    print(f"\n  strict 12b: {len(metrics_12b['strict'])}/5 complete; "
-          f"disabled 12b: {len(metrics_12b['disabled'])}/5 complete")
+    strict_complete = len(metrics_12b["strict"]) == len(seeds5)
+    disabled_complete = len(metrics_12b["disabled"]) == len(seeds5)
+    print(f"\n  strict 12b: {len(metrics_12b['strict'])}/{len(seeds5)} complete; "
+          f"disabled 12b: {len(metrics_12b['disabled'])}/{len(seeds5)} complete")
 
     # =====================================================================
     # PART 2 -- model-paired comparison, gemma4:12b vs gemma3:4b, literal seed
+    # (4b comparator: faf1bb12 under --corpus v08, the DEFAULTS gemma3:4b
+    # strict/disabled dirs under --corpus defaults -- never faf1bb12 there)
     # =====================================================================
     metrics_4b = {"strict": {}, "disabled": {}}
-    for s in SEEDS5:
-        run_dir = os.path.join(C.FLOOD_RESULTS, STRICT_4B_ROOT, f"Run_{s}")
+    for s in seeds5:
+        run_dir = os.path.join(C.FLOOD_RESULTS, strict_4b_root, f"Run_{s}")
         status, reason = _flood_run_completeness(run_dir, s)
         if status != "ok":
+            if corpus != "v08":
+                print(f"  gemma3:4b ({corpus}) strict seed {s}: PENDING ({reason})")
+                continue
             raise PrepError(f"gemma3:4b strict seed {s} is not complete ({reason}) -- "
                              f"this arm was already verified complete in r23, a change "
                              f"here would be a real regression, not something to skip")
         metrics_4b["strict"][s] = R23._metrics_for(run_dir)
-    for s in SEEDS5:
-        run_dir = os.path.join(C.FLOOD_RESULTS, R24.NEW_DIS_ROOT, f"Run_{s}")
+    for s in seeds5:
+        run_dir = os.path.join(C.FLOOD_RESULTS, disabled_4b_root, f"Run_{s}")
         status, reason = _flood_run_completeness(run_dir, s)
         if status != "ok":
+            if corpus != "v08":
+                print(f"  gemma3:4b ({corpus}) disabled seed {s}: PENDING ({reason})")
+                continue
             raise PrepError(f"gemma3:4b disabled seed {s} is not complete ({reason}) -- "
                              f"this arm was already verified complete in r24, a change "
                              f"here would be a real regression, not something to skip")
         metrics_4b["disabled"][s] = R23._metrics_for(run_dir)
 
     for arm in ("strict", "disabled"):
-        complete = len(metrics_12b[arm]) == 5 and len(metrics_4b.get(arm, {})) == 5
+        complete = len(metrics_12b[arm]) == len(seeds5) and len(metrics_4b.get(arm, {})) == len(seeds5)
         if not complete:
             print(f"  Part 2 {arm}: PENDING -- gemma4:12b has "
-                  f"{len(metrics_12b[arm])}/5 complete seeds "
-                  f"(gemma3:4b has {len(metrics_4b.get(arm, {}))}/5); no comparison rows "
-                  f"written for this arm")
+                  f"{len(metrics_12b[arm])}/{len(seeds5)} complete seeds "
+                  f"(gemma3:4b [{corpus}] has {len(metrics_4b.get(arm, {}))}/{len(seeds5)}); "
+                  f"no comparison rows written for this arm")
             rows.append({"row_type": "model_pair_pending", "arm": arm,
                          "n_12b": len(metrics_12b[arm]), "n_4b": len(metrics_4b.get(arm, {}))})
             continue
         for label, cond in DISPLAY_METRICS:
             metric = _rep_metric(label, cond)
             diffs = []
-            for s in SEEDS5:
+            for s in seeds5:
                 v12b, v4b = metrics_12b[arm][s][metric], metrics_4b[arm][s][metric]
                 d = v12b - v4b
                 diffs.append(d)
@@ -291,7 +331,7 @@ def main() -> int:
         for label, cond in DISPLAY_METRICS:
             metric = _rep_metric(label, cond)
             diffs = []
-            for s in SEEDS5:
+            for s in seeds5:
                 gv = metrics_12b["strict"][s][metric]
                 uv = metrics_12b["disabled"][s][metric]
                 d = uv - gv
@@ -315,34 +355,48 @@ def main() -> int:
         print("  Part 3: gemma4:12b governed-vs-ungoverned contrast computed (both arms complete)")
     else:
         print(f"  Part 3: PENDING -- gemma4:12b disabled arm not complete "
-              f"({len(metrics_12b['disabled'])}/5 seeds)")
+              f"({len(metrics_12b['disabled'])}/{len(seeds5)} seeds)")
 
-    r24_rows = C.read_csv(os.path.join(C.OUT, "r24_flood_contrast_regen.csv"))
-    for label, _ in DISPLAY_METRICS:
-        r = next((rr for rr in r24_rows if rr["row_type"] == "contrast_stat"
-                  and rr["corpus"] == "new" and rr["metric"] == label), None)
-        if r is None:
-            raise PrepError(f"r24_flood_contrast_regen.csv: no NEW contrast_stat row for "
-                             f"metric={label!r}")
-        rows.append({
-            "row_type": "contrast_stat", "model": "gemma3_4b", "metric": label,
-            "n_pairs": int(r["n_pairs"]), "mean_diff": float(r["mean_diff"]),
-            "sd_diff": float(r["sd_diff"]), "min_diff": float(r["min_diff"]),
-            "max_diff": float(r["max_diff"]), "n_sign_flips": int(r["n_sign_flips"]),
-            "all_same_sign": r["all_same_sign"] == "True", "t": float(r["t"]),
-            "df": float(r["df"]), "p_paired_t": float(r["p_paired_t"]),
-            "p_exact_permutation": float(r["p_exact_permutation"]),
-            "permutation_floor": float(r["permutation_floor"]),
-            "note": "read verbatim from out/r24_flood_contrast_regen.csv "
-                    "(row_type=contrast_stat, corpus=new), not recomputed",
-        })
-    print("  gemma3:4b contrast rows read verbatim from out/r24_flood_contrast_regen.csv")
+    r24_csv_name = f"r24_flood_contrast_regen{suffix}.csv"
+    r24_path = os.path.join(C.OUT, r24_csv_name)
+    if not os.path.isfile(r24_path):
+        raise PrepError(f"missing {r24_path} -- run r24_flood_contrast_regen.py "
+                         f"--corpus {corpus} first")
+    r24_rows = C.read_csv(r24_path)
+    r24_has_contrast = any(rr.get("row_type") == "contrast_stat" for rr in r24_rows)
+    if not r24_has_contrast:
+        # r24's own --corpus run is itself PENDING (no landed data yet) --
+        # report the 4b reference as pending too, never raise.
+        print(f"  gemma3:4b ({corpus}) contrast reference: PENDING -- {r24_csv_name} has "
+              f"no contrast_stat rows yet (r24 --corpus {corpus} is itself pending)")
+        rows.append({"row_type": "model_pair_pending", "arm": "gemma3_4b_reference",
+                     "n_12b": 0, "n_4b": 0})
+    else:
+        for label, _ in DISPLAY_METRICS:
+            r = next((rr for rr in r24_rows if rr["row_type"] == "contrast_stat"
+                      and rr["corpus"] == "new" and rr["metric"] == label), None)
+            if r is None:
+                raise PrepError(f"{r24_csv_name}: no NEW contrast_stat row for "
+                                 f"metric={label!r}")
+            rows.append({
+                "row_type": "contrast_stat", "model": "gemma3_4b", "metric": label,
+                "n_pairs": int(r["n_pairs"]), "mean_diff": float(r["mean_diff"]),
+                "sd_diff": float(r["sd_diff"]), "min_diff": float(r["min_diff"]),
+                "max_diff": float(r["max_diff"]), "n_sign_flips": int(r["n_sign_flips"]),
+                "all_same_sign": r["all_same_sign"] == "True", "t": float(r["t"]),
+                "df": float(r["df"]), "p_paired_t": float(r["p_paired_t"]),
+                "p_exact_permutation": float(r["p_exact_permutation"]),
+                "permutation_floor": float(r["permutation_floor"]),
+                "note": f"read verbatim from out/{r24_csv_name} "
+                        "(row_type=contrast_stat, corpus=new), not recomputed",
+            })
+        print(f"  gemma3:4b contrast rows read verbatim from out/{r24_csv_name}")
 
     # =====================================================================
     # PART 4 -- manifest fields, one row per complete 12b run
     # =====================================================================
     for arm in ("strict", "disabled"):
-        for s in SEEDS5:
+        for s in seeds5:
             if s not in manifest_12b[arm]:
                 continue
             mf = manifest_12b[arm][s]
@@ -371,11 +425,11 @@ def main() -> int:
     # never a fresh CSV paired with a stale .md (or vice versa). Both files
     # are then written to <name>.tmp and only replaced onto their final
     # names once BOTH temp writes have succeeded.
-    md_text = render_md(rows)
+    md_text = render_md(rows, corpus)
 
-    csv_final = "r26_flood_crossmodel_gemma4_12b.csv"
+    csv_final = f"r26_flood_crossmodel_gemma4_12b{suffix}.csv"
     csv_tmp = csv_final + ".tmp"
-    md_final_name = "r26_flood_crossmodel_gemma4_12b.md"
+    md_final_name = f"r26_flood_crossmodel_gemma4_12b{suffix}.md"
     md_final = os.path.join(C.OUT, md_final_name)
     md_tmp = md_final + ".tmp"
 
@@ -435,7 +489,7 @@ def _fmt_stat(x, nd: int, reason: str) -> str:
     return f"{_cp(x):.{nd}f}"
 
 
-def render_md(rows: list) -> str:
+def render_md(rows: list, corpus: str = "v08") -> str:
     metrics_rows = [r for r in rows if r["row_type"] == "metrics"]
     skipped_rows = [r for r in rows if r["row_type"] == "skipped"]
     model_pair_rows = [r for r in rows if r["row_type"] == "model_pair_stat"]
@@ -446,9 +500,20 @@ def render_md(rows: list) -> str:
     n_strict = sum(1 for r in metrics_rows if r["arm"] == "strict")
     n_disabled = sum(1 for r in metrics_rows if r["arm"] == "disabled")
 
+    commit_label = "c3391a53" if corpus == "v08" else "83fa97e1"
+    band_label = "faf1bb12" if corpus == "v08" else f"the {corpus} gemma3:4b dirs"
+    r24_csv_label = f"r24_flood_contrast_regen{C.corpus_suffix(corpus)}.csv"
+
     lines = []
-    lines.append("# R26 -- flood gemma4:12b cross-model arms (c3391a53) vs gemma3:4b "
-                  "(faf1bb12), 2026-09-17")
+    if corpus == "v08":
+        lines.append("# R26 -- flood gemma4:12b cross-model arms (c3391a53) vs gemma3:4b "
+                      "(faf1bb12), 2026-09-17")
+    else:
+        lines.append(f"# R26 -- flood gemma4:12b cross-model arms ({corpus} corpus) vs "
+                      f"gemma3:4b ({corpus}), 2026-09-23")
+        lines.append("")
+        lines.append(f"> **Corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. "
+                     f"4b comparator = {band_label}, NOT faf1bb12.")
     lines.append("")
     lines.append(
         f"**Method.** Per-run metrics reuse `r23_flood_strict_regen.py::_metrics_for` "
@@ -458,11 +523,11 @@ def render_md(rows: list) -> str:
         f"variants). Model-paired diff (Part 2) = gemma4:12b - gemma3:4b, literal seed "
         f"42-46. Governed-vs-ungoverned contrast (Part 3) = ungoverned - governed, "
         f"same `C.paired_t`/`C.exact_perm_p` r24 uses; the gemma3:4b contrast row is "
-        f"read verbatim from `out/r24_flood_contrast_regen.csv`, never recomputed. "
+        f"read verbatim from `out/{r24_csv_label}`, never recomputed. "
         f"Every manifest checked has its VALUES verified, not just key presence -- "
         f"`thinking_mode==\"disabled\"`, `llm_timeout_seconds_effective==1800`, "
         f"`model_quantization==\"Q4_K_M\"`, `model` starting with `\"gemma4:12b\"`, "
-        f"`git_commit` starting with `\"c3391a53\"` -- any mismatch raises naming the "
+        f"`git_commit` starting with `\"{commit_label}\"` -- any mismatch raises naming the "
         f"run, field, and offending value; `model_digest` and `git_commit` (short "
         f"form) are reported per run (table below). Strict: {n_strict}/5 seeds "
         f"complete. Disabled: {n_disabled}/5 seeds complete."
@@ -537,6 +602,13 @@ def render_md(rows: list) -> str:
     lines.append("|---|---:|---:|---:|---:|:---:|")
     contrast_pairs = [r for r in rows if r["row_type"] == "contrast_pair"]
     for label in metric_labels:
+        if label not in g4b:
+            # r24's own --corpus run has no landed data yet (see Part 3's
+            # PENDING note above) -- the 4b reference itself is pending, not
+            # just the 12b side.
+            lines.append(f"| {label} | pending | pending | pending (4b reference pending) "
+                         f"| -- | pending |")
+            continue
         r4 = g4b[label]
         reason4 = None  # gemma3:4b's own per-seed values are not carried into this
                          # script (its contrast is read verbatim from r24); r24 never
@@ -606,7 +678,7 @@ def render_md(rows: list) -> str:
             f"sign-consistent={ibr_uncond['all_same_sign'] if not ibr_reason else 'n.a.'} "
             f"across all 5 seeds)."
         )
-    if g12b:
+    if g12b and g4b:
         ibr_c12 = g12b["IBR unconditional (%)"]
         ibr_c4 = g4b["IBR unconditional (%)"]
         same_sign_ibr = (ibr_c12["mean_diff"] > 0) == (ibr_c4["mean_diff"] > 0)

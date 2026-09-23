@@ -168,9 +168,25 @@ OUTPUTS
     that same `rows` list.
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r41_first_vs_last_n5.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r41_first_vs_last_n5.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs) -- PART A
+(flood) ONLY; Part B (irrigation) is always the v08 corpus, unaffected.
+v08 (default): EXACTLY the behaviour documented above, byte-identical
+output. defaults: the initprop target reads `JOH_strict_initprop_defaults_
+gemma3_4b_83fa97e1`; the band comparator becomes the DEFAULTS baseline
+strict corpus (not faf1bb12) -- comparing the initprop flag's effect
+within the same sampling regime, the same convention r23/r24/r25/r26 use.
+This script's existing completeness gate already tolerates 0/5 seeds
+landed (true today for the defaults initprop dir) via its early return in
+`_part_a_flood`, so no new PENDING branch was needed for the target side;
+the band comparator itself is expected complete whenever any target seed
+lands (raises with a clear message otherwise, never a bare
+FileNotFoundError). Writes out/r41_first_vs_last_n5_defaults.{md,csv}.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -191,9 +207,28 @@ L = C.L  # SUBMISSION_2026/decomposition/_loader.py: HIGH, INCREASE, mean, sd
 # =============================================================================
 # constants
 # =============================================================================
-FLOOD_INITPROP_ROOT = "JOH_strict_initprop_gemma3_4b_83fa97e1"
-FLOOD_BAND_ROOT = "JOH_strict_gemma3_4b_faf1bb12"
+FLOOD_INITPROP_ROOT = C.flood_corpus_dirs("v08")["strict_initprop"][0]
+FLOOD_BAND_ROOT = C.flood_corpus_dirs("v08")["strict"][0]
 FLOOD_SEEDS = ["42", "43", "44", "45", "46"]
+
+
+def _flood_initprop_root(corpus: str) -> str:
+    """FLOOD_INITPROP_ROOT above, verbatim, for corpus=='v08'; the
+    no-sampling-params re-run's strict_initprop dir otherwise."""
+    if corpus == "v08":
+        return FLOOD_INITPROP_ROOT
+    return C.flood_corpus_dirs(corpus)["strict_initprop"][0]
+
+
+def _flood_band_root(corpus: str) -> str:
+    """FLOOD_BAND_ROOT above (faf1bb12), verbatim, for corpus=='v08'. For
+    --corpus defaults, the band comparator is the DEFAULTS baseline strict
+    corpus (not faf1bb12) -- comparing the initprop flag's effect within
+    the same sampling regime, the same convention r23/r24/r25/r26 use for
+    their own defaults-mode comparators."""
+    if corpus == "v08":
+        return FLOOD_BAND_ROOT
+    return C.flood_corpus_dirs(corpus)["strict"][0]
 FLOOD_MODEL = "gemma3:4b"
 FLOOD_COMMIT_PREFIX = "83fa97e1"
 
@@ -277,26 +312,42 @@ def _manifest_census(run_dir: str, domain: str, seed: str, expected_model: str,
                  "n_initial_null": n_initial_null})
 
 
-def _flood_band_manifest_rows(rows: list) -> None:
-    """`manifest_census` rows for the faf1bb12 band comparator, tagged
-    `arm="flood_band_faf1bb12"` -- kept separate from the initprop
-    target's own `arm="flood_initprop"` rows (added via `_manifest_census`
-    above) since both use the same seed strings 42-46. Not run through
-    `_manifest_census` itself: this comparator predates the initprop flag
-    entirely (r33 Part 3 already established it lacks `initial_skill`), so
-    there is nothing to value-enforce or count nulls on here, only
-    git_commit/model/thinking_mode to report."""
+def _flood_band_manifest_rows(rows: list, corpus: str = "v08") -> None:
+    """`manifest_census` rows for the band comparator (faf1bb12 for --corpus
+    v08, the defaults baseline strict corpus for --corpus defaults), tagged
+    `arm="flood_band_faf1bb12"` (row-schema name kept as-is across corpora
+    for CSV-column stability; the `note` field states the actual corpus) --
+    kept separate from the initprop target's own `arm="flood_initprop"`
+    rows (added via `_manifest_census` above) since both use the same seed
+    strings 42-46. Not run through `_manifest_census` itself: this
+    comparator predates the initprop flag entirely (r33 Part 3 already
+    established it lacks `initial_skill`), so there is nothing to
+    value-enforce or count nulls on here, only git_commit/model/
+    thinking_mode to report. Only called once at least one initprop target
+    seed has landed (see `_part_a_flood`'s early return), so the band
+    comparator dir existing is a real regression, not incompleteness, if
+    this ever raises."""
+    band_root = _flood_band_root(corpus)
     for seed in FLOOD_SEEDS:
-        band_dir = os.path.join(C.FLOOD_RESULTS, FLOOD_BAND_ROOT, f"Run_{seed}")
+        band_dir = os.path.join(C.FLOOD_RESULTS, band_root, f"Run_{seed}")
         manifest_path = os.path.join(band_dir, "reproducibility_manifest.json")
+        if not os.path.isfile(manifest_path):
+            raise PrepError(f"missing {manifest_path} -- the band comparator "
+                             f"({band_root}) is expected to already be complete whenever "
+                             f"an initprop target seed has landed")
         with open(manifest_path, encoding="utf-8") as fh:
             manifest = json.load(fh)
         git_commit = manifest.get("git_commit")
-        rows.append({"row_type": "manifest_census", "domain": "flood",
-                     "arm": "flood_band_faf1bb12", "seed": seed,
-                     "model": manifest.get("model"),
-                     "git_commit_short": git_commit[:8] if git_commit else "",
-                     "thinking_mode": manifest.get("thinking_mode")})
+        row = {"row_type": "manifest_census", "domain": "flood",
+               "arm": "flood_band_faf1bb12", "seed": seed,
+               "model": manifest.get("model"),
+               "git_commit_short": git_commit[:8] if git_commit else "",
+               "thinking_mode": manifest.get("thinking_mode")}
+        if corpus != "v08":
+            # byte-identity contract: v08 rows carry no "note" field, exactly
+            # as before this switch existed.
+            row["note"] = f"band comparator root: {band_root}"
+        rows.append(row)
 
 
 def _pooled_sd(sd_first: float, sd_last: float) -> float:
@@ -425,14 +476,15 @@ def _flood_target_completeness(run_dir: str) -> tuple:
     return "ok", None
 
 
-def _part_a_flood(rows: list) -> None:
+def _part_a_flood(rows: list, corpus: str = "v08") -> None:
     landed_aud: dict = {}          # seed -> audit rows (for pooled_rows concat)
     first_vals: dict = {}          # seed -> first-attempt IBR rate
     last_vals: dict = {}           # seed -> last-proposal IBR rate
     r25_metrics: dict = {}         # seed -> _flood_llm_metrics() dict
+    initprop_root = _flood_initprop_root(corpus)
 
     for seed in FLOOD_SEEDS:
-        run_dir = os.path.join(C.FLOOD_RESULTS, FLOOD_INITPROP_ROOT, f"Run_{seed}")
+        run_dir = os.path.join(C.FLOOD_RESULTS, initprop_root, f"Run_{seed}")
         status, reason = _flood_target_completeness(run_dir)
         if status == "skipped":
             print(f"  SKIPPED flood seed {seed}: {reason}")
@@ -522,11 +574,13 @@ def _part_a_flood(rows: list) -> None:
     # ---- diff + gate --------------------------------------------------------------
     _diff_and_gate("flood", first_vals, last_vals, rows, "flood")
 
-    # ---- band check vs faf1bb12 strict 5-seed band -------------------------------
-    _flood_band_manifest_rows(rows)
+    # ---- band check vs strict 5-seed band (faf1bb12 for v08, the defaults
+    # baseline strict corpus for --corpus defaults) --------------------------------
+    band_root = _flood_band_root(corpus)
+    _flood_band_manifest_rows(rows, corpus)
     band_seed_vals = {"ibr_headline": [], "ehe_pooled": [], "final_year_protection_pct": []}
     for seed in FLOOD_SEEDS:
-        band_dir = os.path.join(C.FLOOD_RESULTS, FLOOD_BAND_ROOT, f"Run_{seed}")
+        band_dir = os.path.join(C.FLOOD_RESULTS, band_root, f"Run_{seed}")
         bm = R25._flood_llm_metrics(band_dir)
         for k in band_seed_vals:
             band_seed_vals[k].append(bm[k])
@@ -552,7 +606,7 @@ def _part_a_flood(rows: list) -> None:
                      "band_mean": b["mean"], "band_sd": b["sd"], "band_lo": lo,
                      "band_hi": hi, "inside_band": inside_pooled})
         print(f"  band {label}: initprop mean(n={len(vals)})={pooled_mean_val:.4f} vs "
-              f"faf1bb12 band [{lo:.4f}, {hi:.4f}] -> "
+              f"{band_root} band [{lo:.4f}, {hi:.4f}] -> "
               f"{'INSIDE' if inside_pooled else 'OUTSIDE'}")
 
 
@@ -680,20 +734,30 @@ FIELDNAMES = [
 
 
 def main() -> int:
-    C.banner("R41  First-attempt vs last-proposal IBR: flood n=5, irrigation n=3")
+    parser = argparse.ArgumentParser(
+        description="R41 -- first-attempt vs last-proposal IBR (Part A/flood is "
+                     "--corpus-aware; Part B/irrigation is not)")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+
+    C.banner(f"R41  First-attempt vs last-proposal IBR: flood n=5 (corpus={corpus}), "
+             f"irrigation n=3")
     rows: list = []
 
-    print("\n-- Part A: flood (JOH_strict_initprop_gemma3_4b_83fa97e1, n=5) --")
-    _part_a_flood(rows)
+    print(f"\n-- Part A: flood ({_flood_initprop_root(corpus)}, n=5) --")
+    _part_a_flood(rows, corpus)
 
-    print("\n-- Part B: irrigation (seed 42 c3391a53 + seeds 43-44 83fa97e1, n=3) --")
+    print("\n-- Part B: irrigation (seed 42 c3391a53 + seeds 43-44 83fa97e1, n=3, "
+          "always v08 -- unaffected by --corpus) --")
     _part_b_irrigation(rows)
 
-    md_text = render_md(rows)
+    md_text = render_md(rows, corpus)
 
-    csv_final = "r41_first_vs_last_n5.csv"
+    csv_final = f"r41_first_vs_last_n5{suffix}.csv"
     csv_tmp = csv_final + ".tmp"
-    md_final = os.path.join(C.OUT, "r41_first_vs_last_n5.md")
+    md_final = os.path.join(C.OUT, f"r41_first_vs_last_n5{suffix}.md")
     md_tmp = md_final + ".tmp"
 
     csv_tmp_path = C.write_csv(csv_tmp, FIELDNAMES, rows)
@@ -868,7 +932,7 @@ def _render_diff_gate(lines: list, rows: list, prefix: str, domain_label: str,
     return s["mean"], s["pooled_sd"], holds, n
 
 
-def render_md(rows: list) -> str:
+def render_md(rows: list, corpus: str = "v08") -> str:
     lines = []
     lines.append("# R41 -- first-attempt vs last-proposal IBR (flood n=5, irrigation n=3)")
     lines.append("")
@@ -877,10 +941,15 @@ def render_md(rows: list) -> str:
                  "irrigation result; see that script and `out/r33_first_vs_last_proposal.md` "
                  "for the single-seed baseline this corpus builds on.")
     lines.append("")
+    if corpus != "v08":
+        lines.append(f"> **Flood corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. "
+                     f"Part B (irrigation) is UNCHANGED (always v08). Part A's band "
+                     f"comparator is the {corpus} baseline strict corpus, NOT faf1bb12.")
+        lines.append("")
 
     # ---- Part A: flood ----------------------------------------------------------
-    lines.append("## Part A -- flood (`JOH_strict_initprop_gemma3_4b_83fa97e1`, seeds 42-46, "
-                 "n=5)")
+    lines.append(f"## Part A -- flood (`{_flood_initprop_root(corpus)}`, seeds 42-46, "
+                 f"n=5)")
     lines.append("")
     flood_landed = sorted({r["seed"] for r in _find(rows, "flood_ibr")
                           if r["seed"] != "pooled_rows" and r.get("action") == "initial_skill"},
@@ -906,7 +975,7 @@ def render_md(rows: list) -> str:
     flood_mean_diff, flood_pooled_sd, flood_holds, flood_n = _render_diff_gate(
         lines, rows, "flood", "flood (this corpus)", "2/2^5 = 0.0625 at n=5")
 
-    lines.append("### Band check vs `JOH_strict_gemma3_4b_faf1bb12` 5-seed band (mean +/- 2 sd)")
+    lines.append(f"### Band check vs `{_flood_band_root(corpus)}` 5-seed band (mean +/- 2 sd)")
     lines.append("")
     band_metrics = ["IBR headline", "EHE pooled", "Final-year protection %"]
     band_rows = _find(rows, "flood_band")

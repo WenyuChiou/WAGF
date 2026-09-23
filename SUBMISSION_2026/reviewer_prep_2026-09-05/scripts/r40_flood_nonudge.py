@@ -1,0 +1,549 @@
+"""R40 -- flood no-nudge household-prompt arm: does the governed-vs-ungoverned
+IBR/EHE contrast survive removing the "most people would choose Do Nothing"
+nudge sentence from the household prompt, or does the nudge drive (part of)
+the measured effect? CPU-only (GPU busy -- no LLM calls, existing/landing
+CSVs only).
+
+QUESTION
+  Author decision (C), 2026-09-22: `examples/single_agent/config/prompts/
+  household.txt` (base wording) carries one sentence, immediately after
+  {options_text}: 'Note: If no flood occurred this year, since no immediate
+  threat, most people would choose "Do Nothing."'. This is a normative
+  descriptive-social-norm nudge toward the do_nothing action in no-flood
+  years. `examples/single_agent/config_variants/nonudge/` (this worktree,
+  commit 83fa97e1) is a byte-identical copy of the base config with ONLY
+  that one line removed (confirmed via `diff -u`, 2026-09-22: a single `-`
+  hunk line, nothing else touched; verified via `diff -q` that
+  agent_types.yaml / skill_registry.yaml / agent_initial_profiles.csv /
+  flood_years.csv are unchanged). This script computes whether the
+  strict-minus-disabled contrast on the 3 IBR conditionings + EHE pooled
+  simlog moves by less than one between-seed sd (the baseline wording's own
+  seed-42/43 spread on that same contrast) when the nudge is removed.
+
+RUN LAYOUT
+  Baseline wording (ALREADY COMPLETE): `JOH_{strict,disabled}_gemma3_4b_
+  faf1bb12/Run_{42,43}`. nonudge (launched by
+  `launchers/extras2_2026-09-23/02_flood_nonudge.bat`, NOT YET LANDED as of
+  this script's authoring -- no run directory exists on disk for any of the
+  4 new (arm, seed) combinations, confirmed by listing):
+  `JOH_{strict,disabled}_nonudge_gemma3_4b_83fa97e1/Run_{42,43}`.
+
+PART 1 -- per (arm, wording, seed): r23's six collapsed metrics
+  `_metrics_for()` (r23, imported) -- identical reuse pattern to r38's
+  para1/para2 script. Manifest census value-enforces model=="gemma3:4b" and
+  git_commit starts with "83fa97e1" for nonudge ONLY; also enforces that the
+  manifest's `agent_types_config` field (checked first, then every other
+  string-valued field, mirroring r38's `_find_config_root_field`) contains
+  "nonudge" somewhere. Baseline manifests are read/reported only, never
+  enforced.
+
+PART 2 -- baseline strict-minus-disabled contrast, per seed and its
+  between-seed sd (the THRESHOLD this script bands nonudge against)
+  For each of the 6 `r23_flood_strict_regen.DISPLAY_METRICS` labels: the
+  baseline-wording strict-disabled contrast at seed 42 and seed 43, their
+  mean, and their sample sd (`_common.py::sd`, canonical `_loader.py::sd`,
+  n-1 over the 2 seeds) -- computed LIVE from the already-complete faf1bb12
+  corpus, 2026-09-22:
+    IBR unconditional (%):   contrast -8.454 / -8.665, sd 0.1491
+    IBR tp_not_medium (%):   contrast -15.911 / -16.592, sd 0.4821
+    IBR tp_high (%):         contrast -18.574 / -22.182, sd 2.5510
+    EHE pooled simlog:       contrast 0.019 / 0.003, sd 0.0116
+    Rejection rate (%):      contrast 1.254 / 0.339, sd 0.6472
+    Retry rate (%):          contrast 10.832 / 8.588, sd 1.5873
+  (all 6 reported for transparency; the task's decision rule below names
+  only the 3 IBR labels + EHE pooled simlog as the governing set, per the
+  task brief's "IBR/EHE contrasts" phrasing -- rejection/retry rate are
+  reported but excluded from the verdict, named as such, never hidden.)
+
+PART 3 -- nonudge strict-minus-disabled contrast, per seed, and its
+  distance from the baseline mean contrast in units of Part 2's sd
+  distance_in_sd = (nonudge_contrast_mean - baseline_contrast_mean) /
+  baseline_contrast_sd. |distance_in_sd| < 1 -> "the nudge does not drive
+  the effect" for that metric; >= 1 -> the nudge measurably drives (part
+  of) the effect, and the sign of distance_in_sd states the direction
+  (positive = nonudge's governance gap is SMALLER than baseline's, i.e. the
+  nudge was inflating the measured governance effect; negative = the gap is
+  LARGER without the nudge). A zero-sd baseline metric (none of the 6 are,
+  confirmed above -- all sd > 0) would be reported as degenerate rather
+  than divided by zero; the guard is implemented even though unused today.
+
+DECISION RULE
+  Per metric in the governing set (3 IBR labels + EHE pooled simlog):
+  |distance_in_sd| < 1 -> "does not drive the effect"; else state the
+  direction per the paragraph above. The plain-read section states a
+  metric-by-metric verdict, never a single averaged number across
+  heterogeneous metrics (the same "no naive mean across heterogeneous
+  metrics" posture r34/r35/r38 established after the 2026-09-22 review
+  fix).
+
+COMPLETENESS GATE
+  Per (arm, wording, seed): `r34_placebo_retry_flood.py::_flood_run_
+  completeness` (imported, not re-derived).
+
+OUTPUTS
+  out/r40_flood_nonudge.csv -- row_type in {skipped, run_metrics,
+    manifest_check, baseline_contrast, nonudge_contrast, distance_check}.
+  out/r40_flood_nonudge.md -- GENERATED by render_md() directly from that
+    same `rows` list.
+
+Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r40_flood_nonudge.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r40_flood_nonudge.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs) -- v08
+(default): EXACTLY the behaviour documented above, byte-identical output.
+defaults: baseline/nonudge both read the no-sampling-params re-run's
+2-seed dirs instead; manifest census enforces git_commit starting with
+"83fa97e1" for nonudge (unchanged expectation) and now ALSO for baseline
+(the whole defaults corpus is new, nothing pre-enforced) -- the
+agent_types_config "nonudge" TAG check still applies ONLY to the nonudge
+wording, never baseline, regardless of corpus. This script's existing
+completeness gate already tolerates 0/2 seeds landed per (arm, wording) --
+true today for every defaults dir. Writes
+out/r40_flood_nonudge_defaults.{md,csv}.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+import _common as C  # noqa: E402
+from _common import PrepError  # noqa: E402
+import r23_flood_strict_regen as R23  # noqa: E402  READ-ONLY: _metrics_for, DISPLAY_METRICS,
+                                        # _LITERAL_METRIC.
+import r34_placebo_retry_flood as R34  # noqa: E402  READ-ONLY: _flood_run_completeness,
+                                        # _manifest_fields.
+
+SEEDS = ["42", "43"]
+ARMS = ["strict", "disabled"]
+WORDINGS = ["baseline", "nonudge"]
+def _root_for(corpus: str) -> dict:
+    """{(arm, wording): root_dir_name}, routed entirely through
+    `C.flood_corpus_dirs()` -- no literal dir names in this module."""
+    cd = C.flood_corpus_dirs(corpus)
+    return {
+        ("strict", "baseline"): cd["strict"][0],
+        ("disabled", "baseline"): cd["disabled"][0],
+        ("strict", "nonudge"): cd["strict_nonudge"][0],
+        ("disabled", "nonudge"): cd["disabled_nonudge"][0],
+    }
+
+
+ROOT = _root_for("v08")  # kept as a module-level name for readability/back-compat;
+                          # its values are sourced from _common.py, never hand-typed.
+
+
+METRIC_LABELS = [label for label, _cond in R23.DISPLAY_METRICS]
+GOVERNING_SET = [label for label in METRIC_LABELS
+                 if label.startswith("IBR") or label == "EHE pooled simlog"]
+
+
+def _run_dir(arm: str, wording: str, seed: str, root: dict) -> str:
+    return os.path.join(C.FLOOD_RESULTS, root[(arm, wording)], f"Run_{seed}")
+
+
+def _metric_vals(run_dir: str) -> dict:
+    m = R23._metrics_for(run_dir)
+    out = {}
+    for label, cond in R23.DISPLAY_METRICS:
+        out[label] = m[f"ibr_{cond}_final"] if cond is not None else m[R23._LITERAL_METRIC[label]]
+    return out
+
+
+def _find_config_root_field(manifest: dict, tag: str):
+    """Same convention as r38_paraphrase_robustness.py::_find_config_root_field:
+    check agent_types_config first, then every other string-valued field."""
+    preferred = manifest.get("agent_types_config")
+    if isinstance(preferred, str) and tag in preferred:
+        return "agent_types_config", preferred
+    for k, v in manifest.items():
+        if k == "agent_types_config":
+            continue
+        if isinstance(v, str) and tag in v:
+            return k, v
+    return None
+
+
+# =============================================================================
+# Part 1
+# =============================================================================
+def _part1(rows: list, corpus: str = "v08") -> dict:
+    root = _root_for(corpus)
+    per_run: dict = {}
+    for arm in ARMS:
+        for wording in WORDINGS:
+            for seed in SEEDS:
+                run_dir = _run_dir(arm, wording, seed, root)
+                status, reason = R34._flood_run_completeness(run_dir)
+                if status == "skipped":
+                    print(f"  SKIPPED {arm} {wording} seed {seed}: {reason}")
+                    rows.append({"row_type": "skipped", "arm": arm, "wording": wording,
+                                 "seed": seed, "reason": reason})
+                    continue
+                vals = _metric_vals(run_dir)
+                row = {"row_type": "run_metrics", "arm": arm, "wording": wording, "seed": seed}
+                row.update({f"metric__{i}": vals[label] for i, label in enumerate(METRIC_LABELS)})
+                rows.append(row)
+                per_run[(arm, wording, seed)] = vals
+                print(f"  OK {arm:9s} {wording:8s} seed {seed}: " +
+                      ", ".join(f"{label}={vals[label]:.3f}" for label in METRIC_LABELS))
+
+                manifest = R34._manifest_fields(run_dir)
+                model = manifest.get("model")
+                git_commit = manifest.get("git_commit")
+                # v08: only nonudge is enforced (baseline already enforced by
+                # r23/r24). defaults: the whole corpus is new, so baseline is
+                # enforced too for model/commit -- but the config-root "tag"
+                # check stays nonudge-only regardless of corpus (baseline
+                # carries no "nonudge" tag by convention).
+                enforced = (wording != "baseline") if corpus == "v08" else True
+                enforce_tag = wording == "nonudge"
+                config_field = None
+                if enforced:
+                    if model != "gemma3:4b":
+                        raise PrepError(f"{run_dir}: model={model!r}, expected 'gemma3:4b'")
+                    if not str(git_commit or "").startswith("83fa97e1"):
+                        raise PrepError(f"{run_dir}: git_commit={git_commit!r}, expected to "
+                                         f"start with '83fa97e1'")
+                if enforce_tag:
+                    found = _find_config_root_field(manifest, wording)
+                    if found is None:
+                        raise PrepError(f"{run_dir}: no string-valued manifest field contains "
+                                         f"{wording!r}")
+                    config_field, _config_value = found
+                rows.append({"row_type": "manifest_check", "arm": arm, "wording": wording,
+                             "seed": seed, "model": model,
+                             "git_commit_short": (git_commit or "")[:8],
+                             "config_root_field": config_field, "enforced": enforced})
+    return per_run
+
+
+# =============================================================================
+# Part 2 -- baseline strict-minus-disabled contrast + between-seed sd
+# =============================================================================
+def _part2(rows: list, per_run: dict) -> dict:
+    """Returns {label: (mean_contrast, sd_contrast)} for the baseline wording,
+    or {label: None} if either arm/seed is missing."""
+    thresholds: dict = {}
+    for label in METRIC_LABELS:
+        contrasts = []
+        for seed in SEEDS:
+            s = per_run.get(("strict", "baseline", seed))
+            d = per_run.get(("disabled", "baseline", seed))
+            if s is None or d is None:
+                contrasts = None
+                break
+            contrasts.append(float(s[label]) - float(d[label]))
+        if contrasts is None:
+            thresholds[label] = None
+            rows.append({"row_type": "skipped", "section": "baseline_contrast", "metric": label,
+                         "reason": "baseline strict/disabled not both complete for both seeds"})
+            continue
+        mean_c, sd_c = C.mean(contrasts), C.sd(contrasts)
+        thresholds[label] = (mean_c, sd_c)
+        for seed, c in zip(SEEDS, contrasts):
+            rows.append({"row_type": "baseline_contrast", "metric": label, "seed": seed,
+                         "contrast": c, "mean_contrast": mean_c, "sd_contrast": sd_c})
+        print(f"  baseline {label:28s} contrasts={[round(c, 3) for c in contrasts]} "
+              f"mean={mean_c:.4f} sd={sd_c:.4f}")
+    return thresholds
+
+
+# =============================================================================
+# Part 3 -- nonudge contrast + distance-in-sd
+# =============================================================================
+def _part3(rows: list, per_run: dict, thresholds: dict) -> None:
+    for label in METRIC_LABELS:
+        threshold = thresholds.get(label)
+        contrasts = []
+        for seed in SEEDS:
+            s = per_run.get(("strict", "nonudge", seed))
+            d = per_run.get(("disabled", "nonudge", seed))
+            if s is None or d is None:
+                contrasts = None
+                break
+            contrasts.append(float(s[label]) - float(d[label]))
+        if contrasts is None:
+            rows.append({"row_type": "skipped", "section": "nonudge_contrast", "metric": label,
+                         "reason": "nonudge strict/disabled not both complete for both seeds"})
+            continue
+        mean_c, sd_c = C.mean(contrasts), C.sd(contrasts)
+        for seed, c in zip(SEEDS, contrasts):
+            rows.append({"row_type": "nonudge_contrast", "metric": label, "seed": seed,
+                         "contrast": c, "mean_contrast": mean_c, "sd_contrast": sd_c})
+        if threshold is None:
+            rows.append({"row_type": "skipped", "section": "distance_check", "metric": label,
+                         "reason": "no baseline threshold available"})
+            continue
+        base_mean, base_sd = threshold
+        if base_sd == 0.0:
+            rows.append({"row_type": "distance_check", "metric": label, "degenerate": True,
+                         "distance_in_sd": None, "in_governing_set": label in GOVERNING_SET})
+            continue
+        distance = (mean_c - base_mean) / base_sd
+        drives_effect = abs(distance) >= 1.0
+        direction = None
+        if drives_effect:
+            direction = ("nudge was inflating the effect (nonudge gap smaller)" if distance > 0
+                         else "nudge was suppressing the effect (nonudge gap larger)")
+        rows.append({"row_type": "distance_check", "metric": label, "degenerate": False,
+                     "baseline_mean": base_mean, "baseline_sd": base_sd,
+                     "nonudge_mean": mean_c, "distance_in_sd": distance,
+                     "drives_effect": drives_effect, "direction": direction,
+                     "in_governing_set": label in GOVERNING_SET})
+
+
+# =============================================================================
+# main
+# =============================================================================
+FIELDNAMES = [
+    "row_type", "section", "arm", "wording", "seed", "metric",
+    "metric__0", "metric__1", "metric__2", "metric__3", "metric__4", "metric__5",
+    "model", "git_commit_short", "config_root_field", "enforced",
+    "contrast", "mean_contrast", "sd_contrast", "degenerate", "baseline_mean", "baseline_sd",
+    "nonudge_mean", "distance_in_sd", "drives_effect", "direction", "in_governing_set", "reason",
+]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="R40 -- flood no-nudge household-prompt arm: baseline vs nonudge wording")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+
+    C.banner(f"R40  Flood no-nudge household-prompt arm: baseline vs nonudge wording "
+             f"(corpus={corpus})")
+    rows: list = []
+
+    print("\n-- Part 1: per (arm, wording, seed) metrics + manifest census --")
+    per_run = _part1(rows, corpus)
+
+    print("\n-- Part 2: baseline strict-minus-disabled contrast + between-seed sd --")
+    thresholds = _part2(rows, per_run)
+
+    print("\n-- Part 3: nonudge contrast + distance-in-sd from baseline --")
+    _part3(rows, per_run, thresholds)
+
+    md_text = render_md(rows, corpus)
+
+    csv_final = f"r40_flood_nonudge{suffix}.csv"
+    csv_tmp = csv_final + ".tmp"
+    md_final = os.path.join(C.OUT, f"r40_flood_nonudge{suffix}.md")
+    md_tmp = md_final + ".tmp"
+
+    csv_tmp_path = C.write_csv(csv_tmp, FIELDNAMES, rows)
+    with open(md_tmp, "w", encoding="utf-8") as fh:
+        fh.write(md_text)
+
+    os.replace(csv_tmp_path, os.path.join(C.OUT, csv_final))
+    os.replace(md_tmp, md_final)
+    print(f"\n  wrote {os.path.relpath(os.path.join(C.OUT, csv_final), C.REPO).replace(chr(92), '/')}"
+          f"  ({len(rows)} rows)")
+    print(f"  wrote {os.path.relpath(md_final, C.REPO).replace(chr(92), '/')}  "
+          f"({len(md_text.splitlines())} lines)")
+    return 0
+
+
+# =============================================================================
+# .md rendering
+# =============================================================================
+def _cp(x) -> float:
+    return float(C.fmt(x))
+
+
+def _find(rows, row_type, **kw):
+    out = []
+    for r in rows:
+        if r.get("row_type") != row_type:
+            continue
+        if all(r.get(k) == v for k, v in kw.items()):
+            out.append(r)
+    return out
+
+
+def render_md(rows: list, corpus: str = "v08") -> str:
+    lines = []
+    lines.append("# R40 -- flood no-nudge household-prompt arm: baseline vs nonudge wording")
+    lines.append("")
+    lines.append(
+        "Removed sentence (`config/prompts/household.txt`, immediately after "
+        "`{options_text}`): 'Note: If no flood occurred this year, since no immediate "
+        "threat, most people would choose \"Do Nothing.\"' -- see "
+        "`examples/single_agent/config_variants/nonudge/NONUDGE_NOTES.md` (worktree) for "
+        "the full byte diff. Nothing else in the config changed."
+    )
+    lines.append("")
+    if corpus != "v08":
+        lines.append(f"> **Corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. "
+                     f"baseline/nonudge both read the {corpus} corpus.")
+        lines.append("")
+    lines.append("Source: `r40_flood_nonudge.py`. Every number below is read live from the "
+                 "`rows` list this script writes to the paired CSV. n=2 seeds (42, 43) "
+                 "throughout -- no t-test anywhere in this file.")
+    lines.append("")
+
+    # ---- Part 1: per-run metrics -----------------------------------------------
+    lines.append("## Part 1 -- per (arm, wording, seed) metrics")
+    lines.append("")
+    header = ("| arm | wording | seed | " + " | ".join(METRIC_LABELS) + " |")
+    lines.append(header)
+    lines.append("|---|---|---|" + "---|" * len(METRIC_LABELS))
+    for arm in ARMS:
+        for wording in WORDINGS:
+            for seed in SEEDS:
+                recs = _find(rows, "run_metrics", arm=arm, wording=wording, seed=seed)
+                if not recs:
+                    lines.append(f"| {arm} | {wording} | {seed} | " +
+                                 " | ".join(["PENDING"] * len(METRIC_LABELS)) + " |")
+                    continue
+                r = recs[0]
+                vals = " | ".join(f"{_cp(r[f'metric__{i}']):.3f}" for i in range(len(METRIC_LABELS)))
+                lines.append(f"| {arm} | {wording} | {seed} | {vals} |")
+    lines.append("")
+
+    lines.append("### Manifest census")
+    lines.append("")
+    lines.append("| arm | wording | seed | model | git_commit | config field carrying the "
+                 "wording tag | enforced |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for arm in ARMS:
+        for wording in WORDINGS:
+            for seed in SEEDS:
+                recs = _find(rows, "manifest_check", arm=arm, wording=wording, seed=seed)
+                if not recs:
+                    lines.append(f"| {arm} | {wording} | {seed} | pending | -- | -- | -- |")
+                    continue
+                r = recs[0]
+                config_cell = r["config_root_field"] or "n.a. (baseline, not enforced)"
+                lines.append(f"| {arm} | {wording} | {seed} | {r['model']} | "
+                             f"{r['git_commit_short']}... | {config_cell} | {r['enforced']} |")
+    lines.append("")
+
+    # ---- Part 2: baseline contrast + sd -----------------------------------------
+    lines.append("## Part 2 -- baseline strict-minus-disabled contrast + between-seed sd "
+                 "(the threshold Part 3 bands against)")
+    lines.append("")
+    lines.append("| metric | seed 42 contrast | seed 43 contrast | mean | sample sd | "
+                 "in governing set |")
+    lines.append("|---|---|---|---|---|---|")
+    for label in METRIC_LABELS:
+        recs = _find(rows, "baseline_contrast", metric=label)
+        if not recs:
+            lines.append(f"| {label} | PENDING | PENDING | -- | -- | "
+                         f"{label in GOVERNING_SET} |")
+            continue
+        by_seed = {r["seed"]: r["contrast"] for r in recs}
+        mean_c = recs[0]["mean_contrast"]
+        sd_c = recs[0]["sd_contrast"]
+        lines.append(f"| {label} | {_cp(by_seed.get('42', float('nan'))):.4f} | "
+                     f"{_cp(by_seed.get('43', float('nan'))):.4f} | {_cp(mean_c):.4f} | "
+                     f"{_cp(sd_c):.4f} | {label in GOVERNING_SET} |")
+    lines.append("")
+
+    # ---- Part 3: nonudge contrast + distance ------------------------------------
+    lines.append("## Part 3 -- nonudge contrast + distance from baseline, in units of "
+                 "Part 2's sd")
+    lines.append("")
+    lines.append("| metric | seed 42 contrast | seed 43 contrast | mean | distance (sd) | "
+                 "verdict |")
+    lines.append("|---|---|---|---|---|---|")
+    for label in METRIC_LABELS:
+        recs = _find(rows, "nonudge_contrast", metric=label)
+        dc = _find(rows, "distance_check", metric=label)
+        if not recs:
+            pend = _find(rows, "skipped", section="nonudge_contrast", metric=label)
+            reason = pend[0]["reason"] if pend else "no data"
+            lines.append(f"| {label} | PENDING | PENDING | -- | -- | PENDING ({reason}) |")
+            continue
+        by_seed = {r["seed"]: r["contrast"] for r in recs}
+        mean_c = recs[0]["mean_contrast"]
+        if not dc:
+            verdict = "PENDING (no baseline threshold)"
+            dist_cell = "--"
+        elif dc[0].get("degenerate"):
+            verdict = "n.a. (baseline sd is 0, cannot compute distance)"
+            dist_cell = "--"
+        else:
+            d = dc[0]
+            dist_cell = f"{_cp(d['distance_in_sd']):.3f}"
+            if d["drives_effect"]:
+                verdict = f"drives effect -- {d['direction']}"
+            else:
+                verdict = "does not drive the effect (<1 sd)"
+        lines.append(f"| {label} | {_cp(by_seed.get('42', float('nan'))):.4f} | "
+                     f"{_cp(by_seed.get('43', float('nan'))):.4f} | {_cp(mean_c):.4f} | "
+                     f"{dist_cell} | {verdict} |")
+    lines.append("")
+
+    # ---- Plain read -----------------------------------------------------------
+    lines.append("## Plain read")
+    lines.append("")
+    sentences = []
+    nonudge_landed = sorted({(r["arm"], r["seed"]) for r in _find(rows, "run_metrics")
+                             if r["wording"] == "nonudge"})
+    if not nonudge_landed:
+        sentences.append(
+            "The nonudge wording has not landed for any (arm, seed) -- all 4 "
+            "`JOH_{strict,disabled}_nonudge_gemma3_4b_83fa97e1/Run_{42,43}` directories are "
+            "absent from disk. Part 1's baseline rows (already complete) and Part 2's "
+            "between-seed sd thresholds are fully populated now; Part 3 populates "
+            "automatically, no code change needed, once the nonudge runs land (see "
+            "`launchers/extras2_2026-09-23/02_flood_nonudge.bat`)."
+        )
+    else:
+        sentences.append(f"Nonudge landed for {len(nonudge_landed)}/4 (arm, seed) "
+                         f"combinations: {nonudge_landed}.")
+        governing_checks = [r for r in _find(rows, "distance_check")
+                            if r["in_governing_set"] and not r.get("degenerate")]
+        if governing_checks:
+            for r in governing_checks:
+                verdict = ("does not drive the effect" if not r["drives_effect"]
+                          else f"drives the effect ({r['direction']})")
+                sentences.append(f"{r['metric']}: distance {r['distance_in_sd']:.3f} sd -- "
+                                 f"{verdict}.")
+        excluded = [label for label in METRIC_LABELS if label not in GOVERNING_SET]
+        sentences.append(
+            f"Excluded from this verdict by the task's own phrasing (IBR/EHE contrasts "
+            f"only): {', '.join(excluded)} (reported in Part 2/3's tables above, never "
+            f"hidden)."
+        )
+    sentences.append(
+        "This whole comparison is n=2 seeds (42, 43) -- no significance test is computed "
+        "anywhere in this script; the per-seed numbers are reported directly."
+    )
+    for s in sentences[:6]:
+        lines.append(s)
+        lines.append("")
+
+    lines.append("## Method")
+    lines.append("")
+    lines.append(
+        "The 6 collapsed flood metrics are `r23_flood_strict_regen.py::_metrics_for()`, "
+        "imported, not re-derived -- the same definitions r34/r35/r38 reuse. Manifest census "
+        "value-enforces model==\"gemma3:4b\" and git_commit starting with \"83fa97e1\" for "
+        "nonudge ONLY, plus a config-root-path check (checked `agent_types_config` first, "
+        "then every other string field, mirroring `r38_paraphrase_robustness.py::"
+        "_find_config_root_field`) -- raises if none contains \"nonudge\". Baseline "
+        "manifests are read/reported only, never enforced. `distance_in_sd` = "
+        "(nonudge_mean_contrast - baseline_mean_contrast) / baseline_sd_contrast, where "
+        "both contrasts are strict-minus-disabled per seed; sd is the SAMPLE sd "
+        "(`_common.py::sd`, canonical `_loader.py::sd`, n-1) over the 2 seeds of the "
+        "baseline contrast -- the decision rule's own \"one between-seed sd\" threshold. "
+        "|distance_in_sd| < 1 -> the nudge sentence does not drive the governed-vs-ungoverned "
+        "effect on that metric; >= 1 -> it does, and the sign names the direction. The "
+        "governing set is the 3 IBR conditionings (unconditional, tp_not_medium, tp_high) "
+        "plus EHE pooled simlog, per the task's own \"IBR/EHE contrasts\" phrasing; "
+        "rejection rate and retry rate are computed and shown in every table for "
+        "transparency but excluded from the verdict, named as such, never hidden -- the "
+        "same \"no naive mean across heterogeneous metrics\" posture r34/r35/r38 established."
+    )
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

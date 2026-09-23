@@ -88,9 +88,20 @@ OUTPUTS
     from that same `rows` list.
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r34_placebo_retry_flood.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r34_placebo_retry_flood.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs) -- v08
+(default): EXACTLY the behaviour documented above, byte-identical output.
+defaults: all three arms (placebo/strict/disabled) read the no-sampling-
+params re-run's 2-seed dirs instead. This script's existing completeness
+gate (`_flood_run_completeness`, row_type=skipped) already tolerates 0/2
+seeds landed per arm -- true today for every defaults dir -- so Part 1/2
+already render "skipped"/degenerate-guarded output gracefully; no new
+PENDING branch was needed. Writes out/r34_placebo_retry_flood_defaults.{md,csv}.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -102,10 +113,25 @@ import r23_flood_strict_regen as R23  # noqa: E402  READ-ONLY: _metrics_for, DIS
 
 SEEDS = ["42", "43"]
 ARM_ROOTS = {
-    "placebo": "JOH_placebo_gemma3_4b_83fa97e1",
-    "strict": "JOH_strict_gemma3_4b_faf1bb12",
-    "disabled": "JOH_disabled_gemma3_4b_faf1bb12",
+    "placebo": C.flood_corpus_dirs("v08")["placebo"][0],
+    "strict": C.flood_corpus_dirs("v08")["strict"][0],
+    "disabled": C.flood_corpus_dirs("v08")["disabled"][0],
 }
+
+
+def _arm_roots(corpus: str) -> dict:
+    """v08's dict above, verbatim (used when corpus=='v08'); the
+    no-sampling-params re-run's roots otherwise. `placebo` has no
+    "pre-83fa97e1" comparator concept the way strict/disabled do (it is
+    itself a variant, not a baseline), so its defaults key is simply
+    `flood_corpus_dirs(corpus)["placebo"]`."""
+    if corpus == "v08":
+        return dict(ARM_ROOTS)
+    return {
+        "placebo": C.flood_corpus_dirs(corpus)["placebo"][0],
+        "strict": C.flood_corpus_dirs(corpus)["strict"][0],
+        "disabled": C.flood_corpus_dirs(corpus)["disabled"][0],
+    }
 METRICS = ["IBR unconditional (%)", "IBR tp_not_medium (%)", "IBR tp_high (%)", "EHE pooled simlog"]
 TOP_N_RULES = 6
 
@@ -175,11 +201,11 @@ def _manifest_fields(run_dir: str) -> dict:
     return m
 
 
-def _part1(rows: list) -> dict:
+def _part1(rows: list, arm_roots: dict) -> dict:
     """Returns {(arm, seed): {metric_key: value, ..., 'aud': [...]}} for
     complete runs, used by Part 2/3."""
     per_run: dict = {}
-    for arm, root in ARM_ROOTS.items():
+    for arm, root in arm_roots.items():
         for seed in SEEDS:
             run_dir = os.path.join(C.FLOOD_RESULTS, root, f"Run_{seed}")
             status, reason = _flood_run_completeness(run_dir)
@@ -334,20 +360,28 @@ FIELDNAMES = [
 
 
 def main() -> int:
-    C.banner("R34  Placebo-retry flood: extra attempt vs rule content")
+    parser = argparse.ArgumentParser(
+        description="R34 -- placebo-retry flood: extra attempt vs rule content")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+
+    C.banner(f"R34  Placebo-retry flood: extra attempt vs rule content (corpus={corpus})")
     rows: list = []
+    arm_roots = _arm_roots(corpus)
 
     print("\n-- Part 1: per (arm, seed) metrics, rule-id census, manifest census --")
-    per_run = _part1(rows)
+    per_run = _part1(rows, arm_roots)
 
     print("\n-- Part 2: seed-paired placebo vs strict vs disabled (n=2, no t-test) --")
     _part2(rows, per_run)
 
-    md_text = render_md(rows)
+    md_text = render_md(rows, corpus)
 
-    csv_final = "r34_placebo_retry_flood.csv"
+    csv_final = f"r34_placebo_retry_flood{suffix}.csv"
     csv_tmp = csv_final + ".tmp"
-    md_final = os.path.join(C.OUT, "r34_placebo_retry_flood.md")
+    md_final = os.path.join(C.OUT, f"r34_placebo_retry_flood{suffix}.md")
     md_tmp = md_final + ".tmp"
 
     csv_tmp_path = C.write_csv(csv_tmp, FIELDNAMES, rows)
@@ -423,7 +457,7 @@ def _manifest_commit_hashes(rows: list, placebo_arms: list, comparator_arms: lis
     return _one(placebo_arms), _one(comparator_arms)
 
 
-def render_md(rows: list) -> str:
+def render_md(rows: list, corpus: str = "v08") -> str:
     lines = []
     lines.append("# R34 -- placebo-retry flood: extra attempt vs rule content")
     lines.append("")
@@ -431,6 +465,10 @@ def render_md(rows: list) -> str:
                  "from the `rows` list this script writes to the paired CSV. n=2 seeds "
                  "(42, 43) throughout -- no t-test anywhere in this file.")
     lines.append("")
+    if corpus != "v08":
+        lines.append(f"> **Corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. "
+                     f"All three arms (placebo/strict/disabled) read the {corpus} corpus.")
+        lines.append("")
 
     # ---- Part 1: per-run metrics -----------------------------------------------
     lines.append("## Part 1 -- per (arm, seed) metrics")
@@ -691,23 +729,32 @@ def render_md(rows: list) -> str:
     # the mock check cannot see; replaced with the three-piece evidence chain
     # (framework-change scope, retry-prompt golden text, mock CSV identity for BOTH
     # domains) recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md.
-    placebo_hash, comparator_hash = _manifest_commit_hashes(
-        rows, placebo_arms=["placebo"], comparator_arms=["strict", "disabled"])
-    lines.append(
-        f"The placebo arm was run at code {placebo_hash} while the strict and disabled "
-        f"comparators come from {comparator_hash}. The comparison is accepted on three "
-        f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
-        f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven files, "
-        f"all plumbing for the retry_feedback_mode feature), whose only behaviour-changing "
-        f"branch is in the domain-generic retry loop broker/core/_retry_loop.py (RetryMixin."
-        f"_governance_retry_loop); the full-mode retry prompt rendered by that loop is "
-        f"byte-identical across the two commits for both the rule-violation and the "
-        f"format-violation branch; and mock runs at both commits give identical "
-        f"governance-audit and simulation logs for flood (4 of 4 comparisons) and for "
-        f"irrigation (4 of 4, strict and disabled, synthetic agents). The earlier "
-        f"faf1bb12 -> c3391a53 gate in out/regen_progress_2026-09-15.md covers both "
-        f"domains."
-    )
+    manifest_arms_present = {r["arm"] for r in _find(rows, "manifest_check")}
+    if {"placebo", "strict", "disabled"} <= manifest_arms_present:
+        placebo_hash, comparator_hash = _manifest_commit_hashes(
+            rows, placebo_arms=["placebo"], comparator_arms=["strict", "disabled"])
+        lines.append(
+            f"The placebo arm was run at code {placebo_hash} while the strict and disabled "
+            f"comparators come from {comparator_hash}. The comparison is accepted on three "
+            f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
+            f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven files, "
+            f"all plumbing for the retry_feedback_mode feature), whose only behaviour-changing "
+            f"branch is in the domain-generic retry loop broker/core/_retry_loop.py (RetryMixin."
+            f"_governance_retry_loop); the full-mode retry prompt rendered by that loop is "
+            f"byte-identical across the two commits for both the rule-violation and the "
+            f"format-violation branch; and mock runs at both commits give identical "
+            f"governance-audit and simulation logs for flood (4 of 4 comparisons) and for "
+            f"irrigation (4 of 4, strict and disabled, synthetic agents). The earlier "
+            f"faf1bb12 -> c3391a53 gate in out/regen_progress_2026-09-15.md covers both "
+            f"domains."
+        )
+    else:
+        missing = {"placebo", "strict", "disabled"} - manifest_arms_present
+        lines.append(
+            f"Code-provenance caveat: **PENDING** -- no manifest_check rows yet for arm(s) "
+            f"{sorted(missing)} (0/2 seeds landed for at least one arm under --corpus "
+            f"{corpus})."
+        )
     lines.append("")
 
     return "\n".join(lines)

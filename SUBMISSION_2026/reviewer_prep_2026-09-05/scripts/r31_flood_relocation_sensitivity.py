@@ -85,9 +85,24 @@ OUTPUTS
     directly from that same `rows` list.
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r31_flood_relocation_sensitivity.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r31_flood_relocation_sensitivity.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs) -- affects
+ONLY the gemma3_4b strict/disabled dirs in Part 1/2 (the gemma4_12b rows
+have no separate "defaults" corpus concept here and are unaffected -- r26's
+own --corpus is orthogonal, not threaded through this script). v08
+(default): EXACTLY the behaviour documented above, byte-identical output.
+defaults: gemma3_4b strict/disabled read the no-sampling-params re-run;
+Part 2's `FIG3.GOV_DIR`/`FIG3.DISABLED_DIR` are monkey-patched at runtime
+(never faf1bb12) the same way r28 does it; `FIG3.RULEBASED_DIR` is
+unchanged. Every completeness gate already in this script tolerates 0/5
+seeds landed (true today for every defaults dir), so Part 1/2/3 already
+render PENDING gracefully -- no new PENDING branch was needed. Writes
+out/r31_flood_relocation_sensitivity_defaults.{md,csv}.
 """
 from __future__ import annotations
 
+import argparse
 import math
 import os
 import sys
@@ -97,21 +112,29 @@ import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import _common as C  # noqa: E402
 from _common import PrepError  # noqa: E402
-import r23_flood_strict_regen as R23  # noqa: E402  READ-ONLY: NEW_ROOT/NEW_SEEDS/LEVELS/COND.
-import r24_flood_contrast_regen as R24  # noqa: E402  READ-ONLY: NEW_DIS_ROOT.
+import r23_flood_strict_regen as R23  # noqa: E402  READ-ONLY: NEW_SEEDS/LEVELS/COND.
 import r26_flood_crossmodel_gemma4_12b as R26  # noqa: E402  READ-ONLY: 12b arm roots.
 import r28_trajectory_vs_traditional as R28  # noqa: E402  READ-ONLY: FIG3 handle, PROT_STATES.
 
 FIG3 = R28.FIG3  # gen_fig3_regen.py, already imported read-only by r28
 
 SEEDS5 = R23.NEW_SEEDS  # ["42","43","44","45","46"]
-FLOOD_ARM_ROOTS = {
-    ("gemma3_4b", "strict"): R23.NEW_ROOT,
-    ("gemma3_4b", "disabled"): R24.NEW_DIS_ROOT,
-    ("gemma4_12b", "strict"): R26.STRICT_12B_ROOT,
-    ("gemma4_12b", "disabled"): R26.DISABLED_12B_ROOT,
-}
 MODELS = ["gemma3_4b", "gemma4_12b"]
+
+
+def _flood_arm_roots(corpus: str) -> dict:
+    """{(model, arm): root_dir_name}. gemma3_4b strict/disabled route through
+    `C.flood_corpus_dirs(corpus)` (v08 == today's literals, defaults == the
+    no-sampling-params re-run); gemma4_12b has no separate defaults corpus
+    here, always r26's v08 (c3391a53) roots."""
+    strict_root, _ = C.flood_corpus_dirs(corpus)["strict"]
+    disabled_root, _ = C.flood_corpus_dirs(corpus)["disabled"]
+    return {
+        ("gemma3_4b", "strict"): strict_root,
+        ("gemma3_4b", "disabled"): disabled_root,
+        ("gemma4_12b", "strict"): R26.STRICT_12B_ROOT,
+        ("gemma4_12b", "disabled"): R26.DISABLED_12B_ROOT,
+    }
 IBR_CONDITIONINGS = ["uncond", "tp_not_medium", "tp_high"]
 PROT_STATES = R28.PROT_STATES
 VERSIONS = ["original", "relocate_excluded"]
@@ -145,13 +168,13 @@ def _relocate_excluded(aud_rows: list) -> list:
     return [r for r in aud_rows if C.flood_final(r) != "relocate"]
 
 
-def _part1_ibr(rows: list) -> dict:
+def _part1_ibr(rows: list, flood_arm_roots: dict) -> dict:
     """Returns {(model, arm, version, cond): {seed: ibr_pct}}."""
     per_cell: dict = {}
     pooled_rows: dict = {}  # (model, arm, version) -> list of audit rows across all 5 seeds
     for model in MODELS:
         for arm in ("strict", "disabled"):
-            root = FLOOD_ARM_ROOTS[(model, arm)]
+            root = flood_arm_roots[(model, arm)]
             pooled_rows[(model, arm, "original")] = []
             pooled_rows[(model, arm, "relocate_excluded")] = []
             for seed in SEEDS5:
@@ -364,10 +387,12 @@ def _part2_js(rows: list) -> dict:
 # =============================================================================
 # Part 3 -- relocation share (reused) + diversity index (new)
 # =============================================================================
-def _part3_relocation_share(rows: list) -> None:
-    r28_path = os.path.join(C.OUT, "r28_trajectory_vs_traditional.csv")
+def _part3_relocation_share(rows: list, corpus: str) -> None:
+    r28_csv_name = f"r28_trajectory_vs_traditional{C.corpus_suffix(corpus)}.csv"
+    r28_path = os.path.join(C.OUT, r28_csv_name)
     if not os.path.isfile(r28_path):
-        raise PrepError(f"missing {r28_path} -- run r28_trajectory_vs_traditional.py first")
+        raise PrepError(f"missing {r28_path} -- run r28_trajectory_vs_traditional.py "
+                         f"--corpus {corpus} first")
     r28_rows = C.read_csv(r28_path)
     n = 0
     for r in r28_rows:
@@ -376,12 +401,15 @@ def _part3_relocation_share(rows: list) -> None:
                          "n_seeds": r["n_seeds"], "share_min": float(r["share_min"]),
                          "share_max": float(r["share_max"]), "share_mean": float(r["share_mean"]),
                          "share_sd": float(r["share_sd"]),
-                         "note": "read verbatim from out/r28_trajectory_vs_traditional.csv "
+                         "note": f"read verbatim from out/{r28_csv_name} "
                                  "(row_type=flood_relocation_arm_summary), not recomputed"})
             n += 1
     if n == 0:
-        raise PrepError("r28_trajectory_vs_traditional.csv: found 0 "
-                         "flood_relocation_arm_summary rows")
+        if corpus != "v08":
+            print(f"  Part 3a: PENDING -- {r28_csv_name} has 0 flood_relocation_arm_summary "
+                  f"rows yet (r28 --corpus {corpus} is itself pending)")
+            return
+        raise PrepError(f"{r28_csv_name}: found 0 flood_relocation_arm_summary rows")
     print(f"  Part 3a: carried {n} relocation_share rows from r28, verbatim")
 
 
@@ -419,26 +447,49 @@ FIELDNAMES = [
 
 
 def main() -> int:
-    C.banner("R31  Flood relocation sensitivity: IBR + JS distance with relocate "
-             "agent-years excluded")
+    parser = argparse.ArgumentParser(
+        description="R31 -- flood relocation sensitivity (gemma3_4b strict/disabled are "
+                     "--corpus-aware; gemma4_12b and the JS/IBR math are not)")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+
+    C.banner(f"R31  Flood relocation sensitivity: IBR + JS distance with relocate "
+             f"agent-years excluded (gemma3_4b corpus={corpus})")
     rows: list = []
 
     print("\n-- Part 1: IBR, original vs relocate-excluded --")
-    per_cell = _part1_ibr(rows)
+    flood_arm_roots = _flood_arm_roots(corpus)
+    per_cell = _part1_ibr(rows, flood_arm_roots)
     _part1_contrast(rows, per_cell)
 
-    print("\n-- Part 2: JS distance, original vs relocate-excluded --")
-    dfs = _part2_js(rows)
+    print(f"\n-- Part 2: JS distance, original vs relocate-excluded (corpus={corpus}) --")
+    if corpus != "v08":
+        import pathlib
+        gov_root, dis_root = flood_arm_roots[("gemma3_4b", "strict")], \
+            flood_arm_roots[("gemma3_4b", "disabled")]
+        orig_gov_dir, orig_dis_dir = FIG3.GOV_DIR, FIG3.DISABLED_DIR
+        FIG3.GOV_DIR = pathlib.Path(C.FLOOD_RESULTS) / gov_root
+        FIG3.DISABLED_DIR = pathlib.Path(C.FLOOD_RESULTS) / dis_root
+        print(f"  FIG3.GOV_DIR -> {FIG3.GOV_DIR}")
+        print(f"  FIG3.DISABLED_DIR -> {FIG3.DISABLED_DIR}")
+        try:
+            dfs = _part2_js(rows)
+        finally:
+            FIG3.GOV_DIR, FIG3.DISABLED_DIR = orig_gov_dir, orig_dis_dir
+    else:
+        dfs = _part2_js(rows)
 
     print("\n-- Part 3: relocation share (reused) + diversity index --")
-    _part3_relocation_share(rows)
+    _part3_relocation_share(rows, corpus)
     _part3_diversity(rows, dfs)
 
-    md_text = render_md(rows)
+    md_text = render_md(rows, corpus)
 
-    csv_final = "r31_flood_relocation_sensitivity.csv"
+    csv_final = f"r31_flood_relocation_sensitivity{suffix}.csv"
     csv_tmp = csv_final + ".tmp"
-    md_final = os.path.join(C.OUT, "r31_flood_relocation_sensitivity.md")
+    md_final = os.path.join(C.OUT, f"r31_flood_relocation_sensitivity{suffix}.md")
     md_tmp = md_final + ".tmp"
 
     csv_tmp_path = C.write_csv(csv_tmp, FIELDNAMES, rows)
@@ -470,7 +521,7 @@ def _find(rows, row_type, **kw):
     return out
 
 
-def render_md(rows: list) -> str:
+def render_md(rows: list, corpus: str = "v08") -> str:
     lines = []
     lines.append("# R31 -- flood relocation sensitivity")
     lines.append("")
@@ -481,6 +532,13 @@ def render_md(rows: list) -> str:
                  "module docstring for the empirical spot-check confirming this captures "
                  "every post-relocation year, not just the transition year).")
     lines.append("")
+    if corpus != "v08":
+        lines.append(
+            f"> **gemma3_4b corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. "
+            f"gemma4_12b rows are UNCHANGED (no separate defaults corpus exists for them "
+            f"here)."
+        )
+        lines.append("")
 
     lines.append("## Part 1 -- IBR headline (uncond, final level), original vs "
                  "relocate-excluded")
