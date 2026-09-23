@@ -1060,3 +1060,59 @@ byte-identical; SHA-256 of the .md is
 b4b370b437e60d04a9a5adc1007f21228f4f5a37a73fc55c9edc49fb16f44727.
 
 Review trail: sonnet adversarial review pending at the time of writing.
+
+## 2026-09-23 update, steps [3a] and [3b]: first attempt versus last proposal at n = 5 (flood) and n = 3 (irrigation) (r41)
+
+Full tables: `out/r41_first_vs_last_n5.md`. What ran: flood `JOH_strict_initprop_gemma3_4b_83fa97e1`,
+seeds 42 to 46 at 83fa97e1, with `initial_proposal_columns` on, which adds the columns `initial_skill`,
+`initial_labels` and `attempt_skills`. The flag is key-gated, absent from
+`reproducibility_manifest.json` and present in `config_snapshot.yaml` (Part C, per run). Irrigation initprop
+seeds 43 and 44 ran at 83fa97e1 and join seed 42 at c3391a53 (r33).
+
+Flood result (Part A), n = 5. Pooled IBR is 9.03% first attempt (400/4430), 0.50% last proposal (22/4430) and
+0.50% executed (22/4430). Per-seed mean (sd): 9.03 (0.580), 0.50 (0.275), 0.50 (0.275). Walk-back rate is
+63.00% pooled (252/400), per-seed mean 63.05% (sd 6.117). Mean first-minus-last difference is 8.531 pp, sd of
+differences 0.382 pp, pooled sd 0.454 pp, exact permutation p = 0.0625, which is the floor at n = 5. The pooled
+sd is the script's `_pooled_sd()`, sqrt((sd_first^2 + sd_last^2)/2); the audit does not define the term, and
+the .md flags this as a judgment call. Gated sentence, verbatim: "At n=5 on flood (this corpus), mean diff
+(8.531 pp) EXCEEDS the pooled sd (0.454 pp): the gate is MET -- "negotiation, not relabelling" holds and may be
+printed as a headline on this corpus." Band check against the `JOH_strict_gemma3_4b_faf1bb12` five-seed band:
+every mean(n=5) row is inside; one per-seed row is not: "EHE pooled | 43 | 0.8264 | [0.8380, 0.8808] (mean
+0.8594, sd 0.0107) | NO".
+
+Irrigation result (Part B), n = 3. First / last / executed IBR and walk-back per seed: seed 42 is 67.74% /
+32.97% / 1.29%, walk-back 41.21% (equal to r33); seed 43 is 66.12% / 29.68% / 1.66%, walk-back 43.55%; seed
+44 is 62.44% / 27.71% / 0.59%, walk-back 44.96%. Pooled: 65.47% / 30.03% / 1.18%, walk-back 43.19%
+(989/2290). Mean difference 35.318 pp, pooled sd 2.685 pp, exact permutation p = 0.2500, the floor at n = 3.
+Gated sentence, verbatim: "At n=3 on irrigation (this corpus), mean diff (35.318 pp) EXCEEDS the pooled sd
+(2.685 pp): the gate is MET -- "negotiation, not relabelling" holds and may be printed as a headline on this
+corpus." Commit mix, verbatim: "Commit mix (from each run's own manifest, never assumed): seed 42: c3391a53;
+seed 43: 83fa97e1; seed 44: 83fa97e1."
+Pooling evidence: `out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md`.
+
+## Read
+
+In both domains the first attempt is far less coherent than the last recorded proposal. In irrigation the
+executed action is more coherent still (1.18% against 30.03%); in flood executed equals
+last proposal (0.50% both). "Negotiation, not
+relabelling" now holds at n = 5 on flood and at n = 3 on irrigation.
+
+For the readiness audit: the single-seed part of M6 is resolved at these n, and the r33 headline may be
+printed as a multi-seed result. What stays single-corpus: flood is one corpus at 83fa97e1, not the faf1bb12
+corpus behind the flood headline; irrigation mixes c3391a53 (seed 42) and 83fa97e1 (seeds 43 and 44), and the
+audit's rule was framed for n = 5, which irrigation does not reach. Proposed paper wording (proposal, not yet
+applied): "across five flood seeds and three irrigation seeds, the first attempt breaks the coherence rules
+far more often than the last proposal (9.03% against 0.50% in flood, 65.47% against 30.03% in irrigation)".
+
+Caveats. n = 5 and n = 3; the permutation p values sit at their floors (0.0625 and 0.25), and the .md says
+none "should be read as passing a conventional 0.05 significance bar". The pooled sd definition is the
+writer's; the sd of paired differences (0.382 pp flood, 0.975 pp irrigation) is reported beside it and gives
+the same gate outcome. Walk-back holds the first-attempt label fixed (r33 precedent). The r41 .md renders
+the same provenance caveat as r34 to r36 for the flood band check (initprop at 83fa97e1 against the
+faf1bb12 band).
+
+Files: `scripts/r41_first_vs_last_n5.py` (new), `out/r41_first_vs_last_n5.md` (new). Two runs,
+byte-identical; SHA-256 of the .md is
+fc8f9fe83bc99b5ace6aadf69d4eacd068bef17cb286323fac9fe7aaff9459e9.
+
+Review trail: sonnet adversarial review in progress at the time of writing.
