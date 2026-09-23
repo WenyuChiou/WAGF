@@ -49,7 +49,7 @@ Evidence: `out/r28_trajectory_vs_traditional.md` Part 1 reports that two runs of
 
 Fix: delete every sentence of the form "the governed agents reproduce the traditional model's trajectory". Keep only the envelope reading: 0 of 5 governed seeds reach dead pool against 5 of 5 ungoverned seeds, Mead minimum 989.8 +/- 14.5 ft against 895.0 +/- 0.0 ft. Print the two bounds (0.98 self-disagreement, 0.87 to 0.90 no-LLM null) in the same table as the KGE number, so the reader sees the band.
 
-Who: opus writing; the r28 upper bound (0.98) stands, the r29 lower bound (0.87 to 0.90) must first be re-run from the 83fa97e1 tree per M15.
+Who: opus writing; the r28 upper bound (0.98) stands, the r29 lower bound (0.87 to 0.90) must first be re-run from the 83fa97e1 tree per M15. [envelope = demand-ceiling rule confirmed 2026-09-23, see Resolution log; rewrite still pending]
 
 ### B4. The flood decision-entropy claim is unsupported on the regenerated corpus
 
@@ -107,7 +107,7 @@ Evidence: `out/r28_trajectory_vs_traditional.md` Part 2 gives relocation share 1
 
 ### M6. The first-attempt result is single-seed and single-commit, printed next to a five-seed headline from a different commit
 
-Evidence: `out/r33_first_vs_last_proposal.md` gives initial_skill 67.74 percent and proposed_skill final 32.97 percent at commit c3391a53, while the corpus used in r25, r27, r30 and r34 is faf1bb12, where the same cell is 26.64 percent. The five-seed Part 5 pilot is fenced as "SI only; NOT pooled" and spans three commits. Fix: do not print 67.74 against 32.97 as a headline until step [3b] lands. If it must be mentioned now, print it as one seed at one commit with both ratios (2.05x and 2.54x) and say which corpus each uses. Who: GPU run (step [3b]), then opus writing.
+Evidence: `out/r33_first_vs_last_proposal.md` gives initial_skill 67.74 percent and proposed_skill final 32.97 percent at commit c3391a53, while the corpus used in r25, r27, r30 and r34 is faf1bb12, where the same cell is 26.64 percent. The five-seed Part 5 pilot is fenced as "SI only; NOT pooled" and spans three commits. Fix: do not print 67.74 against 32.97 as a headline until step [3b] lands. If it must be mentioned now, print it as one seed at one commit with both ratios (2.05x and 2.54x) and say which corpus each uses. Who: GPU run (step [3b]), then opus writing. [single-seed half closed 2026-09-23, see Resolution log]
 
 ### M7. The cross-model transfer claim risks reading as a scale law from two points, one of which saturates
 
@@ -218,7 +218,7 @@ This dimension was run after the four above, by a separate sonnet auditor, on th
 5. Remove flood EHE from the claim set and the tables. **Opus writing.** Closes B4 pending step [4].
 6. Reword every rule-content sentence to governance as a package and put the flood placebo result into the paper. **Opus writing**, after step [1] lands. Closes B5.
 7. Let steps [1] and [2] finish on the GPU, then apply the two decision rules above. **GPU run**, then opus writing.
-8. Run steps [3a], [3b] and [4]. **GPU run.** Unblocks M6 and gives flood its first chance at a permutation p below the n = 5 floor.
+8. Run steps [3a], [3b] and [4]. **GPU run.** Unblocks M6 and gives flood its first chance at a permutation p below the n = 5 floor. [3a and 3b landed 2026-09-23; step 4 still running]
 9. Re-derive the full Table 1 anchor row (37.08 / 82.80 / +45.73 / 0.86 / 26.77 / +25.90 in `ICLR2027/submission/paper/manuscript.tex`; `grep -n "gemma3:4b & 5" ICLR2027/submission/paper/manuscript.tex`) on the regenerated corpus, and update both that row and the abstract sentences that repeat its numbers. **Sonnet script** for the derivation, **opus writing** for the abstract. Closes B6 and M8. [moot after pause]
 10. Fix the package's own navigation: extend the README regeneration list to r34, update the `SUBMISSION_2026/INDEX.md` description, banner the four stale TAE state files, and move the r35 through r38 placeholders out of `out/`. **Sonnet script.** Closes M9, M10, M13 and one minor item. [closed 2026-09-22, see Resolution log]
 11. Document `initial_proposal_columns` in CHANGELOG and ARCHITECTURE, and in the same pass replace the three non-existent guard-test names in `broker/INVARIANTS.md` with the class names that actually run. **Sonnet script**, opus reviews. Closes M11 and M14. [closed 2026-09-22, see Resolution log]
@@ -229,7 +229,7 @@ This dimension was run after the four above, by a separate sonnet auditor, on th
 
 ---
 
-## Resolution log (2026-09-22)
+## Resolution log (2026-09-22 to 2026-09-23)
 
 1. **M15, r29 half.** I copied `_common.py` and `r29_kge_null_and_demand.py` into a scratch directory and edited only those copies, never a tracked file. In the copy of `scripts/r29_kge_null_and_demand.py` (the `examples.irrigation_abm.irrigation_env` import), the single `sys.path.insert(0, C.REPO)` call that precedes that import was changed to insert the `wagf-main-runs` worktree path (origin/main at 83fa97e1) instead, and `_common.py`'s `OUT` was redirected to scratch so nothing wrote back into the repo. A standalone import check printed `irrigation_env.__file__` resolving under `wagf-main-runs`, and two full runs, about 3 seconds each, came out byte-identical to each other and to the committed `out/r29_kge_null_and_demand.md` (SHA-256 `4c13d8b80135277d38afc804f6a58dfd4e943fc454eed70701d224965e8a093e`) and `.csv` (SHA-256 `c9c591f574086570ab8fc17282656f91dbfbd64f2aee0189dd4f29fb238f4a71`); every number matched the committed file, null KGE fql_matched 0.8720 +/- 0.0110, governed 0.9033 +/- 0.0116, replay-fidelity RMSE 0.0000 ft on 10 of 10 (source, seed) pairs, ungoverned demand mean 11,761,867 AF. The reason is structural: r29 never calls `execute_skill()`, the only method that consumes the environment's own rng, and the p0-1 tree's 239-line reduction does not touch the `WaterSystemConfig`/`IrrigationEnvironment` methods r29 exercises, so B3's 0.87 to 0.90 lower bound stands and M15's r29 half is closed.
 
@@ -242,3 +242,9 @@ This dimension was run after the four above, by a separate sonnet auditor, on th
 5. **B6 and M8.** Both are moot. `TAE/DECISION.md` (the PAUSED banner added by b74dd166) records the author's 2026-09-22 decision to pause every top-conference submission, including the ICLR 2027 main track that B6 and M8 were about, so re-deriving the Table 1 anchor row for a 25 September deadline and finishing the reproducibility sweep that only mattered for TAE's waiver are no longer live requirements. Both items remain correct as written, in case a future archival deadline reopens them.
 
 6. **Step [1] and B5.** Step [1] landed on 2026-09-22. The regenerated `out/r35_placebo_retry_irrigation.md` corrects its verdict to the same non-degenerate-cells-only rule `r34_placebo_retry_flood.py` introduced, and now reads placebo close to UNGOVERNED on IBR (mean share 0.962, range 0.934 to 0.990), with a new Part 4b splitting the result by proposal level versus executed level. That flips B5's reading from single-domain to domain-dependent: in irrigation the rule text in the retry prompt is what moves the agent's last recorded proposal and blocking alone protects the executed outcome, while in flood the placebo tracked STRICT on IBR (r34). The file is untracked, so this entry is pending review and commit, not yet closed.
+
+7. **Step [2] (r36), landed 2026-09-23, commit 086c673a.** Both no-ceiling seeds reach the 895.0 ft Mead floor (strict 997.0 / 995.7), shortage years are 35 / 35, and IBR headline stays at the strict level (27.15 / 26.78). Decision-rule branch 1 holds: B3's envelope reading must name the demand-ceiling rule. B3's Who line now carries the status note above.
+
+8. **Steps [3a] and [3b] (r41), landed 2026-09-23, commit 9a83b169.** Flood n = 5: first-attempt IBR 9.03 percent, last proposal 0.50, executed 0.50, walk-back 63.00 percent, gate MET, permutation p 0.0625. Irrigation n = 3 (seed 42 at c3391a53, seeds 43 and 44 at 83fa97e1): first-attempt 65.47 percent, last proposal 30.03, executed 1.18, gate MET, permutation p 0.2500. M6's single-seed half is closed; the commit mix stays stated as recorded above.
+
+**Sampling parameters (2026-09-23).** Flood sends temperature 0.8 / top_p 0.9 / top_k 40 from its per-type llm block; irrigation sends none, so the gemma3:4b modelfile defaults (temperature 1 / top_p 0.95 / top_k 64) apply; no Ollama seed is sent. Manifests recorded null for both (r19 G7); fixed on branch fix/manifest-resolved-llm-params (PR pending). Methods must state the per-domain settings; corpus unchanged.
