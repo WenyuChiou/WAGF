@@ -92,9 +92,29 @@ OUTPUTS
     directly from that same `rows` list (no number typed by hand).
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r28_trajectory_vs_traditional.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r28_trajectory_vs_traditional.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs) -- FLOOD PART
+ONLY, Part 1 (irrigation) is entirely unaffected by --corpus, always the
+v08 corpus (IRR_MODELS/FQL_DIR are irrigation constants, out of this
+switch's scope). Part 2 (flood) is sourced entirely through
+`gen_fig3_regen.py::load_all_runs()`, which is hardcoded to commit
+faf1bb12 for governed/disabled (`FIG3.GOV_DIR`/`FIG3.DISABLED_DIR`, module-
+level `pathlib.Path` constants) and is outside this script's edit scope --
+never edited on disk. --corpus defaults REASSIGNS those two module
+attributes on the already-imported `FIG3` module object at runtime (a
+same-process monkey-patch, not a file edit) to the defaults strict/
+disabled dirs before calling `load_all_runs()`; `FIG3.RULEBASED_DIR` is
+left untouched (rule-based is deterministic, no separate defaults corpus
+exists for it). This script's own existing completeness gate
+(`_flood_seed_dirs_present`) already renders Part 2 PENDING gracefully
+when fewer than 2 seeds are complete on all three arms -- true today for
+the defaults corpus (0/5) -- so no new PENDING branch was needed here.
+Writes out/r28_trajectory_vs_traditional_defaults.{md,csv}.
 """
 from __future__ import annotations
 
+import argparse
 import math
 import os
 import sys
@@ -607,27 +627,56 @@ FIELDNAMES = [c for c in FIELDNAMES if not (c in _seen or _seen.add(c))]
 
 
 def main() -> int:
-    C.banner("R28  Do the LLM arms reproduce the traditional-ABM trajectory, "
-             "and does the validator matter?")
+    parser = argparse.ArgumentParser(
+        description="R28 -- LLM arms vs traditional-ABM trajectory (flood part is "
+                     "--corpus-aware; irrigation is not)")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+
+    C.banner(f"R28  Do the LLM arms reproduce the traditional-ABM trajectory, "
+             f"and does the validator matter? (flood corpus={corpus})")
     rows: list = []
 
-    print("\n-- Part 1: irrigation KGE/RMSE vs FQL baseline --")
+    print("\n-- Part 1: irrigation KGE/RMSE vs FQL baseline (always v08, unaffected "
+          "by --corpus) --")
     per_cell = _irr_part1(rows)
     _irr_part1_summary(rows, per_cell)
     _irr_part1_contrast(rows, per_cell)
     _irr_part1_fql_reference(rows)
 
-    print("\n-- Part 2: flood protection-state JS distance vs rule-based (SI) --")
-    _irr_part2_flood(rows)
+    print(f"\n-- Part 2: flood protection-state JS distance vs rule-based (SI), "
+          f"corpus={corpus} --")
+    if corpus != "v08":
+        # Monkey-patch the already-imported gen_fig3_regen module's own
+        # directory constants (module attributes, not a file edit -- see
+        # --corpus docstring) so load_all_runs() reads the defaults
+        # strict/disabled dirs instead of faf1bb12. RULEBASED_DIR is left
+        # untouched: rule-based is deterministic, no defaults variant exists.
+        import pathlib
+        gov_root, _ = C.flood_corpus_dirs(corpus)["strict"]
+        dis_root, _ = C.flood_corpus_dirs(corpus)["disabled"]
+        orig_gov_dir, orig_dis_dir = FIG3.GOV_DIR, FIG3.DISABLED_DIR
+        FIG3.GOV_DIR = pathlib.Path(C.FLOOD_RESULTS) / gov_root
+        FIG3.DISABLED_DIR = pathlib.Path(C.FLOOD_RESULTS) / dis_root
+        print(f"  FIG3.GOV_DIR -> {FIG3.GOV_DIR}")
+        print(f"  FIG3.DISABLED_DIR -> {FIG3.DISABLED_DIR}")
+        try:
+            _irr_part2_flood(rows)
+        finally:
+            FIG3.GOV_DIR, FIG3.DISABLED_DIR = orig_gov_dir, orig_dis_dir
+    else:
+        _irr_part2_flood(rows)
 
     # Render the .md FIRST, fully in memory, before touching either output
     # file -- if render_md() raises, neither file is written/replaced, so a
     # crash never leaves a stale CSV paired with a fresh .md or vice versa.
-    md_text = render_md(rows)
+    md_text = render_md(rows, corpus)
 
-    csv_final = "r28_trajectory_vs_traditional.csv"
+    csv_final = f"r28_trajectory_vs_traditional{suffix}.csv"
     csv_tmp = csv_final + ".tmp"
-    md_final = os.path.join(C.OUT, "r28_trajectory_vs_traditional.md")
+    md_final = os.path.join(C.OUT, f"r28_trajectory_vs_traditional{suffix}.md")
     md_tmp = md_final + ".tmp"
 
     csv_tmp_path = C.write_csv(csv_tmp, FIELDNAMES, rows)
@@ -691,7 +740,7 @@ def _sig_word(p: float) -> str:
     return "not significant at p<0.05"
 
 
-def render_md(rows: list) -> str:
+def render_md(rows: list, corpus: str = "v08") -> str:
     lines = []
     lines.append("# R28 -- LLM arms vs traditional-ABM trajectory, and does the validator matter")
     lines.append("")
@@ -699,6 +748,15 @@ def render_md(rows: list) -> str:
                  "from the `rows` list this script writes to the paired CSV -- nothing here is "
                  "hand-typed.")
     lines.append("")
+    if corpus != "v08":
+        lines.append(
+            f"> **Flood corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. Part 1 "
+            f"(irrigation) is UNCHANGED (always v08). Part 2's `FIG3.GOV_DIR`/"
+            f"`FIG3.DISABLED_DIR` are monkey-patched at runtime to the {corpus} strict/"
+            f"disabled dirs (never faf1bb12); `FIG3.RULEBASED_DIR` is unchanged "
+            f"(deterministic, no defaults variant)."
+        )
+        lines.append("")
 
     # ---- Part 1a: per-arm KGE/RMSE summary table ---------------------------
     lines.append("## Part 1 -- irrigation: per-arm KGE / RMSE vs FQL baseline")

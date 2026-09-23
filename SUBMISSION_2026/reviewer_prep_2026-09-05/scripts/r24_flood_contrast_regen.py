@@ -107,9 +107,22 @@ OUTPUTS
     (no number in the .md is typed by hand).
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r24_flood_contrast_regen.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r24_flood_contrast_regen.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs)
+  v08 (default): EXACTLY the behaviour documented above, byte-identical
+  output. defaults: NEW = the no-sampling-params re-run's strict/disabled
+  dirs; comparator (Part 1's "old" side, and Part 2's "OLD corpus") = the
+  v08/faf1bb12 corpus itself, computed LIVE at literal same seed -- not the
+  pre-quarantine published corpus, and not r7-crosschecked (r7 is a
+  pre-quarantine-corpus artifact, not applicable once the comparator is
+  faf1bb12 itself). Writes out/r24_flood_contrast_regen_defaults.{md,csv}.
+  Renders a minimal PENDING report (exit 0) unless BOTH the defaults
+  strict and defaults disabled 5-seed corpora are complete -- true today.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -121,7 +134,7 @@ import r23_flood_strict_regen as R23  # noqa: E402
 
 NEW_SEEDS = R23.NEW_SEEDS
 NEW_GOV_ROOT = R23.NEW_ROOT
-NEW_DIS_ROOT = "JOH_disabled_gemma3_4b_faf1bb12"
+NEW_DIS_ROOT = C.flood_corpus_dirs("v08")["disabled"][0]
 
 # Old no-validator (disabled) corpus's five real run-index positions: a
 # LITERAL identity mapping to new seeds (see docstring caveat) -- still
@@ -273,6 +286,203 @@ def _load_old_dis_rate(metric: str) -> dict:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="R24 -- flood single-agent DISABLED arm regen + governed-vs-ungoverned "
+                     "contrast")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    if args.corpus == "v08":
+        return _main_v08()
+    return _main_defaults(args.corpus)
+
+
+def _main_defaults(corpus: str) -> int:
+    C.banner(f"R24  flood single-agent DISABLED arm: {corpus} corpus + contrast vs "
+             f"faf1bb12 (v08)")
+    suffix = C.corpus_suffix(corpus)
+    gov_root, gov_seeds = C.flood_corpus_dirs(corpus)["strict"]
+    dis_root, dis_seeds = C.flood_corpus_dirs(corpus)["disabled"]
+    band_gov_root, band_gov_seeds = C.flood_corpus_dirs("v08")["strict"]     # faf1bb12
+    band_dis_root, band_dis_seeds = C.flood_corpus_dirs("v08")["disabled"]   # faf1bb12
+
+    def _complete(root, seeds):
+        statuses = {}
+        for s in seeds:
+            rd = os.path.join(C.FLOOD_RESULTS, root, f"Run_{s}")
+            status, reason = R23._flood_run_complete(rd)
+            statuses[s] = (status, reason, rd)
+            print(f"  [{root}] seed {s:>3s}: {status}" + (f" ({reason})" if reason else ""))
+        return statuses
+
+    gov_status = _complete(gov_root, gov_seeds)
+    dis_status = _complete(dis_root, dis_seeds)
+    n_gov_ok = sum(1 for s, _, _ in gov_status.values() if s == "ok")
+    n_dis_ok = sum(1 for s, _, _ in dis_status.values() if s == "ok")
+
+    if n_gov_ok < len(gov_seeds) or n_dis_ok < len(dis_seeds):
+        note_lines = [
+            f"NEW strict:   `{gov_root}` -- {n_gov_ok}/{len(gov_seeds)} runs complete.",
+            f"NEW disabled: `{dis_root}` -- {n_dis_ok}/{len(dis_seeds)} runs complete.",
+            f"Comparator (once both are complete): the v08/faf1bb12 strict+disabled "
+            f"5-seed corpora (`{band_gov_root}` / `{band_dis_root}`, commit faf1bb12, "
+            f"{C.flood_sampling_method_text('v08')}), computed LIVE at literal same "
+            f"seed -- NOT the pre-quarantine published corpus, and NOT r7-crosschecked "
+            f"(r7 is a pre-quarantine-corpus artifact).",
+            f"Method (defaults): {C.flood_sampling_method_text(corpus)}.",
+            "Re-run this script with the same flags once both arms are complete; no "
+            "code change is needed.",
+        ]
+        csv_name = f"r24_flood_contrast_regen{suffix}.csv"
+        md_name = f"r24_flood_contrast_regen{suffix}.md"
+        C.write_csv(csv_name, ["row_type", "note"],
+                    [{"row_type": "pending", "note": line} for line in note_lines])
+        md_path = os.path.join(C.OUT, md_name)
+        with open(md_path, "w", encoding="utf-8") as fh:
+            fh.write("# R24 -- flood single-agent DISABLED arm regen + contrast (PENDING)\n\n"
+                      + "\n".join(note_lines) + "\n")
+        print(f"  wrote {os.path.relpath(md_path, C.REPO).replace(chr(92), '/')}  (PENDING)")
+        print(f"\n  PENDING: strict {n_gov_ok}/{len(gov_seeds)}, disabled "
+              f"{n_dis_ok}/{len(dis_seeds)} {corpus} seeds ready.")
+        return 0
+
+    # Both NEW arms complete -- comparator (faf1bb12) already exists on disk.
+    gov_new_m = {s: R23._metrics_for(gov_status[s][2]) for s in gov_seeds}
+    dis_new_m = {s: R23._metrics_for(dis_status[s][2]) for s in dis_seeds}
+
+    def _band_metrics(root, seeds):
+        out = {}
+        for s in seeds:
+            rd = os.path.join(C.FLOOD_RESULTS, root, f"Run_{s}")
+            status, reason = R23._flood_run_complete(rd)
+            if status != "ok":
+                raise PrepError(f"comparator {rd} is not complete ({reason}) -- the "
+                                 f"v08/faf1bb12 corpus was already verified complete for "
+                                 f"--corpus v08, a change here would be a real regression")
+            out[s] = R23._metrics_for(rd)
+        return out
+
+    band_gov_m = _band_metrics(band_gov_root, band_gov_seeds)
+    band_dis_m = _band_metrics(band_dis_root, band_dis_seeds)
+
+    rows = []
+    for label, cond in DISPLAY_METRICS:
+        metric = _rep_metric(label, cond)
+        level_metrics = ([f"ibr_{cond}_{lvl}" for lvl in R23.LEVELS] if cond is not None
+                          else [metric])
+        for m in level_metrics:
+            old_5 = [band_dis_m[s][m] for s in band_dis_seeds]
+            new_5 = [dis_new_m[s][m] for s in dis_seeds]
+            old_mean, old_sd = C.mean(old_5), C.sd(old_5)
+            new_mean, new_sd = C.mean(new_5), C.sd(new_5)
+            band_low, band_high = R23._band(old_mean, old_sd)
+            verdict = "PASS" if band_low <= new_mean <= band_high else "FAIL"
+            for bs, ns, ov, nv in zip(band_dis_seeds, dis_seeds, old_5, new_5):
+                rows.append({
+                    "row_type": "pair", "metric": m, "seed": ns, "old_seed_label": bs,
+                    "old_value": ov, "new_value": nv, "diff": nv - ov,
+                    "position_note": "same seed" if bs == ns else f"comparator seed {bs} vs "
+                                                                    f"new seed {ns}",
+                })
+            rows.append({
+                "row_type": "stat", "metric": m, "n_old": len(band_dis_seeds),
+                "n_new": len(dis_seeds), "old_mean": old_mean, "old_sd": old_sd,
+                "new_mean": new_mean, "new_sd": new_sd, "band_low": band_low,
+                "band_high": band_high, "verdict": verdict,
+            })
+
+    for s in dis_seeds:
+        m = dis_new_m[s]
+        rows.append({
+            "row_type": "run_stats", "seed": s, "n_rows": m["_n_rows"],
+            "llm_fail_n": m["_llm_fail_n"], "llm_fail_pct": m["_llm_fail_pct"],
+            "status_approved": m["_status_approved"], "status_rejected": m["_status_rejected"],
+            "status_rejected_fallback": m["_status_rejected_fallback"],
+            "fallback_share_pct": m["_fallback_share_pct"],
+            "wall_hours": m["_wall_hours"], "audit_start": m["_t_start"],
+            "audit_end": m["_t_end"],
+            "note": f"comparator = v08/faf1bb12 (live), NEW = {corpus} corpus",
+        })
+
+    # Part 2 -- contrast, NEW corpus (defaults) and OLD/comparator corpus
+    # (faf1bb12), both literal-seed-paired, both computed live -- no
+    # r7 crosscheck (r7 is specific to the pre-quarantine comparator).
+    for label, cond in DISPLAY_METRICS:
+        metric = _rep_metric(label, cond)
+        diffs = []
+        for s in gov_seeds:
+            gv, uv = gov_new_m[s][metric], dis_new_m[s][metric]
+            d = uv - gv
+            diffs.append(d)
+            rows.append({"row_type": "contrast_pair", "corpus": "new", "metric": label,
+                         "unit": f"seed{s}", "governed_value": gv, "ungoverned_value": uv,
+                         "diff": d})
+        t, df = C.paired_t(diffs)
+        mean_d, sd_d = C.mean(diffs), C.sd(diffs)
+        n_flips = sum(1 for x in diffs if (x > 0) != (mean_d > 0))
+        same_sign = len({1 if x > 0 else (-1 if x < 0 else 0) for x in diffs}) == 1
+        rows.append({
+            "row_type": "contrast_stat", "corpus": "new", "metric": label,
+            "n_pairs": len(diffs), "mean_diff": mean_d, "sd_diff": sd_d,
+            "min_diff": min(diffs), "max_diff": max(diffs), "n_sign_flips": n_flips,
+            "all_same_sign": same_sign, "t": t, "df": float(df),
+            "p_paired_t": C.t_two_sided_p(t, df), "p_exact_permutation": C.exact_perm_p(diffs),
+            "permutation_floor": 2.0 / (1 << len(diffs)),
+        })
+    for label, cond in DISPLAY_METRICS:
+        metric = _rep_metric(label, cond)
+        diffs = []
+        for s in band_gov_seeds:
+            gv, uv = band_gov_m[s][metric], band_dis_m[s][metric]
+            d = uv - gv
+            diffs.append(d)
+            rows.append({"row_type": "contrast_pair", "corpus": "old", "metric": label,
+                         "unit": f"seed{s}", "governed_value": gv, "ungoverned_value": uv,
+                         "diff": d})
+        t, df = C.paired_t(diffs)
+        mean_d, sd_d = C.mean(diffs), C.sd(diffs)
+        n_flips = sum(1 for x in diffs if (x > 0) != (mean_d > 0))
+        same_sign = len({1 if x > 0 else (-1 if x < 0 else 0) for x in diffs}) == 1
+        rows.append({
+            "row_type": "contrast_stat", "corpus": "old", "metric": label,
+            "n_pairs": len(diffs), "mean_diff": mean_d, "sd_diff": sd_d,
+            "min_diff": min(diffs), "max_diff": max(diffs), "n_sign_flips": n_flips,
+            "all_same_sign": same_sign, "t": t, "df": float(df),
+            "p_paired_t": C.t_two_sided_p(t, df), "p_exact_permutation": C.exact_perm_p(diffs),
+            "permutation_floor": 2.0 / (1 << len(diffs)),
+            "note": "comparator = v08/faf1bb12 (live), not r7-crosschecked",
+        })
+
+    fieldnames = ["row_type", "metric", "seed", "old_seed_label", "old_value", "new_value",
+                  "diff", "position_note", "n_old", "n_new", "old_mean", "old_sd", "new_mean",
+                  "new_sd", "band_low", "band_high", "verdict", "n_rows", "llm_fail_n",
+                  "llm_fail_pct", "status_approved", "status_rejected",
+                  "status_rejected_fallback", "fallback_share_pct", "wall_hours",
+                  "audit_start", "audit_end", "note", "corpus", "unit", "governed_value",
+                  "ungoverned_value", "n_pairs", "mean_diff", "sd_diff", "min_diff",
+                  "max_diff", "n_sign_flips", "all_same_sign", "t", "df", "p_paired_t",
+                  "p_exact_permutation", "permutation_floor"]
+    C.write_csv(f"r24_flood_contrast_regen{suffix}.csv", fieldnames, rows)
+
+    body = render_md(rows)
+    _, _, rest = body.partition("\n")
+    header_note = (
+        f"# R24 -- flood single-agent DISABLED arm regen ({corpus} corpus) + contrast, "
+        f"2026-09-23\n\n"
+        f"> **Corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. Comparator "
+        f"(\"old\"/OLD-corpus contrast) = the v08/faf1bb12 5-seed corpora, computed "
+        f"live, literal same seed -- NOT the pre-quarantine published corpus --corpus "
+        f"v08 uses, and NOT r7-crosschecked.\n"
+    )
+    md_text = header_note + rest
+    md_path = os.path.join(C.OUT, f"r24_flood_contrast_regen{suffix}.md")
+    with open(md_path, "w", encoding="utf-8") as fh:
+        fh.write(md_text)
+    print(f"\n  wrote {os.path.relpath(md_path, C.REPO).replace(chr(92), '/')}  "
+          f"({len(md_text.splitlines())} lines)")
+    return 0
+
+
+def _main_v08() -> int:
     C.banner("R24  flood single-agent DISABLED arm regen + governed-vs-ungoverned "
              "contrast")
 

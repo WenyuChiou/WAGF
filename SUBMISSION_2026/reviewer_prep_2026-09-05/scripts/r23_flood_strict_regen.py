@@ -90,9 +90,24 @@ OUTPUTS
     list built in main().
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r23_flood_strict_regen.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r23_flood_strict_regen.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs)
+  v08 (default): EXACTLY the behaviour documented above, byte-identical
+  output, comparator = the pre-quarantine PUBLISHED corpus read from
+  out/*.csv. defaults: NEW = the no-sampling-params re-run
+  (JOH_strict_defaults_gemma3_4b_83fa97e1/Run_{42..46}); comparator = the
+  v08/faf1bb12 corpus itself, computed LIVE from its own (already on disk)
+  run directories at literal same seed (no position-remapping caveat --
+  that caveat is specific to the pre-quarantine corpus the v08 branch
+  reads, not to faf1bb12). Writes out/r23_flood_strict_regen_defaults.{md,csv}
+  and never touches the v08 output files. Renders a minimal PENDING report
+  (still exit 0) if any of the 5 defaults run directories is not yet
+  complete -- true today, since none have landed.
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import os
 import sys
@@ -102,8 +117,7 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import _common as C  # noqa: E402
 from _common import PrepError  # noqa: E402
 
-NEW_ROOT = "JOH_strict_gemma3_4b_faf1bb12"
-NEW_SEEDS = ["42", "43", "44", "45", "46"]
+NEW_ROOT, NEW_SEEDS = C.flood_corpus_dirs("v08")["strict"]
 
 # Old governed corpus's five real run-index positions (see docstring
 # provenance note): position -> (old seed label actually on disk, at the
@@ -484,7 +498,174 @@ def render_md(rows: list) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _flood_run_complete(run_dir: str) -> tuple:
+    """Same 4-gate completeness check main()'s new-run loop already applies
+    inline (dir exists -> audit csv -> simulation_log -> run_integrity.json
+    integrity_ok==True), factored out here so the defaults-mode path can
+    reuse it without duplicating the checks -- returns ('ok', None) or
+    ('skipped', reason), never raises on a merely-incomplete run."""
+    if not os.path.isdir(run_dir):
+        return "skipped", "run directory does not exist yet"
+    if not os.path.isfile(os.path.join(run_dir, C.FLOOD_AUDIT)):
+        return "skipped", f"{C.FLOOD_AUDIT} missing (run in progress)"
+    if not os.path.isfile(os.path.join(run_dir, C.FLOOD_SIM)):
+        return "skipped", f"{C.FLOOD_SIM} missing (run in progress)"
+    ri_path = os.path.join(run_dir, "run_integrity.json")
+    if not os.path.isfile(ri_path):
+        return "skipped", "run_integrity.json missing (run in progress)"
+    import json as _json
+    with open(ri_path, encoding="utf-8") as fh:
+        ri = _json.load(fh)
+    if ri.get("integrity_ok") is not True:
+        return "skipped", f"integrity_ok is {ri.get('integrity_ok')!r}, not True"
+    return "ok", None
+
+
+def _write_pending(suffix: str, note_lines: list) -> None:
+    """Minimal PENDING .md + header-only .csv for a corpus whose flood
+    directories have not (yet, or not all) landed. Never used for v08 (whose
+    committed dirs all exist); used by every --corpus defaults branch below
+    that finds incomplete data. Schema is intentionally NOT the full
+    row_type=pair/stat/run_stats schema (there is no real data to put in it
+    yet) -- 'row_type'/'note' only, so a reader can tell PENDING output from
+    real output at a glance."""
+    csv_name = f"r23_flood_strict_regen{suffix}.csv"
+    md_name = f"r23_flood_strict_regen{suffix}.md"
+    C.write_csv(csv_name, ["row_type", "note"],
+                [{"row_type": "pending", "note": line} for line in note_lines])
+    lines = ["# R23 -- flood single-agent STRICT arm regen (PENDING)", ""]
+    lines.extend(note_lines)
+    lines.append("")
+    md_path = os.path.join(C.OUT, md_name)
+    with open(md_path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    print(f"  wrote {os.path.relpath(md_path, C.REPO).replace(chr(92), '/')}  (PENDING)")
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="R23 -- flood single-agent STRICT arm regen vs old/comparator")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    if args.corpus == "v08":
+        return _main_v08()
+    return _main_defaults(args.corpus)
+
+
+def _main_defaults(corpus: str) -> int:
+    C.banner(f"R23  flood single-agent STRICT arm: {corpus} corpus vs faf1bb12 (v08) band")
+    suffix = C.corpus_suffix(corpus)
+    new_root, new_seeds = C.flood_corpus_dirs(corpus)["strict"]
+    band_root, band_seeds = C.flood_corpus_dirs("v08")["strict"]  # faf1bb12, already on disk
+
+    statuses = {}
+    for s in new_seeds:
+        rd = os.path.join(C.FLOOD_RESULTS, new_root, f"Run_{s}")
+        status, reason = _flood_run_complete(rd)
+        statuses[s] = (status, reason, rd)
+        print(f"  {corpus} seed {s:>3s}: {status}" + (f" ({reason})" if reason else ""))
+
+    n_ok = sum(1 for status, _, _ in statuses.values() if status == "ok")
+    if n_ok < len(new_seeds):
+        missing = [s for s, (status, reason, _) in statuses.items() if status != "ok"]
+        note_lines = [
+            f"NEW corpus: `{new_root}`/Run_{{{','.join(new_seeds)}}} -- "
+            f"{n_ok}/{len(new_seeds)} runs complete, missing/incomplete seeds "
+            f"{missing}.",
+            f"Comparator (once NEW is complete): the v08/faf1bb12 5-seed band, "
+            f"`{band_root}`/Run_{{{','.join(band_seeds)}}} (commit faf1bb12, "
+            f"{C.flood_sampling_method_text('v08')}), computed LIVE at literal "
+            f"same seed -- NOT the pre-quarantine published corpus r23 uses "
+            f"for --corpus v08.",
+            f"Method (defaults): {C.flood_sampling_method_text(corpus)}.",
+            "Re-run this script with the same flags once all 5 seeds land; "
+            "no code change is needed.",
+        ]
+        _write_pending(suffix, note_lines)
+        print(f"\n  PENDING: {n_ok}/{len(new_seeds)} {corpus} seeds ready -- wrote a minimal "
+              f"PENDING report, not a partial/misleading band check.")
+        return 0
+
+    # All 5 NEW seeds are complete -- comparator (faf1bb12) already exists on
+    # disk today, so compute both sides live and reuse the EXACT same rows
+    # schema + render_md() the v08 path uses (row_type=pair/stat/run_stats;
+    # since NEW and comparator share literal seed identity here, every
+    # position_note reads "same seed" -- no remapping caveat, unlike v08's
+    # pre-quarantine comparator).
+    new_m = {s: _metrics_for(statuses[s][2]) for s in new_seeds}
+    band_m = {}
+    for s in band_seeds:
+        rd = os.path.join(C.FLOOD_RESULTS, band_root, f"Run_{s}")
+        status, reason = _flood_run_complete(rd)
+        if status != "ok":
+            raise PrepError(f"comparator {rd} is not complete ({reason}) -- the v08/faf1bb12 "
+                             f"corpus was already verified complete for --corpus v08, a "
+                             f"change here would be a real regression, not incompleteness")
+        band_m[s] = _metrics_for(rd)
+
+    rows = []
+    positions = list(enumerate(zip(new_seeds, band_seeds), start=1))
+    for metric in BAND_METRICS:
+        old_5 = [band_m[bs][metric] for _, bs in zip(new_seeds, band_seeds)]
+        new_5 = [new_m[s][metric] for s in new_seeds]
+        old_mean, old_sd = C.mean(old_5), C.sd(old_5)
+        new_mean, new_sd = C.mean(new_5), C.sd(new_5)
+        band_low, band_high = _band(old_mean, old_sd)
+        verdict = "PASS" if band_low <= new_mean <= band_high else "FAIL"
+        for pos, ns, bs, ov, nv in zip(range(1, len(new_seeds) + 1), new_seeds, band_seeds,
+                                        old_5, new_5):
+            rows.append({
+                "row_type": "pair", "metric": metric, "seed": ns, "old_seed_label": bs,
+                "old_value": ov, "new_value": nv, "diff": nv - ov,
+                "position_note": "same seed" if bs == ns
+                                  else f"position {pos}: comparator seed {bs} vs new seed {ns}",
+            })
+        rows.append({
+            "row_type": "stat", "metric": metric, "n_old": len(band_seeds),
+            "n_new": len(new_seeds), "old_mean": old_mean, "old_sd": old_sd,
+            "new_mean": new_mean, "new_sd": new_sd, "band_low": band_low,
+            "band_high": band_high, "verdict": verdict,
+        })
+    for s in new_seeds:
+        m = new_m[s]
+        rows.append({
+            "row_type": "run_stats", "seed": s, "n_rows": m["_n_rows"],
+            "llm_fail_n": m["_llm_fail_n"], "llm_fail_pct": m["_llm_fail_pct"],
+            "status_approved": m["_status_approved"], "status_rejected": m["_status_rejected"],
+            "status_rejected_fallback": m["_status_rejected_fallback"],
+            "fallback_share_pct": m["_fallback_share_pct"],
+            "wall_hours": m["_wall_hours"], "audit_start": m["_t_start"],
+            "audit_end": m["_t_end"],
+            "note": f"comparator = v08/faf1bb12 5-seed band ({C.flood_sampling_method_text('v08')}), "
+                    f"NEW = {corpus} corpus ({C.flood_sampling_method_text(corpus)})",
+        })
+
+    fieldnames = ["row_type", "metric", "seed", "old_seed_label", "old_value", "new_value",
+                  "diff", "position_note", "n_old", "n_new", "old_mean", "old_sd", "new_mean",
+                  "new_sd", "band_low", "band_high", "verdict", "n_rows", "llm_fail_n",
+                  "llm_fail_pct", "status_approved", "status_rejected",
+                  "status_rejected_fallback", "fallback_share_pct", "wall_hours",
+                  "audit_start", "audit_end", "note"]
+    C.write_csv(f"r23_flood_strict_regen{suffix}.csv", fieldnames, rows)
+    body = render_md(rows)
+    title, _, rest = body.partition("\n")
+    header_note = (
+        f"# R23 -- flood single-agent STRICT arm regen ({corpus} corpus), 2026-09-23\n\n"
+        f"> **Corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. Comparator "
+        f"(\"old\" column below) = the v08/faf1bb12 5-seed band "
+        f"(`{band_root}`, {C.flood_sampling_method_text('v08')}), computed live, "
+        f"literal same seed -- NOT the pre-quarantine published corpus --corpus v08 uses.\n"
+    )
+    md_text = header_note + rest
+    md_path = os.path.join(C.OUT, f"r23_flood_strict_regen{suffix}.md")
+    with open(md_path, "w", encoding="utf-8") as fh:
+        fh.write(md_text)
+    print(f"  wrote {os.path.relpath(md_path, C.REPO).replace(chr(92), '/')}  "
+          f"({len(md_text.splitlines())} lines)")
+    return 0
+
+
+def _main_v08() -> int:
     C.banner("R23  flood single-agent STRICT arm: faf1bb12 regen vs old published")
 
     # ---- 1. new runs -------------------------------------------------------

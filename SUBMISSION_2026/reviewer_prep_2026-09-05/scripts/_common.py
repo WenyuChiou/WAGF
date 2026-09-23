@@ -15,6 +15,7 @@ FAIL-LOUD CONTRACT
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import math
@@ -221,6 +222,144 @@ def flood_runs(root: str, model: str, group: str) -> dict:
     if not out:
         raise PrepError(f"no runs with {FLOOD_SIM} under {d}")
     return out
+
+
+# ---------------------------------------------------------------------------
+# flood corpus routing -- v08 (the committed reviewer-prep default: explicit
+# sampling temperature 0.8 / top_p 0.9 / top_k 40) vs defaults (2026-09-22
+# re-run with NO sampling parameters sent, so the model's own modelfile
+# defaults apply -- temperature 1 / top_p 0.95 / top_k 64 -- commit
+# 83fa97e1). `FLOOD_CORPUS_DIRS` is the ONLY place a flood result-directory
+# NAME is spelled out; every flood-reading script routes its directory
+# lookups through `flood_corpus_dirs()` (never a local literal). Each entry
+# is (root_dir_name, [seed, ...]) -- seed strings exactly as `Run_<seed>` is
+# spelled on disk. The v08 sub-dict's values are transcribed verbatim from
+# the literals each script already had; the defaults sub-dict's values are
+# transcribed verbatim from the directory names named in the 2026-09-22 task
+# brief that commissioned this switch.
+#
+# SCOPE NOTE: the real "defaults" strict/disabled batch lands as
+# Run_{42..51} (10 seeds). This table's "strict"/"disabled" defaults entries
+# intentionally cover only seeds 42-46 -- the same 5-seed shape every v08
+# comparator (faf1bb12) and every existing pair/band-check template in
+# r23/r24/r25/r26 already assumes (equal-length seed lists, 1:1 position
+# pairing). Extending those templates to a genuine n=10 defaults analysis,
+# the way r37 does for v08's faf1bb12+83fa97e1_ext split, is a follow-up,
+# not silently absorbed here. r37 itself is the one script that legitimately
+# wants all 10 defaults seeds in one flat corpus (no faf1bb12/ext split
+# exists in the defaults world) -- it reads the "strict_n10"/"disabled_n10"
+# keys below, defined only for corpus="defaults".
+CORPUS_CHOICES = ("v08", "defaults")
+
+_SEEDS2 = ["42", "43"]
+_SEEDS5 = ["42", "43", "44", "45", "46"]
+_SEEDS5_EXT = ["47", "48", "49", "50", "51"]
+_SEEDS10 = _SEEDS5 + _SEEDS5_EXT
+
+FLOOD_CORPUS_DIRS = {
+    "v08": {
+        "strict": ("JOH_strict_gemma3_4b_faf1bb12", _SEEDS5),
+        "disabled": ("JOH_disabled_gemma3_4b_faf1bb12", _SEEDS5),
+        "strict_ext": ("JOH_strict_gemma3_4b_83fa97e1_ext", _SEEDS5_EXT),
+        "disabled_ext": ("JOH_disabled_gemma3_4b_83fa97e1_ext", _SEEDS5_EXT),
+        "placebo": ("JOH_placebo_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_initprop": ("JOH_strict_initprop_gemma3_4b_83fa97e1", _SEEDS5),
+        "strict_para1": ("JOH_strict_para1_gemma3_4b_83fa97e1", _SEEDS2),
+        "disabled_para1": ("JOH_disabled_para1_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_para2": ("JOH_strict_para2_gemma3_4b_83fa97e1", _SEEDS2),
+        "disabled_para2": ("JOH_disabled_para2_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_nonudge": ("JOH_strict_nonudge_gemma3_4b_83fa97e1", _SEEDS2),
+        "disabled_nonudge": ("JOH_disabled_nonudge_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_gemma4_12b": ("JOH_strict_gemma4_12b_c3391a53", _SEEDS5),
+        "disabled_gemma4_12b": ("JOH_disabled_gemma4_12b_c3391a53", _SEEDS5),
+        "rulebased": ("rulebased_5seed_faf1bb12", _SEEDS5),
+        "rulebased_old": ("rulebased_5seed_e75e390c", _SEEDS5),
+    },
+    "defaults": {
+        "strict": ("JOH_strict_defaults_gemma3_4b_83fa97e1", _SEEDS5),
+        "disabled": ("JOH_disabled_defaults_gemma3_4b_83fa97e1", _SEEDS5),
+        "strict_n10": ("JOH_strict_defaults_gemma3_4b_83fa97e1", _SEEDS10),
+        "disabled_n10": ("JOH_disabled_defaults_gemma3_4b_83fa97e1", _SEEDS10),
+        "placebo": ("JOH_placebo_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_initprop": ("JOH_strict_initprop_defaults_gemma3_4b_83fa97e1", _SEEDS5),
+        "strict_para1": ("JOH_strict_para1_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "disabled_para1": ("JOH_disabled_para1_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_para2": ("JOH_strict_para2_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "disabled_para2": ("JOH_disabled_para2_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_nonudge": ("JOH_strict_nonudge_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "disabled_nonudge": ("JOH_disabled_nonudge_defaults_gemma3_4b_83fa97e1", _SEEDS2),
+        "strict_gemma4_12b": ("JOH_strict_defaults_gemma4_12b_83fa97e1", _SEEDS5),
+        "disabled_gemma4_12b": ("JOH_disabled_defaults_gemma4_12b_83fa97e1", _SEEDS5),
+        # rule-based has no LLM sampling at all -- deterministic, so there is
+        # no separate "defaults" rule-based corpus; both corpora read the
+        # same two dirs.
+        "rulebased": ("rulebased_5seed_faf1bb12", _SEEDS5),
+        "rulebased_old": ("rulebased_5seed_e75e390c", _SEEDS5),
+    },
+}
+
+
+def flood_corpus_dirs(corpus: str) -> dict:
+    """{'strict': (root_dir_name, [seed, ...]), ...} for the given corpus.
+
+    The ONLY place flood result-directory names are spelled out. See the
+    module comment above `FLOOD_CORPUS_DIRS` for what each key means and
+    the SCOPE NOTE on why "strict"/"disabled" are 5 seeds even under
+    corpus="defaults".
+    """
+    if corpus not in FLOOD_CORPUS_DIRS:
+        raise PrepError(f"unknown corpus {corpus!r}, expected one of {CORPUS_CHOICES}")
+    return FLOOD_CORPUS_DIRS[corpus]
+
+
+def corpus_suffix(corpus: str) -> str:
+    """'' for v08 (keeps every committed filename byte-identical), else
+    '_<corpus>' (e.g. '_defaults')."""
+    if corpus not in FLOOD_CORPUS_DIRS:
+        raise PrepError(f"unknown corpus {corpus!r}, expected one of {CORPUS_CHOICES}")
+    return "" if corpus == "v08" else f"_{corpus}"
+
+
+def flood_sampling_method_text(corpus: str) -> str:
+    """The exact Method-paragraph sentence each flood script states for its
+    corpus, kept in one place so the wording can never drift between
+    scripts or between a script's v08 and defaults runs."""
+    if corpus == "v08":
+        return "sampling: temperature 0.8 / top_p 0.9 / top_k 40"
+    if corpus == "defaults":
+        return ("sampling: none sent, modelfile defaults temperature 1 / top_p 0.95 / "
+                "top_k 64")
+    raise PrepError(f"unknown corpus {corpus!r}, expected one of {CORPUS_CHOICES}")
+
+
+def add_corpus_arg(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Shared --corpus flag for every flood-reading reviewer-prep script.
+    v08 (default) reproduces the committed output byte-for-byte; defaults
+    reads the no-sampling-params re-run and writes a `_defaults`-suffixed
+    output pair instead (never overwrites the v08 files)."""
+    parser.add_argument(
+        "--corpus", choices=CORPUS_CHOICES, default="v08",
+        help="v08 (default) = committed corpus, explicit sampling 0.8/0.9/40. "
+             "defaults = no sampling params sent (modelfile defaults temperature "
+             "1/top_p 0.95/top_k 64), commit 83fa97e1; writes out/<name>_defaults.{md,csv} "
+             "and never touches the v08 output files.")
+    return parser
+
+
+def flood_run_dir(corpus: str, key: str, seed: str) -> str:
+    """Full path to results/<root>/Run_<seed> for one flood_corpus_dirs() entry."""
+    root, seeds = flood_corpus_dirs(corpus)[key]
+    if seed not in seeds:
+        raise PrepError(f"corpus={corpus} key={key!r}: seed {seed!r} not in {seeds}")
+    return os.path.join(FLOOD_RESULTS, root, f"Run_{seed}")
+
+
+def flood_run_dir_ok(corpus: str, key: str, seed: str) -> bool:
+    """True iff Run_<seed>'s directory exists on disk at all (a cheap,
+    generic pre-check; callers still run their own real completeness gate
+    -- audit CSV / simulation_log / run_integrity.json -- before trusting
+    the run is actually usable)."""
+    return os.path.isdir(flood_run_dir(corpus, key, seed))
 
 
 def read_csv(path: str) -> list:

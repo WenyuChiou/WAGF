@@ -161,9 +161,32 @@ flood_disabled -- wall_hours for the 4 LLM arms is read from there.
 
 Usage:  python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r21_compute_cost.py
         python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r25_table1_regen.py
+        python SUBMISSION_2026/reviewer_prep_2026-09-05/scripts/r25_table1_regen.py --corpus defaults
+
+--corpus (added 2026-09-23, see _common.py::flood_corpus_dirs)
+  v08 (default): EXACTLY the behaviour documented above, byte-identical
+  output. defaults: FLOOD rows and the flood contrast ONLY -- irrigation
+  (governed/ungoverned/both FQL variants, the irrigation KGE cells, the
+  irrigation gemma4:12b block, the irrigation contrast rows) is UNCHANGED
+  and unaffected by --corpus, always the v08 corpus, exactly as documented
+  above. Flood governed/no-validator: NEW = the no-sampling-params re-run;
+  comparator = the v08/faf1bb12 corpus computed LIVE at literal same seed
+  (not the pre-quarantine published corpus r23/r24 read for v08). Flood
+  rule-based: UNCHANGED regardless of --corpus (deterministic, no LLM
+  sampling, so no separate defaults corpus exists for it). Flood
+  gemma4:12b block and the flood contrast row read r26's/r24's
+  `_defaults`-suffixed CSVs and render PENDING (never raise) if those are
+  themselves pending. If the defaults strict/disabled 5-seed corpora are
+  not both complete, every flood cell in the main table renders PENDING
+  (never a partial/misleading number) and the flip-check/gen_fig3
+  crosschecks are skipped for governed/no-validator (rule-based's own
+  crosscheck still runs, since it never depends on --corpus). Writes
+  out/r25_table1_regen_defaults.{md,csv} -- true today (0/5 defaults
+  seeds landed), so this exercises the PENDING path, not the full table.
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import os
 import re
@@ -510,7 +533,7 @@ def _load_old_flood_domain_outcome(arm: str, positions: list) -> dict:
 
 
 def _load_old_flood_rulebased() -> dict:
-    old_dir = os.path.join(C.FLOOD_RESULTS, "rulebased_5seed_e75e390c")
+    old_dir = os.path.join(C.FLOOD_RESULTS, C.flood_corpus_dirs("v08")["rulebased_old"][0])
     if not os.path.isdir(old_dir):
         raise PrepError(f"missing old flood rulebased dir {old_dir}")
     out = {}
@@ -568,7 +591,13 @@ UNGOV_SECTION = "## (1) Ungoverned arm"
 
 
 def main() -> int:
-    C.banner("R25  paper Table 1, old vs new, all arms both cases")
+    parser = argparse.ArgumentParser(
+        description="R25 -- paper Table 1, old vs new, all governance arms")
+    C.add_corpus_arg(parser)
+    args = parser.parse_args()
+    corpus = args.corpus
+    suffix = C.corpus_suffix(corpus)
+    C.banner(f"R25  paper Table 1, old vs new, all arms both cases (flood corpus={corpus})")
 
     # ---- irrigation: new metrics --------------------------------------
     irr_gov_dirs = {s: os.path.join(IRR_RESULTS, f"strict_42yr_gemma3_4b_faf1bb12_seed{s}")
@@ -629,23 +658,85 @@ def main() -> int:
                 UNGOV_SECTION, "No-validator fallback share")
 
     # ---- flood: new + old metrics (reusing r23/r24) --------------------
-    flood_gov_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, R23.NEW_ROOT, f"Run_{s}")
-                            for s in SEEDS5}
-    flood_dis_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, R24.NEW_DIS_ROOT, f"Run_{s}")
-                            for s in SEEDS5}
-    flood_gov_new = {s: _flood_llm_metrics(flood_gov_new_dirs[s]) for s in SEEDS5}
-    flood_dis_new = {s: _flood_llm_metrics(flood_dis_new_dirs[s]) for s in SEEDS5}
+    # v08: EXACTLY the pre-existing logic below (comparator = pre-quarantine
+    # published corpus, read from out/*.csv). defaults: comparator = the
+    # v08/faf1bb12 corpus computed LIVE at literal same seed (never the
+    # pre-quarantine corpus); `flood_available` is False (governed/
+    # no-validator rendered PENDING below) unless BOTH the defaults strict
+    # and disabled 5-seed corpora are complete -- true today (0/5 landed).
+    if corpus == "v08":
+        flood_gov_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, R23.NEW_ROOT, f"Run_{s}")
+                                for s in SEEDS5}
+        flood_dis_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, R24.NEW_DIS_ROOT, f"Run_{s}")
+                                for s in SEEDS5}
+        flood_gov_new = {s: _flood_llm_metrics(flood_gov_new_dirs[s]) for s in SEEDS5}
+        flood_dis_new = {s: _flood_llm_metrics(flood_dis_new_dirs[s]) for s in SEEDS5}
 
-    flood_gov_old_ibr = R23._load_old_ibr()
-    flood_gov_old_ehe = R23._load_old_ehe()
-    flood_gov_old_rej = R23._load_old_r11_rate("rejection_rate_pct")
-    flood_gov_old_domain = _load_old_flood_domain_outcome("governed", R23.OLD_POSITIONS)
-    flood_dis_old_ibr = R24._load_old_dis_ibr()
-    flood_dis_old_ehe = R24._load_old_dis_ehe()
-    flood_dis_old_rej = R24._load_old_dis_rate("rejection_rate_pct")
-    flood_dis_old_domain = _load_old_flood_domain_outcome("ungoverned", R24.OLD_DIS_POSITIONS)
+        flood_gov_old_ibr = R23._load_old_ibr()
+        flood_gov_old_ehe = R23._load_old_ehe()
+        flood_gov_old_rej = R23._load_old_r11_rate("rejection_rate_pct")
+        flood_gov_old_domain = _load_old_flood_domain_outcome("governed", R23.OLD_POSITIONS)
+        flood_dis_old_ibr = R24._load_old_dis_ibr()
+        flood_dis_old_ehe = R24._load_old_dis_ehe()
+        flood_dis_old_rej = R24._load_old_dis_rate("rejection_rate_pct")
+        flood_dis_old_domain = _load_old_flood_domain_outcome("ungoverned", R24.OLD_DIS_POSITIONS)
+        flood_old_positions_gov = R23.OLD_POSITIONS
+        flood_old_positions_dis = R24.OLD_DIS_POSITIONS
+        flood_available = True
+    else:
+        gov_root, gov_seeds = C.flood_corpus_dirs(corpus)["strict"]
+        dis_root, dis_seeds = C.flood_corpus_dirs(corpus)["disabled"]
+        band_gov_root, band_gov_seeds = C.flood_corpus_dirs("v08")["strict"]     # faf1bb12
+        band_dis_root, band_dis_seeds = C.flood_corpus_dirs("v08")["disabled"]   # faf1bb12
 
-    flood_rb_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, "rulebased_5seed_faf1bb12", f"Run_{s}")
+        def _n_complete(root, seeds):
+            return sum(1 for s in seeds
+                       if R23._flood_run_complete(os.path.join(C.FLOOD_RESULTS, root,
+                                                                 f"Run_{s}"))[0] == "ok")
+
+        n_gov_ok, n_dis_ok = _n_complete(gov_root, gov_seeds), _n_complete(dis_root, dis_seeds)
+        flood_available = (n_gov_ok == len(gov_seeds)) and (n_dis_ok == len(dis_seeds))
+        print(f"  flood ({corpus}): strict {n_gov_ok}/{len(gov_seeds)} complete, disabled "
+              f"{n_dis_ok}/{len(dis_seeds)} complete -- flood_available={flood_available}")
+
+        flood_gov_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, gov_root, f"Run_{s}")
+                                for s in gov_seeds}
+        flood_dis_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, dis_root, f"Run_{s}")
+                                for s in dis_seeds}
+        if flood_available:
+            flood_gov_new = {s: _flood_llm_metrics(flood_gov_new_dirs[s]) for s in gov_seeds}
+            flood_dis_new = {s: _flood_llm_metrics(flood_dis_new_dirs[s]) for s in dis_seeds}
+            band_gov_dirs = {s: os.path.join(C.FLOOD_RESULTS, band_gov_root, f"Run_{s}")
+                              for s in band_gov_seeds}
+            band_dis_dirs = {s: os.path.join(C.FLOOD_RESULTS, band_dis_root, f"Run_{s}")
+                              for s in band_dis_seeds}
+            band_gov_m = {s: _flood_llm_metrics(band_gov_dirs[s]) for s in band_gov_seeds}
+            band_dis_m = {s: _flood_llm_metrics(band_dis_dirs[s]) for s in band_dis_seeds}
+            # Reshape to the SAME {metric: {seed: value}} / {seed: value} shapes
+            # R23._load_old_ibr()/_load_old_ehe() etc. return, so every
+            # downstream `add_cell` call below (keyed by `flood_old_positions_*`)
+            # needs no v08/defaults branching of its own.
+            flood_gov_old_ibr = {"ibr_uncond_final":
+                                  {s: band_gov_m[s]["ibr_headline"] for s in band_gov_seeds}}
+            flood_gov_old_ehe = {s: band_gov_m[s]["ehe_pooled"] for s in band_gov_seeds}
+            flood_gov_old_rej = {s: band_gov_m[s]["rejection_rate_pct"] for s in band_gov_seeds}
+            flood_gov_old_domain = {s: band_gov_m[s]["final_year_protection_pct"]
+                                     for s in band_gov_seeds}
+            flood_dis_old_ibr = {"ibr_uncond_final":
+                                  {s: band_dis_m[s]["ibr_headline"] for s in band_dis_seeds}}
+            flood_dis_old_ehe = {s: band_dis_m[s]["ehe_pooled"] for s in band_dis_seeds}
+            flood_dis_old_rej = {s: band_dis_m[s]["rejection_rate_pct"] for s in band_dis_seeds}
+            flood_dis_old_domain = {s: band_dis_m[s]["final_year_protection_pct"]
+                                     for s in band_dis_seeds}
+            flood_old_positions_gov = [(i + 1, s) for i, s in enumerate(band_gov_seeds)]
+            flood_old_positions_dis = [(i + 1, s) for i, s in enumerate(band_dis_seeds)]
+        else:
+            flood_gov_new = flood_dis_new = {}
+
+    # rule-based: UNCHANGED regardless of --corpus -- deterministic, no LLM
+    # sampling, so there is no separate "defaults" rule-based corpus.
+    flood_rb_new_dirs = {s: os.path.join(C.FLOOD_RESULTS, C.flood_corpus_dirs("v08")["rulebased"][0],
+                                         f"Run_{s}")
                           for s in SEEDS5}
     flood_rb_new = {s: _flood_rulebased_metrics(flood_rb_new_dirs[s]) for s in SEEDS5}
     flood_rb_old = _load_old_flood_rulebased()
@@ -655,11 +746,17 @@ def main() -> int:
     # runs (3 arms x 5 seeds). elevated/relocated MUST be 0 (raises if not --
     # a prior round wrongly claimed has_insurance was sticky too, from a
     # single-seed spot check; this is the full, per-run, all-15-runs count).
+    # If `flood_available` is False, only rule-based's 5 runs are checkable
+    # (governed/no-validator's defaults dirs are not landed) -- 15 rows, not
+    # 45; render_md's own assertion is corpus/flood_available-aware, see
+    # below.
+    flip_arms = [("rule-based", flood_rb_new_dirs)]
+    if flood_available:
+        flip_arms = [("governed (strict)", flood_gov_new_dirs),
+                     ("no-validator", flood_dis_new_dirs)] + flip_arms
     flip_records = []
-    for arm_label, dirs in (("governed (strict)", flood_gov_new_dirs),
-                             ("no-validator", flood_dis_new_dirs),
-                             ("rule-based", flood_rb_new_dirs)):
-        for s in SEEDS5:
+    for arm_label, dirs in flip_arms:
+        for s in dirs:
             sim = C.read_csv(os.path.join(dirs[s], "simulation_log.csv"))
             for col in ("elevated", "has_insurance", "relocated"):
                 flip_records.append({"row_type": "flip_check", "arm": arm_label, "seed": s,
@@ -672,9 +769,9 @@ def main() -> int:
                              f"fix the claim, do not silently keep reporting 0")
     has_ins_flip_vals = [rec["flips"] for rec in flip_records if rec["column"] == "has_insurance"]
     has_ins_flip_min, has_ins_flip_max = min(has_ins_flip_vals), max(has_ins_flip_vals)
-    print(f"  flip check: elevated/relocated = 0/15 runs nonzero (sticky, confirmed); "
-          f"has_insurance = {has_ins_flip_min}-{has_ins_flip_max} True->False flips per "
-          f"run across all 15 new runs (NOT sticky)")
+    print(f"  flip check ({len(flip_arms)} arm(s), {len(flip_records) // 3} runs): "
+          f"elevated/relocated = 0 nonzero (sticky, confirmed); has_insurance = "
+          f"{has_ins_flip_min}-{has_ins_flip_max} True->False flips per run (NOT sticky)")
 
     # ---- crosscheck: this script's boolean-OR protection classification vs
     # gen_fig3_regen.py's own 5-state classification (`_classify_state_from_cols`),
@@ -683,21 +780,34 @@ def main() -> int:
     # so this checks the ALL-YEAR-POOLED share (`_pooled_protection_pct`
     # computed above) against gen_fig3's own printed complement -- confirming
     # the two classification methods agree, even though the actual Table 1
-    # cell uses the year-10-only slice gen_fig3 does not print.
+    # cell uses the year-10-only slice gen_fig3 does not print. gen_fig3_regen.py
+    # is hardcoded to faf1bb12 for governed/disabled (outside this script's
+    # edit scope, never monkey-patched here) -- under --corpus defaults this
+    # crosscheck is therefore only meaningful for rule-based (corpus-
+    # independent); governed/disabled are skipped (comparing DEFAULTS numbers
+    # against gen_fig3's faf1bb12-only data would be a real empirical
+    # difference, not a self-consistency bug, and would give a false FAIL).
+    crosscheck_keys = ("gov", "disabled", "rulebased") if corpus == "v08" else ("rulebased",)
     fig3_data = FIG3.load_all_runs()  # read-only: no generate_figure() call, no file written
     fig3_pooled_pct = {}
-    for key in ("gov", "disabled", "rulebased"):
+    for key in crosscheck_keys:
         import pandas as _pd
         all_df = _pd.concat(fig3_data[key], ignore_index=True) if fig3_data[key] else _pd.DataFrame()
         if all_df.empty:
             raise PrepError(f"gen_fig3_regen.load_all_runs(): no data for {key!r}")
         fig3_pooled_pct[key] = 100.0 * (all_df["prot_state"] != "No protection").mean()
-    mine_pooled = {
-        "gov": C.mean([flood_gov_new[s]["_pooled_protection_pct"] for s in SEEDS5]),
-        "disabled": C.mean([flood_dis_new[s]["_pooled_protection_pct"] for s in SEEDS5]),
-        "rulebased": C.mean([flood_rb_new[s]["_pooled_protection_pct"] for s in SEEDS5]),
-    }
-    for key in ("gov", "disabled", "rulebased"):
+    mine_pooled = {"rulebased": C.mean([flood_rb_new[s]["_pooled_protection_pct"] for s in SEEDS5])}
+    if flood_available:
+        # flood_gov_new/flood_dis_new are always keyed by the same 5 seed
+        # strings as SEEDS5 in both corpora (see _common.py::flood_corpus_dirs
+        # SCOPE NOTE), so this needs no v08/defaults branching.
+        mine_pooled["gov"] = C.mean([flood_gov_new[s]["_pooled_protection_pct"] for s in SEEDS5])
+        mine_pooled["disabled"] = C.mean(
+            [flood_dis_new[s]["_pooled_protection_pct"] for s in SEEDS5])
+    for key in crosscheck_keys:
+        if key not in mine_pooled:
+            print(f"  crosscheck SKIPPED for {key}: no live NEW flood data for this corpus")
+            continue
         if abs(mine_pooled[key] - fig3_pooled_pct[key]) > 0.5:
             raise PrepError(f"protection-share crosscheck failed for {key}: this script's "
                              f"all-year-pooled protected%={mine_pooled[key]:.2f} vs "
@@ -821,88 +931,121 @@ def main() -> int:
         nm, nsd = agg(fql_new[label], "wall_hours")
         add_cell("irrigation", label, "wall h per run", om, osd, nm, nsd)
 
-    # ---- flood governed ----
-    for col, ov_src, nv_src in (
-        ("IBR headline", flood_gov_old_ibr["ibr_uncond_final"], flood_gov_new),
-        ("EHE pooled (executed)", flood_gov_old_ehe, flood_gov_new),
-    ):
-        key = "ibr_headline" if col == "IBR headline" else "ehe_pooled"
-        old_vals = [ov_src[old_seed] for _, old_seed in R23.OLD_POSITIONS]
+    # ---- flood governed + flood no-validator ----
+    # v08: EXACTLY the pre-existing cells below (comparator = pre-quarantine
+    # published corpus). defaults, flood_available=True: comparator = the
+    # v08/faf1bb12 corpus computed live (flood_old_positions_gov/_dis, built
+    # above). defaults, flood_available=False (true today): every cell for
+    # these two arms renders PENDING -- never a partial/misleading number.
+    FLOOD_LLM_COLUMNS = ["IBR headline", "EHE pooled (executed)", "EHE pooled (proposal)",
+                         "domain outcome: final-year protection %", "rejection rate %",
+                         "retry rate %", "LLM failures", "governance fallback %",
+                         "wall h per run"]
+    if not flood_available:
+        pending_note = (f"--corpus {corpus}: defaults strict/disabled 5-seed corpora not "
+                        f"both complete yet (0/5 landed as of this run) -- re-run once "
+                        f"they land, no code change needed")
+        for arm in ("governed (strict)", "no-validator"):
+            for col in FLOOD_LLM_COLUMNS:
+                add_cell("flood", arm, col, old_status="pending", new_status="pending",
+                         n_old=0, n_new=0, note=pending_note)
+    else:
+        for col, ov_src, nv_src in (
+            ("IBR headline", flood_gov_old_ibr["ibr_uncond_final"], flood_gov_new),
+            ("EHE pooled (executed)", flood_gov_old_ehe, flood_gov_new),
+        ):
+            key = "ibr_headline" if col == "IBR headline" else "ehe_pooled"
+            old_vals = [ov_src[old_seed] for _, old_seed in flood_old_positions_gov]
+            om, osd = C.mean(old_vals), C.sd(old_vals)
+            nm, nsd = agg(flood_gov_new, key)
+            add_cell("flood", "governed (strict)", col, om, osd, nm, nsd)
+        old_vals = [flood_gov_old_ehe[old_seed] for _, old_seed in flood_old_positions_gov]
         om, osd = C.mean(old_vals), C.sd(old_vals)
-        nm, nsd = agg(flood_gov_new, key)
-        add_cell("flood", "governed (strict)", col, om, osd, nm, nsd)
-    old_vals = [flood_gov_old_ehe[old_seed] for _, old_seed in R23.OLD_POSITIONS]
-    om, osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_gov_new, "ehe_pooled")
-    add_cell("flood", "governed (strict)", "EHE pooled (proposal)", om, osd, nm, nsd,
-             note="identical to EHE pooled (executed) -- flood's proposal/final/executed "
-                  "levels coincide row-for-row, proven in r23 (0 mismatches, all 5 seeds)")
-    old_vals = [flood_gov_old_domain[old_seed] for _, old_seed in R23.OLD_POSITIONS]
-    ref_om, ref_osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_gov_new, "final_year_protection_pct")
-    add_cell("flood", "governed (strict)", "domain outcome: final-year protection %",
-             new_mean=nm, new_sd=nsd, old_status="no_record",
-             note=f"no old value for THIS metric (simulation_log boolean OR, relocated "
-                  f"counts as protected) -- the old raw simulation_log no longer exists. "
-                  f"A DIFFERENT metric (audit-based, 100-share_do_nothing at year 10) has "
-                  f"an old value of {ref_om:.1f}+/-{ref_osd:.1f}% from "
-                  f"r2_flood_trajectories.csv, kept for reference only, not substituted")
-    old_vals = [flood_gov_old_rej[old_seed] for _, old_seed in R23.OLD_POSITIONS]
-    om, osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_gov_new, "rejection_rate_pct")
-    add_cell("flood", "governed (strict)", "rejection rate %", om, osd, nm, nsd)
-    nm, nsd = agg(flood_gov_new, "retry_rate_pct")
-    add_cell("flood", "governed (strict)", "retry rate %", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
-    nm, nsd = agg(flood_gov_new, "llm_fail_n")
-    add_cell("flood", "governed (strict)", "LLM failures", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
-    nm, nsd = agg(flood_gov_new, "fallback_pct")
-    add_cell("flood", "governed (strict)", "governance fallback %", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
-    nm, nsd = agg(flood_gov_new, "wall_hours")
-    add_cell("flood", "governed (strict)", "wall h per run", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
+        nm, nsd = agg(flood_gov_new, "ehe_pooled")
+        add_cell("flood", "governed (strict)", "EHE pooled (proposal)", om, osd, nm, nsd,
+                 note="identical to EHE pooled (executed) -- flood's proposal/final/executed "
+                      "levels coincide row-for-row, proven in r23 (0 mismatches, all 5 seeds)")
+        old_vals = [flood_gov_old_domain[old_seed] for _, old_seed in flood_old_positions_gov]
+        ref_om, ref_osd = C.mean(old_vals), C.sd(old_vals)
+        nm, nsd = agg(flood_gov_new, "final_year_protection_pct")
+        if corpus == "v08":
+            # EXACT original note text, verbatim -- byte-identity contract.
+            add_cell("flood", "governed (strict)", "domain outcome: final-year protection %",
+                     new_mean=nm, new_sd=nsd, old_status="no_record",
+                     note=f"no old value for THIS metric (simulation_log boolean OR, "
+                          f"relocated counts as protected) -- the old raw simulation_log no "
+                          f"longer exists. A DIFFERENT metric (audit-based, 100-share_do_"
+                          f"nothing at year 10) has an old value of {ref_om:.1f}+/-"
+                          f"{ref_osd:.1f}% from r2_flood_trajectories.csv, kept for "
+                          f"reference only, not substituted")
+        else:
+            add_cell("flood", "governed (strict)", "domain outcome: final-year protection %",
+                     ref_om, ref_osd, nm, nsd,
+                     note=f"comparator = v08/faf1bb12 (live) {ref_om:.1f}+/-{ref_osd:.1f}% "
+                          f"-- NOT r2_flood_trajectories.csv's audit-based metric")
+        old_vals = [flood_gov_old_rej[old_seed] for _, old_seed in flood_old_positions_gov]
+        om, osd = C.mean(old_vals), C.sd(old_vals)
+        nm, nsd = agg(flood_gov_new, "rejection_rate_pct")
+        add_cell("flood", "governed (strict)", "rejection rate %", om, osd, nm, nsd)
+        nm, nsd = agg(flood_gov_new, "retry_rate_pct")
+        add_cell("flood", "governed (strict)", "retry rate %", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
+        nm, nsd = agg(flood_gov_new, "llm_fail_n")
+        add_cell("flood", "governed (strict)", "LLM failures", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
+        nm, nsd = agg(flood_gov_new, "fallback_pct")
+        add_cell("flood", "governed (strict)", "governance fallback %", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
+        nm, nsd = agg(flood_gov_new, "wall_hours")
+        add_cell("flood", "governed (strict)", "wall h per run", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
 
-    # ---- flood no-validator ----
-    old_vals = [flood_dis_old_ibr["ibr_uncond_final"][old_seed]
-                for _, old_seed in R24.OLD_DIS_POSITIONS]
-    om, osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_dis_new, "ibr_headline")
-    add_cell("flood", "no-validator", "IBR headline", om, osd, nm, nsd)
-    old_vals = [flood_dis_old_ehe[old_seed] for _, old_seed in R24.OLD_DIS_POSITIONS]
-    om, osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_dis_new, "ehe_pooled")
-    add_cell("flood", "no-validator", "EHE pooled (executed)", om, osd, nm, nsd)
-    add_cell("flood", "no-validator", "EHE pooled (proposal)", om, osd, nm, nsd,
-             note="identical to EHE pooled (executed) -- flood's proposal/final/executed "
-                  "levels coincide row-for-row, proven in r23/r24 (0 mismatches)")
-    old_vals = [flood_dis_old_domain[old_seed] for _, old_seed in R24.OLD_DIS_POSITIONS]
-    ref_om, ref_osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_dis_new, "final_year_protection_pct")
-    add_cell("flood", "no-validator", "domain outcome: final-year protection %",
-             new_mean=nm, new_sd=nsd, old_status="no_record",
-             note=f"no old value for THIS metric (simulation_log boolean OR, relocated "
-                  f"counts as protected) -- the old raw simulation_log no longer exists. "
-                  f"A DIFFERENT metric (audit-based, 100-share_do_nothing at year 10) has "
-                  f"an old value of {ref_om:.1f}+/-{ref_osd:.1f}% from "
-                  f"r2_flood_trajectories.csv, kept for reference only, not substituted")
-    old_vals = [flood_dis_old_rej[old_seed] for _, old_seed in R24.OLD_DIS_POSITIONS]
-    om, osd = C.mean(old_vals), C.sd(old_vals)
-    nm, nsd = agg(flood_dis_new, "rejection_rate_pct")
-    add_cell("flood", "no-validator", "rejection rate %", om, osd, nm, nsd)
-    nm, nsd = agg(flood_dis_new, "retry_rate_pct")
-    add_cell("flood", "no-validator", "retry rate %", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
-    nm, nsd = agg(flood_dis_new, "llm_fail_n")
-    add_cell("flood", "no-validator", "LLM failures", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
-    nm, nsd = agg(flood_dis_new, "fallback_pct")
-    add_cell("flood", "no-validator", "governance fallback %", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
-    nm, nsd = agg(flood_dis_new, "wall_hours")
-    add_cell("flood", "no-validator", "wall h per run", new_mean=nm, new_sd=nsd,
-             old_status="no_record")
+        old_vals = [flood_dis_old_ibr["ibr_uncond_final"][old_seed]
+                    for _, old_seed in flood_old_positions_dis]
+        om, osd = C.mean(old_vals), C.sd(old_vals)
+        nm, nsd = agg(flood_dis_new, "ibr_headline")
+        add_cell("flood", "no-validator", "IBR headline", om, osd, nm, nsd)
+        old_vals = [flood_dis_old_ehe[old_seed] for _, old_seed in flood_old_positions_dis]
+        om, osd = C.mean(old_vals), C.sd(old_vals)
+        nm, nsd = agg(flood_dis_new, "ehe_pooled")
+        add_cell("flood", "no-validator", "EHE pooled (executed)", om, osd, nm, nsd)
+        add_cell("flood", "no-validator", "EHE pooled (proposal)", om, osd, nm, nsd,
+                 note="identical to EHE pooled (executed) -- flood's proposal/final/executed "
+                      "levels coincide row-for-row, proven in r23/r24 (0 mismatches)")
+        old_vals = [flood_dis_old_domain[old_seed] for _, old_seed in flood_old_positions_dis]
+        ref_om, ref_osd = C.mean(old_vals), C.sd(old_vals)
+        nm, nsd = agg(flood_dis_new, "final_year_protection_pct")
+        if corpus == "v08":
+            # EXACT original note text, verbatim -- byte-identity contract.
+            add_cell("flood", "no-validator", "domain outcome: final-year protection %",
+                     new_mean=nm, new_sd=nsd, old_status="no_record",
+                     note=f"no old value for THIS metric (simulation_log boolean OR, "
+                          f"relocated counts as protected) -- the old raw simulation_log no "
+                          f"longer exists. A DIFFERENT metric (audit-based, 100-share_do_"
+                          f"nothing at year 10) has an old value of {ref_om:.1f}+/-"
+                          f"{ref_osd:.1f}% from r2_flood_trajectories.csv, kept for "
+                          f"reference only, not substituted")
+        else:
+            add_cell("flood", "no-validator", "domain outcome: final-year protection %",
+                     ref_om, ref_osd, nm, nsd,
+                     note=f"comparator = v08/faf1bb12 (live) {ref_om:.1f}+/-{ref_osd:.1f}% "
+                          f"-- NOT r2_flood_trajectories.csv's audit-based metric")
+        old_vals = [flood_dis_old_rej[old_seed] for _, old_seed in flood_old_positions_dis]
+        om, osd = C.mean(old_vals), C.sd(old_vals)
+        nm, nsd = agg(flood_dis_new, "rejection_rate_pct")
+        add_cell("flood", "no-validator", "rejection rate %", om, osd, nm, nsd)
+        nm, nsd = agg(flood_dis_new, "retry_rate_pct")
+        add_cell("flood", "no-validator", "retry rate %", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
+        nm, nsd = agg(flood_dis_new, "llm_fail_n")
+        add_cell("flood", "no-validator", "LLM failures", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
+        nm, nsd = agg(flood_dis_new, "fallback_pct")
+        add_cell("flood", "no-validator", "governance fallback %", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
+        nm, nsd = agg(flood_dis_new, "wall_hours")
+        add_cell("flood", "no-validator", "wall h per run", new_mean=nm, new_sd=nsd,
+                 old_status="no_record")
 
     # ---- flood rule-based ----
     add_cell("flood", "rule-based", "IBR headline", old_status="na", new_status="na",
@@ -1011,7 +1154,11 @@ def main() -> int:
     # Distinct case labels ("irrigation (gemma4:12b)" / "flood
     # (gemma4:12b)") keep these cells from colliding with the
     # gemma3:4b-corpus cells above in the shared `cells` lookup dict.
-    r26_path = os.path.join(C.OUT, "r26_flood_crossmodel_gemma4_12b.csv")
+    # r26 (flood): corpus-suffixed, reused verbatim -- see --corpus docstring.
+    # r27 (irrigation): ALWAYS the v08 file, unaffected by --corpus (r27 has
+    # no --corpus switch; "irrigation untouched" applies here too).
+    r26_csv_name = f"r26_flood_crossmodel_gemma4_12b{suffix}.csv"
+    r26_path = os.path.join(C.OUT, r26_csv_name)
     r27_path = os.path.join(C.OUT, "r27_irrigation_crossmodel_gemma4_12b.csv")
     for p in (r26_path, r27_path):
         if not os.path.isfile(p):
@@ -1027,6 +1174,15 @@ def main() -> int:
                              f"{len(sub)} across seeds {seeds}")
         vals = [float(r[src_col]) for r in sub]
         return C.mean(vals), C.sd(vals)
+
+    def _agg_metric_rows_or_pending(src_rows: list, arm: str, src_col: str):
+        """Like _agg_metric_rows, but returns None (never raises) if `arm`
+        has 0 metrics rows in `src_rows` -- the r26 --corpus {corpus} run
+        being itself PENDING (0 landed seeds) is expected, not a data bug."""
+        sub = [r for r in src_rows if r["arm"] == arm]
+        if not sub:
+            return None
+        return _agg_metric_rows(src_rows, arm, src_col)
 
     # NOTE on row count: the task described this block as "the six
     # irrigation/flood LLM rows (strict/no-validator x two cases)", but
@@ -1073,7 +1229,14 @@ def main() -> int:
     ]
     for src_arm, disp_arm in (("strict", "governed (strict)"), ("disabled", "no-validator")):
         for disp_col, src_col in FLOOD_12B_COLMAP:
-            nm, nsd = _agg_metric_rows(r26_metrics, src_arm, src_col)
+            agg_result = _agg_metric_rows_or_pending(r26_metrics, src_arm, src_col)
+            if agg_result is None:
+                add_cell("flood (gemma4:12b)", disp_arm, disp_col, old_status="pending",
+                         new_status="pending", n_old=0, n_new=0,
+                         note=f"{r26_csv_name} has 0 metrics rows for arm={src_arm!r} yet "
+                              f"(that script's own --corpus {corpus} run is itself pending)")
+                continue
+            nm, nsd = agg_result
             add_cell("flood (gemma4:12b)", disp_arm, disp_col, new_mean=nm, new_sd=nsd,
                      old_status="no_record", n_old=0)
         add_cell("flood (gemma4:12b)", disp_arm, "domain outcome: final-year protection %",
@@ -1125,29 +1288,51 @@ def main() -> int:
                   irr_gov_new_ehe, irr_ungov_new_ehe, SEEDS5)
 
     # flood: READ r24's own already-computed + r7-cross-checked contrast, do not
-    # recompute -- r24_flood_contrast_regen.csv is the single source of truth.
-    r24_rows = C.read_csv(os.path.join(C.OUT, "r24_flood_contrast_regen.csv"))
-    for metric_label, r24_label in (("IBR headline", "IBR unconditional (%)"),
-                                     ("EHE pooled", "EHE pooled simlog")):
-        for corpus in ("old", "new"):
-            r = next((rr for rr in r24_rows if rr["row_type"] == "contrast_stat"
-                      and rr["corpus"] == corpus and rr["metric"] == r24_label), None)
-            if r is None:
-                raise PrepError(f"r24_flood_contrast_regen.csv: no contrast_stat row for "
-                                 f"corpus={corpus} metric={r24_label!r}")
-            rows.append({
-                "row_type": "contrast_stat", "case": "flood", "metric": metric_label,
-                "corpus": corpus, "n_pairs": int(r["n_pairs"]), "mean_diff": float(r["mean_diff"]),
-                "sd_diff": float(r["sd_diff"]), "min_diff": float(r["min_diff"]),
-                "max_diff": float(r["max_diff"]), "n_sign_flips": int(r["n_sign_flips"]),
-                "all_same_sign": r["all_same_sign"] == "True", "t": float(r["t"]),
-                "df": float(r["df"]), "p_paired_t": float(r["p_paired_t"]),
-                "p_exact_permutation": float(r["p_exact_permutation"]),
-                "permutation_floor": float(r["permutation_floor"]),
-                "note": "read verbatim from out/r24_flood_contrast_regen.csv "
-                        "(row_type=contrast_stat), not recomputed",
-            })
-    print("  flood contrast rows read verbatim from out/r24_flood_contrast_regen.csv")
+    # recompute -- r24_flood_contrast_regen{suffix}.csv is the single source
+    # of truth. NOTE: the loop variable below is named `data_corpus`
+    # (r24's own "old"/"new" row tag, unrelated to this script's --corpus
+    # flag) precisely so it never shadows the outer `corpus` variable --
+    # a bare `for corpus in (...)` here would silently leave `corpus`
+    # holding "new" for every line below it, corrupting the suffix/label
+    # logic further down.
+    r24_csv_name = f"r24_flood_contrast_regen{suffix}.csv"
+    r24_path = os.path.join(C.OUT, r24_csv_name)
+    if not os.path.isfile(r24_path):
+        raise PrepError(f"missing {r24_path} -- run r24_flood_contrast_regen.py "
+                         f"--corpus {corpus} first")
+    r24_rows = C.read_csv(r24_path)
+    r24_has_contrast = any(rr.get("row_type") == "contrast_stat" for rr in r24_rows)
+    if not r24_has_contrast:
+        for metric_label in ("IBR headline", "EHE pooled"):
+            for data_corpus in ("old", "new"):
+                rows.append({"row_type": "contrast_stat", "case": "flood",
+                             "metric": metric_label, "corpus": data_corpus,
+                             "note": f"PENDING -- {r24_csv_name} has no contrast_stat rows "
+                                     f"yet (r24 --corpus {corpus} is itself pending)"})
+        print(f"  flood contrast: PENDING -- {r24_csv_name} has no contrast_stat rows yet")
+    else:
+        for metric_label, r24_label in (("IBR headline", "IBR unconditional (%)"),
+                                         ("EHE pooled", "EHE pooled simlog")):
+            for data_corpus in ("old", "new"):
+                r = next((rr for rr in r24_rows if rr["row_type"] == "contrast_stat"
+                          and rr["corpus"] == data_corpus and rr["metric"] == r24_label), None)
+                if r is None:
+                    raise PrepError(f"{r24_csv_name}: no contrast_stat row for "
+                                     f"corpus={data_corpus} metric={r24_label!r}")
+                rows.append({
+                    "row_type": "contrast_stat", "case": "flood", "metric": metric_label,
+                    "corpus": data_corpus, "n_pairs": int(r["n_pairs"]),
+                    "mean_diff": float(r["mean_diff"]), "sd_diff": float(r["sd_diff"]),
+                    "min_diff": float(r["min_diff"]), "max_diff": float(r["max_diff"]),
+                    "n_sign_flips": int(r["n_sign_flips"]),
+                    "all_same_sign": r["all_same_sign"] == "True", "t": float(r["t"]),
+                    "df": float(r["df"]), "p_paired_t": float(r["p_paired_t"]),
+                    "p_exact_permutation": float(r["p_exact_permutation"]),
+                    "permutation_floor": float(r["permutation_floor"]),
+                    "note": f"read verbatim from out/{r24_csv_name} "
+                            "(row_type=contrast_stat), not recomputed",
+                })
+        print(f"  flood contrast rows read verbatim from out/{r24_csv_name}")
 
     fieldnames = ["row_type", "case", "arm", "column", "old_mean", "old_sd", "new_mean",
                   "new_sd", "old_status", "new_status", "n_old", "n_new", "note", "metric",
@@ -1155,10 +1340,10 @@ def main() -> int:
                   "mean_diff", "sd_diff", "min_diff", "max_diff", "n_sign_flips",
                   "all_same_sign", "t", "df", "p_paired_t", "p_exact_permutation",
                   "permutation_floor", "flips"]
-    C.write_csv("r25_table1_regen.csv", fieldnames, rows)
+    C.write_csv(f"r25_table1_regen{suffix}.csv", fieldnames, rows)
 
-    md_text = render_md(rows)
-    md_path = os.path.join(C.OUT, "r25_table1_regen.md")
+    md_text = render_md(rows, corpus)
+    md_path = os.path.join(C.OUT, f"r25_table1_regen{suffix}.md")
     with open(md_path, "w", encoding="utf-8") as fh:
         fh.write(md_text)
     print(f"\n  wrote {os.path.relpath(md_path, C.REPO).replace(chr(92), '/')}  "
@@ -1209,20 +1394,26 @@ def _cell_str(r, nd=3) -> str:
             return NA
         if status == "no_record":
             return NO_OLD if mean_ is None else NO_OLD  # old side only ever no_record here
+        if status == "pending":
+            return "PENDING"
         return f"{_cp(float(mean_)):.{nd}f} +/- {_cp(float(sd_)):.{nd}f}"
     old_side = side(r["old_mean"], r["old_sd"], r["old_status"])
     new_side = side(r["new_mean"], r["new_sd"], r["new_status"])
     return f"{old_side} / {new_side}"
 
 
-def render_md(rows: list) -> str:
+def render_md(rows: list, corpus: str = "v08") -> str:
     cells = {(r["case"], r["arm"], r["column"]): r
              for r in rows if r["row_type"] == "table1_cell"}
     contrast = {(r["case"], r["metric"], r["corpus"]): r
                 for r in rows if r["row_type"] == "contrast_stat"}
     flip_rows = [r for r in rows if r["row_type"] == "flip_check"]
-    if len(flip_rows) != 45:  # 3 arms x 5 seeds x 3 columns
-        raise PrepError(f"render_md: expected 45 flip_check rows, got {len(flip_rows)}")
+    # 3 arms x 5 seeds x 3 columns = 45 under v08 (always) or defaults with
+    # flood_available; 1 arm (rule-based only) x 5 seeds x 3 columns = 15
+    # under defaults while governed/no-validator are still PENDING.
+    if len(flip_rows) not in (45, 15):
+        raise PrepError(f"render_md: expected 45 (all 3 arms) or 15 (rule-based only, "
+                         f"defaults corpus pending) flip_check rows, got {len(flip_rows)}")
     for r in flip_rows:
         if r["column"] in ("elevated", "relocated") and int(r["flips"]) != 0:
             raise PrepError(f"render_md: {r['column']} flips={r['flips']} != 0 for "
@@ -1234,6 +1425,14 @@ def render_md(rows: list) -> str:
     lines = []
     lines.append("# R25 -- paper Table 1, old vs new, all governance arms, 2026-09-17")
     lines.append("")
+    if corpus != "v08":
+        lines.append(
+            f"> **Flood corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. "
+            f"Irrigation rows are UNCHANGED (always the v08 corpus). Flood comparator "
+            f"(\"old\" column) = the v08/faf1bb12 corpus computed live, NOT the "
+            f"pre-quarantine published corpus the v08 run of this script uses."
+        )
+        lines.append("")
     lines.append(
         "**Method.** Cell = \"old mean +/- sd / new mean +/- sd\" (ddof=1, n=5 seeds "
         "42-46 on every row, including FQL which has 10 old+10 new seeds on disk -- "
@@ -1369,7 +1568,11 @@ def render_md(rows: list) -> str:
     lines.append("")
     lines.append("| arm | elevated | has_insurance | relocated |")
     lines.append("|---|---:|---:|---:|")
+    flip_arm_labels = sorted({r["arm"] for r in flip_rows})
     for arm_label in ("governed (strict)", "no-validator", "rule-based"):
+        if arm_label not in flip_arm_labels:
+            lines.append(f"| {arm_label} | PENDING | PENDING | PENDING |")
+            continue
         cell_vals = []
         for col in ("elevated", "has_insurance", "relocated"):
             vals = [int(r["flips"]) for r in flip_rows
@@ -1386,12 +1589,19 @@ def render_md(rows: list) -> str:
     lines.append("| case | metric | corpus | mean_diff +/- sd | p_paired_t | "
                   "p_exact_perm | sign-consistent |")
     lines.append("|---|---|---|---:|---:|---:|:---:|")
+    # `data_corpus` (r24's own "old"/"new" row tag) -- never named `corpus`
+    # here, so it cannot shadow this function's own `corpus` parameter
+    # ("v08"/"defaults"), even though nothing below this loop still needs it.
     for case in ("irrigation", "flood"):
         for metric in ("IBR headline", "EHE pooled"):
-            for corpus in ("old", "new"):
-                st = contrast[(case, metric, corpus)]
+            for data_corpus in ("old", "new"):
+                st = contrast[(case, metric, data_corpus)]
+                if "mean_diff" not in st:
+                    lines.append(f"| {case} | {metric} | {data_corpus} | PENDING | -- | -- "
+                                 f"| -- |")
+                    continue
                 lines.append(
-                    f"| {case} | {metric} | {corpus} | {_cp(st['mean_diff']):.3f} +/- "
+                    f"| {case} | {metric} | {data_corpus} | {_cp(st['mean_diff']):.3f} +/- "
                     f"{_cp(st['sd_diff']):.3f} | {_cp(st['p_paired_t']):.4f} | "
                     f"{_cp(st['p_exact_permutation']):.4f} | {st['all_same_sign']} |"
                 )
@@ -1401,15 +1611,25 @@ def render_md(rows: list) -> str:
     irr_ibr_new = contrast[("irrigation", "IBR headline", "new")]
     flood_ibr_old = contrast[("flood", "IBR headline", "old")]
     flood_ibr_new = contrast[("flood", "IBR headline", "new")]
-    lines.append(
-        f"Both cases reproduce the governed-vs-ungoverned direction on the new corpus: "
-        f"irrigation IBR headline mean_diff {_cp(irr_ibr_old['mean_diff']):.2f} pp old vs "
-        f"{_cp(irr_ibr_new['mean_diff']):.2f} pp new (sign-consistent old={irr_ibr_old['all_same_sign']}, "
-        f"new={irr_ibr_new['all_same_sign']}); flood IBR headline mean_diff "
-        f"{_cp(flood_ibr_old['mean_diff']):.2f} pp old vs {_cp(flood_ibr_new['mean_diff']):.2f} pp new "
-        f"(sign-consistent old={flood_ibr_old['all_same_sign']}, "
-        f"new={flood_ibr_new['all_same_sign']})."
-    )
+    if "mean_diff" in flood_ibr_old and "mean_diff" in flood_ibr_new:
+        lines.append(
+            f"Both cases reproduce the governed-vs-ungoverned direction on the new corpus: "
+            f"irrigation IBR headline mean_diff {_cp(irr_ibr_old['mean_diff']):.2f} pp old vs "
+            f"{_cp(irr_ibr_new['mean_diff']):.2f} pp new (sign-consistent "
+            f"old={irr_ibr_old['all_same_sign']}, new={irr_ibr_new['all_same_sign']}); "
+            f"flood IBR headline mean_diff {_cp(flood_ibr_old['mean_diff']):.2f} pp old vs "
+            f"{_cp(flood_ibr_new['mean_diff']):.2f} pp new (sign-consistent "
+            f"old={flood_ibr_old['all_same_sign']}, new={flood_ibr_new['all_same_sign']})."
+        )
+    else:
+        lines.append(
+            f"Irrigation reproduces the governed-vs-ungoverned direction on the new "
+            f"corpus: IBR headline mean_diff {_cp(irr_ibr_old['mean_diff']):.2f} pp old vs "
+            f"{_cp(irr_ibr_new['mean_diff']):.2f} pp new (sign-consistent "
+            f"old={irr_ibr_old['all_same_sign']}, new={irr_ibr_new['all_same_sign']}). "
+            f"Flood's contrast is PENDING for --corpus {corpus} (the defaults strict/"
+            f"disabled 5-seed corpora have not both landed yet)."
+        )
     return "\n".join(lines) + "\n"
 
 
