@@ -717,6 +717,56 @@ on CPU or with limited GPU memory.
   Scope: this covers the direct-Ollama path that all experiments use. It does
   not affect the separate `providers/` stack.
 
+**Sampling params the manifest actually sent (r19 G7/G8, 2026-09-23; hardened
+per review the same day).** The manifest's top-level `temperature` / `top_p`
+/ `num_ctx` / `num_predict` keys read the `LLM_CONFIG` singleton only: the
+run-wide default from `agent_types.yaml`'s `global_config.llm` block, or a
+`--temperature`-style CLI flag. `top_k` was never recorded there at all. What
+a given agent type actually sends to Ollama is `LLM_CONFIG` merged with that
+type's own `llm_params` block (`AgentTypeConfig.get_llm_params`), which
+`ExperimentRunner.get_llm_invoke` applies as an override; a flood run sending
+`temperature=0.8`/`top_p=0.9`/`top_k=40` and an irrigation run sending none of
+the three (Ollama's own modelfile default then applies at inference time)
+previously looked identical in the manifest. Three additive keys close the
+gap:
+
+- `llm_params_resolved`: a dict keyed by agent type. Each value is the
+  MERGED dict actually sent (the run-wide `num_ctx`/`num_predict` plus
+  whatever that type's own `llm_params` block overrode), plus `"model"`, the
+  resolved model name for that type (a per-type `llm_params.model` override
+  means different agent types in one run can send to different models). The
+  "absent key means the model default applies" reading holds only for the
+  SAMPLING keys (`temperature`/`top_p`/`top_k`): an absent one means Ollama's
+  own modelfile default was used, not that nothing was sent at all. A
+  cloud-provider agent type (`llm_params.model` naming a known provider, e.g.
+  `gemini:pro`) instead records its RAW `llm_params` overrides, since that
+  path never merges with `LLM_CONFIG`; that dict IS what the provider
+  actually receives.
+- `llm_model_defaults`: a dict keyed by every DISTINCT model this run
+  resolved (not just the CLI `--model`), each value that model's own
+  `ollama show <model> --modelfile` `PARAMETER` lines (`stop` is always a
+  list, even for a modelfile with one stop token), captured once per model
+  at finalize. The `mock` model is omitted entirely (no key). A
+  cloud-provider model gets `null` paired with `"not an Ollama model"` in
+  `llm_model_defaults_error` (also keyed by model name); Ollama being
+  unreachable for a real model records the same shape with the actual
+  failure reason instead. `llm_model_defaults_error` is ALWAYS a dict, never
+  a bare string, even in the rare case the distinct-model computation itself
+  fails before any per-model capture could start; that one reason lands
+  under the key `"_collection"` rather than a real model name, so a reader
+  never has to branch on the field's type.
+- `llm_sampling_seeded`: `false` today for any run touching Ollama (no
+  Ollama `seed` option is sent by any run, so repeated calls at the same
+  `temperature` are not reproducible sample-for-sample even at a fixed
+  `config_hash`), and `null` (not `false`) when every distinct model this
+  run resolved is a cloud provider, since no Ollama request was ever built
+  to be (un)seeded.
+
+All three keys describe Ollama runs specifically; a run using only
+cloud-provider models still gets `llm_params_resolved` (it is what those
+providers actually received) but `llm_model_defaults` and
+`llm_sampling_seeded` reflect that no Ollama call was ever made.
+
 ### 3.5 Empty Content from LLM
 
 **Symptom**

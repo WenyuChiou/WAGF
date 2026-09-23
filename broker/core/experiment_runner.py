@@ -160,6 +160,13 @@ class ExperimentRunner:
         # Cache for llm_invoke functions per agent type
         self._llm_cache = {}
 
+        # r19 G7/G8: the merged Ollama sampling/context params actually
+        # resolved for each agent type this run creates an invoke for (see
+        # get_llm_invoke and _collect_reproducibility_metadata's
+        # llm_params_resolved block). Populated lazily, same lifecycle as
+        # _llm_cache: an agent type never invoked never appears here.
+        self._llm_resolved_params: Dict[str, Dict[str, Any]] = {}
+
         # PR-8: per-agent-type decider declarations, read once from config.
         # The CALLABLE is not cached for non-default deciders — see
         # get_decider — only the declaration is.
@@ -214,7 +221,9 @@ class ExperimentRunner:
         (``self.config.model``) is used as fallback.
         """
         if agent_type not in self._llm_cache:
-            from broker.utils.llm_utils import create_llm_invoke
+            from broker.utils.llm_utils import (
+                create_llm_invoke, resolve_ollama_params, is_cloud_provider_model,
+            )
             # Get parameters from config if available
             overrides = {}
             if hasattr(self.broker, 'config') and self.broker.config:
@@ -230,6 +239,40 @@ class ExperimentRunner:
             }:
                 model_override = None
             model_name = model_override or self.config.model
+
+            # r19 G7/G8: record the SAME thing create_llm_invoke is about to
+            # send, via the shared helper, so the reproducibility manifest can
+            # report what this agent type actually sends instead of the
+            # LLM_CONFIG singleton alone. Computed here rather than re-derived
+            # at finalize time so it can never disagree with the invoke this
+            # cache entry is about to hold. The resolved model name is stored
+            # alongside the params (llm_params_resolved[<type>]["model"]),
+            # since a per-type llm_params.model override means different
+            # agent types in the same run can send to different models.
+            #
+            # Cloud-provider models (is_cloud_provider_model, the SAME check
+            # create_llm_invoke's own routing uses) never reach
+            # resolve_ollama_params at all: create_provider_invoke's config is
+            # {"type", "model"} updated with the RAW overrides dict, never
+            # merged with LLM_CONFIG. Recording resolve_ollama_params() for a
+            # cloud model would show num_ctx/num_predict/temperature values
+            # the provider path never even looks at, so the raw overrides are
+            # recorded instead: that IS what the provider path receives.
+            if is_cloud_provider_model(model_name):
+                resolved_params = dict(overrides)
+            else:
+                resolved_params = resolve_ollama_params(overrides)
+            resolved_params["model"] = model_name if isinstance(model_name, str) else None
+
+            # getattr, not a bare self._llm_resolved_params: several tests
+            # build a runner with ExperimentRunner.__new__ and never run
+            # __init__ (see get_decider_spec for the same pattern), and this
+            # provenance cache is not a reason for those to break.
+            resolved_cache = getattr(self, "_llm_resolved_params", None)
+            if resolved_cache is None:
+                resolved_cache = {}
+                self._llm_resolved_params = resolved_cache
+            resolved_cache[agent_type] = resolved_params
 
             self._llm_cache[agent_type] = create_llm_invoke(
                 model_name,
@@ -872,7 +915,21 @@ class ExperimentRunner:
             metadata["git_commit_at_finalize"] = "unavailable"
             metadata["git_dirty_at_finalize"] = None
 
-        # 3. LLM config snapshot
+        # 3. LLM config snapshot.
+        #
+        # r19 G7: `temperature` / `top_p` (and `num_ctx` / `num_predict`
+        # below) reflect the module-level LLM_CONFIG singleton ONLY: the
+        # run-wide default from agent_types.yaml's global_config.llm block,
+        # or a CLI flag such as --temperature. They are kept for backward
+        # compatibility with anything reading this manifest by these exact
+        # keys (golden tests included). They are NOT what any individual
+        # agent type actually sent to Ollama: `llm_params_resolved` below
+        # holds the MERGED dict per agent type (these same run-wide
+        # num_ctx/num_predict values PLUS whatever that type's llm_params
+        # block, AgentTypeConfig.get_llm_params, overrode via
+        # ExperimentRunner.get_llm_invoke), and top_k is never recorded up
+        # here at all even when a type did override it. See
+        # llm_params_resolved below for the per-agent-type truth.
         try:
             from broker.utils.llm_utils import LLM_CONFIG, timeout_env_status
             metadata["thinking_mode"] = LLM_CONFIG.thinking_mode
@@ -926,6 +983,141 @@ class ExperimentRunner:
                 getattr(self, "broker", None), "_retry_feedback_mode", "full")
         except Exception:
             metadata["retry_feedback_mode"] = "full"
+
+        # 3c. Resolved per-agent-type LLM params (r19 G7/G8, verified
+        #     2026-09-23). The gap block 3 documents: one domain's per-type
+        #     block sending temperature=0.8/top_p=0.9/top_k=40 while another
+        #     sends none of the three (the model's own Ollama modelfile
+        #     defaults apply), and both previously recorded null/absent
+        #     here. `resolved_cache`
+        #     is populated lazily by get_llm_invoke, one entry per agent type
+        #     this run actually created an invoke for, so this reports what
+        #     was REALLY sent (the MERGED dict: LLM_CONFIG's run-wide
+        #     num_ctx/num_predict plus whatever that type overrode, exactly
+        #     as sent to Ollama; a cloud-provider agent type instead gets its
+        #     raw overrides dict, since that path never merges with
+        #     LLM_CONFIG at all, see get_llm_invoke), not a hypothetical merge
+        #     for every configured type. Each entry also carries "model": the
+        #     resolved model name for that agent type, since a per-type
+        #     llm_params.model override means different agent types in the
+        #     same run can send to different models. An agent type whose
+        #     decider never calls get_llm_invoke (e.g. a non-LLM decider) has
+        #     no entry, which is correct: it never sent Ollama sampling
+        #     params at all.
+        #
+        #     Own try/except: must never take block 3's timeout/thinking_mode
+        #     fields down with it if `self._llm_resolved_params` is ever
+        #     something unexpected (e.g. a bare MagicMock in a test double).
+        try:
+            resolved = dict(getattr(self, "_llm_resolved_params", {}) or {})
+            metadata["llm_params_resolved"] = {
+                k: dict(v) for k, v in resolved.items() if isinstance(v, dict)
+            }
+        except Exception as exc:
+            metadata["llm_params_resolved"] = None
+            logger.debug(f"[Integrity] llm_params_resolved skipped: {exc}")
+
+        # 3d. Every distinct model's OWN Ollama modelfile defaults, for
+        #     cross-reference against 3c: a sampling key a given agent type
+        #     never overrode (e.g. a type's unset top_k) falls through to
+        #     this value at inference time, and that value was previously
+        #     invisible in any artifact. Keyed by model name (a run can use
+        #     more than one model across agent types via llm_params.model),
+        #     one `ollama show --modelfile` call per DISTINCT model, not per
+        #     agent type: the modelfile is a property of the model, not of
+        #     the agent type. The distinct-model set comes from 3c's
+        #     `llm_params_resolved["model"]` entries; when that is empty (no
+        #     agent type has resolved a model yet, e.g. no LLM decider has
+        #     run, or a test double that never called get_llm_invoke) this
+        #     falls back to `self.config.model`, matching the single-model
+        #     behaviour this had before per-agent-type models existed. The
+        #     mock model and any cloud-provider model (is_cloud_provider_model)
+        #     are excluded from the ollama-show call: mock never talks to
+        #     Ollama at all (key omitted entirely), and a cloud-provider model
+        #     is a real model identity but not an Ollama one (key present,
+        #     value None, paired with "not an Ollama model" in
+        #     llm_model_defaults_error). Never raises: Ollama absent, not
+        #     running, or a slow daemon must not fail manifest collection,
+        #     and the reason is recorded alongside the null so an operator
+        #     does not have to guess "not applicable" from "the tool failed"
+        #     (10s timeout inside the capture call, per model).
+        try:
+            from broker.utils.llm_utils import (
+                capture_ollama_modelfile_defaults, is_cloud_provider_model,
+            )
+            resolved_for_models = dict(getattr(self, "_llm_resolved_params", {}) or {})
+            distinct_models = sorted({
+                v["model"] for v in resolved_for_models.values()
+                if isinstance(v, dict) and isinstance(v.get("model"), str)
+                and not v["model"].lower().startswith("mock")
+            })
+            if not distinct_models:
+                fallback_model = getattr(self.config, "model", None)
+                if isinstance(fallback_model, str) and not fallback_model.lower().startswith("mock"):
+                    distinct_models = [fallback_model]
+
+            if not distinct_models:
+                metadata["llm_model_defaults"] = None
+            else:
+                defaults_by_model: Dict[str, Any] = {}
+                errors_by_model: Dict[str, str] = {}
+                for model_name in distinct_models:
+                    if is_cloud_provider_model(model_name):
+                        defaults_by_model[model_name] = None
+                        errors_by_model[model_name] = "not an Ollama model"
+                        continue
+                    defaults, err = capture_ollama_modelfile_defaults(model_name)
+                    defaults_by_model[model_name] = defaults
+                    if err is not None:
+                        errors_by_model[model_name] = err
+                        logger.warning(
+                            "[Integrity] llm_model_defaults unavailable for %r: %s",
+                            model_name, err,
+                        )
+                metadata["llm_model_defaults"] = defaults_by_model
+                if errors_by_model:
+                    metadata["llm_model_defaults_error"] = errors_by_model
+        except Exception as exc:
+            metadata["llm_model_defaults"] = None
+            # Same dict-keyed-by-model shape as the per-model errors above
+            # (not a bare string): a caller reading llm_model_defaults_error
+            # should never have to branch on its type. "_collection" names a
+            # failure in computing the distinct-model set itself (before any
+            # per-model capture could even start), not a real model name.
+            metadata["llm_model_defaults_error"] = {
+                "_collection": f"{type(exc).__name__}: {exc}",
+            }
+            logger.debug(f"[Integrity] llm_model_defaults skipped: {exc}")
+
+        # 3e. Whether Ollama sampling was seeded (r19 G8). Reads the truth off
+        #     the request-options builder (see llm_utils.ollama_sampling_is_seeded)
+        #     rather than a literal `False` here, so this cannot silently go
+        #     stale if a seed is ever wired into the request path. `None`
+        #     (not `False`) when every distinct model this run resolved is a
+        #     cloud-provider model: those requests never reach
+        #     _invoke_ollama_direct at all, so "was Ollama sampling seeded"
+        #     does not apply, and `False` would misleadingly imply an
+        #     unseeded Ollama call happened. Defaults to `False` on failure:
+        #     "unknown" would be a worse claim than "not proven seeded" for a
+        #     reproducibility field whose whole purpose is not overclaiming.
+        try:
+            from broker.utils.llm_utils import (
+                ollama_sampling_is_seeded, is_cloud_provider_model,
+            )
+            resolved_for_models = dict(getattr(self, "_llm_resolved_params", {}) or {})
+            distinct_models = {
+                v["model"] for v in resolved_for_models.values()
+                if isinstance(v, dict) and isinstance(v.get("model"), str)
+                and not v["model"].lower().startswith("mock")
+            }
+            non_cloud_models = {m for m in distinct_models if not is_cloud_provider_model(m)}
+            if distinct_models and not non_cloud_models:
+                metadata["llm_sampling_seeded"] = None
+            else:
+                metadata["llm_sampling_seeded"] = ollama_sampling_is_seeded()
+        except Exception as exc:
+            metadata["llm_sampling_seeded"] = False
+            logger.debug(f"[Integrity] llm_sampling_seeded skipped: {exc}")
 
         # 4. Hash config files
         try:
