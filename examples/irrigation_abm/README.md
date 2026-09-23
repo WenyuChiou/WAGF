@@ -62,6 +62,100 @@ results/<run_name>/
   reflection_log.jsonl                   # Memory consolidation events
 ```
 
+### v0.6 Coupling Layer (optional, default OFF)
+
+Pass `--coupling` to wrap `IrrigationEnvironment` in
+`broker.coupling.EnvironmentCouplingAdapter`, using the `IrrigationBundle`
++ `CouplingContract` defined in `coupling_modules.py`:
+
+```bash
+python run_experiment.py --model mock --agents 5 --years 3 --seed 42 --coupling
+python run_ungoverned_experiment.py --model mock --agents 5 --years 3 --seed 42 --coupling
+```
+
+This is the same flag `global_config.coupling.enable: true` in the
+agent_types YAML resolves to (`broker/coupling/flag.py`); `--coupling`
+just writes that key into a derived copy of the config, and OVERRIDES an
+explicit `enable: false` already there (the resolved source is then
+reported as `cli`, not `yaml`). The derived copy is written to
+`<output>/agent_types.coupling.yaml`, a PERSISTENT file (not deleted at
+process exit, so a finished or failed run can still be inspected); the
+frozen on-disk `agent_types.yaml` is never edited, so a bare re-run of
+any existing command is unaffected. `prompt_template_file` is rewritten
+to an absolute path when it resolves against the source config
+directory; otherwise it is left as is and reported with a printed line,
+since it now lives in a different directory than the original file.
+`reproducibility_manifest.json` records the original path in a
+`derived_from_config` field (and its byte hash in
+`derived_from_config_sha256`), next to the
+derived path in `agent_types_config`.
+
+The contract validates, every period, that the world-side observations
+`IrrigationEnvironment.advance_year()` produces (`year`,
+`total_available_water`, `drought_index`, `total_basin_demand`) and the
+per-agent committed demand (`request`) stay within their declared units
+and bounds, raising `CouplingViolation` instead of silently accepting an
+out-of-range or malformed value. Those bounds are COMPUTED from the
+loaded config and agents, not typed-in constants: `total_available_water`
+from `config.upper_basin_allocation + config.lower_basin_allocation`
+(times the `[0.7, 1.0]` range `advance_year()`'s own variability formula
+is limited to), and `request` / `total_basin_demand` from the maximum and
+summed `water_right` of the agents actually loaded into the run, so a
+5-agent synthetic smoke test and a 78-agent real-CRSS run each get bounds
+sized to their own physical ceiling. See
+`examples/irrigation_abm/tests/test_coupling.py::
+test_contract_bounds_against_faf1bb12_corpus` for these bounds checked
+against a real 78-agent, 42-year corpus.
+
+An OBSERVATION-side `CouplingViolation` (a corrupted world reading,
+raised inside `advance_step()` before any agent decides) aborts the whole
+run; a COMMIT-side `CouplingViolation` (raised while processing one
+agent's approved step) is caught per-agent and recorded as one ABORTED
+audit row, and the run continues.
+
+With the contract on, `simulation_log.csv` is byte-identical to a
+contract-off run at the same seed/years/agents, and every pre-existing
+governance-audit-CSV column keeps the same values; the audit CSV gains
+exactly two additional columns, `world_request` and
+`world_contention_rule`, the same key-gated columns every coupled WAGF
+domain gets from the shared audit hook, not an irrigation-specific
+change. `run_integrity.json` then records `coupling_adapter: true` and
+`reproducibility_manifest.json` carries a `coupling_provenance` block
+with a `contract_sha256`. Because the contract's bounds are derived from
+the loaded agents' `water_right` values (see below), `contract_sha256`
+identifies the contract as built for THAT run's agent set, so a synthetic
+5-agent run and a real 78-agent CRSS run hash differently even though
+both use the exact same `coupling_modules.py` code.
+
+**Workers and the v0.6 coupling layer**: the generic builder warns that
+`workers>1` with coupling enabled is unsupported (AR-3,
+`broker/INVARIANTS.md` "Accepted risks") because parallel steps can in
+general interleave a coupled bundle's mutations. That risk does not
+materialise for irrigation specifically: the commit path
+(`IrrigationEnvironment.execute_skill`) writes only to a per-agent-keyed
+dict entry using a generator derived fresh per `(seed, year, agent,
+skill)` call, never a shared mutable stream, and
+`EnvironmentCouplingAdapter` mutates its own state only inside
+`advance_step()`, which runs once per year on the main thread before the
+parallel agent phase begins. Confirmed empirically at `workers=4` (audit
+CSV content, sorted to a stable key, is identical off vs on; see
+`test_coupling_off_vs_on_byte_identical_workers_4`). The generic AR-3
+warning still fires (it is accurate for the general case) and is not
+suppressed.
+
+This is a DIFFERENT, narrower boundary than the pre-existing
+`global_config.coupling.context_contract` flag (see
+`irrigation_coupling.py`), which fail-loud-guards the per-agent physical
+state (Lake Mead elevation, curtailment, water right, etc.) that
+`get_agent_context()` hands to the LLM prompt. The two flags compose
+independently, and turning both on carries both sets of keys in
+`run_integrity.json` side by side (`EnvironmentCouplingAdapter.__getattr__`
+forwards `get_coupling_retrofit_metadata` to the wrapped environment when
+it defines one, so wrapping does not make the context-contract guard's
+own reporting disappear). See
+`examples/irrigation_abm/tests/test_coupling.py` for the byte-identity
+and violation checks.
+
 ---
 
 ## 2. Production Results (v21)

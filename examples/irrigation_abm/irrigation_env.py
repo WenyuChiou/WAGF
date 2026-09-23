@@ -1114,15 +1114,32 @@ class IrrigationEnvironment:
         ``ExperimentRunner._collect_reproducibility_metadata`` and merged
         into ``run_integrity.json`` as a side artifact; never touches the
         audit CSV. Distinct from ``EnvironmentCouplingAdapter.get_provenance``
-        on purpose: this env is never wrapped in the adapter (see
-        irrigation_coupling.py's module docstring for why), so reporting via
-        the adapter's own hook would falsely claim ``coupling_adapter: True``.
+        on purpose: this hook covers the ``coupling.context_contract``
+        guard on ``get_agent_context()`` (a per-agent accessor reading
+        several source dicts lazily), never the ``coupling.enable`` /
+        ``EnvironmentCouplingAdapter`` boundary (the ``advance_step()`` /
+        ``execute_skill()`` single-flat-dict model) - the two flags compose
+        independently (see ``irrigation_coupling.py``'s module docstring for
+        why one guard does not substitute for the other).
+
+        UPDATE (v0.6 coupling-layer wiring, ``examples/irrigation_abm/
+        coupling_modules.py``): this environment CAN now also be wrapped in
+        ``EnvironmentCouplingAdapter`` (via ``--coupling`` /
+        ``global_config.coupling.enable``). When it is, this method is
+        still reachable - ``EnvironmentCouplingAdapter.__getattr__``
+        forwards ``get_coupling_retrofit_metadata`` to the wrapped real
+        engine when the real engine defines it - so a coupled run's
+        manifest carries BOTH this method's keys (the context_contract
+        guard's own status) AND ``coupling_adapter: True`` /
+        ``coupling_provenance`` (the adapter's own hook) side by side,
+        truthfully: two independent, simultaneously-active guards, not one
+        falsely standing in for the other.
 
         ``coupling_contract_fields`` is a MAPPING (field -> check kind), not
         a bare list: five of the fifteen fields are bool/str and get a
         presence+type check rather than a range one, and a flat list read as
         though all fifteen were range-guarded (review P1-c).
-        ``coupling_guard_calls`` separates intent from evidence — flag true
+        ``coupling_guard_calls`` separates intent from evidence - flag true
         with zero calls is a run the guard never touched.
         """
         from examples.irrigation_abm.irrigation_coupling import (

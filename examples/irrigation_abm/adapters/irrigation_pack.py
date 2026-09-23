@@ -228,6 +228,18 @@ class IrrigationDomainPack(
     def __init__(self) -> None:
         self._inner = IrrigationAdapter()
 
+    def coupling_enabled_default(self) -> bool:
+        """Pack-default (Layer 2) for the v0.6 coupling flag
+        (``broker/coupling/flag.py``): OFF, matching ``cat_pack.py`` /
+        ``reservoir_pack.py``. The YAML key
+        (``global_config.coupling.enable``), set directly or via the
+        ``--coupling`` CLI flag in ``run_experiment.py`` /
+        ``run_ungoverned_experiment.py``, is Layer 1 and takes precedence;
+        this is only consulted when that key is absent, so every frozen
+        paper config (which never sets it) keeps
+        ``IrrigationEnvironment`` unwrapped and byte-identical."""
+        return False
+
     # ─── Irrigation-specific (not a DomainPack Protocol method) ──────
     # Consumed by ``broker/domains/water/tools/appraisal_grounding_audit.py``.
     # Lives on the composite directly because it doesn't fit any

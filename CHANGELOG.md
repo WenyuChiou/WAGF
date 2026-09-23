@@ -10,6 +10,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Irrigation domain wired to the v0.6 coupling layer (default OFF)**:
+  `examples/irrigation_abm/coupling_modules.py` adds `IrrigationBundle`
+  (a `broker.coupling.InterfaceBundle` that wraps, never reimplements,
+  `IrrigationEnvironment.advance_year()` and `.execute_skill()`, the SAME
+  calls the uncoupled path already makes) and
+  `build_irrigation_coupling_contract(env)` (a `CouplingContract` for the
+  `advance_step()` boundary: observations `year` / `total_available_water`
+  / `drought_index` / `total_basin_demand`, input `request`). Bounds are
+  COMPUTED from `env`'s config and loaded agents (allocation constants for
+  `total_available_water`, max/sum of loaded `water_right` for `request` /
+  `total_basin_demand`), not typed-in constants, and are checked against a
+  real 78-agent, 42-year corpus when present locally
+  (`test_contract_bounds_against_faf1bb12_corpus`). New `--coupling` CLI
+  flag (default OFF) on `run_experiment.py` and
+  `run_ungoverned_experiment.py` resolves through the SAME single switch
+  `broker/coupling/flag.py`'s `resolve_coupling_enabled` reads
+  (`global_config.coupling.enable`, passing the registered `irrigation`
+  DomainPack for the pack-default layer) and OVERRIDES an explicit
+  `enable: false` already in the YAML; the flag writes that key into a
+  derived, PERSISTENT copy of the config under `<output>/
+  agent_types.coupling.yaml` (not a temp file deleted at exit, and never
+  the frozen on-disk `agent_types.yaml`), rewriting `prompt_template_file`
+  to an absolute path when it resolves against the source config
+  directory (otherwise left as is and reported with a printed line,
+  since the copy lives in a different directory). The original config
+  path is recorded in two new, generic, ADDITIVE
+  `reproducibility_manifest.json` fields, `derived_from_config` (next to
+  `agent_types_config`) and `derived_from_config_sha256` (a byte hash of
+  the ORIGINAL file, distinct from `config_hash`, which hashes the
+  DERIVED file) (`broker/core/experiment_runner.py`). EVERY domain's
+  manifest now carries both fields; both are `null` unless a runner sets
+  `runner.broker._derived_from_config`, so an un-derived config (every
+  existing corpus) is unaffected.
+  `IrrigationDomainPack.coupling_enabled_default()` added (pack-default
+  OFF, matching `cat_pack.py` / `reservoir_pack.py`). With the contract
+  ON, `simulation_log.csv` is byte-identical to the contract-OFF run
+  (checked at `workers=1` and `workers=4`) and every pre-existing
+  governance-audit-CSV column is unchanged; the audit CSV gains exactly
+  the two `world_request` / `world_contention_rule` columns every coupled
+  domain gets from the existing, generic Phase-6V audit hook
+  (`broker/components/analytics/audit.py`), not an irrigation-specific
+  side effect. An observation-side `CouplingViolation` (a corrupted world
+  reading) aborts the run; a commit-side one is caught per-agent and
+  recorded as an ABORTED audit row, and the run continues.
+  `run_integrity.json` then records `coupling_adapter: true` and
+  `reproducibility_manifest.json` carries `coupling_provenance` with a
+  `contract_sha256`; a generic fix in `broker/coupling/adapter.py`
+  (`EnvironmentCouplingAdapter.__getattr__`, forwarding
+  `get_coupling_retrofit_metadata` to the wrapped real engine when it
+  defines one) keeps the pre-existing, separate
+  `global_config.coupling.context_contract` guard's own reporting visible
+  in `run_integrity.json` even when the domain is also wrapped in this
+  adapter. New tests: `examples/irrigation_abm/tests/test_coupling.py`.
+
 - **Retry-feedback ablation for red-team objection 3 (default OFF)**:
   `global_config.governance.retry_feedback_mode: full | placebo` (default
   `full`) governs only the LLM-facing TEXT of the blocking governance retry

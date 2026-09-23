@@ -23,7 +23,7 @@ import sys
 import yaml
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 import numpy as np
 
@@ -70,6 +70,124 @@ IRRIGATION_SKILLS = [
     "increase_large", "increase_small", "maintain_demand",
     "decrease_small", "decrease_large",
 ]
+
+
+# ---------------------------------------------------------------------------
+# v0.6 coupling-layer flag resolution (--coupling CLI flag)
+# ---------------------------------------------------------------------------
+def _absolutize_prompt_template_paths(cfg_data: Dict[str, Any], original_config_dir: Path) -> None:
+    """Rewrite every ``prompt_template_file`` value in ``cfg_data`` to an
+    absolute path, resolved against the ORIGINAL config directory tree.
+    Mutates ``cfg_data`` in place.
+
+    Needed because the derived config copy this module writes lives in the
+    run's output directory, not next to the original ``agent_types.yaml`` -
+    any RELATIVE ``prompt_template_file`` reference has to keep resolving to
+    the same file it always did, regardless of where the copy is written.
+    Domain-block-name-agnostic (walks every top-level dict value, not just
+    ``irrigation_farmer``) so a future second agent type with its own
+    ``prompt_template_file`` is covered too.
+
+    Two candidate bases are tried, in this order, and whichever resolves to
+    a file that actually exists on disk wins:
+      1. ``original_config_dir`` (the value's own directory - what
+         ``broker/components/context/tiered.py``'s YAML-driven prompt
+         loader assumes).
+      2. ``original_config_dir.parent`` (the domain root - what irrigation's
+         ``agent_types.yaml`` value, written as ``config/prompts/...``,
+         actually needs; this runner reads the prompt file directly via the
+         equivalent of ``config_dir / "prompts" / "irrigation_farmer.txt"``
+         rather than through the YAML-driven loader).
+    A reference matching neither is left unchanged - never worse than
+    before, just not fixed.
+    """
+    for block in cfg_data.values():
+        if not isinstance(block, dict):
+            continue
+        ref = block.get("prompt_template_file")
+        if not ref or Path(ref).is_absolute():
+            continue
+        for base_dir in (original_config_dir, original_config_dir.parent):
+            candidate = base_dir / ref
+            if candidate.exists():
+                block["prompt_template_file"] = str(candidate.resolve())
+                break
+        else:
+            # Neither candidate base resolved to a real file (e.g. an
+            # unusual --config-dir layout): left relative rather than
+            # silently guessing, and reported so a run under that layout
+            # is not just quietly worse.
+            print(
+                f"[coupling] prompt_template_file left relative: {ref} "
+                f"(no candidate base resolved; runner reads prompts from "
+                f"config_dir directly)"
+            )
+
+
+def _resolve_irrigation_coupling(
+    cfg_data: Dict[str, Any],
+    agent_config_path: Path,
+    cli_flag: bool,
+    output_dir: Path,
+) -> Tuple[Path, bool]:
+    """Resolve whether the v0.6 coupling layer
+    (``broker.coupling.EnvironmentCouplingAdapter``, via
+    ``ExperimentBuilder.with_coupling``) should wrap this run's sim engine.
+
+    ONE switch, not two: the flag ``broker/coupling/flag.py``'s
+    ``resolve_coupling_enabled`` reads is ``global_config.coupling.enable``
+    in the agent_types YAML (Layer 1) or the DomainPack's
+    ``coupling_enabled_default()`` (Layer 2, ``IrrigationDomainPack`` ->
+    False). The ``--coupling`` CLI flag never gates coupling by a SEPARATE
+    mechanism - it only WRITES that same Layer-1 key into an isolated copy
+    of the config (mirroring ``--config-dir``'s isolation), so it can never
+    edit the frozen on-disk ``agent_types.yaml``, and the builder's own
+    two-layer resolution (invoked later, at ``.build()``) reads the exact
+    key this function just set and agrees with the decision returned here.
+    ``--coupling`` OVERRIDES an explicit ``enable: false`` already in the
+    YAML (source is then reported as ``cli``, not ``yaml``) - the CLI flag
+    is a request to turn coupling ON, not merely a default.
+
+    The derived copy is written to ``<output_dir>/agent_types.coupling.yaml``
+    (a PERSISTENT file, not a temp file deleted at process exit, so a failed
+    or finished run can still be inspected) with ``sort_keys=False``, so the
+    PARSED config differs from the original only by the added
+    ``coupling.enable`` key - not a wholesale reformat. ``config_hash`` in
+    the reproducibility manifest is a byte hash of this DERIVED file, so it
+    is NOT comparable to a hash of the original; the original file's own
+    byte hash is recorded separately, as ``derived_from_config_sha256``
+    (``ExperimentRunner._collect_reproducibility_metadata``, read off the
+    same ``runner.broker._derived_from_config`` attribute this function's
+    caller sets). ``prompt_template_file`` references are rewritten to
+    absolute paths first, when they resolve against a known base directory
+    (see ``_absolutize_prompt_template_paths``; a reference that resolves
+    against neither candidate, e.g. under an unusual ``--config-dir`` copy,
+    is left relative and reported with a printed line rather than silently
+    ignored) so they keep resolving correctly from the new location.
+
+    Returns ``(effective_agent_config_path, coupling_enabled)``. When
+    ``cli_flag`` is False and the YAML did not already declare the key,
+    ``agent_config_path`` is returned unchanged and ``coupling_enabled`` is
+    False - the default-OFF, byte-identical path.
+    """
+    from broker.coupling.flag import resolve_coupling_enabled
+    from broker.domains.registry import DomainPackRegistry
+
+    pack = DomainPackRegistry.get("irrigation")
+    if cli_flag:
+        cfg_data.setdefault("global_config", {}).setdefault("coupling", {})["enable"] = True
+    enabled, source = resolve_coupling_enabled(cfg_data, pack)
+    if not cli_flag:
+        return agent_config_path, enabled
+    _absolutize_prompt_template_paths(cfg_data, agent_config_path.parent)
+    derived_path = output_dir / "agent_types.coupling.yaml"
+    with open(derived_path, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(cfg_data, fh, sort_keys=False)
+    print(
+        f"[coupling] enable={enabled} (source=cli --coupling; original "
+        f"config {agent_config_path}; derived config written to {derived_path})"
+    )
+    return derived_path, enabled
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +594,13 @@ class IrrigationLifecycleHooks:
 def main():
     args = parse_args()
     base = Path(__file__).parent
+
+    # --- Output (moved early: a --coupling derived config file, below, is
+    # written into this directory so it persists with the rest of the run's
+    # artifacts instead of living in a temp dir) ---
+    output_dir = Path(args.output) if args.output else base / "results"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # --config-dir lets a campaign point at an ISOLATED copy of the config tree so new
     # experiment arms never edit the frozen paper configs in examples/. Default is the
     # in-tree config dir, so every existing invocation is unchanged.
@@ -550,6 +675,18 @@ def main():
     from broker.utils.agent_config import assert_governance_profile_declared
     assert_governance_profile_declared(
         cfg_data, args.governance_mode, "irrigation_farmer", agent_config_path)
+
+    # --- v0.6 coupling-layer flag (--coupling CLI flag, default OFF) ---
+    # May repoint agent_config_path at a derived config copy under output_dir
+    # (never the frozen on-disk file) - see _resolve_irrigation_coupling's
+    # docstring. original_agent_config_path is kept so the manifest can
+    # record where the derived copy came from.
+    original_agent_config_path = agent_config_path
+    agent_config_path, coupling_active = _resolve_irrigation_coupling(
+        cfg_data, agent_config_path, args.coupling, output_dir)
+    if coupling_active:
+        print("[coupling] enable=True - v0.6 EnvironmentCouplingAdapter wraps IrrigationEnvironment")
+
     global_cfg = cfg_data.get("global_config", {})
 
     # --- Optional: strip magnitude_pct from schema to reduce context size ---
@@ -713,10 +850,6 @@ def main():
         print(f"[Feedback] Dashboard enabled: metrics={metric_names}, "
               f"assertions={len(feedback_cfg.get('assertions', []))}")
 
-    # --- Output ---
-    output_dir = Path(args.output) if args.output else base / "results"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     # --- Performance tuning ---
     from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
     perf = get_optimal_config(args.model)
@@ -738,7 +871,22 @@ def main():
         .with_workers(args.workers)
         .with_seed(seed)
     )
+    if coupling_active:
+        from examples.irrigation_abm.coupling_modules import (
+            IrrigationBundle,
+            build_irrigation_coupling_contract,
+        )
+        builder = builder.with_coupling(
+            build_irrigation_coupling_contract(env), IrrigationBundle(env), domain="irrigation")
     runner = builder.build()
+    if agent_config_path != original_agent_config_path:
+        # Same hook run_flood.py uses for --retry-feedback-mode
+        # (runner.broker._retry_feedback_mode, read generically by
+        # ExperimentRunner._collect_reproducibility_metadata): set an
+        # attribute directly on the already-built broker, read by the
+        # generic manifest builder's derived_from_config field (next to
+        # agent_types_config) - no broker init-time change needed.
+        runner.broker._derived_from_config = str(original_agent_config_path)
 
     # --- Reflection engine (Pillar 2) ---
     refl_cfg = global_cfg.get("reflection", {})
@@ -834,6 +982,18 @@ def parse_args():
                         "profile defined there). A name the config does not "
                         "declare is REFUSED at startup rather than falling back "
                         "to 'default' silently.")
+    p.add_argument("--coupling", action="store_true",
+                   help="Enable the v0.6 coupling layer: wraps IrrigationEnvironment "
+                        "in broker.coupling.EnvironmentCouplingAdapter using the "
+                        "IrrigationBundle + contract from coupling_modules.py. Default "
+                        "OFF; equivalent to global_config.coupling.enable: true in the "
+                        "agent_types YAML, and OVERRIDES an explicit enable: false already "
+                        "there (source is then reported as cli, not yaml). Writes a "
+                        "derived config copy into --output (never edits the original file). "
+                        "With the contract on, simulation_log.csv is byte-identical to a "
+                        "contract-off run at the same seed/years/agents, and the governance "
+                        "audit CSV is identical under broker.tools.compare_audit_csv apart "
+                        "from two added world_request / world_contention_rule columns.")
     return p.parse_args()
 
 
