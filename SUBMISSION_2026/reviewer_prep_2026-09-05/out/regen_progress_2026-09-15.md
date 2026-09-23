@@ -1000,3 +1000,63 @@ script was run twice with byte-identical output; SHA-256 of the r35 .md is
 
 Review trail: r35 reviewed by a sonnet adversarial reviewer in two rounds, covering the corrected Part 4
 verdict (non-degenerate IBR cells only, as in r34) and the new Part 4b split.
+
+## 2026-09-23 update, step [2]: no-demand-ceiling ablation (r36)
+
+Full tables: `out/r36_no_ceiling_ablation.md`. Step [2] of the readiness audit asks whether the Mead and
+demand envelope is bought by one rule. Irrigation gemma3:4b,
+seeds 42 and 43, code 83fa97e1, run with `--ablation-mode no_demand_ceiling`, which flips the
+ENABLE_DEMAND_CEILING flag in `examples/irrigation_abm/run_experiment.py`; the demand floor rule stays.
+Comparators: strict and ungoverned at faf1bb12. The ablation is not recorded in the manifest or the
+config snapshot (known gap), so r36 checks it behaviourally: `demand_ceiling_stabilizer` fires 0 times over
+3276 rows per ablated seed, against 1489 retried-row hits in strict seed 42. Both seed
+logs print the `[Ablation] demand_ceiling_stabilizer DISABLED` line, and both LAUNCH_COMMAND.txt files carry
+the flag.
+
+Result (Parts 1 and 2), seed 42 / seed 43. Mead minimum is 895.0 ft on both ablated
+seeds (strict 997.0 / 995.7, ungoverned 895.0 / 895.0). Shortage years are 35 / 35 (strict 13 / 15,
+ungoverned 39 / 37). Basin demand mean is 8.14 M / 8.02 M acre-ft (strict 6.02 M / 6.07 M, ungoverned
+11.91 M / 11.96 M). Mead KGE against FQL is 0.454 / 0.502 (strict 0.948 / 0.946). IBR headline is 27.15 /
+26.78 (strict 26.64 / 39.56, ungoverned 59.33 / 55.29). EHE executed is 0.511 / 0.570 (strict 0.139 /
+0.132).
+
+## Read
+Verbatim from the .md's plain read:
+
+- "Mead min (ft) (envelope level): share 1.000 / 1.000 (seed 42 / seed 43), mean 1.000: tracks UNGOVERNED."
+- "Shortage years (envelope level): share 0.846 / 0.909 (seed 42 / seed 43), mean 0.878: tracks UNGOVERNED."
+- "Basin demand mean (acre-ft) (envelope level): share 0.360 / 0.331 (seed 42 / seed 43), mean 0.346: tracks
+  STRICT."
+- "Mead KGE vs FQL matched (trajectory level): share 0.599 / 0.898 (seed 42 / seed 43), mean 0.749: tracks
+  UNGOVERNED."
+- "Removing only the demand-ceiling rule lets the governed basin fall to the same Mead floor as the ungoverned
+  arm: the water-system envelope in the strict arm is this one institutional rule, not governance in general.
+  Coherence metrics (IBR headline) are reported in Part 1 and are not part of this verdict."
+
+So the strict arm's water-system envelope is the demand-ceiling rule: without it the governed basin reaches
+the ungoverned Mead floor on both seeds, while the last-proposal coherence metric (IBR) stays
+at the strict level and executed diversity (EHE executed) rises from 0.14 to about 0.5. For the audit: this is branch 1 of the step [2] decision rule, as the audit anticipated from the ceiling
+rule's share of about 80 percent of rejections, so B3's envelope-only reading must name the ceiling rule. Proposed
+sentence form (proposal, not yet applied): "governance protects the basin through one institutional demand
+ceiling; the other rules and the retry loop shape which proposals get made".
+
+Synthesis for the Discussion (writer's synthesis, not a result). In flood (r34),
+blocking does the work. In irrigation, rule text in the retry prompt moves the last
+proposal while blocking protects outcomes (r35), and r36 locates that protection in one rule: take away the
+ceiling and the outcomes go to the ungoverned level while coherence does not. Together, "what governance
+does" splits into two jobs: an institutional limit protects the water system, and the other rules plus
+retry feedback shape the proposals, with weights that differ by domain.
+
+Caveats. n = 2 seeds and, as the .md states, "no significance test is computed anywhere in this script".
+Provenance across commits: The r36 .md renders the same provenance caveat as r34 and r35, with the ablated arm
+at 83fa97e1 and the comparators at faf1bb12 (quoted in the step [1] section). Demand mean tracking STRICT while the
+Mead floor tracks UNGOVERNED is, on the .md's numbers, not a contradiction: the other rules still fire in the ablated arm (Part 1 census, for example `high_threat_high_cope_no_increase` 1758 /
+1701), yet demand sits over the 6,000,000 acre-ft ceiling in 97.62 / 90.48 percent of years, so demand is only
+partly bounded and the basin still drains. Whether the remaining rules are what holds demand below
+the ungoverned level is untested here: an open question.
+
+Files: `scripts/r36_no_ceiling_ablation.py` (new), `out/r36_no_ceiling_ablation.md` (new). Two runs,
+byte-identical; SHA-256 of the .md is
+b4b370b437e60d04a9a5adc1007f21228f4f5a37a73fc55c9edc49fb16f44727.
+
+Review trail: sonnet adversarial review pending at the time of writing.
