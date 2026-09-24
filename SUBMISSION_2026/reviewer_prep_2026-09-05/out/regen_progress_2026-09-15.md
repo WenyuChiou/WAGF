@@ -1116,3 +1116,63 @@ byte-identical; SHA-256 of the .md is
 fc8f9fe83bc99b5ace6aadf69d4eacd068bef17cb286323fac9fe7aaff9459e9.
 
 Review trail: sonnet adversarial review in progress at the time of writing.
+
+## 2026-09-24 update: flood corpus re-run at model-default sampling, strict and disabled n = 10 (r23, r24, r25, r28, r31, r37 with --corpus defaults)
+
+Why. Author decision 2026-09-23: use one sampling convention across testbeds by moving flood to the irrigation
+convention, which sends no `temperature`, `top_p` or `top_k`, so the gemma3:4b modelfile defaults apply
+(temperature 1, top_p 0.95, top_k 64). The 0.8 / 0.9 / 40 corpus (v08) becomes the sampling-sensitivity
+appendix. Queue: `launchers/flood_defaults_2026-09-23` in the wagf-main-runs worktree. Config variant
+`examples/single_agent/config_variants/defaults` differs from the base config by exactly the three removed
+sampling lines in `agent_types.yaml`. What landed: `JOH_{strict,disabled}_defaults_gemma3_4b_83fa97e1/Run_42`
+to `Run_51`, code 83fa97e1, 0 LLM-call failures (`llm_success` false on 0 rows in all 20 runs).
+
+r37, n = 10 (`out/r37_flood_n10_update_defaults.md`). Strict minus disabled, IBR unconditional: mean -9.342 pp,
+sd 0.986, min -11.324, max -8.057, 0 sign flips, exact permutation p = 0.00200, which is the floor at n = 10
+(2/1024). IBR tp_not_medium: -18.043 (sd 1.862); IBR tp_high: -22.148 (sd 3.409); both 0 sign flips, p =
+0.00200. EHE pooled: mean 0.011, sd 0.039, 5 sign flips, paired t p = 0.3976, exact permutation p = 0.39060.
+Rejection rate +0.802 pp (sd 0.643), retry rate +9.025 pp (sd 1.873), both 0 sign flips, p = 0.00200. The n = 5
+line from the same runs (seeds 42 to 46): IBR unconditional -9.753 (sd 1.135), p = 0.06250 at the n = 5 floor;
+EHE 0.008, 3 sign flips, p = 0.68750.
+
+Read. The governance effect on flood IBR holds at n = 10, with p at the permutation floor, below the 0.01 the
+readiness audit asked for. EHE is a null at n = 10 as well. Under the audit's own rule for step [4] ("a second
+null at n = 10 retires it permanently"), the flood EHE claim is retired and B4 closes as a removal, not a
+revival: flood EHE stays out of the claim set and appears, if at all, as an SI null.
+
+r25, flood rows at n = 5 (`out/r25_table1_regen_defaults.md`), cell = v08 / defaults. Governed IBR 0.788 +/-
+0.434 / 0.405 +/- 0.281; EHE 0.859 +/- 0.011 / 0.853 +/- 0.016; rejection 0.882 +/- 0.462 / 0.473 +/- 0.242.
+No-validator IBR 8.912 +/- 0.722 / 10.158 +/- 1.268; EHE 0.863 +/- 0.030 / 0.845 +/- 0.034. Rule-based EHE 0.598
++/- 0.019 in both. Contrast line: "flood IBR headline mean_diff 8.12 pp old vs 9.75 pp new (sign-consistent
+old=True, new=True)". r24 (`out/r24_flood_contrast_regen_defaults.md`) bands the disabled arm: 4 of 6 inside,
+quoting: "2 banded metrics are outside it: IBR tp_not_medium (%) (new 19.608 +/- 2.031 vs band [15.620,
+18.917]); IBR tp_high (%) (new 24.761 +/- 3.306 vs band [17.840, 24.031])." r23
+(`out/r23_flood_strict_regen_defaults.md`) bands the governed arm: 6/6 pass.
+
+Read. Disabled-arm IBR drifts upward at default sampling while the governed arm stays inside its band, so the
+contrast grows. Taking the r25 v08 contrast row (8.124 +/- 0.543) and a 2 sd band gives [7.04, 9.21] (my
+arithmetic); the n = 10 defaults contrast of 9.342 (r37) sits slightly above it, as does 9.753 at n = 5. The
+direction is the same in both settings.
+
+r28 (`out/r28_trajectory_vs_traditional_defaults.md`). Relocation share, mean +/- sd: rule-based 0.30 +/- 0.33%,
+governed 13.56 +/- 1.67%, disabled 10.06 +/- 3.80%. Paired JS-distance contrast (governed-to-rule-based minus
+disabled-to-rule-based): mean_diff 0.0024, p (paired t) 0.3864, p (exact perm) 0.3750, not same sign. r31
+(`out/r31_flood_relocation_sensitivity_defaults.md`): excluding relocate agent-years "does NOT flip the sign
+of the governed-minus-no-validator IBR-headline contrast for any model checked" (gemma3:4b -9.75 to -9.83 pp).
+The JS contrast "moves from mean_diff=0.0024 (original) to mean_diff=-0.0163 (relocate-excluded), a SIGN FLIP".
+
+Consequences for the paper (proposals). The main flood results table comes from the defaults corpus. The v08
+corpus goes to a sensitivity appendix: two sampling settings, same direction. Methods state one sampling
+convention for both testbeds. Open: placebo, initprop, paraphrase, no-nudge and gemma4:12b at defaults are
+still in the queue; `r25_table1_regen_defaults.md` has two PENDING gemma4:12b flood rows until then.
+
+The two r37 defaults .md labels written for the v08 layout (the vintage-table sentence and the n = 5 heading) were made corpus-aware in `scripts/r37_flood_n10_update.py` (`render_md`) before commit.
+
+Files: `out/r23_flood_strict_regen_defaults.md`, `out/r24_flood_contrast_regen_defaults.md`,
+`out/r28_trajectory_vs_traditional_defaults.md`, `out/r31_flood_relocation_sensitivity_defaults.md`,
+`out/r37_flood_n10_update_defaults.md` (new); `out/r25_table1_regen_defaults.md` is committed after the 12b rows
+land. Script fixes: `scripts/r24_flood_contrast_regen.py` (`render_md`), plain read generalised from exactly one
+banded fail to N; `scripts/r37_flood_n10_update.py` (`render_md`), corpus-aware "landed" sentence. The v08
+outputs are byte-identical to before; two runs of each script are byte-identical.
+
+Review trail: sonnet adversarial review in progress at the time of writing.

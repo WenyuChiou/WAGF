@@ -774,21 +774,68 @@ def render_md(rows: list) -> str:
     fail_labels = [l for l, _ in DISPLAY_METRICS
                    if l not in ("Rejection rate (%)", "Retry rate (%)")
                    and part1_stats[l]["verdict"] == "FAIL"]
-    if len(fail_labels) != 1:
-        raise PrepError(f"plain-read template assumes exactly 1 banded FAIL, got "
-                         f"{fail_labels} -- rewrite the template, do not force-fit it")
-    fail_label = fail_labels[0]
-    fail_st = part1_stats[fail_label]
-    fail_pairs = part1_pairs[fail_label]
-    fail_all_higher = all(nv > ov for (_, _, ov, nv) in fail_pairs)
-    fail_direction = ("higher than the old value on all 5 seeds" if fail_all_higher
-                       else "not uniformly higher than the old value across all 5 seeds "
-                            "-- template assumption does not hold, verify by hand")
+
+    # sanity: a FAIL verdict with no usable band (missing edges, or old_sd
+    # of exactly 0 -- which would make "how far outside in sd units"
+    # undefined) cannot happen given how Part 1 assigns verdicts. That
+    # combination is a genuinely impossible state, so fail loud here rather
+    # than render a bogus sentence for it.
+    for _l in fail_labels:
+        _st = part1_stats[_l]
+        if (_st.get("band_low") is None or _st.get("band_high") is None
+                or not _st.get("old_sd")):
+            raise PrepError(f"plain-read: {_l} is FAIL but has no usable band "
+                             f"(band_low={_st.get('band_low')!r}, "
+                             f"band_high={_st.get('band_high')!r}, "
+                             f"old_sd={_st.get('old_sd')!r}) -- genuinely impossible state, "
+                             f"fix upstream before rendering")
+
+    def _fail_direction(label: str):
+        st = part1_stats[label]
+        pairs = part1_pairs[label]
+        all_higher = all(nv > ov for (_, _, ov, nv) in pairs)
+        direction = ("higher than the old value on all 5 seeds" if all_higher
+                      else "not uniformly higher than the old value across all 5 seeds "
+                           "-- template assumption does not hold, verify by hand")
+        return st, direction
+
+    if len(fail_labels) == 0:
+        fail_sentence = "all metrics inside the band."
+    elif len(fail_labels) == 1:
+        # N=1 case: identical wording to the original single-fail template,
+        # so the v08 output (which has exactly 1 banded FAIL) is byte-for-
+        # byte unchanged.
+        fail_label = fail_labels[0]
+        fail_st, fail_direction = _fail_direction(fail_label)
+        fail_sentence = (
+            f"{fail_label} is outside it (new {cp(fail_st['new_mean']):.3f} vs band upper "
+            f"{cp(fail_st['band_high']):.3f}), {fail_direction}."
+        )
+    else:
+        # N>=2: list every failing metric with its new mean +/- sd and the
+        # band, then one sentence per fail stating how far outside (in sd
+        # units of the OLD corpus) and the direction.
+        listing_bits = []
+        detail_sentences = []
+        for l in fail_labels:
+            st, direction = _fail_direction(l)
+            sd_units = abs(st["new_mean"] - st["old_mean"]) / st["old_sd"]
+            side = "above" if st["new_mean"] > st["old_mean"] else "below"
+            listing_bits.append(
+                f"{l} (new {cp(st['new_mean']):.3f} +/- {cp(st['new_sd']):.3f} vs band "
+                f"[{cp(st['band_low']):.3f}, {cp(st['band_high']):.3f}])"
+            )
+            detail_sentences.append(
+                f"{l} is {sd_units:.2f} old-corpus sd {side} the old mean, {direction}."
+            )
+        fail_sentence = (
+            f"{len(fail_labels)} banded metrics are outside it: " + "; ".join(listing_bits)
+            + ". " + " ".join(detail_sentences)
+        )
     lines.append(
         f"The regenerated disabled (no-validator) arm falls inside the old mean +/- 2 "
-        f"sd band on {n_pass}/{n_banded} banded metrics; {fail_label} is outside it "
-        f"(new {cp(fail_st['new_mean']):.3f} vs band upper {cp(fail_st['band_high']):.3f}), "
-        f"{fail_direction}. The governed-vs-ungoverned contrast -- the claim this corpus "
+        f"sd band on {n_pass}/{n_banded} banded metrics; {fail_sentence} The "
+        f"governed-vs-ungoverned contrast -- the claim this corpus "
         f"actually supports -- is what reproduces: all 3 IBR conditionings agree in sign "
         f"on all 5 seeds in both the NEW ({ibr_new_consistent}) and OLD "
         f"({ibr_old_consistent}) corpus, headlined by unconditional IBR at "
