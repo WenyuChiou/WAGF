@@ -295,6 +295,47 @@ def _find(rows, row_type, **kw):
     return out
 
 
+def _vintage_prose(by_vintage: dict, corpus: str) -> str:
+    """The paragraph immediately under the vintage-mix table. v08 keeps its
+    original hand-written wording verbatim (the faf1bb12/83fa97e1_ext mixed-
+    vintage story plus the byte-identity-chain caveat -- specific to that
+    corpus's real history, not something any other corpus shares). Any other
+    corpus derives its sentence from the SAME `by_vintage` dict the table
+    above is built from -- never hand-typing a commit hash, seed list, or
+    the v08-specific faf1bb12/_ext/extension vocabulary."""
+    if corpus == "v08":
+        return (
+            "Seeds 42-46 are commit faf1bb12 (already complete); seeds 47-51 are commit "
+            "83fa97e1 (`_ext` suffix). The task brief that commissioned this script describes "
+            "a mock-byte-identity chain faf1bb12 -> c3391a53 -> 83fa97e1 documented in a "
+            "\"regen_progress\" file; this script could not locate that file in this "
+            "worktree's `.ai/` directory (checked `regen_progress_section_2026-09-21.md`, "
+            "`_section_r33.md`, `_section_r34.md` directly -- no mention of a byte-identity "
+            "chain in any of the three) and does not independently claim byte-identity across "
+            "the three commits' flood code paths -- it reports the mix as given by the task "
+            "brief only."
+        )
+    if not by_vintage:
+        return (f"No seeds have landed yet for the {corpus} corpus -- the vintage mix table "
+                f"above is empty.")
+    if len(by_vintage) == 1:
+        (vintage, commit), seeds = next(iter(by_vintage.items()))
+        if set(seeds) == set(N10_SEEDS):
+            return (f"All 10 seeds are commit {commit}... in one directory (vintage="
+                    f"{vintage}) -- no code-vintage mix to flag for this corpus.")
+        missing = [s for s in N10_SEEDS if s not in seeds]
+        seed_list = ", ".join(sorted(seeds, key=int))
+        return (f"{len(seeds)}/10 seeds are commit {commit}... in one directory (vintage="
+                f"{vintage}): seeds {seed_list}; still pending: {', '.join(missing)}.")
+    # More than one vintage/commit combination has landed for a non-v08
+    # corpus -- an actual mix. Report it generically, from the data, rather
+    # than assuming the v08 faf1bb12/83fa97e1_ext split applies here too.
+    parts = [f"{vintage} (commit {commit}...): seeds {', '.join(sorted(seeds, key=int))}"
+             for (vintage, commit), seeds in sorted(by_vintage.items())]
+    return ("This corpus has landed seeds from more than one code vintage: "
+            + "; ".join(parts) + ".")
+
+
 def render_md(rows: list, corpus: str = "v08") -> str:
     lines = []
     lines.append("# R37 -- flood governed-vs-ungoverned at n=10")
@@ -305,9 +346,9 @@ def render_md(rows: list, corpus: str = "v08") -> str:
     if corpus != "v08":
         lines.append(
             f"> **Corpus: {corpus}.** {C.flood_sampling_method_text(corpus)}. All 10 seeds "
-            f"come from ONE flat directory pair (no faf1bb12/83fa97e1_ext vintage split -- "
-            f"see the Corpus vintage mix table below, which will show a single vintage "
-            f"label once seeds land)."
+            f"come from ONE flat directory pair (no code-vintage split -- see the Corpus "
+            f"vintage mix table below, which will show a single vintage label once seeds "
+            f"land)."
         )
         lines.append("")
 
@@ -325,16 +366,7 @@ def render_md(rows: list, corpus: str = "v08") -> str:
             seed_list = ", ".join(sorted(seeds, key=int))
             lines.append(f"| {vintage} | {commit}... | {seed_list} |")
         lines.append("")
-    lines.append(
-        "Seeds 42-46 are commit faf1bb12 (already complete); seeds 47-51 are commit 83fa97e1 "
-        "(`_ext` suffix). The task brief that commissioned this script describes a "
-        "mock-byte-identity chain faf1bb12 -> c3391a53 -> 83fa97e1 documented in a "
-        "\"regen_progress\" file; this script could not locate that file in this worktree's "
-        "`.ai/` directory (checked `regen_progress_section_2026-09-21.md`, `_section_r33.md`, "
-        "`_section_r34.md` directly -- no mention of a byte-identity chain in any of the "
-        "three) and does not independently claim byte-identity across the three commits' "
-        "flood code paths -- it reports the mix as given by the task brief only."
-    )
+    lines.append(_vintage_prose(by_vintage, corpus))
     lines.append("")
 
     # ---- Part 1: per-run metrics -----------------------------------------------
@@ -356,8 +388,14 @@ def render_md(rows: list, corpus: str = "v08") -> str:
     lines.append("")
 
     # ---- Part 2: contrasts -------------------------------------------------------
+    # n5_title: v08's original wording names the faf1bb12 seeds specifically
+    # (they ARE the original 5, historically); any other corpus has no such
+    # vintage story -- seeds 42-46 are just the first 5 of one flat 10-seed
+    # corpus, so name them by seed number instead.
+    n5_title = ("n=5 (original faf1bb12 seeds only)" if corpus == "v08"
+                else "n=5 (seeds 42-46 only)")
     for section, title, n_expected in (("contrast_n10", "n=10 (full corpus)", 10),
-                                        ("contrast_n5", "n=5 (original faf1bb12 seeds only)", 5)):
+                                        ("contrast_n5", n5_title, 5)):
         lines.append(f"## Contrast: strict - disabled, {title}")
         lines.append("")
         lines.append("| metric | n_pairs | complete | mean diff | sd | min | max | t | df | "
@@ -386,22 +424,50 @@ def render_md(rows: list, corpus: str = "v08") -> str:
     lines.append("## Plain read")
     lines.append("")
     sentences = []
-    ext_landed = sorted({r["seed"] for r in _find(rows, "run_metrics") if r["vintage"] == "ext"})
-    if not ext_landed:
-        sentences.append(
-            "None of the 5 new extension seeds (47-51, commit 83fa97e1) have landed yet -- "
-            "every `JOH_{strict,disabled}_gemma3_4b_83fa97e1_ext/Run_{47..51}` directory is "
-            "absent from disk. The n=5 contrast below (original faf1bb12 seeds 42-46, already "
-            "complete) is fully populated now; the n=10 contrast will populate automatically, "
-            "no code change needed, once the 5 new seeds land."
-        )
-    elif len(ext_landed) < len(EXT_SEEDS):
-        missing = [s for s in EXT_SEEDS if s not in ext_landed]
-        sentences.append(
-            f"Extension seed(s) {', '.join(ext_landed)} have landed but seed(s) "
-            f"{', '.join(missing)} have not -- the n=10 contrast stays PENDING or partial "
-            f"until all 5 land."
-        )
+    if corpus == "v08":
+        # v08: seeds 42-46 (faf1bb12) are always already complete, so only
+        # the 5 `_ext` (83fa97e1) seeds ever gate the n=10 corpus -- keyed on
+        # vintage=="ext".
+        ext_landed = sorted({r["seed"] for r in _find(rows, "run_metrics")
+                             if r["vintage"] == "ext"})
+        if not ext_landed:
+            sentences.append(
+                "None of the 5 new extension seeds (47-51, commit 83fa97e1) have landed yet -- "
+                "every `JOH_{strict,disabled}_gemma3_4b_83fa97e1_ext/Run_{47..51}` directory is "
+                "absent from disk. The n=5 contrast below (original faf1bb12 seeds 42-46, already "
+                "complete) is fully populated now; the n=10 contrast will populate automatically, "
+                "no code change needed, once the 5 new seeds land."
+            )
+        elif len(ext_landed) < len(EXT_SEEDS):
+            missing = [s for s in EXT_SEEDS if s not in ext_landed]
+            sentences.append(
+                f"Extension seed(s) {', '.join(ext_landed)} have landed but seed(s) "
+                f"{', '.join(missing)} have not -- the n=10 contrast stays PENDING or partial "
+                f"until all 5 land."
+            )
+    else:
+        # defaults (and any future non-v08 corpus): there is no faf1bb12/ext
+        # vintage split -- all 10 seeds land in ONE flat directory pair,
+        # tagged vintage==corpus (see _part1). Keying on vintage=="ext" would
+        # never match here, so count landed seeds against vintage==corpus
+        # instead, over the full N10_SEEDS set (42-51), not just the 5
+        # extension seeds -- the "all 10 landed" claim below must be true of
+        # all 10, not just of 47-51.
+        landed = sorted({r["seed"] for r in _find(rows, "run_metrics")
+                         if r["vintage"] == corpus}, key=int)
+        missing = [s for s in N10_SEEDS if s not in landed]
+        if not missing:
+            sentences.append(
+                "All 10 seeds (42-51) landed in one corpus at model-default sampling; no "
+                "vintage mix."
+            )
+        else:
+            sentences.append(
+                f"{len(landed)}/10 seeds landed in the {corpus} corpus at model-default "
+                f"sampling (landed: {', '.join(landed) if landed else 'none'}; still pending: "
+                f"{', '.join(missing)}) -- the n=10 contrast stays PENDING or partial until "
+                f"all 10 land."
+            )
     n10_rows = _find(rows, "contrast_n10")
     n5_rows = _find(rows, "contrast_n5")
     if n10_rows and n5_rows:
@@ -417,11 +483,13 @@ def render_md(rows: list, corpus: str = "v08") -> str:
                 f"discrepancy)."
             )
         same_sign_n5 = sum(1 for r in n5_rows if r["all_same_sign"] in (True, "True"))
+        n5_qualifier = ("the pre-extension result" if corpus == "v08"
+                        else "the same corpus's n=5 subset")
         sentences.append(
-            f"At n=5 (original faf1bb12 seeds only), {same_sign_n5}/{len(n5_rows)} metrics "
+            f"At {n5_title}, {same_sign_n5}/{len(n5_rows)} metrics "
             f"show all 5 seeds agreeing in sign, at the n=5 exact-permutation floor of "
-            f"{_cp(n5_rows[0]['permutation_floor']):.4f} (2/32) -- this is the pre-extension "
-            f"result, reproduced here from the same runs for direct comparison, not pulled "
+            f"{_cp(n5_rows[0]['permutation_floor']):.4f} (2/32) -- this is {n5_qualifier}, "
+            f"reproduced here from the same runs for direct comparison, not pulled "
             f"from another script's CSV."
         )
     sentences.append(
@@ -434,19 +502,41 @@ def render_md(rows: list, corpus: str = "v08") -> str:
         lines.append(s)
         lines.append("")
 
+    # Method-paragraph sentences that name the enforcement scope / n=5
+    # subset differently per corpus. v08 keeps the original hand-written
+    # wording verbatim; any other corpus derives its enforcement sentence
+    # from the same by_vintage dict (never hand-typing a commit hash) and
+    # names the n=5 subset by seed number instead of the v08-specific
+    # faf1bb12/extension vocabulary.
+    if corpus == "v08":
+        enforce_sentence = (
+            "Per-seed manifest census value-enforces model==\"gemma3:4b\" and git_commit "
+            "starting with \"83fa97e1\" ONLY for the 5 new extension seeds; the faf1bb12 "
+            "seeds are read/reported only (already enforced when r23/r24 first ingested "
+            "them)."
+        )
+        n5_subset_phrase = "the original n=5 faf1bb12-only subset"
+    else:
+        commit_prefixes = sorted({c for (_v, c) in by_vintage.keys()})
+        commit_desc = " / ".join(commit_prefixes) if commit_prefixes else "the corpus commit"
+        enforce_sentence = (
+            f"Per-seed manifest census value-enforces model==\"gemma3:4b\" and git_commit "
+            f"starting with \"{commit_desc}\" for every seed in the {corpus} corpus (all 10 "
+            f"are newly ingested here, nothing pre-enforced)."
+        )
+        n5_subset_phrase = "the n=5 seeds-42-46 subset"
+
     lines.append("## Method")
     lines.append("")
     lines.append(
         "The 6 collapsed flood metrics are `r23_flood_strict_regen.py::_metrics_for()` "
         "(3 IBR conditionings at the final action level, EHE pooled simlog, rejection rate, "
-        "retry rate), imported, not re-derived -- the same definitions r34 reuses. Per-seed "
-        "manifest census value-enforces model==\"gemma3:4b\" and git_commit starting with "
-        "\"83fa97e1\" ONLY for the 5 new extension seeds; the faf1bb12 seeds are read/reported "
-        "only (already enforced when r23/r24 first ingested them). The strict-minus-disabled "
+        f"retry rate), imported, not re-derived -- the same definitions r34 reuses. "
+        f"{enforce_sentence} The strict-minus-disabled "
         "contrast (paired t at df=n-1, exact sign-flip permutation p, sign-flip count, "
         "mean/sd/min/max diff) is `r28_trajectory_vs_traditional.py::_sign_stats()`, imported "
-        "unmodified, computed once over the full n=10 corpus and once over the original n=5 "
-        "faf1bb12-only subset for direct comparison. The exact-permutation floor is always "
+        f"unmodified, computed once over the full n=10 corpus and once over {n5_subset_phrase} "
+        "for direct comparison. The exact-permutation floor is always "
         "`2.0 / (1 << n)` (two sign-assignments tie the observed |mean| exactly: the observed "
         "assignment itself and its total complement) -- 2/1024 = 0.001953125 at n=10, 2/32 = "
         "0.0625 at n=5, both taken directly from `_sign_stats`'s own return value, never "
