@@ -34,7 +34,7 @@ from broker.components.analytics.interaction import InteractionHub
 from broker.components.context.builder import TieredContextBuilder, PrioritySchemaProvider
 from broker.components.governance.registry import SkillRegistry
 from broker.components.memory.engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
-from broker.interfaces.skill_types import ExecutionResult
+from broker.interfaces.skill_types import ExecutionResult, SkillOutcome
 # from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
@@ -468,11 +468,21 @@ class FinalParityHook:
         if result and hasattr(result, 'state_changes') and result.state_changes:
             agent.apply_delta(result.state_changes)
         
-        # Update flood threshold when house is elevated
+        # Update flood threshold when house is elevated.
+        # Only when the skill was actually APPROVED/RETRY_SUCCESS and executed
+        # (canonical predicate reused from skill_broker_engine.py's own
+        # execution guard). On REJECTED/UNCERTAIN, approved_skill still carries
+        # the agent's blocked proposal (see
+        # SkillBrokerEngine._build_approved_skill), so checking skill_name
+        # alone would lower the threshold for a proposal that never executed
+        # -- the registry default (do_nothing) ran instead.
+        is_executed_outcome = result and result.outcome in (
+            SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS
+        )
         resolved_skill = ResearchSimulation._SKILL_ALIASES.get(
             result.approved_skill.skill_name.lower(),
             result.approved_skill.skill_name
-        ) if result.approved_skill else None
+        ) if (is_executed_outcome and result.approved_skill) else None
         if resolved_skill == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)
