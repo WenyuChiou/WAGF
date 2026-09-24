@@ -8,8 +8,10 @@ agent makes before any of its own behaviour, or any other agent's behaviour, has
 had a chance to move the world -- what is the effect of turning the validators ON
 (governed) versus OFF (ungoverned) on each of three quantities:
 
-  (A) the UNCONDITIONAL executed-increase rate
-      = share of ALL year-1 decisions whose action is increase_large/increase_small.
+  (A) the UNCONDITIONAL increase rate
+      = share of ALL year-1 decisions whose FINAL PROPOSED action (a REJECTED row's
+      proposal did not execute; see Section 6 for the world-executed variant) is
+      increase_large/increase_small.
       Its denominator is 78 agents, fixed by the experiment design. Nothing
       post-treatment enters it.
 
