@@ -244,7 +244,8 @@ def per_seed_table(cache):
     print("\n" + RULE)
     print("2. PER-SEED RESULTS -- the primary estimator (E1) plus context columns")
     print(RULE)
-    print("E1 = unconditional executed-increase rate = 100 * n(increase) / 3276.")
+    print("E1 = unconditional increase rate (on the final PROPOSED action; a REJECTED")
+    print("row's proposal did not execute) = 100 * n(increase) / 3276.")
     print("Context columns are NOT part of E1; they are printed so the reader can see")
     print("the composition problem the primary estimator sidesteps.\n")
 

@@ -16,9 +16,11 @@ The published headline (IBR = increase rate among decisions whose self-reported
 appraisal was H or VH) is a CONDITIONAL rate whose denominator is itself an outcome of
 treatment.  A gap in a conditional rate cannot be decomposed into composition and
 behaviour, because the composition change has already been differenced away by the
-conditioning.  So the quantity this script decomposes is the UNCONDITIONAL executed-
-increase rate R = (# increase decisions) / (# agent-years), whose denominator is fixed
-by design at 78 agents x 42 years = 3276 per run and is therefore not post-treatment.
+conditioning.  So the quantity this script decomposes is the UNCONDITIONAL increase rate
+R = (# increase decisions) / (# agent-years), on the final PROPOSED action (a REJECTED
+row's proposal did not execute; see Part E for the genuinely-executed variant).  R's
+denominator is fixed by design at 78 agents x 42 years = 3276 per run and is therefore
+not post-treatment.
 The published statistic is then RECONCILED against that decomposition in Part D: it
 enters the unconditional gap only as one term, weighted by the average size of the HIGH
 stratum.

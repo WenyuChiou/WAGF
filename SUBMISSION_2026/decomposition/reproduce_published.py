@@ -11,7 +11,8 @@ with the opposite sign as a "+23.0 pp improvement"; that flip is cosmetic, not a
 
 If the primary definition does not reproduce, the script does NOT tune it. It instead runs
 the pre-listed diagnostics: blank labels, row counts, seed presence, and the four action
-columns (simulation executed / audit final / audit proposed / audit executed-with-default).
+columns (simulation proposed [yearly_decision] / audit final / audit proposed / audit
+executed-with-default).
 
 Usage:  python SUBMISSION_2026/decomposition/reproduce_published.py
 """
@@ -151,7 +152,8 @@ def main() -> int:
           f"shift {uhp - ghp:+.2f} pp")
     gun = L.mean(uncond["governed"][s] for s in seeds)
     uun = L.mean(uncond["ungoverned"][s] for s in seeds)
-    print(f"\n  UNCONDITIONAL executed-increase rate (denominator fixed by design):")
+    print(f"\n  UNCONDITIONAL increase rate, on the final PROPOSED action (denominator "
+          f"fixed by design; a REJECTED row's proposal did not execute):")
     print(f"    governed {gun:.2f} %   ungoverned {uun:.2f} %   "
           f"gap {gun - uun:+.2f} pp  [negative = governance lowered it]")
 

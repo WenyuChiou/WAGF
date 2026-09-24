@@ -189,7 +189,12 @@ def load_audit(path: str) -> list[dict]:
 # Field accessors -- one place where normalisation happens
 # ---------------------------------------------------------------------------
 def action(row: dict) -> str:
-    """The EXECUTED action, per project rule. simulation_log.yearly_decision."""
+    """The agent's FINAL PROPOSED action (simulation_log.yearly_decision).
+
+    On a REJECTED row this is the blocked proposal, not what executed -- the
+    engine executes the registry default instead (irrigation: maintain_demand).
+    See `broker/core/skill_broker_engine.py` (SkillBrokerEngine._build_approved_skill).
+    """
     return (row.get(OUTCOME_COL) or "").strip()
 
 
@@ -219,10 +224,13 @@ def is_increase(row: dict) -> bool:
 def ibr(rows: list[dict]) -> float:
     """PUBLISHED conditional statistic (a.k.a. AAI).
 
-    numerator   rows with HIGH self-reported scarcity whose EXECUTED action increased
+    numerator   rows with HIGH self-reported scarcity whose FINAL PROPOSED action
+                increased (on a REJECTED row this is the blocked proposal, not
+                what executed)
     denominator rows with HIGH self-reported scarcity
 
     Higher = worse. The denominator is post-treatment; that is the defect under study.
+    This is a PROPOSAL-level rate, not an executed-outcome rate; see `action()`.
     """
     den = [r for r in rows if is_high(r)]
     if not den:
@@ -231,7 +239,8 @@ def ibr(rows: list[dict]) -> float:
 
 
 def increase_rate(rows: list[dict]) -> float:
-    """UNCONDITIONAL executed-increase rate over ALL rows. Denominator is fixed by
+    """UNCONDITIONAL increase rate over ALL rows, on the final PROPOSED action (see
+    `action()`; a REJECTED row's proposal did not execute). Denominator is fixed by
     design (agents x years), so it is not post-treatment. Higher = more increases."""
     if not rows:
         return float("nan")
