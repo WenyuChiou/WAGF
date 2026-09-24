@@ -1163,7 +1163,7 @@ The JS contrast "moves from mean_diff=0.0024 (original) to mean_diff=-0.0163 (re
 
 Consequences for the paper (proposals). The main flood results table comes from the defaults corpus. The v08
 corpus goes to a sensitivity appendix: two sampling settings, same direction. Methods state one sampling
-convention for both testbeds. Open: placebo, initprop, paraphrase, no-nudge and gemma4:12b at defaults are
+convention for both testbeds. Open: initprop, paraphrase, no-nudge and gemma4:12b at defaults are
 still in the queue; `r25_table1_regen_defaults.md` has two PENDING gemma4:12b flood rows until then.
 
 The two r37 defaults .md labels written for the v08 layout (the vintage-table sentence and the n = 5 heading) were made corpus-aware in `scripts/r37_flood_n10_update.py` (`render_md`) before commit.
@@ -1176,3 +1176,19 @@ banded fail to N; `scripts/r37_flood_n10_update.py` (`render_md`), corpus-aware 
 outputs are byte-identical to before; two runs of each script are byte-identical.
 
 Review trail: sonnet adversarial review in progress at the time of writing.
+
+### Placebo retry feedback at model-default sampling (r34, --corpus defaults)
+
+r34 (`out/r34_placebo_retry_flood_defaults.md`). Placebo retry-feedback arm, flood gemma3:4b at model-default
+sampling, seeds 42 and 43, code 83fa97e1 for all three arms; the strict and disabled comparators are seeds 42
+and 43 of the defaults corpus above. IBR unconditional (%), seed 42 / 43: placebo 1.53 / 1.40, strict 0.69 /
+0.66, disabled 10.29 / 11.99. Retry rate (%): placebo 8.42 / 8.59, strict 9.61 / 10.18, disabled 0 / 0, with
+`extreme_threat_block` the top rule in both governed arms on both seeds.
+
+Read. Over the six IBR cells (three conditionings, two seeds) the placebo arm sits a mean 0.085 of the way from
+strict to disabled (range 0.065 to 0.105), so placebo is close to STRICT on IBR. EHE is left out of the verdict:
+on seed 43 strict and disabled differ by 0.0424, below the 0.05 threshold, so the share is not defined. The v08
+reading (r34 above) gave a mean of 0.115, range -0.011 to 0.252, and the same verdict. The two corpora point the
+same way with n = 2 in each, which is not a stronger result than either one alone. For B5 the domain-dependent
+reading stands: flood placebo tracks strict on IBR, irrigation placebo (r35) tracks ungoverned. Two runs of the
+script give byte-identical .md and .csv outputs, and the v08 outputs are unchanged.

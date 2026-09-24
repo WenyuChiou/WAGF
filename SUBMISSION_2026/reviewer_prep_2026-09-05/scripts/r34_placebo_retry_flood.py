@@ -733,21 +733,32 @@ def render_md(rows: list, corpus: str = "v08") -> str:
     if {"placebo", "strict", "disabled"} <= manifest_arms_present:
         placebo_hash, comparator_hash = _manifest_commit_hashes(
             rows, placebo_arms=["placebo"], comparator_arms=["strict", "disabled"])
-        lines.append(
-            f"The placebo arm was run at code {placebo_hash} while the strict and disabled "
-            f"comparators come from {comparator_hash}. The comparison is accepted on three "
-            f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
-            f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven files, "
-            f"all plumbing for the retry_feedback_mode feature), whose only behaviour-changing "
-            f"branch is in the domain-generic retry loop broker/core/_retry_loop.py (RetryMixin."
-            f"_governance_retry_loop); the full-mode retry prompt rendered by that loop is "
-            f"byte-identical across the two commits for both the rule-violation and the "
-            f"format-violation branch; and mock runs at both commits give identical "
-            f"governance-audit and simulation logs for flood (4 of 4 comparisons) and for "
-            f"irrigation (4 of 4, strict and disabled, synthetic agents). The earlier "
-            f"faf1bb12 -> c3391a53 gate in out/regen_progress_2026-09-15.md covers both "
-            f"domains."
-        )
+        if placebo_hash == comparator_hash:
+            # 2026-09-24: --corpus defaults lands all three arms on the same
+            # commit (83fa97e1) -- "run at code X while ... come from X" reads
+            # awkwardly when X==X, so state the (degenerate but true) case in
+            # one sentence instead of the cross-commit justification below,
+            # which only applies when there IS a commit difference to justify.
+            lines.append(
+                f"All three arms (placebo, strict, disabled) were run at the same code "
+                f"commit {placebo_hash}."
+            )
+        else:
+            lines.append(
+                f"The placebo arm was run at code {placebo_hash} while the strict and disabled "
+                f"comparators come from {comparator_hash}. The comparison is accepted on three "
+                f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
+                f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven files, "
+                f"all plumbing for the retry_feedback_mode feature), whose only behaviour-changing "
+                f"branch is in the domain-generic retry loop broker/core/_retry_loop.py (RetryMixin."
+                f"_governance_retry_loop); the full-mode retry prompt rendered by that loop is "
+                f"byte-identical across the two commits for both the rule-violation and the "
+                f"format-violation branch; and mock runs at both commits give identical "
+                f"governance-audit and simulation logs for flood (4 of 4 comparisons) and for "
+                f"irrigation (4 of 4, strict and disabled, synthetic agents). The earlier "
+                f"faf1bb12 -> c3391a53 gate in out/regen_progress_2026-09-15.md covers both "
+                f"domains."
+            )
     else:
         missing = {"placebo", "strict", "disabled"} - manifest_arms_present
         lines.append(
