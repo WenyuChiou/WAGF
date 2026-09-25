@@ -380,6 +380,97 @@ class TestMemoryImportanceWiring:
         assert importance_of("Agent_reflection") == 0.5
 
 
+class TestPreYearReportsPriorYearOutcome:
+    """F05 (2026-09-25 audit): by the time pre_year(year) runs,
+    env.advance_year(year) has already recomputed agent_state["diversion"]
+    under YEAR's own curtailment_ratio / Powell scaling
+    (irrigation_env.py: _apply_curtailment, _apply_powell_constraint), for
+    whatever request was last set (year-1's decision). Reading
+    agent_state/ctx directly for the "last year" memory line therefore
+    silently reports year t's re-derivation of year t-1's request, mislabeled
+    as year t-1 -- disagreeing with what post_year(year-1) actually logged
+    to simulation_log.csv for year t-1. post_year now snapshots each year's
+    own outcome onto agent._last_year_outcome before the NEXT advance_year
+    call can touch it, and pre_year reads that snapshot instead."""
+
+    def test_year2_memory_reports_year1_diversion_not_year2_recomputation(self, tmp_path, monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        from broker.agents import AgentConfig, BaseAgent
+        from broker.interfaces.skill_types import ApprovedSkill
+        from examples.irrigation_abm.irrigation_env import (
+            IrrigationEnvironment,
+            WaterSystemConfig,
+        )
+        from examples.irrigation_abm.irrigation_personas import IrrigationAgentProfile
+        from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
+
+        profile = IrrigationAgentProfile(
+            agent_id="TestAgent", basin="lower_basin", cluster="aggressive",
+            water_right=100_000.0,
+        )
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        env.initialize_from_profiles([profile])
+
+        # Force a deterministic, DIFFERENT curtailment tier each year (see
+        # TestIrrigationEnvironment.test_shortage_tier_computation for these
+        # exact mead-level -> tier mappings) so the SAME request produces a
+        # different diversion in year 1 vs year 2's re-derivation.
+        mead_levels = iter([1100.0, 1030.0])  # tier 0 (0%), then tier 2 (10%)
+        monkeypatch.setattr(env, "_generate_lake_mead_level", lambda: next(mead_levels))
+
+        config = AgentConfig(
+            name="TestAgent", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agents = {"TestAgent": agent}
+
+        runner_stub = SimpleNamespace(memory_engine=MagicMock(), _current_year=1)
+        hooks = IrrigationLifecycleHooks(
+            env, runner_stub, [profile], reflection_engine=None, output_dir=tmp_path,
+        )
+        hooks.metrics_tracker = None
+        hooks.feedback_config = {}
+
+        # --- Year 1: healthy conditions, no curtailment ---
+        env.advance_year()
+        assert env._agents["TestAgent"]["curtailment_ratio"] == 0.0
+        hooks.pre_year(1, {}, agents)  # year 1: no prior-year memory write
+
+        skill = ApprovedSkill(
+            skill_name="maintain_demand", agent_id="TestAgent",
+            approval_status="APPROVED", execution_mapping="env.execute_skill",
+        )
+        skill.parameters = {}
+        result = env.execute_skill(skill)
+        agent._last_action_context = {"skill_name": "maintain_demand", "year": 1}
+        hooks.post_step(agent, SimpleNamespace(
+            approved_skill=skill, execution_result=result, skill_proposal=None,
+        ))
+        hooks.post_year(1, agents)
+
+        year1_diversion = hooks.logs[-1]["diversion"]
+
+        # --- Year 2: severe curtailment re-derives year 1's OWN request ---
+        runner_stub._current_year = 2
+        env.advance_year()
+        assert env._agents["TestAgent"]["curtailment_ratio"] == pytest.approx(0.10)
+        # Sanity: advance_year(2) DID overwrite agent["diversion"] in place,
+        # under year 2's curtailment, for year 1's unchanged request -- this
+        # is the corrupted value the pre-fix pre_year read directly.
+        assert env._agents["TestAgent"]["diversion"] != pytest.approx(year1_diversion)
+
+        hooks.pre_year(2, {}, agents)
+
+        runner_stub.memory_engine.add_memory_for_agent.assert_called_once()
+        feedback_text = runner_stub.memory_engine.add_memory_for_agent.call_args.args[1]
+        assert f"received {year1_diversion:,.0f} acre-ft" in feedback_text
+        assert f"received {env._agents['TestAgent']['diversion']:,.0f} acre-ft" not in feedback_text
+
+
 class TestBatchReflectImportanceKey:
     """(e) IrrigationLifecycleHooks._batch_reflect must store the
     consolidated-reflection memory under the "importance" metadata key,
