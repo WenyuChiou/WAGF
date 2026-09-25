@@ -165,7 +165,17 @@ class IrrigationEnvironment:
             self._irrigation_contract = build_irrigation_agent_context_contract()
 
         # Timeline
-        self._current_year: int = self.config.sim_start_year
+        # F12 follow-up (2026-09-25 code review): pre-loop _current_year must
+        # NOT equal loop year 1's value (sim_start_year, 2019), or the first
+        # advance_year() call re-keys nothing and _decision_rng repeats its
+        # draw (a real regression the review caught in
+        # tests/test_irrigation_execute_skill_thread_safety.py). sim_start_year
+        # - 1 (2018) is also the semantically right pre-loop label: initial
+        # conditions (Mead's Dec-2018 observed elevation, 2018 diversions)
+        # are dated 2018, one year before loop year 1 begins. This value is
+        # always overwritten by the first advance_year() call before any
+        # hook or validator reads it, so no production output depends on it.
+        self._current_year: int = self.config.sim_start_year - 1
         self._year_index: int = 0
 
         # Global state
@@ -197,7 +207,19 @@ class IrrigationEnvironment:
 
         # History for preceding factor computation
         self._precip_history: List[float] = []
-        self._mead_history: List[float] = [1081.46, 1082.52]  # 2017, 2018
+        # F17 (2026-09-25 audit): this list was [1081.46, 1082.52] labelled
+        # "2017, 2018", contradicting both mead_initial_elevation (1081.46 =
+        # Dec 2018 observed, below) and docs/irrigation_physics.md ("2017
+        # (1082.52 ft) and 2018 (1081.46 ft)"). _generate_lake_mead_level
+        # appends year 1's own level BEFORE _update_preceding_factors reads
+        # it, so on loop year 1 the comparison is _mead_history[-1] (year
+        # 1's freshly generated level) against [-2], the SECOND seed value.
+        # With the old order that second value was 1082.52 (2017's real
+        # elevation, mislabelled "2018"), so year 1's rising/declining flag
+        # compared against the wrong reference year. Corrected to the
+        # documented order (2017, then 2018) so [-2] is 1081.46, the real
+        # 2018 elevation.
+        self._mead_history: List[float] = [1082.52, 1081.46]  # 2017, 2018
 
         # Mass balance storage tracking (MAF)
         _init_elev = self.config.mead_initial_elevation
@@ -557,7 +579,16 @@ class IrrigationEnvironment:
             Updated global state dict.
         """
         self._year_index += 1
-        self._current_year = self.config.sim_start_year + self._year_index
+        # F12 (2026-09-25 audit): using _year_index as a straight offset made
+        # loop year 1 calendar year 2020 (one year late) and loop year 42
+        # calendar year 2061, one year past the CRSS PRISM CSV's real
+        # 2017-2060 coverage, so the LAST year of every 42-year run silently
+        # used the synthetic drying-trend fallback instead of a real CRSS
+        # row. The "- 1" makes loop year 1 = sim_start_year (2019) and loop
+        # year 42 = 2060, matching docs/irrigation_physics.md ("Y1 =
+        # calendar year 2019"), DATA.md and README.md (already documented as
+        # 2019-2060), and keeps every loop year inside real CRSS coverage.
+        self._current_year = self.config.sim_start_year + self._year_index - 1
         self._global["year"] = self._current_year
 
         # Generate stochastic water signals
@@ -820,6 +851,17 @@ class IrrigationEnvironment:
         state_changes: Dict[str, Any] = {}
         state_changes["is_exploration"] = is_exploration
 
+        # F07 (2026-09-25 audit): the applied magnitude never reached memory
+        # because ``_apply_state_changes`` (broker/core/experiment_runner.py)
+        # reads ``params["magnitude_pct"]`` (the LLM's proposal, not what was
+        # actually applied) or ``result.execution_result.action_context``,
+        # and this method only ever set ``state_changes["magnitude_pct_applied"]``,
+        # never ``action_context``. Populated below for every skill that
+        # actually samples a magnitude, so build_action_outcome_feedback's
+        # "(by N%)" reflects the Gaussian-sampled value the environment used,
+        # not the LLM's discrete request.
+        action_context: Dict[str, Any] = {}
+
         if skill in ("increase_large", "increase_small", "increase_demand"):
             # v21: Scale increase by request (paper demand).  Governance
             # rules (demand_ceiling_stabilizer) prevent unbounded growth.
@@ -828,6 +870,7 @@ class IrrigationEnvironment:
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             state_changes["magnitude_pct_applied"] = magnitude_pct
+            action_context["magnitude_pct"] = magnitude_pct
 
         elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
             # v21: Also use request as base (was water_right).
@@ -840,6 +883,7 @@ class IrrigationEnvironment:
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             state_changes["magnitude_pct_applied"] = magnitude_pct
+            action_context["magnitude_pct"] = magnitude_pct
 
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes
@@ -854,7 +898,9 @@ class IrrigationEnvironment:
                 success=False, error=f"Unknown skill: {skill}"
             )
 
-        return ExecutionResult(success=True, state_changes=state_changes)
+        return ExecutionResult(
+            success=True, state_changes=state_changes, action_context=action_context
+        )
 
     # -----------------------------------------------------------------
     # Internal: water signal generation
@@ -1079,6 +1125,54 @@ class IrrigationEnvironment:
 
         UB agent diversions are pro-rata scaled down so the binding
         constraint is satisfied.
+
+        F11 (2026-09-25 audit, disclosure only, no behaviour change):
+        Powell STORAGE is not modelled here; only its minimum-release
+        floor is (constraint 1 above). In a year where natural flow is
+        below 7.0 MAF (2022 in the CRSS PRISM series), ``ub_flow_cap_af``
+        goes to 0, so every Upper Basin agent's diversion is scaled to
+        exactly 0 immediately after this method runs (verified against
+        the real CRSS PRISM CSV: loop year 4 / calendar 2022 gives 0.0
+        for every Upper Basin agent). This zero is what the agent's own
+        prompt (``get_agent_context``'s ``current_diversion``) and every
+        governance check see, since both read state between
+        ``advance_year()`` and that agent's own decision.
+
+        HISTORY (fixed by F11b, 2026-09-25, after two earlier disclosure
+        passes on the same branch got progressively more accurate but
+        never actually fixed it): ``update_agent_request`` (below)
+        recomputes ``diversion = new_request * (1 - curtailment_ratio)``
+        from ``curtailment_ratio`` alone, with no Powell scale factor,
+        and every skill branch in ``execute_skill`` (``maintain_demand``
+        included) calls it -- so the instant an Upper Basin agent's own
+        ``execute_skill`` ran, its diversion used to jump back to the
+        curtailment-only value, discarding whatever Powell scaling
+        ``advance_year()`` had applied (not only a full zero -- any
+        Powell scaling short of that). F11b fixes this at the one point
+        where it can be fixed correctly without re-scaling the same
+        agents twice: :meth:`apply_powell_cap_to_executed_diversions`,
+        called ONCE per year, after every agent has executed its
+        decision, from ``IrrigationLifecycleHooks.post_year`` (before
+        ``simulation_log.csv`` rows are built and before the F05 memory
+        snapshot) -- see that method's docstring for why this is the
+        only safe place to call it, and why calling
+        ``_apply_powell_constraint`` again mid-decision-loop would be
+        wrong. ``simulation_log.csv``'s ``diversion`` column, this
+        branch's F05 memory snapshot, and ``_batch_reflect``'s
+        ``supply_ratio`` all read ``agent["diversion"]`` directly, so all
+        three now correctly reflect the Powell cap for Upper Basin
+        agents. As a side effect this also fixes the year-over-year
+        carry-forward gap two earlier disclosure passes described here:
+        ``_generate_lake_mead_level`` reads UB diversions from the
+        *previous* year, and that value is now the F11b-corrected one,
+        not an inflated curtailment-only figure. Lower Basin diversions
+        are unaffected -- ``_apply_curtailment``'s tier-based floor at
+        0.80 (Tier 3's 20% cut) is unchanged and was never part of this
+        gap. Whether Powell storage itself should be modelled (the
+        remaining, deliberately out-of-scope half of the original F11
+        finding) is a design decision for the runner/env owner. See
+        ``docs/irrigation_physics.md``'s "Single-Reservoir Justification"
+        section for the corresponding physics-side note.
         """
         cfg = self.config
         precip = (self._precip_history[-1]
@@ -1099,6 +1193,86 @@ class IrrigationEnvironment:
             scale = ub_effective_cap / ub_div_total
             for a in ub_agents:
                 a["diversion"] *= scale
+
+    def apply_powell_cap_to_executed_diversions(self) -> None:
+        """F11b (2026-09-25 audit follow-up): re-apply the Powell pro-rata
+        cap to Upper Basin diversions after every agent has executed its
+        decision for the year.
+
+        ``advance_year()`` already ran ``_apply_powell_constraint()`` once,
+        before any agent decided this year, using each Upper Basin agent's
+        diversion as it stood at the END of the PREVIOUS year. But
+        ``update_agent_request`` recomputes
+        ``diversion = new_request * (1 - curtailment_ratio)`` from
+        ``curtailment_ratio`` alone -- no Powell scale factor -- and every
+        skill branch in ``execute_skill`` (``maintain_demand`` included)
+        calls it. So by the time every agent has executed THIS year's
+        decision, every Upper Basin agent's diversion has silently lost
+        whatever Powell scaling ``advance_year()`` applied (see
+        ``_apply_powell_constraint``'s docstring for the full finding
+        history: F11 disclosed this, two follow-up passes narrowed and
+        corrected the disclosure, F11b is the actual fix).
+
+        Call this exactly ONCE per year, after every agent's decision for
+        the year has executed and before anything logs, snapshots, or
+        otherwise reads ``diversion`` for the year --
+        ``IrrigationLifecycleHooks.post_year``, before both the F05
+        memory snapshot and the ``simulation_log.csv`` row are built, is
+        the intended call site.
+
+        Code review (2026-09-25, same day as the fix): calling
+        ``_apply_powell_constraint`` a second time, unchanged, is WRONG
+        for any Upper Basin agent whose decision did NOT execute this
+        year (ABORTED, a REJECTED/UNCERTAIN row with no fallback, or an
+        inactive agent) -- its ``diversion`` still holds the value the
+        FIRST call (inside ``advance_year()``) already scaled down, so a
+        second raw call would add that already-reduced number into the
+        aggregate and scale it down again, while an agent that DID
+        execute contributes its full curtailment-only value. That skews
+        the pro-rata split between the two: reproduced directly with two
+        equal-request Upper Basin agents under a partial cap, one
+        ``maintain_demand``, one left un-executed -- the executed agent
+        ended up with roughly double the un-executed one's diversion
+        instead of the equal split the cap should produce.
+
+        Fixed by rebuilding EVERY Upper Basin agent's diversion from its
+        current ``request``/``water_right``/``curtailment_ratio`` (the
+        same formula ``update_agent_request`` uses) before re-deriving
+        the cap: for an agent that executed this year, ``request`` and
+        ``curtailment_ratio`` are already this year's values, so this
+        reproduces ``update_agent_request``'s own result bit for bit; for
+        an agent that did NOT execute, ``request`` is still last year's
+        value and ``curtailment_ratio`` is this year's (``_apply_curtailment``
+        sets it for every agent unconditionally, whether or not that
+        agent later executes), so this recomputes exactly what
+        ``_apply_curtailment`` produced for it during ``advance_year()``,
+        BEFORE that first Powell scaling -- undoing the first call's
+        scaling uniformly for every Upper Basin agent, executed or not,
+        so the aggregate this method then caps is the true pre-Powell
+        total, and every agent is scaled exactly once.
+
+        Idempotent, exactly: every call rebuilds ``diversion`` from
+        ``request``/``water_right``/``curtailment_ratio`` and
+        ``self._precip_history[-1]``, none of which this method modifies,
+        so a second call with no decision in between reproduces the
+        first call's result bit for bit (measured directly: 3,000
+        randomised multi-agent scenarios, 0 differed on a second call).
+        Calling
+        it mid-decision-loop, after only SOME agents have executed, would
+        still be wrong -- the aggregate cap should reflect the year's
+        FINAL demand, not a partial one -- so the "exactly once, after
+        the full decision loop" rule still applies; rebuilding from
+        ``request`` only fixes the un-executed-agent skew, not a
+        premature call. Lower Basin is untouched -- ``_apply_curtailment``'s
+        tier-based floor at 0.80 is unchanged and was never part of this
+        gap.
+        """
+        for agent in self._agents.values():
+            if agent["basin"] != "upper_basin":
+                continue
+            capped_request = min(agent["request"], agent["water_right"])
+            agent["diversion"] = capped_request * (1.0 - agent.get("curtailment_ratio", 0.0))
+        self._apply_powell_constraint()
 
     # -----------------------------------------------------------------
     # Utility

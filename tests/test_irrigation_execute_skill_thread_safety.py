@@ -44,12 +44,15 @@ from examples.irrigation_abm.irrigation_env import (  # noqa: E402
 
 N_AGENTS = 16
 SEED = 42
-# Non-zero, so the ε-exploration COIN FLIP is drawn and each call consumes two
-# values rather than one — which is what makes the ordering bug visible in a
-# second way. It is deliberately NOT enough to take the exploration arm: at
-# these keys the smallest coin flip is 0.118, so `_build_env` always lands in
-# the ordinary arm. `_build_exploring_env` below covers the arm itself.
-EXPLORATION_RATE = 0.05
+# Non-zero, so the epsilon-exploration COIN FLIP is drawn and each call
+# consumes two values rather than one, which is what makes the ordering bug
+# visible in a second way. It is deliberately NOT enough to take the
+# exploration arm: at these keys the smallest coin flip is 0.0311 (F12
+# follow-up, 2026-09-25: IrrigationEnvironment's pre-loop _current_year moved
+# from 2019 to 2018, which re-keys this draw; recomputed against the current
+# code), so `_build_env` always lands in the ordinary arm.
+# `_build_exploring_env` below covers the arm itself.
+EXPLORATION_RATE = 0.02
 # Above every coin flip in the fixture, so the exploration arm always runs.
 FORCED_EXPLORATION_RATE = 0.99
 
@@ -194,8 +197,9 @@ def test_exploration_arm_is_actually_reached_and_not_reached():
     """Pin which arm each fixture takes, so neither can quietly stop covering
     what its name claims.
 
-    `_build_env`'s rate of 0.05 sits below every coin flip at these keys, so it
-    always takes the ordinary arm; `_build_exploring_env`'s 0.99 sits above
+    `_build_env`'s rate (EXPLORATION_RATE, 0.02 as of the F12 follow-up
+    that re-keyed this fixture's RNG) sits below every coin flip at these
+    keys, so it always takes the ordinary arm; `_build_exploring_env`'s 0.99 sits above
     every one, so it always takes the exploration arm. If a future edit to the
     fixture's seed or agent ids moved a coin flip across either threshold, this
     test says so instead of silently hollowing out the parametrisation above.
