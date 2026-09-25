@@ -293,6 +293,15 @@ def compact_allocation_check(
     Note: Requires ``total_basin_demand`` and ``basin_allocation`` in context.
     Currently a placeholder — the environment does not yet inject aggregate
     basin statistics into the per-agent validation context.
+
+    F04 (2026-09-25 audit): nothing in the pipeline ever writes
+    ``basin_allocation``, so this check returns ``[]`` unconditionally and
+    has fired zero times across 49,140 audited strict rows. Excluded from
+    ``ALL_IRRIGATION_CHECKS`` for that reason; kept here (and covered by
+    ``assert_validator_inputs_have_producers``, below) because
+    ``tests/test_irrigation_env.py`` calls it directly. Re-add to
+    ``IRRIGATION_SOCIAL_CHECKS`` only once a producer for
+    ``basin_allocation`` exists.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -337,6 +346,16 @@ def drought_severity_check(
         drought >= 0.85:   BLOCK all increases
 
     Tier B suggestion: neutral enumeration of remaining feasible skills.
+
+    F04 (2026-09-25 audit): the real CRSS-driven drought index never
+    reaches 0.7 in the irrigation paper runs (per-run maximum observed
+    about 0.62-0.69), so this check has fired zero times across 49,140
+    audited strict rows. Excluded from ``ALL_IRRIGATION_CHECKS`` for that
+    reason; kept here (and covered by
+    ``assert_validator_inputs_have_producers``, below) because
+    ``tests/test_irrigation_env.py`` calls it directly. Re-add to
+    ``IRRIGATION_PHYSICAL_CHECKS`` only after recalibrating the 0.7/0.85
+    thresholds against the real index range.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -466,6 +485,17 @@ def magnitude_cap_check(
 
     Requires ``proposed_magnitude`` in context (injected by broker engine
     when ``SkillProposal.magnitude_pct`` is not None).
+
+    F04 (2026-09-25 audit): ``magnitude_pct`` is not a field in the
+    irrigation ``response_format`` the paper runs use, so the broker never
+    injects ``proposed_magnitude`` and this check has fired zero times
+    across 49,140 audited strict rows (WARNING-only by design, so it never
+    blocked anything even when reachable). Excluded from
+    ``ALL_IRRIGATION_CHECKS`` for that reason; kept here (and covered by
+    ``assert_validator_inputs_have_producers``, below) because
+    ``tests/test_irrigation_env.py`` calls it directly. Re-add to
+    ``IRRIGATION_PHYSICAL_CHECKS`` only once ``magnitude_pct`` is back in
+    the response format (or another producer sets ``proposed_magnitude``).
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -844,20 +874,26 @@ def zero_escape_check(
 # Aggregated check lists for injection into validators
 # =============================================================================
 
+# F04 (2026-09-25 audit): drought_severity_check, compact_allocation_check
+# and magnitude_cap_check are intentionally NOT in these lists. All three
+# read a context key that nothing in the real pipeline ever produces (or,
+# for drought_severity_check, a threshold the real CRSS data never
+# reaches), so across 49,140 audited strict rows they fired zero times.
+# The functions stay defined above (docstrings note why) because
+# tests/test_irrigation_env.py exercises them directly, and
+# assert_validator_inputs_have_producers() below still runs them through
+# the same producer check as everything else.
 IRRIGATION_PHYSICAL_CHECKS = [
     water_right_cap_check,
     non_negative_diversion_check,
     minimum_utilisation_check,
     demand_floor_stabilizer,
     demand_ceiling_stabilizer,
-    drought_severity_check,
-    magnitude_cap_check,
     supply_gap_block_increase,
 ]
 
 IRRIGATION_SOCIAL_CHECKS = [
     curtailment_awareness_check,
-    compact_allocation_check,
 ]
 
 IRRIGATION_TEMPORAL_CHECKS = [
@@ -873,6 +909,99 @@ ALL_IRRIGATION_CHECKS = (
     IRRIGATION_PHYSICAL_CHECKS + IRRIGATION_SOCIAL_CHECKS
     + IRRIGATION_TEMPORAL_CHECKS + IRRIGATION_BEHAVIORAL_CHECKS
 )
+
+# =============================================================================
+# F04: startup self-check — every context key a registered check reads must
+# have a producer somewhere in the pipeline
+# =============================================================================
+
+# Context keys guaranteed present before ANY irrigation governance check
+# runs. Source of truth for the first block is
+# ``examples/irrigation_abm/run_experiment.py``
+# (``IrrigationLifecycleHooks.pre_year``'s ``validator_fields`` dict); the
+# second block is auto-injected onto the validation context from
+# ``env.get_agent_context()`` / the broker's env-context merge, upstream of
+# any custom validator. Update this set whenever a new check is added or
+# ``pre_year`` stops writing one of these fields — that drift (a check
+# reading a key nobody writes any more) is exactly what F04 found.
+IRRIGATION_CONTEXT_PRODUCERS = frozenset({
+    # written directly by IrrigationLifecycleHooks.pre_year
+    "agent_id", "at_allocation_cap", "has_efficient_system",
+    "below_minimum_utilisation", "water_right", "current_diversion",
+    "current_request", "curtailment_ratio", "shortage_tier", "cluster",
+    "basin", "loop_year",
+    # auto-injected from env_context by the broker, upstream of custom
+    # validators (get_agent_context() + SkillBrokerEngine env merge)
+    "drought_index", "total_available_water", "total_basin_demand",
+    "precipitation", "lake_mead_level", "preceding_factor", "year",
+    # F18a (2026-09-25 audit, LATER/not fixed by this commit):
+    # minimum_utilisation_check reads "request" for its message text only
+    # (the real gate is "below_minimum_utilisation"); the produced key is
+    # actually "current_request". Allowlisted here so this self-check does
+    # not fail the run over a filed, message-only, deliberately-deferred
+    # mismatch — remove once F18a renames the read to "current_request".
+    "request",
+})
+
+
+def assert_validator_inputs_have_producers(
+    checks=None,
+    known_producers: frozenset = IRRIGATION_CONTEXT_PRODUCERS,
+) -> None:
+    """Fail fast if a registered check reads a context key nothing produces.
+
+    Static, source-level scan: for every literal ``context.get("key", ...)``
+    or ``context["key"]`` found in a check function's source, ``key`` must
+    be in *known_producers*. This is the guard F04 asked for — it is what
+    would have caught ``compact_allocation_check`` reading
+    ``basin_allocation`` (nothing writes it) before the check shipped
+    silently inert for the life of the irrigation paper runs.
+
+    Not a substitute for behavioural review: a key CAN have a producer and
+    still never carry the value a check needs (for example a real
+    threshold the data never crosses, drought_severity_check's 0.7 floor)
+    — this only catches the "nothing writes this key, ever" class F04 was
+    built around.
+
+    Raises:
+        RuntimeError: naming each offending check and its unproduced keys.
+    """
+    import inspect
+    import re
+
+    if checks is None:
+        checks = ALL_IRRIGATION_CHECKS
+
+    key_pattern = re.compile(
+        r"""context\.get\(\s*["'](\w+)["']|context\[\s*["'](\w+)["']\s*\]"""
+    )
+    problems = []
+    for check in checks:
+        try:
+            src = inspect.getsource(check)
+        except (OSError, TypeError):
+            continue
+        keys = {m.group(1) or m.group(2) for m in key_pattern.finditer(src)}
+        unknown = keys - known_producers
+        if unknown:
+            problems.append((getattr(check, "__name__", str(check)), sorted(unknown)))
+
+    if problems:
+        detail = "; ".join(f"{name} reads {keys}" for name, keys in problems)
+        raise RuntimeError(
+            "assert_validator_inputs_have_producers: the following "
+            "irrigation governance checks in ALL_IRRIGATION_CHECKS read a "
+            f"context key nothing in the pipeline writes: {detail}. Wire a "
+            "producer for that key, add it to IRRIGATION_CONTEXT_PRODUCERS "
+            "with a note why, or remove the check from ALL_IRRIGATION_CHECKS "
+            "(see F04, .ai/framework_case_audit_2026-09-25.md)."
+        )
+
+
+# Run once at import time: this is pure source-level static analysis (no
+# runtime state needed), so importing this module IS "experiment startup"
+# for the purpose of failing fast.
+assert_validator_inputs_have_producers()
 
 
 # =============================================================================
