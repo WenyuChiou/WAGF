@@ -1,5 +1,5 @@
 """R42 -- irrigation persona pilot: does the NEW irrigation persona corpus
-(main branch, commit 732b2b6c) reproduce the OLD corpus's (commit faf1bb12)
+(main branch, commit fcd74a5f) reproduce the OLD corpus's (commit faf1bb12)
 governance signature, seed by seed? Pilot read at whatever seed count has
 landed; the same code re-run later gives the n=5 read with zero edits.
 CPU-only (GPU busy with the live persona batch -- this script only reads
@@ -8,13 +8,17 @@ already-written CSV/JSON/JSONL files, never launches a run).
 VINTAGE / ARM TERMINOLOGY (do not confuse with r25's own "old"/"new")
   This script's "old" = commit faf1bb12 (the pre-persona-diversification
   corpus every other reviewer-prep script already reads). This script's
-  "new" = commit 732b2b6c (the new persona corpus this pilot exists to
-  check). r25_table1_regen.py ALSO has an "old"/"new" pair in its own
-  contrast_pair rows, but that is a DIFFERENT split (a pre-2026-09-15-loss
-  snapshot vs the current faf1bb12 corpus) -- entirely unrelated to the
-  vintage split here. Both vintages carry two arms: "strict" (governed) and
-  a comparator arm that is named DIFFERENTLY per vintage on disk --
-  "ungoverned" for old (faf1bb12), "disabled" for new (732b2b6c) -- but
+  "new" = commit fcd74a5f (the new persona corpus this pilot exists to
+  check; supersedes the earlier 732b2b6c pilot, which was killed and had
+  its run dirs deleted before landing any complete cell -- fcd74a5f is
+  produced from main after PR #52 runner fallback state + PR #53
+  irrigation audit fixes). r25_table1_regen.py ALSO has an "old"/"new" pair
+  in its own contrast_pair rows, but that is a DIFFERENT split (a
+  pre-2026-09-15-loss snapshot vs the current faf1bb12 corpus) -- entirely
+  unrelated to the vintage split here. Both vintages carry two arms:
+  "strict" (governed) and a comparator arm that is named DIFFERENTLY per
+  vintage on disk -- "ungoverned" for old (faf1bb12), "disabled" for new
+  (fcd74a5f) -- but
   plays the identical no-governance role in every contrast below. This
   script's `role` field ("strict" / "comparator") is what code branches on;
   the `arm` field always carries the REAL on-disk name so nothing is
@@ -23,16 +27,15 @@ VINTAGE / ARM TERMINOLOGY (do not confuse with r25's own "old"/"new")
 RUN LAYOUT (examples/irrigation_abm/results/)
   old strict:      strict_42yr_gemma3_4b_faf1bb12_seed{S}
   old comparator:  ungoverned_42yr_gemma3_4b_faf1bb12_seed{S}
-  new strict:      strict_42yr_gemma3_4b_732b2b6c_seed{S}
-  new comparator:  disabled_42yr_gemma3_4b_732b2b6c_seed{S}
-  Seeds 42-46. Verified on disk at the time this script was written: all 10
-  old dirs (5 seeds x 2 arms) exist and are complete. Of the new dirs, only
-  strict_42yr_gemma3_4b_732b2b6c_seed42 exists at all, and it is IN
-  PROGRESS (LAUNCH_COMMAND.txt has no `Finished:` line yet, no
-  simulation_log.csv / audit csv / run_integrity.json written) -- every
-  other new (arm, seed) cell has no directory on disk yet. This script
+  new strict:      strict_42yr_gemma3_4b_fcd74a5f_seed{S}
+  new comparator:  disabled_42yr_gemma3_4b_fcd74a5f_seed{S}
+  Seeds 42-46. Verified on disk at the time this script was last updated:
+  all 10 old dirs (5 seeds x 2 arms) exist and are complete. The earlier
+  732b2b6c new-vintage pilot run was killed and its run dir deleted before
+  any cell landed; none of the fcd74a5f new-vintage dirs exist on disk yet
+  (the corresponding run is being launched separately). This script
   renders PENDING for every incomplete/missing cell rather than guessing;
-  re-running it later with more seeds landed needs no code change.
+  re-running it later with fcd74a5f seeds landed needs no code change.
 
 COMPLETENESS GATE (fail-loud, never reads a partial run)
   `_run_completeness()`: run dir exists -> irrigation_farmer_governance_
@@ -204,13 +207,13 @@ VINTAGE_ARM_DIRS = {
     },
     "new": {
         "strict": lambda seed: os.path.join(
-            IRR_RESULTS, f"strict_42yr_gemma3_4b_732b2b6c_seed{seed}"),
+            IRR_RESULTS, f"strict_42yr_gemma3_4b_fcd74a5f_seed{seed}"),
         "comparator": lambda seed: os.path.join(
-            IRR_RESULTS, f"disabled_42yr_gemma3_4b_732b2b6c_seed{seed}"),
+            IRR_RESULTS, f"disabled_42yr_gemma3_4b_fcd74a5f_seed{seed}"),
     },
 }
 COMPARATOR_ARM_NAME = {"old": "ungoverned", "new": "disabled"}
-EXPECTED_COMMIT_PREFIX = {"old": "faf1bb12", "new": "732b2b6c"}
+EXPECTED_COMMIT_PREFIX = {"old": "faf1bb12", "new": "fcd74a5f"}
 TOP_N_RULES = 3
 
 PERSONA_AGENT = "PVIDDiversionAG"
@@ -520,7 +523,7 @@ FIELDNAMES = [
 
 
 def main() -> int:
-    C.banner("R42  Irrigation persona pilot: new corpus (732b2b6c) vs old corpus (faf1bb12)")
+    C.banner("R42  Irrigation persona pilot: new corpus (fcd74a5f) vs old corpus (faf1bb12)")
     rows: list = []
 
     print("\n-- Part 1: per (vintage, arm, seed) metrics, rule census, manifest census, "
@@ -572,11 +575,11 @@ def _find(rows, row_type, **kw):
 
 def render_md(rows: list) -> str:
     lines = []
-    lines.append("# R42 -- irrigation persona pilot: new corpus (732b2b6c) vs old corpus (faf1bb12)")
+    lines.append("# R42 -- irrigation persona pilot: new corpus (fcd74a5f) vs old corpus (faf1bb12)")
     lines.append("")
     lines.append("Source: `r42_irrigation_persona_pilot.py`. Every number below is read live "
                  "from the `rows` list this script writes to the paired CSV. \"old\" = commit "
-                 "faf1bb12 (5 seeds landed, 42-46). \"new\" = commit 732b2b6c (the new persona "
+                 "faf1bb12 (5 seeds landed, 42-46). \"new\" = commit fcd74a5f (the new persona "
                  "corpus; landed cells only where they exist on disk and pass the completeness "
                  "gate -- see Method).")
     lines.append("")
