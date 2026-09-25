@@ -207,16 +207,30 @@ governance check see, since both read state before that agent's
 decision executes.
 
 **Code review note (2026-09-25, found reviewing a later branch, not
-fixed here):** the zero does not survive that agent's own decision.
-`update_agent_request` recomputes diversion from `curtailment_ratio`
-alone, with no Powell scale factor, and every skill (`maintain_demand`
-included) calls it, so the zero is overwritten the instant that agent
-acts. `simulation_log.csv`'s `diversion` column and the Mead mass
-balance carried into next year never actually see the Powell zero, only
-the transient pre-decision prompt/validation view does. See
-`_apply_powell_constraint`'s docstring in `irrigation_env.py` for the
-full detail; whether `update_agent_request` should also apply a Powell
-scale factor is a design decision for the runner/env owner.
+fixed here, corrected in a second review pass the same day):** the zero
+does not survive that agent's own decision. `update_agent_request`
+recomputes diversion from `curtailment_ratio` alone, with no Powell
+scale factor, and every skill (`maintain_demand` included) calls it, so
+the zero (and any lesser Powell scaling, not only the full-zero case) is
+overwritten the instant that agent acts.
+
+The first version of this note also claimed the Mead mass balance never
+sees the Powell zero. That overstated it: `_generate_lake_mead_level`
+recomputes its own Upper-Basin cap from that year's own natural flow
+every time it runs, independent of whatever `update_agent_request` did
+to `agent["diversion"]` afterward, so the reservoir physics does
+re-derive and re-apply the Powell cap each year rather than trusting a
+possibly-stale value. It reads Upper Basin diversions from the
+*previous* year by design, so a year whose own natural flow is not
+restrictive can still carry forward an inflated prior-year total if that
+prior year's own cap did not happen to bind again when read. What
+reliably loses the cap, with no independent re-derivation to fall back
+on, is narrower: `simulation_log.csv`'s `diversion` column, this
+branch's F05 memory snapshot, and `_batch_reflect`'s `supply_ratio` all
+read `agent["diversion"]` directly. See `_apply_powell_constraint`'s
+docstring in `irrigation_env.py` for the full detail; whether
+`update_agent_request` should also apply a Powell scale factor is a
+design decision for the runner/env owner.
 
 Lower Basin diversions are governed separately by the tier-based
 curtailment ratios in `_apply_curtailment`, which floor at 0.80 of

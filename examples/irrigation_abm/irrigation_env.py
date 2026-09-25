@@ -1139,27 +1139,50 @@ class IrrigationEnvironment:
         ``advance_year()`` and that agent's own decision.
 
         CODE REVIEW NOTE (2026-09-25, found reviewing this branch, NOT
-        fixed here): the zero does not survive that agent's own decision.
+        fixed here, CORRECTED in a second review pass the same day): the
+        zero does not survive that agent's own decision.
         ``update_agent_request`` (below) recomputes
         ``diversion = new_request * (1 - curtailment_ratio)`` from
         ``curtailment_ratio`` alone, with no Powell scale factor, and
         every skill branch in ``execute_skill`` (``maintain_demand``
         included) calls it. So the instant that agent's own
         ``execute_skill`` runs, its diversion jumps back to the
-        curtailment-only value, discarding the Powell zero. Confirmed
-        directly: manually zeroing an Upper Basin agent's diversion, then
-        calling ``execute_skill(maintain_demand)``, restores it to
-        ``request * (1 - curtailment_ratio)``. Consequence:
-        ``simulation_log.csv``'s ``diversion`` column, the Mead mass
-        balance carried into next year, and this branch's F05 memory
-        snapshot (``post_year``, which reads state AFTER every agent has
-        executed) never actually see the Powell zero -- only the
-        transient pre-decision prompt/validation view does. Lower Basin
-        diversions are governed separately by ``_apply_curtailment``'s
-        tier-based ratios, which floor at 0.80 (Tier 3's 20% cut) by
-        construction, so they cannot reach zero the way an Upper Basin
-        agent can here, and are not affected by this gap.
-        ``supply_gap_block_increase`` and the ``non_negative_diversion``
+        curtailment-only value, discarding the Powell zero (and, more
+        generally, any Powell scaling short of a full zero: this is not
+        a zero-delivery-year-only gap). Confirmed directly: manually
+        zeroing an Upper Basin agent's diversion, then calling
+        ``execute_skill(maintain_demand)``, restores it to
+        ``request * (1 - curtailment_ratio)``.
+
+        The FIRST version of this note claimed the Mead mass balance
+        never sees the Powell zero either. That overstated it:
+        ``_generate_lake_mead_level`` (below) recomputes its own
+        ``ub_div_effective = min(ub_div_maf, ub_flow_cap, ub_infra_cap)``
+        from THAT year's natural flow every time it runs, independent of
+        whatever ``update_agent_request`` later does to ``agent["diversion"]``
+        -- so the reservoir physics re-derives and re-applies the Powell
+        cap itself each year rather than trusting a possibly-stale
+        ``agent["diversion"]``. That said, it reads UB diversions from
+        the *previous* year (by design: "Agent diversions are from the
+        *previous* year's decisions"), so a year whose OWN natural flow
+        is not itself restrictive can still carry forward an inflated
+        prior-year UB total if that prior year's true (Powell-clamped)
+        delivery was overwritten before this method next read it. The
+        cap that reservoir physics applies for year t is still
+        year t's own, correctly computed floor -- it is the SIZE of the
+        number being capped (year t-1's diversion total) that can be
+        wrong when year t-1's own cap did not happen to bind again.
+        What this gap reliably affects, with no independent
+        re-derivation to fall back on, is narrower: ``simulation_log.csv``'s
+        ``diversion`` column, this branch's F05 memory snapshot
+        (``post_year``, which reads state AFTER every agent has
+        executed), and ``_batch_reflect``'s ``supply_ratio`` all read
+        ``agent["diversion"]`` directly, with nothing re-deriving a cap
+        for them. Lower Basin diversions are governed separately by
+        ``_apply_curtailment``'s tier-based ratios, which floor at 0.80
+        (Tier 3's 20% cut) by construction, so they cannot reach zero the
+        way an Upper Basin agent can here, and are not affected by this
+        gap. ``supply_gap_block_increase`` and the ``non_negative_diversion``
         warning in the governance layer, which validate BEFORE the
         agent's decision executes, are still reachable only for Upper
         Basin agents on this path; that half of the original finding
