@@ -511,7 +511,8 @@ class IrrigationLifecycleHooks:
             # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative
             # per-agent counter (never written before this fix, so
             # IrrigationAdapter.compute_importance always saw 0), incremented
-            # once per year the agent is active under drought conditions.
+            # once per post_year call (every agent in `agents`, this hook
+            # does not filter on is_active) when drought conditions hold.
             # Threshold 0.5 matches build_water_situation_text's own bucket
             # boundary for "Water supply is tight" (the >= 0.7 threshold used
             # by drought_severity_check is calibrated to a range the real
@@ -613,9 +614,18 @@ class IrrigationLifecycleHooks:
                 request = agent_state.get("request", 0) or 0
                 diversion = agent_state.get("diversion", 0) or 0
                 action_ctx = getattr(agent, "_last_action_context", None) or {}
+                # F08 code review (2026-09-25): diversion = request * (1 -
+                # curtailment_ratio) is mathematically an exact tier ratio
+                # (0.95/0.90/0.80/0.80...), but float64 division does not
+                # always round-trip exactly -- measured 5-6% of random
+                # requests landing on the wrong side of a 0.60/0.80
+                # boundary in compute_importance's shortage branches purely
+                # from float noise (the same class of bug F13 fixed in the
+                # YAML assertion trigger). round(..., 6) removes that noise
+                # without materially changing any real (non-boundary) ratio.
                 agent_ctx = {
-                    "water_right_pct": (request / water_right) if water_right > 0 else 0.5,
-                    "supply_ratio": (diversion / request) if request > 0 else 1.0,
+                    "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
+                    "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,
                     "years_farming": attrs.get("years_farming", 0),
                     "has_efficient_system": attrs.get("has_efficient_system", False),
                     "recent_decision": action_ctx.get("skill_name", ""),
