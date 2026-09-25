@@ -1125,18 +1125,44 @@ class IrrigationEnvironment:
         Powell STORAGE is not modelled here; only its minimum-release
         floor is (constraint 1 above). In a year where natural flow is
         below 7.0 MAF (2022 in the CRSS PRISM series), ``ub_flow_cap_af``
-        goes to 0, so every Upper Basin agent's diversion is scaled to 0
-        for that year: a hard zero-delivery year, not a partial
-        shortfall, because there is no Powell storage buffer to draw down
-        instead. Lower Basin diversions are governed separately by
-        ``_apply_curtailment``'s tier-based ratios, which floor at 0.80
-        (Tier 3's 20% cut) by construction, so they cannot reach zero the
-        way an Upper Basin agent can here. Consequently
+        goes to 0, so every Upper Basin agent's diversion is scaled to
+        exactly 0 immediately after this method runs (verified against
+        the real CRSS PRISM CSV: loop year 4 / calendar 2022 gives 0.0
+        for every Upper Basin agent). This zero is what the agent's own
+        prompt (``get_agent_context``'s ``current_diversion``) and every
+        governance check see, since both read state between
+        ``advance_year()`` and that agent's own decision.
+
+        CODE REVIEW NOTE (2026-09-25, found reviewing this branch, NOT
+        fixed here): the zero does not survive that agent's own decision.
+        ``update_agent_request`` (below) recomputes
+        ``diversion = new_request * (1 - curtailment_ratio)`` from
+        ``curtailment_ratio`` alone, with no Powell scale factor, and
+        every skill branch in ``execute_skill`` (``maintain_demand``
+        included) calls it. So the instant that agent's own
+        ``execute_skill`` runs, its diversion jumps back to the
+        curtailment-only value, discarding the Powell zero. Confirmed
+        directly: manually zeroing an Upper Basin agent's diversion, then
+        calling ``execute_skill(maintain_demand)``, restores it to
+        ``request * (1 - curtailment_ratio)``. Consequence:
+        ``simulation_log.csv``'s ``diversion`` column, the Mead mass
+        balance carried into next year, and this branch's F05 memory
+        snapshot (``post_year``, which reads state AFTER every agent has
+        executed) never actually see the Powell zero -- only the
+        transient pre-decision prompt/validation view does. Lower Basin
+        diversions are governed separately by ``_apply_curtailment``'s
+        tier-based ratios, which floor at 0.80 (Tier 3's 20% cut) by
+        construction, so they cannot reach zero the way an Upper Basin
+        agent can here, and are not affected by this gap.
         ``supply_gap_block_increase`` and the ``non_negative_diversion``
-        warning in the governance layer are reachable ONLY for Upper
-        Basin agents; Lower Basin agents never trigger them through this
-        path. See ``docs/irrigation_physics.md``'s "Single-Reservoir
-        Justification" section for the corresponding physics-side note.
+        warning in the governance layer, which validate BEFORE the
+        agent's decision executes, are still reachable only for Upper
+        Basin agents on this path; that half of the original finding
+        holds. Whether ``update_agent_request`` should also apply a
+        Powell scale factor is a design decision for the runner/env
+        owner, not made in this branch. See
+        ``docs/irrigation_physics.md``'s "Single-Reservoir Justification"
+        section for the corresponding physics-side note.
         """
         cfg = self.config
         precip = (self._precip_history[-1]
