@@ -58,9 +58,20 @@ $$ET(S) = E_{ref} \times \max\!\left(0.15,\; \min\!\left(\frac{S}{S_{ref}},\; 1.
 | $M_{DCP}(h)$ | Mexico treaty delivery (elevation-dependent, Minute 323) | MAF/yr |
 | $ET(S)$ | Reservoir evaporation (storage-dependent) | MAF/yr |
 | $r_i$ | Agent $i$ demand request (post-governance) | AF/yr |
-| $w_i$ | Agent $i$ legal water right | AF/yr |
+| $w_i$ | Agent $i$ water right (see note below) | AF/yr |
 | $\gamma_\tau$ | Curtailment ratio for shortage tier $\tau$ | dimensionless |
 | $d_i$ | Agent $i$ actual diversion (after curtailment) | AF/yr |
+
+F10 (2026-09-25 audit): $w_i$ is `col.iloc[-1]` of that agent's
+`Div_States/*_discrete_states.csv` — the TOP of the discretised FQL
+diversion grid (Hung & Yang's `Div_max`), not a legal Colorado River
+entitlement. Initial requests come from 2018 diversions, and most
+agents' 2018 use sits well under that grid-top ceiling: 61 of 78 agents
+(52 of 56 Upper Basin) start below 50% utilisation, so
+`demand_floor_stabilizer` (`DEMAND_FLOOR_RATIO = 0.50`) binds for most
+agents from year 1 in the governed arm, not only in years where drought
+or curtailment pushes usage down. See
+`irrigation_personas.py:create_profiles_from_data`.
 
 ---
 
@@ -195,7 +206,7 @@ The simulation initializes Lake Mead at 1081.46 ft, the USBR-observed elevation 
 | Data | Source | File |
 | :--- | :----- | :--- |
 | Winter precipitation (2017-2060) | CRSS/PRISM NOAA projection | `ref/CRSS_DB/CRSS_DB/HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` |
-| Agent water rights (78 agents) | CRSS annual baseline time series | `ref/CRSS_DB/CRSS_DB/annual_baseline_time_series.csv` |
+| Agent water rights (78 agents) | Top of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`) — not a legal entitlement; see the F10 note above | `ref/CRSS_DB/CRSS_DB/Div_States/UB_discrete_states.csv`, `.../LB_discrete_states.csv` |
 | Historical UB depletion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv` |
 | Historical LB diversion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/LB_historical_annual_diversion.csv` |
 | Lake Mead storage-elevation | USBR 2009 area-capacity survey | Hardcoded in `irrigation_env.py` (`_STORAGE_MAF`, `_ELEVATION_FT`) |
