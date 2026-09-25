@@ -579,7 +579,11 @@ class IrrigationLifecycleHooks:
                             aid,
                             f"Consolidated Reflection: {insight.summary}",
                             {
-                                "significance": insight.importance,
+                                # "importance", not "significance": HumanCentricMemoryEngine
+                                # only reads metadata.get("importance", 0.5). See
+                                # examples/irrigation_abm/tests/test_governance_mode_wiring.py::
+                                # TestBatchReflectImportanceKey.
+                                "importance": insight.importance,
                                 "emotion": emotion,
                                 "source": "personal",
                                 "type": "reflection",

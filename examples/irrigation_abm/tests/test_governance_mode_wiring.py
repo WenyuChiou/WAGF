@@ -44,6 +44,25 @@ real code paths versus which one is a YAML/engine calibration check.)
     source-text pin in broker/tests/test_coupling_retrofit_pr9.py only
     checks that the wrapper imports and calls run_experiment's main, not
     what it passes to it.
+
+(e) (a later follow-up fix -- see this commit's message for the
+    fail-before/pass-after transcript) IrrigationLifecycleHooks._batch_reflect
+    stored the consolidated reflection memory under metadata key
+    "significance", but HumanCentricMemoryEngine._add_memory_internal
+    (broker/components/memory/engines/humancentric.py) only reads
+    metadata.get("importance", 0.5) -- "significance" was never the key
+    it looked for, so every irrigation reflection's importance silently
+    fell back to the 0.5 default regardless of insight.importance (in
+    production, the adapter's compute_dynamic_importance score --
+    IrrigationAdapter.compute_importance returns 0.55-0.95 depending on
+    supply_ratio/drought_count/decision; the YAML's
+    reflection.importance_boost only applies when no adapter is
+    attached, which irrigation's own construction never does). Fixed by
+    renaming the key to "importance" in run_experiment.py's
+    _batch_reflect. See TestBatchReflectImportanceKey below, and the
+    updated historical note
+    in TestMemoryImportanceWiring.test_four_sample_lines_hit_expected_importance,
+    which previously documented this as a known, out-of-scope bug.
 """
 from __future__ import annotations
 
@@ -320,22 +339,25 @@ class TestMemoryImportanceWiring:
         engine.add_memory_for_agent(agent_c, fully_met_maintain)
 
         # add_memory with explicit metadata: mirrors _batch_reflect's actual
-        # call for the consolidated-reflection insight (unaffected by this
-        # branch's fix -- included to confirm that, not to endorse it).
+        # call shape for the consolidated-reflection insight.
         #
-        # KNOWN, PRE-EXISTING, OUT-OF-SCOPE BUG (not touched here): the real
-        # _batch_reflect call (run_experiment.py) passes
+        # HISTORICAL NOTE (fixed by a later follow-up commit -- see class
+        # (e) in this module's docstring and TestBatchReflectImportanceKey
+        # below): the real
+        # _batch_reflect call (run_experiment.py) used to pass
         # {"significance": insight.importance, ...}, but
         # HumanCentricMemoryEngine._add_memory_internal
         # (broker/components/memory/engines/humancentric.py) only reads
-        # metadata.get("importance", 0.5) -- "significance" is never the key
-        # it looks for, so every reflection memory's importance silently
-        # falls back to the hardcoded 0.5 default regardless of the actual
-        # insight.importance value passed in. The 0.5 asserted below is
-        # that bug's constant, not a deliberately calibrated value; it is
-        # asserted so a change to this call site doesn't silently drift
-        # without a green/red test noticing, not as a claim that 0.5 is
-        # correct.
+        # metadata.get("importance", 0.5) -- "significance" was never the
+        # key it looked for, so every reflection memory's importance
+        # silently fell back to the hardcoded 0.5 default regardless of the
+        # actual insight.importance value passed in. That call site now
+        # passes "importance" instead. This test still constructs the
+        # metadata dict directly with the legacy "significance" key,
+        # deliberately, to document that HumanCentricMemoryEngine falls
+        # back to 0.5 for any key it doesn't recognize; the 0.5 asserted
+        # below is that fallback constant, not a claim that "significance"
+        # is a supported alias for "importance".
         engine.add_memory(
             "Agent_reflection",
             reflection_line,
@@ -356,6 +378,280 @@ class TestMemoryImportanceWiring:
         assert engine.working["Agent_maintain"][-1]["emotion"] == "positive_outcome"
 
         assert importance_of("Agent_reflection") == 0.5
+
+
+class TestBatchReflectImportanceKey:
+    """(e) IrrigationLifecycleHooks._batch_reflect must store the
+    consolidated-reflection memory under the "importance" metadata key,
+    not "significance" -- see class (e) in this module's docstring.
+
+    test_batch_reflect_stores_insight_importance_not_default drives
+    _batch_reflect itself (real HumanCentricMemoryEngine, a stub
+    reflection engine and runner, adapter=None) and would fail if the
+    call site reverted to "significance" (the stored value would
+    silently be 0.5 instead of the stub insight's 0.9).
+    test_batch_reflect_uses_adapter_dynamic_importance_end_to_end covers
+    the production path the first test deliberately skips: irrigation
+    always attaches a real IrrigationAdapter, so _batch_reflect's
+    dynamic-importance override replaces insight.importance before the
+    fixed metadata key is built; this drives that full chain with a real
+    IrrigationAdapter and pins its drought_year (0.95) / "critical"
+    output landing in the stored memory.
+    test_reflection_ranks_above_met_after_increase_in_retrieve documents
+    the intended consequence for a synthetic 4-memory agent: with the
+    r42-style wired outcome-line importances (1.0 / 0.8 / 0.6, per
+    TestMemoryImportanceWiring.test_four_sample_lines_hit_expected_importance)
+    plus a 0.9 reflection stored via the fixed "importance" key, and
+    W_recency zeroed to isolate importance as the sole ranking input
+    (see that test's own docstring for why: at the engine's real
+    W_recency=0.3, the reflection is also the most-recently-added
+    memory, so recency alone would make it edge out the "fully met
+    after increase" line even at the pre-fix 0.5 importance, which
+    would not actually guard the fix), retrieve(top_k=3) ranks the
+    reflection above the "fully met after increase" (0.8) outcome line.
+    """
+
+    @staticmethod
+    def _fake_llm_invoke(agent_type):
+        def _invoke(prompt):
+            return "RAW_REFLECTION_TEXT"
+        return _invoke
+
+    def test_batch_reflect_stores_insight_importance_not_default(self):
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+        from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+
+        config = AgentConfig(
+            name="Agent_1", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agent.is_active = True
+
+        # Seed a prior memory so retrieve(top_k=10) is non-empty and the
+        # agent enters the reflection batch (mirrors a farmer who has
+        # accumulated at least one outcome-feedback memory before the
+        # year-end reflection call).
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        insight = SimpleNamespace(
+            importance=0.9,
+            summary="I learned to balance water demand carefully.",
+        )
+
+        class _StubReflectionEngine:
+            # Falsy adapter: skips _batch_reflect's dynamic-importance
+            # override and adapter-based emotion classification, so the
+            # stub insight's importance=0.9 and the "major" fallback
+            # emotion pass through to the memory-engine call unchanged.
+            adapter = None
+
+            def generate_batch_reflection_prompt(
+                self, batch, year, reflection_questions=None, persona_instruction=None,
+            ):
+                return "PROMPT"
+
+            def parse_batch_reflection_response(self, text, batch_ids, year):
+                return {batch_ids[0]: insight}
+
+            def store_insight(self, aid, ins):
+                pass
+
+        runner_stub = SimpleNamespace(
+            broker=SimpleNamespace(config=SimpleNamespace(get_reflection_config=lambda: {})),
+            agents={"Agent_1": agent},
+            memory_engine=engine,
+            get_llm_invoke=self._fake_llm_invoke,
+        )
+
+        hooks = IrrigationLifecycleHooks(
+            env=SimpleNamespace(),
+            runner=runner_stub,
+            profiles=[],
+            reflection_engine=_StubReflectionEngine(),
+            output_dir=None,
+        )
+
+        hooks._batch_reflect(year=3)
+
+        stored = engine.working["Agent_1"][-1]
+        assert stored["content"] == "Consolidated Reflection: I learned to balance water demand carefully."
+        assert stored["importance"] == pytest.approx(0.9)
+
+    def test_batch_reflect_uses_adapter_dynamic_importance_end_to_end(self):
+        """test_batch_reflect_stores_insight_importance_not_default above
+        stubs the adapter out (adapter=None) to isolate the key-rename
+        fix; in production, irrigation always attaches a real
+        IrrigationAdapter (run_experiment.py's
+        ReflectionEngine(..., adapter=irrigation_adapter)), which means
+        _batch_reflect's dynamic-importance override
+        (self.reflection_engine.compute_dynamic_importance ->
+        adapter.compute_importance) ALWAYS replaces insight.importance
+        before the (now-fixed) metadata dict is built -- so what actually
+        reaches the "importance" key in production is the adapter's
+        score, not the YAML's static reflection.importance_boost. This
+        test drives _batch_reflect with a real IrrigationAdapter and a
+        stub env whose get_supply_ratio() returns 0.5 (< 0.60), so
+        IrrigationAdapter.compute_importance's drought_year branch fires
+        (0.95, overriding the stub insight's placeholder 0.2 -- a value
+        chosen so the assertion only passes if the override actually
+        ran) and adapter.classify_emotion returns "critical" for the
+        same low-supply context, pinning the full chain end to end."""
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+        from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
+        from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+
+        config = AgentConfig(
+            name="Agent_drought", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {
+            "water_right": 0.5,
+            "years_farming": 4,
+            "last_decision": "maintain_demand",
+            "drought_count": 2,
+            "cluster": "aggressive",
+        }
+        agent.is_active = True
+
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        # Placeholder importance (0.2) deliberately does NOT match the
+        # adapter's drought_year score (0.95): the assertion below only
+        # passes if compute_dynamic_importance's override actually ran.
+        insight = SimpleNamespace(
+            importance=0.2,
+            summary="Water was scarce and I had to cut back sharply.",
+        )
+
+        class _StubReflectionEngineWithAdapter:
+            def __init__(self):
+                self.adapter = IrrigationAdapter()
+
+            def generate_batch_reflection_prompt(
+                self, batch, year, reflection_questions=None, persona_instruction=None,
+            ):
+                return "PROMPT"
+
+            def parse_batch_reflection_response(self, text, batch_ids, year):
+                return {batch_ids[0]: insight}
+
+            def store_insight(self, aid, ins):
+                pass
+
+            def compute_dynamic_importance(self, context, base_importance=0.9):
+                # Mirrors ReflectionEngine.compute_dynamic_importance's
+                # adapter branch (broker/components/cognitive/reflection.py).
+                return self.adapter.compute_importance(context, base_importance)
+
+        runner_stub = SimpleNamespace(
+            broker=SimpleNamespace(config=SimpleNamespace(get_reflection_config=lambda: {})),
+            agents={"Agent_drought": agent},
+            memory_engine=engine,
+            get_llm_invoke=self._fake_llm_invoke,
+        )
+
+        hooks = IrrigationLifecycleHooks(
+            env=SimpleNamespace(get_supply_ratio=lambda: 0.5),  # < 0.60 -> drought_year
+            runner=runner_stub,
+            profiles=[],
+            reflection_engine=_StubReflectionEngineWithAdapter(),
+            output_dir=None,
+        )
+
+        hooks._batch_reflect(year=5)
+
+        stored = engine.working["Agent_drought"][-1]
+        assert stored["importance"] == pytest.approx(
+            IrrigationAdapter.importance_profiles["drought_year"]
+        )
+        assert stored["emotion"] == "critical"
+
+    def test_reflection_ranks_above_met_after_increase_in_retrieve(self):
+        """Isolates the ranking consequence of the fix from recency: with
+        the engine's own production weights (W_recency=0.3), the
+        reflection is also the most-recently-added memory, so it would
+        edge out the "fully met after increase" line on recency ALONE
+        even at the pre-fix 0.5 importance (verified by hand: 0.5071 vs
+        0.5000 vs 0.4857) -- that would make this assertion pass whether
+        or not the key-rename fix is present, which is not a regression
+        test. Zeroing W_recency (and W_context, moot here since no
+        contextual_boosters are passed) isolates importance as the only
+        scoring input, so the assertion is driven purely by the stored
+        "importance" value -- exactly what the key-rename fix wires
+        correctly. Verified by hand: with W_recency=0, importance=0.9
+        (fixed) ranks [shortfall 0.5000, reflection 0.4500, increase
+        0.4000] (reflection in top_k=3, above increase); importance=0.5
+        (the pre-fix bug's constant) ranks [shortfall 0.5000, increase
+        0.4000, maintain 0.3000] (reflection dropped out of top_k=3
+        entirely)."""
+        from examples.irrigation_abm.irrigation_personas import (
+            build_action_outcome_feedback,
+        )
+
+        engine, irr_mem = _build_memory_engine_like_run_experiment()
+        engine.W_recency = 0.0
+        engine.W_context = 0.0
+        agent = _FakeAgent("Agent_ranking", memory_config=irr_mem)
+
+        shortfall = build_action_outcome_feedback(
+            action_ctx={"skill_name": "decrease_small", "magnitude_pct": 5.0},
+            year=3, request=100_000, diversion=80_000,
+            drought_index=0.42, preceding_factor=0,
+        )
+        fully_met_increase = build_action_outcome_feedback(
+            action_ctx={"skill_name": "increase_small", "magnitude_pct": 4.0},
+            year=3, request=100_000, diversion=100_000,
+            drought_index=0.10, preceding_factor=1,
+        )
+        fully_met_maintain = build_action_outcome_feedback(
+            action_ctx={"skill_name": "maintain_demand"},
+            year=3, request=100_000, diversion=100_000,
+            drought_index=0.10, preceding_factor=1,
+        )
+
+        # Added in chronological order matching a real year: outcome
+        # feedback lines land during pre_year; the consolidated reflection
+        # lands last (post_year -> _batch_reflect), via the FIXED
+        # "importance" key.
+        engine.add_memory_for_agent(agent, shortfall)           # importance 1.0
+        engine.add_memory_for_agent(agent, fully_met_increase)  # importance 0.8
+        engine.add_memory_for_agent(agent, fully_met_maintain)  # importance 0.6
+        engine.add_memory(
+            "Agent_ranking",
+            "Consolidated Reflection: I learned to balance water demand carefully.",
+            {"importance": 0.9, "emotion": "major", "source": "personal", "type": "reflection"},
+        )
+
+        results = engine.retrieve(agent, top_k=3)
+        contents = [r["content"] for r in results]
+
+        assert fully_met_maintain not in contents, (
+            "the lowest-importance (0.6) outcome line should be the one "
+            f"bumped out of top_k=3; got {contents!r}"
+        )
+        assert "Consolidated Reflection: I learned to balance water demand carefully." in contents
+        assert fully_met_increase in contents
+
+        reflection_idx = contents.index(
+            "Consolidated Reflection: I learned to balance water demand carefully."
+        )
+        increase_idx = contents.index(fully_met_increase)
+        assert reflection_idx < increase_idx, (
+            "a 0.9 reflection should outrank the 0.8 fully-met-after-increase "
+            f"outcome line in top_k=3 retrieval when ranked by importance "
+            f"alone; got order {contents!r}"
+        )
 
 
 class TestPersonaGenericWording:
