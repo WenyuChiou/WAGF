@@ -288,7 +288,9 @@ The LLM chooses the skill (qualitative direction); actual magnitude is sampled f
 
 ## 6. Governance System
 
-12 configured validators (11 active; `compact_allocation_check` never fires because the `basin_allocation` context key is not injected — see docs/irrigation_model_caveats.md) in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+12 validator functions are defined; 9 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+
+F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `compact_allocation_check` are excluded from dispatch — each reads a context key nothing in the pipeline produces (`basin_allocation`, `proposed_magnitude`), or a threshold the real CRSS data never reaches (drought index tops out around 0.62-0.69 per run, below the 0.7 floor) — and fired zero times across 49,140 audited strict rows. The functions stay defined (tests call them directly) and are covered by `assert_validator_inputs_have_producers()`, a startup self-check in `irrigation_validators.py` that fails fast if a *dispatched* check reads a key with no producer.
 
 | # | Validator | Blocks | Level | Category |
 | - | :-------- | :----- | :---- | :------- |
@@ -297,11 +299,11 @@ The LLM chooses the skill (qualitative direction); actual magnitude is sampled f
 | 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
 | 4 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
 | 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF) | ERROR | Economic |
-| 6 | `drought_severity_check` | increase (drought>0.7) | ERROR | Physical |
-| 7 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
+| 6 | `drought_severity_check` | increase (drought>0.7) — excluded from dispatch, real index never reaches 0.7 | ERROR | Physical |
+| 7 | `magnitude_cap_check` | increase (exceeds cap) — excluded from dispatch, `proposed_magnitude` never injected | WARNING | Physical |
 | 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
 | 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
-| 10 | `compact_allocation_check` | increase (basin>Compact) — inactive in shipped runs (context key never injected) | WARNING | Social |
+| 10 | `compact_allocation_check` | increase (basin>Compact) — excluded from dispatch, `basin_allocation` never injected | WARNING | Social |
 | 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
 | 12 | `zero_escape_check` | maintain (<15% util) | ERROR | Behavioral |
 

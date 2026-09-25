@@ -399,8 +399,13 @@ class TestIrrigationValidators:
         assert len(results) == 0  # Deferred to P4
 
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 8  # +1 demand_ceiling_stabilizer
-        assert len(ALL_IRRIGATION_CHECKS) == 12  # 8 physical + 2 social + 1 temporal + 1 behavioral
+        # F04 (2026-09-25 audit): drought_severity_check, compact_allocation_check
+        # and magnitude_cap_check were removed from these lists — each read a
+        # context key nothing in the pipeline produces (or a threshold the real
+        # data never reaches) and fired zero times across 49,140 audited rows.
+        # The functions are still defined and directly testable above.
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 6  # 8 - drought_severity - magnitude_cap
+        assert len(ALL_IRRIGATION_CHECKS) == 9  # 6 physical + 1 social + 1 temporal + 1 behavioral
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
@@ -430,14 +435,20 @@ class TestDomainDispatch:
         assert len(errors) >= 1
         assert any("water right" in e.errors[0].lower() for e in errors)
 
-    def test_irrigation_domain_blocks_severe_drought(self):
-        """domain='irrigation' activates drought_severity_check."""
+    def test_irrigation_domain_drought_severity_not_dispatched(self):
+        """F04 (2026-09-25 audit): drought_severity_check is intentionally
+        excluded from IRRIGATION_PHYSICAL_CHECKS (the real drought index
+        never reaches its 0.7 threshold), so domain dispatch does NOT block
+        on drought_index alone any more. The function itself still works —
+        see the direct drought_severity_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
         ctx = {"drought_index": 0.95}
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
-        errors = [r for r in results if not r.valid]
-        assert len(errors) >= 1
-        assert any("drought" in e.errors[0].lower() for e in errors)
+        errors = [
+            r for r in results
+            if not r.valid and r.metadata.get("rule_id") == "drought_severity"
+        ]
+        assert len(errors) == 0
 
     def test_irrigation_domain_no_flood_checks(self):
         """domain='irrigation' does NOT trigger flood-specific checks."""
@@ -472,17 +483,23 @@ class TestDomainDispatch:
         results = validate_all("increase_demand", self._make_rules(), ctx, domain=None)
         assert len(results) == 0
 
-    def test_irrigation_compact_warning_fires(self):
-        """domain='irrigation' activates compact_allocation_check (social)."""
+    def test_irrigation_domain_compact_allocation_not_dispatched(self):
+        """F04 (2026-09-25 audit): compact_allocation_check is intentionally
+        excluded from IRRIGATION_SOCIAL_CHECKS (nothing in the pipeline ever
+        writes basin_allocation), so domain dispatch does NOT warn on it any
+        more. The function itself still works — see the direct
+        compact_allocation_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
         ctx = {
             "total_basin_demand": 8_000_000,
             "basin_allocation": 7_500_000,
         }
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
-        warnings = [r for r in results if r.valid and r.warnings]
-        assert len(warnings) >= 1
-        assert any("compact" in w.warnings[0].lower() for w in warnings)
+        compact_warnings = [
+            r for r in results
+            if r.valid and r.warnings and r.metadata.get("rule_id") == "compact_allocation"
+        ]
+        assert len(compact_warnings) == 0
 
     def test_irrigation_curtailment_blocks_tier2(self):
         """P4: domain='irrigation' blocks increase at Tier 2+ shortage."""

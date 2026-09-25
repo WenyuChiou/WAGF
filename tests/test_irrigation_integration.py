@@ -164,14 +164,23 @@ def test_reflection_triggers():
     )
 
 
-def test_governance_validate_magnitude_cap():
-    """v12: magnitude_cap is WARNING (not ERROR) since execute_skill uses Gaussian."""
+def test_governance_validate_magnitude_cap_not_dispatched():
+    """F04 (2026-09-25 audit): magnitude_cap_check is intentionally excluded
+    from IRRIGATION_PHYSICAL_CHECKS — magnitude_pct is not in the irrigation
+    response_format the paper runs use, so the broker never injects
+    proposed_magnitude and this check fired zero times across 49,140 audited
+    rows. Domain dispatch must NOT warn on it any more; the function itself
+    still works when called directly (magnitude_cap_check in
+    irrigation_validators.py)."""
     from broker.validators.governance import validate_all
 
     ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative"}
     results = validate_all("increase_demand", [], ctx, domain="irrigation")
-    warnings = [r for r in results if r.valid and r.warnings]
-    assert len(warnings) >= 1
+    magnitude_warnings = [
+        r for r in results
+        if r.valid and r.warnings and r.metadata.get("rule_id") == "magnitude_cap"
+    ]
+    assert len(magnitude_warnings) == 0
 
 
 def test_execute_skill_maintain_demand():
