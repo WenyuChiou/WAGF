@@ -499,6 +499,19 @@ class IrrigationLifecycleHooks:
                 "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
             }
 
+            # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative
+            # per-agent counter (never written before this fix, so
+            # IrrigationAdapter.compute_importance always saw 0), incremented
+            # once per year the agent is active under drought conditions.
+            # Threshold 0.5 matches build_water_situation_text's own bucket
+            # boundary for "Water supply is tight" (the >= 0.7 threshold used
+            # by drought_severity_check is calibrated to a range the real
+            # CRSS data never reaches -- see F04).
+            drought_index_this_year = self.env.global_state.get("drought_index", 0)
+            agent.drought_count = getattr(agent, "drought_count", 0) + (
+                1 if drought_index_this_year >= 0.5 else 0
+            )
+
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
             appr = dec.get("appraisals", {}) if isinstance(dec, dict) else {}
@@ -568,15 +581,36 @@ class IrrigationLifecycleHooks:
                 continue
             mems = self.runner.memory_engine.retrieve(agent, top_k=10)
             if mems:
-                # Build domain context for adapter-based importance scoring
+                # F08+F33 (2026-09-25 audit): every input below used to be
+                # missing or in the wrong unit --
+                # ``env.get_supply_ratio()`` does not exist on
+                # IrrigationEnvironment (silent 1.0 fallback via hasattr),
+                # ``last_decision``/``drought_count`` were never written to
+                # custom_attributes (always "" / 0), and ``water_right``
+                # is the raw acre-foot entitlement, not the 0-1 utilisation
+                # fraction IrrigationAdapter.compute_importance expects --
+                # so importance always landed on the adapter's fixed 0.90
+                # and classify_emotion always returned a label outside
+                # emotional_weights. Build the real, current-year values:
+                # water_right_pct and supply_ratio from live env state,
+                # recent_decision from the actual executed skill
+                # (agent._last_action_context, set by
+                # broker/core/experiment_runner.py:_apply_state_changes),
+                # and drought_count from the cumulative counter post_year
+                # maintains above.
                 attrs = getattr(agent, "custom_attributes", {})
+                agent_state = self.env.get_agent_state(aid)
+                water_right = agent_state.get("water_right", 0) or 0
+                request = agent_state.get("request", 0) or 0
+                diversion = agent_state.get("diversion", 0) or 0
+                action_ctx = getattr(agent, "_last_action_context", None) or {}
                 agent_ctx = {
-                    "water_right_pct": attrs.get("water_right", 0.5),
-                    "supply_ratio": self.env.get_supply_ratio() if hasattr(self.env, "get_supply_ratio") else 1.0,
+                    "water_right_pct": (request / water_right) if water_right > 0 else 0.5,
+                    "supply_ratio": (diversion / request) if request > 0 else 1.0,
                     "years_farming": attrs.get("years_farming", 0),
                     "has_efficient_system": attrs.get("has_efficient_system", False),
-                    "recent_decision": attrs.get("last_decision", ""),
-                    "drought_count": attrs.get("drought_count", 0),
+                    "recent_decision": action_ctx.get("skill_name", ""),
+                    "drought_count": getattr(agent, "drought_count", 0),
                     "cluster": attrs.get("cluster", ""),
                 }
                 candidates.append({

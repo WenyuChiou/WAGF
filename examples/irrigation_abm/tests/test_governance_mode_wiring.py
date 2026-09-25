@@ -561,7 +561,11 @@ class TestBatchReflectImportanceKey:
         )
 
         hooks = IrrigationLifecycleHooks(
-            env=SimpleNamespace(),
+            # F08: _batch_reflect now always calls env.get_agent_state(aid)
+            # to build water_right_pct/supply_ratio (real IrrigationEnvironment
+            # shape); an empty dict is a safe stub here since adapter=None
+            # means this test's assertions never depend on those values.
+            env=SimpleNamespace(get_agent_state=lambda aid: {}),
             runner=runner_stub,
             profiles=[],
             reflection_engine=_StubReflectionEngine(),
@@ -585,14 +589,25 @@ class TestBatchReflectImportanceKey:
         adapter.compute_importance) ALWAYS replaces insight.importance
         before the (now-fixed) metadata dict is built -- so what actually
         reaches the "importance" key in production is the adapter's
-        score, not the YAML's static reflection.importance_boost. This
-        test drives _batch_reflect with a real IrrigationAdapter and a
-        stub env whose get_supply_ratio() returns 0.5 (< 0.60), so
-        IrrigationAdapter.compute_importance's drought_year branch fires
-        (0.95, overriding the stub insight's placeholder 0.2 -- a value
-        chosen so the assertion only passes if the override actually
-        ran) and adapter.classify_emotion returns "critical" for the
-        same low-supply context, pinning the full chain end to end."""
+        score, not the YAML's static reflection.importance_boost.
+
+        F08+F33 (2026-09-25 audit) follow-up: _batch_reflect's own
+        context-building was ALSO wrong -- ``env.get_supply_ratio()``
+        never existed on the real IrrigationEnvironment (always the 1.0
+        fallback), and ``water_right_pct`` read the raw acre-foot
+        entitlement from custom_attributes instead of a 0-1 fraction --
+        so in production this branch never actually fired; the fixed
+        0.90 the audit measured came from the OTHER always-true branch
+        (see IrrigationAdapter.compute_importance's docstring). This test
+        now drives _batch_reflect with a real IrrigationAdapter and a
+        stub env whose get_agent_state() reports diversion/request = 0.5
+        (< 0.60), so IrrigationAdapter.compute_importance's drought_year
+        branch fires (0.95, overriding the stub insight's placeholder 0.2
+        -- chosen so the assertion only passes if the override actually
+        ran) and adapter.classify_emotion returns "water_crisis" (a real
+        irrigation_farmer.memory.emotional_weights key) for the same
+        low-supply context, pinning the full corrected chain end to
+        end."""
         from types import SimpleNamespace
 
         from broker.agents import AgentConfig, BaseAgent
@@ -607,13 +622,19 @@ class TestBatchReflectImportanceKey:
         )
         agent = BaseAgent(config)
         agent.custom_attributes = {
-            "water_right": 0.5,
             "years_farming": 4,
-            "last_decision": "maintain_demand",
-            "drought_count": 2,
+            "has_efficient_system": False,
             "cluster": "aggressive",
         }
         agent.is_active = True
+        # F08: recent_decision now comes from _last_action_context (set by
+        # the real runner's _apply_state_changes), not
+        # custom_attributes["last_decision"] (never written in production).
+        agent._last_action_context = {"skill_name": "maintain_demand"}
+        # F08: drought_count now comes from this plain attribute (set by
+        # post_year's cumulative counter), not
+        # custom_attributes["drought_count"] (never written in production).
+        agent.drought_count = 2
 
         engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
 
@@ -645,6 +666,15 @@ class TestBatchReflectImportanceKey:
                 # adapter branch (broker/components/cognitive/reflection.py).
                 return self.adapter.compute_importance(context, base_importance)
 
+        class _StubEnvForBatchReflect:
+            """Same shape as IrrigationEnvironment.get_agent_state(): a
+            50% delivery ratio (diversion/request) so
+            IrrigationAdapter.compute_importance's drought_year branch
+            fires, matching this test's original intent."""
+
+            def get_agent_state(self, agent_id):
+                return {"water_right": 200_000.0, "request": 100_000.0, "diversion": 50_000.0}
+
         runner_stub = SimpleNamespace(
             broker=SimpleNamespace(config=SimpleNamespace(get_reflection_config=lambda: {})),
             agents={"Agent_drought": agent},
@@ -653,7 +683,7 @@ class TestBatchReflectImportanceKey:
         )
 
         hooks = IrrigationLifecycleHooks(
-            env=SimpleNamespace(get_supply_ratio=lambda: 0.5),  # < 0.60 -> drought_year
+            env=_StubEnvForBatchReflect(),
             runner=runner_stub,
             profiles=[],
             reflection_engine=_StubReflectionEngineWithAdapter(),
@@ -666,7 +696,51 @@ class TestBatchReflectImportanceKey:
         assert stored["importance"] == pytest.approx(
             IrrigationAdapter.importance_profiles["drought_year"]
         )
-        assert stored["emotion"] == "critical"
+        assert stored["emotion"] == "water_crisis"
+
+
+class TestIrrigationAdapterRealisticInputs:
+    """F08+F33 (2026-09-25 audit): with real (correctly-scaled) inputs,
+    IrrigationAdapter.compute_importance/classify_emotion must actually
+    discriminate between contrasting agent situations, and
+    classify_emotion's output must always be a key present in
+    irrigation_farmer.memory.emotional_weights -- the old "important"
+    label was not one, so HumanCentricMemoryEngine._apply_decay silently
+    fell back to its own 0.1 default for every irrigation reflection
+    regardless of the classified emotion."""
+
+    def test_severe_shortfall_vs_fully_met_yield_different_importance_and_valid_emotion(self):
+        from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
+
+        with open(CONFIG_DIR / "agent_types.yaml", encoding="utf-8") as f:
+            cfg_data = yaml.safe_load(f)
+        valid_emotion_keys = set(cfg_data["irrigation_farmer"]["memory"]["emotional_weights"])
+
+        adapter = IrrigationAdapter()
+
+        severe_shortfall_ctx = {
+            "water_right_pct": 0.9,        # near cap, high pressure
+            "supply_ratio": 0.4,           # delivered only 40% of request
+            "recent_decision": "increase_demand",
+            "drought_count": 3,
+        }
+        fully_met_ctx = {
+            "water_right_pct": 0.3,        # well under water right
+            "supply_ratio": 1.0,           # demand fully met
+            "recent_decision": "maintain_demand",
+            "drought_count": 0,
+        }
+
+        severe_importance = adapter.compute_importance(severe_shortfall_ctx)
+        met_importance = adapter.compute_importance(fully_met_ctx)
+        assert severe_importance != met_importance
+        assert severe_importance > met_importance
+
+        severe_emotion = adapter.classify_emotion("increase_demand", severe_shortfall_ctx)
+        met_emotion = adapter.classify_emotion("maintain_demand", fully_met_ctx)
+        assert severe_emotion in valid_emotion_keys
+        assert met_emotion in valid_emotion_keys
+        assert severe_emotion != met_emotion
 
     def test_reflection_ranks_above_met_after_increase_in_retrieve(self):
         """Isolates the ranking consequence of the fix from recency: with
