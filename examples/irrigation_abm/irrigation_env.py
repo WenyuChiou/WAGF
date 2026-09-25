@@ -210,10 +210,15 @@ class IrrigationEnvironment:
         # F17 (2026-09-25 audit): this list was [1081.46, 1082.52] labelled
         # "2017, 2018", contradicting both mead_initial_elevation (1081.46 =
         # Dec 2018 observed, below) and docs/irrigation_physics.md ("2017
-        # (1082.52 ft) and 2018 (1081.46 ft)"). With the old order,
-        # _update_preceding_factors compared _mead_history[-1]=1082.52
-        # against [-2]=1081.46 for year 1's rising/declining flag -- the
-        # wrong pair. Corrected to the documented order: 2017, then 2018.
+        # (1082.52 ft) and 2018 (1081.46 ft)"). _generate_lake_mead_level
+        # appends year 1's own level BEFORE _update_preceding_factors reads
+        # it, so on loop year 1 the comparison is _mead_history[-1] (year
+        # 1's freshly generated level) against [-2], the SECOND seed value.
+        # With the old order that second value was 1082.52 (2017's real
+        # elevation, mislabelled "2018"), so year 1's rising/declining flag
+        # compared against the wrong reference year. Corrected to the
+        # documented order (2017, then 2018) so [-2] is 1081.46, the real
+        # 2018 elevation.
         self._mead_history: List[float] = [1082.52, 1081.46]  # 2017, 2018
 
         # Mass balance storage tracking (MAF)
