@@ -1164,14 +1164,16 @@ class IrrigationEnvironment:
         cap itself each year rather than trusting a possibly-stale
         ``agent["diversion"]``. That said, it reads UB diversions from
         the *previous* year (by design: "Agent diversions are from the
-        *previous* year's decisions"), so a year whose OWN natural flow
-        is not itself restrictive can still carry forward an inflated
-        prior-year UB total if that prior year's true (Powell-clamped)
-        delivery was overwritten before this method next read it. The
-        cap that reservoir physics applies for year t is still
-        year t's own, correctly computed floor -- it is the SIZE of the
-        number being capped (year t-1's diversion total) that can be
-        wrong when year t-1's own cap did not happen to bind again.
+        *previous* year's decisions"), so this method's OWN cap for year
+        t only fully corrects year t-1's inflated total when year t's cap
+        is AT LEAST AS TIGHT as year t-1's true one; if year t's own
+        natural flow is looser, year t's cap passes through a number
+        above what year t-1 actually delivered, uncorrected. The cap that
+        reservoir physics applies for year t is still year t's own,
+        correctly computed floor for year t's OWN inflow calculation --
+        it is the SIZE of the number that floor is applied to (year
+        t-1's diversion total) that can already be wrong, and stays wrong
+        whenever year t's cap does not happen to bind at least as hard.
         What this gap reliably affects, with no independent
         re-derivation to fall back on, is narrower: ``simulation_log.csv``'s
         ``diversion`` column, this branch's F05 memory snapshot
