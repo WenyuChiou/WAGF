@@ -225,6 +225,17 @@ class SkillBrokerResult:
     secondary_approved: Optional[ApprovedSkill] = None
     secondary_execution: Optional[ExecutionResult] = None
     composite_validation_errors: List[str] = field(default_factory=list)
+    # What the simulation engine actually ran for this decision. On APPROVED /
+    # RETRY_SUCCESS it is the approved skill. On REJECTED / UNCERTAIN it is the
+    # registry default skill run as a fallback (executed_via_fallback=True), or,
+    # under on_retry_exhausted=keep_proposal, the agent's own blocked proposal.
+    # None when nothing executed (no engine, or no registered default).
+    # `approved_skill` keeps the blocked proposal on rejected rows (audit
+    # `final_skill` semantics), so consumers that need the executed action must
+    # read these fields. Deliberately NOT serialised by to_dict(): the dict feeds
+    # the efficiency cache, whose entries are approved-only.
+    executed_skill: Optional[str] = None
+    executed_via_fallback: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         d = {

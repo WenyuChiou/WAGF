@@ -353,6 +353,18 @@ def build_action_outcome_feedback(
     # Action portion (from _last_action_context stored by framework)
     if action_ctx and action_ctx.get("skill_name"):
         skill = action_ctx["skill_name"].replace("_", " ")
+        if action_ctx.get("was_fallback"):
+            # Governance rejected the proposal and the registry default skill
+            # was executed in its place; "You chose" would be false here.
+            proposed = action_ctx.get("proposed_skill")
+            if proposed:
+                lead = (f"Year {year}: your proposal to "
+                        f"{proposed.replace('_', ' ')} was rejected; "
+                        f"{skill} was applied")
+            else:
+                lead = (f"Year {year}: no valid proposal was made; "
+                        f"{skill} was applied")
+            return lead + ". " + outcome
         parts = [f"Year {year}: You chose to {skill}"]
         mag = action_ctx.get("magnitude_pct")
         if mag is not None:
