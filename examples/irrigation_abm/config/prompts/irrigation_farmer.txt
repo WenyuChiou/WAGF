@@ -6,7 +6,6 @@ Your memory includes:
 
 You currently {conservation_status} water conservation practices.
 Your ability to implement changes to your water management is {aca_hint}.
-You {trust_forecasts_text} climate and hydrological forecasts. You {trust_neighbors_text} neighboring farmers' water management advice.
 
 First, assess your WATER SUPPLY situation by considering:
 - Water Supply Outlook: Is your water supply abundant, adequate, tight, or critically short this season?
@@ -21,7 +20,7 @@ Then rate your adaptive_capacity_assessment.
 
 Now, choose one of the following water management actions:
 {options_text}
-Your decision should reflect your farming philosophy and risk tolerance.
+Your decision should reflect your water management style and risk tolerance.
 
 {rating_scale}
 

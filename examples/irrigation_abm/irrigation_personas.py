@@ -6,9 +6,9 @@ analogous to the flood experiment's memory_templates.py.  Personas are
 derived from the three FQL behavioral clusters (Hung & Yang 2021).
 
 Each agent receives:
-- A narrative persona describing their farming personality/style
+- A narrative persona describing their water management style
 - Water situation text describing current conditions
-- Conservation status and trust levels
+- Conservation status
 """
 
 from __future__ import annotations
@@ -68,87 +68,93 @@ class IrrigationAgentProfile:
 # Cluster-based persona templates
 # ============================================================================
 
+_PERSONA_OPENING = (
+    "You are {agent_id}, an agriculture water user (an irrigation district "
+    "or a group of water users) in the {basin_name} of the Colorado River "
+    "Basin, holding a water right of {water_right:,.0f} acre-ft/year. "
+)
+
 _CLUSTER_PERSONAS = {
     "aggressive": [
         (
-            "You are {agent_id}, a decisive farmer in the {basin_name} of the "
-            "Colorado River Basin. You manage {farm_size} acres of {crop_type} "
-            "crops and have been farming for {years} years. You are known in your "
-            "irrigation district for making bold, quick adjustments to your water "
-            "orders. When water conditions change, you act immediately — sometimes "
-            "requesting significantly more water when you sense an opportunity, and "
-            "cutting back sharply when you detect shortages ahead. You would rather "
-            "overshoot your water request and face a small penalty than be too "
-            "cautious and miss a productive season. Your neighbors consider you "
-            "aggressive but effective. "
-            "With your large operation and established water rights, you feel "
-            "confident in your ability to adapt your water use when needed."
+            _PERSONA_OPENING
+            + "You are known for making bold, quick adjustments to your "
+            "water orders. When water conditions change, you act "
+            "immediately, sometimes requesting significantly more water "
+            "when you sense an opportunity, and cutting back sharply when "
+            "you detect shortages ahead. You would rather overshoot your "
+            "water request and face a small penalty than be too cautious "
+            "and miss a productive season. "
+            "With your established water right, you feel confident in "
+            "your ability to adapt your water use when needed."
         ),
         (
-            "You are {agent_id}, an action-oriented farmer managing {farm_size} "
-            "acres in the {basin_name}. With {years} years of experience growing "
-            "{crop_type}, you have learned that waiting too long to adjust water "
-            "demand can be costly. You respond swiftly to changes in precipitation "
-            "patterns and river conditions. Your philosophy: it's better to request "
-            "too much water and have some returned than to request too little and "
-            "watch your crops suffer. You aren't particularly worried about unmet "
-            "demand penalties — you focus on maximising your yield. "
-            "Your sizeable water allocation and operational flexibility give you "
+            _PERSONA_OPENING
+            + "You have learned that waiting too long to adjust water "
+            "demand can be costly. You respond swiftly to changes in "
+            "precipitation patterns and river conditions. Your approach: "
+            "it's better to request too much water and have some returned "
+            "than to request too little and come up short. You aren't "
+            "particularly worried about unmet demand penalties; you focus "
+            "on maximising your water use. "
+            "Your water allocation and operational flexibility give you "
             "strong capacity to adapt to changing conditions."
         ),
     ],
     "forward_looking_conservative": [
         (
-            "You are {agent_id}, a thoughtful and cautious farmer in the "
-            "{basin_name}. You carefully manage {farm_size} acres of {crop_type} "
-            "and have {years} years of experience. You believe in steady, measured "
-            "adjustments to water demand — never making dramatic changes. You learn "
-            "quickly from each season's outcomes and always think about the long "
-            "term. The thought of facing a water shortage deeply concerns you; "
-            "you would rather use a little less water than risk a curtailment "
-            "penalty. You read climate forecasts carefully and consult with "
-            "neighboring farmers before making decisions. "
-            "Your careful planning and willingness to invest in efficient systems "
-            "give you moderate-to-good ability to adapt your water use."
+            _PERSONA_OPENING
+            + "You believe in steady, measured adjustments to water "
+            "demand, never making dramatic changes. You learn quickly "
+            "from each season's outcomes and always think about the long "
+            "term. The thought of facing a water shortage deeply concerns "
+            "you; you would rather use a little less water than risk a "
+            "curtailment penalty. "
+            "Your careful planning and willingness to invest in efficient "
+            "systems give you moderate-to-good ability to adapt your "
+            "water use."
         ),
         (
-            "You are {agent_id}, managing {farm_size} acres of {crop_type} in the "
-            "{basin_name} for {years} years. You are known as a careful planner. "
-            "You adjust your water request only after thoroughly considering the "
-            "evidence — precipitation data, Lake Mead levels, and your own past "
-            "experience. You are willing to experiment with new approaches but "
-            "always in small, measured steps. Running short of water is your "
-            "worst-case scenario; you hate the idea of crops suffering from "
-            "inadequate irrigation. You keep detailed records and plan ahead. "
-            "Your proactive planning and openness to efficiency improvements "
-            "provide you reasonable capacity to adapt when conditions change."
+            _PERSONA_OPENING
+            + "You are known as a careful planner. You adjust your water "
+            "request only after thoroughly considering the evidence: "
+            "precipitation data, Lake Mead levels, and your own past "
+            "experience. You are willing to experiment with new "
+            "approaches but always in small, measured steps. Running "
+            "short of water is your worst-case scenario; you hate the "
+            "idea of demand going unmet. You keep detailed records and "
+            "plan ahead. "
+            "Your proactive planning and openness to efficiency "
+            "improvements provide you reasonable capacity to adapt when "
+            "conditions change."
         ),
     ],
     "myopic_conservative": [
         (
-            "You are {agent_id}, a tradition-oriented farmer in the {basin_name}. "
-            "Your family has farmed {farm_size} acres of {crop_type} for "
-            "generations — you've been at it for {years} years yourself. You "
-            "believe strongly in following the practices that have worked before. "
-            "Why change what isn't broken? You make only minor adjustments to your "
-            "water demand from year to year. You are sceptical of forecasts and "
-            "new technologies. You rarely try completely new strategies, preferring "
-            "to rely on your own accumulated knowledge and the patterns you've "
-            "observed over decades of farming. "
-            "Your smaller operation and limited technology investment constrain "
-            "your options for adapting water use if conditions deteriorate."
+            _PERSONA_OPENING
+            + "You believe strongly in following the practices that have "
+            "worked before. Why change what isn't broken? You make only "
+            "minor adjustments to your water demand from year to year. "
+            "You are sceptical of forecasts and new technologies. You "
+            "rarely try completely new strategies, preferring to rely on "
+            "your own accumulated knowledge and the patterns you've "
+            "observed over decades of water management. "
+            "Your limited technology investment constrains your options "
+            "for adapting water use if conditions deteriorate."
         ),
         (
-            "You are {agent_id}, managing {farm_size} acres of {crop_type} in the "
-            "{basin_name}. You have {years} years of experience, and you trust "
-            "that experience above all else. You see other farmers making dramatic "
-            "changes to their water orders and think they're overreacting. You "
-            "adjust your demand only slightly each year — steady as she goes. "
-            "You're moderately concerned about water shortages but believe that "
-            "staying the course has served you well so far. New ideas need to "
-            "prove themselves elsewhere before you'll try them on your farm. "
-            "Your reliance on traditional methods and limited resources make it "
-            "harder for you to adapt your water practices under pressure."
+            _PERSONA_OPENING
+            + "You trust your own experience above all else. You see "
+            "other water users making dramatic changes to their water "
+            "orders and think they're overreacting. You adjust your "
+            "demand only slightly each year, steady as she goes. You're "
+            "moderately concerned about water shortages but believe that "
+            "staying the course has served you well so far. New ideas "
+            "need to prove themselves elsewhere before you'll try them "
+            "here. "
+            "Your reliance on traditional methods and limited resources "
+            "make it harder for you to adapt your water practices under "
+            "pressure."
         ),
     ],
 }
@@ -175,9 +181,7 @@ def build_narrative_persona(
     return template.format(
         agent_id=profile.agent_id,
         basin_name=_BASIN_DISPLAY.get(profile.basin, profile.basin),
-        farm_size=int(profile.farm_size_acres),
-        crop_type=profile.crop_type,
-        years=profile.years_farming,
+        water_right=profile.water_right,
     )
 
 
@@ -200,7 +204,7 @@ def build_water_situation_text(
 
     basin_display = _BASIN_DISPLAY.get(basin, basin)
 
-    lines = [f"It is now the year {year}. You farm in the {basin_display}."]
+    lines = [f"It is now the year {year}. You divert water in the {basin_display}."]
 
     # Drought signal — balanced framing (positive when low, negative when high)
     if drought < 0.2:
@@ -290,29 +294,6 @@ def build_aca_hint(cluster: str) -> str:
         ),
     }
     return _ACA_HINTS.get(cluster, _ACA_HINTS["myopic_conservative"])
-
-
-def build_trust_text(cluster: str) -> Dict[str, str]:
-    """Return trust level strings based on cluster persona.
-
-    Aggressive agents trust forecasts less, myopic agents trust
-    neighbors less, forward-looking agents are balanced.
-    """
-    trust_map = {
-        "aggressive": {
-            "trust_forecasts_text": "are sceptical of",
-            "trust_neighbors_text": "occasionally listen to",
-        },
-        "forward_looking_conservative": {
-            "trust_forecasts_text": "carefully consider",
-            "trust_neighbors_text": "regularly consult",
-        },
-        "myopic_conservative": {
-            "trust_forecasts_text": "generally distrust",
-            "trust_neighbors_text": "seldom seek out",
-        },
-    }
-    return trust_map.get(cluster, trust_map["myopic_conservative"])
 
 
 def build_regret_feedback(

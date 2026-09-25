@@ -42,7 +42,6 @@ from examples.irrigation_abm.irrigation_personas import (
     build_water_situation_text,
     build_conservation_status,
     build_aca_hint,
-    build_trust_text,
     build_action_outcome_feedback,
     create_profiles_from_csv,
     rebalance_clusters,
@@ -343,14 +342,11 @@ class IrrigationLifecycleHooks:
 
             # Build dynamic context attributes for prompt template
             water_situation = build_water_situation_text(ctx)
-            trust = build_trust_text(profile.cluster)
             conservation = build_conservation_status(profile)
 
             agent.water_situation_text = water_situation
             agent.conservation_status = conservation
             agent.aca_hint = build_aca_hint(profile.cluster)
-            agent.trust_forecasts_text = trust["trust_forecasts_text"]
-            agent.trust_neighbors_text = trust["trust_neighbors_text"]
 
             # Sync ALL validator-relevant fields from environment → agent
             # These flow through custom_attributes → context["state"] → validation_context
@@ -398,7 +394,13 @@ class IrrigationLifecycleHooks:
                     drought_index=ctx.get("drought_index", 0),
                     preceding_factor=ctx.get("preceding_factor", 0),
                 )
-                self.runner.memory_engine.add_memory(aid, feedback)
+                # add_memory_for_agent (not add_memory) so _classify_emotion/
+                # _classify_source (broker/components/memory/engines/
+                # humancentric.py) see this agent's memory_config (the
+                # irrigation_farmer.memory YAML block, injected onto every
+                # agent by ExperimentBuilder.build()'s Phase-12 step) instead
+                # of falling back to the generic keyword/pattern banks.
+                self.runner.memory_engine.add_memory_for_agent(agent, feedback)
 
     # -- post_step: record each agent's decision --
     def post_step(self, agent, result):
@@ -767,12 +769,14 @@ def main():
     # default OFF (byte-identical to pre-PR-9 behaviour). See
     # AgentTypeConfig.get_coupling_context_contract for what the flag
     # does and examples/irrigation_abm/irrigation_coupling.py for the guard.
-    # The SAME two lines appear in run_ungoverned_experiment.py and
-    # run_fql_baseline.py (review P1-a): a flag that reached only the
-    # governed arm would make the two arms of a comparison differ in
-    # something other than governance. AgentTypeConfig.load caches per
-    # resolved path, so this is one parse per config per process, not one
-    # per call site.
+    # run_fql_baseline.py has the SAME two lines (review P1-a): a flag that
+    # reached only the governed arm would make the two arms of a comparison
+    # differ in something other than governance. run_ungoverned_
+    # experiment.py no longer has its own copy (irrigation case-alignment,
+    # 2026-09) -- it is a thin wrapper that forwards to THIS main(), so it
+    # shares this guard by construction rather than by keeping a duplicate
+    # in sync. AgentTypeConfig.load caches per resolved path, so this is one
+    # parse per config per process, not one per call site.
     from broker.utils.agent_config import AgentTypeConfig
     coupling_contract_active = AgentTypeConfig.load(
         str(agent_config_path)
@@ -811,6 +815,13 @@ def main():
         decay_rate=gm.get("decay_rate", 0.1),
         emotional_weights=irr_mem.get("emotional_weights"),
         source_weights=irr_mem.get("source_weights"),
+        # Without this, _classify_emotion() (broker/components/memory/
+        # engines/humancentric.py) falls back to its own generic keyword
+        # bank (critical/major/positive/shift), whose labels don't match
+        # the emotional_weights keys above (water_crisis/strategic_choice/
+        # positive_outcome/social_feedback/baseline_observation) -- every
+        # classification then misses and silently uses the 0.1 fallback.
+        emotion_keywords=irr_mem.get("emotion_keywords"),
         W_recency=rw.get("recency", adapter_rw.get("W_recency", 0.3)),
         W_importance=rw.get("importance", adapter_rw.get("W_importance", 0.4)),
         W_context=rw.get("context", adapter_rw.get("W_context", 0.3)),
@@ -856,6 +867,18 @@ def main():
     apply_to_llm_config(perf, num_ctx_override=args.num_ctx, num_predict_override=args.num_predict)
 
     # --- Build experiment ---
+    # governance_mode == "disabled" is the single unified path for what used
+    # to be a SEPARATE script (run_ungoverned_experiment.py): besides the
+    # YAML thinking/identity rules being empty (agent_types.yaml's
+    # governance.disabled block), the irrigation-specific physical/social/
+    # behavioral checks in irrigation_governance_validator (water right cap,
+    # drought severity, magnitude cap, demand floor/ceiling, curtailment
+    # awareness, compact allocation, ...) are a SECOND, independent
+    # governance layer, unconditionally wired in regardless of
+    # governance_mode until this fix. An ungoverned run must have neither.
+    custom_validators = (
+        [] if args.governance_mode == "disabled" else [irrigation_governance_validator]
+    )
     builder = (
         ExperimentBuilder()
         .with_model(args.model)
@@ -866,7 +889,7 @@ def main():
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance(args.governance_mode, str(agent_config_path))
-        .with_custom_validators([irrigation_governance_validator])
+        .with_custom_validators(custom_validators)
         .with_exact_output(str(output_dir))
         .with_workers(args.workers)
         .with_seed(seed)

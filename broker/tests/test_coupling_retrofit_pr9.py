@@ -909,20 +909,60 @@ class TestSubprocessConnectorReviewHardening:
 # ---------------------------------------------------------------------------
 class TestFlagReachesEveryIrrigationRunner:
     @pytest.mark.parametrize("runner", [
-        "run_experiment.py", "run_ungoverned_experiment.py", "run_fql_baseline.py",
+        "run_experiment.py", "run_fql_baseline.py",
     ])
     def test_runner_reads_the_getter_and_passes_it(self, runner):
-        """Source-level check on purpose: these three ``main()`` functions
-        run a whole experiment, so the cheap and honest way to pin 'the flag
-        reaches this arm' is that the arm reads the same getter and hands the
-        result to the environment. Before the review only the governed runner
-        did, which would have made a gov-vs-noval pair differ in something
-        other than governance."""
+        """Source-level check on purpose: these two ``main()`` functions each
+        run a whole experiment and independently construct
+        ``IrrigationEnvironment``, so the cheap and honest way to pin 'the
+        flag reaches this arm' is that each one reads the same getter and
+        hands the result to the environment directly. Before the original
+        review only the governed runner did, which would have made a
+        gov-vs-noval pair differ in something other than governance.
+
+        ``run_ungoverned_experiment.py`` is intentionally NOT parametrized
+        here (2026-09, irrigation case-alignment follow-up): it no longer
+        runs its own pipeline at all -- it is a thin argv-forwarding wrapper
+        around ``run_experiment.py``'s ``main()`` (see
+        ``test_ungoverned_forwards_to_run_experiment_main`` below). Pinning
+        these two literal fragments in ITS source would only be checking
+        prose that happens to mention them, not the actual call, once the
+        two scripts stopped duplicating the pipeline.
+        """
         src = (ROOT / "examples/irrigation_abm" / runner).read_text(encoding="utf-8")
         assert "get_coupling_context_contract()" in src
         assert "coupling_contract_active=coupling_contract_active" in src
 
+    def test_ungoverned_forwards_to_run_experiment_main(self):
+        """run_ungoverned_experiment.py must delegate to run_experiment.py's
+        main() -- the one remaining place get_coupling_context_contract() /
+        coupling_contract_active= is called for the "ungoverned" path --
+        rather than reimplementing environment construction itself. Checked
+        two ways: (1) the wrapper's own source actually imports and calls
+        run_experiment's main, not just mentions it; (2) the delegation
+        target (run_experiment.py) still carries the wiring this class
+        exists to pin, so a regression there is still caught by the test
+        above."""
+        wrapper_src = (
+            ROOT / "examples/irrigation_abm" / "run_ungoverned_experiment.py"
+        ).read_text(encoding="utf-8")
+        assert "from examples.irrigation_abm.run_experiment import main" in wrapper_src
+        assert "_run_experiment_main()" in wrapper_src
+
+        target_src = (ROOT / "examples/irrigation_abm" / "run_experiment.py").read_text(
+            encoding="utf-8"
+        )
+        assert "get_coupling_context_contract()" in target_src
+        assert "coupling_contract_active=coupling_contract_active" in target_src
+
     @pytest.mark.parametrize("runner", [
+        # run_ungoverned_experiment.py's case is vacuously true now
+        # (irrigation case-alignment, 2026-09): it no longer constructs
+        # IrrigationEnvironment at all, bare-positional or otherwise, since
+        # it forwards to run_experiment.py's main(). Kept in the
+        # parametrize list anyway -- harmless, and it still guards against
+        # someone reintroducing a bare-positional construction directly in
+        # this file in the future.
         "run_ungoverned_experiment.py", "run_fql_baseline.py",
     ])
     def test_bare_positional_construction_is_gone_from_the_other_arms(self, runner):
