@@ -1,0 +1,671 @@
+# =============================================================================
+# IRRIGATION ABM — AGENT TYPES CONFIGURATION
+# =============================================================================
+# Adapted from Hung & Yang (2021) RL-ABM-CRSS framework:
+#   "Assessing Adaptive Irrigation Impacts on Water Scarcity in
+#    Nonstationary Environments — A Multi-Agent Reinforcement Learning Approach"
+#   Water Resources Research, 57, e2020WR029262.
+#
+# LLM-driven version: agents use language model reasoning (not Q-learning)
+# to make water demand decisions.  FQL parameters map to behavioral personas
+# and governance constraints.
+# =============================================================================
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global_config:
+  memory:
+    # retrieval is 3 items by weighted recency/importance/context
+    # (broker/components/context/providers.py MemoryProvider hardcodes
+    # top_k=3; window_size/top_k_significant below only apply to the
+    # "legacy" ranking_mode, which this domain never selects, so they
+    # were removed here - see irrigation_farmer.memory for the same note).
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    decay_rate: 0.1
+
+  reflection:
+    interval: 1
+    batch_size: 10
+    importance_boost: 0.9
+    persona_instruction: "Summarize each agent's memories into a 2-sentence 'Lesson Learned'. Speak in the FIRST PERSON (e.g., 'I realized...') and maintain the agent's role."
+    questions:
+      - "Was your water demand strategy effective given the supply conditions?"
+      - "Did the magnitude of your demand change match the outcome?"
+      - "What patterns do you notice between your actions and supply shortfalls?"
+    # reflection fires every year via reflection.interval (IrrigationLifecycleHooks.post_year
+    # -> ReflectionEngine.should_reflect); the trigger-based system this block once
+    # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
+    # called anywhere in this domain's runners, so it was removed here.
+    method: hybrid
+
+  llm:
+    model: "command-line-override"
+    num_ctx: 8192
+    num_predict: 4096
+    max_retries: 2
+
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: irrigation               # Domain selector for validator injection
+    retry_feedback_mode: silent
+
+  # --- Colorado River Basin water system parameters ---
+  water_system:
+    total_compact_allocation: 16500000  # acre-ft/year (Upper + Lower + Mexico)
+    upper_basin_share: 7500000          # acre-ft/year
+    lower_basin_share: 7500000          # acre-ft/year
+    mexico_share: 1500000               # acre-ft/year
+    simulation_start: 2019
+    simulation_end: 2060
+    historical_start: 1971
+    historical_end: 2018
+    monte_carlo_runs: 100
+
+# =============================================================================
+# SHARED DEFINITIONS
+# =============================================================================
+shared:
+  # Prompt variables supplied by the irrigation lifecycle/context code rather
+  # than by response_format fields.
+  template_vars:
+    - water_situation_text
+    - feedback_dashboard
+    - conservation_status
+    - aca_hint
+
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      # Chain-of-Thought: Reasoning FIRST, then appraisals, then decision
+      # NOTE: Keep to 4 fields only (matching flood ABM pattern).
+      # gemma3:4b collapses nested {"label","reason"} when >4 fields.
+      # magnitude_pct removed: execution uses Gaussian sampling (v12+).
+      # secondary_decision removed: multi_skill disabled.
+      - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE making a decision." }
+      - {
+          key: "water_scarcity_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "WSA_LABEL",
+          reason_hint: "One sentence on whether your water supply feels abundant, adequate, or tight.",
+        }
+      - {
+          key: "adaptive_capacity_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "ACA_LABEL",
+          reason_hint: "One sentence on how well you can adapt your water use.",
+        }
+      # Decision comes AFTER reasoning and appraisals
+      - { key: "decision", type: "choice", required: true }
+
+# =============================================================================
+# IRRIGATION FARMER AGENT TYPE
+# =============================================================================
+irrigation_farmer:
+  description: >
+    Agricultural water user in the Colorado River Basin making annual
+    irrigation demand decisions.  Three behavioral clusters from Hung & Yang
+    (2021): Aggressive, Forward-looking Conservative, Myopic Conservative.
+    LLM reasoning replaces Q-learning; governance rules enforce water
+    allocation constraints equivalent to FQL parameter bounds.
+  psychological_framework: cognitive_appraisal
+
+  prompt_template_file: config/prompts/irrigation_farmer.txt
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action", "selected_action"]
+    default_skill: "maintain_demand"
+    global_skills: ["maintain_demand"]
+    full_disclosure: true
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    list_delimiters: ["/", "|", "\\"]
+
+    audit_keywords:
+      [
+        "water",
+        "irrigation",
+        "drought",
+        "supply",
+        "demand",
+        "crop",
+        "river",
+        "allocation",
+        "shortage",
+        "curtailment",
+        "conservation",
+        "efficiency",
+      ]
+    audit_context_fields: ["narrative_persona", "water_situation_summary"]
+    audit_blacklist:
+      [
+        "water",
+        "irrigation",
+        "farm",
+        "farmer",
+        "crop",
+        "agriculture",
+      ]
+    audit_stopwords: ["water", "irrigation", "farm", "crop"]
+
+    synonyms:
+      wsa:
+        [
+          "water_scarcity",
+          "drought_risk",
+          "scarcity",
+          "shortage",
+          "vulnerability",
+          "supply_risk",
+          "curtailment_risk",
+        ]
+      aca:
+        [
+          "adaptation_ability",
+          "coping",
+          "resilience",
+          "flexibility",
+          "efficiency_capability",
+          "conservation_capacity",
+        ]
+
+    skill_map:
+      "1": "increase_large"
+      "2": "increase_small"
+      "3": "maintain_demand"
+      "4": "decrease_small"
+      "5": "decrease_large"
+
+    constructs:
+      WSA_LABEL:
+        {
+          keywords: ["water_scarcity_assessment", "water_scarcity"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      WSA_REASON: { keywords: ["water_scarcity_assessment", "water_scarcity"], regex: ".*" }
+      ACA_LABEL:
+        {
+          keywords: ["adaptive_capacity_assessment", "adaptive_capacity"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      ACA_REASON: { keywords: ["adaptive_capacity_assessment", "adaptive_capacity"], regex: ".*" }
+
+  log_fields: ["water_scarcity_assessment", "adaptive_capacity_assessment"]
+
+  # ---------------------------------------------------------------------------
+  # Memory Configuration
+  # ---------------------------------------------------------------------------
+  memory:
+    engine_type: "human_centric"
+    # retrieval is 3 items by weighted recency/importance/context (see
+    # global_config.memory above); window_size and top_k_significant were
+    # removed here because they only applied to HumanCentricMemoryEngine's
+    # "legacy" ranking_mode, and this domain always constructs the engine
+    # with ranking_mode="weighted" (run_experiment.py), so they were never
+    # read at runtime.
+
+    emotion_keywords:
+      # "drought" was deliberately dropped from this list: build_action_outcome_feedback
+      # / build_regret_feedback (irrigation_personas.py) unconditionally append
+      # "Drought index: N.NN." to every yearly outcome line regardless of severity,
+      # so keeping "drought" here made water_crisis match every single outcome line
+      # (including "Demand fully met" ones), masking the shortfall/unmet signal below.
+      water_crisis:
+        ["curtailment", "shortage", "shortfall", "unmet", "dry", "depleted", "crisis"]
+      strategic_choice:
+        ["decision", "increase", "decrease", "efficiency", "conservation"]
+      positive_outcome:
+        ["sufficient", "surplus", "saved", "adequate", "improved", "fully met"]
+      social_feedback:
+        ["neighbor", "upstream", "downstream", "compact", "agreement"]
+    emotional_weights:
+      water_crisis: 1.0
+      strategic_choice: 0.8
+      positive_outcome: 0.6
+      social_feedback: 0.4
+      baseline_observation: 0.1
+    source_weights:
+      personal: 1.0
+      neighbor: 0.8
+      community: 0.6
+    # _classify_source() (broker/components/memory/engines/humancentric.py)
+    # only ever reads/returns personal / neighbor / community / abstract; a
+    # source_patterns key of any other name (this used to be a separate
+    # "basin" key, plus a "policy" key with its own source_weights entry)
+    # is silently ignored, so those keyword lists and weights were dead.
+    # Renamed/folded into "community" so basin- and policy-level language
+    # is actually classified, instead of falling back to the code's own
+    # ["%", "community", "region", "area"] default (which trapped every
+    # outcome line's "N% unmet" text as "community" before "personal"
+    # could ever be reached).
+    source_patterns:
+      personal: ["i ", "my ", "me ", "you ", "your "]
+      neighbor: ["neighbor", "upstream", "downstream", "adjacent"]
+      community:
+        ["basin", "compact", "allocation", "bureau", "regulation", "policy", "mandate", "restriction"]
+
+    retrieval_weights:
+      recency: 0.3
+      importance: 0.5
+      context: 0.2
+
+    arousal_threshold: 0.5
+    ema_alpha: 0.3
+
+  # ---------------------------------------------------------------------------
+  # Feedback Dashboard (config-driven env feedback for LLM agents)
+  # See broker/components/feedback_provider.py
+  # ---------------------------------------------------------------------------
+  feedback:
+    trend_window: 5
+    dashboard_format: "table"       # table | summary | none
+    tracked_metrics:
+      - name: "request"
+        source: "current_request"   # key in env_context dict
+        unit: "AF"
+        format: ",.0f"
+      - name: "supply"
+        source: "current_diversion"
+        unit: "AF"
+        format: ",.0f"
+    assertions:
+      # F13 (2026-09-25 audit): diversion = min(request, water_right) x
+      # (1 - curtailment_ratio), so for any agent below its water right,
+      # raising the request DOES raise actual supply (curtailment applies
+      # to the whole request, not a fixed shortfall) -- the old message
+      # claimed the opposite. The old trigger (< 0.95) also sat exactly on
+      # the Tier 1 curtailment ratio (supply/request == 1 - 0.05 == 0.95
+      # for every agent at request <= water_right, which is every agent:
+      # update_agent_request caps request AT water_right, it never exceeds
+      # it), so an Upper Basin agent's Powell-scaled ratio (a real,
+      # continuously varying value, not a fixed tier constant) straddles
+      # 0.95 for a real fraction of agents. 0.90 is exactly Tier 2's ratio
+      # (1 - 0.10) and has the identical problem one tier over -- code
+      # review caught this on the first fix attempt. 0.85 sits with real
+      # margin (0.05) from both Tier 2 (0.90) and Tier 3 (0.80). It still
+      # fires for every Tier 3 agent in either basin (20% curtailment
+      # alone gives supply/request = 0.80 < 0.85, no Powell scaling
+      # needed) as well as any Upper Basin agent under additional Powell
+      # scaling; it does not fire on a Tier 1/Tier 2 boundary coincidence,
+      # which was the actual bug.
+      #
+      # Second code-review pass (2026-09-25): in a Powell zero-delivery
+      # year (see _apply_powell_constraint's docstring) supply is exactly
+      # 0 regardless of request size, so "a larger request will still
+      # raise your supply" is itself false for that one case. The first
+      # attempt to exclude it, "and supply > 0", does not work:
+      # SafeExpressionEvaluator.evaluate (broker/components/analytics/
+      # feedback.py) replaces every 0-valued variable with 1e-10 before
+      # evaluating (its own division-by-zero guard), so supply is never
+      # seen as exactly 0 there. "and supply >= 1" DOES work: real
+      # deliveries in this domain are acre-feet (tens of thousands), never
+      # a fractional AF, so 1e-10 fails ">= 1" while every genuine
+      # nonzero delivery passes it.
+      - when: "supply / request < 0.85 and supply >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF but only received {supply_fmt} AF
+          ({unmet_pct:.0f}% unmet) because curtailment reduces your whole
+          request, so a larger request will still raise your supply until
+          you reach your water right.
+
+  # ---------------------------------------------------------------------------
+  # Available Actions
+  # ---------------------------------------------------------------------------
+  actions:
+    - id: increase_large
+      aliases: ["IL", "increase_large", "large increase", "aggressive increase",
+                "[IL]", "[increase_large]"]
+      description: >
+        Aggressively increase water demand (8-20% change). Higher yield
+        potential but significant curtailment risk.
+
+    - id: increase_small
+      aliases: ["IS", "increase_small", "small increase", "cautious increase",
+                "modest increase", "[IS]", "[increase_small]"]
+      description: >
+        Cautiously increase water demand (1-8% change). Modest growth
+        with lower curtailment risk.
+
+    - id: maintain_demand
+      aliases: ["MD", "maintain", "maintain_demand", "status quo",
+                "no change", "do nothing", "[MD]", "[maintain]",
+                "[maintain_demand]"]
+      description: >
+        Maintain current water demand level. No change to irrigation
+        practices.
+
+    - id: decrease_small
+      aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
+                "cautious decrease", "[DS]", "[decrease_small]"]
+      description: >
+        Cautiously reduce water demand (1-8% change). Modest conservation
+        while maintaining most crop yield.
+
+    - id: decrease_large
+      aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
+                "[DL]", "[decrease_large]"]
+      description: >
+        Aggressively reduce water demand (8-20% change). Significant
+        conservation at the cost of reduced yield.
+
+  # ---------------------------------------------------------------------------
+  # Multi-skill Configuration
+  # ---------------------------------------------------------------------------
+  multi_skill:
+    enabled: false
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
+
+  # ---------------------------------------------------------------------------
+  # Governance Profiles — derived from FQL parameter constraints
+  # ---------------------------------------------------------------------------
+  governance:
+    # Strict governance: enforces water allocation rules + behavioral
+    # consistency checks for the WSA/ACA appraisal structure.
+    strict:
+      thinking_rules:
+        # R1: High water threat → cannot maintain status quo
+        # NOTE: WARNING (not ERROR) to avoid double-bind when all other actions also blocked
+        - {
+            id: high_threat_no_maintain,
+            construct: WSA_LABEL,
+            when_above: ["VH"],
+            blocked_skills: ["maintain_demand"],
+            level: WARNING,
+            message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
+          }
+        # R2: Very low threat → cannot justify demand increase
+        # NOTE: Changed from ["VL", "L"] to ["VL"] only to allow moderate increase
+        # when WSA=L (farmers naturally expand when water is available)
+        - {
+            id: low_threat_no_increase,
+            conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
+          }
+        # R4: High threat + high coping → should not increase demand (BLOCK + retry)
+        - {
+            id: high_threat_high_cope_no_increase,
+            conditions:
+              [
+                { construct: WSA_LABEL, values: ["H", "VH"] },
+                { construct: ACA_LABEL, values: ["H", "VH"] },
+              ],
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
+          }
+
+      identity_rules:
+        # Physical constraint: cannot increase beyond water right
+        - {
+            id: water_right_cap,
+            precondition: at_allocation_cap,
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Cannot increase demand — already at maximum water right allocation.",
+          }
+        # Economic hallucination guard: prevent demand reduction below 10% utilisation
+        - {
+            id: minimum_utilisation_floor,
+            precondition: below_minimum_utilisation,
+            blocked_skills: ["decrease_large", "decrease_small"],
+            level: ERROR,
+            message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
+          }
+
+    relaxed:
+      thinking_rules:
+        - {
+            id: high_threat_warn_maintain,
+            construct: WSA_LABEL,
+            when_above: ["H"],
+            blocked_skills: ["maintain_demand"],
+            level: WARNING,
+            message: "Water threat is High — consider adapting demand.",
+          }
+      identity_rules:
+        - {
+            id: water_right_cap,
+            precondition: at_allocation_cap,
+            blocked_skills: ["increase_large", "increase_small"],
+            level: WARNING,
+          }
+
+    # PR-6: strict, PLUS world-grounded ERROR rules.
+    #
+    # `strict` conditions only on WSA_LABEL / ACA_LABEL — labels the model wrote
+    # in the same generation — so a farmer who reports low water scarcity is
+    # never contradicted, however dry the basin actually is. `grounded_v1` keeps
+    # those rules verbatim and adds one whose antecedent is the simulator's own
+    # drought index.
+    #
+    # Select with `--governance-mode grounded_v1`.
+    grounded_v1:
+      thinking_rules:
+        - {
+            id: high_threat_no_maintain,
+            construct: WSA_LABEL,
+            when_above: ["VH"],
+            blocked_skills: ["maintain_demand"],
+            level: WARNING,
+            message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
+          }
+        - {
+            id: low_threat_no_increase,
+            conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
+          }
+        - {
+            id: high_threat_high_cope_no_increase,
+            conditions:
+              [
+                { construct: WSA_LABEL, values: ["H", "VH"] },
+                { construct: ACA_LABEL, values: ["H", "VH"] },
+              ],
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
+          }
+        # WORLD-GROUNDED. `drought_index` is computed by the environment from
+        # precipitation and reservoir elevation and published in the environment
+        # context; no agent can write it. The rule fires when the basin is
+        # measurably short of water AND the farmer rated scarcity low AND asked
+        # for more — the world contradicting the self-report, which no rule
+        # conditioned on WSA_LABEL alone can detect.
+        #
+        # THRESHOLD 0.08 is the ~85th percentile of this synthetic basin's own
+        # drought index (126 basin-years, seeds 42/43/44: median 0.017, p85
+        # 0.083, max 0.160) — roughly the driest one year in six. It is derived
+        # from the environment's distribution, NOT chosen to make a rule fire:
+        # a "sounds severe" 0.4 would never be reached in 42 years here, and a
+        # rule that cannot fire is the exact defect this profile exists to
+        # remove. RECALIBRATE for a real basin, where the index has a different
+        # scale — copy the number and you have copied this testbed's climate.
+        #
+        # TWO OTHER THRESHOLDS READ THIS SAME VARIABLE, at very different
+        # values, and NONE of the three are cross-referenced in code — moving
+        # one does not move the others and nothing checks they stay coherent:
+        #   * learning/fql_skill_mapper.py::compute_wsa_label — `< 0.2 -> VL`,
+        #     `< 0.4 -> L`, ... Used ONLY by run_fql_baseline.py (the
+        #     reinforcement-learning baseline arm), which runs the twelve
+        #     hand-written irrigation validators directly and never reaches
+        #     these YAML thinking_rules. So this rule is NOT tautological for
+        #     the LLM arm: there, WSA_LABEL comes from the model's own reasoning
+        #     block (run_experiment.py reads it out of the parsed response), so
+        #     the two conditions below are genuinely independent. It WOULD be
+        #     near-tautological if the FQL arm were ever routed through this
+        #     path, because there wsa_label is a pure function of drought_index.
+        #   * adapters/irrigation_pack.py::appraisal_grounding_map —
+        #     `drought_index_bump_threshold: 0.6`, used by the post-hoc
+        #     appraisal-grounding audit tool, not by governance.
+        # Caveat worth stating in any write-up: the LLM arm's prompt DOES quote
+        # the drought index (irrigation_personas.build_water_situation_text), so
+        # this rule asks whether the model used what it was shown — a weaker
+        # claim than a hidden-variable contradiction.
+        # Full table: docs/guides/governance_layers.md, "Picking a threshold".
+        - id: observed_scarcity_low_wsa_increase
+          grounding: world
+          conditions:
+            - { variable: drought_index, scope: env, operator: ">", value: 0.08 }
+            - { construct: WSA_LABEL, values: ["VL", "L"] }
+          blocked_skills: ["increase_large", "increase_small"]
+          level: ERROR
+          message: "Demand increase blocked: the basin drought index is high this year, which your own low scarcity rating does not account for. Re-appraise scarcity against the water actually available, then choose."
+      identity_rules:
+        - {
+            id: water_right_cap,
+            precondition: at_allocation_cap,
+            blocked_skills: ["increase_large", "increase_small"],
+            level: ERROR,
+            message: "Cannot increase demand — already at maximum water right allocation.",
+          }
+        - {
+            id: minimum_utilisation_floor,
+            precondition: below_minimum_utilisation,
+            blocked_skills: ["decrease_large", "decrease_small"],
+            level: ERROR,
+            message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
+          }
+
+    disabled:
+      thinking_rules: []
+      identity_rules: []
+
+
+# =============================================================================
+# BEHAVIORAL CLUSTER PERSONAS (derived from FQL calibration)
+# =============================================================================
+# These persona profiles correspond to the three k-means clusters from
+# Hung & Yang (2021) Section 4.1.  In the LLM version, the FQL parameters
+# translate to persona traits rather than mathematical Q-learning coefficients.
+#
+# Cluster mapping (FQL → LLM persona):
+#   mu/sigma (action magnitude)  → verbal aggressiveness / change willingness
+#   alpha (learning rate)        → how quickly persona updates beliefs
+#   gamma (discount rate)        → emphasis on future vs present
+#   epsilon (exploration rate)   → willingness to try new strategies
+#   regret (penalty sensitivity) → aversion to unmet demand
+# =============================================================================
+
+personas:
+  aggressive:
+    persona_scale: 1.15        # v17: Skill-level Gaussian params scaled by persona
+    magnitude_default: 10      # Legacy (v12): used as fallback if skill_magnitude missing
+    magnitude_min: 5
+    magnitude_max: 20
+    magnitude_sigma: 3.5
+    exploration_rate: 0.02
+    description: >
+      You are an assertive, action-oriented farmer who responds quickly
+      and decisively to water supply signals. You typically adjust your
+      water demand by **5-20%** (relative to current water use), preferring
+      measured but confident changes rather than extreme swings. Supply
+      constraints and operational limits moderate your actions. You have
+      a relatively low sensitivity to unmet demand penalties; you'd rather
+      take bold action and occasionally overshoot than be cautious and miss
+      opportunities. You update your views moderately fast but trust your instincts.
+    fql_reference:
+      mu: 0.36
+      sigma: 1.22
+      alpha: 0.62
+      gamma: 0.77
+      epsilon: 0.16
+      regret: 0.78
+      actual_range: "5-20% (Phase 1 calibration)"
+
+  forward_looking_conservative:
+    persona_scale: 1.00
+    magnitude_default: 7.5
+    magnitude_min: 3
+    magnitude_max: 15
+    magnitude_sigma: 3.0
+    exploration_rate: 0.02
+    description: >
+      You are a cautious but forward-thinking farmer. You typically adjust
+      your water demand by **3-15%** (relative to current water use),
+      preferring measured, gradual adjustments rather than bold swings. You
+      learn quickly from experience and weigh future consequences heavily. You
+      are highly sensitive to unmet demand — the thought of running short of
+      water causes you significant concern. You are moderately willing to
+      explore new strategies, but you analyze carefully before acting.
+    fql_reference:
+      mu: 0.20
+      sigma: 0.60
+      alpha: 0.85
+      gamma: 0.78
+      epsilon: 0.19
+      regret: 2.22
+      actual_range: "3-15% (Phase 1 calibration)"
+
+  myopic_conservative:
+    persona_scale: 0.80
+    magnitude_default: 4.0
+    magnitude_min: 1
+    magnitude_max: 8
+    magnitude_sigma: 2.0
+    exploration_rate: 0.02
+    description: >
+      You are a tradition-oriented farmer who relies heavily on past
+      experience and established practices. You typically adjust your
+      water demand by **1-8%** (relative to current water use), making
+      only modest, incremental changes and preferring the status quo. You
+      update your views slowly, discount future outcomes, and rarely explore
+      unfamiliar strategies. You have moderate sensitivity to unmet
+      demand but generally believe that sticking to proven practices
+      is the safest approach.
+    fql_reference:
+      mu: 0.16
+      sigma: 0.87
+      alpha: 0.67
+      gamma: 0.64
+      epsilon: 0.09
+      regret: 1.54
+      actual_range: "1-8% (Phase 1 calibration)"
+
+
+# =============================================================================
+# SKILL-LEVEL GAUSSIAN MAGNITUDE PARAMETERS (v17: 5-skill model)
+# =============================================================================
+# Base parameters per skill. Persona's persona_scale multiplies these.
+# Formula: actual_param = base_param × persona_scale
+skill_magnitude:
+  increase_large:
+    mu: 12.0
+    sigma: 3.0
+    min: 8.0
+    max: 20.0
+  increase_small:
+    mu: 4.0
+    sigma: 1.5
+    min: 1.0
+    max: 8.0
+  decrease_small:
+    mu: 4.0
+    sigma: 1.5
+    min: 1.0
+    max: 8.0
+  decrease_large:
+    mu: 12.0
+    sigma: 3.0
+    min: 8.0
+    max: 20.0
+
+metadata: { version: "v17-5skill" }

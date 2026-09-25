@@ -474,17 +474,30 @@ class RetryMixin:
             # the governance layer...") even with include_reports=False --
             # only the RULES block is suppressed, not the framing choice.
             _retry_feedback_mode = getattr(self, "_retry_feedback_mode", "full")
-            if _retry_feedback_mode not in ("full", "placebo"):
+            if _retry_feedback_mode not in ("full", "placebo", "silent"):
                 # Fail loud, not "full": a config/override bug that sets this
                 # to an unrecognised value must never silently run as "full"
                 # -- that would send rule content to the model in exactly the
-                # run an operator believed was the content-free placebo arm.
+                # run an operator believed was the content-free placebo (or
+                # silent) arm.
                 raise ValueError(
                     f"_retry_feedback_mode={_retry_feedback_mode!r} is not "
-                    "'full' or 'placebo'. Refusing to guess; see "
+                    "'full', 'placebo', or 'silent'. Refusing to guess; see "
                     "AgentTypeConfig.get_governance_retry_feedback_mode."
                 )
-            if _retry_feedback_mode == "placebo" and hasattr(
+            if _retry_feedback_mode == "silent":
+                # A third retry-feedback arm, strictly more content-free than
+                # "placebo": no header, no closer, no rules block, no
+                # governance framing at all -- the retry prompt IS the
+                # original prompt, byte-for-byte, on every attempt, so the
+                # only thing that can differ between attempts is the LLM's
+                # own sampling. `prompt` is never reassigned inside this
+                # while loop (only `retry_prompt` is computed fresh each
+                # iteration), so this holds across every retry attempt, not
+                # just the first.
+                retry_prompt = prompt
+                _reports_shown = 0
+            elif _retry_feedback_mode == "placebo" and hasattr(
                 self.model_adapter, "format_intervention_prompt"
             ):
                 retry_prompt, _reports_shown = render_intervention_prompt(
