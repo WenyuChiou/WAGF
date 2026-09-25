@@ -44,12 +44,15 @@ from examples.irrigation_abm.irrigation_env import (  # noqa: E402
 
 N_AGENTS = 16
 SEED = 42
-# Non-zero, so the ε-exploration COIN FLIP is drawn and each call consumes two
-# values rather than one — which is what makes the ordering bug visible in a
-# second way. It is deliberately NOT enough to take the exploration arm: at
-# these keys the smallest coin flip is 0.118, so `_build_env` always lands in
-# the ordinary arm. `_build_exploring_env` below covers the arm itself.
-EXPLORATION_RATE = 0.05
+# Non-zero, so the epsilon-exploration COIN FLIP is drawn and each call
+# consumes two values rather than one, which is what makes the ordering bug
+# visible in a second way. It is deliberately NOT enough to take the
+# exploration arm: at these keys the smallest coin flip is 0.0311 (F12
+# follow-up, 2026-09-25: IrrigationEnvironment's pre-loop _current_year moved
+# from 2019 to 2018, which re-keys this draw; recomputed against the current
+# code), so `_build_env` always lands in the ordinary arm.
+# `_build_exploring_env` below covers the arm itself.
+EXPLORATION_RATE = 0.02
 # Above every coin flip in the fixture, so the exploration arm always runs.
 FORCED_EXPLORATION_RATE = 0.99
 

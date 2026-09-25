@@ -63,7 +63,13 @@ class TestIrrigationEnvironment:
         return env
 
     def test_initial_year(self, env):
-        assert env.current_year == 2019
+        # F12 follow-up (2026-09-25 code review): pre-loop current_year is
+        # sim_start_year - 1 (2018, the initial-conditions year), not 2019
+        # (loop year 1's value) -- they must differ so the first
+        # advance_year() call actually re-keys _decision_rng's draw. See
+        # test_advance_year_increments below and TestCalendarYearAlignment
+        # for the loop-year checks.
+        assert env.current_year == 2018
 
     def test_agent_count(self, env):
         assert len(env.agent_ids) == 5
