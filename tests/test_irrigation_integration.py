@@ -42,6 +42,30 @@ def test_execute_skill_increase_demand():
     assert state["request"] == 88_000.0
 
 
+def test_execute_skill_increase_demand_reports_applied_magnitude_in_action_context():
+    """F07 (2026-09-25 audit): execute_skill must also set action_context so
+    broker/core/experiment_runner.py:_apply_state_changes (which reads
+    params["magnitude_pct"] or result.execution_result.action_context, never
+    state_changes["magnitude_pct_applied"]) can put the ACTUAL applied
+    magnitude on agent._last_action_context, otherwise the LLM's discrete
+    request leaks into memory's "(by N%)" text instead of the Gaussian-
+    sampled value the environment used."""
+    env = _make_env_with_agent(water_right=100_000)
+    skill = ApprovedSkill(
+        skill_name="increase_demand",
+        agent_id="TestAgent",
+        approval_status="APPROVED",
+        execution_mapping="env.execute_skill",
+    )
+    # LLM proposes 15%; environment actually samples 10% (Gaussian mu=10, sigma=0).
+    skill.parameters = {"magnitude_pct": 15}
+    result = env.execute_skill(skill)
+    assert result.success
+    assert result.action_context.get("magnitude_pct") == 10
+    # Must match what was actually applied, not the LLM's proposed value.
+    assert result.action_context["magnitude_pct"] == result.state_changes["magnitude_pct_applied"]
+
+
 def test_execute_skill_decrease_demand():
     """execute_skill with decrease_demand subtracts magnitude_pct% of the current request.
 
@@ -68,12 +92,17 @@ def test_execute_skill_decrease_demand():
     assert abs(state["request"] - (80_000 - 8_000 * 7 / 9)) < 0.01
 
 
-def test_build_regret_feedback_formats_shortfall():
+def test_build_action_outcome_feedback_formats_shortfall():
+    """F15 (2026-09-25 audit): build_regret_feedback was dead (nothing
+    called it; build_action_outcome_feedback superseded it) and has been
+    removed; this test now covers the same shortfall-formatting behaviour
+    through the live function."""
     from examples.irrigation_abm.irrigation_personas import (
-        build_regret_feedback,
+        build_action_outcome_feedback,
     )
 
-    text = build_regret_feedback(
+    text = build_action_outcome_feedback(
+        action_ctx=None,
         year=2025,
         request=120_000,
         diversion=90_000,
@@ -135,14 +164,23 @@ def test_reflection_triggers():
     )
 
 
-def test_governance_validate_magnitude_cap():
-    """v12: magnitude_cap is WARNING (not ERROR) since execute_skill uses Gaussian."""
+def test_governance_validate_magnitude_cap_not_dispatched():
+    """F04 (2026-09-25 audit): magnitude_cap_check is intentionally excluded
+    from IRRIGATION_PHYSICAL_CHECKS: magnitude_pct is not in the irrigation
+    response_format the paper runs use, so the broker never injects
+    proposed_magnitude and this check fired zero times across 49,140 audited
+    rows. Domain dispatch must NOT warn on it any more; the function itself
+    still works when called directly (magnitude_cap_check in
+    irrigation_validators.py)."""
     from broker.validators.governance import validate_all
 
     ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative"}
     results = validate_all("increase_demand", [], ctx, domain="irrigation")
-    warnings = [r for r in results if r.valid and r.warnings]
-    assert len(warnings) >= 1
+    magnitude_warnings = [
+        r for r in results
+        if r.valid and r.warnings and r.metadata.get("rule_id") == "magnitude_cap"
+    ]
+    assert len(magnitude_warnings) == 0
 
 
 def test_execute_skill_maintain_demand():

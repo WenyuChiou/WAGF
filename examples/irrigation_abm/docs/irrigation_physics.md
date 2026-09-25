@@ -58,9 +58,20 @@ $$ET(S) = E_{ref} \times \max\!\left(0.15,\; \min\!\left(\frac{S}{S_{ref}},\; 1.
 | $M_{DCP}(h)$ | Mexico treaty delivery (elevation-dependent, Minute 323) | MAF/yr |
 | $ET(S)$ | Reservoir evaporation (storage-dependent) | MAF/yr |
 | $r_i$ | Agent $i$ demand request (post-governance) | AF/yr |
-| $w_i$ | Agent $i$ legal water right | AF/yr |
+| $w_i$ | Agent $i$ water right (see note below) | AF/yr |
 | $\gamma_\tau$ | Curtailment ratio for shortage tier $\tau$ | dimensionless |
 | $d_i$ | Agent $i$ actual diversion (after curtailment) | AF/yr |
+
+F10 (2026-09-25 audit): $w_i$ is `col.iloc[-1]` of that agent's
+`Div_States/*_discrete_states.csv`, the TOP of the discretised FQL
+diversion grid (Hung & Yang's `Div_max`), not a legal Colorado River
+entitlement. Initial requests come from 2018 diversions, and most
+agents' 2018 use sits well under that grid-top ceiling: 61 of 78 agents
+(52 of 56 Upper Basin) start below 50% utilisation, so
+`demand_floor_stabilizer` (`DEMAND_FLOOR_RATIO = 0.50`) binds for most
+agents from year 1 in the governed arm, not only in years where drought
+or curtailment pushes usage down. See
+`irrigation_personas.py:create_profiles_from_data`.
 
 ---
 
@@ -184,6 +195,68 @@ The Colorado River system has two major reservoirs — Lake Powell (upstream, Gl
 
 3. **Hung & Yang (2021) uses the same approach.** Their FQL model also uses a reduced-form mass balance with CRSS inputs rather than independent Powell modeling.
 
+**F11 (2026-09-25 audit, disclosure only, no behaviour change):** because
+Powell *storage* is not modelled (only its minimum-release floor, item 2
+above), a year where natural flow drops below 7.0 MAF has no storage
+buffer to draw down instead: Upper Basin diversions are scaled to
+exactly 0 for that year rather than partially reduced, immediately after
+`_apply_powell_constraint` runs. In the CRSS PRISM series this happens
+in 2022 (`_generate_lake_mead_level` / `_apply_powell_constraint` in
+`irrigation_env.py`). This zero is what the agent's own prompt and every
+governance check see, since both read state before that agent's
+decision executes.
+
+**F11b (2026-09-25, same day, later pass; the gap F11 disclosed is now
+fixed, not just disclosed):** two review passes on the branch that first
+disclosed this found that the zero did not survive that agent's own
+decision. `update_agent_request` recomputes diversion from
+`curtailment_ratio` alone, with no Powell scale factor, and every skill
+(`maintain_demand` included) calls it, so the zero (and any lesser
+Powell scaling, not only the full-zero case) used to be overwritten the
+instant that agent acted. A second review pass also found that an
+earlier draft of this note overstated the gap: `_generate_lake_mead_level`
+recomputes its own Upper-Basin cap from that year's own natural flow
+every time it runs, independent of `agent["diversion"]`'s later state,
+so the reservoir physics itself does re-derive and re-apply the Powell
+cap each year; it does not simply trust a possibly-stale value.
+
+F11b fixes the part that reliably lost the cap with nothing to
+re-derive it: a new `IrrigationEnvironment.apply_powell_cap_to_executed_diversions()`,
+called once per year from `IrrigationLifecycleHooks.post_year`
+(`run_experiment.py`) after every agent's decision has executed and
+before anything reads `diversion` for the year. Same-day code review
+found the first version of this method just re-ran the Powell cap
+computation on whatever `diversion` values were already in place, which
+double-scaled any Upper Basin agent whose decision did NOT execute that
+year (its diversion still held the FIRST, advance_year-time scaling),
+skewing the pro-rata split against agents that did execute. Fixed by
+rebuilding every Upper Basin agent's diversion from its current
+request/water_right/curtailment_ratio before re-deriving the cap, so
+every agent -- executed or not -- is scaled exactly once from the true,
+uncapped total. `simulation_log.csv`'s `diversion` column, the F05
+memory snapshot, and `_batch_reflect`'s `supply_ratio` now all correctly
+reflect the Powell cap for Upper Basin agents.
+
+As a side effect, F11b also closes a year-over-year carry-forward gap:
+`_generate_lake_mead_level` reads Upper Basin diversions from the
+*previous* year, and that value is now the F11b-corrected one for every
+agent, not an inflated (or double-scaled) figure. See
+`apply_powell_cap_to_executed_diversions`'s docstring in
+`irrigation_env.py` for the full mechanics and why it must be called
+exactly once per year, after the full decision loop, and not mid-loop.
+Whether Powell storage itself should be modelled (the remaining,
+out-of-scope half of the original finding) is still a design decision
+for the runner/env owner.
+
+Lower Basin diversions are governed separately by the tier-based
+curtailment ratios in `_apply_curtailment`, which floor at 0.80 of
+requested (Tier 3's 20% cut) by construction, so they cannot reach zero
+through this path and are not affected by the gap above. Consequently
+`supply_gap_block_increase` and the `non_negative_diversion` governance
+warning, which validate before the agent's decision executes, are still
+reachable only for Upper Basin agents in this model; Lower Basin agents
+never trigger them.
+
 ### Initial Elevation: 1081.46 ft (Dec 2018 Observed)
 
 The simulation initializes Lake Mead at 1081.46 ft, the USBR-observed elevation as of December 2018 — the year before the simulation begins (Y1 = calendar year 2019). This places the initial condition in Tier 0 (above the 1075 ft threshold). The code also pre-seeds the elevation history with 2017 (1082.52 ft) and 2018 (1081.46 ft) values for the preceding-factor computation requiring a 2-year lookback.
@@ -195,7 +268,7 @@ The simulation initializes Lake Mead at 1081.46 ft, the USBR-observed elevation 
 | Data | Source | File |
 | :--- | :----- | :--- |
 | Winter precipitation (2017-2060) | CRSS/PRISM NOAA projection | `ref/CRSS_DB/CRSS_DB/HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` |
-| Agent water rights (78 agents) | CRSS annual baseline time series | `ref/CRSS_DB/CRSS_DB/annual_baseline_time_series.csv` |
+| Agent water rights (78 agents) | Top of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`); not a legal entitlement, see the F10 note above | `ref/CRSS_DB/CRSS_DB/Div_States/UB_discrete_states.csv`, `.../LB_discrete_states.csv` |
 | Historical UB depletion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv` |
 | Historical LB diversion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/LB_historical_annual_diversion.csv` |
 | Lake Mead storage-elevation | USBR 2009 area-capacity survey | Hardcoded in `irrigation_env.py` (`_STORAGE_MAF`, `_ELEVATION_FT`) |

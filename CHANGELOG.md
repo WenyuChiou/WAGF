@@ -361,6 +361,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `max(set(...))` picked among tied values by per-process string hashing, so
   identical runs could disagree on tied rows. Ties now go to the value
   retrieved first; untied rows are unchanged.
+- **Irrigation reflection memories silently lost their calibrated
+  importance and always scored a flat 0.5**:
+  `IrrigationLifecycleHooks._batch_reflect`
+  (`examples/irrigation_abm/run_experiment.py`) stored each year-end
+  consolidated-reflection memory under metadata key `"significance"`,
+  but `HumanCentricMemoryEngine._add_memory_internal`
+  (`broker/components/memory/engines/humancentric.py`) only reads
+  `metadata.get("importance", 0.5)` -- the flood runner
+  (`examples/single_agent/run_flood.py`) already used the correct key.
+  Fixed by renaming the key. **Irrigation runs from this commit forward
+  are not byte-identical or pool-safe with any earlier corpus**:
+  reflection memories that previously all scored a flat 0.5 (below the
+  0.6 `consolidation_threshold`, so never eligible for long-term
+  consolidation and always near the bottom of weighted retrieval) now
+  score in `IrrigationAdapter.compute_importance`'s real range
+  (0.55-0.95, driven by supply ratio / drought count / decision type),
+  which changes which memories consolidate to long-term and how they
+  rank in `retrieve()`. Do not pool pre-fix and post-fix irrigation
+  results. **Correction (fix/irrigation-reflection-importance-key branch,
+  2026-09-25):** at the time this entry was written, `compute_importance`'s
+  CALLER (`_batch_reflect`) was itself still passing wrong-unit inputs
+  (see the F08 entry below), so the 0.55-0.95 range above was the
+  formula's theoretical range, not what any run actually produced --
+  every call landed on exactly 0.90. With F08's fix, an intermediate
+  finding (since superseded by F11b, see that entry) was that the range
+  narrowed further because `_batch_reflect` reads `diversion` after
+  `update_agent_request` had already discarded any Powell scaling, so
+  `supply_ratio` could only be one of four fixed curtailment tier ratios.
+  F11b restores the real, Powell-scaled value for Upper Basin agents, so
+  the two values a typical (unconstrained) run reaches are still 0.55
+  (the `stable_year` floor) or 0.90 (the default when no branch fires),
+  but an Upper Basin agent in a Powell-constrained year can now also
+  reach the `< 0.60`/`< 0.80` shortage branches (0.78-0.95) or
+  `drought_year` (0.95) via a genuinely low `supply_ratio`, and
+  `classify_emotion` can return `water_crisis` for such an agent-year.
+  See this branch's commit body for the full chain.
+
+- **Eleven more irrigation defects from the 2026-09-25 framework and case
+  audit (`.ai/framework_case_audit_2026-09-25.md`), fixed on
+  `fix/irrigation-reflection-importance-key`, one commit per finding id**.
+  **Several of these change prompt text, memory content or which
+  validators fire, so irrigation runs from this branch forward are a new
+  corpus; do not pool with any earlier one.**
+  - F07: `execute_skill` now returns the actual applied magnitude via
+    `action_context`, so memory's "(by N%)" reflects the Gaussian-sampled
+    value the environment used, not the LLM's discrete proposal.
+  - F15: Lower Basin memory lines now say "Lake Mead level was
+    rising/declining", not "Precipitation was above/below" (that basin
+    never observes Upper Basin precipitation). Dead `build_regret_feedback`
+    removed.
+  - F17: the Lake Mead history seed order was reversed (2018's real
+    elevation was being read as 2017's), affecting year 1's Lower Basin
+    trend flag.
+  - F18 (prompt-count part): the response-format instruction's option
+    count is now derived from `valid_choices_text`, not hard-coded "(1-5)".
+  - F13: the dashboard assertion's message was false below an agent's
+    water right (curtailment applies to the whole request, so a larger
+    request does still raise supply) and its trigger sat on an exact
+    tier-curtailment ratio, so it fired or not by floating-point noise.
+    Message rewritten; trigger moved to 0.85, with real margin from every
+    curtailment tier ratio (0.95/0.90/0.80).
+  - F04: `drought_severity_check`, `compact_allocation_check` and
+    `magnitude_cap_check` never fired in any real run (one reads a key
+    nothing produces, one calibrates to a drought-index range the real
+    CRSS data never reaches) and are removed from
+    `ALL_IRRIGATION_CHECKS`; a new startup self-check,
+    `assert_validator_inputs_have_producers`, fails fast if a dispatched
+    check ever reads a context key with no producer again. Verified
+    byte-identical for a strict mock run before/after (these rules never
+    fired).
+  - F05: the "last year" memory line was reading env state AFTER the
+    current year's curtailment/Powell recompute had already overwritten
+    it, so it silently reported this year's numbers under last year's
+    label. `post_year` now snapshots each year's own outcome before the
+    next year can touch it.
+  - F08+F33 (see the correction above): `_batch_reflect`'s inputs to
+    `IrrigationAdapter.compute_importance`/`classify_emotion` were all
+    missing or wrong-unit; wired to real per-agent state, and
+    `classify_emotion` now returns keys that exist in
+    `irrigation_farmer.memory.emotional_weights`.
+  - F12: loop year 1 is now calendar year 2019 (was 2020), so loop year
+    42 is 2060 (was 2061, one year past the CRSS PRISM CSV's coverage,
+    which silently fell back to synthetic precipitation for the last
+    year of every real run). A code-review follow-up also moved
+    `IrrigationEnvironment`'s pre-loop `_current_year` to 2018 so it no
+    longer collides with loop year 1's RNG key.
+  - F10: disclosure only, no model change. "Water right" is documented
+    as the top of each agent's FQL diversion grid, not a legal
+    entitlement (61 of 78 agents start below the 50% demand floor
+    because of it).
+  - F11: disclosure only, no model change. Powell storage is documented
+    as not modelled (a natural-flow-short year zeroes Upper Basin
+    delivery outright, right after `_apply_powell_constraint` runs).
+  - **F11b (same day, later pass, logged-numbers fix, not disclosure
+    only)**: F11's disclosure described a real gap it did not fix --
+    `update_agent_request` discarded that Powell scaling (any amount,
+    not only a full zero) the instant an Upper Basin agent's own decision
+    executed, so `simulation_log.csv`'s `diversion` column, the F05
+    memory snapshot, and `_batch_reflect`'s `supply_ratio` all silently
+    ignored the Powell cap for the rest of the year. Fixed by a new
+    `IrrigationEnvironment.apply_powell_cap_to_executed_diversions()`,
+    called once per year from `IrrigationLifecycleHooks.post_year`
+    (`run_experiment.py`), after every agent's decision has executed and
+    before anything reads `diversion` for the year. **Code review same
+    day**: the first version of this method just re-ran
+    `_apply_powell_constraint()` on whatever `diversion` values were
+    already in place, which double-scaled any Upper Basin agent whose
+    decision did NOT execute this year (ABORTED, an unresolved
+    REJECTED/UNCERTAIN row, or inactive) -- its diversion still held the
+    FIRST (advance_year-time) scaling, so a second raw pass scaled it
+    down again while an executed agent contributed its full,
+    not-yet-Powell-scaled value, skewing the pro-rata split between the
+    two. Fixed by rebuilding every Upper Basin agent's diversion from its
+    current `request`/`water_right`/`curtailment_ratio` (reproducing
+    `update_agent_request`'s own formula bit for bit for an agent that
+    executed, and `_apply_curtailment`'s pre-Powell value for one that
+    did not) before re-deriving the cap, so every agent is scaled exactly
+    once regardless of whether it executed this year. As a side effect
+    this also closes the year-over-year carry-forward gap noted in the
+    F11 follow-ups, since `_generate_lake_mead_level` now reads an
+    already-corrected prior-year total. Lower Basin
+    (`_apply_curtailment`'s tier floor at 0.80) is unchanged.
+    **Behaviour change for reproduction: an Upper Basin agent's logged
+    diversion, memory, and reflection inputs in a Powell-constrained year
+    now differ from any corpus produced before this commit** (Lower
+    Basin agents and years with no Powell binding are unaffected).
 
 - **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
   the retry wrapper threw the measurement away one frame above where it was

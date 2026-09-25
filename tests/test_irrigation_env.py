@@ -27,6 +27,7 @@ from examples.irrigation_abm.validators.irrigation_validators import (
     irrigation_governance_validator,
     IRRIGATION_PHYSICAL_CHECKS,
     ALL_IRRIGATION_CHECKS,
+    assert_validator_inputs_have_producers,
 )
 import examples.irrigation_abm.validators.irrigation_validators as irr_validators
 
@@ -63,14 +64,23 @@ class TestIrrigationEnvironment:
         return env
 
     def test_initial_year(self, env):
-        assert env.current_year == 2019
+        # F12 follow-up (2026-09-25 code review): pre-loop current_year is
+        # sim_start_year - 1 (2018, the initial-conditions year), not 2019
+        # (loop year 1's value) -- they must differ so the first
+        # advance_year() call actually re-keys _decision_rng's draw. See
+        # test_advance_year_increments below and TestCalendarYearAlignment
+        # for the loop-year checks.
+        assert env.current_year == 2018
 
     def test_agent_count(self, env):
         assert len(env.agent_ids) == 5
 
     def test_advance_year_increments(self, env):
+        # F12 (2026-09-25 audit): loop year 1 must be calendar year 2019
+        # (sim_start_year), not 2020 -- see TestCalendarYearAlignment below
+        # for the full 3-year and 42-year checks.
         env.advance_year()
-        assert env.current_year == 2020
+        assert env.current_year == 2019
 
     def test_advance_year_returns_global_state(self, env):
         state = env.advance_year()
@@ -197,6 +207,204 @@ class TestIrrigationEnvironment:
         # Request must stay at target_request, NOT drop to diversion
         assert abs(agent["request"] - target_request) < 1.0
         assert abs(result.state_changes["request"] - target_request) < 1.0
+
+
+class TestCalendarYearAlignment:
+    """F12 (2026-09-25 audit): loop year 1 must be calendar year 2019 and
+    loop year 42 must be 2060, so every loop year lands inside the CRSS
+    PRISM CSV's real 2017-2060 coverage instead of the last year of every
+    42-year run silently using synthetic precipitation."""
+
+    def test_three_year_mock_run_logs_2019_2020_2021(self):
+        config = WaterSystemConfig(seed=42)
+        env = IrrigationEnvironment(config)
+        env.initialize_synthetic(n_agents=3, basin_split=(2, 1))
+        years = [env.advance_year()["year"] for _ in range(3)]
+        assert years == [2019, 2020, 2021]
+
+    def test_42_loop_years_stay_inside_real_crss_coverage_no_synthetic_fallback(self):
+        """Reads the REAL CRSS PRISM CSV from the primary clone (read-only;
+        not checked into this worktree; the audit's own smoke run uses
+        synthetic profiles instead). Skips on any machine where that path
+        is absent rather than fabricating fixture data for it."""
+        import os
+
+        primary_csv = (
+            r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
+            r"\ref\CRSS_DB\CRSS_DB\HistoricalData\PrismWinterPrecip_ST_NOAA_Future.csv"
+        )
+        if not os.path.exists(primary_csv):
+            pytest.skip(f"real CRSS PRISM CSV not present at {primary_csv}")
+
+        config = WaterSystemConfig(seed=42)
+        env = IrrigationEnvironment(config)
+        env.initialize_synthetic(n_agents=3, basin_split=(2, 1))
+        env.load_crss_precipitation(primary_csv)
+
+        years = [env.advance_year()["year"] for _ in range(42)]
+
+        assert years[0] == 2019
+        assert years[-1] == 2060
+        assert env._precip_synthetic_fallback_years == [], (
+            "all 42 loop years should land inside the real CRSS CSV's "
+            "2017-2060 coverage; synthetic fallback was used for "
+            f"{env._precip_synthetic_fallback_years}"
+        )
+
+
+class TestF11bPowellCapReapplication:
+    """F11b (2026-09-25 audit follow-up): update_agent_request discards
+    whatever Powell pro-rata scaling advance_year() applied the instant an
+    Upper Basin agent's own decision executes (see
+    _apply_powell_constraint's docstring for the full finding history).
+    apply_powell_cap_to_executed_diversions() must restore the cap for
+    Upper Basin agents after execute_skill runs, and must leave Lower
+    Basin agents untouched."""
+
+    @staticmethod
+    def _agent_dict(basin: str) -> dict:
+        return {
+            "basin": basin,
+            "diversion": 80_000.0,
+            "request": 80_000.0,
+            "water_right": 100_000.0,
+            "curtailment_ratio": 0.0,
+            "at_allocation_cap": False,
+            "has_efficient_system": False,
+            "below_minimum_utilisation": False,
+            "cluster": "aggressive",
+            "persona_scale": 1.0,
+            "skill_magnitude": {
+                "increase_small": {"mu": 4.0, "sigma": 0.0, "min": 1.0, "max": 8.0},
+            },
+            "magnitude_default": 10.0,
+            "magnitude_sigma": 0.0,
+            "magnitude_min": 1.0,
+            "magnitude_max": 30.0,
+            "exploration_rate": 0.0,
+        }
+
+    def _make_env_with_low_flow(self):
+        """Natural flow clamps to 6.0 MAF (below the 7.0 MAF Powell
+        minimum-release floor), so ub_flow_cap_af = 0 for this year --
+        the same "zero-delivery year" mechanism F11/F11b document."""
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        env._agents["UB1"] = self._agent_dict("upper_basin")
+        env._agents["LB1"] = self._agent_dict("lower_basin")
+        env._precip_history = [10.0]  # -> natural_flow clamps to 6.0 MAF
+        # Tier 0 (no curtailment): default _basins lake_mead_level (1080 ft)
+        # is above mead_shortage_tier1, so curtailment_ratio stays 0.0 and
+        # only the Powell cap is exercised by this test.
+        env._apply_curtailment()
+        env._apply_powell_constraint()
+        return env
+
+    def test_ub_agent_diversion_restored_to_powell_cap_after_its_own_decision(self):
+        from types import SimpleNamespace
+
+        env = self._make_env_with_low_flow()
+        assert env._agents["UB1"]["diversion"] == 0.0  # pre-decision Powell zero
+
+        skill = SimpleNamespace(
+            skill_name="increase_small", agent_id="UB1", parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        # This is the F11b bug, reproduced: execute_skill's
+        # update_agent_request discards the Powell zero.
+        assert env._agents["UB1"]["diversion"] == pytest.approx(83_200.0)
+
+        env.apply_powell_cap_to_executed_diversions()
+        assert env._agents["UB1"]["diversion"] == 0.0
+
+    def test_lb_agent_diversion_unaffected_by_powell_cap_reapplication(self):
+        from types import SimpleNamespace
+
+        env = self._make_env_with_low_flow()
+
+        skill = SimpleNamespace(
+            skill_name="increase_small", agent_id="LB1", parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        lb_diversion_after_decision = env._agents["LB1"]["diversion"]
+        assert lb_diversion_after_decision == pytest.approx(83_200.0)
+
+        env.apply_powell_cap_to_executed_diversions()
+        assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
+        # Idempotent: calling it again changes nothing further. UB1's
+        # cap is zero here (LB1 isn't subject to the Powell cap at all),
+        # so this only exercises the trivial 0-stays-0 case; see
+        # test_partial_cap_splits_evenly_regardless_of_which_agent_executed
+        # below for the case that actually stresses re-derivation.
+        env.apply_powell_cap_to_executed_diversions()
+        assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
+        assert env._agents["UB1"]["diversion"] == 0.0
+
+    def test_partial_cap_splits_evenly_regardless_of_which_agent_executed(self):
+        """Code review (2026-09-25, same day as the F11b fix): the first
+        version of apply_powell_cap_to_executed_diversions just re-ran
+        _apply_powell_constraint on whatever diversion values were
+        already in place. That double-scaled an Upper Basin agent whose
+        decision did NOT execute this year, because its diversion still
+        held the FIRST (advance_year-time) Powell scaling, while an agent
+        that DID execute contributed its full curtailment-only value --
+        skewing the pro-rata split between two otherwise-identical
+        agents. The fix rebuilds every Upper Basin agent's diversion from
+        request/water_right/curtailment_ratio before re-deriving the cap,
+        so both agents land on the same, correct, evenly-split value
+        regardless of which one executed."""
+        from types import SimpleNamespace
+
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        for aid in ("UB_A", "UB_B"):
+            env._agents[aid] = {
+                "basin": "upper_basin",
+                "diversion": 1_000_000.0,
+                "request": 1_000_000.0,
+                "water_right": 2_000_000.0,
+                "curtailment_ratio": 0.0,
+                "at_allocation_cap": False,
+                "has_efficient_system": False,
+                "below_minimum_utilisation": False,
+                "cluster": "aggressive",
+                "persona_scale": 1.0,
+                "skill_magnitude": {},
+                "magnitude_default": 0.0,
+                "magnitude_sigma": 0.0,
+                "magnitude_min": 1.0,
+                "magnitude_max": 30.0,
+                "exploration_rate": 0.0,
+            }
+        # natural_flow = 12.0 * (66.667/100) = 8.0 MAF -> ub_flow_cap_af =
+        # (8.0 - 7.0) * 1e6 = 1,000,000 AF -- a PARTIAL cap (not a full
+        # zero), binding against the combined 2,000,000 AF request.
+        env._precip_history = [66.666667]
+        env._apply_curtailment()
+        env._apply_powell_constraint()
+        assert env._agents["UB_A"]["diversion"] == pytest.approx(500_000.0)
+        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
+
+        # UB_A's decision executes (maintain_demand keeps request at
+        # 1,000,000, discarding the 0.5 Powell scale per the F11b bug);
+        # UB_B never executes (ABORTED / no fallback / inactive), so its
+        # diversion is still the pre-decision Powell-scaled 500,000.
+        skill = SimpleNamespace(
+            skill_name="maintain_demand", agent_id="UB_A", parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        assert env._agents["UB_A"]["diversion"] == pytest.approx(1_000_000.0)
+        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
+
+        env.apply_powell_cap_to_executed_diversions()
+
+        # Correct result: both agents made an identical 1,000,000 AF
+        # request against a 1,000,000 AF aggregate cap, so both get the
+        # same evenly-split 500,000 AF -- not the skewed ~666,667 /
+        # ~333,333 split the un-fixed re-scale-in-place bug produced.
+        assert env._agents["UB_A"]["diversion"] == pytest.approx(500_000.0)
+        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
 
 
 class TestIrrigationValidators:
@@ -399,12 +607,41 @@ class TestIrrigationValidators:
         assert len(results) == 0  # Deferred to P4
 
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 8  # +1 demand_ceiling_stabilizer
-        assert len(ALL_IRRIGATION_CHECKS) == 12  # 8 physical + 2 social + 1 temporal + 1 behavioral
+        # F04 (2026-09-25 audit): drought_severity_check, compact_allocation_check
+        # and magnitude_cap_check were removed from these lists: each read a
+        # context key nothing in the pipeline produces (or a threshold the real
+        # data never reaches) and fired zero times across 49,140 audited rows.
+        # The functions are still defined and directly testable above.
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 6  # 8 - drought_severity - magnitude_cap
+        assert len(ALL_IRRIGATION_CHECKS) == 9  # 6 physical + 1 social + 1 temporal + 1 behavioral
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
             assert callable(check)
+
+    def test_assert_validator_inputs_have_producers_passes_on_dispatched_set(self):
+        """F04 code review (2026-09-25): the default call (checks=None ->
+        ALL_IRRIGATION_CHECKS) must not raise -- this is exactly what runs
+        at module import time."""
+        assert_validator_inputs_have_producers()
+
+    def test_assert_validator_inputs_have_producers_catches_dead_key(self):
+        """F04 code review (2026-09-25): proves the self-check actually
+        catches the F04 class of bug -- compact_allocation_check and
+        magnitude_cap_check are excluded from ALL_IRRIGATION_CHECKS
+        precisely because they read a key nothing produces, and this
+        confirms the self-check would raise if either were re-added
+        without also wiring a producer. Passing them explicitly (rather
+        than relying on the default) is what the two docstrings in
+        irrigation_validators.py point at."""
+        with pytest.raises(RuntimeError, match="basin_allocation"):
+            assert_validator_inputs_have_producers([compact_allocation_check])
+        with pytest.raises(RuntimeError, match="proposed_magnitude"):
+            assert_validator_inputs_have_producers([magnitude_cap_check])
+        # drought_severity_check is excluded on a threshold-calibration
+        # ground, not a missing-producer one: drought_index DOES have a
+        # producer, so the self-check correctly does NOT flag it.
+        assert_validator_inputs_have_producers([drought_severity_check])
 
 
 # =====================================================================
@@ -430,14 +667,20 @@ class TestDomainDispatch:
         assert len(errors) >= 1
         assert any("water right" in e.errors[0].lower() for e in errors)
 
-    def test_irrigation_domain_blocks_severe_drought(self):
-        """domain='irrigation' activates drought_severity_check."""
+    def test_irrigation_domain_drought_severity_not_dispatched(self):
+        """F04 (2026-09-25 audit): drought_severity_check is intentionally
+        excluded from IRRIGATION_PHYSICAL_CHECKS (the real drought index
+        never reaches its 0.7 threshold), so domain dispatch does NOT block
+        on drought_index alone any more. The function itself still works;
+        see the direct drought_severity_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
         ctx = {"drought_index": 0.95}
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
-        errors = [r for r in results if not r.valid]
-        assert len(errors) >= 1
-        assert any("drought" in e.errors[0].lower() for e in errors)
+        errors = [
+            r for r in results
+            if not r.valid and r.metadata.get("rule_id") == "drought_severity"
+        ]
+        assert len(errors) == 0
 
     def test_irrigation_domain_no_flood_checks(self):
         """domain='irrigation' does NOT trigger flood-specific checks."""
@@ -472,17 +715,23 @@ class TestDomainDispatch:
         results = validate_all("increase_demand", self._make_rules(), ctx, domain=None)
         assert len(results) == 0
 
-    def test_irrigation_compact_warning_fires(self):
-        """domain='irrigation' activates compact_allocation_check (social)."""
+    def test_irrigation_domain_compact_allocation_not_dispatched(self):
+        """F04 (2026-09-25 audit): compact_allocation_check is intentionally
+        excluded from IRRIGATION_SOCIAL_CHECKS (nothing in the pipeline ever
+        writes basin_allocation), so domain dispatch does NOT warn on it any
+        more. The function itself still works; see the direct
+        compact_allocation_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
         ctx = {
             "total_basin_demand": 8_000_000,
             "basin_allocation": 7_500_000,
         }
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
-        warnings = [r for r in results if r.valid and r.warnings]
-        assert len(warnings) >= 1
-        assert any("compact" in w.warnings[0].lower() for w in warnings)
+        compact_warnings = [
+            r for r in results
+            if r.valid and r.warnings and r.metadata.get("rule_id") == "compact_allocation"
+        ]
+        assert len(compact_warnings) == 0
 
     def test_irrigation_curtailment_blocks_tier2(self):
         """P4: domain='irrigation' blocks increase at Tier 2+ shortage."""

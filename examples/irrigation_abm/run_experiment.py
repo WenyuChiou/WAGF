@@ -383,16 +383,45 @@ class IrrigationLifecycleHooks:
 
             # Inject combined action + outcome feedback from last year
             if year > 1:
-                prev_request = agent_state.get("request", 0)
-                prev_diversion = agent_state.get("diversion", 0)
+                # F05 (2026-09-25 audit): by this point env.advance_year(year)
+                # has already run and recomputed agent_state["diversion"]
+                # under THIS year's curtailment_ratio / Powell scaling
+                # (irrigation_env.py: _apply_curtailment, _apply_powell_constraint),
+                # and ctx["drought_index"]/["preceding_factor"] are this
+                # year's too. Reading agent_state/ctx here for "last year's"
+                # outcome silently reports year t's numbers under a year
+                # t-1 label, disagreeing with the dashboard, which shows
+                # the same live values under year t. Use the snapshot
+                # post_year(year-1) captured at the END of year t-1,
+                # before this year's advance_year() touched it.
+                snapshot = getattr(agent, "_last_year_outcome", None)
+                if snapshot:
+                    prev_request = snapshot.get("request", 0)
+                    prev_diversion = snapshot.get("diversion", 0)
+                    prev_drought_index = snapshot.get("drought_index", 0)
+                    prev_preceding_factor = snapshot.get("preceding_factor", 0)
+                else:
+                    # Defensive fallback only: post_year(year-1) always runs
+                    # before pre_year(year) in ExperimentRunner.run, so this
+                    # branch means a hook ordering change broke that
+                    # invariant. Keep the run alive with the pre-F05 (stale)
+                    # reading rather than crash a batch.
+                    prev_request = agent_state.get("request", 0)
+                    prev_diversion = agent_state.get("diversion", 0)
+                    prev_drought_index = ctx.get("drought_index", 0)
+                    prev_preceding_factor = ctx.get("preceding_factor", 0)
                 action_ctx = getattr(agent, '_last_action_context', None)
                 feedback = build_action_outcome_feedback(
                     action_ctx=action_ctx,
                     year=year - 1,
                     request=prev_request,
                     diversion=prev_diversion,
-                    drought_index=ctx.get("drought_index", 0),
-                    preceding_factor=ctx.get("preceding_factor", 0),
+                    drought_index=prev_drought_index,
+                    preceding_factor=prev_preceding_factor,
+                    # F15 (2026-09-25 audit): Lower Basin agents' preceding_factor
+                    # is the Lake Mead trend, not precipitation; basin selects the
+                    # correct wording (build_water_situation_text already does this).
+                    basin=ctx.get("basin", "upper_basin"),
                 )
                 # add_memory_for_agent (not add_memory) so _classify_emotion/
                 # _classify_source (broker/components/memory/engines/
@@ -450,8 +479,65 @@ class IrrigationLifecycleHooks:
 
     # -- post_year: logging, reflection --
     def post_year(self, year: int, agents: Dict):
+        # F11b (2026-09-25 audit follow-up): re-apply the Powell pro-rata
+        # cap to Upper Basin diversions HERE, once, before any agent's
+        # diversion for this year is read below. Every agent's decision
+        # for this year has already executed by the time post_year runs
+        # (ExperimentRunner.run calls post_year after the full agent-phase
+        # loop for the step), and update_agent_request (irrigation_env.py)
+        # discards Powell scaling on every execute_skill call, so without
+        # this, simulation_log.csv, the F05 snapshot below and
+        # _batch_reflect's supply_ratio would all read a diversion that
+        # ignores whatever Powell cap advance_year() applied. Must run
+        # exactly once per year, after the full decision loop -- see
+        # apply_powell_cap_to_executed_diversions's docstring for why
+        # calling it mid-loop would double-scale agents.
+        self.env.apply_powell_cap_to_executed_diversions()
+
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
+
+            # F05 (2026-09-25 audit): snapshot THIS year's own outcome now.
+            # request/diversion/drought_index/preceding_factor are all
+            # correct for year `year` at this point (this year's decision
+            # has executed, env.advance_year(year+1) has not run yet).
+            # pre_year(year+1) reads this snapshot for its "last year"
+            # memory line instead of re-querying live env state, which by
+            # then env.advance_year(year+1) will have already recomputed
+            # under year+1's curtailment/Powell scaling. This snapshot is
+            # deliberately taken from the SAME agent_state simulation_log.csv
+            # logs a few lines below, so memory and the CSV always agree
+            # (the audit's own acceptance test). F11b (2026-09-25 follow-up):
+            # agent_state["diversion"] here now correctly reflects the
+            # Powell cap for Upper Basin agents too, thanks to the
+            # apply_powell_cap_to_executed_diversions() call above --
+            # earlier review passes on this branch found and disclosed
+            # this as a gap before F11b actually fixed it (see
+            # IrrigationEnvironment._apply_powell_constraint's docstring
+            # for the full history).
+            basin_key = agent_state.get("basin", "lower_basin")
+            agent._last_year_outcome = {
+                "year": year,
+                "request": agent_state.get("request", 0),
+                "diversion": agent_state.get("diversion", 0),
+                "drought_index": self.env.global_state.get("drought_index", 0),
+                "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
+            }
+
+            # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative
+            # per-agent counter (never written before this fix, so
+            # IrrigationAdapter.compute_importance always saw 0), incremented
+            # once per post_year call (every agent in `agents`, this hook
+            # does not filter on is_active) when drought conditions hold.
+            # Threshold 0.5 matches build_water_situation_text's own bucket
+            # boundary for "Water supply is tight" (the >= 0.7 threshold used
+            # by drought_severity_check is calibrated to a range the real
+            # CRSS data never reaches -- see F04).
+            drought_index_this_year = self.env.global_state.get("drought_index", 0)
+            agent.drought_count = getattr(agent, "drought_count", 0) + (
+                1 if drought_index_this_year >= 0.5 else 0
+            )
+
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
             appr = dec.get("appraisals", {}) if isinstance(dec, dict) else {}
@@ -521,15 +607,71 @@ class IrrigationLifecycleHooks:
                 continue
             mems = self.runner.memory_engine.retrieve(agent, top_k=10)
             if mems:
-                # Build domain context for adapter-based importance scoring
+                # F08+F33 (2026-09-25 audit): every input below used to be
+                # missing or in the wrong unit --
+                # ``env.get_supply_ratio()`` does not exist on
+                # IrrigationEnvironment (silent 1.0 fallback via hasattr),
+                # ``last_decision``/``drought_count`` were never written to
+                # custom_attributes (always "" / 0), and ``water_right``
+                # is the raw acre-foot entitlement, not the 0-1 utilisation
+                # fraction IrrigationAdapter.compute_importance expects --
+                # so importance always landed on the adapter's fixed 0.90
+                # and classify_emotion always returned a label outside
+                # emotional_weights. Build the real, current-year values:
+                # water_right_pct and supply_ratio from live env state,
+                # recent_decision from the actual executed skill
+                # (agent._last_action_context, set by
+                # broker/core/experiment_runner.py:_apply_state_changes),
+                # and drought_count from the cumulative counter post_year
+                # maintains above.
                 attrs = getattr(agent, "custom_attributes", {})
+                agent_state = self.env.get_agent_state(aid)
+                water_right = agent_state.get("water_right", 0) or 0
+                request = agent_state.get("request", 0) or 0
+                diversion = agent_state.get("diversion", 0) or 0
+                action_ctx = getattr(agent, "_last_action_context", None) or {}
+                # F08 code review (2026-09-25): diversion = request * (1 -
+                # curtailment_ratio) is mathematically an exact tier ratio
+                # (0.95/0.90/0.80/0.80...), but float64 division does not
+                # always round-trip exactly -- measured 5-6% of random
+                # requests landing on the wrong side of a 0.60/0.80
+                # boundary in compute_importance's shortage branches purely
+                # from float noise (the same class of bug F13 fixed in the
+                # YAML assertion trigger). round(..., 6) removes that noise
+                # without materially changing any real (non-boundary) ratio.
+                #
+                # Second code-review pass (2026-09-25): agent_state here is
+                # read AFTER update_agent_request already recomputed
+                # diversion for every agent that executed this year, from
+                # curtailment_ratio alone (see _apply_powell_constraint's
+                # docstring). At the time this note was written, that made
+                # supply_ratio land on one of the four curtailment tier
+                # ratios (1.0/0.95/0.90/0.80) for every row whose decision
+                # executed, in every run, so compute_importance's
+                # < 0.60 / < 0.80 shortage branches and drought_count were
+                # structurally unreachable from this call site.
+                #
+                # F11b (2026-09-25, same day, later pass): post_year now
+                # calls env.apply_powell_cap_to_executed_diversions() once,
+                # before this loop runs, which re-applies the Powell
+                # pro-rata cap to Upper Basin diversions after every
+                # agent's decision has executed. So for an Upper Basin
+                # agent in a Powell-constrained year, agent_state["diversion"]
+                # here is no longer just a curtailment-tier ratio -- it can
+                # be the real, continuously-varying (or fully zeroed)
+                # Powell-scaled value. The four-fixed-ratios claim above
+                # now holds only for Lower Basin agents and for Upper
+                # Basin agents in years where Powell scaling did not bind;
+                # compute_importance's shortage branches and drought_count
+                # ARE reachable again for Upper Basin agents in a
+                # Powell-constrained year.
                 agent_ctx = {
-                    "water_right_pct": attrs.get("water_right", 0.5),
-                    "supply_ratio": self.env.get_supply_ratio() if hasattr(self.env, "get_supply_ratio") else 1.0,
+                    "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
+                    "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,
                     "years_farming": attrs.get("years_farming", 0),
                     "has_efficient_system": attrs.get("has_efficient_system", False),
-                    "recent_decision": attrs.get("last_decision", ""),
-                    "drought_count": attrs.get("drought_count", 0),
+                    "recent_decision": action_ctx.get("skill_name", ""),
+                    "drought_count": getattr(agent, "drought_count", 0),
                     "cluster": attrs.get("cluster", ""),
                 }
                 candidates.append({
@@ -579,7 +721,11 @@ class IrrigationLifecycleHooks:
                             aid,
                             f"Consolidated Reflection: {insight.summary}",
                             {
-                                "significance": insight.importance,
+                                # "importance", not "significance": HumanCentricMemoryEngine
+                                # only reads metadata.get("importance", 0.5). See
+                                # examples/irrigation_abm/tests/test_governance_mode_wiring.py::
+                                # TestBatchReflectImportanceKey.
+                                "importance": insight.importance,
                                 "emotion": emotion,
                                 "source": "personal",
                                 "type": "reflection",
