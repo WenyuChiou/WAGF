@@ -975,7 +975,8 @@ def render_md(rows: list, corpus: str = "v08") -> str:
     flood_mean_diff, flood_pooled_sd, flood_holds, flood_n = _render_diff_gate(
         lines, rows, "flood", "flood (this corpus)", "2/2^5 = 0.0625 at n=5")
 
-    lines.append(f"### Band check vs `{_flood_band_root(corpus)}` 5-seed band (mean +/- 2 sd)")
+    band_root = _flood_band_root(corpus)
+    lines.append(f"### Band check vs `{band_root}` 5-seed band (mean +/- 2 sd)")
     lines.append("")
     band_metrics = ["IBR headline", "EHE pooled", "Final-year protection %"]
     band_rows = _find(rows, "flood_band")
@@ -1007,30 +1008,56 @@ def render_md(rows: list, corpus: str = "v08") -> str:
                 f"seed {o['seed']} falls outside on {o['metric']} alone "
                 f"({_cp(o['arm_value']):.4f} against [{_cp(o['band_lo']):.4f}, "
                 f"{_cp(o['band_hi']):.4f}])" for o in outliers)
+        # band_label: v08 keeps its original hand-written wording verbatim
+        # ("faf1bb12 strict 5-seed") -- byte-identity contract for that
+        # corpus. Any other corpus derives its label from band_root itself
+        # (never the v08-specific "faf1bb12" literal) and states the seed
+        # count/seeds forming the band explicitly, since the comparator
+        # directory name alone does not say how many seeds were pooled.
+        band_label = ("faf1bb12 strict 5-seed" if corpus == "v08"
+                      else f"{corpus} strict 5-seed (`{band_root}`, seeds "
+                           f"{'-'.join([FLOOD_SEEDS[0], FLOOD_SEEDS[-1]])}, n={len(FLOOD_SEEDS)})")
         lines.append(f"All three pooled (mean-of-landed-seeds) metrics fall "
                      f"{'INSIDE' if all_inside else 'OUTSIDE (at least one metric)'} the "
-                     f"faf1bb12 strict 5-seed band -- the initprop flag "
+                     f"{band_label} band -- the initprop flag "
                      f"{'did not' if all_inside else 'DID'} visibly shift governed behaviour "
                      f"relative to the pre-initprop strict corpus, except {outlier_clause}.")
         lines.append("")
 
         initprop_hash, band_hash = _manifest_commit_hashes(
             rows, target_arms=["flood_initprop"], comparator_arms=["flood_band_faf1bb12"])
-        lines.append(
-            f"The initprop arm was run at code {initprop_hash} while the strict 5-seed "
-            f"comparator band comes from {band_hash}. The comparison is accepted on three "
-            f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
-            f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven "
-            f"files, all plumbing for the retry_feedback_mode feature), whose only "
-            f"behaviour-changing branch is in the domain-generic retry loop "
-            f"broker/core/_retry_loop.py (RetryMixin._governance_retry_loop); the full-mode "
-            f"retry prompt rendered by that loop is byte-identical across the two commits "
-            f"for both the rule-violation and the format-violation branch; and mock runs at "
-            f"both commits give identical governance-audit and simulation logs for flood (4 "
-            f"of 4 comparisons) and for irrigation (4 of 4, strict and disabled, synthetic "
-            f"agents). The earlier faf1bb12 -> c3391a53 gate in "
-            f"out/regen_progress_2026-09-15.md covers both domains."
-        )
+        if corpus == "v08":
+            lines.append(
+                f"The initprop arm was run at code {initprop_hash} while the strict 5-seed "
+                f"comparator band comes from {band_hash}. The comparison is accepted on three "
+                f"pieces of evidence recorded in out/mock_equiv_c3391a53_83fa97e1_2026-09-22.md: "
+                f"the only framework change between c3391a53 and 83fa97e1 is PR #46 (eleven "
+                f"files, all plumbing for the retry_feedback_mode feature), whose only "
+                f"behaviour-changing branch is in the domain-generic retry loop "
+                f"broker/core/_retry_loop.py (RetryMixin._governance_retry_loop); the full-mode "
+                f"retry prompt rendered by that loop is byte-identical across the two commits "
+                f"for both the rule-violation and the format-violation branch; and mock runs at "
+                f"both commits give identical governance-audit and simulation logs for flood (4 "
+                f"of 4 comparisons) and for irrigation (4 of 4, strict and disabled, synthetic "
+                f"agents). The earlier faf1bb12 -> c3391a53 gate in "
+                f"out/regen_progress_2026-09-15.md covers both domains."
+            )
+        elif initprop_hash == band_hash:
+            lines.append(
+                f"The initprop arm and the {corpus} strict 5-seed comparator band were both "
+                f"run at code {initprop_hash} -- the SAME commit, so this comparison carries "
+                f"none of the v08 corpus's c3391a53/83fa97e1 code-provenance question (there "
+                f"is no commit difference to justify here); any gap between the two arms is "
+                f"attributable to the initprop flag alone."
+            )
+        else:
+            lines.append(
+                f"The initprop arm was run at code {initprop_hash} while the {corpus} strict "
+                f"5-seed comparator band comes from {band_hash} -- these differ, and unlike "
+                f"the v08 corpus this script has no recorded mock-equivalence chain "
+                f"justifying pooling across them for the {corpus} corpus; treat this band "
+                f"check as provisional until one is recorded."
+            )
         lines.append("")
 
     # ---- Part B: irrigation -------------------------------------------------------
