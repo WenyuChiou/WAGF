@@ -505,12 +505,17 @@ counters, and the `decision_source` enum: `docs/AUDIT_SCHEMA.md`.
 
 #### 2.1.8 global_config.coupling
 
-Two independent flags share this block; both default OFF.
+Two independent flags share this block; both default OFF when the key is
+absent from a config's `global_config.coupling` block. The irrigation
+PAPER config (`examples/irrigation_abm/config/agent_types.yaml`) ships
+`context_contract: true` explicitly (2026-09-25); the framework-wide
+default below is what a domain gets when it does not set the key at all,
+not a statement about what the paper corpus ran with.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `enable` | bool | No | (pack default) | Two-layer environment-coupling flag: wraps `sim_engine` in `EnvironmentCouplingAdapter`. See `broker/coupling/flag.py` and `docs/COUPLING_CONNECTORS.md`. Not further documented here — this section's new addition is `context_contract` below. |
-| `context_contract` | bool | No | false | Opt-in fail-loud guard on a domain environment's per-agent `get_agent_context()` handoff (PR-9, F1). Irrigation is the first consumer. See below. |
+| `context_contract` | bool | No | false (irrigation paper config: true) | Opt-in fail-loud guard on a domain environment's per-agent `get_agent_context()` handoff (PR-9, F1). Irrigation is the first consumer. See below. |
 
 **`context_contract` (PR-9, F1 remediation).** `IrrigationEnvironment
 .get_agent_context()` — the ONLY place per-agent physical state (Lake

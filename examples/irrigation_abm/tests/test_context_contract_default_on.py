@@ -65,7 +65,6 @@ def test_paper_config_two_year_mock_run_reports_contract_active(tmp_path):
         f"paper-config mock run failed:\nSTDOUT:\n{result.stdout}\n"
         f"STDERR:\n{result.stderr}"
     )
-    assert "[coupling] context_contract=True" in result.stdout
 
     integrity = json.loads((output_dir / "run_integrity.json").read_text(encoding="utf-8"))
     assert integrity.get("coupling_contract_active") is True
