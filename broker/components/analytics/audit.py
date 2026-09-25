@@ -799,8 +799,11 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         if memories:
             emotions = [m.get("emotion", "neutral") for m in memories if isinstance(m, dict)]
             sources = [m.get("source", "personal") for m in memories if isinstance(m, dict)]
-            row["mem_top_emotion"] = max(set(emotions), key=emotions.count) if emotions else ""
-            row["mem_top_source"] = max(set(sources), key=sources.count) if sources else ""
+            # Ties go to the value retrieved first. `max(set(...))` broke ties by
+            # set iteration order, which follows per-process string hashing, so
+            # two identical runs could disagree on a tied row (2026-09-25).
+            row["mem_top_emotion"] = max(dict.fromkeys(emotions), key=emotions.count) if emotions else ""
+            row["mem_top_source"] = max(dict.fromkeys(sources), key=sources.count) if sources else ""
         else:
             row["mem_top_emotion"] = ""
             row["mem_top_source"] = ""

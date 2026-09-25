@@ -192,7 +192,20 @@ class LifecycleHooks:
                 if action_ctx and action_ctx.get("skill_name"):
                     skill = action_ctx["skill_name"].replace("_", " ")
                     act_year = action_ctx.get("year", year - 1)
-                    parts.append(f"Year {act_year}: You chose to {skill}.")
+                    if action_ctx.get("was_fallback"):
+                        # Rejected proposal; the registry default ran instead.
+                        proposed = action_ctx.get("proposed_skill")
+                        if proposed:
+                            parts.append(
+                                f"Year {act_year}: Your proposal to "
+                                f"{proposed.replace('_', ' ')} was rejected; "
+                                f"{skill} was applied.")
+                        else:
+                            parts.append(
+                                f"Year {act_year}: No valid proposal was made; "
+                                f"{skill} was applied.")
+                    else:
+                        parts.append(f"Year {act_year}: You chose to {skill}.")
 
             self.runner.memory_engine.add_memory(agent.id, " | ".join(parts))
 
