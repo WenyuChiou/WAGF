@@ -279,12 +279,22 @@ irrigation_farmer:
         unit: "AF"
         format: ",.0f"
     assertions:
-      - when: "supply / request < 0.95"
+      # F13 (2026-09-25 audit): diversion = min(request, water_right) x
+      # (1 - curtailment_ratio), so for any agent below its water right,
+      # raising the request DOES raise actual supply (curtailment applies
+      # to the whole request, not a fixed shortfall) -- the old message
+      # claimed the opposite. The old trigger (< 0.95) also sat exactly on
+      # the Tier 1 curtailment ratio (supply/request == 1 - 0.05 == 0.95),
+      # so it fired or not by float rounding alone for any agent under its
+      # water right. Moved strictly below Tier 1 so a Tier-1-only agent
+      # never trips it.
+      - when: "supply / request < 0.90"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF but only received {supply_fmt} AF
-          ({unmet_pct:.0f}% unmet). Increasing your request further will NOT
-          increase your actual water supply.
+          ({unmet_pct:.0f}% unmet) because curtailment reduces your whole
+          request, so a larger request will still raise your supply until
+          you reach your water right.
 
   # ---------------------------------------------------------------------------
   # Available Actions
