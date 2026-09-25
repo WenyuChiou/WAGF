@@ -217,7 +217,7 @@ class TestCalendarYearAlignment:
 
     def test_42_loop_years_stay_inside_real_crss_coverage_no_synthetic_fallback(self):
         """Reads the REAL CRSS PRISM CSV from the primary clone (read-only;
-        not checked into this worktree — the audit's own smoke run uses
+        not checked into this worktree; the audit's own smoke run uses
         synthetic profiles instead). Skips on any machine where that path
         is absent rather than fabricating fixture data for it."""
         import os
@@ -446,7 +446,7 @@ class TestIrrigationValidators:
 
     def test_aggregated_check_list_length(self):
         # F04 (2026-09-25 audit): drought_severity_check, compact_allocation_check
-        # and magnitude_cap_check were removed from these lists — each read a
+        # and magnitude_cap_check were removed from these lists: each read a
         # context key nothing in the pipeline produces (or a threshold the real
         # data never reaches) and fired zero times across 49,140 audited rows.
         # The functions are still defined and directly testable above.
@@ -485,7 +485,7 @@ class TestDomainDispatch:
         """F04 (2026-09-25 audit): drought_severity_check is intentionally
         excluded from IRRIGATION_PHYSICAL_CHECKS (the real drought index
         never reaches its 0.7 threshold), so domain dispatch does NOT block
-        on drought_index alone any more. The function itself still works —
+        on drought_index alone any more. The function itself still works;
         see the direct drought_severity_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
         ctx = {"drought_index": 0.95}
@@ -533,7 +533,7 @@ class TestDomainDispatch:
         """F04 (2026-09-25 audit): compact_allocation_check is intentionally
         excluded from IRRIGATION_SOCIAL_CHECKS (nothing in the pipeline ever
         writes basin_allocation), so domain dispatch does NOT warn on it any
-        more. The function itself still works — see the direct
+        more. The function itself still works; see the direct
         compact_allocation_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
         ctx = {

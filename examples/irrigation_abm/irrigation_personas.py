@@ -302,7 +302,7 @@ def _build_trend_text(basin: str, preceding_factor: int) -> str:
     F15 (2026-09-25 audit): for the 22 Lower Basin agents, ``preceding_factor``
     is the Lake Mead rising/declining flag (see
     ``IrrigationEnvironment._update_preceding_factors``), not a precipitation
-    signal — Upper Basin precipitation is not even observed at a Lower Basin
+    signal; Upper Basin precipitation is not even observed at a Lower Basin
     agent's location. ``build_water_situation_text`` already branches this
     way; the feedback builders below did not, so every Lower Basin memory
     line claimed a precipitation trend that was actually the reservoir
