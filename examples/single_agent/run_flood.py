@@ -1367,7 +1367,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # already-constructed broker attribute, exactly like log_prompt above,
     # rather than the loaded (and process-cached) AgentTypeConfig.
     if retry_feedback_mode is not None:
-        # W3 (review round 2): the CLI's `choices=["full","placebo"]` guards
+        # W3 (review round 2): the CLI's `choices=["full","placebo","silent"]` guards
         # the argparse entry point only -- `run_parity_benchmark` is a public
         # function a library caller can invoke directly with an arbitrary
         # string, bypassing argparse entirely. Validate here too, or a typo'd
@@ -1375,10 +1375,10 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         # value is an error, not full" check LATER, deep in the first
         # decision of the run, instead of failing immediately at the call
         # that caused it.
-        if retry_feedback_mode not in ("full", "placebo"):
+        if retry_feedback_mode not in ("full", "placebo", "silent"):
             raise ValueError(
-                f"retry_feedback_mode={retry_feedback_mode!r} is not 'full' "
-                "or 'placebo'."
+                f"retry_feedback_mode={retry_feedback_mode!r} is not 'full', "
+                "'placebo', or 'silent'."
             )
         runner.broker._retry_feedback_mode = retry_feedback_mode
         # C2 (review round 2): re-log in the SAME shape as the engine's own
@@ -1517,12 +1517,15 @@ if __name__ == "__main__":
                         choices=["auto", "disabled", "enabled"],
                         help="Control thinking mode for reasoning models (auto=strip tags, disabled=prevent thinking, enabled=keep tags)")
     parser.add_argument("--retry-feedback-mode", type=str, default=None,
-                        choices=["full", "placebo"],
+                        choices=["full", "placebo", "silent"],
                         help="Red-team objection 3 ablation. 'full' (default behaviour): the "
                              "governance retry prompt carries the real rule id/reason/suggestion. "
                              "'placebo': the validator still rejects on the same rules/schedule/"
                              "fallback, but the LLM-facing retry text is a fixed, content-free "
                              "sentence -- isolating 'got another attempt' from 'was told the rule'. "
+                             "'silent': the retry prompt is the ORIGINAL prompt, byte-for-byte, on "
+                             "every attempt -- no header, no closer, no framing at all, so the only "
+                             "difference between attempts is the LLM's own sampling. "
                              "None (default) leaves global_config.governance.retry_feedback_mode "
                              "(default 'full') in agent_types.yaml unchanged.")
     parser.add_argument("--premium-rate", type=float, default=None,
