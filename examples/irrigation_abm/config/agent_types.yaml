@@ -284,11 +284,29 @@ irrigation_farmer:
       # raising the request DOES raise actual supply (curtailment applies
       # to the whole request, not a fixed shortfall) -- the old message
       # claimed the opposite. The old trigger (< 0.95) also sat exactly on
-      # the Tier 1 curtailment ratio (supply/request == 1 - 0.05 == 0.95),
-      # so it fired or not by float rounding alone for any agent under its
-      # water right. Moved strictly below Tier 1 so a Tier-1-only agent
-      # never trips it.
-      - when: "supply / request < 0.90"
+      # the Tier 1 curtailment ratio (supply/request == 1 - 0.05 == 0.95
+      # for every agent at request <= water_right, which is every agent:
+      # update_agent_request caps request AT water_right, it never exceeds
+      # it), so an Upper Basin agent's Powell-scaled ratio (a real,
+      # continuously varying value, not a fixed tier constant) straddles
+      # 0.95 for a real fraction of agents. 0.90 is exactly Tier 2's ratio
+      # (1 - 0.10) and has the identical problem one tier over -- code
+      # review caught this on the first fix attempt. 0.85 sits with real
+      # margin (0.05) from both Tier 2 (0.90) and Tier 3 (0.80), so it
+      # fires only under Powell scaling severe enough to matter, not on a
+      # tier-boundary coincidence.
+      #
+      # Known residual (code review, 2026-09-25, not fixable here without
+      # touching broker/): in a Powell zero-delivery year (see
+      # _apply_powell_constraint's docstring) supply is exactly 0
+      # regardless of request size, so "a larger request will still raise
+      # your supply" is itself false for that one case. Tried excluding it
+      # with "and supply > 0": SafeExpressionEvaluator.evaluate (broker/
+      # components/analytics/feedback.py) replaces every 0-valued variable
+      # with 1e-10 before evaluating (its own division-by-zero guard), so
+      # supply is never seen as exactly 0 and "supply > 0" is always true.
+      # This assertion has no way to detect the zero-cap case as written.
+      - when: "supply / request < 0.85"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF but only received {supply_fmt} AF
