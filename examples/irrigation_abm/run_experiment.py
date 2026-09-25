@@ -390,7 +390,7 @@ class IrrigationLifecycleHooks:
                 # and ctx["drought_index"]/["preceding_factor"] are this
                 # year's too. Reading agent_state/ctx here for "last year's"
                 # outcome silently reports year t's numbers under a year
-                # t-1 label — disagreeing with the dashboard, which shows
+                # t-1 label, disagreeing with the dashboard, which shows
                 # the same live values under year t. Use the snapshot
                 # post_year(year-1) captured at the END of year t-1,
                 # before this year's advance_year() touched it.
@@ -401,7 +401,7 @@ class IrrigationLifecycleHooks:
                     prev_drought_index = snapshot.get("drought_index", 0)
                     prev_preceding_factor = snapshot.get("preceding_factor", 0)
                 else:
-                    # Defensive fallback only — post_year(year-1) always runs
+                    # Defensive fallback only: post_year(year-1) always runs
                     # before pre_year(year) in ExperimentRunner.run, so this
                     # branch means a hook ordering change broke that
                     # invariant. Keep the run alive with the pre-F05 (stale)
@@ -482,7 +482,7 @@ class IrrigationLifecycleHooks:
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
 
-            # F05 (2026-09-25 audit): snapshot THIS year's own outcome now —
+            # F05 (2026-09-25 audit): snapshot THIS year's own outcome now.
             # request/diversion/drought_index/preceding_factor are all
             # correct for year `year` at this point (this year's decision
             # has executed, env.advance_year(year+1) has not run yet).

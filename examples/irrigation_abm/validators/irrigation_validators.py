@@ -911,7 +911,7 @@ ALL_IRRIGATION_CHECKS = (
 )
 
 # =============================================================================
-# F04: startup self-check — every context key a registered check reads must
+# F04: startup self-check: every context key a registered check reads must
 # have a producer somewhere in the pipeline
 # =============================================================================
 
@@ -922,7 +922,7 @@ ALL_IRRIGATION_CHECKS = (
 # second block is auto-injected onto the validation context from
 # ``env.get_agent_context()`` / the broker's env-context merge, upstream of
 # any custom validator. Update this set whenever a new check is added or
-# ``pre_year`` stops writing one of these fields — that drift (a check
+# ``pre_year`` stops writing one of these fields: that drift (a check
 # reading a key nobody writes any more) is exactly what F04 found.
 IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     # written directly by IrrigationLifecycleHooks.pre_year
@@ -939,7 +939,7 @@ IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     # (the real gate is "below_minimum_utilisation"); the produced key is
     # actually "current_request". Allowlisted here so this self-check does
     # not fail the run over a filed, message-only, deliberately-deferred
-    # mismatch — remove once F18a renames the read to "current_request".
+    # mismatch; remove once F18a renames the read to "current_request".
     "request",
 })
 
@@ -952,15 +952,15 @@ def assert_validator_inputs_have_producers(
 
     Static, source-level scan: for every literal ``context.get("key", ...)``
     or ``context["key"]`` found in a check function's source, ``key`` must
-    be in *known_producers*. This is the guard F04 asked for — it is what
+    be in *known_producers*. This is the guard F04 asked for: it is what
     would have caught ``compact_allocation_check`` reading
     ``basin_allocation`` (nothing writes it) before the check shipped
     silently inert for the life of the irrigation paper runs.
 
     Not a substitute for behavioural review: a key CAN have a producer and
     still never carry the value a check needs (for example a real
-    threshold the data never crosses, drought_severity_check's 0.7 floor)
-    — this only catches the "nothing writes this key, ever" class F04 was
+    threshold the data never crosses, drought_severity_check's 0.7 floor);
+    this only catches the "nothing writes this key, ever" class F04 was
     built around.
 
     Raises:

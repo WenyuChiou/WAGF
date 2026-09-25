@@ -566,7 +566,7 @@ class IrrigationEnvironment:
         self._year_index += 1
         # F12 (2026-09-25 audit): using _year_index as a straight offset made
         # loop year 1 calendar year 2020 (one year late) and loop year 42
-        # calendar year 2061 — one year past the CRSS PRISM CSV's real
+        # calendar year 2061, one year past the CRSS PRISM CSV's real
         # 2017-2060 coverage, so the LAST year of every 42-year run silently
         # used the synthetic drying-trend fallback instead of a real CRSS
         # row. The "- 1" makes loop year 1 = sim_start_year (2019) and loop
@@ -839,7 +839,7 @@ class IrrigationEnvironment:
         # F07 (2026-09-25 audit): the applied magnitude never reached memory
         # because ``_apply_state_changes`` (broker/core/experiment_runner.py)
         # reads ``params["magnitude_pct"]`` (the LLM's proposal, not what was
-        # actually applied) or ``result.execution_result.action_context`` —
+        # actually applied) or ``result.execution_result.action_context``,
         # and this method only ever set ``state_changes["magnitude_pct_applied"]``,
         # never ``action_context``. Populated below for every skill that
         # actually samples a magnitude, so build_action_outcome_feedback's
@@ -1111,16 +1111,16 @@ class IrrigationEnvironment:
         UB agent diversions are pro-rata scaled down so the binding
         constraint is satisfied.
 
-        F11 (2026-09-25 audit, disclosure only — no behaviour change):
+        F11 (2026-09-25 audit, disclosure only, no behaviour change):
         Powell STORAGE is not modelled here; only its minimum-release
         floor is (constraint 1 above). In a year where natural flow is
         below 7.0 MAF (2022 in the CRSS PRISM series), ``ub_flow_cap_af``
         goes to 0, so every Upper Basin agent's diversion is scaled to 0
-        for that year — a hard zero-delivery year, not a partial
+        for that year: a hard zero-delivery year, not a partial
         shortfall, because there is no Powell storage buffer to draw down
         instead. Lower Basin diversions are governed separately by
         ``_apply_curtailment``'s tier-based ratios, which floor at 0.80
-        (Tier 3's 20% cut) by construction — they cannot reach zero the
+        (Tier 3's 20% cut) by construction, so they cannot reach zero the
         way an Upper Basin agent can here. Consequently
         ``supply_gap_block_increase`` and the ``non_negative_diversion``
         warning in the governance layer are reachable ONLY for Upper

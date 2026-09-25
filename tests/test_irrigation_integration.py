@@ -47,7 +47,7 @@ def test_execute_skill_increase_demand_reports_applied_magnitude_in_action_conte
     broker/core/experiment_runner.py:_apply_state_changes (which reads
     params["magnitude_pct"] or result.execution_result.action_context, never
     state_changes["magnitude_pct_applied"]) can put the ACTUAL applied
-    magnitude on agent._last_action_context — otherwise the LLM's discrete
+    magnitude on agent._last_action_context, otherwise the LLM's discrete
     request leaks into memory's "(by N%)" text instead of the Gaussian-
     sampled value the environment used."""
     env = _make_env_with_agent(water_right=100_000)
@@ -94,7 +94,7 @@ def test_execute_skill_decrease_demand():
 
 def test_build_action_outcome_feedback_formats_shortfall():
     """F15 (2026-09-25 audit): build_regret_feedback was dead (nothing
-    called it — build_action_outcome_feedback superseded it) and has been
+    called it; build_action_outcome_feedback superseded it) and has been
     removed; this test now covers the same shortfall-formatting behaviour
     through the live function."""
     from examples.irrigation_abm.irrigation_personas import (
@@ -166,7 +166,7 @@ def test_reflection_triggers():
 
 def test_governance_validate_magnitude_cap_not_dispatched():
     """F04 (2026-09-25 audit): magnitude_cap_check is intentionally excluded
-    from IRRIGATION_PHYSICAL_CHECKS — magnitude_pct is not in the irrigation
+    from IRRIGATION_PHYSICAL_CHECKS: magnitude_pct is not in the irrigation
     response_format the paper runs use, so the broker never injects
     proposed_magnitude and this check fired zero times across 49,140 audited
     rows. Domain dispatch must NOT warn on it any more; the function itself
