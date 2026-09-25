@@ -69,8 +69,11 @@ class TestIrrigationEnvironment:
         assert len(env.agent_ids) == 5
 
     def test_advance_year_increments(self, env):
+        # F12 (2026-09-25 audit): loop year 1 must be calendar year 2019
+        # (sim_start_year), not 2020 -- see TestCalendarYearAlignment below
+        # for the full 3-year and 42-year checks.
         env.advance_year()
-        assert env.current_year == 2020
+        assert env.current_year == 2019
 
     def test_advance_year_returns_global_state(self, env):
         state = env.advance_year()
@@ -197,6 +200,49 @@ class TestIrrigationEnvironment:
         # Request must stay at target_request, NOT drop to diversion
         assert abs(agent["request"] - target_request) < 1.0
         assert abs(result.state_changes["request"] - target_request) < 1.0
+
+
+class TestCalendarYearAlignment:
+    """F12 (2026-09-25 audit): loop year 1 must be calendar year 2019 and
+    loop year 42 must be 2060, so every loop year lands inside the CRSS
+    PRISM CSV's real 2017-2060 coverage instead of the last year of every
+    42-year run silently using synthetic precipitation."""
+
+    def test_three_year_mock_run_logs_2019_2020_2021(self):
+        config = WaterSystemConfig(seed=42)
+        env = IrrigationEnvironment(config)
+        env.initialize_synthetic(n_agents=3, basin_split=(2, 1))
+        years = [env.advance_year()["year"] for _ in range(3)]
+        assert years == [2019, 2020, 2021]
+
+    def test_42_loop_years_stay_inside_real_crss_coverage_no_synthetic_fallback(self):
+        """Reads the REAL CRSS PRISM CSV from the primary clone (read-only;
+        not checked into this worktree — the audit's own smoke run uses
+        synthetic profiles instead). Skips on any machine where that path
+        is absent rather than fabricating fixture data for it."""
+        import os
+
+        primary_csv = (
+            r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
+            r"\ref\CRSS_DB\CRSS_DB\HistoricalData\PrismWinterPrecip_ST_NOAA_Future.csv"
+        )
+        if not os.path.exists(primary_csv):
+            pytest.skip(f"real CRSS PRISM CSV not present at {primary_csv}")
+
+        config = WaterSystemConfig(seed=42)
+        env = IrrigationEnvironment(config)
+        env.initialize_synthetic(n_agents=3, basin_split=(2, 1))
+        env.load_crss_precipitation(primary_csv)
+
+        years = [env.advance_year()["year"] for _ in range(42)]
+
+        assert years[0] == 2019
+        assert years[-1] == 2060
+        assert env._precip_synthetic_fallback_years == [], (
+            "all 42 loop years should land inside the real CRSS CSV's "
+            "2017-2060 coverage; synthetic fallback was used for "
+            f"{env._precip_synthetic_fallback_years}"
+        )
 
 
 class TestIrrigationValidators:
