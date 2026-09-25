@@ -59,6 +59,21 @@ class IrrigationAdapter:
         Uses supply_ratio as the primary driver (analogous to flood_count
         in the flood domain).  Secondary drivers are decision type and
         water-right utilisation.
+
+        F08+F33 (2026-09-25 audit): this formula was always correct; the
+        bug was entirely at the call site
+        (``IrrigationLifecycleHooks._batch_reflect``), which passed
+        ``supply_ratio`` from a nonexistent ``env.get_supply_ratio()``
+        (silent 1.0 fallback) and ``water_right_pct`` as the RAW water
+        right in acre-feet (e.g. 200000) rather than the 0-1 fraction this
+        method expects (``request / water_right``). In production
+        ``ReflectionEngine.compute_dynamic_importance`` calls this with
+        ``base=0.9``: with ``supply_ratio`` stuck at 1.0 the two shortage
+        branches never fired, and any positive acre-foot value for
+        ``water_right_pct`` satisfies ``>= 0.95``, so ``importance =
+        max(0.9, importance_profiles["at_cap"]=0.70) == 0.9`` on every
+        call -- the fixed 0.90 the audit measured (see
+        ``run_experiment.py:_batch_reflect`` for the fixed call site).
         """
         importance = base
 
@@ -91,13 +106,28 @@ class IrrigationAdapter:
     def classify_emotion(
         self, decision: str, context: Dict[str, Any]
     ) -> str:
-        """Classify emotion for irrigation-domain decisions."""
+        """Classify emotion for irrigation-domain decisions.
+
+        F08+F33 (2026-09-25 audit): must return a key present in
+        ``irrigation_farmer.memory.emotional_weights``
+        (config/agent_types.yaml) -- "critical"/"major"/"minor"/"important"
+        are none of those, so every reflection stored through this method
+        fell back to ``HumanCentricMemoryEngine._apply_decay``'s own 0.1
+        default regardless of what was actually classified. The five
+        labels below (water_crisis/strategic_choice/positive_outcome/
+        social_feedback/baseline_observation) are exactly the
+        ``emotional_weights`` keys.
+        """
         supply = context.get("supply_ratio", 1.0)
+        increase_skills = ("increase_large", "increase_small", "increase_demand")
+        decrease_skills = ("decrease_large", "decrease_small", "decrease_demand")
 
         if supply < 0.60:
-            return "critical"
-        if decision == "increase_demand" and context.get("water_right_pct", 0) >= 0.9:
-            return "major"  # risky increase near cap
+            return "water_crisis"
+        if decision in increase_skills or decision in decrease_skills:
+            # A deliberate change to demand -- costlier / more consequential
+            # than doing nothing, regardless of how it turns out.
+            return "strategic_choice"
         if decision == "maintain_demand" and supply >= 1.0:
-            return "minor"
-        return "important"
+            return "positive_outcome"
+        return "baseline_observation"
