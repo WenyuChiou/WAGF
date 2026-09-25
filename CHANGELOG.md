@@ -384,30 +384,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CALLER (`_batch_reflect`) was itself still passing wrong-unit inputs
   (see the F08 entry below), so the 0.55-0.95 range above was the
   formula's theoretical range, not what any run actually produced --
-  every call landed on exactly 0.90. With F08's fix, the range that is
-  actually reachable narrows further, in EVERY run, not only runs
-  without a Powell-constrained year: `_batch_reflect` runs in
-  `post_year`, after `update_agent_request` has already recomputed every
-  executed agent's `diversion` for that year as
-  `request * (1 - curtailment_ratio)` -- curtailment_ratio alone, no
-  Powell scale factor (see the F11 follow-up note on
-  `_apply_powell_constraint`'s docstring for why). So `supply_ratio`
-  (`diversion / request`) is always exactly one of the four curtailment
-  tier ratios (1.0, 0.95, 0.90, 0.80), never the continuously-varying,
-  Powell-scaled value the prompt showed before that agent's decision, and
-  never anything the `< 0.60`/`< 0.80` shortage branches (which would
-  produce 0.78-0.95) can reach. In practice `drought_count` therefore has
-  no effect on `compute_importance`'s output (only the unreachable `<
-  0.80` branch reads it), and `classify_emotion`'s `water_crisis` label
-  can never be returned, from this call site, for any agent-year whose
-  decision actually executed. The two values a typical run reaches are
-  0.55 (the `stable_year` floor: `maintain_demand` with `supply_ratio` at
-  or above 1.0, i.e. no curtailment that year) or 0.90
-  (`compute_importance`'s own default when no branch fires, which is
-  most agent-years). The one exception is a row whose decision never
-  executed at all (ABORTED), where `agent["diversion"]` can still hold a
-  leftover Powell-scaled value. See this branch's commit body for the
-  full chain.
+  every call landed on exactly 0.90. With F08's fix, an intermediate
+  finding (since superseded by F11b, see that entry) was that the range
+  narrowed further because `_batch_reflect` reads `diversion` after
+  `update_agent_request` had already discarded any Powell scaling, so
+  `supply_ratio` could only be one of four fixed curtailment tier ratios.
+  F11b restores the real, Powell-scaled value for Upper Basin agents, so
+  the two values a typical (unconstrained) run reaches are still 0.55
+  (the `stable_year` floor) or 0.90 (the default when no branch fires),
+  but an Upper Basin agent in a Powell-constrained year can now also
+  reach the `< 0.60`/`< 0.80` shortage branches (0.78-0.95) or
+  `drought_year` (0.95) via a genuinely low `supply_ratio`, and
+  `classify_emotion` can return `water_crisis` for such an agent-year.
+  See this branch's commit body for the full chain.
 
 - **Eleven more irrigation defects from the 2026-09-25 framework and case
   audit (`.ai/framework_case_audit_2026-09-25.md`), fixed on
@@ -458,15 +447,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     year of every real run). A code-review follow-up also moved
     `IrrigationEnvironment`'s pre-loop `_current_year` to 2018 so it no
     longer collides with loop year 1's RNG key.
-  - F10, F11: disclosure only, no model change. "Water right" is
-    documented as the top of each agent's FQL diversion grid, not a
-    legal entitlement (61 of 78 agents start below the 50% demand floor
-    because of it); Powell storage is documented as not modelled (a
-    natural-flow-short year zeroes Upper Basin delivery outright, with a
-    documented residual: that zero does not survive the agent's own next
-    decision, since `update_agent_request` does not carry the Powell
-    scale factor forward -- flagged for the runner/env owner, not fixed
-    here).
+  - F10: disclosure only, no model change. "Water right" is documented
+    as the top of each agent's FQL diversion grid, not a legal
+    entitlement (61 of 78 agents start below the 50% demand floor
+    because of it).
+  - F11: disclosure only, no model change. Powell storage is documented
+    as not modelled (a natural-flow-short year zeroes Upper Basin
+    delivery outright, right after `_apply_powell_constraint` runs).
+  - **F11b (same day, later pass, logged-numbers fix, not disclosure
+    only)**: F11's disclosure described a real gap it did not fix --
+    `update_agent_request` discarded that Powell scaling (any amount,
+    not only a full zero) the instant an Upper Basin agent's own decision
+    executed, so `simulation_log.csv`'s `diversion` column, the F05
+    memory snapshot, and `_batch_reflect`'s `supply_ratio` all silently
+    ignored the Powell cap for the rest of the year. Fixed by a new
+    `IrrigationEnvironment.apply_powell_cap_to_executed_diversions()`,
+    called once per year from `IrrigationLifecycleHooks.post_year`
+    (`run_experiment.py`), after every agent's decision has executed and
+    before anything reads `diversion` for the year -- it re-runs the same
+    pro-rata Powell cap `advance_year()` used, against the FINAL
+    post-decision Upper Basin total. As a side effect this also closes
+    the year-over-year carry-forward gap noted in the F11 follow-ups,
+    since `_generate_lake_mead_level` now reads an already-corrected
+    prior-year total. Lower Basin (`_apply_curtailment`'s tier floor at
+    0.80) is unchanged. **Behaviour change for reproduction: an Upper
+    Basin agent's logged diversion, memory, and reflection inputs in a
+    Powell-constrained year now differ from any corpus produced before
+    this commit** (Lower Basin agents and years with no Powell binding
+    are unaffected).
 
 - **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
   the retry wrapper threw the measurement away one frame above where it was

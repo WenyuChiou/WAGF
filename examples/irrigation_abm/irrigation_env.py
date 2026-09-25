@@ -1138,59 +1138,39 @@ class IrrigationEnvironment:
         governance check see, since both read state between
         ``advance_year()`` and that agent's own decision.
 
-        CODE REVIEW NOTE (2026-09-25, found reviewing this branch, NOT
-        fixed here, CORRECTED in a second review pass the same day): the
-        zero does not survive that agent's own decision.
-        ``update_agent_request`` (below) recomputes
-        ``diversion = new_request * (1 - curtailment_ratio)`` from
-        ``curtailment_ratio`` alone, with no Powell scale factor, and
-        every skill branch in ``execute_skill`` (``maintain_demand``
-        included) calls it. So the instant that agent's own
-        ``execute_skill`` runs, its diversion jumps back to the
-        curtailment-only value, discarding the Powell zero (and, more
-        generally, any Powell scaling short of a full zero: this is not
-        a zero-delivery-year-only gap). Confirmed directly: manually
-        zeroing an Upper Basin agent's diversion, then calling
-        ``execute_skill(maintain_demand)``, restores it to
-        ``request * (1 - curtailment_ratio)``.
-
-        The FIRST version of this note claimed the Mead mass balance
-        never sees the Powell zero either. That overstated it:
-        ``_generate_lake_mead_level`` (below) recomputes its own
-        ``ub_div_effective = min(ub_div_maf, ub_flow_cap, ub_infra_cap)``
-        from THAT year's natural flow every time it runs, independent of
-        whatever ``update_agent_request`` later does to ``agent["diversion"]``
-        -- so the reservoir physics re-derives and re-applies the Powell
-        cap itself each year rather than trusting a possibly-stale
-        ``agent["diversion"]``. That said, it reads UB diversions from
-        the *previous* year (by design: "Agent diversions are from the
-        *previous* year's decisions"), so this method's OWN cap for year
-        t only fully corrects year t-1's inflated total when year t's cap
-        is AT LEAST AS TIGHT as year t-1's true one; if year t's own
-        natural flow is looser, year t's cap passes through a number
-        above what year t-1 actually delivered, uncorrected. The cap that
-        reservoir physics applies for year t is still year t's own,
-        correctly computed floor for year t's OWN inflow calculation --
-        it is the SIZE of the number that floor is applied to (year
-        t-1's diversion total) that can already be wrong, and stays wrong
-        whenever year t's cap does not happen to bind at least as hard.
-        What this gap reliably affects, with no independent
-        re-derivation to fall back on, is narrower: ``simulation_log.csv``'s
-        ``diversion`` column, this branch's F05 memory snapshot
-        (``post_year``, which reads state AFTER every agent has
-        executed), and ``_batch_reflect``'s ``supply_ratio`` all read
-        ``agent["diversion"]`` directly, with nothing re-deriving a cap
-        for them. Lower Basin diversions are governed separately by
-        ``_apply_curtailment``'s tier-based ratios, which floor at 0.80
-        (Tier 3's 20% cut) by construction, so they cannot reach zero the
-        way an Upper Basin agent can here, and are not affected by this
-        gap. ``supply_gap_block_increase`` and the ``non_negative_diversion``
-        warning in the governance layer, which validate BEFORE the
-        agent's decision executes, are still reachable only for Upper
-        Basin agents on this path; that half of the original finding
-        holds. Whether ``update_agent_request`` should also apply a
-        Powell scale factor is a design decision for the runner/env
-        owner, not made in this branch. See
+        HISTORY (fixed by F11b, 2026-09-25, after two earlier disclosure
+        passes on the same branch got progressively more accurate but
+        never actually fixed it): ``update_agent_request`` (below)
+        recomputes ``diversion = new_request * (1 - curtailment_ratio)``
+        from ``curtailment_ratio`` alone, with no Powell scale factor,
+        and every skill branch in ``execute_skill`` (``maintain_demand``
+        included) calls it -- so the instant an Upper Basin agent's own
+        ``execute_skill`` ran, its diversion used to jump back to the
+        curtailment-only value, discarding whatever Powell scaling
+        ``advance_year()`` had applied (not only a full zero -- any
+        Powell scaling short of that). F11b fixes this at the one point
+        where it can be fixed correctly without re-scaling the same
+        agents twice: :meth:`apply_powell_cap_to_executed_diversions`,
+        called ONCE per year, after every agent has executed its
+        decision, from ``IrrigationLifecycleHooks.post_year`` (before
+        ``simulation_log.csv`` rows are built and before the F05 memory
+        snapshot) -- see that method's docstring for why this is the
+        only safe place to call it, and why calling
+        ``_apply_powell_constraint`` again mid-decision-loop would be
+        wrong. ``simulation_log.csv``'s ``diversion`` column, this
+        branch's F05 memory snapshot, and ``_batch_reflect``'s
+        ``supply_ratio`` all read ``agent["diversion"]`` directly, so all
+        three now correctly reflect the Powell cap for Upper Basin
+        agents. As a side effect this also fixes the year-over-year
+        carry-forward gap two earlier disclosure passes described here:
+        ``_generate_lake_mead_level`` reads UB diversions from the
+        *previous* year, and that value is now the F11b-corrected one,
+        not an inflated curtailment-only figure. Lower Basin diversions
+        are unaffected -- ``_apply_curtailment``'s tier-based floor at
+        0.80 (Tier 3's 20% cut) is unchanged and was never part of this
+        gap. Whether Powell storage itself should be modelled (the
+        remaining, deliberately out-of-scope half of the original F11
+        finding) is a design decision for the runner/env owner. See
         ``docs/irrigation_physics.md``'s "Single-Reservoir Justification"
         section for the corresponding physics-side note.
         """
@@ -1213,6 +1193,51 @@ class IrrigationEnvironment:
             scale = ub_effective_cap / ub_div_total
             for a in ub_agents:
                 a["diversion"] *= scale
+
+    def apply_powell_cap_to_executed_diversions(self) -> None:
+        """F11b (2026-09-25 audit follow-up): re-apply the Powell pro-rata
+        cap to Upper Basin diversions after every agent has executed its
+        decision for the year.
+
+        ``advance_year()`` already ran ``_apply_powell_constraint()`` once,
+        before any agent decided this year, using each Upper Basin agent's
+        diversion as it stood at the END of the PREVIOUS year. But
+        ``update_agent_request`` recomputes
+        ``diversion = new_request * (1 - curtailment_ratio)`` from
+        ``curtailment_ratio`` alone -- no Powell scale factor -- and every
+        skill branch in ``execute_skill`` (``maintain_demand`` included)
+        calls it. So by the time every agent has executed THIS year's
+        decision, every Upper Basin agent's diversion has silently lost
+        whatever Powell scaling ``advance_year()`` applied (see
+        ``_apply_powell_constraint``'s docstring for the full finding
+        history: F11 disclosed this, two follow-up passes narrowed and
+        corrected the disclosure, F11b is the actual fix).
+
+        Call this exactly ONCE per year, after every agent's decision for
+        the year has executed and before anything logs, snapshots, or
+        otherwise reads ``diversion`` for the year --
+        ``IrrigationLifecycleHooks.post_year``, before both the F05
+        memory snapshot and the ``simulation_log.csv`` row are built, is
+        the intended call site. Calling it mid-decision-loop, after only
+        SOME agents have executed, would pro-rata scale against a partial
+        aggregate and then double-scale agents whose diversion was
+        already reduced by an earlier call the same year -- this method
+        does not guard against that; the caller must only invoke it once
+        per year, after the full decision loop.
+
+        Mechanically this recomputes the SAME cap
+        ``_apply_powell_constraint`` used during ``advance_year()``
+        (natural flow depends only on ``self._precip_history[-1]``,
+        unchanged since then) against the FINAL post-decision Upper Basin
+        diversion total, and re-scales pro-rata if that total still
+        exceeds the cap -- i.e. it is ``_apply_powell_constraint`` itself,
+        called a second time with fresher input. Idempotent: calling it
+        twice in a row with no diversion change in between is a no-op,
+        because the first call's aggregate already equals the cap. Lower
+        Basin is untouched -- ``_apply_curtailment``'s tier-based floor at
+        0.80 is unchanged and was never part of this gap.
+        """
+        self._apply_powell_constraint()
 
     # -----------------------------------------------------------------
     # Utility

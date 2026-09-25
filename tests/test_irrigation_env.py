@@ -252,6 +252,92 @@ class TestCalendarYearAlignment:
         )
 
 
+class TestF11bPowellCapReapplication:
+    """F11b (2026-09-25 audit follow-up): update_agent_request discards
+    whatever Powell pro-rata scaling advance_year() applied the instant an
+    Upper Basin agent's own decision executes (see
+    _apply_powell_constraint's docstring for the full finding history).
+    apply_powell_cap_to_executed_diversions() must restore the cap for
+    Upper Basin agents after execute_skill runs, and must leave Lower
+    Basin agents untouched."""
+
+    @staticmethod
+    def _agent_dict(basin: str) -> dict:
+        return {
+            "basin": basin,
+            "diversion": 80_000.0,
+            "request": 80_000.0,
+            "water_right": 100_000.0,
+            "curtailment_ratio": 0.0,
+            "at_allocation_cap": False,
+            "has_efficient_system": False,
+            "below_minimum_utilisation": False,
+            "cluster": "aggressive",
+            "persona_scale": 1.0,
+            "skill_magnitude": {
+                "increase_small": {"mu": 4.0, "sigma": 0.0, "min": 1.0, "max": 8.0},
+            },
+            "magnitude_default": 10.0,
+            "magnitude_sigma": 0.0,
+            "magnitude_min": 1.0,
+            "magnitude_max": 30.0,
+            "exploration_rate": 0.0,
+        }
+
+    def _make_env_with_low_flow(self):
+        """Natural flow clamps to 6.0 MAF (below the 7.0 MAF Powell
+        minimum-release floor), so ub_flow_cap_af = 0 for this year --
+        the same "zero-delivery year" mechanism F11/F11b document."""
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        env._agents["UB1"] = self._agent_dict("upper_basin")
+        env._agents["LB1"] = self._agent_dict("lower_basin")
+        env._precip_history = [10.0]  # -> natural_flow clamps to 6.0 MAF
+        # Tier 0 (no curtailment): default _basins lake_mead_level (1080 ft)
+        # is above mead_shortage_tier1, so curtailment_ratio stays 0.0 and
+        # only the Powell cap is exercised by this test.
+        env._apply_curtailment()
+        env._apply_powell_constraint()
+        return env
+
+    def test_ub_agent_diversion_restored_to_powell_cap_after_its_own_decision(self):
+        from types import SimpleNamespace
+
+        env = self._make_env_with_low_flow()
+        assert env._agents["UB1"]["diversion"] == 0.0  # pre-decision Powell zero
+
+        skill = SimpleNamespace(
+            skill_name="increase_small", agent_id="UB1", parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        # This is the F11b bug, reproduced: execute_skill's
+        # update_agent_request discards the Powell zero.
+        assert env._agents["UB1"]["diversion"] == pytest.approx(83_200.0)
+
+        env.apply_powell_cap_to_executed_diversions()
+        assert env._agents["UB1"]["diversion"] == 0.0
+
+    def test_lb_agent_diversion_unaffected_by_powell_cap_reapplication(self):
+        from types import SimpleNamespace
+
+        env = self._make_env_with_low_flow()
+
+        skill = SimpleNamespace(
+            skill_name="increase_small", agent_id="LB1", parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        lb_diversion_after_decision = env._agents["LB1"]["diversion"]
+        assert lb_diversion_after_decision == pytest.approx(83_200.0)
+
+        env.apply_powell_cap_to_executed_diversions()
+        assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
+        # Idempotent: calling it again changes nothing further.
+        env.apply_powell_cap_to_executed_diversions()
+        assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
+        assert env._agents["UB1"]["diversion"] == 0.0
+
+
 class TestIrrigationValidators:
     """Test irrigation governance validators."""
 
