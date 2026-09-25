@@ -564,7 +564,16 @@ class IrrigationEnvironment:
             Updated global state dict.
         """
         self._year_index += 1
-        self._current_year = self.config.sim_start_year + self._year_index
+        # F12 (2026-09-25 audit): using _year_index as a straight offset made
+        # loop year 1 calendar year 2020 (one year late) and loop year 42
+        # calendar year 2061 — one year past the CRSS PRISM CSV's real
+        # 2017-2060 coverage, so the LAST year of every 42-year run silently
+        # used the synthetic drying-trend fallback instead of a real CRSS
+        # row. The "- 1" makes loop year 1 = sim_start_year (2019) and loop
+        # year 42 = 2060, matching docs/irrigation_physics.md ("Y1 =
+        # calendar year 2019"), DATA.md and README.md (already documented as
+        # 2019-2060), and keeps every loop year inside real CRSS coverage.
+        self._current_year = self.config.sim_start_year + self._year_index - 1
         self._global["year"] = self._current_year
 
         # Generate stochastic water signals
