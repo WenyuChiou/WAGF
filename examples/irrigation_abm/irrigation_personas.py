@@ -666,6 +666,19 @@ def create_profiles_from_data(
     - UB: 58 individual CRSS slots, each inheriting its state-group's
       FQL parameters.  Inactive agents (all-zero states) are skipped.
 
+    F10 (2026-09-25 audit): ``water_right`` below is ``col.iloc[-1]`` --
+    the TOP of that agent's discretised FQL diversion grid
+    (``Div_States/*_discrete_states.csv``), i.e. Hung & Yang's
+    ``Div_max`` (the ceiling the FQL state space discretises against),
+    NOT a legal Colorado River entitlement. Initial requests come from
+    2018 diversions, and most agents' 2018 use sits well under that
+    grid-top ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below
+    50% utilisation, so ``demand_floor_stabilizer``
+    (``DEMAND_FLOOR_RATIO = 0.50`` in ``validators/irrigation_validators.py``)
+    binds for most agents from year 1 in the governed arm. See
+    ``docs/irrigation_physics.md`` for the corresponding physics-side
+    note.
+
     Args:
         params_csv_path: Path to ALL_colorado_ABM_params_cal_1108.csv
         crss_db_dir: Path to ref/CRSS_DB/CRSS_DB/ directory

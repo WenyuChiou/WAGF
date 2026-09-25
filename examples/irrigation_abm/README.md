@@ -324,7 +324,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 All data for `--real` mode (78 CRSS agents) is included in `ref/CRSS_DB/`:
 
 - **Precipitation**: `HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` (CRSS/NOAA PRISM, 2017-2060)
-- **Agent water rights**: `annual_baseline_time_series.csv` (78 agents)
+- **Agent water rights**: `Div_States/UB_discrete_states.csv` / `Div_States/LB_discrete_states.csv` (78 agents) — F10 (2026-09-25 audit): this is the TOP of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`, the ceiling the FQL state space discretises against), not a legal Colorado River entitlement from `annual_baseline_time_series.csv`. Most agents' 2018 initial use sits well under this ceiling — 61 of 78 agents (52 of 56 Upper Basin) start below 50% utilisation, so `demand_floor_stabilizer` binds for most agents from year 1 in the governed arm. See `irrigation_personas.py:create_profiles_from_data` and `docs/irrigation_physics.md`.
 - **Elevation curves**: Hardcoded in `irrigation_env.py` (USBR 2009 area-capacity survey)
 
 Synthetic mode requires no external data. Reproducibility: all production runs use `--seed 42`; config captured in `config_snapshot.yaml`.
