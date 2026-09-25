@@ -1110,6 +1110,23 @@ class IrrigationEnvironment:
 
         UB agent diversions are pro-rata scaled down so the binding
         constraint is satisfied.
+
+        F11 (2026-09-25 audit, disclosure only — no behaviour change):
+        Powell STORAGE is not modelled here; only its minimum-release
+        floor is (constraint 1 above). In a year where natural flow is
+        below 7.0 MAF (2022 in the CRSS PRISM series), ``ub_flow_cap_af``
+        goes to 0, so every Upper Basin agent's diversion is scaled to 0
+        for that year — a hard zero-delivery year, not a partial
+        shortfall, because there is no Powell storage buffer to draw down
+        instead. Lower Basin diversions are governed separately by
+        ``_apply_curtailment``'s tier-based ratios, which floor at 0.80
+        (Tier 3's 20% cut) by construction — they cannot reach zero the
+        way an Upper Basin agent can here. Consequently
+        ``supply_gap_block_increase`` and the ``non_negative_diversion``
+        warning in the governance layer are reachable ONLY for Upper
+        Basin agents; Lower Basin agents never trigger them through this
+        path. See ``docs/irrigation_physics.md``'s "Single-Reservoir
+        Justification" section for the corresponding physics-side note.
         """
         cfg = self.config
         precip = (self._precip_history[-1]

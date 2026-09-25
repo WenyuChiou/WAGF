@@ -195,6 +195,20 @@ The Colorado River system has two major reservoirs — Lake Powell (upstream, Gl
 
 3. **Hung & Yang (2021) uses the same approach.** Their FQL model also uses a reduced-form mass balance with CRSS inputs rather than independent Powell modeling.
 
+**F11 (2026-09-25 audit, disclosure only — no behaviour change):** because
+Powell *storage* is not modelled (only its minimum-release floor, item 2
+above), a year where natural flow drops below 7.0 MAF has no storage
+buffer to draw down instead — Upper Basin diversions are scaled to
+exactly 0 for that year rather than partially reduced. In the CRSS PRISM
+series this happens in 2022 (`_generate_lake_mead_level` /
+`_apply_powell_constraint` in `irrigation_env.py`). Lower Basin
+diversions are governed separately by the tier-based curtailment ratios
+in `_apply_curtailment`, which floor at 0.80 of requested (Tier 3's 20%
+cut) by construction, so they cannot reach zero through this path.
+Consequently `supply_gap_block_increase` and the `non_negative_diversion`
+governance warning are reachable only for Upper Basin agents in this
+model — Lower Basin agents never trigger them.
+
 ### Initial Elevation: 1081.46 ft (Dec 2018 Observed)
 
 The simulation initializes Lake Mead at 1081.46 ft, the USBR-observed elevation as of December 2018 — the year before the simulation begins (Y1 = calendar year 2019). This places the initial condition in Tier 0 (above the 1075 ft threshold). The code also pre-seeds the elevation history with 2017 (1082.52 ft) and 2018 (1081.46 ft) values for the preceding-factor computation requiring a 2-year lookback.
