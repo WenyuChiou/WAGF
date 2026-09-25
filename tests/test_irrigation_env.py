@@ -27,6 +27,7 @@ from examples.irrigation_abm.validators.irrigation_validators import (
     irrigation_governance_validator,
     IRRIGATION_PHYSICAL_CHECKS,
     ALL_IRRIGATION_CHECKS,
+    assert_validator_inputs_have_producers,
 )
 import examples.irrigation_abm.validators.irrigation_validators as irr_validators
 
@@ -462,6 +463,30 @@ class TestIrrigationValidators:
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
             assert callable(check)
+
+    def test_assert_validator_inputs_have_producers_passes_on_dispatched_set(self):
+        """F04 code review (2026-09-25): the default call (checks=None ->
+        ALL_IRRIGATION_CHECKS) must not raise -- this is exactly what runs
+        at module import time."""
+        assert_validator_inputs_have_producers()
+
+    def test_assert_validator_inputs_have_producers_catches_dead_key(self):
+        """F04 code review (2026-09-25): proves the self-check actually
+        catches the F04 class of bug -- compact_allocation_check and
+        magnitude_cap_check are excluded from ALL_IRRIGATION_CHECKS
+        precisely because they read a key nothing produces, and this
+        confirms the self-check would raise if either were re-added
+        without also wiring a producer. Passing them explicitly (rather
+        than relying on the default) is what the two docstrings in
+        irrigation_validators.py point at."""
+        with pytest.raises(RuntimeError, match="basin_allocation"):
+            assert_validator_inputs_have_producers([compact_allocation_check])
+        with pytest.raises(RuntimeError, match="proposed_magnitude"):
+            assert_validator_inputs_have_producers([magnitude_cap_check])
+        # drought_severity_check is excluded on a threshold-calibration
+        # ground, not a missing-producer one: drought_index DOES have a
+        # producer, so the self-check correctly does NOT flag it.
+        assert_validator_inputs_have_producers([drought_severity_check])
 
 
 # =====================================================================

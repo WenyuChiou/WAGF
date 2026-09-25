@@ -297,11 +297,14 @@ def compact_allocation_check(
     F04 (2026-09-25 audit): nothing in the pipeline ever writes
     ``basin_allocation``, so this check returns ``[]`` unconditionally and
     has fired zero times across 49,140 audited strict rows. Excluded from
-    ``ALL_IRRIGATION_CHECKS`` for that reason; kept here (and covered by
-    ``assert_validator_inputs_have_producers``, below) because
-    ``tests/test_irrigation_env.py`` calls it directly. Re-add to
-    ``IRRIGATION_SOCIAL_CHECKS`` only once a producer for
-    ``basin_allocation`` exists.
+    ``ALL_IRRIGATION_CHECKS`` for that reason; kept here because
+    ``tests/test_irrigation_env.py`` calls it directly. NOT covered by
+    ``assert_validator_inputs_have_producers`` at import time (that runs
+    against ``ALL_IRRIGATION_CHECKS``, which excludes this function) --
+    see ``test_assert_validator_inputs_have_producers_catches_dead_key``
+    for a direct test that it WOULD raise on ``basin_allocation`` if
+    re-added. Re-add to ``IRRIGATION_SOCIAL_CHECKS`` only once a producer
+    for ``basin_allocation`` exists.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -351,11 +354,13 @@ def drought_severity_check(
     reaches 0.7 in the irrigation paper runs (per-run maximum observed
     about 0.62-0.69), so this check has fired zero times across 49,140
     audited strict rows. Excluded from ``ALL_IRRIGATION_CHECKS`` for that
-    reason; kept here (and covered by
-    ``assert_validator_inputs_have_producers``, below) because
-    ``tests/test_irrigation_env.py`` calls it directly. Re-add to
-    ``IRRIGATION_PHYSICAL_CHECKS`` only after recalibrating the 0.7/0.85
-    thresholds against the real index range.
+    reason; kept here because ``tests/test_irrigation_env.py`` calls it
+    directly. This function reads a key that DOES have a producer
+    (``drought_index``), so it is not an example
+    ``assert_validator_inputs_have_producers`` would catch; it is excluded
+    on a threshold-calibration ground, not a missing-producer one. Re-add
+    to ``IRRIGATION_PHYSICAL_CHECKS`` only after recalibrating the
+    0.7/0.85 thresholds against the real index range.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -453,7 +458,11 @@ def minimum_utilisation_check(
         return []
 
     water_right = context.get("water_right", "unknown")
-    request = context.get("request", 0)
+    # F18a (2026-09-25 code review): "request" is never produced (see
+    # IRRIGATION_CONTEXT_PRODUCERS); the real key is "current_request",
+    # written by IrrigationLifecycleHooks.pre_year. Message-only fix -- the
+    # gate above (below_minimum_utilisation) is unaffected.
+    request = context.get("current_request", 0)
     util_pct = (request / water_right * 100) if isinstance(water_right, (int, float)) and water_right > 0 else 0
     return [
         ValidationResult(
@@ -491,9 +500,13 @@ def magnitude_cap_check(
     injects ``proposed_magnitude`` and this check has fired zero times
     across 49,140 audited strict rows (WARNING-only by design, so it never
     blocked anything even when reachable). Excluded from
-    ``ALL_IRRIGATION_CHECKS`` for that reason; kept here (and covered by
-    ``assert_validator_inputs_have_producers``, below) because
-    ``tests/test_irrigation_env.py`` calls it directly. Re-add to
+    ``ALL_IRRIGATION_CHECKS`` for that reason; kept here because
+    ``tests/test_irrigation_env.py`` calls it directly. NOT covered by
+    ``assert_validator_inputs_have_producers`` at import time (that runs
+    against ``ALL_IRRIGATION_CHECKS``, which excludes this function) --
+    see ``test_assert_validator_inputs_have_producers_catches_dead_key``
+    for a direct test that it WOULD raise on ``proposed_magnitude`` if
+    re-added. Re-add to
     ``IRRIGATION_PHYSICAL_CHECKS`` only once ``magnitude_pct`` is back in
     the response format (or another producer sets ``proposed_magnitude``).
     """
@@ -918,11 +931,19 @@ ALL_IRRIGATION_CHECKS = (
 # Context keys guaranteed present before ANY irrigation governance check
 # runs. Source of truth for the first block is
 # ``examples/irrigation_abm/run_experiment.py``
-# (``IrrigationLifecycleHooks.pre_year``'s ``validator_fields`` dict); the
-# second block is auto-injected onto the validation context from
-# ``env.get_agent_context()`` / the broker's env-context merge, upstream of
-# any custom validator. Update this set whenever a new check is added or
-# ``pre_year`` stops writing one of these fields: that drift (a check
+# (``IrrigationLifecycleHooks.pre_year``'s ``validator_fields`` dict).
+# Source of truth for the second block is
+# ``broker/core/skill_broker_engine.py``'s ``validation_context``, which
+# builds ``**flat_env`` from ``IrrigationEnvironment.advance_year()``'s
+# returned ``self._global.copy()`` -- exactly these four keys, no more.
+# "precipitation", "lake_mead_level" and "preceding_factor" live in
+# ``self._basins``, a DIFFERENT dict ``advance_year()`` does not return;
+# ``IrrigationEnvironment.get_agent_context()`` does expose them, but
+# nothing in ``broker/`` calls that method on the validation path, so
+# they are deliberately NOT listed here (2026-09-25 code review caught
+# this: the first version of this list wrongly included them). Update
+# this set whenever a new check is added or ``pre_year``/the broker's
+# env merge stops writing one of these fields: that drift (a check
 # reading a key nobody writes any more) is exactly what F04 found.
 IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     # written directly by IrrigationLifecycleHooks.pre_year
@@ -930,17 +951,8 @@ IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     "below_minimum_utilisation", "water_right", "current_diversion",
     "current_request", "curtailment_ratio", "shortage_tier", "cluster",
     "basin", "loop_year",
-    # auto-injected from env_context by the broker, upstream of custom
-    # validators (get_agent_context() + SkillBrokerEngine env merge)
-    "drought_index", "total_available_water", "total_basin_demand",
-    "precipitation", "lake_mead_level", "preceding_factor", "year",
-    # F18a (2026-09-25 audit, LATER/not fixed by this commit):
-    # minimum_utilisation_check reads "request" for its message text only
-    # (the real gate is "below_minimum_utilisation"); the produced key is
-    # actually "current_request". Allowlisted here so this self-check does
-    # not fail the run over a filed, message-only, deliberately-deferred
-    # mismatch; remove once F18a renames the read to "current_request".
-    "request",
+    # auto-injected from env_context by the broker's env merge
+    "drought_index", "total_available_water", "total_basin_demand", "year",
 })
 
 
