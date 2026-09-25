@@ -1163,7 +1163,7 @@ The JS contrast "moves from mean_diff=0.0024 (original) to mean_diff=-0.0163 (re
 
 Consequences for the paper (proposals). The main flood results table comes from the defaults corpus. The v08
 corpus goes to a sensitivity appendix: two sampling settings, same direction. Methods state one sampling
-convention for both testbeds. Open: initprop, paraphrase, no-nudge and gemma4:12b at defaults are
+convention for both testbeds. Open: paraphrase, no-nudge and gemma4:12b at defaults are
 still in the queue; `r25_table1_regen_defaults.md` has two PENDING gemma4:12b flood rows until then.
 
 The two r37 defaults .md labels written for the v08 layout (the vintage-table sentence and the n = 5 heading) were made corpus-aware in `scripts/r37_flood_n10_update.py` (`render_md`) before commit.
@@ -1192,3 +1192,17 @@ reading (r34 above) gave a mean of 0.115, range -0.011 to 0.252, and the same ve
 same way with n = 2 in each, which is not a stronger result than either one alone. For B5 the domain-dependent
 reading stands: flood placebo tracks strict on IBR, irrigation placebo (r35) tracks ungoverned. Two runs of the
 script give byte-identical .md and .csv outputs, and the v08 outputs are unchanged.
+
+### First attempt versus last proposal at model-default sampling (r41, --corpus defaults)
+
+r41 (`out/r41_first_vs_last_n5_defaults.md`). Flood strict initprop variant
+`JOH_strict_initprop_defaults_gemma3_4b_83fa97e1`, seeds 42 to 46, gemma3:4b at model-default sampling, code
+83fa97e1, 4359 agent-years. Pooled IBR is 8.49% first attempt (370/4359), 0.53% last proposal (23/4359) and
+0.50% executed (22/4359); per-seed means 8.51 / 0.53 / 0.51. Walk-back rate is 60.54% pooled (224/370). Mean
+first-minus-last difference 7.979 pp against a pooled sd of 0.708 pp, exact permutation p = 0.0625 at the
+n = 5 floor: the gate is MET.
+
+Read. The v08 reading (r41 above) gave 9.03 / 0.50 / 0.50, walk-back 63.00% and the same p floor. The defaults
+corpus gives the same reading: first attempt about half a point lower (8.49 against 9.03), walk-back about
+2.5 points lower, last proposal and executed within 0.03 points. Two runs of the script give byte-identical
+.md and .csv outputs.
