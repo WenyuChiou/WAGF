@@ -332,8 +332,8 @@ class TestF11bPowellCapReapplication:
 
         env.apply_powell_cap_to_executed_diversions()
         assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
-        # Idempotent (up to float rounding): calling it again changes
-        # nothing meaningful further. Both agents here have a zeroed cap,
+        # Idempotent: calling it again changes nothing further. UB1's
+        # cap is zero here (LB1 isn't subject to the Powell cap at all),
         # so this only exercises the trivial 0-stays-0 case; see
         # test_partial_cap_splits_evenly_regardless_of_which_agent_executed
         # below for the case that actually stresses re-derivation.
