@@ -893,9 +893,13 @@ def zero_escape_check(
 # for drought_severity_check, a threshold the real CRSS data never
 # reaches), so across 49,140 audited strict rows they fired zero times.
 # The functions stay defined above (docstrings note why) because
-# tests/test_irrigation_env.py exercises them directly, and
-# assert_validator_inputs_have_producers() below still runs them through
-# the same producer check as everything else.
+# tests/test_irrigation_env.py exercises them directly. Correction (second
+# code-review pass, 2026-09-25): they are NOT run through
+# assert_validator_inputs_have_producers() below -- its default call only
+# scans ALL_IRRIGATION_CHECKS, which excludes all three by design. Only
+# an explicit call naming them (as
+# test_assert_validator_inputs_have_producers_catches_dead_key does)
+# exercises the self-check against them.
 IRRIGATION_PHYSICAL_CHECKS = [
     water_right_cap_check,
     non_negative_diversion_check,

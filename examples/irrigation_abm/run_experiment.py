@@ -623,6 +623,24 @@ class IrrigationLifecycleHooks:
                 # from float noise (the same class of bug F13 fixed in the
                 # YAML assertion trigger). round(..., 6) removes that noise
                 # without materially changing any real (non-boundary) ratio.
+                #
+                # Second code-review pass (2026-09-25): agent_state here is
+                # read AFTER update_agent_request already recomputed
+                # diversion for every agent that executed this year, from
+                # curtailment_ratio alone (see _apply_powell_constraint's
+                # docstring). So in EVERY run, not just runs without a
+                # Powell-constrained year, supply_ratio can only land on
+                # one of the four curtailment tier ratios
+                # (1.0/0.95/0.90/0.80) for a row whose decision executed --
+                # it never carries the continuously-varying, Powell-scaled
+                # value the prompt showed before that decision, and never
+                # reaches compute_importance's < 0.60 / < 0.80 shortage
+                # branches. drought_count therefore has no effect on the
+                # returned importance from this call site, and
+                # classify_emotion's "water_crisis" label is unreachable
+                # here, for any row whose decision executed. Only a row
+                # that never executed at all (ABORTED) could still carry a
+                # leftover Powell-scaled diversion.
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
                     "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,

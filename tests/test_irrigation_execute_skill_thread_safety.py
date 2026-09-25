@@ -197,8 +197,9 @@ def test_exploration_arm_is_actually_reached_and_not_reached():
     """Pin which arm each fixture takes, so neither can quietly stop covering
     what its name claims.
 
-    `_build_env`'s rate of 0.05 sits below every coin flip at these keys, so it
-    always takes the ordinary arm; `_build_exploring_env`'s 0.99 sits above
+    `_build_env`'s rate (EXPLORATION_RATE, 0.02 as of the F12 follow-up
+    that re-keyed this fixture's RNG) sits below every coin flip at these
+    keys, so it always takes the ordinary arm; `_build_exploring_env`'s 0.99 sits above
     every one, so it always takes the exploration arm. If a future edit to the
     fixture's seed or agent ids moved a coin flip across either threshold, this
     test says so instead of silently hollowing out the parametrisation above.

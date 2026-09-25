@@ -385,17 +385,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (see the F08 entry below), so the 0.55-0.95 range above was the
   formula's theoretical range, not what any run actually produced --
   every call landed on exactly 0.90. With F08's fix, the range that is
-  actually reachable in a typical run narrows further: `_batch_reflect`
-  computes `supply_ratio` from `diversion / request`, and
-  `update_agent_request` clamps `diversion` to
-  `request * (1 - curtailment_ratio)`, so in a run without a Powell
-  zero-delivery year `supply_ratio` stays inside roughly [0.80, 1.0]
-  (Tier 0-3 curtailment), never dropping into the 0.60/0.80 branches that
-  would produce 0.78-0.95. The two values a typical run reaches are 0.55
-  (the `stable_year` floor: `maintain_demand` with `supply_ratio` at or
-  above 1.0, i.e. no curtailment that year) or 0.90
+  actually reachable narrows further, in EVERY run, not only runs
+  without a Powell-constrained year: `_batch_reflect` runs in
+  `post_year`, after `update_agent_request` has already recomputed every
+  executed agent's `diversion` for that year as
+  `request * (1 - curtailment_ratio)` -- curtailment_ratio alone, no
+  Powell scale factor (see the F11 follow-up note on
+  `_apply_powell_constraint`'s docstring for why). So `supply_ratio`
+  (`diversion / request`) is always exactly one of the four curtailment
+  tier ratios (1.0, 0.95, 0.90, 0.80), never the continuously-varying,
+  Powell-scaled value the prompt showed before that agent's decision, and
+  never anything the `< 0.60`/`< 0.80` shortage branches (which would
+  produce 0.78-0.95) can reach. In practice `drought_count` therefore has
+  no effect on `compute_importance`'s output (only the unreachable `<
+  0.80` branch reads it), and `classify_emotion`'s `water_crisis` label
+  can never be returned, from this call site, for any agent-year whose
+  decision actually executed. The two values a typical run reaches are
+  0.55 (the `stable_year` floor: `maintain_demand` with `supply_ratio` at
+  or above 1.0, i.e. no curtailment that year) or 0.90
   (`compute_importance`'s own default when no branch fires, which is
-  most agent-years). See this branch's commit body for the full chain.
+  most agent-years). The one exception is a row whose decision never
+  executed at all (ABORTED), where `agent["diversion"]` can still hold a
+  leftover Powell-scaled value. See this branch's commit body for the
+  full chain.
 
 - **Eleven more irrigation defects from the 2026-09-25 framework and case
   audit (`.ai/framework_case_audit_2026-09-25.md`), fixed on
