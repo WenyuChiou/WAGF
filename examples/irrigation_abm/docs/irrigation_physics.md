@@ -221,10 +221,11 @@ every time it runs, independent of whatever `update_agent_request` did
 to `agent["diversion"]` afterward, so the reservoir physics does
 re-derive and re-apply the Powell cap each year rather than trusting a
 possibly-stale value. It reads Upper Basin diversions from the
-*previous* year by design, so a year whose own natural flow is not
-restrictive can still carry forward an inflated prior-year total if that
-prior year's own cap did not happen to bind again when read. What
-reliably loses the cap, with no independent re-derivation to fall back
+*previous* year by design, so this year's cap only fully corrects last
+year's inflated total when this year's own natural flow makes the cap at
+least as tight as last year's true one; a looser cap this year passes
+last year's inflated number through uncorrected. What reliably loses the
+cap, with no independent re-derivation to fall back
 on, is narrower: `simulation_log.csv`'s `diversion` column, this
 branch's F05 memory snapshot, and `_batch_reflect`'s `supply_ratio` all
 read `agent["diversion"]` directly. See `_apply_powell_constraint`'s
