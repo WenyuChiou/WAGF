@@ -820,6 +820,17 @@ class IrrigationEnvironment:
         state_changes: Dict[str, Any] = {}
         state_changes["is_exploration"] = is_exploration
 
+        # F07 (2026-09-25 audit): the applied magnitude never reached memory
+        # because ``_apply_state_changes`` (broker/core/experiment_runner.py)
+        # reads ``params["magnitude_pct"]`` (the LLM's proposal, not what was
+        # actually applied) or ``result.execution_result.action_context`` —
+        # and this method only ever set ``state_changes["magnitude_pct_applied"]``,
+        # never ``action_context``. Populated below for every skill that
+        # actually samples a magnitude, so build_action_outcome_feedback's
+        # "(by N%)" reflects the Gaussian-sampled value the environment used,
+        # not the LLM's discrete request.
+        action_context: Dict[str, Any] = {}
+
         if skill in ("increase_large", "increase_small", "increase_demand"):
             # v21: Scale increase by request (paper demand).  Governance
             # rules (demand_ceiling_stabilizer) prevent unbounded growth.
@@ -828,6 +839,7 @@ class IrrigationEnvironment:
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             state_changes["magnitude_pct_applied"] = magnitude_pct
+            action_context["magnitude_pct"] = magnitude_pct
 
         elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
             # v21: Also use request as base (was water_right).
@@ -840,6 +852,7 @@ class IrrigationEnvironment:
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             state_changes["magnitude_pct_applied"] = magnitude_pct
+            action_context["magnitude_pct"] = magnitude_pct
 
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes
@@ -854,7 +867,9 @@ class IrrigationEnvironment:
                 success=False, error=f"Unknown skill: {skill}"
             )
 
-        return ExecutionResult(success=True, state_changes=state_changes)
+        return ExecutionResult(
+            success=True, state_changes=state_changes, action_context=action_context
+        )
 
     # -----------------------------------------------------------------
     # Internal: water signal generation
