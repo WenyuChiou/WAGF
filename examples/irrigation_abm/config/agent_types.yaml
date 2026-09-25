@@ -64,6 +64,8 @@ global_config:
   audit:
     initial_proposal_columns: true
 
+  coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
+
   # --- Colorado River Basin water system parameters ---
   water_system:
     total_compact_allocation: 16500000  # acre-ft/year (Upper + Lower + Mexico)
