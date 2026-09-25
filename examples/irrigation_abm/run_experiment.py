@@ -393,6 +393,10 @@ class IrrigationLifecycleHooks:
                     diversion=prev_diversion,
                     drought_index=ctx.get("drought_index", 0),
                     preceding_factor=ctx.get("preceding_factor", 0),
+                    # F15 (2026-09-25 audit): Lower Basin agents' preceding_factor
+                    # is the Lake Mead trend, not precipitation; basin selects the
+                    # correct wording (build_water_situation_text already does this).
+                    basin=ctx.get("basin", "upper_basin"),
                 )
                 # add_memory_for_agent (not add_memory) so _classify_emotion/
                 # _classify_source (broker/components/memory/engines/

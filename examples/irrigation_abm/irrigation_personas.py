@@ -296,28 +296,21 @@ def build_aca_hint(cluster: str) -> str:
     return _ACA_HINTS.get(cluster, _ACA_HINTS["myopic_conservative"])
 
 
-def build_regret_feedback(
-    year: int,
-    request: float,
-    diversion: float,
-    drought_index: float,
-    preceding_factor: int,
-) -> str:
-    """Build factual shortfall feedback for memory storage."""
-    gap = max(0.0, request - diversion)
-    gap_pct = (gap / request * 100.0) if request > 0 else 0.0
-    precip_text = "above" if preceding_factor else "below"
+def _build_trend_text(basin: str, preceding_factor: int) -> str:
+    """Basin-appropriate "last year" trend sentence for memory feedback.
 
-    if gap > 0:
-        shortfall = f"Shortfall: {gap:,.0f} acre-ft ({gap_pct:.0f}% unmet)."
-    else:
-        shortfall = "Demand fully met."
-
-    return (
-        f"Year {year}: You requested {request:,.0f} acre-ft and received "
-        f"{diversion:,.0f} acre-ft. {shortfall} "
-        f"Drought index: {drought_index:.2f}. Precipitation was {precip_text} last year."
-    )
+    F15 (2026-09-25 audit): for the 22 Lower Basin agents, ``preceding_factor``
+    is the Lake Mead rising/declining flag (see
+    ``IrrigationEnvironment._update_preceding_factors``), not a precipitation
+    signal — Upper Basin precipitation is not even observed at a Lower Basin
+    agent's location. ``build_water_situation_text`` already branches this
+    way; the feedback builders below did not, so every Lower Basin memory
+    line claimed a precipitation trend that was actually the reservoir
+    trend.
+    """
+    if basin == "upper_basin":
+        return f"Precipitation was {'above' if preceding_factor else 'below'} last year."
+    return f"Lake Mead level was {'rising' if preceding_factor else 'declining'} last year."
 
 
 def build_action_outcome_feedback(
@@ -327,17 +320,22 @@ def build_action_outcome_feedback(
     diversion: float,
     drought_index: float,
     preceding_factor: int,
+    basin: str = "upper_basin",
 ) -> str:
     """Build combined action + outcome feedback for memory.
 
-    Extends build_regret_feedback by prepending the agent's action choice
-    (and magnitude if applicable) so the agent can form causal links
-    between decisions and outcomes during reflection.
+    Prepends the agent's action choice (and magnitude if applicable) to the
+    factual outcome (request/diversion/shortfall/drought index/basin trend)
+    so the agent can form causal links between decisions and outcomes
+    during reflection.
+
+    ``basin`` selects the F15-corrected trend wording via
+    ``_build_trend_text``; it defaults to ``"upper_basin"`` (the original,
+    precipitation-only wording) so callers that predate the basin parameter
+    keep their exact prior text.
     """
-    # Outcome portion (same logic as build_regret_feedback)
     gap = max(0.0, request - diversion)
     gap_pct = (gap / request * 100.0) if request > 0 else 0.0
-    precip_text = "above" if preceding_factor else "below"
 
     if gap > 0:
         shortfall = f"Shortfall: {gap:,.0f} acre-ft ({gap_pct:.0f}% unmet)."
@@ -347,7 +345,7 @@ def build_action_outcome_feedback(
     outcome = (
         f"You requested {request:,.0f} acre-ft and received "
         f"{diversion:,.0f} acre-ft. {shortfall} "
-        f"Drought index: {drought_index:.2f}. Precipitation was {precip_text} last year."
+        f"Drought index: {drought_index:.2f}. {_build_trend_text(basin, preceding_factor)}"
     )
 
     # Action portion (from _last_action_context stored by framework)

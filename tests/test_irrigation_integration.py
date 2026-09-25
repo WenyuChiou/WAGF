@@ -92,12 +92,17 @@ def test_execute_skill_decrease_demand():
     assert abs(state["request"] - (80_000 - 8_000 * 7 / 9)) < 0.01
 
 
-def test_build_regret_feedback_formats_shortfall():
+def test_build_action_outcome_feedback_formats_shortfall():
+    """F15 (2026-09-25 audit): build_regret_feedback was dead (nothing
+    called it — build_action_outcome_feedback superseded it) and has been
+    removed; this test now covers the same shortfall-formatting behaviour
+    through the live function."""
     from examples.irrigation_abm.irrigation_personas import (
-        build_regret_feedback,
+        build_action_outcome_feedback,
     )
 
-    text = build_regret_feedback(
+    text = build_action_outcome_feedback(
+        action_ctx=None,
         year=2025,
         request=120_000,
         diversion=90_000,

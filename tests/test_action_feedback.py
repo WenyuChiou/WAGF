@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 from broker.interfaces.skill_types import ExecutionResult
 from examples.irrigation_abm.irrigation_personas import (
     build_action_outcome_feedback,
-    build_regret_feedback,
 )
 
 
@@ -124,12 +123,32 @@ class TestBuildActionOutcomeFeedback:
         assert "You chose to maintain demand" in result
         assert "Demand fully met." in result
 
-    def test_backward_compat_regret_feedback_unchanged(self):
-        """Ensure old build_regret_feedback still works identically."""
-        old = build_regret_feedback(
-            year=3, request=120_000, diversion=100_000,
-            drought_index=0.45, preceding_factor=0,
+    def test_basin_selects_precipitation_vs_lake_mead_wording(self):
+        """F15 (2026-09-25 audit): Lower Basin agents get the Lake Mead
+        trend, not a precipitation claim (preceding_factor there is the
+        Mead rising/declining flag, not a precipitation signal)."""
+        ctx = {"skill_name": "maintain_demand"}
+        upper = build_action_outcome_feedback(
+            action_ctx=ctx, year=1,
+            request=80_000, diversion=80_000,
+            drought_index=0.2, preceding_factor=1, basin="upper_basin",
         )
-        assert old.startswith("Year 3:")
-        assert "You chose" not in old  # Old function has no action info
-        assert "120,000 acre-ft" in old
+        lower = build_action_outcome_feedback(
+            action_ctx=ctx, year=1,
+            request=80_000, diversion=80_000,
+            drought_index=0.2, preceding_factor=1, basin="lower_basin",
+        )
+        assert "Precipitation was above" in upper
+        assert "Lake Mead level was rising" in lower
+        assert "Precipitation" not in lower
+        assert "Lake Mead" not in upper
+
+    def test_basin_defaults_to_upper_basin_wording(self):
+        """Callers that predate the F15 basin parameter keep the exact
+        original precipitation-only wording."""
+        result = build_action_outcome_feedback(
+            action_ctx=None, year=1,
+            request=100_000, diversion=95_000,
+            drought_index=0.50, preceding_factor=0,
+        )
+        assert "Precipitation was below last year." in result
