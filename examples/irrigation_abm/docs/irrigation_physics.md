@@ -224,20 +224,29 @@ F11b fixes the part that reliably lost the cap with nothing to
 re-derive it: a new `IrrigationEnvironment.apply_powell_cap_to_executed_diversions()`,
 called once per year from `IrrigationLifecycleHooks.post_year`
 (`run_experiment.py`) after every agent's decision has executed and
-before anything reads `diversion` for the year, re-runs the same
-pro-rata Powell cap `advance_year()` used, against the FINAL
-post-decision Upper Basin total. `simulation_log.csv`'s `diversion`
-column, the F05 memory snapshot, and `_batch_reflect`'s `supply_ratio`
-now all correctly reflect the Powell cap for Upper Basin agents. As a
-side effect this also closes the year-over-year carry-forward gap noted
-above (`_generate_lake_mead_level` reading last year's diversions): the
-value it reads for year t-1 is now the F11b-corrected one, not an
-inflated curtailment-only figure. See
+before anything reads `diversion` for the year. Same-day code review
+found the first version of this method just re-ran the Powell cap
+computation on whatever `diversion` values were already in place, which
+double-scaled any Upper Basin agent whose decision did NOT execute that
+year (its diversion still held the FIRST, advance_year-time scaling),
+skewing the pro-rata split against agents that did execute. Fixed by
+rebuilding every Upper Basin agent's diversion from its current
+request/water_right/curtailment_ratio before re-deriving the cap, so
+every agent -- executed or not -- is scaled exactly once from the true,
+uncapped total. `simulation_log.csv`'s `diversion` column, the F05
+memory snapshot, and `_batch_reflect`'s `supply_ratio` now all correctly
+reflect the Powell cap for Upper Basin agents.
+
+As a side effect, F11b also closes a year-over-year carry-forward gap:
+`_generate_lake_mead_level` reads Upper Basin diversions from the
+*previous* year, and that value is now the F11b-corrected one for every
+agent, not an inflated (or double-scaled) figure. See
 `apply_powell_cap_to_executed_diversions`'s docstring in
-`irrigation_env.py` for why it must be called exactly once per year,
-after the full decision loop, and not mid-loop. Whether Powell storage
-itself should be modelled (the remaining, out-of-scope half of the
-original finding) is still a design decision for the runner/env owner.
+`irrigation_env.py` for the full mechanics and why it must be called
+exactly once per year, after the full decision loop, and not mid-loop.
+Whether Powell storage itself should be modelled (the remaining,
+out-of-scope half of the original finding) is still a design decision
+for the runner/env owner.
 
 Lower Basin diversions are governed separately by the tier-based
 curtailment ratios in `_apply_curtailment`, which floor at 0.80 of

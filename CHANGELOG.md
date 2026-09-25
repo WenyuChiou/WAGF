@@ -464,17 +464,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `IrrigationEnvironment.apply_powell_cap_to_executed_diversions()`,
     called once per year from `IrrigationLifecycleHooks.post_year`
     (`run_experiment.py`), after every agent's decision has executed and
-    before anything reads `diversion` for the year -- it re-runs the same
-    pro-rata Powell cap `advance_year()` used, against the FINAL
-    post-decision Upper Basin total. As a side effect this also closes
-    the year-over-year carry-forward gap noted in the F11 follow-ups,
-    since `_generate_lake_mead_level` now reads an already-corrected
-    prior-year total. Lower Basin (`_apply_curtailment`'s tier floor at
-    0.80) is unchanged. **Behaviour change for reproduction: an Upper
-    Basin agent's logged diversion, memory, and reflection inputs in a
-    Powell-constrained year now differ from any corpus produced before
-    this commit** (Lower Basin agents and years with no Powell binding
-    are unaffected).
+    before anything reads `diversion` for the year. **Code review same
+    day**: the first version of this method just re-ran
+    `_apply_powell_constraint()` on whatever `diversion` values were
+    already in place, which double-scaled any Upper Basin agent whose
+    decision did NOT execute this year (ABORTED, an unresolved
+    REJECTED/UNCERTAIN row, or inactive) -- its diversion still held the
+    FIRST (advance_year-time) scaling, so a second raw pass scaled it
+    down again while an executed agent contributed its full,
+    not-yet-Powell-scaled value, skewing the pro-rata split between the
+    two. Fixed by rebuilding every Upper Basin agent's diversion from its
+    current `request`/`water_right`/`curtailment_ratio` (reproducing
+    `update_agent_request`'s own formula bit for bit for an agent that
+    executed, and `_apply_curtailment`'s pre-Powell value for one that
+    did not) before re-deriving the cap, so every agent is scaled exactly
+    once regardless of whether it executed this year. As a side effect
+    this also closes the year-over-year carry-forward gap noted in the
+    F11 follow-ups, since `_generate_lake_mead_level` now reads an
+    already-corrected prior-year total. Lower Basin
+    (`_apply_curtailment`'s tier floor at 0.80) is unchanged.
+    **Behaviour change for reproduction: an Upper Basin agent's logged
+    diversion, memory, and reflection inputs in a Powell-constrained year
+    now differ from any corpus produced before this commit** (Lower
+    Basin agents and years with no Powell binding are unaffected).
 
 - **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
   the retry wrapper threw the measurement away one frame above where it was

@@ -1218,25 +1218,59 @@ class IrrigationEnvironment:
         otherwise reads ``diversion`` for the year --
         ``IrrigationLifecycleHooks.post_year``, before both the F05
         memory snapshot and the ``simulation_log.csv`` row are built, is
-        the intended call site. Calling it mid-decision-loop, after only
-        SOME agents have executed, would pro-rata scale against a partial
-        aggregate and then double-scale agents whose diversion was
-        already reduced by an earlier call the same year -- this method
-        does not guard against that; the caller must only invoke it once
-        per year, after the full decision loop.
+        the intended call site.
 
-        Mechanically this recomputes the SAME cap
-        ``_apply_powell_constraint`` used during ``advance_year()``
-        (natural flow depends only on ``self._precip_history[-1]``,
-        unchanged since then) against the FINAL post-decision Upper Basin
-        diversion total, and re-scales pro-rata if that total still
-        exceeds the cap -- i.e. it is ``_apply_powell_constraint`` itself,
-        called a second time with fresher input. Idempotent: calling it
-        twice in a row with no diversion change in between is a no-op,
-        because the first call's aggregate already equals the cap. Lower
-        Basin is untouched -- ``_apply_curtailment``'s tier-based floor at
-        0.80 is unchanged and was never part of this gap.
+        Code review (2026-09-25, same day as the fix): calling
+        ``_apply_powell_constraint`` a second time, unchanged, is WRONG
+        for any Upper Basin agent whose decision did NOT execute this
+        year (ABORTED, a REJECTED/UNCERTAIN row with no fallback, or an
+        inactive agent) -- its ``diversion`` still holds the value the
+        FIRST call (inside ``advance_year()``) already scaled down, so a
+        second raw call would add that already-reduced number into the
+        aggregate and scale it down again, while an agent that DID
+        execute contributes its full curtailment-only value. That skews
+        the pro-rata split between the two: reproduced directly with two
+        equal-request Upper Basin agents under a partial cap, one
+        ``maintain_demand``, one left un-executed -- the executed agent
+        ended up with roughly double the un-executed one's diversion
+        instead of the equal split the cap should produce.
+
+        Fixed by rebuilding EVERY Upper Basin agent's diversion from its
+        current ``request``/``water_right``/``curtailment_ratio`` (the
+        same formula ``update_agent_request`` uses) before re-deriving
+        the cap: for an agent that executed this year, ``request`` and
+        ``curtailment_ratio`` are already this year's values, so this
+        reproduces ``update_agent_request``'s own result bit for bit; for
+        an agent that did NOT execute, ``request`` is still last year's
+        value and ``curtailment_ratio`` is this year's (``_apply_curtailment``
+        sets it for every agent unconditionally, whether or not that
+        agent later executes), so this recomputes exactly what
+        ``_apply_curtailment`` produced for it during ``advance_year()``,
+        BEFORE that first Powell scaling -- undoing the first call's
+        scaling uniformly for every Upper Basin agent, executed or not,
+        so the aggregate this method then caps is the true pre-Powell
+        total, and every agent is scaled exactly once.
+
+        Idempotent up to floating-point rounding (not exact equality):
+        rebuilding from ``request`` every time makes a second call
+        reproduce the first call's result to within a few ULP, not
+        bit-for-bit -- measured empirically, the largest drift is on the
+        order of 1e-16 relative, and values settle after one re-call
+        (no compounding drift from calling this more than once). Calling
+        it mid-decision-loop, after only SOME agents have executed, would
+        still be wrong -- the aggregate cap should reflect the year's
+        FINAL demand, not a partial one -- so the "exactly once, after
+        the full decision loop" rule still applies; rebuilding from
+        ``request`` only fixes the un-executed-agent skew, not a
+        premature call. Lower Basin is untouched -- ``_apply_curtailment``'s
+        tier-based floor at 0.80 is unchanged and was never part of this
+        gap.
         """
+        for agent in self._agents.values():
+            if agent["basin"] != "upper_basin":
+                continue
+            capped_request = min(agent["request"], agent["water_right"])
+            agent["diversion"] = capped_request * (1.0 - agent.get("curtailment_ratio", 0.0))
         self._apply_powell_constraint()
 
     # -----------------------------------------------------------------

@@ -332,10 +332,79 @@ class TestF11bPowellCapReapplication:
 
         env.apply_powell_cap_to_executed_diversions()
         assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
-        # Idempotent: calling it again changes nothing further.
+        # Idempotent (up to float rounding): calling it again changes
+        # nothing meaningful further. Both agents here have a zeroed cap,
+        # so this only exercises the trivial 0-stays-0 case; see
+        # test_partial_cap_splits_evenly_regardless_of_which_agent_executed
+        # below for the case that actually stresses re-derivation.
         env.apply_powell_cap_to_executed_diversions()
         assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
         assert env._agents["UB1"]["diversion"] == 0.0
+
+    def test_partial_cap_splits_evenly_regardless_of_which_agent_executed(self):
+        """Code review (2026-09-25, same day as the F11b fix): the first
+        version of apply_powell_cap_to_executed_diversions just re-ran
+        _apply_powell_constraint on whatever diversion values were
+        already in place. That double-scaled an Upper Basin agent whose
+        decision did NOT execute this year, because its diversion still
+        held the FIRST (advance_year-time) Powell scaling, while an agent
+        that DID execute contributed its full curtailment-only value --
+        skewing the pro-rata split between two otherwise-identical
+        agents. The fix rebuilds every Upper Basin agent's diversion from
+        request/water_right/curtailment_ratio before re-deriving the cap,
+        so both agents land on the same, correct, evenly-split value
+        regardless of which one executed."""
+        from types import SimpleNamespace
+
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        for aid in ("UB_A", "UB_B"):
+            env._agents[aid] = {
+                "basin": "upper_basin",
+                "diversion": 1_000_000.0,
+                "request": 1_000_000.0,
+                "water_right": 2_000_000.0,
+                "curtailment_ratio": 0.0,
+                "at_allocation_cap": False,
+                "has_efficient_system": False,
+                "below_minimum_utilisation": False,
+                "cluster": "aggressive",
+                "persona_scale": 1.0,
+                "skill_magnitude": {},
+                "magnitude_default": 0.0,
+                "magnitude_sigma": 0.0,
+                "magnitude_min": 1.0,
+                "magnitude_max": 30.0,
+                "exploration_rate": 0.0,
+            }
+        # natural_flow = 12.0 * (66.667/100) = 8.0 MAF -> ub_flow_cap_af =
+        # (8.0 - 7.0) * 1e6 = 1,000,000 AF -- a PARTIAL cap (not a full
+        # zero), binding against the combined 2,000,000 AF request.
+        env._precip_history = [66.666667]
+        env._apply_curtailment()
+        env._apply_powell_constraint()
+        assert env._agents["UB_A"]["diversion"] == pytest.approx(500_000.0)
+        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
+
+        # UB_A's decision executes (maintain_demand keeps request at
+        # 1,000,000, discarding the 0.5 Powell scale per the F11b bug);
+        # UB_B never executes (ABORTED / no fallback / inactive), so its
+        # diversion is still the pre-decision Powell-scaled 500,000.
+        skill = SimpleNamespace(
+            skill_name="maintain_demand", agent_id="UB_A", parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        assert env._agents["UB_A"]["diversion"] == pytest.approx(1_000_000.0)
+        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
+
+        env.apply_powell_cap_to_executed_diversions()
+
+        # Correct result: both agents made an identical 1,000,000 AF
+        # request against a 1,000,000 AF aggregate cap, so both get the
+        # same evenly-split 500,000 AF -- not the skewed ~666,667 /
+        # ~333,333 split the un-fixed re-scale-in-place bug produced.
+        assert env._agents["UB_A"]["diversion"] == pytest.approx(500_000.0)
+        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
 
 
 class TestIrrigationValidators:
