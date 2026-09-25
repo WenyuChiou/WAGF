@@ -16,10 +16,13 @@
 # =============================================================================
 global_config:
   memory:
-    window_size: 5
+    # retrieval is 3 items by weighted recency/importance/context
+    # (broker/components/context/providers.py MemoryProvider hardcodes
+    # top_k=3; window_size/top_k_significant below only apply to the
+    # "legacy" ranking_mode, which this domain never selects, so they
+    # were removed here - see irrigation_farmer.memory for the same note).
     consolidation_threshold: 0.6
     consolidation_probability: 0.7
-    top_k_significant: 2
     decay_rate: 0.1
 
   reflection:
@@ -31,15 +34,10 @@ global_config:
       - "Was your water demand strategy effective given the supply conditions?"
       - "Did the magnitude of your demand change match the outcome?"
       - "What patterns do you notice between your actions and supply shortfalls?"
-    triggers:
-      crisis: true                    # Triggered by severe water curtailment
-      periodic_interval: 5            # Every 5 years
-      decision_types:
-        - increase_large
-        - increase_small
-        - decrease_small
-        - decrease_large
-      institutional_threshold: 0.05   # Policy change > 5%
+    # reflection fires every year via reflection.interval (IrrigationLifecycleHooks.post_year
+    # -> ReflectionEngine.should_reflect); the trigger-based system this block once
+    # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
+    # called anywhere in this domain's runners, so it was removed here.
     method: hybrid
 
   llm:
@@ -76,8 +74,6 @@ shared:
     - feedback_dashboard
     - conservation_status
     - aca_hint
-    - trust_forecasts_text
-    - trust_neighbors_text
 
   rating_scale: |
     ### RATING SCALE (You MUST use EXACTLY one of these codes):
@@ -211,17 +207,25 @@ irrigation_farmer:
   # ---------------------------------------------------------------------------
   memory:
     engine_type: "human_centric"
-    window_size: 5
-
-    top_k_significant: 2
+    # retrieval is 3 items by weighted recency/importance/context (see
+    # global_config.memory above); window_size and top_k_significant were
+    # removed here because they only applied to HumanCentricMemoryEngine's
+    # "legacy" ranking_mode, and this domain always constructs the engine
+    # with ranking_mode="weighted" (run_experiment.py), so they were never
+    # read at runtime.
 
     emotion_keywords:
+      # "drought" was deliberately dropped from this list: build_action_outcome_feedback
+      # / build_regret_feedback (irrigation_personas.py) unconditionally append
+      # "Drought index: N.NN." to every yearly outcome line regardless of severity,
+      # so keeping "drought" here made water_crisis match every single outcome line
+      # (including "Demand fully met" ones), masking the shortfall/unmet signal below.
       water_crisis:
-        ["curtailment", "shortage", "drought", "dry", "depleted", "crisis"]
+        ["curtailment", "shortage", "shortfall", "unmet", "dry", "depleted", "crisis"]
       strategic_choice:
         ["decision", "increase", "decrease", "efficiency", "conservation"]
       positive_outcome:
-        ["sufficient", "surplus", "saved", "adequate", "improved"]
+        ["sufficient", "surplus", "saved", "adequate", "improved", "fully met"]
       social_feedback:
         ["neighbor", "upstream", "downstream", "compact", "agreement"]
     emotional_weights:
@@ -233,13 +237,22 @@ irrigation_farmer:
     source_weights:
       personal: 1.0
       neighbor: 0.8
-      basin: 0.6
-      policy: 0.4
+      community: 0.6
+    # _classify_source() (broker/components/memory/engines/humancentric.py)
+    # only ever reads/returns personal / neighbor / community / abstract; a
+    # source_patterns key of any other name (this used to be a separate
+    # "basin" key, plus a "policy" key with its own source_weights entry)
+    # is silently ignored, so those keyword lists and weights were dead.
+    # Renamed/folded into "community" so basin- and policy-level language
+    # is actually classified, instead of falling back to the code's own
+    # ["%", "community", "region", "area"] default (which trapped every
+    # outcome line's "N% unmet" text as "community" before "personal"
+    # could ever be reached).
     source_patterns:
-      personal: ["i ", "my ", "me ", "my farm", "my water"]
+      personal: ["i ", "my ", "me ", "you ", "your "]
       neighbor: ["neighbor", "upstream", "downstream", "adjacent"]
-      basin: ["basin", "compact", "allocation", "bureau"]
-      policy: ["regulation", "policy", "mandate", "restriction"]
+      community:
+        ["basin", "compact", "allocation", "bureau", "regulation", "policy", "mandate", "restriction"]
 
     retrieval_weights:
       recency: 0.3
