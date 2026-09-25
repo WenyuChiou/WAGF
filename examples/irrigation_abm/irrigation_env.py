@@ -165,7 +165,17 @@ class IrrigationEnvironment:
             self._irrigation_contract = build_irrigation_agent_context_contract()
 
         # Timeline
-        self._current_year: int = self.config.sim_start_year
+        # F12 follow-up (2026-09-25 code review): pre-loop _current_year must
+        # NOT equal loop year 1's value (sim_start_year, 2019), or the first
+        # advance_year() call re-keys nothing and _decision_rng repeats its
+        # draw (a real regression the review caught in
+        # tests/test_irrigation_execute_skill_thread_safety.py). sim_start_year
+        # - 1 (2018) is also the semantically right pre-loop label: initial
+        # conditions (Mead's Dec-2018 observed elevation, 2018 diversions)
+        # are dated 2018, one year before loop year 1 begins. This value is
+        # always overwritten by the first advance_year() call before any
+        # hook or validator reads it, so no production output depends on it.
+        self._current_year: int = self.config.sim_start_year - 1
         self._year_index: int = 0
 
         # Global state
