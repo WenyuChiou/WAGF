@@ -206,32 +206,38 @@ in 2022 (`_generate_lake_mead_level` / `_apply_powell_constraint` in
 governance check see, since both read state before that agent's
 decision executes.
 
-**Code review note (2026-09-25, found reviewing a later branch, not
-fixed here, corrected in a second review pass the same day):** the zero
-does not survive that agent's own decision. `update_agent_request`
-recomputes diversion from `curtailment_ratio` alone, with no Powell
-scale factor, and every skill (`maintain_demand` included) calls it, so
-the zero (and any lesser Powell scaling, not only the full-zero case) is
-overwritten the instant that agent acts.
-
-The first version of this note also claimed the Mead mass balance never
-sees the Powell zero. That overstated it: `_generate_lake_mead_level`
+**F11b (2026-09-25, same day, later pass; the gap F11 disclosed is now
+fixed, not just disclosed):** two review passes on the branch that first
+disclosed this found that the zero did not survive that agent's own
+decision. `update_agent_request` recomputes diversion from
+`curtailment_ratio` alone, with no Powell scale factor, and every skill
+(`maintain_demand` included) calls it, so the zero (and any lesser
+Powell scaling, not only the full-zero case) used to be overwritten the
+instant that agent acted. A second review pass also found that an
+earlier draft of this note overstated the gap: `_generate_lake_mead_level`
 recomputes its own Upper-Basin cap from that year's own natural flow
-every time it runs, independent of whatever `update_agent_request` did
-to `agent["diversion"]` afterward, so the reservoir physics does
-re-derive and re-apply the Powell cap each year rather than trusting a
-possibly-stale value. It reads Upper Basin diversions from the
-*previous* year by design, so this year's cap only fully corrects last
-year's inflated total when this year's own natural flow makes the cap at
-least as tight as last year's true one; a looser cap this year passes
-last year's inflated number through uncorrected. What reliably loses the
-cap, with no independent re-derivation to fall back
-on, is narrower: `simulation_log.csv`'s `diversion` column, this
-branch's F05 memory snapshot, and `_batch_reflect`'s `supply_ratio` all
-read `agent["diversion"]` directly. See `_apply_powell_constraint`'s
-docstring in `irrigation_env.py` for the full detail; whether
-`update_agent_request` should also apply a Powell scale factor is a
-design decision for the runner/env owner.
+every time it runs, independent of `agent["diversion"]`'s later state,
+so the reservoir physics itself does re-derive and re-apply the Powell
+cap each year; it does not simply trust a possibly-stale value.
+
+F11b fixes the part that reliably lost the cap with nothing to
+re-derive it: a new `IrrigationEnvironment.apply_powell_cap_to_executed_diversions()`,
+called once per year from `IrrigationLifecycleHooks.post_year`
+(`run_experiment.py`) after every agent's decision has executed and
+before anything reads `diversion` for the year, re-runs the same
+pro-rata Powell cap `advance_year()` used, against the FINAL
+post-decision Upper Basin total. `simulation_log.csv`'s `diversion`
+column, the F05 memory snapshot, and `_batch_reflect`'s `supply_ratio`
+now all correctly reflect the Powell cap for Upper Basin agents. As a
+side effect this also closes the year-over-year carry-forward gap noted
+above (`_generate_lake_mead_level` reading last year's diversions): the
+value it reads for year t-1 is now the F11b-corrected one, not an
+inflated curtailment-only figure. See
+`apply_powell_cap_to_executed_diversions`'s docstring in
+`irrigation_env.py` for why it must be called exactly once per year,
+after the full decision loop, and not mid-loop. Whether Powell storage
+itself should be modelled (the remaining, out-of-scope half of the
+original finding) is still a design decision for the runner/env owner.
 
 Lower Basin diversions are governed separately by the tier-based
 curtailment ratios in `_apply_curtailment`, which floor at 0.80 of
