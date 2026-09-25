@@ -121,6 +121,14 @@ class ExperimentConfig:
     # OFF default is byte-identical for them.
     enable_cognitive_cache: bool = False
 
+# Substrings that identify the runner's own immediate decision memories
+# (written by ExperimentRunner._apply_state_changes). Domains that filter
+# these lines out of memory (e.g. a baseline-parity proxy engine) should
+# match on both markers.
+DECISION_MEMORY_MARKER = "Decided to:"
+FALLBACK_MEMORY_MARKER = "default action applied:"
+
+
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
     def __init__(self,
@@ -520,9 +528,12 @@ class ExperimentRunner:
            run as a trailing phase, with a warning)
         4. per phase: agent loop (sequential or ThreadPool) -> then, per
            result: ``_apply_state_changes`` + ``post_step`` hook (interleaved
-           per agent; REJECTED/UNCERTAIN reach post_step WITHOUT state/memory
-           application; ABORTED results carry ``skill_proposal=None`` — hooks
-           must tolerate that)
+           per agent). REJECTED/UNCERTAIN rows get ``_apply_state_changes``
+           only when the broker actually executed a skill on them (the
+           registry default run as a fallback, or the kept proposal under
+           ``on_retry_exhausted: keep_proposal``); rows where nothing executed
+           reach post_step with no state/memory application. ABORTED results
+           carry ``skill_proposal=None``; hooks must tolerate that.
         5. after ALL phases: ``post_step_end`` then ``post_year`` (both fire)
         6. ``_finalize_step``; finally-guaranteed ``_finalize_experiment``.
 
@@ -634,7 +645,15 @@ class ExperimentRunner:
                     # Apply results and trigger post-step hooks
                     for agent, result in results:
                         if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
-                            # REJECTED: no state change, no memory — only audit trace
+                            # The broker may still have EXECUTED a skill on this
+                            # row: the registry default as a fallback, or the
+                            # agent's own proposal under keep_proposal. Apply
+                            # what executed (state + action context + memory)
+                            # exactly once, here; when nothing executed (no
+                            # engine, no registered default, failed execution)
+                            # the row changes no state and writes no memory.
+                            if self._executed_on_rejected_row(result):
+                                self._apply_state_changes(agent, result)
                             if "post_step" in self.hooks:
                                 self._call_hook("post_step", agent, result)
                             continue
@@ -1361,34 +1380,94 @@ class ExperimentRunner:
 
         return metadata
 
+    @staticmethod
+    def _executed_on_rejected_row(result: Any) -> bool:
+        """True iff the broker ran a skill on a REJECTED/UNCERTAIN row and it succeeded.
+
+        ``executed_skill`` is set by ``SkillBrokerEngine.process_step`` only when
+        the simulation engine was actually called (registry default fallback, or
+        the kept proposal under ``keep_proposal``). Standalone mode (no engine)
+        leaves it None, so domains whose hooks handle rejected rows themselves
+        see no generic state or memory application on those rows.
+        """
+        return bool(
+            isinstance(getattr(result, "executed_skill", None), str)
+            and getattr(result, "executed_skill")
+            and result.execution_result is not None
+            and result.execution_result.success
+        )
+
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
         """Update agent attributes and memory from execution results.
 
         Also stores action context on agent._last_action_context for
         deferred feedback by domain pre_year hooks.
+
+        Approved rows (APPROVED / RETRY_SUCCESS) describe the approved skill.
+        Rejected rows (REJECTED / UNCERTAIN) that reach here had a skill
+        executed by the broker (see ``_executed_on_rejected_row``); their
+        action context names the skill that EXECUTED, not the blocked
+        proposal, and carries ``was_fallback`` (True when the registry default
+        ran in place of the proposal) plus ``proposed_skill`` (the blocked
+        proposal on REJECTED; None on UNCERTAIN, where no usable proposal
+        existed), so domain feedback builders can say the default action was
+        applied after the proposal was rejected instead of "you chose".
         """
+        rejected_row = result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN)
+        if rejected_row:
+            executed_name = getattr(result, "executed_skill", None) or result.approved_skill.skill_name
+            was_fallback = bool(getattr(result, "executed_via_fallback", False))
+            proposed_name = (
+                result.approved_skill.skill_name
+                if result.outcome == SkillOutcome.REJECTED and result.approved_skill
+                else None
+            )
+        else:
+            executed_name = result.approved_skill.skill_name
+            was_fallback = False
+            proposed_name = None
+
         # 1. Update State Flags using canonical method
         if result.execution_result and result.execution_result.state_changes:
             agent.apply_delta(result.execution_result.state_changes)
 
         # 2. Store action context for deferred feedback by domain pre_year hooks
         action_ctx = {
-            "skill_name": result.approved_skill.skill_name,
+            "skill_name": executed_name,
             "year": getattr(self, '_current_year', 0),
         }
-        params = result.approved_skill.parameters or {}
+        # A fallback skill runs with no parameters of its own; the rejected
+        # proposal's parameters (already cleared by the broker) never apply.
+        params = {} if was_fallback else (result.approved_skill.parameters or {})
         if params.get("magnitude_pct") is not None:
             action_ctx["magnitude_pct"] = params["magnitude_pct"]
             action_ctx["magnitude_fallback"] = params.get("magnitude_fallback", False)
+        if rejected_row:
+            # Keys added only on rejected rows so approved-row contexts keep
+            # exactly the keys they always had.
+            action_ctx["was_fallback"] = was_fallback
+            action_ctx["proposed_skill"] = proposed_name
         if result.execution_result and result.execution_result.action_context:
             action_ctx.update(result.execution_result.action_context)
         agent._last_action_context = action_ctx
 
         # 3. Legacy immediate memory (kept for backward compat; filtered by
         #    DecisionFilteredMemoryEngine in baseline parity experiments)
-        action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
+        action_desc = executed_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
-        memory_content = f"{timestamp_prefix}Decided to: {action_desc}"
+        if was_fallback and proposed_name:
+            proposed_desc = proposed_name.replace("_", " ")
+            memory_content = (
+                f"{timestamp_prefix}Proposal to {proposed_desc} was rejected; "
+                f"{FALLBACK_MEMORY_MARKER} {action_desc}"
+            )
+        elif was_fallback:
+            memory_content = (
+                f"{timestamp_prefix}No valid proposal; "
+                f"{FALLBACK_MEMORY_MARKER} {action_desc}"
+            )
+        else:
+            memory_content = f"{timestamp_prefix}{DECISION_MEMORY_MARKER} {action_desc}"
         # Phase 6C-v2 (2026-05-10): delegate per-skill emotion/importance
         # to DomainPack instead of hardcoding flood skill names. Flood
         # pack returns the same (major, 0.7) / (positive, 0.6) values
@@ -1404,9 +1483,7 @@ class ExperimentRunner:
             # Phase 6R-D-4 (2026-05-26): SkillPack-narrowed accessor —
             # skill_emotion_metadata is owned by SkillPack.
             pack = DomainPackRegistry.get_skill_pack(domain_name)
-            pack_metadata = pack.skill_emotion_metadata(
-                result.approved_skill.skill_name
-            )
+            pack_metadata = pack.skill_emotion_metadata(executed_name)
             if pack_metadata:
                 memory_metadata = dict(pack_metadata)
                 memory_metadata.setdefault("source", "personal")

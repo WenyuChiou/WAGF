@@ -339,6 +339,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Rejected rows now apply the fallback skill the broker executed (audit
+  F06 + F20, 2026-09-25)**: on REJECTED / UNCERTAIN results
+  `SkillBrokerEngine.process_step` runs the registry default skill, but
+  `ExperimentRunner.run` skipped `_apply_state_changes` for those rows, so the
+  fallback's `state_changes` were dropped (single-agent flood: an insured
+  agent's annual lapse never happened) and `agent._last_action_context` kept
+  an older approved action (irrigation memory: "Year t: You chose to <stale
+  action>"). `SkillBrokerResult` now carries `executed_skill` /
+  `executed_via_fallback`; the runner applies the executed skill once and
+  records it in the action context with `was_fallback` and `proposed_skill`.
+  Audit rows and `final_skill` still carry the blocked proposal; engine
+  fallback behaviour and `on_retry_exhausted` are unchanged; approved-row
+  memory text and action-context keys are unchanged. Irrigation, single-agent
+  flood and governed_flood feedback now say the proposal was rejected and the
+  default was applied. The single-agent `DecisionFilteredMemoryEngine` drops
+  the runner's new fallback line as it drops "Decided to:". Behaviour change
+  for reproduction: governed runs differ from any corpus produced before this
+  commit on every rejected row (state, memory, next-year prompt).
+- **`mem_top_emotion` / `mem_top_source` tie-break was hash-order dependent**:
+  `max(set(...))` picked among tied values by per-process string hashing, so
+  identical runs could disagree on tied rows. Ties now go to the value
+  retrieved first; untied rows are unchanged.
+
 - **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
   the retry wrapper threw the measurement away one frame above where it was
   taken**: `prompt_tokens`, `response_tokens`, `num_ctx` and
