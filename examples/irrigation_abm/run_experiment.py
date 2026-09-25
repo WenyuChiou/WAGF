@@ -383,16 +383,41 @@ class IrrigationLifecycleHooks:
 
             # Inject combined action + outcome feedback from last year
             if year > 1:
-                prev_request = agent_state.get("request", 0)
-                prev_diversion = agent_state.get("diversion", 0)
+                # F05 (2026-09-25 audit): by this point env.advance_year(year)
+                # has already run and recomputed agent_state["diversion"]
+                # under THIS year's curtailment_ratio / Powell scaling
+                # (irrigation_env.py: _apply_curtailment, _apply_powell_constraint),
+                # and ctx["drought_index"]/["preceding_factor"] are this
+                # year's too. Reading agent_state/ctx here for "last year's"
+                # outcome silently reports year t's numbers under a year
+                # t-1 label — disagreeing with the dashboard, which shows
+                # the same live values under year t. Use the snapshot
+                # post_year(year-1) captured at the END of year t-1,
+                # before this year's advance_year() touched it.
+                snapshot = getattr(agent, "_last_year_outcome", None)
+                if snapshot:
+                    prev_request = snapshot.get("request", 0)
+                    prev_diversion = snapshot.get("diversion", 0)
+                    prev_drought_index = snapshot.get("drought_index", 0)
+                    prev_preceding_factor = snapshot.get("preceding_factor", 0)
+                else:
+                    # Defensive fallback only — post_year(year-1) always runs
+                    # before pre_year(year) in ExperimentRunner.run, so this
+                    # branch means a hook ordering change broke that
+                    # invariant. Keep the run alive with the pre-F05 (stale)
+                    # reading rather than crash a batch.
+                    prev_request = agent_state.get("request", 0)
+                    prev_diversion = agent_state.get("diversion", 0)
+                    prev_drought_index = ctx.get("drought_index", 0)
+                    prev_preceding_factor = ctx.get("preceding_factor", 0)
                 action_ctx = getattr(agent, '_last_action_context', None)
                 feedback = build_action_outcome_feedback(
                     action_ctx=action_ctx,
                     year=year - 1,
                     request=prev_request,
                     diversion=prev_diversion,
-                    drought_index=ctx.get("drought_index", 0),
-                    preceding_factor=ctx.get("preceding_factor", 0),
+                    drought_index=prev_drought_index,
+                    preceding_factor=prev_preceding_factor,
                     # F15 (2026-09-25 audit): Lower Basin agents' preceding_factor
                     # is the Lake Mead trend, not precipitation; basin selects the
                     # correct wording (build_water_situation_text already does this).
@@ -456,6 +481,24 @@ class IrrigationLifecycleHooks:
     def post_year(self, year: int, agents: Dict):
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
+
+            # F05 (2026-09-25 audit): snapshot THIS year's own outcome now —
+            # request/diversion/drought_index/preceding_factor are all
+            # correct for year `year` at this point (this year's decision
+            # has executed, env.advance_year(year+1) has not run yet).
+            # pre_year(year+1) reads this snapshot for its "last year"
+            # memory line instead of re-querying live env state, which by
+            # then env.advance_year(year+1) will have already recomputed
+            # under year+1's curtailment/Powell scaling.
+            basin_key = agent_state.get("basin", "lower_basin")
+            agent._last_year_outcome = {
+                "year": year,
+                "request": agent_state.get("request", 0),
+                "diversion": agent_state.get("diversion", 0),
+                "drought_index": self.env.global_state.get("drought_index", 0),
+                "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
+            }
+
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
             appr = dec.get("appraisals", {}) if isinstance(dec, dict) else {}
