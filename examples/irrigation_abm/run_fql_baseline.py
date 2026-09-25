@@ -147,7 +147,10 @@ def validate_skill(
     skill_name: str,
     context: Dict[str, Any],
 ) -> Tuple[bool, str]:
-    """Run all 12 irrigation validators on a proposed skill.
+    """Run the dispatched irrigation validators (ALL_IRRIGATION_CHECKS,
+    9 as of F04 2026-09-25 -- drought_severity_check, magnitude_cap_check
+    and compact_allocation_check were removed, see irrigation_validators.py)
+    on a proposed skill.
 
     NOTE: The LLM path uses broker's RejectionHandler which re-invokes the LLM
     on rejection. Since FQL has no LLM, we use a deterministic 2-tier fallback:
