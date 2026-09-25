@@ -923,6 +923,8 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             secondary_approved=secondary_approved,
             secondary_execution=secondary_execution,
             composite_validation_errors=composite_errors,
+            executed_skill=executed_skill,
+            executed_via_fallback=executed_via_fallback,
         )
     
     def _build_approved_skill(

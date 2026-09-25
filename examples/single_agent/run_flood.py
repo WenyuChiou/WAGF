@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
+from broker.core.experiment_runner import DECISION_MEMORY_MARKER, FALLBACK_MEMORY_MARKER
 from broker.components.social.graph import NeighborhoodGraph
 from broker.components.analytics.interaction import InteractionHub
 from broker.components.context.builder import TieredContextBuilder, PrioritySchemaProvider
@@ -241,13 +242,22 @@ class DecisionFilteredMemoryEngine:
     def __init__(self, inner):
         self.inner = inner
 
+    # The runner writes an immediate decision line for approved rows
+    # ("Decided to: X") and, since the F06/F20 fix, for fallback rows
+    # ("... default action applied: Y"). Both are dropped here; the
+    # deferred pre_year line is the only action memory, as in the baseline.
+    @staticmethod
+    def _is_decision_memory(content: str) -> bool:
+        return (DECISION_MEMORY_MARKER in content
+                or FALLBACK_MEMORY_MARKER in content)
+
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
-        if "Decided to:" in content:
+        if self._is_decision_memory(content):
             return
         return self.inner.add_memory(agent_id, content, metadata)
 
     def add_memory_for_agent(self, agent, content: str, metadata: Optional[Dict[str, Any]] = None):
-        if "Decided to:" in content:
+        if self._is_decision_memory(content):
             return
         if hasattr(self.inner, 'add_memory_for_agent'):
             return self.inner.add_memory_for_agent(agent, content, metadata)
@@ -411,7 +421,20 @@ class FinalParityHook:
                 if action_ctx and action_ctx.get("skill_name"):
                     skill = action_ctx["skill_name"].replace("_", " ")
                     act_year = action_ctx.get("year", year - 1)
-                    yearly_memories.append(f"Year {act_year}: You chose to {skill}.")
+                    if action_ctx.get("was_fallback"):
+                        # Rejected proposal; the registry default ran instead.
+                        proposed = action_ctx.get("proposed_skill")
+                        if proposed:
+                            yearly_memories.append(
+                                f"Year {act_year}: Your proposal to "
+                                f"{proposed.replace('_', ' ')} was rejected; "
+                                f"{skill} was applied.")
+                        else:
+                            yearly_memories.append(
+                                f"Year {act_year}: No valid proposal was made; "
+                                f"{skill} was applied.")
+                    else:
+                        yearly_memories.append(f"Year {act_year}: You chose to {skill}.")
 
             # Consolidate and Add ONCE to preserve window history
             consolidated_mem = " | ".join(yearly_memories)
@@ -464,9 +487,10 @@ class FinalParityHook:
             "retry_count": getattr(result, 'retry_count', 0) if result else 0,
         }
         
-        # Apply state_changes using canonical BaseAgent method
-        if result and hasattr(result, 'state_changes') and result.state_changes:
-            agent.apply_delta(result.state_changes)
+        # State changes are applied by ExperimentRunner._apply_state_changes
+        # (approved rows and fallback executions on rejected rows alike).
+        # The former `result.state_changes` branch here was unreachable:
+        # SkillBrokerResult has no such field, so it never ran.
         
         # Update flood threshold when house is elevated.
         # Only when the skill was actually APPROVED/RETRY_SUCCESS and executed
@@ -476,13 +500,25 @@ class FinalParityHook:
         # SkillBrokerEngine._build_approved_skill), so checking skill_name
         # alone would lower the threshold for a proposal that never executed
         # -- the registry default (do_nothing) ran instead.
+        # On REJECTED/UNCERTAIN, gate on what the engine EXECUTED
+        # (result.executed_skill: the default skill, or the agent's own
+        # proposal under on_retry_exhausted=keep_proposal), because the
+        # runner now applies that execution's state_changes. The approved
+        # branch is unchanged.
         is_executed_outcome = result and result.outcome in (
             SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS
         )
+        if is_executed_outcome and result.approved_skill:
+            executed_name = result.approved_skill.skill_name
+        elif (result and result.execution_result is not None
+              and result.execution_result.success
+              and isinstance(getattr(result, "executed_skill", None), str)):
+            executed_name = result.executed_skill
+        else:
+            executed_name = None
         resolved_skill = ResearchSimulation._SKILL_ALIASES.get(
-            result.approved_skill.skill_name.lower(),
-            result.approved_skill.skill_name
-        ) if (is_executed_outcome and result.approved_skill) else None
+            executed_name.lower(), executed_name
+        ) if executed_name else None
         if resolved_skill == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)
