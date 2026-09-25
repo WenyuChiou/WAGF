@@ -361,6 +361,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `max(set(...))` picked among tied values by per-process string hashing, so
   identical runs could disagree on tied rows. Ties now go to the value
   retrieved first; untied rows are unchanged.
+- **Irrigation reflection memories silently lost their calibrated
+  importance and always scored a flat 0.5**:
+  `IrrigationLifecycleHooks._batch_reflect`
+  (`examples/irrigation_abm/run_experiment.py`) stored each year-end
+  consolidated-reflection memory under metadata key `"significance"`,
+  but `HumanCentricMemoryEngine._add_memory_internal`
+  (`broker/components/memory/engines/humancentric.py`) only reads
+  `metadata.get("importance", 0.5)` -- the flood runner
+  (`examples/single_agent/run_flood.py`) already used the correct key.
+  Fixed by renaming the key. **Irrigation runs from this commit forward
+  are not byte-identical or pool-safe with any earlier corpus**:
+  reflection memories that previously all scored a flat 0.5 (below the
+  0.6 `consolidation_threshold`, so never eligible for long-term
+  consolidation and always near the bottom of weighted retrieval) now
+  score in `IrrigationAdapter.compute_importance`'s real range
+  (0.55-0.95, driven by supply ratio / drought count / decision type),
+  which changes which memories consolidate to long-term and how they
+  rank in `retrieve()`. Do not pool pre-fix and post-fix irrigation
+  results.
 
 - **Every released audit CSV reported 0 tokens, 0 context and 0 cost, because
   the retry wrapper threw the measurement away one frame above where it was
