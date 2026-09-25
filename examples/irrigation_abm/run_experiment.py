@@ -489,7 +489,16 @@ class IrrigationLifecycleHooks:
             # pre_year(year+1) reads this snapshot for its "last year"
             # memory line instead of re-querying live env state, which by
             # then env.advance_year(year+1) will have already recomputed
-            # under year+1's curtailment/Powell scaling.
+            # under year+1's curtailment/Powell scaling. This snapshot is
+            # deliberately taken from the SAME agent_state simulation_log.csv
+            # logs a few lines below, so memory and the CSV always agree
+            # (the audit's own acceptance test). Code review note
+            # (2026-09-25): in a Powell-constrained year, agent_state["diversion"]
+            # here already reflects execute_skill's post-decision recompute,
+            # not the transient Powell-zero the prompt showed before the
+            # decision -- see IrrigationEnvironment._apply_powell_constraint's
+            # docstring. That gap is pre-existing in simulation_log.csv
+            # itself and out of scope for this fix.
             basin_key = agent_state.get("basin", "lower_basin")
             agent._last_year_outcome = {
                 "year": year,

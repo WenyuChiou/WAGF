@@ -199,15 +199,33 @@ The Colorado River system has two major reservoirs — Lake Powell (upstream, Gl
 Powell *storage* is not modelled (only its minimum-release floor, item 2
 above), a year where natural flow drops below 7.0 MAF has no storage
 buffer to draw down instead: Upper Basin diversions are scaled to
-exactly 0 for that year rather than partially reduced. In the CRSS PRISM
-series this happens in 2022 (`_generate_lake_mead_level` /
-`_apply_powell_constraint` in `irrigation_env.py`). Lower Basin
-diversions are governed separately by the tier-based curtailment ratios
-in `_apply_curtailment`, which floor at 0.80 of requested (Tier 3's 20%
-cut) by construction, so they cannot reach zero through this path.
-Consequently `supply_gap_block_increase` and the `non_negative_diversion`
-governance warning are reachable only for Upper Basin agents in this
-model; Lower Basin agents never trigger them.
+exactly 0 for that year rather than partially reduced, immediately after
+`_apply_powell_constraint` runs. In the CRSS PRISM series this happens
+in 2022 (`_generate_lake_mead_level` / `_apply_powell_constraint` in
+`irrigation_env.py`). This zero is what the agent's own prompt and every
+governance check see, since both read state before that agent's
+decision executes.
+
+**Code review note (2026-09-25, found reviewing a later branch, not
+fixed here):** the zero does not survive that agent's own decision.
+`update_agent_request` recomputes diversion from `curtailment_ratio`
+alone, with no Powell scale factor, and every skill (`maintain_demand`
+included) calls it, so the zero is overwritten the instant that agent
+acts. `simulation_log.csv`'s `diversion` column and the Mead mass
+balance carried into next year never actually see the Powell zero, only
+the transient pre-decision prompt/validation view does. See
+`_apply_powell_constraint`'s docstring in `irrigation_env.py` for the
+full detail; whether `update_agent_request` should also apply a Powell
+scale factor is a design decision for the runner/env owner.
+
+Lower Basin diversions are governed separately by the tier-based
+curtailment ratios in `_apply_curtailment`, which floor at 0.80 of
+requested (Tier 3's 20% cut) by construction, so they cannot reach zero
+through this path and are not affected by the gap above. Consequently
+`supply_gap_block_increase` and the `non_negative_diversion` governance
+warning, which validate before the agent's decision executes, are still
+reachable only for Upper Basin agents in this model; Lower Basin agents
+never trigger them.
 
 ### Initial Elevation: 1081.46 ft (Dec 2018 Observed)
 
