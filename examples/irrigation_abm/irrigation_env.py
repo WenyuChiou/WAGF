@@ -197,7 +197,14 @@ class IrrigationEnvironment:
 
         # History for preceding factor computation
         self._precip_history: List[float] = []
-        self._mead_history: List[float] = [1081.46, 1082.52]  # 2017, 2018
+        # F17 (2026-09-25 audit): this list was [1081.46, 1082.52] labelled
+        # "2017, 2018", contradicting both mead_initial_elevation (1081.46 =
+        # Dec 2018 observed, below) and docs/irrigation_physics.md ("2017
+        # (1082.52 ft) and 2018 (1081.46 ft)"). With the old order,
+        # _update_preceding_factors compared _mead_history[-1]=1082.52
+        # against [-2]=1081.46 for year 1's rising/declining flag -- the
+        # wrong pair. Corrected to the documented order: 2017, then 2018.
+        self._mead_history: List[float] = [1082.52, 1081.46]  # 2017, 2018
 
         # Mass balance storage tracking (MAF)
         _init_elev = self.config.mead_initial_elevation
