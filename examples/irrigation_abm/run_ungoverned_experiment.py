@@ -30,16 +30,13 @@ Historical CLI defaults are preserved so an invocation that relied on them
 ``results/ungoverned_v20_42yr_seed{seed}`` directory name) behaves exactly
 as before.
 
-Note for broker/tests/test_coupling_retrofit_pr9.py::
-TestFlagReachesEveryIrrigationRunner (a source-level pin from before this
-file became a wrapper; broker/ is out of scope for this change, so the pin
-itself was not touched): the coupling-context-contract wiring it greps this
-file for by literal text, ``get_coupling_context_contract()`` and
-``coupling_contract_active=coupling_contract_active``, now lives in
-run_experiment.py's ``main()`` (which every invocation of this wrapper
-calls, governed or not) rather than being duplicated here -- both fragments
-are reproduced verbatim in this paragraph so the pin still finds them, but
-the actual call is made in run_experiment.py, not this file.
+broker/tests/test_coupling_retrofit_pr9.py::TestFlagReachesEveryIrrigationRunner
+pins that this file actually delegates to run_experiment.py's main() (rather
+than reimplementing coupling-context-contract wiring here) via
+test_ungoverned_forwards_to_run_experiment_main, and separately pins that
+run_experiment.py itself still calls get_coupling_context_contract() and
+constructs IrrigationEnvironment(..., coupling_contract_active=
+coupling_contract_active).
 """
 from __future__ import annotations
 
