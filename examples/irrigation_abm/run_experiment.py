@@ -769,12 +769,14 @@ def main():
     # default OFF (byte-identical to pre-PR-9 behaviour). See
     # AgentTypeConfig.get_coupling_context_contract for what the flag
     # does and examples/irrigation_abm/irrigation_coupling.py for the guard.
-    # The SAME two lines appear in run_ungoverned_experiment.py and
-    # run_fql_baseline.py (review P1-a): a flag that reached only the
-    # governed arm would make the two arms of a comparison differ in
-    # something other than governance. AgentTypeConfig.load caches per
-    # resolved path, so this is one parse per config per process, not one
-    # per call site.
+    # run_fql_baseline.py has the SAME two lines (review P1-a): a flag that
+    # reached only the governed arm would make the two arms of a comparison
+    # differ in something other than governance. run_ungoverned_
+    # experiment.py no longer has its own copy (irrigation case-alignment,
+    # 2026-09) -- it is a thin wrapper that forwards to THIS main(), so it
+    # shares this guard by construction rather than by keeping a duplicate
+    # in sync. AgentTypeConfig.load caches per resolved path, so this is one
+    # parse per config per process, not one per call site.
     from broker.utils.agent_config import AgentTypeConfig
     coupling_contract_active = AgentTypeConfig.load(
         str(agent_config_path)

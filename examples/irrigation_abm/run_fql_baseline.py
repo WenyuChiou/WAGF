@@ -504,9 +504,12 @@ def main():
             p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
 
     # Create environment
-    # PR-9 review P1-a: same flag, same getter as run_experiment.py and
-    # run_ungoverned_experiment.py, so all three arms of a comparison are
-    # guarded or unguarded TOGETHER. The .exists() check mirrors this
+    # PR-9 review P1-a: same flag, same getter as run_experiment.py, so both
+    # arms of a comparison are guarded or unguarded TOGETHER.
+    # run_ungoverned_experiment.py no longer has its own arm (irrigation
+    # case-alignment, 2026-09) -- it is a thin wrapper that forwards to
+    # run_experiment.py's main(), so it shares that arm's guard rather than
+    # needing one of its own here. The .exists() check mirrors this
     # function's own handling of the config a few lines above — this runner
     # tolerates a missing agent_types.yaml, and asking the loader for a path
     # that is not there would fall back to a DIFFERENT file (the packaged
