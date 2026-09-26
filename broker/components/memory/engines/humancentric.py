@@ -71,6 +71,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # Wave 3 (3-4): domain-supplied emotion lexicon {emotion: [keywords]}.
         # None -> the generic default bank below (byte-identical to pre-3-4).
         emotion_keywords: Optional[Dict[str, List[str]]] = None,
+        # Reserved retrieval slots (weighted mode only): {memory type: count}
+        # or a list of types (one slot each). None -> strict no-op.
+        reserve_types: Optional[Any] = None,
     ):
         """
         Args:
@@ -81,6 +84,19 @@ class HumanCentricMemoryEngine(MemoryEngine):
             max_longterm: Long-term memory capacity (0 = unlimited)
             W_relevance: Weight for query-memory relevance (0 = disabled)
             W_interference: Weight for interference penalty (0 = disabled)
+            reserve_types: Weighted mode only. Reserves retrieval slots for
+                memory types, as ``{type: count}`` or a list of types (one
+                slot each); a memory's type is its ``type`` metadata key.
+                When the score-ranked top-k holds fewer than ``count`` items
+                of a reserved type and unselected items of that type exist,
+                the lowest-scoring selected item that is not of a reserved
+                type is replaced by the best-scoring unselected item of that
+                type; the result stays sorted by score and a swapped-in item
+                carries ``"reserved": True``. Counts are integers (slots),
+                not weights. Applies to EVERY weighted ``retrieve`` call of
+                this engine (prompt retrieval and any other top-k read), one
+                reserved slot per type per call. ``None`` (default) leaves
+                retrieval unchanged.
         """
         import random
         # Kept as well as consumed. The seed governs which memories this engine promotes
@@ -97,6 +113,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.decay_rate = decay_rate
         self.ranking_mode = ranking_mode
         self.forgetting_threshold = forgetting_threshold
+        self.reserve_types = self._normalise_reserve_types(reserve_types)
 
         # Memory capacity limits (0 = unlimited)
         self._max_working = max_working
@@ -393,6 +410,51 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 self.longterm[agent_id] = sorted_lt[overflow:]
     
     @staticmethod
+    def _normalise_reserve_types(reserve_types: Optional[Any]) -> Optional[Dict[str, int]]:
+        """``None``/empty -> None; a list of types -> one slot each; a dict
+        -> {type: int(count)} with non-positive counts dropped."""
+        if not reserve_types:
+            return None
+        if isinstance(reserve_types, str):
+            reserve_types = [reserve_types]
+        if isinstance(reserve_types, dict):
+            out = {str(k): int(v) for k, v in reserve_types.items() if int(v) > 0}
+        else:
+            out = {}
+            for t in reserve_types:
+                out[str(t)] = out.get(str(t), 0) + 1
+        return out or None
+
+    def _apply_reserved_slots(self, scored: List, selected: List) -> "tuple[List, set]":
+        """Swap reserved-type items into ``selected`` (see ``reserve_types``
+        in ``__init__``). Returns (selection sorted by score, ids of the
+        memories that were swapped in)."""
+        selected = list(selected)
+        chosen = {id(m) for m, _ in selected}
+        swapped: set = set()
+        for mtype, count in self.reserve_types.items():
+            have = sum(1 for m, _ in selected if m.get("type") == mtype)
+            need = count - have
+            if need <= 0:
+                continue
+            candidates = sorted(
+                (x for x in scored if x[0].get("type") == mtype and id(x[0]) not in chosen),
+                key=lambda x: x[1], reverse=True,
+            )
+            for cand in candidates[:need]:
+                victims = [x for x in selected if x[0].get("type") not in self.reserve_types]
+                if not victims:
+                    break
+                victim = min(victims, key=lambda x: x[1])
+                selected.remove(victim)
+                chosen.discard(id(victim[0]))
+                selected.append(cand)
+                chosen.add(id(cand[0]))
+                swapped.add(id(cand[0]))
+        selected.sort(key=lambda x: x[1], reverse=True)
+        return selected, swapped
+
+    @staticmethod
     def _memory_payload(memory: Dict[str, Any], final_score: Optional[float] = None) -> Dict[str, Any]:
         payload = {
             "content": memory.get("content", ""),
@@ -521,7 +583,16 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 scored_memories.append((mem, final_score))
             
             top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
-            return [self._memory_payload(mem, round(float(score), 4)) for mem, score in top_k_memories]
+            if not self.reserve_types or top_k <= 0:
+                return [self._memory_payload(mem, round(float(score), 4)) for mem, score in top_k_memories]
+            top_k_memories, swapped = self._apply_reserved_slots(scored_memories, top_k_memories)
+            out = []
+            for mem, score in top_k_memories:
+                payload = self._memory_payload(mem, round(float(score), 4))
+                if id(mem) in swapped:
+                    payload["reserved"] = True
+                out.append(payload)
+            return out
 
     def retrieve_stratified(
         self,

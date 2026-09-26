@@ -283,6 +283,28 @@ def _create_synthetic_profiles(
 # ---------------------------------------------------------------------------
 # Lifecycle Hooks
 # ---------------------------------------------------------------------------
+def _proposed_and_fallback(action_ctx: Optional[Dict[str, Any]]) -> Tuple[str, bool]:
+    """(the agent's own proposal, whether it was overruled) for one year.
+
+    On an approved row the executed skill IS the proposal. On a rejected
+    row ExperimentRunner._apply_state_changes records ``proposed_skill``
+    (None on UNCERTAIN rows, where no usable proposal existed) and
+    ``was_fallback``. Memory salience reads the proposal, not the executed
+    fallback (supply-side redesign, 2026-09-25, spec M1/M2/M4)."""
+    ctx = action_ctx or {}
+    was_fallback = bool(ctx.get("was_fallback", False))
+    proposed = ctx.get("proposed_skill") if "proposed_skill" in ctx else ctx.get("skill_name", "")
+    return (proposed or ""), was_fallback
+
+
+def _unmet_frac(request: float, delivered: float) -> float:
+    """1 - delivered / requested on [0, 1] (0 when nothing was requested).
+    Rounded to 6 places so float noise cannot move a band edge."""
+    if not request or request <= 0:
+        return 0.0
+    return round(min(1.0, max(0.0, 1.0 - float(delivered) / float(request))), 6)
+
+
 class IrrigationLifecycleHooks:
     """Hooks that wire water state, memory injection, and reflection."""
 
@@ -304,6 +326,8 @@ class IrrigationLifecycleHooks:
         # Feedback dashboard (attached after construction by main())
         self.metrics_tracker = None
         self.feedback_config: Dict = {}
+        # Band importance / emotion for the yearly outcome memory line.
+        self.memory_adapter = IrrigationAdapter()
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -424,13 +448,27 @@ class IrrigationLifecycleHooks:
                     # correct wording (build_water_situation_text already does this).
                     basin=ctx.get("basin", "upper_basin"),
                 )
-                # add_memory_for_agent (not add_memory) so _classify_emotion/
-                # _classify_source (broker/components/memory/engines/
-                # humancentric.py) see this agent's memory_config (the
-                # irrigation_farmer.memory YAML block, injected onto every
-                # agent by ExperimentBuilder.build()'s Phase-12 step) instead
-                # of falling back to the generic keyword/pattern banks.
-                self.runner.memory_engine.add_memory_for_agent(agent, feedback)
+                # add_memory_for_agent (not add_memory) so the engine sees this
+                # agent's memory_config (the irrigation_farmer.memory YAML
+                # block, injected by ExperimentBuilder.build()'s Phase-12 step).
+                #
+                # Supply-side redesign (2026-09-25, spec M3): importance and
+                # emotion are set here from the unmet fraction of LAST year's
+                # final settlement and the agent's own proposal, instead of by
+                # keyword match (which gave 1.0 to any line containing
+                # "shortfall", so 5 percent unmet scored like 100 percent, and
+                # filled the top 3 with 1.0 lines). A fallback year gets the
+                # same band as an approved one.
+                proposed, was_fallback = _proposed_and_fallback(action_ctx)
+                unmet = _unmet_frac(prev_request, prev_diversion)
+                salience_ctx = {"proposed_skill": proposed, "was_fallback": was_fallback,
+                                "unmet_frac": unmet}
+                self.runner.memory_engine.add_memory_for_agent(agent, feedback, {
+                    "importance": self.memory_adapter.outcome_importance(unmet),
+                    "emotion": self.memory_adapter.classify_emotion(proposed, salience_ctx),
+                    "source": "personal",
+                    "type": "outcome",
+                })
 
     # -- post_step: record each agent's decision --
     def post_step(self, agent, result):
@@ -655,9 +693,17 @@ class IrrigationLifecycleHooks:
                 # after post_year's settle_year(), so diversion is the final
                 # settled delivery for every agent (shortage tier, Powell
                 # release limit, Mead availability), a continuous value.
+                # Supply-side redesign (2026-09-25, spec M4): the adapter
+                # reads the PROPOSED skill, the fallback flag and the unmet
+                # fraction of the final settlement; recent_decision (the
+                # executed skill) is kept for older readers.
+                proposed, was_fallback = _proposed_and_fallback(action_ctx)
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
                     "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,
+                    "unmet_frac": _unmet_frac(request, diversion),
+                    "proposed_skill": proposed,
+                    "was_fallback": was_fallback,
                     "years_farming": attrs.get("years_farming", 0),
                     "has_efficient_system": attrs.get("has_efficient_system", False),
                     "recent_decision": action_ctx.get("skill_name", ""),
@@ -967,6 +1013,9 @@ def main():
         W_context=rw.get("context", adapter_rw.get("W_context", 0.3)),
         ranking_mode=irr_mem.get("ranking_mode", "weighted"),
         seed=args.memory_seed,
+        # Reserved retrieval slot(s) by memory type (irrigation: one of the
+        # top-3 slots for a reflection when one exists). None = off.
+        reserve_types=irr_mem.get("reserve_types"),
     )
     print(f"[Pillar 2] HumanCentricMemoryEngine (window={args.window_size}, mode={memory_engine.ranking_mode})")
 
