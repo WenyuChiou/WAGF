@@ -144,6 +144,27 @@ class WaterSystemConfig:
     seed: int = 42
 
 
+def _set_realised_magnitude(
+    state_changes: Dict[str, Any],
+    action_context: Dict[str, Any],
+    sampled_pct: float,
+    current: float,
+    new_req: float,
+) -> None:
+    """F07 follow-up (spec E9, H6): report the change actually applied.
+
+    A decrease is tapered near the 10 percent floor and an increase is capped
+    at the water right, so the sampled magnitude can overstate the change
+    (memory once said "by 13%" for a realised 5.8 percent). The memory line
+    ("(by N%)") and ``magnitude_pct_applied`` now carry the realised
+    percentage ``100 * |new - current| / current``; the sampled value moves
+    to ``magnitude_pct_sampled``."""
+    realised = (100.0 * abs(new_req - current) / current) if current > 0 else float(sampled_pct)
+    state_changes["magnitude_pct_sampled"] = sampled_pct
+    state_changes["magnitude_pct_applied"] = realised
+    action_context["magnitude_pct"] = realised
+
+
 class IrrigationEnvironment:
     """Water system environment for irrigation ABM experiments.
 
@@ -1010,8 +1031,7 @@ class IrrigationEnvironment:
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            state_changes["magnitude_pct_applied"] = magnitude_pct
-            action_context["magnitude_pct"] = magnitude_pct
+            _set_realised_magnitude(state_changes, action_context, magnitude_pct, current, new_req)
 
         elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
             # v21: Also use request as base (was water_right).
@@ -1023,8 +1043,7 @@ class IrrigationEnvironment:
             new_req = max(current - change * taper, floor)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            state_changes["magnitude_pct_applied"] = magnitude_pct
-            action_context["magnitude_pct"] = magnitude_pct
+            _set_realised_magnitude(state_changes, action_context, magnitude_pct, current, new_req)
 
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes

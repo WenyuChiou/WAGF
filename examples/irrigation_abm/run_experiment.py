@@ -45,6 +45,7 @@ from examples.irrigation_abm.irrigation_personas import (
     build_aca_hint,
     build_action_outcome_feedback,
     create_profiles_from_csv,
+    describe_gap_reason,
     rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
@@ -328,6 +329,9 @@ class IrrigationLifecycleHooks:
         self.feedback_config: Dict = {}
         # Band importance / emotion for the yearly outcome memory line.
         self.memory_adapter = IrrigationAdapter()
+        # memory.rejection_line_style for the yearly memory line (set by main()
+        # from the irrigation_farmer.memory YAML block).
+        self.rejection_line_style = "neutral"
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -365,8 +369,12 @@ class IrrigationLifecycleHooks:
             if profile is None:
                 continue
 
-            # Build dynamic context attributes for prompt template
-            water_situation = build_water_situation_text(ctx)
+            # Build dynamic context attributes for prompt template. The F05
+            # snapshot (last year's settled request / delivery / reason) feeds
+            # the "Last year you requested ..." sentence (spec S1).
+            water_situation = build_water_situation_text(
+                ctx, last_year=getattr(agent, "_last_year_outcome", None)
+            )
             conservation = build_conservation_status(profile)
 
             agent.water_situation_text = water_situation
@@ -391,20 +399,22 @@ class IrrigationLifecycleHooks:
                 "basin": ctx.get("basin", "unknown"),
                 # Removed: total_basin_demand — broker auto-injects from env_context (was duplicate, fired Governance:Diagnostic)
                 "loop_year": year,  # use "loop_year" to avoid collision with env_context["year"] (CRSS calendar year)
+                # Supply-side redesign (2026-09-25): read by the supply-gap and
+                # shortage rule messages (describe_gap_reason).
+                "gap_reason": ctx.get("gap_reason", "none"),
+                "delivery_ratio": ctx.get("delivery_ratio", 1.0),
+                "lake_mead_level": ctx.get("lake_mead_level", 0),
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
                 agent.custom_attributes.update(validator_fields)
 
-            # Record metrics for feedback dashboard (if configured).
-            # NOTE: Year 1 has no prior history → dashboard shows only
-            # assertions, not the trend table.  This is intentional.
-            if self.metrics_tracker is not None:
-                fb_metrics = {}
-                for m_cfg in self.feedback_config.get("tracked_metrics", []):
-                    fb_metrics[m_cfg["name"]] = float(ctx.get(m_cfg["source"], 0))
-                self.metrics_tracker.record(aid, year, fb_metrics)
+            # Feedback dashboard metrics are recorded in post_year from the
+            # year's FINAL settlement (supply-side redesign, spec S2), so the
+            # dashboard's latest row is last year's actual request and
+            # delivery, the same numbers as the memory line and the "Last
+            # year" sentence. Year 1 therefore shows no dashboard.
 
             # Inject combined action + outcome feedback from last year
             if year > 1:
@@ -447,6 +457,11 @@ class IrrigationLifecycleHooks:
                     # is the Lake Mead trend, not precipitation; basin selects the
                     # correct wording (build_water_situation_text already does this).
                     basin=ctx.get("basin", "upper_basin"),
+                    # Supply-side redesign (spec S6): the same reason phrase as the
+                    # situation text and rule messages; neutral or explicit wording
+                    # of a rejected year (memory.rejection_line_style).
+                    gap_reason=describe_gap_reason(snapshot or {}),
+                    rejection_line_style=self.rejection_line_style,
                 )
                 # add_memory_for_agent (not add_memory) so the engine sees this
                 # agent's memory_config (the irrigation_farmer.memory YAML
@@ -501,6 +516,10 @@ class IrrigationLifecycleHooks:
             exec_result = result.execution_result
             state_changes = exec_result.state_changes if exec_result else {}
             appraisals["magnitude_pct"] = state_changes.get("magnitude_pct_applied")
+            # F07 follow-up: magnitude_pct_applied is now the REALISED change
+            # (after taper / water-right cap); the Gaussian draw is logged
+            # beside it so analyses spanning code vintages can tell them apart.
+            appraisals["magnitude_pct_sampled"] = state_changes.get("magnitude_pct_sampled")
             appraisals["is_exploration"] = state_changes.get("is_exploration", False)
 
             # Keep magnitude_fallback for debugging (indicates LLM didn't provide magnitude)
@@ -547,6 +566,7 @@ class IrrigationLifecycleHooks:
                 "diversion": agent_state.get("diversion", 0),
                 "gap_reason": agent_state.get("gap_reason", "none"),
                 "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
+                "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
             }
@@ -564,6 +584,20 @@ class IrrigationLifecycleHooks:
             agent.drought_count = getattr(agent, "drought_count", 0) + (
                 1 if drought_index_this_year >= 0.5 else 0
             )
+
+            # Feedback dashboard: record this year's settled request and
+            # delivery (spec S2). Sources are the context keys the YAML names;
+            # after settle_year they equal the final request and delivery.
+            if self.metrics_tracker is not None:
+                settled = {
+                    "current_request": agent_state.get("request", 0),
+                    "current_diversion": agent_state.get("diversion", 0),
+                }
+                fb_metrics = {}
+                for m_cfg in self.feedback_config.get("tracked_metrics", []):
+                    src = m_cfg["source"]
+                    fb_metrics[m_cfg["name"]] = float(settled.get(src, agent_state.get(src, 0)) or 0)
+                self.metrics_tracker.record(aid, year, fb_metrics)
 
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
@@ -626,6 +660,7 @@ class IrrigationLifecycleHooks:
                     if agent_state.get("water_right", 0) > 0 else 0
                 ),
                 "magnitude_pct": appr.get("magnitude_pct"),
+                "magnitude_pct_sampled": appr.get("magnitude_pct_sampled"),
                 "magnitude_fallback": appr.get("magnitude_fallback", False),
                 "is_exploration": appr.get("is_exploration", False),  # v12: Track ε-exploration
                 "memory": mem_str,
@@ -1116,6 +1151,12 @@ def main():
     # Attach feedback tracker so pre_year can record metrics
     hooks.metrics_tracker = _metrics_tracker
     hooks.feedback_config = feedback_cfg
+    hooks.rejection_line_style = irr_mem.get("rejection_line_style", "neutral")
+    if hooks.rejection_line_style not in ("neutral", "explicit"):
+        raise SystemExit(
+            f"irrigation_farmer.memory.rejection_line_style "
+            f"{hooks.rejection_line_style!r} is not 'neutral' or 'explicit'."
+        )
     runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
