@@ -113,12 +113,19 @@ def test_fallback_outcome_line_gets_same_band_as_approved(tmp_path):
     assert fallback["emotion"] == "strategic_choice"
 
 
-def test_irrigation_config_reserves_one_reflection_slot():
+def test_irrigation_config_uses_composed_retrieval():
+    """SI section 3.8 (2026-09-26): composed retrieval 5 recent + 2
+    significant; reserve_types off for irrigation."""
     import yaml
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     cfg = yaml.safe_load((root / "examples/irrigation_abm/config/agent_types.yaml").read_text(encoding="utf-8"))
-    assert cfg["irrigation_farmer"]["memory"]["reserve_types"] == {"reflection": 1}
+    mem = cfg["irrigation_farmer"]["memory"]
+    assert mem["ranking_mode"] == "legacy" and mem["composed_retrieval"] is True
+    assert mem["window_size"] == 5 and mem["top_k_significant"] == 2
+    assert "reserve_types" not in mem
+    assert cfg["global_config"]["memory"]["window_size"] == 5
+    assert cfg["global_config"]["memory"]["top_k_significant"] == 2
 
 
 def test_proposed_and_fallback_helper():
