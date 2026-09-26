@@ -259,6 +259,15 @@ irrigation_farmer:
       importance: 0.5
       context: 0.2
 
+    # Supply-side redesign (2026-09-25, spec M5/M6): one retrieved slot per
+    # retrieval call is reserved for a reflection when the agent has one
+    # (HumanCentricMemoryEngine reserve_types): one of the 3 prompt memories,
+    # and also one of the items read by the year-end reflection (top 10) and
+    # the simulation-log memory column (top 5). A slot count (integer), not a
+    # weight. Without it, banded outcome lines and recency pushed stored
+    # reflections out of the prompt in most later years.
+    reserve_types: { reflection: 1 }
+
     arousal_threshold: 0.5
     ema_alpha: 0.3
 
