@@ -6,21 +6,23 @@ Detailed mass balance equations, variable definitions, storage-elevation curves,
 
 ## Mass Balance Equations
 
-All quantities in MAF (million acre-feet), annual resolution. Supply-side redesign (2026-09-25): deliveries are limited by what the two reservoirs can physically supply, as in Hung and Yang (2021), whose agents receive the diversion CRSS delivers. Lake Powell is a storage buffer with a minimum release; it is NOT the full 2007 Interim Guidelines operation (no equalization or balancing release tiers, no Mead protection levels). The year's settlement, in order (`irrigation_env.py (IrrigationEnvironment._settle)`):
+All quantities in MAF (million acre-feet), annual resolution. Supply-side redesign (2026-09-25): deliveries are limited by what the two reservoirs can physically supply, as in Hung and Yang (2021), whose agents receive the diversion CRSS delivers. Lake Powell is a storage buffer: a pass-through release with a 7.0 MAF floor supported by Powell storage; not the Interim Guidelines (no equalization or balancing release tiers, no Mead protection levels). The year's settlement, in order (`irrigation_env.py (IrrigationEnvironment._settle)`):
 
 **1. Natural flow** (Lees Ferry long-term average 12 MAF; precipitation baseline 100 mm)
 
 $$Q_{Nat} = 12 \times \frac{P_{winter}}{100}, \quad Q_{Nat} \in [6,\, 17] \;\text{MAF}$$
 
-**2. Upper Basin delivery**: limited by the 5.0 MAF delivery capacity and by what leaves Lake Powell able to make its 7.0 MAF minimum release from inflow plus usable storage; shared pro-rata across Upper Basin agents
+**2. Upper Basin delivery**: limited by the 5.0 MAF delivery capacity and by what leaves Lake Powell able to keep a 7.0 MAF release from inflow plus usable storage; shared pro-rata across Upper Basin agents
 
 $$D_{UB} = \min\bigl(\textstyle\sum r_{UB},\; 5.0,\; Q_{Nat},\; \max(0,\; Q_{Nat} + (S_P - S_{P,dead}) - E_P - 7.0)\bigr)$$
 
-A year with $Q_{Nat} < 7$ no longer zeroes the Upper Basin: storage covers the minimum release, and the Upper Basin is cut only when Powell's usable storage cannot.
+A year with $Q_{Nat} < 7$ no longer zeroes the Upper Basin: storage covers the 7.0 MAF floor, and the Upper Basin is cut only when Powell's usable storage cannot.
 
-**3. Lake Powell**: inflow $I_P = Q_{Nat} - D_{UB}$; release 7.0 MAF, or all water above the dead pool when that is less (reachable only after $D_{UB}$ is 0); storage above full pool spills into the release
+**3. Lake Powell** (decision 2026-09-26, option c): the inflow $I_P = Q_{Nat} - D_{UB}$ passes through to Mead, as in the pre-redesign physics; only when that pass-through is below 7.0 MAF does storage above the dead pool top the release up to 7.0 MAF (or release what is available); storage above full pool spills into the release
 
-$$R = \min\bigl(7.0,\; \max(0,\; S_P - S_{P,dead} + I_P - E_P)\bigr) + spill_P, \qquad S_P(t+1) = S_P(t) + I_P - E_P - R$$
+$$A_P = \max(0,\; I_P + S_P - S_{P,dead} - E_P), \qquad R = \begin{cases} \min(I_P,\; A_P) & I_P \ge 7.0 \\ \min(7.0,\; A_P) & I_P < 7.0 \end{cases} + spill_P, \qquad S_P(t+1) = S_P(t) + I_P - E_P - R$$
+
+In a normal year Powell storage only loses evaporation; nothing refills it, so over a long dry run it drains toward the dead pool (see the consequence note below).
 
 **4. Lake Mead withdrawals**: the declared shortage cut $\gamma_\tau$ applies to the whole Lower Basin consumptive use (agricultural agents and the 5.0 MAF non-agricultural bucket); Mexico per Minute 323
 
@@ -51,6 +53,8 @@ Each agent also carries a `gap_reason` code (`none`, `ub_capacity`, `ub_powell_r
 $$E_M(S) = 0.8 \times \max\!\left(0.15,\; \min\!\left(\frac{S}{13.0},\; 1.50\right)\right), \qquad E_P(S) = 0.70 \times \max\!\left(0.15,\; \min\!\left(\frac{S}{26.21},\; 1\right)\right)$$
 
 ### Lake Powell constants and sources
+
+All four values are TO VERIFY against the USBR/USGS originals: they were read from search results and a machine text extraction of the 24-Month Study PDF, and the code review could not open the sources.
 
 | Constant | Value | Source |
 | :------- | :---- | :----- |
@@ -176,7 +180,7 @@ flowchart LR
 | :--- | :------- | :-------- |
 | 1 Natural flow | $Q_{Nat} = 12 \times P_{winter}/100$ | bounded [6, 17] MAF |
 | 2 Upper Basin delivery | $D_{UB} = \min(\sum r_{UB}, 5.0, Q_{Nat}, \max(0, Q_{Nat} + S_P - S_{P,dead} - E_P - 7.0))$ | pro-rata |
-| 3 Powell | $S_P' = S_P + Q_{Nat} - D_{UB} - E_P - R$, $R = 7.0$ unless storage cannot support it | dead pool 1.89, capacity 26.21 MAF |
+| 3 Powell | $S_P' = S_P + Q_{Nat} - D_{UB} - E_P - R$; $R = Q_{Nat} - D_{UB}$ (pass-through), topped up from storage to 7.0 MAF when lower, capped so storage stays at or above the dead pool | dead pool 1.89, capacity 26.21 MAF |
 | 4 Mead withdrawals | $O = (\sum r_{LB} + 5.0)(1 - \gamma_\tau) + M_{DCP}(h)$ | tier cut on the whole Lower Basin |
 | 5 Mead | $S_M' = S_M + R + 1.0 - E_M - \phi O$, $\phi = \min(1, A/O)$ | $S_M \in [2.0, 26.1]$ |
 | 6 Delivery | $d_i = r_i D_{UB}/\sum r_{UB}$ (UB), $r_i(1-\gamma_\tau)\phi$ (LB) | |
@@ -192,7 +196,7 @@ flowchart LR
 | Temporal resolution | Annual | Monthly |
 | Spatial resolution | 2 basins (UB/LB) | 3,700+ objects |
 | Reservoir model | Powell and Mead storage stocks | Powell + Mead + Flaming Gorge + ... |
-| Operating rules | Powell minimum release; Mead shortage tiers (simplified DCP) | Full Interim Guidelines + DCP + Minute 323 |
+| Operating rules | Powell pass-through release with a 7.0 MAF floor; Mead shortage tiers (simplified DCP) | Full Interim Guidelines + DCP + Minute 323 |
 | Demand model | 78 LLM agents | Exogenous demand schedules |
 | Precipitation | CRSS PRISM (real) | CRSS PRISM (same source) |
 | Natural flow | Scaled by precip | Full hydrologic routing |
@@ -208,15 +212,23 @@ Before the 2026-09-25 supply-side redesign the model tracked Lake Mead only: the
 
 The redesign keeps the F11b pattern (one idempotent settlement after the decision loop, rebuilt from requests and a frozen 1 January snapshot) and replaces the physics:
 
-* Lake Powell is a storage stock between 1.89 MAF (dead pool) and 26.21 MAF (full pool), starting from the USBR end-of-2018 storage. It releases the 7.0 MAF minimum, less only when storage above the dead pool plus inflow cannot support it, and spills above full pool.
-* Upper Basin use is cut only when Powell's usable storage cannot cover the minimum release, and then pro-rata, not to zero.
+* Lake Powell is a storage stock between 1.89 MAF (dead pool) and 26.21 MAF (full pool), starting from the USBR end-of-2018 storage. It passes its inflow through to Mead; when that is below 7.0 MAF, storage above the dead pool tops the release up to 7.0 MAF (or releases what is available). It spills above full pool.
+* Upper Basin use is cut only when Powell's usable storage cannot cover the 7.0 MAF floor, and then pro-rata, not to zero.
 * Lake Mead deliveries cannot exceed its usable storage plus inflow; when they would, all Lower Basin withdrawals are scaled pro-rata.
 * Mead shortage tiers apply to the Lower Basin only (Law of the River), to the whole Lower Basin consumptive use including the 5.0 MAF non-agricultural bucket.
 * The $\pm 3.5$ MAF clamp is retired; mass balance closes.
 
 Not modelled, on purpose (simplification to disclose): the Interim Guidelines Powell release tiers (equalization, upper and mid elevation balancing, 7.48 / 8.23 MAF releases), Lake Mead protection levels, Drought Response Operations, and Flaming Gorge.
 
-**Consequence to disclose (measured, review of the supply-side commit, 2026-09-25).** With the release pinned at the 7.0 MAF minimum, Lake Mead receives about 2.5 MAF/yr less than under the old pass-through release (natural flow minus Upper Basin use, about 9.5 MAF in an average year). Holding the 2018 requests fixed for 42 years on the CRSS PRISM series: Tier 2 or 3 in 24 of 42 years (old physics: 3), mean 1 January Mead level 1053 ft (old: 1121 ft), 2020 already Tier 1 (observed 2020 and 2021 were Tier 0; the actual 2019 release was about 9.0 MAF), Mead held near 1016 to 1025 ft for about two decades by the 20 percent Tier 3 cut, and Powell full (26.21 MAF) by 2029 and spilling in 9 years. At full water-right requests Mead sits at its dead pool from about 2026. A release rule that balances the two reservoirs would move water to Mead sooner; it is not part of this simplified version.
+**Consequence to disclose (measured 2026-09-26, 2018 requests held fixed for 42 years on the CRSS PRISM series).** Old = the pre-redesign Mead-only balance (fcd74a5f); first version = the redesign with the release pinned at 7.0 MAF (fe72e43f, replaced by option c).
+
+| Physics | Years at Tier 2 or 3 | Mean 1 January Mead | Minimum | 2020 tier |
+| :------ | :------------------- | :------------------ | :------ | :-------- |
+| Old (Mead only) | 3 of 42 | 1121 ft | 1006 ft | 1 (its level series is end-of-year, one year earlier than the 1 January series) |
+| Release pinned at 7.0 MAF (first version) | 24 of 42 | 1053 ft | 1016 ft | 1 |
+| Pass-through with a 7.0 MAF floor (current) | 3 of 42 | 1132 ft | 1026 ft | 0 |
+
+Option (c) sits close to the old physics in normal years. The difference is in dry years, where storage keeps the release at 7.0 MAF and the Upper Basin is not cut. But nothing refills Powell, because in a normal year the whole inflow passes through: storage falls by evaporation every year and by the top-up in dry years. At fixed 2018 requests Powell reaches its dead pool in 2031. From then on it behaves like the old physics (Upper Basin cut pro-rata whenever natural flow minus Upper Basin use is below 7.0 MAF): 14 of 42 years with an Upper Basin cut, as deep as 14 percent of the request delivered in 2058. The drain is mostly the dry-year top-ups: up to 2031, top-ups take 8.06 MAF out of Powell storage and evaporation 2.04 MAF. With Powell evaporation set to 0 (sensitivity) Powell still reaches its dead pool, one year later (2032), with 12 Upper Basin cut years; the Mead side barely moves (2 years at Tier 2 or 3, mean 1137 ft). At full water-right requests: Tier 2 or 3 in 39 of 42 years, mean 996 ft (old: 40, 976 ft), Mead minimum 895 ft (dead pool) in both.
 
 ### Initial State: Mead 1081.46 ft, Powell 11.99 MAF (1 January 2019)
 
