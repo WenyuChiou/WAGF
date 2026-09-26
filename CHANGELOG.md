@@ -365,6 +365,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   byte-identical or pool-safe with any irrigation corpus produced before
   it** (which memories fill the composed retrieval's recent/significant
   slots changes); flood corpora are unaffected and remain poolable.
+- **Lake Powell/Mead constant labels corrected (docs and docstrings only,
+  no numeric change), per `.research/powell_constants_verification_2026-09-26.md`**:
+  in `examples/irrigation_abm/irrigation_env.py (WaterSystemConfig)`,
+  `examples/irrigation_abm/docs/irrigation_physics.md`, and
+  `examples/irrigation_abm/README.md`. (a) `min_powell_release_maf = 7.0`
+  is the FLOOR of the 2007 Interim Guidelines' Lower Elevation Balancing
+  Tier (7.0-9.5 MAF), not the "minimum objective release" (that is 8.23
+  MAF, historical Upper Elevation Balancing Tier -- also the *initial*
+  water year 2019 release volume, though the release actually realised
+  was 8.91 MAF; the current Mid-Elevation Release Tier releases 7.48 MAF
+  below a Mead-elevation threshold in the Guidelines' own tier table, 8.23
+  MAF above it). (b) `natural_flow_base_maf = 12.0` is the post-2000
+  (drought-era) average naturalized flow at Lees Ferry, not the long-term
+  average (~14.6 MAF for 1906-2018). (c) Powell capacity (26.21 MAF), the
+  Mead initial elevation (1081.46 ft), and the Mexico treaty delivery (1.5
+  MAF, canonical) are now marked VERIFIED, with source URLs; the raw
+  inputs behind the 1 January 2019 storage (10.099 MAF live) and the water
+  year 2018 evaporation (0.386 MAF) are VERIFIED too, but each stored
+  field (`powell_initial_storage_maf = 11.99`, `powell_evaporation_maf =
+  0.70`) also folds in a modelling step -- the dead-pool split, or a 0.55
+  storage-fraction scale-up -- that is not itself independently confirmed,
+  so those totals are documented as contingent rather than flatly
+  VERIFIED. The source document is the USBR **February** 2019 24-Month
+  Study (was mislabelled "January" in three places). (d)
+  `powell_dead_pool_maf = 1.89`, `lb_non_ag_total_maf = 5.0`, and
+  `lb_tributary_maf = 1.0` are documented as calibrated aggregates without
+  a single primary table, not "TO VERIFY" constants that a future pass
+  could confirm outright. (e) The 9.0 MAF release ceiling and the 0.42
+  target fill are stated as modelling choices motivated by, but not equal
+  to, the Guidelines' tiers (both bullets now consistently attribute the
+  7.0-9.5 MAF band to the same Lower Elevation Balancing Tier), which the
+  Methods text can now cite by name. No `TO VERIFY` markers remain in any
+  of the three files; every changed constant's numeric value is unchanged.
 - **Rejected rows now apply the fallback skill the broker executed (audit
   F06 + F20, 2026-09-25)**: on REJECTED / UNCERTAIN results
   `SkillBrokerEngine.process_step` runs the registry default skill, but
