@@ -638,7 +638,7 @@ def supply_gap_block_increase(
 # Feature flags — set by run_experiment.py based on --pilot-phase / --ablation-mode
 ENABLE_CONSECUTIVE_CAP = False
 ENABLE_ZERO_ESCAPE = False
-ENABLE_DEMAND_CEILING = True  # Default ON; ablation sets False
+ENABLE_DEMAND_CEILING = True  # Gates demand_ceiling_stabilizer when called directly; the check is retired from dispatch
 
 # Module-level state for consecutive increase tracking (cleared per experiment)
 _consecutive_increase_tracker: Dict[str, int] = {}
@@ -742,6 +742,15 @@ def demand_floor_stabilizer(
        100% ← water right cap (blocks increase)
 
     Tier C suggestion: None (behavioral rule — agent decides autonomously).
+
+    RETIRED FROM DISPATCH (supply-side redesign, 2026-09-25, decision Q3,
+    retirement of both stabilizers):
+    no longer in ``IRRIGATION_PHYSICAL_CHECKS``. It was motivated by the
+    same 5.86 MAF CRSS basin target as the retired demand ceiling, and it
+    bound for 61 of 78 agents from year 1 (their 2018 use sits below half
+    of the top of their FQL diversion grid, F10). The governed corridor is
+    now the 10 percent minimum-utilisation floor and the water right. Kept
+    so older corpora can be reproduced and for direct tests.
     """
     if skill_name not in DECREASE_SKILLS:
         return []
@@ -794,6 +803,19 @@ def demand_ceiling_stabilizer(
     blocked via governance.
 
     Tier C suggestion: None (behavioral rule — agent decides autonomously).
+
+    RETIRED FROM DISPATCH (supply-side redesign, 2026-09-25; decision D1 makes
+    the basin limit supply-side availability, decision Q3 retires both
+    stabilizers):
+    no longer in ``IRRIGATION_PHYSICAL_CHECKS``. The basin limit is now
+    physical availability, enforced on the supply side by the water balance
+    (``IrrigationEnvironment._settle``: deliveries never exceed what Lake
+    Powell and Lake Mead can supply, shared pro-rata), as in Hung and Yang
+    (2021), where the delivered diversion comes from CRSS and nothing caps
+    the basin request total. The quantity survives as a logged metric,
+    ``basin_request_over_target`` (request total / 5.86 MAF) in
+    ``simulation_log.csv``. Kept so older corpora can be reproduced and for
+    direct tests; ``ENABLE_DEMAND_CEILING`` still gates it when called.
     """
     if not ENABLE_DEMAND_CEILING:
         return []
@@ -900,12 +922,15 @@ def zero_escape_check(
 # an explicit call naming them (as
 # test_assert_validator_inputs_have_producers_catches_dead_key does)
 # exercises the self-check against them.
+# Supply-side redesign (2026-09-25): demand_floor_stabilizer and
+# demand_ceiling_stabilizer are retired from dispatch (decision Q3, on top of
+# D1's supply-side basin limit; see
+# their docstrings). The functions stay defined above and are tested
+# directly.
 IRRIGATION_PHYSICAL_CHECKS = [
     water_right_cap_check,
     non_negative_diversion_check,
     minimum_utilisation_check,
-    demand_floor_stabilizer,
-    demand_ceiling_stabilizer,
     supply_gap_block_increase,
 ]
 

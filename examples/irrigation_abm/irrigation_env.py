@@ -914,8 +914,9 @@ class IrrigationEnvironment:
         # by curtailment + Powell constraints.  This created an asymmetry:
         # maintain_demand preserved request while increase/decrease operated
         # on the much-lower diversion.  Using request ensures a consistent
-        # base across all skill types.  The demand_ceiling_stabilizer and
-        # other governance rules still prevent unbounded request growth.
+        # base across all skill types.  A request is bounded by the water
+        # right (min(current + change, wr) below); what the agent actually
+        # receives is bounded by the supply-side settlement (_settle).
         current = agent["request"]
         meta = getattr(approved_skill, "parameters", {}) or {}
 
@@ -1003,8 +1004,8 @@ class IrrigationEnvironment:
         action_context: Dict[str, Any] = {}
 
         if skill in ("increase_large", "increase_small", "increase_demand"):
-            # v21: Scale increase by request (paper demand).  Governance
-            # rules (demand_ceiling_stabilizer) prevent unbounded growth.
+            # v21: Scale increase by request (paper demand), capped at the
+            # water right; deliveries are limited by _settle, not here.
             change = current * (magnitude_pct / 100.0)
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
@@ -1212,6 +1213,8 @@ class IrrigationEnvironment:
         elif ub_room < min(cfg.ub_infrastructure_cap_maf, nf):
             ub_reason = "ub_powell_release"
         else:
+            # Delivery capacity, or (never with the defaults) the natural
+            # flow itself: either way, no more can be diverted upstream.
             ub_reason = "ub_capacity"
         inflow_p = nf - d_u
         release = min(cfg.min_powell_release_maf, max(0.0, p_usable + inflow_p - e_p))

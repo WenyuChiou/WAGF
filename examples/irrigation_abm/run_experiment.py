@@ -777,12 +777,16 @@ def main():
     # Reset module-level flags (safe for multi-run in same process)
     irr_validators.ENABLE_CONSECUTIVE_CAP = False
     irr_validators.ENABLE_ZERO_ESCAPE = False
-    irr_validators.ENABLE_DEMAND_CEILING = True  # default ON
+    irr_validators.ENABLE_DEMAND_CEILING = True  # only gates a direct call; retired from dispatch
 
-    # Ablation mode: disable specific validator(s)
+    # Ablation mode. Supply-side redesign (2026-09-25): demand_ceiling_stabilizer
+    # and demand_floor_stabilizer are no longer dispatched (the basin limit is
+    # physical availability in the water balance), so "no_demand_ceiling" is
+    # now the default behaviour; the choice is kept so existing launchers
+    # still parse.
     if getattr(args, "ablation_mode", None) == "no_demand_ceiling":
         irr_validators.ENABLE_DEMAND_CEILING = False
-        print("[Ablation] demand_ceiling_stabilizer DISABLED — increases NOT capped at 6.0 MAF")
+        print("[Ablation] no_demand_ceiling: already the default (the ceiling is retired from dispatch)")
 
     # Always use main config (pilot config merged into agent_types.yaml)
     agent_config_path = config_dir / "agent_types.yaml"
@@ -1125,7 +1129,8 @@ def parse_args():
                    help="Pilot phase: A=baseline, B=BLOCK+retry, C=+consecutive_cap, D=+zero_escape")
     p.add_argument("--ablation-mode", type=str, default=None,
                    choices=["no_demand_ceiling"],
-                   help="Policy counterfactual: disable specific validator (e.g., no_demand_ceiling)")
+                   help="Kept for older launchers: no_demand_ceiling is now the default "
+                        "(demand_ceiling_stabilizer is retired from dispatch).")
     # P0-1d: the governance profile was hardcoded to "strict" at the builder
     # call below, so the published irrigation corpus has only strict + disabled
     # arms and no enforcement-gradient condition could be run at all. Named

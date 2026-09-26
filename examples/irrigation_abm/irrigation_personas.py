@@ -675,7 +675,8 @@ def create_profiles_from_data(
     grid-top ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below
     50% utilisation, so ``demand_floor_stabilizer``
     (``DEMAND_FLOOR_RATIO = 0.50`` in ``validators/irrigation_validators.py``)
-    binds for most agents from year 1 in the governed arm. See
+    bound for most agents from year 1 in the governed arm of corpora produced
+    before 2026-09-25 (retired from dispatch since). See
     ``docs/irrigation_physics.md`` for the corresponding physics-side
     note.
 

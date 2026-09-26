@@ -214,11 +214,12 @@ def check_f_rejected_fallback(sim: pd.DataFrame, audit: pd.DataFrame | None) -> 
 
 
 def check_g_demand_floor(gov_summary: dict) -> tuple[bool, str]:
-    """G. demand_floor_stabilizer triggered at least once."""
+    """G. demand_floor_stabilizer is retired from dispatch (supply-side
+    redesign, 2026-09-25), so a current run must record zero fires."""
     rules = gov_summary.get("rule_frequency", {})
     floor_count = rules.get("demand_floor_stabilizer", 0)
-    ok = floor_count >= 1
-    return ok, f"demand_floor_stabilizer={floor_count}"
+    ok = floor_count == 0
+    return ok, f"demand_floor_stabilizer={floor_count} (retired, expect 0)"
 
 
 def check_h_retry_patterns(gov_summary: dict) -> tuple[bool, str]:
