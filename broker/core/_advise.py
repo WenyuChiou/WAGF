@@ -145,6 +145,7 @@ def render_intervention_prompt(
     max_reports: Optional[int] = None,
     framing: str = "legacy",
     include_reports: bool = True,
+    feasible_line: Optional[str] = None,
 ) -> "tuple[str, int]":
     """Render a retry/advisory prompt, tolerating adapters that predate P0-1c.
 
@@ -159,11 +160,17 @@ def render_intervention_prompt(
       the legacy framing only. Asking for a non-legacy framing on such an adapter
       is a configuration error and raises rather than silently rendering the
       wrong text into an experiment arm.
+
+    ``feasible_line`` (the feasible-set sentence, default None) is passed on
+    only when set, so adapters and test doubles without that keyword keep
+    working on every run that does not ask for it. An adapter exposing only
+    ``format_retry_prompt`` gets it as one extra report after truncation.
     """
     fn = getattr(adapter, "format_intervention_prompt", None)
     if callable(fn):
+        extra = {} if feasible_line is None else {"feasible_line": feasible_line}
         res = fn(original_prompt, reports, max_reports=max_reports,
-                 framing=framing, include_reports=include_reports)
+                 framing=framing, include_reports=include_reports, **extra)
         if isinstance(res, tuple) and len(res) == 2:
             return res
         return res, len(reports)
@@ -174,6 +181,9 @@ def render_intervention_prompt(
             f"framing={framing!r}/include_reports={include_reports}. Upgrade the "
             "adapter before running a non-legacy experiment arm."
         )
+    if feasible_line is not None:
+        shown = list(reports[:max_reports]) if max_reports else list(reports)
+        return adapter.format_retry_prompt(original_prompt, shown + [feasible_line]), len(shown)
     return adapter.format_retry_prompt(original_prompt, reports, max_reports=max_reports), len(reports)
 
 

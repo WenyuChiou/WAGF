@@ -227,6 +227,7 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     # channel) above; writing one where you meant this one produces a run
     # with the wrong knob silently at its default.
     "retry_feedback_mode",       # agent_config.get_governance_retry_feedback_mode
+    "feasible_set_feedback",     # agent_config.get_governance_feasible_set_feedback
 }
 
 KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
