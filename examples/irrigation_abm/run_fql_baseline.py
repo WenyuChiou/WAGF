@@ -320,6 +320,7 @@ def run_simulation(
                     if new_agent_state.get("water_right", 0) > 0 else 0
                 ),
                 "magnitude_pct": state_changes.get("magnitude_pct_applied"),
+                "magnitude_pct_sampled": state_changes.get("magnitude_pct_sampled"),
                 "magnitude_fallback": False,
                 "is_exploration": state_changes.get("is_exploration", False),
                 "memory": "FQL_BASELINE",

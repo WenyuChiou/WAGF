@@ -28,6 +28,25 @@ from typing import Any, Dict, List
 
 from broker.interfaces.skill_types import ValidationResult
 from broker.governance.rule_types import GovernanceRule
+from examples.irrigation_abm.irrigation_personas import describe_gap_reason
+
+# Supply-side redesign (2026-09-25, spec S3): the sharing sentence every
+# supply-gap message ends with. Under pro-rata sharing a larger request DOES
+# raise that agent's share; what it does not do is add water, so the old
+# "System cannot deliver more" was removed.
+_SHARING_SENTENCE = (
+    "When supply is short it is shared pro-rata: a larger request would lower "
+    "other users' deliveries, not add water."
+)
+
+
+def _tier_reason(context: Dict[str, Any]) -> str:
+    """The describe_gap_reason phrase for the declared Lower Basin shortage."""
+    return describe_gap_reason({
+        "gap_reason": "lb_shortage_tier",
+        "curtailment_ratio": context.get("curtailment_ratio", 0),
+        "shortage_tier": context.get("shortage_tier", 0),
+    })
 
 
 # =============================================================================
@@ -175,9 +194,10 @@ def curtailment_awareness_check(
                 validator_name="IrrigationCurtailmentValidator",
                 errors=[],
                 warnings=[
-                    f"Cold-start grace period (Year {year}): Tier 2 shortage "
-                    f"({curtailment:.0%} curtailment) converted to warning. "
-                    f"Consider conservation voluntarily."
+                    f"Cold-start grace period (Year {year}): increase allowed "
+                    f"although a Tier 2 Lower Basin shortage is declared "
+                    f"({curtailment:.0%} reduction of Lower Basin deliveries); "
+                    f"it is reduced by the same share."
                 ],
                 metadata={
                     "rule_id": "curtailment_awareness",
@@ -196,9 +216,10 @@ def curtailment_awareness_check(
                 valid=False,
                 validator_name="IrrigationCurtailmentValidator",
                 errors=[
-                    f"Demand increase blocked: Tier {shortage_tier} shortage "
-                    f"({curtailment:.0%} curtailment). Conservation is mandatory "
-                    f"under DCP operations."
+                    f"Demand increase blocked {_tier_reason(context)} "
+                    f"(Lake Mead at {context.get('lake_mead_level', 0):.0f} ft on "
+                    f"1 January). At Tier 2 or above, Lower Basin users may not "
+                    f"increase requests."
                 ],
                 warnings=[],
                 metadata={
@@ -207,8 +228,7 @@ def curtailment_awareness_check(
                     "blocked_skill": skill_name,
                     "level": "ERROR",
                     "suggestion": (
-                        f"Tier {shortage_tier} shortage blocks all increases. "
-                        "Remaining feasible: maintain_demand, decrease_small, decrease_large."
+                        f"Tier {shortage_tier} shortage blocks all increases this year."
                     ),
                 },
             )
@@ -222,8 +242,8 @@ def curtailment_awareness_check(
                     valid=False,
                     validator_name="IrrigationCurtailmentValidator",
                     errors=[
-                        f"Large demand increase blocked: Tier 1 shortage "
-                        f"({curtailment:.0%} curtailment)."
+                        f"Large increase blocked {_tier_reason(context)}; a small "
+                        f"increase is allowed and is reduced by the same share."
                     ],
                     warnings=[],
                     metadata={
@@ -231,11 +251,7 @@ def curtailment_awareness_check(
                         "category": "institutional",
                         "blocked_skill": skill_name,
                         "level": "ERROR",
-                        "suggestion": (
-                            "Tier 1 shortage blocks increase_large. "
-                            "Remaining feasible: increase_small, maintain_demand, "
-                            "decrease_small, decrease_large."
-                        ),
+                        "suggestion": "A Tier 1 shortage blocks large increases.",
                     },
                 )
             ]
@@ -247,8 +263,9 @@ def curtailment_awareness_check(
                     validator_name="IrrigationCurtailmentValidator",
                     errors=[],
                     warnings=[
-                        f"Tier 1 shortage active ({curtailment:.0%} curtailment). "
-                        f"Small increase permitted but may face unmet demand."
+                        f"Small increase allowed although a Tier 1 Lower Basin "
+                        f"shortage is declared ({curtailment:.0%} reduction of "
+                        f"Lower Basin deliveries); it is reduced by the same share."
                     ],
                     metadata={
                         "rule_id": "curtailment_awareness",
@@ -550,6 +567,10 @@ def magnitude_cap_check(
     return []
 
 
+def _join_reason(text: str, reason: str) -> str:
+    return f"{text}, {reason}" if reason else text
+
+
 def supply_gap_block_increase(
     skill_name: str,
     rules: List[GovernanceRule],
@@ -561,15 +582,21 @@ def supply_gap_block_increase(
     deliver cannot increase actual water received.
 
     Blocks when fulfilment ratio (diversion / request) < 70%.
+    ``current_diversion`` is this year's expected delivery at the current
+    request (the provisional settlement), and the message states the reason
+    with describe_gap_reason (supply-side redesign, 2026-09-25).
 
     Tier B suggestion: neutral enumeration of remaining feasible skills.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
 
-    # Skip if Tier 2+ shortage already handled by curtailment_awareness_check
+    # Skip if Tier 2+ shortage already handled by curtailment_awareness_check.
+    # Supply-side redesign (2026-09-25): that check fires only for agents that
+    # carry the tier cut (Lower Basin, curtailment_ratio > 0), so an Upper
+    # Basin agent in a Tier 2+ year is still covered here.
     shortage_tier = context.get("shortage_tier", 0)
-    if shortage_tier >= 2:
+    if shortage_tier >= 2 and context.get("curtailment_ratio", 0) > 0:
         return []  # P4 handles this case with DCP block
 
     request = context.get("current_request", 0)
@@ -586,8 +613,11 @@ def supply_gap_block_increase(
                 valid=False,
                 validator_name="IrrigationSupplyGapValidator",
                 errors=[
-                    f"Demand increase blocked: received zero water despite "
-                    f"requesting {request:,.0f} AF. System cannot deliver more."
+                    _join_reason(
+                        f"Demand increase blocked: no delivery is expected this year "
+                        f"at your current request of {request:,.0f} AF",
+                        describe_gap_reason(context),
+                    ) + ". " + _SHARING_SENTENCE
                 ],
                 warnings=[],
                 metadata={
@@ -595,10 +625,7 @@ def supply_gap_block_increase(
                     "category": "physical",
                     "blocked_skill": skill_name,
                     "level": "ERROR",
-                    "suggestion": (
-                        "Supply gap blocks all increases. "
-                        "Remaining feasible: maintain_demand, decrease_small, decrease_large."
-                    ),
+                    "suggestion": "The supply gap blocks increases this year.",
                 },
             )
         ]
@@ -613,8 +640,11 @@ def supply_gap_block_increase(
             valid=False,
             validator_name="IrrigationSupplyGapValidator",
             errors=[
-                f"Demand increase blocked: only {fulfilment:.0%} of request "
-                f"fulfilled ({unmet:,.0f} AF unmet). System cannot deliver more."
+                _join_reason(
+                    f"Demand increase blocked: at your current request, expected "
+                    f"delivery this year is {fulfilment:.0%} ({unmet:,.0f} AF short)",
+                    describe_gap_reason(context),
+                ) + ". " + _SHARING_SENTENCE
             ],
             warnings=[],
             metadata={
@@ -623,8 +653,7 @@ def supply_gap_block_increase(
                 "blocked_skill": skill_name,
                 "level": "ERROR",
                 "suggestion": (
-                    f"Supply gap ({fulfilment:.0%} fulfilled) blocks all increases. "
-                    "Remaining feasible: maintain_demand, decrease_small, decrease_large."
+                    f"The supply gap ({fulfilment:.0%} expected) blocks increases this year."
                 ),
             },
         )
@@ -980,6 +1009,8 @@ IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     "below_minimum_utilisation", "water_right", "current_diversion",
     "current_request", "curtailment_ratio", "shortage_tier", "cluster",
     "basin", "loop_year",
+    # supply-side redesign (2026-09-25): read by the rule messages
+    "gap_reason", "delivery_ratio", "lake_mead_level",
     # auto-injected from env_context by the broker's env merge
     "drought_index", "total_available_water", "total_basin_demand", "year",
 })

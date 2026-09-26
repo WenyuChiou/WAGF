@@ -267,6 +267,11 @@ irrigation_farmer:
     # weight. Without it, banded outcome lines and recency pushed stored
     # reflections out of the prompt in most later years.
     reserve_types: { reflection: 1 }
+    # How the memory line of a year whose proposal was overruled reads:
+    # neutral (default here) names the rule and the action applied, not the
+    # rejected proposal; explicit is the pre-redesign text, kept as an
+    # ablation (spec S6, FW5).
+    rejection_line_style: neutral
 
     arousal_threshold: 0.5
     ema_alpha: 0.3
@@ -288,45 +293,24 @@ irrigation_farmer:
         unit: "AF"
         format: ",.0f"
     assertions:
-      # F13 (2026-09-25 audit): diversion = min(request, water_right) x
-      # (1 - curtailment_ratio), so for any agent below its water right,
-      # raising the request DOES raise actual supply (curtailment applies
-      # to the whole request, not a fixed shortfall) -- the old message
-      # claimed the opposite. The old trigger (< 0.95) also sat exactly on
-      # the Tier 1 curtailment ratio (supply/request == 1 - 0.05 == 0.95
-      # for every agent at request <= water_right, which is every agent:
-      # update_agent_request caps request AT water_right, it never exceeds
-      # it), so an Upper Basin agent's Powell-scaled ratio (a real,
-      # continuously varying value, not a fixed tier constant) straddles
-      # 0.95 for a real fraction of agents. 0.90 is exactly Tier 2's ratio
-      # (1 - 0.10) and has the identical problem one tier over -- code
-      # review caught this on the first fix attempt. 0.85 sits with real
-      # margin (0.05) from both Tier 2 (0.90) and Tier 3 (0.80). It still
-      # fires for every Tier 3 agent in either basin (20% curtailment
-      # alone gives supply/request = 0.80 < 0.85, no Powell scaling
-      # needed) as well as any Upper Basin agent under additional Powell
-      # scaling; it does not fire on a Tier 1/Tier 2 boundary coincidence,
-      # which was the actual bug.
-      #
-      # Second code-review pass (2026-09-25): in a Powell zero-delivery
-      # year (see _apply_powell_constraint's docstring) supply is exactly
-      # 0 regardless of request size, so "a larger request will still
-      # raise your supply" is itself false for that one case. The first
-      # attempt to exclude it, "and supply > 0", does not work:
-      # SafeExpressionEvaluator.evaluate (broker/components/analytics/
-      # feedback.py) replaces every 0-valued variable with 1e-10 before
-      # evaluating (its own division-by-zero guard), so supply is never
-      # seen as exactly 0 there. "and supply >= 1" DOES work: real
-      # deliveries in this domain are acre-feet (tens of thousands), never
-      # a fractional AF, so 1e-10 fails ">= 1" while every genuine
-      # nonzero delivery passes it.
+      # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
+      # whose delivery formula no longer holds). The tracked metrics are
+      # recorded in post_year from the year's FINAL settlement, so this row is
+      # last year's actual request and delivery. Delivery / request is
+      # (1 - tier cut) x (Mead physical ratio) for a Lower Basin agent and the
+      # pro-rata Upper Basin ratio for an Upper Basin agent. 0.85 is below
+      # Tier 1 and Tier 2 (0.95, 0.90), so it fires for Tier 3, for a Mead
+      # or Powell physical limit, or for a combination. "supply >= 1" stays
+      # as a unit guard: SafeExpressionEvaluator replaces 0 with 1e-10, and a
+      # real delivery is thousands of acre-feet.
       - when: "supply / request < 0.85 and supply >= 1"
         severity: "warning"
         message: >-
-          You requested {request_fmt} AF but only received {supply_fmt} AF
-          ({unmet_pct:.0f}% unmet) because curtailment reduces your whole
-          request, so a larger request will still raise your supply until
-          you reach your water right.
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
+          situation above. A declared shortage reduces any larger request by
+          the same share; when a physical limit binds, supply is shared
+          pro-rata and a larger request only lowers other users' deliveries.
 
   # ---------------------------------------------------------------------------
   # Available Actions
@@ -336,15 +320,14 @@ irrigation_farmer:
       aliases: ["IL", "increase_large", "large increase", "aggressive increase",
                 "[IL]", "[increase_large]"]
       description: >
-        Aggressively increase water demand (8-20% change). Higher yield
-        potential but significant curtailment risk.
+        Request substantially more water (8 to 20 percent). In short years
+        more of the request may go undelivered.
 
     - id: increase_small
       aliases: ["IS", "increase_small", "small increase", "cautious increase",
                 "modest increase", "[IS]", "[increase_small]"]
       description: >
-        Cautiously increase water demand (1-8% change). Modest growth
-        with lower curtailment risk.
+        Request slightly more water (1 to 8 percent).
 
     - id: maintain_demand
       aliases: ["MD", "maintain", "maintain_demand", "status quo",
@@ -358,15 +341,13 @@ irrigation_farmer:
       aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
                 "cautious decrease", "[DS]", "[decrease_small]"]
       description: >
-        Cautiously reduce water demand (1-8% change). Modest conservation
-        while maintaining most crop yield.
+        Request slightly less water (1 to 8 percent).
 
     - id: decrease_large
       aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
                 "[DL]", "[decrease_large]"]
       description: >
-        Aggressively reduce water demand (8-20% change). Significant
-        conservation at the cost of reduced yield.
+        Request substantially less water (8 to 20 percent).
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration

@@ -455,12 +455,25 @@ class TestIrrigationValidators:
         assert not results[0].valid
 
     def test_supply_gap_skips_tier2(self):
-        """P3: Skip when Tier 2+ (P4 handles it)."""
+        """P3: Skip when Tier 2+ for a tier-curtailed (Lower Basin) agent
+        (P4 handles it)."""
         ctx = self._make_context(
-            current_request=100_000, current_diversion=30_000, shortage_tier=2
+            current_request=100_000, current_diversion=30_000, shortage_tier=2,
+            curtailment_ratio=0.10,
         )
         results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 0  # Deferred to P4
+
+    def test_supply_gap_still_covers_upper_basin_in_tier2_year(self):
+        """Supply-side redesign: Upper Basin agents carry no tier cut, so
+        curtailment_awareness never fires for them and the supply-gap rule
+        must not defer to it."""
+        ctx = self._make_context(
+            current_request=100_000, current_diversion=30_000, shortage_tier=2,
+            curtailment_ratio=0.0,
+        )
+        results = supply_gap_block_increase("increase_large", [], ctx)
+        assert len(results) == 1 and not results[0].valid
 
     def test_aggregated_check_list_length(self):
         # F04 (2026-09-25 audit): drought_severity_check, compact_allocation_check
@@ -625,8 +638,9 @@ class TestDomainDispatch:
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [r for r in results if not r.valid and r.errors]
         assert len(errors) >= 1
-        assert any("curtailment" in e.errors[0].lower() or "conservation" in e.errors[0].lower()
-                    for e in errors)
+        # Supply-side redesign (2026-09-25, spec S4): the message names the
+        # declared Lower Basin shortage instead of "curtailment".
+        assert any("tier 2 lower basin shortage" in e.errors[0].lower() for e in errors)
 
     def test_irrigation_curtailment_tier1_blocks_large(self):
         """v17: Tier 1 blocks increase_large via domain dispatch."""
