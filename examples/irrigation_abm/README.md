@@ -209,7 +209,7 @@ flowchart TD
             D --> E["Build prompt<br/>persona + WSA/ACA + env context"]
             E --> F["LLM call<br/>→ parse WSA, ACA, skill choice"]
             F --> G{"Governance<br/>validation<br/>(12 validators, 11 active)"}
-            G -->|APPROVED| H["Execute skill<br/>Gaussian magnitude sampling"]
+            G -->|APPROVED| H["Execute skill<br/>Hung and Yang step draw"]
             G -->|ERROR| I{"Retry<br/>≤ 3 attempts?"}
             I -->|Yes| J["Re-prompt with<br/>rejection reason"]
             J --> F
@@ -268,11 +268,13 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 
 Three k-means clusters from Hung & Yang (2021), mapped from FQL parameters to LLM personas:
 
-| Cluster | N (of 78) | LLM Persona | Magnitude default |
-| :------ | --------: | :---------- | ----------------: |
-| **Aggressive** | 67 | Bold, large demand swings | 10.0% |
-| **Forward-Looking Conservative** | 5 | Cautious, future-oriented | 7.5% |
-| **Myopic Conservative** | 6 | Tradition-oriented, slow updates | 4.0% |
+| Cluster | N (of 78) | LLM Persona |
+| :------ | --------: | :---------- |
+| **Aggressive** | 67 | Bold, large demand swings |
+| **Forward-Looking Conservative** | 5 | Cautious, future-oriented |
+| **Myopic Conservative** | 6 | Tradition-oriented, slow updates |
+
+Since 2026-09-26 the cluster is a persona label only; it no longer scales the step size (the former `persona_scale` 1.15 / 1.00 / 0.80 was removed).
 
 The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/20) is opt-in and was OFF in every LLM run. The FQL baseline exists in both variants (`fql_raw_faf1bb12` rebalanced, `fql_raw_norebalance_faf1bb12` matched).
 
@@ -286,7 +288,16 @@ The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/2
 | `decrease_small` | Minor conservation adjustments |
 | `decrease_large` | Fallowing fields, crop switching |
 
-The LLM chooses the skill (qualitative direction); actual magnitude is sampled from persona-scaled Gaussian distributions at execution time (quantitative).
+The LLM chooses the skill (direction and small or large step); the step size follows the Hung & Yang (2021) action model (`ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)`): step = (mu + |N(0, sigma)|) x bin_size acre-ft, drawn at execution time (`irrigation_env.py (hy_step_af)`).
+
+| Quantity | Value | Kind |
+| :------- | :---- | :--- |
+| mu, sigma | per agent, rows `mu` and `sigma` of `ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv` (Upper Basin agents inherit their state group's column) | data (H&Y calibration), not a tunable |
+| bin_size | per agent, `agt_states[2] - agt_states[1]` of its column in `ref/CRSS_DB/CRSS_DB/Div_States/*_discrete_states.csv` (acre-ft) | data (H&Y diversion grid), not a tunable |
+| small / large | small = a draw at or below the agent's median step T = (mu + 0.6745 sigma) x bin_size; large = above T (the lower and upper halves of the same distribution) | definition |
+| Fallbacks (mock runs only) | bin_size = water_right / 25 whenever a profile has no grid step; mu = 0.218, sigma = 0.923 (CSV medians) only when the environment builds agents itself (`initialize_synthetic`); synthetic profiles from the runners carry cluster-centroid mu and sigma | mock only |
+
+An increase is capped at the water right and a decrease never goes below min(10 percent of the water right, current request) (the former taper near the floor is removed). `run_fql_baseline.py --from-logs` profiles carry no grid step and cluster-centroid mu and sigma, so that path is not step-comparable with `--real`. H&Y explore with epsilon-greedy over the direction, not the magnitude, so the former 2 percent magnitude exploration is dropped (`is_exploration` stays in `simulation_log.csv`, always False). Option texts state the action without percentages ("Increase your diversion request by a large step"), as H&Y agents never see percentages. `simulation_log.csv` logs `magnitude_pct` (realised percent of the request), `magnitude_pct_sampled` (the drawn step as a percent), `magnitude_af` (realised acre-ft) and `magnitude_class` (small or large).
 
 ---
 

@@ -126,6 +126,20 @@ post_year(t) -> settle_year()             FINAL _settle() at this year's request
 
 ---
 
+## Action Model (Hung and Yang 2021)
+
+The agent's decision changes its diversion REQUEST; the water balance above decides what it receives. The size of the change follows `ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)` (2026-09-26):
+
+$$\Delta r_i = \pm\,(\mu_i + |z|)\, b_i, \qquad z \sim N(0, \sigma_i)$$
+
+- $\mu_i, \sigma_i$: agent $i$'s calibrated parameters (`ALL_colorado_ABM_params_cal_1108.csv`, rows `mu`, `sigma`); data, not tunables.
+- $b_i$: the step of agent $i$'s discretised diversion grid, `agt_states[2] - agt_states[1]` of `Div_States/*_discrete_states.csv` (acre-ft); data.
+- The LLM picks the sign and the class. Small: $|z| \le 0.6745\,\sigma_i$ (the half-normal median), so $\Delta \le T_i = (\mu_i + 0.6745\,\sigma_i)\,b_i$. Large: $|z| > 0.6745\,\sigma_i$. The two classes are the halves of one H&Y distribution; `hy_step_af` draws $|z|$ by inverse CDF from one uniform of the per-(seed, year, agent, skill) stream.
+- Bounds: $r_i \le w_i$ (water right), and a decrease never goes below $\min(0.1\,w_i, r_i)$ (minimum use). No taper, no magnitude exploration (H&Y explore over direction only).
+- Fallbacks (mock runs only): $b = w/25$ whenever a profile has no grid step; $\mu = 0.218$, $\sigma = 0.923$ (CSV medians) when the environment builds agents itself; synthetic profiles from the runners keep their cluster-centroid $\mu, \sigma$.
+
+---
+
 ## Mexico DCP Reductions (Minute 323)
 
 When Lake Mead elevation drops, Mexico voluntarily reduces delivery:

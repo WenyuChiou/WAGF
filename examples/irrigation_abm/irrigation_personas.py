@@ -48,16 +48,12 @@ class IrrigationAgentProfile:
     has_efficient_system: bool = False
     actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
 
-    # v17: Persona scale + per-skill Gaussian params
-    persona_scale: float = 1.0       # Multiplier for skill-level mu/sigma
-    skill_magnitude: Dict = field(default_factory=dict)  # Per-skill {mu, sigma, min, max}
-
-    # Magnitude parameters (v12 legacy: per-persona Gaussian sampling fallback)
-    magnitude_default: float = 10.0  # Mean of Gaussian distribution (%)
-    magnitude_sigma: float = 0.0     # Standard deviation for stochasticity
-    magnitude_min: float = 1.0       # Lower bound for clipping
-    magnitude_max: float = 30.0      # Upper bound for clipping
-    exploration_rate: float = 0.0    # ε-exploration: probability of unbounded sampling
+    # Hung and Yang (2021) action model: step = (mu + |N(0, sigma)|) x
+    # bin_size_af (mu and sigma above are that model's per-agent parameters).
+    # bin_size_af = the step of the agent's discretised diversion grid
+    # (Div_States/*_discrete_states.csv, agt_states[2] - agt_states[1]);
+    # None = synthetic profile, the environment falls back to water_right / 25.
+    bin_size_af: Optional[float] = None
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -879,6 +875,7 @@ def create_profiles_from_data(
         regret_val = float(p["regret"])
         cluster = _infer_cluster(mu, sigma, alpha, regret_val)
 
+        bin_size_af = float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
             agent_id=agent_name,
             basin="lower_basin",
@@ -892,6 +889,7 @@ def create_profiles_from_data(
             forget=str(p.get("forget", "TRUE")).upper() == "TRUE",
             farm_size_acres=water_right / 200.0,  # proportional to water_right
             water_right=water_right,
+            bin_size_af=bin_size_af,
             crop_type=_assign_crop_type("lower_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
@@ -921,6 +919,7 @@ def create_profiles_from_data(
         regret_val = float(p["regret"])
         cluster = _infer_cluster(mu, sigma, alpha, regret_val)
 
+        bin_size_af = float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
             agent_id=agent_name,
             basin="upper_basin",
@@ -934,6 +933,7 @@ def create_profiles_from_data(
             forget=str(p.get("forget", "TRUE")).upper() == "TRUE",
             farm_size_acres=water_right / 200.0,
             water_right=water_right,
+            bin_size_af=bin_size_af,
             crop_type=_assign_crop_type("upper_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )

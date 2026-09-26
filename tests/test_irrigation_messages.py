@@ -101,37 +101,46 @@ def test_neutral_rejection_line_names_rule_not_proposal():
                                "maintain demand was applied. ")
 
 
-def test_f07_decrease_magnitude_is_realised_after_taper():
-    """T14: near the 10 percent floor the decrease is tapered; memory reports
-    the realised percentage."""
+def test_f07_decrease_magnitude_is_realised_at_the_floor():
+    """T14 (Hung and Yang action model, 2026-09-26): a decrease that would
+    go below the 10 percent floor is cut at the floor; memory reports the
+    realised percentage, and magnitude_pct_sampled the drawn step."""
     env = IrrigationEnvironment(WaterSystemConfig(seed=1))
     env._agents["A"] = {
-        "basin": "lower_basin", "diversion": 20_000.0, "request": 20_000.0,
+        "basin": "lower_basin", "diversion": 12_000.0, "request": 12_000.0,
         "water_right": 100_000.0, "curtailment_ratio": 0.0, "delivery_ratio": 1.0,
         "gap_reason": "none", "at_allocation_cap": False, "has_efficient_system": False,
-        "below_minimum_utilisation": False, "cluster": "aggressive", "persona_scale": 1.0,
-        "skill_magnitude": {"decrease_large": {"mu": 13.0, "sigma": 0.0, "min": 8.0, "max": 20.0}},
-        "exploration_rate": 0.0,
+        "below_minimum_utilisation": False, "cluster": "aggressive",
+        "mu": 1.0, "sigma": 0.5, "bin_size_af": 4_000.0,
     }
     res = env.execute_skill(SimpleNamespace(skill_name="decrease_large", agent_id="A", parameters={}))
     new_req = env._agents["A"]["request"]
-    realised = 100.0 * (20_000.0 - new_req) / 20_000.0
+    assert new_req == pytest.approx(10_000.0)
+    realised = 100.0 * (12_000.0 - new_req) / 12_000.0
     assert res.action_context["magnitude_pct"] == pytest.approx(realised)
-    assert realised < 13.0
-    assert res.state_changes["magnitude_pct_sampled"] == pytest.approx(13.0)
+    assert res.state_changes["magnitude_af"] == pytest.approx(2_000.0)
+    assert res.state_changes["magnitude_pct_sampled"] > realised
     mem = build_action_outcome_feedback(res.action_context | {"skill_name": "decrease_large"},
                                         1, new_req, new_req, 0.1, 0)
     assert f"(by {realised:.0f}%)" in mem
 
 
 def test_option_descriptions_have_no_yield():
+    """Both sources of option text: agent_types.yaml actions and the skill
+    registry descriptions (the registry text is what options_text renders
+    into the prompt). No yield, crops, curtailment risk or percentages."""
     import yaml
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     cfg = yaml.safe_load((root / "examples/irrigation_abm/config/agent_types.yaml").read_text(encoding="utf-8"))
-    for action in cfg["irrigation_farmer"]["actions"]:
-        d = action["description"].lower()
+    reg = yaml.safe_load((root / "examples/irrigation_abm/config/skill_registry.yaml").read_text(encoding="utf-8"))
+    texts = [a["description"] for a in cfg["irrigation_farmer"]["actions"]]
+    texts += [sk["description"] for sk in reg["skills"]]
+    assert len(texts) == 10
+    for d in texts:
+        d = d.lower()
         assert "yield" not in d and "crop" not in d and "curtailment risk" not in d
+        assert "%" not in d and "percent" not in d
     assert cfg["irrigation_farmer"]["memory"]["rejection_line_style"] == "neutral"
 
 
@@ -242,13 +251,16 @@ def test_new_message_text_has_no_em_dash():
     assert not any("\u2014" in t for t in texts)
 
 
-def test_smoke_check_j_uses_sampled_magnitude():
+def test_smoke_check_j_checks_step_class():
     import pandas as pd
     from examples.irrigation_abm.validate_smoke import check_j_magnitude_bounds
-    sim = pd.DataFrame([{"yearly_decision": "decrease_large", "magnitude_pct": 5.78,
-                         "magnitude_pct_sampled": 13.0, "is_exploration": False}])
-    ok, _ = check_j_magnitude_bounds(sim)
-    assert ok
+    ok_sim = pd.DataFrame([{"yearly_decision": "decrease_large", "magnitude_pct": 5.78,
+                            "magnitude_af": 2_000.0, "magnitude_class": "large"}])
+    assert check_j_magnitude_bounds(ok_sim)[0]
+    bad_sim = ok_sim.assign(magnitude_class="small")
+    assert not check_j_magnitude_bounds(bad_sim)[0]
+    legacy = pd.DataFrame([{"yearly_decision": "decrease_large", "magnitude_pct": 13.0}])
+    assert check_j_magnitude_bounds(legacy)[0]
 
 
 def test_zero_delivery_message_does_not_claim_sharing():

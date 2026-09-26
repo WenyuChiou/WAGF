@@ -509,17 +509,18 @@ class IrrigationLifecycleHooks:
 
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
-            # ═══ v12 FIX: Read magnitude from environment state_changes, not LLM params ═══
-            # The environment generates magnitude_pct using bounded Gaussian sampling.
-            # params.get("magnitude_pct") would be the LLM's discrete choice (wrong!).
-            # state_changes["magnitude_pct_applied"] is the actual value used by the environment.
+            # Read magnitude from environment state_changes, not LLM params:
+            # the environment draws the Hung and Yang step (hy_step_af);
+            # params.get("magnitude_pct") would be the LLM's discrete choice.
             exec_result = result.execution_result
             state_changes = exec_result.state_changes if exec_result else {}
             appraisals["magnitude_pct"] = state_changes.get("magnitude_pct_applied")
-            # F07 follow-up: magnitude_pct_applied is now the REALISED change
-            # (after taper / water-right cap); the Gaussian draw is logged
-            # beside it so analyses spanning code vintages can tell them apart.
+            # F07 follow-up: magnitude_pct_applied is the REALISED change
+            # (after the water-right cap or the 10 percent floor); the drawn
+            # step is logged beside it (percent and acre-ft) with its class.
             appraisals["magnitude_pct_sampled"] = state_changes.get("magnitude_pct_sampled")
+            appraisals["magnitude_af"] = state_changes.get("magnitude_af")
+            appraisals["magnitude_class"] = state_changes.get("magnitude_class")
             appraisals["is_exploration"] = state_changes.get("is_exploration", False)
 
             # Keep magnitude_fallback for debugging (indicates LLM didn't provide magnitude)
@@ -661,6 +662,8 @@ class IrrigationLifecycleHooks:
                 ),
                 "magnitude_pct": appr.get("magnitude_pct"),
                 "magnitude_pct_sampled": appr.get("magnitude_pct_sampled"),
+                "magnitude_af": appr.get("magnitude_af"),
+                "magnitude_class": appr.get("magnitude_class"),
                 "magnitude_fallback": appr.get("magnitude_fallback", False),
                 "is_exploration": appr.get("is_exploration", False),  # v12: Track ε-exploration
                 "memory": mem_str,
@@ -970,20 +973,10 @@ def main():
         after = Counter(p.cluster for p in profiles)
         print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)} (target: 50%-30%-20%)")
 
-    # --- Set persona-specific magnitude parameters from config ---
-    personas_cfg = cfg_data.get("personas", {})
-    skill_mag_cfg = cfg_data.get("skill_magnitude", {})
-    for p in profiles:
-        persona = personas_cfg.get(p.cluster, {})
-        # v17: persona_scale + per-skill Gaussian params
-        p.persona_scale = persona.get("persona_scale", 1.0) or 1.0
-        p.skill_magnitude = dict(skill_mag_cfg)  # copy base params
-        # Legacy per-persona params (v12 fallback)
-        p.magnitude_default = persona.get("magnitude_default", 10) or 10
-        p.magnitude_sigma = persona.get("magnitude_sigma", 0.0) or 0.0
-        p.magnitude_min = persona.get("magnitude_min", 1.0) or 1.0
-        p.magnitude_max = persona.get("magnitude_max", 30.0) or 30.0
-        p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
+    # The action magnitude follows Hung and Yang (2021): per-agent mu, sigma
+    # and grid step come from the profiles (create_profiles_from_data), not
+    # from persona config (the former persona_scale / skill_magnitude bands
+    # were removed on 2026-09-26).
 
     # --- Create environment and initialize ---
     # PR-9 coupling-retrofit (F1): opt-in fail-loud physical-state guard,

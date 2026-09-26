@@ -1149,26 +1149,32 @@ class TestFiveSkillExecution:
             parameters={},
         )
 
-    def test_increase_large_within_range(self, env):
-        """increase_large should produce magnitude in 8-20% range."""
+    def test_increase_large_above_median_step(self, env):
+        """increase_large draws a Hung and Yang step above the agent's
+        median step T (2026-09-26 action model)."""
+        from examples.irrigation_abm.irrigation_env import hy_threshold_af
         env.advance_year()
         aid = env.agent_ids[0]
-        skill = self._make_skill("increase_large", aid)
-        result = env.execute_skill(skill)
+        a = env._agents[aid]
+        old = a["request"]
+        result = env.execute_skill(self._make_skill("increase_large", aid))
         assert result.success
-        mag = result.state_changes.get("magnitude_pct_applied", 0)
-        # Allow persona_scale to shift slightly outside base range
-        assert 0.5 <= mag <= 100.0  # Soft bounds for any exploration
+        assert result.state_changes["magnitude_class"] == "large"
+        step = result.state_changes["request"] - old
+        capped = result.state_changes["request"] == a["water_right"]
+        assert capped or step > hy_threshold_af(a["mu"], a["sigma"], a["bin_size_af"])
 
-    def test_increase_small_within_range(self, env):
-        """increase_small should produce magnitude in 1-8% range (bounded)."""
+    def test_increase_small_at_or_below_median_step(self, env):
+        from examples.irrigation_abm.irrigation_env import hy_threshold_af
         env.advance_year()
         aid = env.agent_ids[0]
-        skill = self._make_skill("increase_small", aid)
-        result = env.execute_skill(skill)
+        a = env._agents[aid]
+        old = a["request"]
+        result = env.execute_skill(self._make_skill("increase_small", aid))
         assert result.success
-        mag = result.state_changes.get("magnitude_pct_applied", 0)
-        assert mag <= 8.0 or result.state_changes.get("is_exploration")
+        assert result.state_changes["magnitude_class"] == "small"
+        assert result.state_changes["request"] - old <= hy_threshold_af(
+            a["mu"], a["sigma"], a["bin_size_af"]) + 1e-9
 
     def test_decrease_large_reduces_request(self, env):
         """decrease_large should reduce request."""
@@ -1210,35 +1216,17 @@ class TestFiveSkillExecution:
         result = env.execute_skill(skill)
         assert not result.success
 
-    def test_persona_scale_affects_magnitude(self, env):
-        """Aggressive persona (scale=1.15) should have higher mean magnitude
-        than myopic (scale=0.80) on average."""
-        env.advance_year()
-        # Find agents with different clusters
-        agent_mags = {}
+    def test_synthetic_agents_carry_hy_action_parameters(self, env):
+        """Synthetic agents carry the Hung and Yang fallback parameters
+        (CSV medians, bin = water_right / 25); persona_scale and
+        skill_magnitude are gone."""
+        from examples.irrigation_abm.irrigation_env import (
+            SYNTHETIC_BIN_DIVISOR, SYNTHETIC_HY_MU, SYNTHETIC_HY_SIGMA)
         for aid in env.agent_ids:
             agent = env._agents[aid]
-            cluster = agent["cluster"]
-            skill = self._make_skill("increase_large", aid)
-            result = env.execute_skill(skill)
-            mag = result.state_changes.get("magnitude_pct_applied", 0)
-            agent_mags.setdefault(cluster, []).append(mag)
-        # Just verify all executed successfully
-        for cluster, mags in agent_mags.items():
-            assert all(m > 0 for m in mags)
-
-    def test_skill_magnitude_loaded_in_synthetic(self, env):
-        """Synthetic agents should have skill_magnitude dict."""
-        aid = env.agent_ids[0]
-        agent = env._agents[aid]
-        assert "skill_magnitude" in agent
-        assert "increase_large" in agent["skill_magnitude"]
-        assert "decrease_small" in agent["skill_magnitude"]
-        assert agent["skill_magnitude"]["increase_large"]["mu"] == 12.0
-
-    def test_persona_scale_loaded_in_synthetic(self, env):
-        """Synthetic agents should have persona_scale set by cluster."""
-        aid = env.agent_ids[0]
-        agent = env._agents[aid]
-        assert "persona_scale" in agent
-        assert agent["persona_scale"] > 0
+            assert agent["mu"] == SYNTHETIC_HY_MU
+            assert agent["sigma"] == SYNTHETIC_HY_SIGMA
+            assert agent["bin_size_af"] == pytest.approx(agent["water_right"] / SYNTHETIC_BIN_DIVISOR)
+            for gone in ("persona_scale", "skill_magnitude", "magnitude_default",
+                         "magnitude_sigma", "magnitude_min", "magnitude_max", "exploration_rate"):
+                assert gone not in agent
