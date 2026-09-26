@@ -113,3 +113,91 @@ def test_provider_passthrough_reaches_engine_composition():
     agent = _agent(memory_config={"composed_retrieval": True, "window_size": 5, "top_k_significant": 2})
     MemoryProvider(e).provide("A1", {"A1": agent}, ctx)
     assert len(ctx["memory"]) == 7
+
+
+# ---------------------------------------------------------------------------
+# Content-level dedup for the significant slots (2026-09-26)
+# ---------------------------------------------------------------------------
+#
+# Two stored long-term items can carry visually-identical text that differs
+# only in incidental leading/trailing whitespace -- an exact `==` compare
+# let such a pair both through as distinct "significant" slots, so the
+# composed block showed the same text twice and starved a genuinely
+# distinct, lower-ranked item of its slot. The fix compares a stripped copy
+# of the content, both against already-chosen significant slots and against
+# the recent window; the stored/returned content, the ranking order (by
+# decayed importance, ties earlier-first), and the 0.05 decay floor in
+# ``_apply_decay`` are all unchanged. A duplicate candidate is skipped in
+# favour of the next-ranked one, same as an already-in-recent candidate was
+# skipped before this change.
+
+def test_significant_slots_dedup_near_identical_text_after_strip():
+    """Two candidates whose content is identical once stripped must not
+    both occupy a significant slot; the next-ranked distinct candidate
+    fills the freed slot instead."""
+    e = _engine(window_size=1, top_k_significant=2, decay_rate=0.0)
+    working = [_item("filler", 0, 0.1)]
+    longterm = [
+        _item("Consolidated insight text  ", 1, 0.9),   # highest-ranked, trailing whitespace
+        _item("Consolidated insight text", 2, 0.85),    # same text once stripped, NOT byte-identical
+        _item("A distinct consolidated insight", 3, 0.8),  # genuinely distinct, lower importance
+    ]
+    _store(e, working, longterm)
+
+    contents = [m["content"] for m in e.retrieve(_agent())]
+    assert len(contents) == 3, contents  # 2 significant + 1 recent
+    normalized = [c.strip() for c in contents]
+
+    # The near-duplicate text appears exactly once, however it was spelled.
+    assert normalized.count("Consolidated insight text") == 1, contents
+    # The distinct, lower-ranked candidate fills the freed second slot.
+    assert "A distinct consolidated insight" in normalized, contents
+    # The recent filler is untouched by the dedup.
+    assert "filler" in normalized, contents
+
+
+def test_stored_content_itself_is_not_mutated_by_the_strip_compare():
+    """The dedup compares stripped copies; the returned content keeps its
+    original (unstripped) text exactly."""
+    e = _engine(window_size=1, top_k_significant=2, decay_rate=0.0)
+    working = [_item("filler", 0, 0.1)]
+    longterm = [
+        _item("  Leading and trailing space kept  ", 1, 0.9),
+        _item("Another distinct entry", 2, 0.7),
+    ]
+    _store(e, working, longterm)
+
+    contents = [m["content"] for m in e.retrieve(_agent())]
+    assert "  Leading and trailing space kept  " in contents, contents
+
+
+def test_exact_duplicate_against_recent_window_still_blocked():
+    """Belt-and-suspenders: a significant candidate whose content matches a
+    recent item (after strip) is still excluded, same as before this change
+    for byte-identical matches."""
+    e = _engine(window_size=1, top_k_significant=2, decay_rate=0.0)
+    # Last-added (index -1 of working), low importance -> stays the sole
+    # recent item; its content (with incidental whitespace) matches the
+    # first significant candidate below once stripped.
+    working = [_item("Shared text ", 2, 0.1)]
+    longterm = [
+        _item("Shared text", 0, 0.9),                       # duplicates the recent item after strip
+        _item("A distinct consolidated insight", 1, 0.8),
+    ]
+    _store(e, working, longterm)
+
+    contents = [m["content"] for m in e.retrieve(_agent())]
+    normalized = [c.strip() for c in contents]
+
+    assert normalized.count("Shared text") == 1, contents
+    assert "A distinct consolidated insight" in normalized, contents
+
+
+def test_no_op_when_ranking_mode_is_not_legacy():
+    """Weighted mode is untouched by this change (flood's byte-identity
+    guarantee does not run through the legacy branch this fix touches)."""
+    e = HumanCentricMemoryEngine(window_size=1, top_k_significant=2, ranking_mode="weighted", seed=1)
+    _store(e, [_item("filler", 0, 0.1)], [_item("Some content", 1, 0.9)])
+    result = e.retrieve(_agent(), top_k=5)
+    assert isinstance(result, list) and result
+    assert "content" in result[0]
