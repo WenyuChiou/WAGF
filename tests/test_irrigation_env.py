@@ -468,8 +468,34 @@ class TestIrrigationValidators:
         # context key nothing in the pipeline produces (or a threshold the real
         # data never reaches) and fired zero times across 49,140 audited rows.
         # The functions are still defined and directly testable above.
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 6  # 8 - drought_severity - magnitude_cap
-        assert len(ALL_IRRIGATION_CHECKS) == 9  # 6 physical + 1 social + 1 temporal + 1 behavioral
+        # Supply-side redesign (2026-09-25): demand_floor_stabilizer and
+        # demand_ceiling_stabilizer are retired from dispatch as well.
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 4
+        assert len(ALL_IRRIGATION_CHECKS) == 7  # 4 physical + 1 social + 1 temporal + 1 behavioral
+
+    def test_stabilizers_retired_from_dispatch(self, monkeypatch):
+        """T15: neither stabilizer is dispatched, so a governed irrigation run
+        can never emit either rule id, while both functions still exist."""
+        assert demand_ceiling_stabilizer not in ALL_IRRIGATION_CHECKS
+        assert demand_floor_stabilizer not in ALL_IRRIGATION_CHECKS
+        # A context where both WOULD fire if dispatched.
+        ctx = {
+            "at_allocation_cap": False, "below_minimum_utilisation": False,
+            "water_right": 100_000, "current_request": 20_000,
+            "current_diversion": 20_000, "curtailment_ratio": 0.0,
+            "shortage_tier": 0, "loop_year": 5, "agent_id": "A",
+            "total_basin_demand": 9_000_000, "drought_index": 0.1,
+        }
+        for skill in ("increase_large", "decrease_large"):
+            rule_ids = {
+                r.metadata.get("rule_id")
+                for r in irrigation_governance_validator(type("P", (), {"skill_name": skill})(), ctx)
+            }
+            assert "demand_ceiling_stabilizer" not in rule_ids
+            assert "demand_floor_stabilizer" not in rule_ids
+        monkeypatch.setattr(irr_validators, "ENABLE_DEMAND_CEILING", True)
+        assert demand_ceiling_stabilizer("increase_large", [], ctx)
+        assert demand_floor_stabilizer("decrease_large", [], ctx)
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:

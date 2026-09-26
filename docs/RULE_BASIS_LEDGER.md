@@ -15,8 +15,8 @@ record; nothing here is manuscript prose.
 | Shortage tiers | Mead 1,075 / 1,050 / 1,025 ft | L | Bureau of Reclamation 2007 Interim Guidelines (Record of Decision); 2019 Drought Contingency Plan (verify citations before use) | `irrigation_env.py:62-64`, `_compute_shortage_tier` |
 | Curtailment per tier | 5 / 10 / 20 % | A | uniform-percentage simplification of the volumetric state-by-state cuts in the Guidelines/DCP; state as a simplification | `irrigation_env.py:1001` |
 | `water_right_cap` | per-agent water right | L | Colorado River Compact (1922) allocation + CRSS water rights (Hung & Yang 2021 WRR) | `agent_types.yaml` strict identity rule; skill-registry precondition |
-| `demand_ceiling_stabilizer` | 6.0 MAF | A anchored on L | 1.024 × CRSS basin demand target 5.86 MAF (Hung & Yang 2021); the 2.4 % headroom is an assumption | `irrigation_validators.py:682, 736-788` |
-| `demand_floor_stabilizer` | 50 % of water right | A | economic-viability floor | `irrigation_validators.py:681` |
+| `demand_ceiling_stabilizer` (retired from dispatch 2026-09-25; row describes the v21 corpus) | 6.0 MAF | A anchored on L | 1.024 × CRSS basin demand target 5.86 MAF (Hung & Yang 2021); the 2.4 % headroom is an assumption | `irrigation_validators.py:682, 736-788` |
+| `demand_floor_stabilizer` (retired from dispatch 2026-09-25; row describes the v21 corpus) | 50 % of water right | A | economic-viability floor | `irrigation_validators.py:681` |
 | `minimum_utilisation_floor` | 10 % of water right | A | hard economic floor | `agent_types.yaml` strict identity rule |
 | Compact aggregate warning | basin share | L | 1922 Compact | `irrigation_validators.py:286-317` |
 | `low_threat_no_increase` | WSA = VL | L (theory) | mirrors the FQL decider's WSA×ACA logic (Hung & Yang 2021); appraisal–action consistency | `agent_types.yaml:347-353` |

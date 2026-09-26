@@ -290,7 +290,7 @@ The LLM chooses the skill (qualitative direction); actual magnitude is sampled f
 
 ## 6. Governance System
 
-12 validator functions are defined; 9 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+12 validator functions are defined; 7 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
 
 F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `compact_allocation_check` are excluded from dispatch: each reads a context key nothing in the pipeline produces (`basin_allocation`, `proposed_magnitude`), or a threshold the real CRSS data never reaches (drought index tops out around 0.62-0.69 per run, below the 0.7 floor), and fired zero times across 49,140 audited strict rows. The functions stay defined and are tested directly by `tests/test_irrigation_env.py`, but are NOT run by `assert_validator_inputs_have_producers()` (the startup self-check in `irrigation_validators.py`, which fails fast if a check IN `ALL_IRRIGATION_CHECKS` reads a key with no producer) since that check only scans the dispatched set. `test_assert_validator_inputs_have_producers_catches_dead_key` proves it WOULD raise on these two if they were re-added.
 
@@ -299,8 +299,8 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 | 1 | `water_right_cap_check` | increase (at cap) | ERROR | Physical |
 | 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARN | Physical |
 | 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
-| 4 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
-| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF) | ERROR | Economic |
+| 4 | `demand_floor_stabilizer` | decrease (<50%); retired from dispatch 2026-09-25 | ERROR | Economic |
+| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF); retired from dispatch 2026-09-25, the basin limit is now supply-side availability and the ratio is logged as `basin_request_over_target` | ERROR | Economic |
 | 6 | `drought_severity_check` | increase (drought>0.7); excluded from dispatch, real index never reaches 0.7 | ERROR | Physical |
 | 7 | `magnitude_cap_check` | increase (exceeds cap); excluded from dispatch, `proposed_magnitude` never injected | WARNING | Physical |
 | 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
@@ -326,7 +326,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 All data for `--real` mode (78 CRSS agents) is included in `ref/CRSS_DB/`:
 
 - **Precipitation**: `HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` (CRSS/NOAA PRISM, 2017-2060)
-- **Agent water rights**: `Div_States/UB_discrete_states.csv` / `Div_States/LB_discrete_states.csv` (78 agents). F10 (2026-09-25 audit): this is the TOP of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`, the ceiling the FQL state space discretises against), not a legal Colorado River entitlement from `annual_baseline_time_series.csv`. Most agents' 2018 initial use sits well under this ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below 50% utilisation, so `demand_floor_stabilizer` binds for most agents from year 1 in the governed arm. See `irrigation_personas.py:create_profiles_from_data` and `docs/irrigation_physics.md`.
+- **Agent water rights**: `Div_States/UB_discrete_states.csv` / `Div_States/LB_discrete_states.csv` (78 agents). F10 (2026-09-25 audit): this is the TOP of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`, the ceiling the FQL state space discretises against), not a legal Colorado River entitlement from `annual_baseline_time_series.csv`. Most agents' 2018 initial use sits well under this ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below 50% utilisation, so in corpora produced before 2026-09-25 `demand_floor_stabilizer` bound for most agents from year 1 in the governed arm (retired from dispatch since). See `irrigation_personas.py:create_profiles_from_data` and `docs/irrigation_physics.md`.
 - **Elevation curves**: Hardcoded in `irrigation_env.py` (USBR 2009 area-capacity survey)
 
 Synthetic mode requires no external data. Reproducibility: all production runs use `--seed 42`; config captured in `config_snapshot.yaml`.

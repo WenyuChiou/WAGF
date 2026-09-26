@@ -148,8 +148,10 @@ def validate_skill(
     context: Dict[str, Any],
 ) -> Tuple[bool, str]:
     """Run the dispatched irrigation validators (ALL_IRRIGATION_CHECKS,
-    9 as of F04 2026-09-25 -- drought_severity_check, magnitude_cap_check
-    and compact_allocation_check were removed, see irrigation_validators.py)
+    7 as of the 2026-09-25 supply-side redesign -- drought_severity_check,
+    magnitude_cap_check and compact_allocation_check were removed by F04, and
+    demand_floor_stabilizer and demand_ceiling_stabilizer were retired from
+    dispatch; see irrigation_validators.py)
     on a proposed skill.
 
     NOTE: The LLM path uses broker's RejectionHandler which re-invokes the LLM
@@ -459,7 +461,7 @@ def main():
     random.seed(seed)
     np.random.seed(seed)
 
-    # Feature flags: enable demand_ceiling by default (matches LLM production)
+    # Feature flags. demand_ceiling_stabilizer is retired from dispatch (2026-09-25); this flag only gates a direct call.
     import examples.irrigation_abm.validators.irrigation_validators as irr_validators
     irr_validators.ENABLE_CONSECUTIVE_CAP = False
     irr_validators.ENABLE_ZERO_ESCAPE = False
