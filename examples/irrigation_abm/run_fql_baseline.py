@@ -325,6 +325,16 @@ def run_simulation(
 
             year_skills[final_skill] = year_skills.get(final_skill, 0) + 1
 
+        # Supply-side redesign (2026-09-25): settle the year once, after every
+        # agent's decision, and log the SETTLED delivery (the LLM runner logs
+        # the same quantity after IrrigationLifecycleHooks.post_year's
+        # settle_year()). Rows above were written right after each agent's
+        # execute_skill, with a provisional delivery.
+        env.settle_year()
+        for row in logs:
+            if row["year"] == year_idx:
+                row["diversion"] = env.get_agent_state(row["agent_id"]).get("diversion", 0)
+
         # Year summary
         n_agents = len(agent_ids)
         skill_summary = ", ".join(f"{k}={v}" for k, v in sorted(year_skills.items()))

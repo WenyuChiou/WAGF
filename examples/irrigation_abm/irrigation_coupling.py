@@ -83,6 +83,13 @@ IRRIGATION_CONTEXT_FIELD_SOURCES: Dict[str, Tuple[str, str]] = {
     "drought_index": ("global", "drought_index"),
     "total_available_water": ("global", "total_available_water"),
     "total_basin_demand": ("global", "total_basin_demand"),
+    # Supply-side redesign (2026-09-25): settlement outputs and the two
+    # reservoir signals the prompt now reads.
+    "delivery_ratio": ("agent", "delivery_ratio"),
+    "gap_reason": ("agent", "gap_reason"),
+    "basin_request_over_target": ("global", "basin_request_over_target"),
+    "natural_flow_maf": ("global", "natural_flow_maf"),
+    "powell_storage_maf": ("global", "powell_storage_maf"),
 }
 
 
@@ -109,6 +116,11 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
             VarSpec("drought_index", float, "ratio_decimal", lo=0.0, hi=1.0, cadence="per_decision"),
             VarSpec("total_available_water", float, "acre_ft", lo=0.0, cadence="per_decision"),
             VarSpec("total_basin_demand", float, "acre_ft", lo=0.0, cadence="per_decision"),
+            VarSpec("delivery_ratio", float, "ratio_decimal", lo=0.0, hi=1.0, cadence="per_decision"),
+            VarSpec("gap_reason", str, "", cadence="per_decision"),
+            VarSpec("basin_request_over_target", float, "ratio_decimal", lo=0.0, cadence="per_decision"),
+            VarSpec("natural_flow_maf", float, "maf", lo=0.0, cadence="per_decision"),
+            VarSpec("powell_storage_maf", float, "maf", lo=0.0, cadence="per_decision"),
         ),
         decision_cadence="annual",
         solver_cadence="annual",
@@ -116,7 +128,7 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
 
 
 # Keys ``get_agent_context()`` returns that the contract deliberately does
-# NOT cover, and why (review P2: "the contract covers 15 of 18 context keys"
+# NOT cover, and why (review P2: "the contract covers 20 of 23 context keys"
 # is only checkable if the other 3 are written down somewhere the manifest
 # can quote). None of them is read from a source dict with a silent default,
 # which is what this contract guards:

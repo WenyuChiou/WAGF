@@ -131,15 +131,19 @@ class TestIrrigationEnvironment:
         assert env.get_agent_state(aid)["request"] == 0
 
     def test_curtailment_applies(self, env):
-        """Force shortage conditions and verify curtailment."""
+        """Force shortage conditions and verify curtailment. Supply-side
+        redesign (2026-09-25, decision Q2): the declared shortage binds
+        Lower Basin agents only; Upper Basin agents carry ratio 0."""
         # Manually set low lake level to trigger shortage
         env._basins["lower_basin"]["lake_mead_level"] = 1020
         env._apply_curtailment()
 
         for aid in env.agent_ids:
             state = env.get_agent_state(aid)
-            if state.get("basin") == "lower_basin" or True:
+            if state.get("basin") == "lower_basin":
                 assert state["curtailment_ratio"] > 0
+            else:
+                assert state["curtailment_ratio"] == 0.0
 
     def test_shortage_tier_computation(self, env):
         env._basins["lower_basin"]["lake_mead_level"] = 1100
@@ -252,159 +256,11 @@ class TestCalendarYearAlignment:
         )
 
 
-class TestF11bPowellCapReapplication:
-    """F11b (2026-09-25 audit follow-up): update_agent_request discards
-    whatever Powell pro-rata scaling advance_year() applied the instant an
-    Upper Basin agent's own decision executes (see
-    _apply_powell_constraint's docstring for the full finding history).
-    apply_powell_cap_to_executed_diversions() must restore the cap for
-    Upper Basin agents after execute_skill runs, and must leave Lower
-    Basin agents untouched."""
-
-    @staticmethod
-    def _agent_dict(basin: str) -> dict:
-        return {
-            "basin": basin,
-            "diversion": 80_000.0,
-            "request": 80_000.0,
-            "water_right": 100_000.0,
-            "curtailment_ratio": 0.0,
-            "at_allocation_cap": False,
-            "has_efficient_system": False,
-            "below_minimum_utilisation": False,
-            "cluster": "aggressive",
-            "persona_scale": 1.0,
-            "skill_magnitude": {
-                "increase_small": {"mu": 4.0, "sigma": 0.0, "min": 1.0, "max": 8.0},
-            },
-            "magnitude_default": 10.0,
-            "magnitude_sigma": 0.0,
-            "magnitude_min": 1.0,
-            "magnitude_max": 30.0,
-            "exploration_rate": 0.0,
-        }
-
-    def _make_env_with_low_flow(self):
-        """Natural flow clamps to 6.0 MAF (below the 7.0 MAF Powell
-        minimum-release floor), so ub_flow_cap_af = 0 for this year --
-        the same "zero-delivery year" mechanism F11/F11b document."""
-        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
-        env._agents["UB1"] = self._agent_dict("upper_basin")
-        env._agents["LB1"] = self._agent_dict("lower_basin")
-        env._precip_history = [10.0]  # -> natural_flow clamps to 6.0 MAF
-        # Tier 0 (no curtailment): default _basins lake_mead_level (1080 ft)
-        # is above mead_shortage_tier1, so curtailment_ratio stays 0.0 and
-        # only the Powell cap is exercised by this test.
-        env._apply_curtailment()
-        env._apply_powell_constraint()
-        return env
-
-    def test_ub_agent_diversion_restored_to_powell_cap_after_its_own_decision(self):
-        from types import SimpleNamespace
-
-        env = self._make_env_with_low_flow()
-        assert env._agents["UB1"]["diversion"] == 0.0  # pre-decision Powell zero
-
-        skill = SimpleNamespace(
-            skill_name="increase_small", agent_id="UB1", parameters={},
-        )
-        result = env.execute_skill(skill)
-        assert result.success
-        # This is the F11b bug, reproduced: execute_skill's
-        # update_agent_request discards the Powell zero.
-        assert env._agents["UB1"]["diversion"] == pytest.approx(83_200.0)
-
-        env.apply_powell_cap_to_executed_diversions()
-        assert env._agents["UB1"]["diversion"] == 0.0
-
-    def test_lb_agent_diversion_unaffected_by_powell_cap_reapplication(self):
-        from types import SimpleNamespace
-
-        env = self._make_env_with_low_flow()
-
-        skill = SimpleNamespace(
-            skill_name="increase_small", agent_id="LB1", parameters={},
-        )
-        result = env.execute_skill(skill)
-        assert result.success
-        lb_diversion_after_decision = env._agents["LB1"]["diversion"]
-        assert lb_diversion_after_decision == pytest.approx(83_200.0)
-
-        env.apply_powell_cap_to_executed_diversions()
-        assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
-        # Idempotent: calling it again changes nothing further. UB1's
-        # cap is zero here (LB1 isn't subject to the Powell cap at all),
-        # so this only exercises the trivial 0-stays-0 case; see
-        # test_partial_cap_splits_evenly_regardless_of_which_agent_executed
-        # below for the case that actually stresses re-derivation.
-        env.apply_powell_cap_to_executed_diversions()
-        assert env._agents["LB1"]["diversion"] == pytest.approx(lb_diversion_after_decision)
-        assert env._agents["UB1"]["diversion"] == 0.0
-
-    def test_partial_cap_splits_evenly_regardless_of_which_agent_executed(self):
-        """Code review (2026-09-25, same day as the F11b fix): the first
-        version of apply_powell_cap_to_executed_diversions just re-ran
-        _apply_powell_constraint on whatever diversion values were
-        already in place. That double-scaled an Upper Basin agent whose
-        decision did NOT execute this year, because its diversion still
-        held the FIRST (advance_year-time) Powell scaling, while an agent
-        that DID execute contributed its full curtailment-only value --
-        skewing the pro-rata split between two otherwise-identical
-        agents. The fix rebuilds every Upper Basin agent's diversion from
-        request/water_right/curtailment_ratio before re-deriving the cap,
-        so both agents land on the same, correct, evenly-split value
-        regardless of which one executed."""
-        from types import SimpleNamespace
-
-        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
-        for aid in ("UB_A", "UB_B"):
-            env._agents[aid] = {
-                "basin": "upper_basin",
-                "diversion": 1_000_000.0,
-                "request": 1_000_000.0,
-                "water_right": 2_000_000.0,
-                "curtailment_ratio": 0.0,
-                "at_allocation_cap": False,
-                "has_efficient_system": False,
-                "below_minimum_utilisation": False,
-                "cluster": "aggressive",
-                "persona_scale": 1.0,
-                "skill_magnitude": {},
-                "magnitude_default": 0.0,
-                "magnitude_sigma": 0.0,
-                "magnitude_min": 1.0,
-                "magnitude_max": 30.0,
-                "exploration_rate": 0.0,
-            }
-        # natural_flow = 12.0 * (66.667/100) = 8.0 MAF -> ub_flow_cap_af =
-        # (8.0 - 7.0) * 1e6 = 1,000,000 AF -- a PARTIAL cap (not a full
-        # zero), binding against the combined 2,000,000 AF request.
-        env._precip_history = [66.666667]
-        env._apply_curtailment()
-        env._apply_powell_constraint()
-        assert env._agents["UB_A"]["diversion"] == pytest.approx(500_000.0)
-        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
-
-        # UB_A's decision executes (maintain_demand keeps request at
-        # 1,000,000, discarding the 0.5 Powell scale per the F11b bug);
-        # UB_B never executes (ABORTED / no fallback / inactive), so its
-        # diversion is still the pre-decision Powell-scaled 500,000.
-        skill = SimpleNamespace(
-            skill_name="maintain_demand", agent_id="UB_A", parameters={},
-        )
-        result = env.execute_skill(skill)
-        assert result.success
-        assert env._agents["UB_A"]["diversion"] == pytest.approx(1_000_000.0)
-        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
-
-        env.apply_powell_cap_to_executed_diversions()
-
-        # Correct result: both agents made an identical 1,000,000 AF
-        # request against a 1,000,000 AF aggregate cap, so both get the
-        # same evenly-split 500,000 AF -- not the skewed ~666,667 /
-        # ~333,333 split the un-fixed re-scale-in-place bug produced.
-        assert env._agents["UB_A"]["diversion"] == pytest.approx(500_000.0)
-        assert env._agents["UB_B"]["diversion"] == pytest.approx(500_000.0)
+# TestF11bPowellCapReapplication was retired with the supply-side
+# redesign (2026-09-25): _apply_powell_constraint no longer exists. The F11b
+# contract it pinned (rebuild from requests, exactly-once, even split between
+# an executed and an un-executed agent) is now tested against settle_year()
+# in tests/test_irrigation_supply_side.py (TestSettleIdempotence).
 
 
 class TestIrrigationValidators:
