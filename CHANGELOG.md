@@ -339,6 +339,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Irrigation's memory doubled up every year on the runner's own generic
+  decision line (2026-09-26)**: `ExperimentRunner._apply_state_changes`
+  writes a generic "Year N: Decided to: X" / "Year N: default action
+  applied: X" memory line every period, on top of irrigation's own per-year
+  outcome line (`build_action_outcome_feedback`,
+  `examples/irrigation_abm/run_experiment.py`), which already states the
+  executed action and the rule. With the SI's composed retrieval (5 recent
+  + 2 significant) the two lines together occupied two of the five recent
+  slots each year, so the recent window covered about 2.5 years of history
+  instead of 5. Added a generic opt-out, `memory.runner_decision_line`
+  (bool, default `true`, so every existing run is byte-identical):
+  when an agent type's memory config sets it `false`,
+  `_apply_state_changes` skips the generic line on both approved and
+  fallback rows, leaving state application, `_last_action_context`, and
+  audit untouched. Irrigation's `agent_types.yaml` sets it `false`; flood
+  is unaffected (never sets the key) and keeps relying on
+  `DecisionFilteredMemoryEngine` as before. Verified: flood mock run is
+  byte-identical before/after (`compare_audit_csv` IDENTICAL,
+  `simulation_log.csv` diff clean); a 3-year irrigation mock run's year-3
+  composed memory block now holds exactly one outcome line per prior year
+  plus the year-2 reflection, with no runner-generic marker text. **A
+  domain that turns this opt-out on is, by definition, changing its own
+  memory stream: irrigation runs from this commit forward are not
+  byte-identical or pool-safe with any irrigation corpus produced before
+  it** (which memories fill the composed retrieval's recent/significant
+  slots changes); flood corpora are unaffected and remain poolable.
 - **Rejected rows now apply the fallback skill the broker executed (audit
   F06 + F20, 2026-09-25)**: on REJECTED / UNCERTAIN results
   `SkillBrokerEngine.process_step` runs the registry default skill, but
