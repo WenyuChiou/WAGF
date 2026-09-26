@@ -234,7 +234,7 @@ flowchart TD
 
 ## 4. Water System Model
 
-Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: Lake Powell passes its inflow through to Lake Mead clamped to [7.0, 9.0] MAF (storage tops up a dry year and keeps a wet year's excess), Upper Basin use is cut pro-rata only when Powell cannot keep the 7.0 MAF floor, and Lake Mead withdrawals are cut by the declared Lower Basin shortage tier and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
+Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: Lake Powell passes its inflow through to Lake Mead clamped to [7.0, 9.0] MAF (storage tops up a dry year, and keeps a wet year's excess only until Powell is back at its 2019 fill), Upper Basin use is cut pro-rata only when Powell cannot keep the 7.0 MAF floor, and Lake Mead withdrawals are cut by the declared Lower Basin shortage tier and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
 
 ### Key Parameters
 
@@ -243,6 +243,7 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 | Natural flow baseline | 12.0 MAF/yr | CRSS historical average |
 | Powell release floor | 7.0 MAF/yr | minimum objective release (Long-Range Operating Criteria / 2007 Interim Guidelines); TO VERIFY |
 | Powell release ceiling (wet year) | 9.0 MAF/yr | modelling ceiling motivated by the 2007 Interim Guidelines (releases above about 9.0 MAF only in balancing or equalization years); TO VERIFY |
+| Powell target fill (`powell_target_fill`, on [0, 1]) | 0.42 of live capacity | 1 January 2019 live fill (10.10 / 24.32 MAF = 0.415, rounded): Powell holds wet-year surplus only until it is back at its 2019 level; TO VERIFY |
 | UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
 | Mexico treaty delivery | 1.5 MAF/yr | 1944 Treaty (before DCP reductions) |
 | Initial Mead elevation | 1081.46 ft | USBR observed December 2018 |
@@ -316,7 +317,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 
 **Agent behavior**: No inter-agent communication; annual decision frequency; homogeneous curtailment (no prior appropriation doctrine); fixed persona assignment throughout simulation.
 
-**Water system**: Two storage stocks (Lake Powell: pass-through release clamped to [7.0, 9.0] MAF/yr subject to storage, not the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.0 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
+**Water system**: Two storage stocks (Lake Powell: pass-through release clamped to [7.0, 9.0] MAF/yr subject to storage, wet-year retention only up to the 2019 fill, not the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.0 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
 
 **LLM-specific**: Magnitude-reasoning decoupling (LLM chooses skill direction, not magnitude); results specific to gemma3:4b; ERROR-level governance cannot be overridden.
 

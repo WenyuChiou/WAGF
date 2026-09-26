@@ -85,7 +85,7 @@ class WaterSystemConfig:
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
-    # Powell release band (option d, 2026-09-26): release = pass-through
+    # Powell release band (options d and e, 2026-09-26): release = pass-through
     # clamped to [7.0, 9.0] MAF, subject to storage. 7.0 is a published
     # release magnitude and 9.0 a modelling ceiling; neither is the operating
     # rules themselves, and both are TO VERIFY against the originals like
@@ -96,9 +96,19 @@ class WaterSystemConfig:
     #   * 9.0 MAF: a modelling ceiling motivated by the 2007 Interim
     #     Guidelines, under which releases above about 9.0 MAF occur only in
     #     balancing or equalization years (lower-elevation balancing can go
-    #     to 9.5); in a wet year Powell releases 9.0 and keeps the excess.
+    #     to 9.5); in a wet year Powell releases 9.0 and keeps the excess
+    #     only up to the target fill below (option e).
     min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr)
     max_powell_release_maf: float = 9.0       # Powell release ceiling in a wet year (MAF/yr)
+    # Option (e), 2026-09-26: Powell holds wet-year surplus only until it is
+    # back at its 2019 level. A wet year's excess over the 9.0 MAF ceiling is
+    # retained only while Powell's live storage is below this fraction of
+    # live capacity; above it the release is the pass-through (a crude
+    # equalization: a healthy Powell passes surplus to Mead). On [0, 1].
+    # Default = the 1 January 2019 fill, 10.10 / 24.32 MAF live = 0.415,
+    # rounded to 0.42 (target 12.10 MAF total vs 11.99 on 1 January 2019);
+    # TO VERIFY with the other Powell constants.
+    powell_target_fill: float = 0.42
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
     # Lake Mead physical bounds (total storage, MAF), the end points of the
     # USBR storage-elevation curve in IrrigationEnvironment._STORAGE_MAF.
@@ -152,6 +162,8 @@ class WaterSystemConfig:
                 f"{self.powell_dead_pool_maf} / {self.powell_initial_storage_maf} / "
                 f"{self.powell_capacity_maf}"
             )
+        if not 0.0 <= self.powell_target_fill <= 1.0:
+            raise ValueError(f"powell_target_fill must be on [0, 1], got {self.powell_target_fill}")
         if not 0.0 < self.min_powell_release_maf <= self.max_powell_release_maf:
             raise ValueError("Powell release band must satisfy 0 < floor <= ceiling")
         if not 0.0 <= self.mead_dead_pool_maf < self.mead_capacity_maf:
@@ -193,9 +205,10 @@ class IrrigationEnvironment:
     (natural flow minus Upper Basin use) clamped to [7.0, 9.0] MAF subject
     to storage: storage tops a dry year up to 7.0 MAF, a normal year passes
     through unchanged, and a wet year releases 9.0 MAF and keeps the excess
-    (spilling above capacity). Lake Mead is a storage stock whose
-    withdrawals cannot exceed the water above its dead pool plus the year's
-    inflow. Not the full operating rules: the 2007 Interim Guidelines
+    only until Powell is back at its target fill (its 2019 level); a Powell
+    at or above that passes the whole inflow through (spill above
+    capacity). Lake Mead is a storage stock whose withdrawals cannot exceed
+    the water above its dead pool plus the year's inflow. Not the full operating rules: the 2007 Interim Guidelines
     release tiers (equalization, balancing, 7.48 / 8.23 MAF) and the Lake
     Mead protection levels are deliberately not modelled.
 
@@ -1201,9 +1214,12 @@ class IrrigationEnvironment:
            a 7.0 MAF release from inflow plus usable storage. So a year with
            NF below 7 does NOT zero the Upper Basin; it is cut only when
            Powell storage cannot cover the release. Shared pro-rata.
-        P  Powell (decision 2026-09-26, option d). Inflow I = NF - D_U is
-           the pass-through. Wet year (I > R_max = 9.0): R = R_max and the
-           excess stays in storage. Normal year (R_min <= I <= R_max): R = I
+        P  Powell (decision 2026-09-26, option e). Inflow I = NF - D_U is
+           the pass-through. Wet year (I > R_max = 9.0): R = max(R_max,
+           min(I, S_P + I - E_P - S_target)), so the excess is kept only up to
+           the target fill (S_target = dead pool + powell_target_fill x live
+           capacity) and a Powell at or above it passes I through.
+           Normal year (R_min <= I <= R_max): R = I
            (storage only loses evaporation). Dry year (I < R_min = 7.0):
            R = min(R_min, I + usable storage - E_P). R never takes Powell
            below its dead pool; storage above full pool spills into R.
@@ -1263,19 +1279,25 @@ class IrrigationEnvironment:
             ub_reason = "ub_capacity"
         inflow_p = nf - d_u
         # Pass-through release clamped to [7.0, 9.0] MAF subject to storage
-        # (decision 2026-09-26, option d): a normal year passes its inflow
+        # (decision 2026-09-26, options d and e): a normal year passes its inflow
         # straight to Mead, as the pre-redesign physics did; a dry year is
         # topped up from storage to 7.0 (or what is available); a wet year
-        # releases 9.0 and keeps the excess, which is what refills Powell.
+        # releases 9.0 and keeps the excess up to the target fill (option e).
         # Evaporation comes out of storage, so storage declines by it in a
         # pass-through year; the release is also capped by what can leave
         # without taking Powell below its dead pool.
         pass_through = inflow_p
         available_p = max(0.0, pass_through + p_usable - e_p)
         if pass_through > cfg.max_powell_release_maf:
-            # Wet year (option d): release the 9.0 MAF ceiling and keep the
-            # excess in storage (spill below if that passes capacity).
-            release = min(cfg.max_powell_release_maf, available_p)
+            # Wet year (option e): keep the excess over the 9.0 MAF ceiling
+            # only up to the target fill (total storage at that live
+            # fraction); a Powell already at or above the target after
+            # evaporation passes the whole inflow through.
+            target_p = cfg.powell_dead_pool_maf + cfg.powell_target_fill * (
+                cfg.powell_capacity_maf - cfg.powell_dead_pool_maf)
+            release = max(cfg.max_powell_release_maf,
+                          min(pass_through, s_p + pass_through - e_p - target_p))
+            release = min(release, available_p)
         elif pass_through >= cfg.min_powell_release_maf:
             release = min(pass_through, available_p)
         else:
