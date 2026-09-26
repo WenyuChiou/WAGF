@@ -1021,9 +1021,18 @@ def main():
     irrigation_adapter = IrrigationAdapter()
     adapter_rw = irrigation_adapter.retrieval_weights
 
+    _mem_window = int(irr_mem.get("window_size", args.window_size))
+    _mem_sig = int(irr_mem.get("top_k_significant", gm.get("top_k_significant", 2)))
+    if "window_size" in irr_mem and args.window_size != _mem_window:
+        print(f"[Memory] WARNING: --window-size {args.window_size} ignored; "
+              f"irrigation_farmer.memory.window_size = {_mem_window} is used")
     memory_engine = HumanCentricMemoryEngine(
-        window_size=args.window_size,
-        top_k_significant=gm.get("top_k_significant", 2),
+        # Composed retrieval sizes: the agent-type memory block wins, so the
+        # engine (post_year log, year-end reflection) and the prompt
+        # (MemoryProvider pass-through) use one window and one significant
+        # count; --window-size applies only when the block does not set it.
+        window_size=_mem_window,
+        top_k_significant=_mem_sig,
         consolidation_prob=gm.get("consolidation_probability", 0.7),
         consolidation_threshold=gm.get("consolidation_threshold", 0.6),
         decay_rate=gm.get("decay_rate", 0.1),
@@ -1041,11 +1050,11 @@ def main():
         W_context=rw.get("context", adapter_rw.get("W_context", 0.3)),
         ranking_mode=irr_mem.get("ranking_mode", "weighted"),
         seed=args.memory_seed,
-        # Reserved retrieval slot(s) by memory type (irrigation: one of the
-        # top-3 slots for a reflection when one exists). None = off.
+        # Reserved retrieval slot(s) by memory type (framework option,
+        # weighted mode only); not set for irrigation since 2026-09-26.
         reserve_types=irr_mem.get("reserve_types"),
     )
-    print(f"[Pillar 2] HumanCentricMemoryEngine (window={args.window_size}, mode={memory_engine.ranking_mode})")
+    print(f"[Pillar 2] HumanCentricMemoryEngine (window={memory_engine.window_size}, top_k_significant={memory_engine.top_k_significant}, mode={memory_engine.ranking_mode})")
 
     # --- Context builder ---
     ctx_builder = TieredContextBuilder(

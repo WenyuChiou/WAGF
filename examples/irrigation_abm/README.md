@@ -191,8 +191,8 @@ Note: v20 results are deprecated due to the execute_skill base asymmetry bug. Al
 
 | Pillar | Name | Effect |
 | :----- | :--- | :----- |
-| 1 | **Strict Governance** | 12 configured validators (11 active; `compact_allocation_check` never fires because the `basin_allocation` context key is not injected — see docs/irrigation_model_caveats.md) block physically impossible or redundant actions |
-| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` (basic ranking mode) + year-end reflection |
+| 1 | **Strict Governance** | 12 validator functions defined, 7 dispatched (see Section 6), plus the YAML thinking and identity rules |
+| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine`, composed retrieval (SI section 3.8): the 5 most recent memories always, plus the 2 long-term memories with the highest decayed importance (ties: earlier first; decayed importance at or below 0.05 dropped), so up to 7 per prompt (the year-end reflection and the simulation-log memory column read the same up to 7); long-term means consolidated (importance >= 0.6, probability 0.7 x importance); + year-end reflection. Corpora produced before 2026-09-26 served 3 memories per prompt (weighted recency / importance / context scoring), not the SI composition; see caveat 12 |
 | 3 | **Reflection Loop** | Year-end consolidation with domain-specific guidance questions |
 
 ```mermaid

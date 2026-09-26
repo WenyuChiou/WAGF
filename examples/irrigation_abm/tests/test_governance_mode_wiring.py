@@ -768,6 +768,10 @@ class TestIrrigationAdapterRealisticInputs:
         )
 
         engine, irr_mem = _build_memory_engine_like_run_experiment()
+        # Pins the WEIGHTED-mode arithmetic. Irrigation itself runs the
+        # composed ("legacy") retrieval since 2026-09-26 (SI section 3.8),
+        # so the mode is set explicitly here.
+        engine.ranking_mode = "weighted"
         engine.W_recency = 0.0
         engine.W_context = 0.0
         agent = _FakeAgent("Agent_ranking", memory_config=irr_mem)
