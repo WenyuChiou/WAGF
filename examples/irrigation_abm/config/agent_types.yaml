@@ -288,6 +288,17 @@ irrigation_farmer:
     # ablation (spec S6, FW5).
     rejection_line_style: neutral
 
+    # Generic runner opt-out (2026-09-26, ExperimentRunner._apply_state_changes):
+    # irrigation already writes its own per-year outcome line in pre_year
+    # (build_action_outcome_feedback, run_experiment.py), which states the
+    # executed action and the rule. Leaving the runner's generic "Decided
+    # to: X" / "default action applied: X" line on doubled up every year in
+    # the composed retrieval's 5-recent-memory window, so the recent window
+    # covered ~2.5 years of history instead of 5. False here skips the
+    # generic line entirely (framework default is True; unaffected domains
+    # like flood keep it and rely on DecisionFilteredMemoryEngine instead).
+    runner_decision_line: false
+
     arousal_threshold: 0.5
     ema_alpha: 0.3
 
