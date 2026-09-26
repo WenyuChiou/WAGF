@@ -388,7 +388,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   storage-fraction scale-up -- that is not itself independently confirmed,
   so those totals are documented as contingent rather than flatly
   VERIFIED. The source document is the USBR **February** 2019 24-Month
-  Study (was mislabelled "January" in three places). (d)
+  Study (was mislabelled "January" in five places). (d)
   `powell_dead_pool_maf = 1.89`, `lb_non_ag_total_maf = 5.0`, and
   `lb_tributary_maf = 1.0` are documented as calibrated aggregates without
   a single primary table, not "TO VERIFY" constants that a future pass
