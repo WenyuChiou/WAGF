@@ -191,8 +191,8 @@ Note: v20 results are deprecated due to the execute_skill base asymmetry bug. Al
 
 | Pillar | Name | Effect |
 | :----- | :--- | :----- |
-| 1 | **Strict Governance** | 12 configured validators (11 active; `compact_allocation_check` never fires because the `basin_allocation` context key is not injected — see docs/irrigation_model_caveats.md) block physically impossible or redundant actions |
-| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` (basic ranking mode) + year-end reflection |
+| 1 | **Strict Governance** | 12 validator functions defined, 7 dispatched (see Section 6), plus the YAML thinking and identity rules |
+| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine`, composed retrieval (SI section 3.8): the 5 most recent memories always, plus the 2 long-term memories with the highest decayed importance (ties: earlier first; decayed importance at or below 0.05 dropped), so up to 7 per prompt (the year-end reflection and the simulation-log memory column read the same up to 7); long-term means consolidated (importance >= 0.6, probability 0.7 x importance); + year-end reflection. Corpora produced before 2026-09-26 served 3 memories per prompt (weighted recency / importance / context scoring), not the SI composition; see caveat 12 |
 | 3 | **Reflection Loop** | Year-end consolidation with domain-specific guidance questions |
 
 ```mermaid
@@ -209,7 +209,7 @@ flowchart TD
             D --> E["Build prompt<br/>persona + WSA/ACA + env context"]
             E --> F["LLM call<br/>→ parse WSA, ACA, skill choice"]
             F --> G{"Governance<br/>validation<br/>(12 validators, 11 active)"}
-            G -->|APPROVED| H["Execute skill<br/>Gaussian magnitude sampling"]
+            G -->|APPROVED| H["Execute skill<br/>Hung and Yang step draw"]
             G -->|ERROR| I{"Retry<br/>≤ 3 attempts?"}
             I -->|Yes| J["Re-prompt with<br/>rejection reason"]
             J --> F
@@ -234,22 +234,26 @@ flowchart TD
 
 ## 4. Water System Model
 
-Simplified CRSS mass balance at annual resolution (same abstraction as Hung & Yang 2021). **[Full equations and derivations](docs/irrigation_physics.md)**.
+Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: Lake Powell passes its inflow through to Lake Mead clamped to [7.0, 9.0] MAF (storage tops up a dry year, and keeps a wet year's excess only until Powell is back at its 2019 fill), Upper Basin use is cut pro-rata only when Powell cannot keep the 7.0 MAF floor, and Lake Mead withdrawals are cut by the declared Lower Basin shortage tier and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
 
 ### Key Parameters
 
 | Parameter | Value | Source |
 | :-------- | :---- | :----- |
 | Natural flow baseline | 12.0 MAF/yr | CRSS historical average |
-| Min Powell release | 7.0 MAF/yr | USBR DCP floor (2019) |
+| Powell release floor | 7.0 MAF/yr | minimum objective release (Long-Range Operating Criteria / 2007 Interim Guidelines); TO VERIFY |
+| Powell release ceiling (wet year) | 9.0 MAF/yr | modelling ceiling motivated by the 2007 Interim Guidelines (releases above about 9.0 MAF only in balancing or equalization years); TO VERIFY |
+| Powell target fill (`powell_target_fill`, on [0, 1]) | 0.42 of live capacity | 1 January 2019 live fill (10.10 / 24.32 MAF = 0.415, rounded): Powell holds wet-year surplus only until it is back at its 2019 level; TO VERIFY |
 | UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
 | Mexico treaty delivery | 1.5 MAF/yr | 1944 Treaty (before DCP reductions) |
-| Initial elevation | 1081.46 ft | USBR observed December 2018 |
+| Initial Mead elevation | 1081.46 ft | USBR observed December 2018 |
+| Lake Powell capacity / dead pool | 26.21 / 1.89 MAF | 1986 area-capacity table (USGS 2022 capacity update); TO VERIFY against the originals |
+| Initial Powell storage | 11.99 MAF (10.099 live) | USBR January 2019 24-Month Study, end of December 2018; TO VERIFY |
 | Simulation period | 2019-2060 | Following Hung & Yang (2021) |
 
 ### Shortage Tiers
 
-| Mead Elevation | Tier | Curtailment | Governance Effect |
+| 1 January Mead Elevation | Tier | Lower Basin cut | Governance Effect |
 | :------------- | :--- | :---------- | :---------------- |
 | ≥ 1075 ft | 0 (Normal) | 0% | WARNING only |
 | 1050-1075 ft | 1 | 5% | WARNING only |
@@ -264,11 +268,13 @@ Simplified CRSS mass balance at annual resolution (same abstraction as Hung & Ya
 
 Three k-means clusters from Hung & Yang (2021), mapped from FQL parameters to LLM personas:
 
-| Cluster | N (of 78) | LLM Persona | Magnitude default |
-| :------ | --------: | :---------- | ----------------: |
-| **Aggressive** | 67 | Bold, large demand swings | 10.0% |
-| **Forward-Looking Conservative** | 5 | Cautious, future-oriented | 7.5% |
-| **Myopic Conservative** | 6 | Tradition-oriented, slow updates | 4.0% |
+| Cluster | N (of 78) | LLM Persona |
+| :------ | --------: | :---------- |
+| **Aggressive** | 67 | Bold, large demand swings |
+| **Forward-Looking Conservative** | 5 | Cautious, future-oriented |
+| **Myopic Conservative** | 6 | Tradition-oriented, slow updates |
+
+Since 2026-09-26 the cluster is a persona label only; it no longer scales the step size (the former `persona_scale` 1.15 / 1.00 / 0.80 was removed).
 
 The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/20) is opt-in and was OFF in every LLM run. The FQL baseline exists in both variants (`fql_raw_faf1bb12` rebalanced, `fql_raw_norebalance_faf1bb12` matched).
 
@@ -282,13 +288,22 @@ The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/2
 | `decrease_small` | Minor conservation adjustments |
 | `decrease_large` | Fallowing fields, crop switching |
 
-The LLM chooses the skill (qualitative direction); actual magnitude is sampled from persona-scaled Gaussian distributions at execution time (quantitative).
+The LLM chooses the skill (direction and small or large step); the step size follows the Hung & Yang (2021) action model (`ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)`): step = (mu + |N(0, sigma)|) x bin_size acre-ft, drawn at execution time (`irrigation_env.py (hy_step_af)`).
+
+| Quantity | Value | Kind |
+| :------- | :---- | :--- |
+| mu, sigma | per agent, rows `mu` and `sigma` of `ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv` (Upper Basin agents inherit their state group's column) | data (H&Y calibration), not a tunable |
+| bin_size | per agent, `agt_states[2] - agt_states[1]` of its column in `ref/CRSS_DB/CRSS_DB/Div_States/*_discrete_states.csv` (acre-ft) | data (H&Y diversion grid), not a tunable |
+| small / large | small = a draw at or below the agent's median step T = (mu + 0.6745 sigma) x bin_size; large = above T (the lower and upper halves of the same distribution) | definition |
+| Fallbacks (mock runs only) | bin_size = water_right / 25 whenever a profile has no grid step; mu = 0.218, sigma = 0.923 (CSV medians) only when the environment builds agents itself (`initialize_synthetic`); synthetic profiles from the runners carry cluster-centroid mu and sigma | mock only |
+
+An increase is capped at the water right and a decrease never goes below min(10 percent of the water right, current request) (the former taper near the floor is removed). `run_fql_baseline.py --from-logs` profiles carry no grid step and cluster-centroid mu and sigma, so that path is not step-comparable with `--real`. H&Y explore with epsilon-greedy over the direction, not the magnitude, so the former 2 percent magnitude exploration is dropped (`is_exploration` stays in `simulation_log.csv`, always False). Option texts state the action without percentages ("Increase your diversion request by a large step"), as H&Y agents never see percentages. `simulation_log.csv` logs `magnitude_pct` (realised percent of the request), `magnitude_pct_sampled` (the drawn step as a percent), `magnitude_af` (realised acre-ft) and `magnitude_class` (small or large).
 
 ---
 
 ## 6. Governance System
 
-12 validator functions are defined; 9 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+12 validator functions are defined; 7 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
 
 F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `compact_allocation_check` are excluded from dispatch: each reads a context key nothing in the pipeline produces (`basin_allocation`, `proposed_magnitude`), or a threshold the real CRSS data never reaches (drought index tops out around 0.62-0.69 per run, below the 0.7 floor), and fired zero times across 49,140 audited strict rows. The functions stay defined and are tested directly by `tests/test_irrigation_env.py`, but are NOT run by `assert_validator_inputs_have_producers()` (the startup self-check in `irrigation_validators.py`, which fails fast if a check IN `ALL_IRRIGATION_CHECKS` reads a key with no producer) since that check only scans the dispatched set. `test_assert_validator_inputs_have_producers_catches_dead_key` proves it WOULD raise on these two if they were re-added.
 
@@ -297,8 +312,8 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 | 1 | `water_right_cap_check` | increase (at cap) | ERROR | Physical |
 | 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARN | Physical |
 | 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
-| 4 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
-| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF) | ERROR | Economic |
+| 4 | `demand_floor_stabilizer` | decrease (<50%); retired from dispatch 2026-09-25 | ERROR | Economic |
+| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF); retired from dispatch 2026-09-25, the basin limit is now supply-side availability and the ratio is logged as `basin_request_over_target` | ERROR | Economic |
 | 6 | `drought_severity_check` | increase (drought>0.7); excluded from dispatch, real index never reaches 0.7 | ERROR | Physical |
 | 7 | `magnitude_cap_check` | increase (exceeds cap); excluded from dispatch, `proposed_magnitude` never injected | WARNING | Physical |
 | 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
@@ -313,7 +328,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 
 **Agent behavior**: No inter-agent communication; annual decision frequency; homogeneous curtailment (no prior appropriation doctrine); fixed persona assignment throughout simulation.
 
-**Water system**: Single-reservoir model (Lake Mead only; Powell implicit via 7.0 MAF/yr minimum release); annual resolution; static non-agricultural demand (5.0 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
+**Water system**: Two storage stocks (Lake Powell: pass-through release clamped to [7.0, 9.0] MAF/yr subject to storage, wet-year retention only up to the 2019 fill, not the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.0 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
 
 **LLM-specific**: Magnitude-reasoning decoupling (LLM chooses skill direction, not magnitude); results specific to gemma3:4b; ERROR-level governance cannot be overridden.
 
@@ -324,7 +339,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 All data for `--real` mode (78 CRSS agents) is included in `ref/CRSS_DB/`:
 
 - **Precipitation**: `HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` (CRSS/NOAA PRISM, 2017-2060)
-- **Agent water rights**: `Div_States/UB_discrete_states.csv` / `Div_States/LB_discrete_states.csv` (78 agents). F10 (2026-09-25 audit): this is the TOP of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`, the ceiling the FQL state space discretises against), not a legal Colorado River entitlement from `annual_baseline_time_series.csv`. Most agents' 2018 initial use sits well under this ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below 50% utilisation, so `demand_floor_stabilizer` binds for most agents from year 1 in the governed arm. See `irrigation_personas.py:create_profiles_from_data` and `docs/irrigation_physics.md`.
+- **Agent water rights**: `Div_States/UB_discrete_states.csv` / `Div_States/LB_discrete_states.csv` (78 agents). F10 (2026-09-25 audit): this is the TOP of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`, the ceiling the FQL state space discretises against), not a legal Colorado River entitlement from `annual_baseline_time_series.csv`. Most agents' 2018 initial use sits well under this ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below 50% utilisation, so in corpora produced before 2026-09-25 `demand_floor_stabilizer` bound for most agents from year 1 in the governed arm (retired from dispatch since). See `irrigation_personas.py:create_profiles_from_data` and `docs/irrigation_physics.md`.
 - **Elevation curves**: Hardcoded in `irrigation_env.py` (USBR 2009 area-capacity survey)
 
 Synthetic mode requires no external data. Reproducibility: all production runs use `--seed 42`; config captured in `config_snapshot.yaml`.

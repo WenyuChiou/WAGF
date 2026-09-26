@@ -22,6 +22,31 @@ class GovernanceAuditor:
     """
     _instance = None
     _lock = threading.Lock()
+    # Per-thread mute switch for hypothetical validator runs (the retry
+    # loop's feasible-set probes): a probe is not a rule hit, so it must not
+    # move any count in governance_summary.json. Thread-local because the
+    # decision phase can run on a worker pool.
+    _mute = threading.local()
+
+    @classmethod
+    def muted(cls):
+        """Context manager: rule-hit and warning logging from THIS thread is
+        dropped while inside it."""
+        import contextlib
+
+        @contextlib.contextmanager
+        def _cm():
+            prev = getattr(cls._mute, "on", False)
+            cls._mute.on = True
+            try:
+                yield
+            finally:
+                cls._mute.on = prev
+        return _cm()
+
+    @classmethod
+    def _is_muted(cls) -> bool:
+        return bool(getattr(cls._mute, "on", False))
 
     def __new__(cls):
         with cls._lock:
@@ -59,6 +84,8 @@ class GovernanceAuditor:
 
     def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
         """Record a validator intervention."""
+        if self._is_muted():
+            return
         with self.stats_lock:
             self.rule_hits[rule_id] += 1
             self.total_interventions += 1
@@ -71,6 +98,8 @@ class GovernanceAuditor:
 
     def log_warning(self, rule_id: str):
         """Record a WARNING-level rule hit (non-blocking observation)."""
+        if self._is_muted():
+            return
         with self.stats_lock:
             self.warning_hits[rule_id] += 1
             self.total_warnings += 1

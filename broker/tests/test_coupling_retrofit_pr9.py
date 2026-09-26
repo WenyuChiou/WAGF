@@ -233,6 +233,9 @@ class TestContractFieldEnumeration:
             "below_minimum_utilisation", "cluster", "basin",
             "precipitation", "lake_mead_level", "preceding_factor",
             "drought_index", "total_available_water", "total_basin_demand",
+            # supply-side redesign (2026-09-25)
+            "delivery_ratio", "gap_reason", "basin_request_over_target",
+            "natural_flow_maf", "powell_storage_maf",
         }
         assert set(IRRIGATION_CONTEXT_FIELD_SOURCES.keys()) == expected
         contract = build_irrigation_agent_context_contract()
@@ -267,7 +270,7 @@ class TestCouplingRetrofitMetadata:
         type_only = {k for k, v in checks.items() if v == "presence+type"}
         assert type_only == {
             "at_allocation_cap", "has_efficient_system",
-            "below_minimum_utilisation", "cluster", "basin",
+            "below_minimum_utilisation", "cluster", "basin", "gap_reason",
         }
         assert checks["lake_mead_level"] == "presence+range"
 
@@ -284,7 +287,7 @@ class TestCouplingRetrofitMetadata:
         # The two sets together account for EVERY key the context returns.
         assert covered | uncovered == ctx_keys
         assert not (covered & uncovered)
-        assert len(covered) == 15 and len(uncovered) == 3
+        assert len(covered) == 20 and len(uncovered) == 3
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never

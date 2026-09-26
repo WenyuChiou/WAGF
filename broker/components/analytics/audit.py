@@ -689,6 +689,15 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["initial_skill"] = t.get("initial_skill")
         row["initial_labels"] = t.get("initial_labels", "")
         row["attempt_skills"] = t.get("attempt_skills", "")
+    # Appraisal-drift columns (same initial_proposal_columns gate; key-gated
+    # so traces written before they existed keep their column set).
+    if "final_labels" in t:
+        row["final_labels"] = t.get("final_labels", "")
+        row["appraisal_drift"] = t.get("appraisal_drift", "")
+        row["appraisal_drifted"] = t.get("appraisal_drifted", False)
+    # Feasible set per failed attempt (governance.feasible_set_feedback).
+    if "feasible_by_attempt" in t:
+        row["feasible_by_attempt"] = t.get("feasible_by_attempt", "")
 
     # 2.7c. P0-1c: ADVISORY columns, key-gated the same way. Present only when
     # global_config.audit.advise_columns is ON. `advisory_llm_calls` and the

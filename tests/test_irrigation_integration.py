@@ -24,8 +24,17 @@ def _make_env_with_agent(agent_id="TestAgent", water_right=100_000.0):
     return env
 
 
+def _expected_step(env, agent_id, skill, size_class):
+    """The Hung and Yang step the env draws for (agent, year, skill)."""
+    from examples.irrigation_abm.irrigation_env import hy_step_af
+    a = env._agents[agent_id]
+    return hy_step_af(env._decision_rng(agent_id, skill), a["mu"], a["sigma"],
+                      a["bin_size_af"], size_class)
+
+
 def test_execute_skill_increase_demand():
-    """execute_skill with increase_demand adds magnitude_pct% of water_right."""
+    """execute_skill adds the Hung and Yang step (mu + |N(0, sigma)|) x
+    bin_size to the current request; the LLM's magnitude_pct is ignored."""
     env = _make_env_with_agent(water_right=100_000)
     skill = ApprovedSkill(
         skill_name="increase_demand",
@@ -34,22 +43,16 @@ def test_execute_skill_increase_demand():
         execution_mapping="env.execute_skill",
     )
     skill.parameters = {"magnitude_pct": 15}
+    step = _expected_step(env, "TestAgent", "increase_demand", "any")
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")
-    # v12: magnitude sampled from agent Gaussian (default=10, sigma=0), not LLM param.
-    # Increase based on current diversion: 80_000 * 10% = 8_000
-    assert state["request"] == 88_000.0
+    assert state["request"] == min(80_000.0 + step, 100_000.0)
 
 
 def test_execute_skill_increase_demand_reports_applied_magnitude_in_action_context():
-    """F07 (2026-09-25 audit): execute_skill must also set action_context so
-    broker/core/experiment_runner.py:_apply_state_changes (which reads
-    params["magnitude_pct"] or result.execution_result.action_context, never
-    state_changes["magnitude_pct_applied"]) can put the ACTUAL applied
-    magnitude on agent._last_action_context, otherwise the LLM's discrete
-    request leaks into memory's "(by N%)" text instead of the Gaussian-
-    sampled value the environment used."""
+    """F07 (2026-09-25 audit): action_context carries the magnitude actually
+    applied (realised percent of the request), not the LLM's proposal."""
     env = _make_env_with_agent(water_right=100_000)
     skill = ApprovedSkill(
         skill_name="increase_demand",
@@ -57,23 +60,17 @@ def test_execute_skill_increase_demand_reports_applied_magnitude_in_action_conte
         approval_status="APPROVED",
         execution_mapping="env.execute_skill",
     )
-    # LLM proposes 15%; environment actually samples 10% (Gaussian mu=10, sigma=0).
     skill.parameters = {"magnitude_pct": 15}
     result = env.execute_skill(skill)
     assert result.success
-    assert result.action_context.get("magnitude_pct") == 10
-    # Must match what was actually applied, not the LLM's proposed value.
     assert result.action_context["magnitude_pct"] == result.state_changes["magnitude_pct_applied"]
+    assert result.action_context["magnitude_pct"] != 15
+    assert result.state_changes["magnitude_af"] == env.get_agent_state("TestAgent")["request"] - 80_000.0
 
 
 def test_execute_skill_decrease_demand():
-    """execute_skill with decrease_demand subtracts magnitude_pct% of the current request.
-
-    v21 fix (irrigation_env.py:672): the change base is the current request
-    (demand intention) rather than the water right, because using water_right
-    would cause double curtailment when update_agent_request re-applies the
-    shortage ratio.
-    """
+    """execute_skill subtracts the Hung and Yang step from the current
+    request, floored at 10 percent of the water right (no taper)."""
     env = _make_env_with_agent(water_right=100_000)
     skill = ApprovedSkill(
         skill_name="decrease_demand",
@@ -82,14 +79,11 @@ def test_execute_skill_decrease_demand():
         execution_mapping="env.execute_skill",
     )
     skill.parameters = {"magnitude_pct": 10}
+    step = _expected_step(env, "TestAgent", "decrease_demand", "any")
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")
-    # Initial request = 80_000; change = 10% of current 80_000 = 8_000
-    # Utilisation = 80_000 / 100_000 = 0.8
-    # P1 taper: (utilisation - MIN_UTIL) / (1 - MIN_UTIL) = (0.8-0.1)/0.9 = 7/9
-    # new_req = 80_000 - 8_000 * 7/9 ≈ 73_777.78
-    assert abs(state["request"] - (80_000 - 8_000 * 7 / 9)) < 0.01
+    assert abs(state["request"] - max(80_000 - step, 10_000)) < 1e-6
 
 
 def test_build_action_outcome_feedback_formats_shortfall():

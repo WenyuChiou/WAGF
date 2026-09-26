@@ -4,7 +4,7 @@ FQL Baseline Runner — Hung & Yang (2021) Q-Learning for Nature Water compariso
 
 Runs the same 78-agent × 42-year irrigation simulation as run_experiment.py,
 but replaces LLM skill selection with FQL Q-learning.  Everything else is
-identical: same IrrigationEnvironment, same execute_skill() Gaussian magnitude
+identical: same IrrigationEnvironment, same execute_skill() Hung and Yang step
 sampling, same 12 governance validators.
 
 This produces the published baseline arm for comparison with with-validators and
@@ -148,8 +148,10 @@ def validate_skill(
     context: Dict[str, Any],
 ) -> Tuple[bool, str]:
     """Run the dispatched irrigation validators (ALL_IRRIGATION_CHECKS,
-    9 as of F04 2026-09-25 -- drought_severity_check, magnitude_cap_check
-    and compact_allocation_check were removed, see irrigation_validators.py)
+    7 as of the 2026-09-25 supply-side redesign -- drought_severity_check,
+    magnitude_cap_check and compact_allocation_check were removed by F04, and
+    demand_floor_stabilizer and demand_ceiling_stabilizer were retired from
+    dispatch; see irrigation_validators.py)
     on a proposed skill.
 
     NOTE: The LLM path uses broker's RejectionHandler which re-invokes the LLM
@@ -318,12 +320,25 @@ def run_simulation(
                     if new_agent_state.get("water_right", 0) > 0 else 0
                 ),
                 "magnitude_pct": state_changes.get("magnitude_pct_applied"),
+                "magnitude_pct_sampled": state_changes.get("magnitude_pct_sampled"),
+                "magnitude_af": state_changes.get("magnitude_af"),
+                "magnitude_class": state_changes.get("magnitude_class"),
                 "magnitude_fallback": False,
                 "is_exploration": state_changes.get("is_exploration", False),
                 "memory": "FQL_BASELINE",
             })
 
             year_skills[final_skill] = year_skills.get(final_skill, 0) + 1
+
+        # Supply-side redesign (2026-09-25): settle the year once, after every
+        # agent's decision, and log the SETTLED delivery (the LLM runner logs
+        # the same quantity after IrrigationLifecycleHooks.post_year's
+        # settle_year()). Rows above were written right after each agent's
+        # execute_skill, with a provisional delivery.
+        env.settle_year()
+        for row in logs:
+            if row["year"] == year_idx:
+                row["diversion"] = env.get_agent_state(row["agent_id"]).get("diversion", 0)
 
         # Year summary
         n_agents = len(agent_ids)
@@ -352,6 +367,11 @@ def _reconstruct_profiles_from_logs(
     Extracts agent_id, cluster, basin, water_right, and initial diversion
     from year 1 of a governed LLM run. FQL parameters come from cluster
     configs (identical to the original --real path).
+
+    NOT step-comparable with a --real run (2026-09-26): these profiles carry
+    no grid step (bin_size_af), so the environment falls back to
+    water_right / 25, and mu / sigma are cluster centroids, while --real
+    profiles carry each agent's own Hung and Yang mu, sigma and grid step.
 
     Args:
         log_dir: Path to a directory containing simulation_log.csv
@@ -449,7 +469,7 @@ def main():
     random.seed(seed)
     np.random.seed(seed)
 
-    # Feature flags: enable demand_ceiling by default (matches LLM production)
+    # Feature flags. demand_ceiling_stabilizer is retired from dispatch (2026-09-25); this flag only gates a direct call.
     import examples.irrigation_abm.validators.irrigation_validators as irr_validators
     irr_validators.ENABLE_CONSECUTIVE_CAP = False
     irr_validators.ENABLE_ZERO_ESCAPE = False
@@ -487,24 +507,10 @@ def main():
         after = Counter(p.cluster for p in profiles)
         print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)} (target: 50%-30%-20%)")
 
-    # Set persona-specific magnitude parameters from config (for execute_skill)
-    config_dir = base / "config"
-    agent_config_path = config_dir / "agent_types.yaml"
-    if agent_config_path.exists():
-        import yaml
-        with open(agent_config_path, "r", encoding="utf-8") as f:
-            cfg_data = yaml.safe_load(f)
-        personas_cfg = cfg_data.get("personas", {})
-        skill_mag_cfg = cfg_data.get("skill_magnitude", {})
-        for p in profiles:
-            persona = personas_cfg.get(p.cluster, {})
-            p.persona_scale = persona.get("persona_scale", 1.0) or 1.0
-            p.skill_magnitude = dict(skill_mag_cfg)
-            p.magnitude_default = persona.get("magnitude_default", 10) or 10
-            p.magnitude_sigma = persona.get("magnitude_sigma", 0.0) or 0.0
-            p.magnitude_min = persona.get("magnitude_min", 1.0) or 1.0
-            p.magnitude_max = persona.get("magnitude_max", 30.0) or 30.0
-            p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
+    # The action magnitude follows Hung and Yang (2021): per-agent mu, sigma
+    # and grid step come from the profiles, not from persona config (the
+    # former persona_scale / skill_magnitude bands were removed 2026-09-26).
+    agent_config_path = base / "config" / "agent_types.yaml"
 
     # Create environment
     # PR-9 review P1-a: same flag, same getter as run_experiment.py, so both

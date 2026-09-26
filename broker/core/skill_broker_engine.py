@@ -248,6 +248,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # `mode="placebo"` (same-shape reports, placebo text) which this is
         # not. Coerced to a known string for the same MagicMock reason as the
         # rest.
+        # Feasible-set line on every ERROR retry (default OFF). Coerced to a
+        # real bool for the same MagicMock reason as the rest: bool(Mock()) is
+        # True and would switch probing on in every mocked test.
+        _get_fsf = getattr(self.config, "get_governance_feasible_set_feedback", None)
+        _fsf = _get_fsf() if callable(_get_fsf) else False
+        self._feasible_set_feedback = _fsf if isinstance(_fsf, bool) else False
         _get_rfm = getattr(self.config, "get_governance_retry_feedback_mode", None)
         _rfm = _get_rfm() if callable(_get_rfm) else "full"
         self._retry_feedback_mode = _rfm if _rfm in ("full", "placebo") else "full"
@@ -667,6 +673,11 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         initial_skill = skill_proposal.skill_name if skill_proposal else None
         initial_labels = _extract_construct_labels(skill_proposal)
         attempt_skills: List[Optional[str]] = [initial_skill]
+        # One group per failed attempt, filled by the retry loop only when
+        # feasible_set_feedback is on (then surfaced as an audit column).
+        feasible_by_attempt: Optional[List[List[str]]] = (
+            [] if self._feasible_set_feedback else None
+        )
 
         # P0-1c: the single-shot advisory pass. No-op (returns its inputs, zero LLM
         # calls) unless an arm config declares global_config.governance.advise. Runs
@@ -718,6 +729,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 env_context=env_context, raw_output=raw_output,
                 total_llm_stats=total_llm_stats,
                 attempt_skills=attempt_skills,
+                feasible_by_attempt=feasible_by_attempt,
             )
         )
 
@@ -909,9 +921,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 advise_info=advise_info,
                 soft_advise_info=soft_advise_info,
                 decider=decider,
+                feasible_by_attempt=feasible_by_attempt,
             )
 
-        return SkillBrokerResult(
+        result = SkillBrokerResult(
             outcome=outcome,
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
@@ -926,6 +939,14 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             executed_skill=executed_skill,
             executed_via_fallback=executed_via_fallback,
         )
+        # The rule ids that blocked the final attempt (empty when it passed).
+        # A plain attribute, NOT a dataclass field, so dataclasses.asdict and
+        # every serialised trace stay unchanged; read by
+        # ExperimentRunner._apply_state_changes for the neutral memory line.
+        result.blocking_rule_ids = (
+            [] if all_valid else sorted(self._extract_blocking_rule_ids(validation_results))
+        )
+        return result
     
     def _build_approved_skill(
         self, *, all_valid: bool, skill_proposal, agent_id: str,
