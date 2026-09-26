@@ -78,26 +78,64 @@ class WaterSystemConfig:
 
     # Lake Mead simplified mass balance coupling parameters
     # Storage(t+1) = Storage(t) + PowellRelease + LB_trib - LB_withdrawals - Evap
-    mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft)
+    mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft) -- VERIFIED
+    # (USBR Lake Mead at Hoover Dam end-of-month elevation page,
+    # https://www.usbr.gov/lc/region/g4000/hourly/mead-elv.html; cross-checked
+    # against the USBR Feb 2019 24-Month Study,
+    # https://www.usbr.gov/lc/region/g4000/24mo/2019/FEB19.pdf;
+    # 2026-09-26 verification pass)
     evaporation_maf: float = 0.8              # Reservoir evaporation at ref storage (MAF/yr)
-    mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr)
+    mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr) -- VERIFIED (canonical)
+    # (1944 US-Mexico Water Treaty, Treaty Series 994: canonical, uncontested
+    # figure, restated throughout the 2007 ROD and the 24-Month Study
+    # letters; not independently re-derived from a primary treaty PDF in
+    # this pass, given how uncontested it is. 2026-09-26 verification pass)
     lb_non_ag_total_maf: float = 5.0           # LB non-ag: M&I + tribal + CAP + system losses (MAF/yr)
+    # Calibrated aggregate, not a single quoted figure -- no primary document
+    # names a "5.0 MAF" bucket. Partial USBR Feb 2019 24-Month Study
+    # components (CAP 1.559 + Nevada 0.291 + MWD 0.886 = ~2.7 MAF) are
+    # consistent with 5.0 MAF once tribal deliveries and lower-river system
+    # losses are added, but this stays a modelling aggregate without a
+    # single primary table (2026-09-26 verification pass).
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
+    # Calibrated aggregate: a plausible order of magnitude for the ungauged
+    # Lower Basin inflow between Powell and Mead (Virgin River, Muddy River,
+    # ...), but no primary CRSS/USBR table was opened to pin this figure
+    # down (2026-09-26 verification pass).
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
+    # 12.0 MAF is the POST-2000 (drought-era) average naturalized flow at
+    # Lees Ferry, not the long-term average: the full 1906-2018 record
+    # averages about 14.6 MAF/yr, roughly 20% higher (USU "How Dry Can the
+    # Colorado River Basin Get"; NOAA PSL Lees Ferry natural flow series;
+    # TreeFlow Lees Ferry gaged flow record). Defensible for modelling
+    # 21st-century hydrology; docs/irrigation_physics.md and README.md
+    # label it the same way (2026-09-26 verification pass).
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
     # Powell release band (options d and e, 2026-09-26): release = pass-through
-    # clamped to [7.0, 9.0] MAF, subject to storage. 7.0 is a published
-    # release magnitude and 9.0 a modelling ceiling; neither is the operating
-    # rules themselves, and both are TO VERIFY against the originals like
-    # the Powell constants below:
-    #   * 7.0 MAF: minimum objective release (Long-Range Operating Criteria /
-    #     2007 Interim Guidelines); storage tops the release up to it in a
+    # clamped to [7.0, 9.0] MAF, subject to storage; not the 2007 Interim
+    # Guidelines' operating rules themselves. CORRECTED framing (2026-09-26
+    # verification pass, .research/powell_constants_verification_2026-09-26.md):
+    #   * 7.0 MAF is the FLOOR of the Guidelines' Lower Elevation Balancing
+    #     Tier (which balances the two reservoirs within a 7.0-9.5 MAF
+    #     band), NOT the "minimum objective release." That name belongs to a
+    #     different, higher figure: 8.23 MAF/yr under the historical Upper
+    #     Elevation Balancing Tier (2007 Record of Decision, p.15,
+    #     https://www.usbr.gov/lc/region/programs/strategies/RecordofDecision.pdf;
+    #     also the INITIAL water year 2019 release volume -- the water year
+    #     2019 release actually realised was 8.91 MAF). The current
+    #     Mid-Elevation Release Tier releases 7.48 MAF/yr below a Mead-
+    #     elevation threshold in the Guidelines' own tier table (8.23 MAF
+    #     above it). Storage tops the modelled release up to 7.0 MAF in a
     #     dry year.
-    #   * 9.0 MAF: a modelling ceiling motivated by the 2007 Interim
-    #     Guidelines, under which releases above about 9.0 MAF occur only in
-    #     balancing or equalization years (lower-elevation balancing can go
-    #     to 9.5); in a wet year Powell releases 9.0 and keeps the excess
-    #     only up to the target fill below (option e).
+    #   * 9.0 MAF: a modelling ceiling motivated by the Guidelines' balancing-
+    #     tier cap ("not more than 9.0 maf and not less than 8.23 maf shall
+    #     be released" under equalization/balancing), NOT itself a quoted
+    #     rule -- the real tiered structure runs 7.48 / 8.23 MAF (floor side)
+    #     up to 9.0, with the SAME Lower Elevation Balancing Tier named above
+    #     reaching up to 9.5 MAF (a later alternatives analysis is where this
+    #     verification pass found that figure explicitly quoted). In a wet
+    #     year Powell releases 9.0 and keeps the excess only up to the
+    #     target fill below (option e).
     min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr)
     max_powell_release_maf: float = 9.0       # Powell release ceiling in a wet year (MAF/yr)
     # Option (e), 2026-09-26: Powell holds wet-year surplus only until it is
@@ -106,8 +144,12 @@ class WaterSystemConfig:
     # live capacity; above it the release is the pass-through (a crude
     # equalization: a healthy Powell passes surplus to Mead). On [0, 1].
     # Default = the 1 January 2019 fill, 10.10 / 24.32 MAF live = 0.415,
-    # rounded to 0.42 (target 12.10 MAF total vs 11.99 on 1 January 2019);
-    # TO VERIFY with the other Powell constants.
+    # rounded to 0.42 (target 12.10 MAF total vs 11.99 on 1 January 2019).
+    # A MODELLING CHOICE, not a quoted Guidelines rule: the Guidelines
+    # specify release tiers (7.48 / 8.23 up to 9.0-9.5 MAF), not a target
+    # storage fraction; the arithmetic behind 0.42 checks out against the
+    # VERIFIED capacity and 1 January 2019 storage figures below
+    # (2026-09-26 verification pass).
     powell_target_fill: float = 0.42
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
     # Lake Mead physical bounds (total storage, MAF), the end points of the
@@ -124,28 +166,48 @@ class WaterSystemConfig:
 
     # Lake Powell storage buffer (total storage, MAF): a pass-through
     # release clamped to [7.0, 9.0] MAF subject to storage; not the full
-    # operating rules. ALL FOUR VALUES BELOW ARE TO VERIFY against the
-    # USBR/USGS originals: the numbers were read from search results and a
-    # machine text extraction of the 24-Month Study PDF, and the code review
-    # could not open the sources. Do not treat them as checked. Sources:
-    #   * powell_capacity_maf: total storage at full pool (3,700 ft) in the
-    #     1986 area-capacity table USBR operations used through 2019. USGS
-    #     (2022, "Lake Powell's storage capacity updated for first time since
-    #     1986"; SIR on the 2018 survey) gives 25.160 MAF for 2018 and a
-    #     1.048 MAF loss since 1986, so 1986 = 26.21 MAF.
-    #   * powell_dead_pool_maf: storage below the 3,370 ft dead pool (river
-    #     outlet works), 26.21 MAF total minus 24.322 MAF live capacity (USBR
-    #     Glen Canyon Dam data, 1986 table) = 1.89 MAF ("about 1.9 MAF").
-    #   * powell_initial_storage_maf: live storage at the end of December
-    #     2018 = 10,099 thousand acre-ft at 3,581.85 ft (USBR Lower Colorado
-    #     Region, January 2019 24-Month Study, Most Probable, Lake Powell
-    #     table), plus the 1.89 MAF dead storage = 11.99 MAF total.
-    #   * powell_evaporation_maf: evaporation at full pool. The same 24-Month
-    #     Study reports 386 thousand acre-ft of Lake Powell evaporation in
-    #     water year 2018, when live storage averaged about 12.5 MAF (14.4 MAF
-    #     total, 0.55 of capacity), so 0.386 / 0.55 = 0.70 MAF at full pool.
-    #     Scaled by the storage fraction (a surface-area proxy), floored at
-    #     evap_min_frac, the same shape as the Mead evaporation term.
+    # operating rules. RE-VERIFIED 2026-09-26 against primary USBR/USGS
+    # sources (.research/powell_constants_verification_2026-09-26.md).
+    # powell_capacity_maf is VERIFIED outright; the RAW inputs behind
+    # powell_initial_storage_maf (live storage) and powell_evaporation_maf
+    # (WY2018 evaporation) are VERIFIED, but each stored field also folds in
+    # a modelling step -- the dead-pool split, or a 0.55 storage-fraction
+    # scale-up -- that is NOT itself independently confirmed;
+    # powell_dead_pool_maf remains a calibrated aggregate with no single
+    # primary table opened. Sources:
+    #   * powell_capacity_maf: VERIFIED. Total storage at full pool
+    #     (3,700 ft) in the 1986 area-capacity table USBR operations used
+    #     through 2019. USGS (2022, "Lake Powell's storage capacity updated
+    #     for first time since 1986,"
+    #     https://www.usgs.gov/news/national-news-release/lake-powells-storage-capacity-updated-first-time-1986;
+    #     full report, USGS SIR 2022-5017,
+    #     https://pubs.usgs.gov/sir/2022/5017/sir20225017.pdf) gives
+    #     25.160 MAF for 2018 and a 1.048 MAF loss since 1986, so
+    #     1986 = 26.21 MAF.
+    #   * powell_dead_pool_maf: a CALIBRATED AGGREGATE, not read off a single
+    #     primary table. Storage below the 3,370 ft dead pool (river outlet
+    #     works) is commonly reported as "roughly 2 million acre-feet"; the
+    #     26.21 MAF total minus 24.322 MAF live capacity split that gives
+    #     1.89 MAF is a widely repeated operational convention (secondary
+    #     sources only), not a figure independently confirmed against the
+    #     primary 1986 USBR area-capacity table (USBR RISE catalog item
+    #     11372, https://data.usbr.gov/catalog/4575/item/11372, not opened).
+    #     Order of magnitude (~1.9-2.0 MAF) is corroborated.
+    #   * powell_initial_storage_maf: live storage (10.099 MAF) VERIFIED;
+    #     the 11.99 MAF TOTAL stored here is contingent on the calibrated
+    #     1.89 MAF dead-pool split above, not independently verified. Live
+    #     storage at the end of December 2018 = 10,099 thousand acre-ft at
+    #     3,581.85 ft (USBR Lower Colorado Region, February 2019 24-Month
+    #     Study, Most Probable, Lake Powell table --
+    #     https://www.usbr.gov/lc/region/g4000/24mo/2019/FEB19.pdf).
+    #   * powell_evaporation_maf: the RAW water year 2018 input (386
+    #     thousand acre-ft of Lake Powell evaporation) is VERIFIED against
+    #     the same 24-Month Study, recorded when live storage averaged about
+    #     12.5 MAF (14.4 MAF total, 0.55 of capacity). The stored 0.70 MAF
+    #     full-pool figure (0.386 / 0.55) is the model's own scale-up, not
+    #     itself quoted anywhere. Scaled by the storage fraction (a
+    #     surface-area proxy), floored at evap_min_frac, the same shape as
+    #     the Mead evaporation term.
     powell_capacity_maf: float = 26.21
     powell_dead_pool_maf: float = 1.89
     powell_initial_storage_maf: float = 11.99

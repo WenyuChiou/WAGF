@@ -8,7 +8,7 @@ Detailed mass balance equations, variable definitions, storage-elevation curves,
 
 All quantities in MAF (million acre-feet), annual resolution. Supply-side redesign (2026-09-25): deliveries are limited by what the two reservoirs can physically supply, as in Hung and Yang (2021), whose agents receive the diversion CRSS delivers. Lake Powell is a storage buffer: a pass-through release clamped to [7.0, 9.0] MAF subject to storage; not the full operating rules of the 2007 Interim Guidelines (no equalization or balancing release tiers, no Mead protection levels). The year's settlement, in order (`irrigation_env.py (IrrigationEnvironment._settle)`):
 
-**1. Natural flow** (Lees Ferry long-term average 12 MAF; precipitation baseline 100 mm)
+**1. Natural flow** (Lees Ferry post-2000 / drought-era average 12 MAF, not the long-term average -- see the constants table below; precipitation baseline 100 mm)
 
 $$Q_{Nat} = 12 \times \frac{P_{winter}}{100}, \quad Q_{Nat} \in [6,\, 17] \;\text{MAF}$$
 
@@ -24,7 +24,7 @@ $$A_P = \max(0,\; I_P + S_P - S_{P,dead} - E_P), \qquad R = \begin{cases} \min(7
 
 $$S_P(t+1) = S_P(t) + I_P - E_P - R$$
 
-The two release bounds are TO VERIFY like the other Powell constants: 7.0 MAF is the minimum objective release (Long-Range Operating Criteria / 2007 Interim Guidelines); 9.0 MAF is a modelling ceiling motivated by the 2007 Interim Guidelines, under which releases above about 9.0 MAF occur only in balancing or equalization years (lower-elevation balancing can go to 9.5 MAF). $f_{target}$ = `powell_target_fill` (on [0, 1], default 0.42: the 1 January 2019 live fill, 10.10 / 24.32 MAF = 0.415, rounded; TO VERIFY) gives $S_{target}$ = 12.10 MAF total, about 0.11 MAF above the 11.99 MAF of 1 January 2019.
+The two release bounds and the target fill are MODELLING CHOICES, not quoted Guidelines rules (corrected 2026-09-26; see the constants table below): 7.0 MAF is the floor of the 2007 Interim Guidelines' Lower Elevation Balancing Tier (7.0-9.5 MAF), not the "minimum objective release" (that name belongs to 8.23 MAF under the historical Upper Elevation Balancing Tier -- also the *initial* water year 2019 release volume, though the WY2019 release actually realised was 8.91 MAF; the current Mid-Elevation Release Tier releases 7.48 MAF below a Mead-elevation threshold in the Guidelines' own tier table, 8.23 MAF above it); 9.0 MAF is a modelling ceiling motivated by the Guidelines' balancing-tier cap ("not more than 9.0 maf ... shall be released"), under which the real tiered structure runs 7.48/8.23 up to 9.0, with the SAME Lower Elevation Balancing Tier reaching up to 9.5 MAF (a later alternatives analysis is where this verification pass found that figure explicitly quoted). $f_{target}$ = `powell_target_fill` (on [0, 1], default 0.42: the 1 January 2019 live fill, 10.10 / 24.32 MAF = 0.415, rounded -- a modelling choice, not a Guidelines figure) gives $S_{target}$ = 12.10 MAF total, about 0.11 MAF above the 11.99 MAF of 1 January 2019 (the 11.99 MAF total is itself contingent on the calibrated dead-pool split -- see the constants table).
 
 **4. Lake Mead withdrawals**: the declared shortage cut $\gamma_\tau$ applies to the whole Lower Basin consumptive use (agricultural agents and the 5.0 MAF non-agricultural bucket); Mexico per Minute 323
 
@@ -56,17 +56,25 @@ $$E_M(S) = 0.8 \times \max\!\left(0.15,\; \min\!\left(\frac{S}{13.0},\; 1.50\rig
 
 ### Lake Powell constants and sources
 
-All four values are TO VERIFY against the USBR/USGS originals: they were read from search results and a machine text extraction of the 24-Month Study PDF, and the code review could not open the sources.
+Re-verified 2026-09-26 against primary USBR/USGS sources
+(`.research/powell_constants_verification_2026-09-26.md`). Total capacity is
+VERIFIED outright; the raw inputs behind the 1 January 2019 storage and the
+evaporation figure are VERIFIED, but each stored value also folds in a
+modelling step (the dead-pool split, or a 0.55 storage-fraction scale-up)
+that is not itself independently confirmed; the dead pool remains a
+calibrated aggregate without a single primary table; the release
+floor/ceiling and the target fill are documented as modelling choices, not
+quoted rules.
 
 | Constant | Value | Source |
 | :------- | :---- | :----- |
-| Total capacity at full pool (3,700 ft) | 26.21 MAF | 1986 area-capacity table (used by USBR operations through 2019). USGS (2022), "Lake Powell's storage capacity updated for first time since 1986": 25.160 MAF in the 2018 survey, a 1.048 MAF loss since 1986 |
-| Dead-pool storage (below 3,370 ft) | 1.89 MAF | 26.21 MAF total minus 24.322 MAF live capacity (USBR Glen Canyon Dam data, 1986 table); reported as "about 1.9 MAF" |
-| Storage on 1 January 2019 | 11.99 MAF total (10.099 MAF live) | USBR Lower Colorado Region, January 2019 24-Month Study (Most Probable), Lake Powell table: end of December 2018, 3,581.85 ft, 10,099 thousand acre-ft live |
-| Evaporation at full pool | 0.70 MAF/yr | Same study: 386 thousand acre-ft in water year 2018 at about 12.5 MAF mean live storage (0.55 of capacity), so 0.386 / 0.55 |
-| Release floor | 7.0 MAF/yr | minimum objective release, Long-Range Operating Criteria / 2007 Interim Guidelines (existing constant); TO VERIFY |
-| Release ceiling (wet year) | 9.0 MAF/yr | modelling ceiling motivated by the 2007 Interim Guidelines (releases above about 9.0 MAF only in balancing or equalization years); TO VERIFY |
-| Target fill `powell_target_fill` (on [0, 1]) | 0.42 of live capacity (12.10 MAF total) | the 1 January 2019 live fill, 10.10 / 24.32 MAF = 0.415, rounded: Powell holds wet-year surplus only until it is back at its 2019 level; TO VERIFY |
+| Total capacity at full pool (3,700 ft) | 26.21 MAF | VERIFIED. 1986 area-capacity table (used by USBR operations through 2019). USGS (2022), ["Lake Powell's storage capacity updated for first time since 1986"](https://www.usgs.gov/news/national-news-release/lake-powells-storage-capacity-updated-first-time-1986) (full report: [USGS SIR 2022-5017](https://pubs.usgs.gov/sir/2022/5017/sir20225017.pdf)): 25.160 MAF in the 2018 survey, a 1.048 MAF loss since 1986 |
+| Dead-pool storage (below 3,370 ft) | 1.89 MAF | CALIBRATED AGGREGATE, not a single primary table. 26.21 MAF total minus 24.322 MAF live capacity (a widely repeated operational convention, secondary sources only); order of magnitude ("about 1.9-2.0 MAF") corroborated but the primary 1986 USBR area-capacity table ([RISE catalog item 11372](https://data.usbr.gov/catalog/4575/item/11372)) was not opened |
+| Storage on 1 January 2019 | 11.99 MAF total (10.099 MAF live) | Live storage (10.099 MAF) VERIFIED; the 11.99 MAF total is contingent on the calibrated 1.89 MAF dead-pool split above, not independently verified. [USBR Lower Colorado Region, February 2019 24-Month Study](https://www.usbr.gov/lc/region/g4000/24mo/2019/FEB19.pdf) (Most Probable), Lake Powell table: end of December 2018, 3,581.85 ft, 10,099 thousand acre-ft live |
+| Evaporation at full pool | 0.70 MAF/yr | The RAW water year 2018 input (386 thousand acre-ft) is VERIFIED against the same 24-Month Study, at about 12.5 MAF mean live storage (0.55 of capacity); the stored 0.70 MAF full-pool figure (0.386 / 0.55) is the model's own scale-up, not itself quoted |
+| Release floor | 7.0 MAF/yr | MODELLING CHOICE, not the "minimum objective release" (that is 8.23 MAF/yr, 2007 Record of Decision, Upper Elevation Balancing Tier -- also the *initial* WY2019 release volume; the actual WY2019 release was 8.91 MAF). 7.0 MAF is the floor of the Guidelines' Lower Elevation Balancing Tier (7.0-9.5 MAF); the Mid-Elevation Release Tier releases 7.48 MAF below a Mead-elevation threshold in the Guidelines' own tier table, 8.23 MAF above it |
+| Release ceiling (wet year) | 9.0 MAF/yr | MODELLING CHOICE motivated by the Guidelines' balancing-tier cap ("not more than 9.0 maf ... shall be released"); the real tiered structure runs 7.48/8.23 up to 9.0, with the SAME Lower Elevation Balancing Tier reaching up to 9.5 MAF (a later alternatives analysis is where this verification pass found that figure explicitly quoted) |
+| Target fill `powell_target_fill` (on [0, 1]) | 0.42 of live capacity (12.10 MAF total) | MODELLING CHOICE, not a Guidelines figure: the 1 January 2019 live fill, 10.10 / 24.32 MAF = 0.415, rounded -- Powell holds wet-year surplus only until it is back at its 2019 level |
 
 The 2018 survey gives about 1 MAF less capacity than the 1986 table; the model uses the 1986 table because the Dec 2018 storage it starts from was reported on that table.
 
@@ -256,7 +264,7 @@ Reading. Option (c) matched the old physics on Mead but let Powell drain for goo
 
 ### Initial State: Mead 1081.46 ft, Powell 11.99 MAF (1 January 2019)
 
-Lake Mead starts at 1081.46 ft, the USBR-observed elevation at the end of December 2018 (Y1 = calendar year 2019), which places loop year 1 in Tier 0. The Mead elevation history is a 1 January series seeded with 1082.52 ft (1 January 2018), so loop year 1's rising/declining flag compares 1081.46 ft against 1082.52 ft. Lake Powell starts at 11.99 MAF total (10.099 MAF live, 3,581.85 ft), from the January 2019 24-Month Study.
+Lake Mead starts at 1081.46 ft, the USBR-observed elevation at the end of December 2018 (Y1 = calendar year 2019), which places loop year 1 in Tier 0. The Mead elevation history is a 1 January series seeded with 1082.52 ft (1 January 2018), so loop year 1's rising/declining flag compares 1081.46 ft against 1082.52 ft. Lake Powell starts at 11.99 MAF total (10.099 MAF live, 3,581.85 ft), from the February 2019 24-Month Study.
 
 ---
 
@@ -269,7 +277,7 @@ Lake Mead starts at 1081.46 ft, the USBR-observed elevation at the end of Decemb
 | Historical UB depletion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv` |
 | Historical LB diversion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/LB_historical_annual_diversion.csv` |
 | Lake Mead storage-elevation | USBR 2009 area-capacity survey | Hardcoded in `irrigation_env.py` (`_STORAGE_MAF`, `_ELEVATION_FT`) |
-| Lake Powell capacity, dead pool, 1 January 2019 storage, evaporation | USGS (2022) capacity release; USBR January 2019 24-Month Study | `WaterSystemConfig` (see the Lake Powell constants table above) |
+| Lake Powell capacity, dead pool, 1 January 2019 storage, evaporation | USGS (2022) capacity release; USBR February 2019 24-Month Study | `WaterSystemConfig` (see the Lake Powell constants table above) |
 | FQL calibrated parameters | Hung & Yang (2021) Table 2 | Embedded in `config/agent_types.yaml` under `fql_reference` |
 
 **Precipitation as sole exogenous forcing**: The PRISM CSV contains annual winter precipitation projections for 9 Upper Basin state-groups (WY, UT1-3, NM, CO1-3, AZ), generated by CRSS via bootstrapping from the 1906-2018 historical PRISM/NOAA record. Values are in inches, converted to mm (*25.4) at load time. The UB 7-state average drives the natural flow calculation (Eq. 1). All other quantities are computed endogenously.
