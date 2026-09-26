@@ -617,7 +617,7 @@ def supply_gap_block_increase(
                         f"Demand increase blocked: no delivery is expected this year "
                         f"at your current request of {request:,.0f} AF",
                         describe_gap_reason(context),
-                    ) + ". " + _SHARING_SENTENCE
+                    ) + ". A larger request would not add water."
                 ],
                 warnings=[],
                 metadata={

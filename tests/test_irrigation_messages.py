@@ -38,8 +38,7 @@ def test_describe_gap_reason_codes():
     assert "minimum release" in describe_gap_reason({"gap_reason": "ub_powell_release"})
     assert "5.0 million acre-ft" in describe_gap_reason({"gap_reason": "ub_capacity"})
     tier = describe_gap_reason({"gap_reason": "lb_shortage_tier", "curtailment_ratio": 0.2})
-    assert tier == ("because of the Tier 3 Lower Basin shortage, which reduces Lower Basin "
-                    "deliveries by 20%")
+    assert tier == "because the Tier 3 Lower Basin shortage reduces Lower Basin deliveries by 20%"
     both = describe_gap_reason({"gap_reason": "lb_shortage_tier+lb_mead_availability",
                                 "curtailment_ratio": 0.2, "shortage_tier": 3})
     assert "Tier 3" in both and "minimum pool" in both and " and " in both
@@ -92,6 +91,10 @@ def test_neutral_rejection_line_names_rule_not_proposal():
     neutral = build_action_outcome_feedback(ctx, 3, 100_000, 90_000, 0.4, 0,
                                             rejection_line_style="neutral")
     assert neutral.startswith("Year 3: maintain demand was applied under the shortage-sharing rule. ")
+    unmapped = dict(ctx, blocking_rules=["some_new_rule"])
+    assert build_action_outcome_feedback(unmapped, 3, 100_000, 90_000, 0.4, 0,
+                                         rejection_line_style="neutral").startswith(
+        "Year 3: maintain demand was applied under a governance rule. ")
     assert "rejected" not in neutral and "increase large" not in neutral
     explicit = build_action_outcome_feedback(ctx, 3, 100_000, 90_000, 0.4, 0)
     assert explicit.startswith("Year 3: your proposal to increase large was rejected; "
@@ -204,6 +207,7 @@ def test_dashboard_message_true_for_tier_only_year():
     msg = cfg["irrigation_farmer"]["feedback"]["assertions"][0]["message"]
     assert "A declared shortage reduces any larger request by the same share" in msg
     assert "when a physical limit binds" in msg
+    assert "raises your share only by lowering" in msg
 
 
 @pytest.mark.parametrize("code,needle", [
@@ -236,3 +240,18 @@ def test_new_message_text_has_no_em_dash():
     for code in ("ub_capacity", "ub_powell_release", "lb_shortage_tier", "lb_mead_availability"):
         texts.append(describe_gap_reason({"gap_reason": code, "curtailment_ratio": 0.1}))
     assert not any("\u2014" in t for t in texts)
+
+
+def test_smoke_check_j_uses_sampled_magnitude():
+    import pandas as pd
+    from examples.irrigation_abm.validate_smoke import check_j_magnitude_bounds
+    sim = pd.DataFrame([{"yearly_decision": "decrease_large", "magnitude_pct": 5.78,
+                         "magnitude_pct_sampled": 13.0, "is_exploration": False}])
+    ok, _ = check_j_magnitude_bounds(sim)
+    assert ok
+
+
+def test_zero_delivery_message_does_not_claim_sharing():
+    st = dict(_ub_powell_state(), current_diversion=0.0, delivery_ratio=0.0)
+    msg = supply_gap_block_increase("increase_small", [], st)[0].errors[0]
+    assert "no delivery is expected" in msg and "other users" not in msg

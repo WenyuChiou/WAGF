@@ -225,8 +225,8 @@ def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
             cut = float(agent_state.get("curtailment_ratio", 0) or 0)
             tier = _tier_from_state(agent_state)
             tier_text = f"Tier {tier} " if tier else ""
-            parts.append(f"of the {tier_text}Lower Basin shortage, which reduces "
-                         f"Lower Basin deliveries by {cut:.0%}")
+            parts.append(f"the {tier_text}Lower Basin shortage reduces Lower Basin "
+                         f"deliveries by {cut:.0%}")
         elif c == "lb_mead_availability":
             parts.append("Lake Mead cannot meet all Lower Basin withdrawals this year "
                          "without falling below its minimum pool, so all Lower Basin "
@@ -401,14 +401,19 @@ def _build_trend_text(basin: str, preceding_factor: int) -> str:
     return f"Lake Mead level was {'rising' if preceding_factor else 'declining'} last year."
 
 
-# Plain-language label for the first blocking rule in the neutral memory line.
+# Plain-language label (with its article) for the first blocking rule in the
+# neutral memory line.
 _RULE_LABELS = {
-    "curtailment_awareness": "Lower Basin shortage rule",
-    "supply_gap_block_increase": "shortage-sharing rule",
-    "high_threat_high_cope_no_increase": "scarcity-capacity consistency rule",
-    "low_threat_no_increase": "low-scarcity rule",
-    "water_right_cap": "water-right cap",
-    "minimum_utilisation_floor": "minimum-use floor",
+    "curtailment_awareness": "the Lower Basin shortage rule",
+    "supply_gap_block_increase": "the shortage-sharing rule",
+    "high_threat_high_cope_no_increase": "the scarcity-capacity consistency rule",
+    "low_threat_no_increase": "the low-scarcity rule",
+    "observed_scarcity_low_wsa_increase": "the observed-scarcity rule",
+    "water_right_cap": "the water-right cap",
+    "minimum_utilisation_floor": "the minimum-use floor",
+    "zero_escape_floor": "the minimum-use rule for maintaining",
+    "consecutive_increase_cap": "the consecutive-increase limit",
+    "non_negative_diversion": "the zero-delivery rule",
 }
 
 
@@ -467,7 +472,7 @@ def build_action_outcome_feedback(
             rules = action_ctx.get("blocking_rules") or []
             if action_ctx.get("proposed_skill") and rules:
                 label = _RULE_LABELS.get(rules[0], "a governance rule")
-                lead = f"Year {year}: {skill} was applied under the {label}"
+                lead = f"Year {year}: {skill} was applied under {label}"
             elif action_ctx.get("proposed_skill"):
                 lead = f"Year {year}: {skill} was applied under a governance rule"
             else:

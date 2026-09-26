@@ -262,15 +262,22 @@ def check_i_persona_distribution(sim: pd.DataFrame) -> tuple[bool, str]:
 
 
 def check_j_magnitude_bounds(sim: pd.DataFrame) -> tuple[bool, str]:
-    """J. All magnitudes within per-skill [min, max] bounds."""
+    """J. All SAMPLED magnitudes within per-skill [min, max] bounds.
+
+    Since the 2026-09-25 F07 follow-up, ``magnitude_pct`` is the realised
+    change (after the decrease taper or the water-right cap), which is
+    legitimately below the skill's range; the Gaussian draw the bounds apply
+    to is ``magnitude_pct_sampled``. Older logs without that column fall back
+    to ``magnitude_pct`` (which held the draw then)."""
+    col = "magnitude_pct_sampled" if "magnitude_pct_sampled" in sim.columns else "magnitude_pct"
     violations = []
     exploration_violations = 0
     for skill, (lo, hi) in MAGNITUDE_BOUNDS.items():
-        rows = sim[(sim["yearly_decision"] == skill) & sim["magnitude_pct"].notna()]
-        # Exploration (2%) can exceed normal bounds — skip those
+        rows = sim[(sim["yearly_decision"] == skill) & sim[col].notna()]
+        # Exploration (2%) can exceed normal bounds; skip those
         normal = rows[rows["is_exploration"] != True]  # noqa: E712
         explore = rows[rows["is_exploration"] == True]  # noqa: E712
-        oob = normal[(normal["magnitude_pct"] < lo) | (normal["magnitude_pct"] > hi)]
+        oob = normal[(normal[col] < lo) | (normal[col] > hi)]
         if len(oob) > 0:
             violations.append(f"{skill}: {len(oob)} OOB (range [{lo},{hi}])")
         if len(explore) > 0:
