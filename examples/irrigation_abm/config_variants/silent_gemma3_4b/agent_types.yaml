@@ -16,11 +16,13 @@
 # =============================================================================
 global_config:
   memory:
-    # retrieval is 3 items by weighted recency/importance/context
-    # (broker/components/context/providers.py MemoryProvider hardcodes
-    # top_k=3; window_size/top_k_significant below only apply to the
-    # "legacy" ranking_mode, which this domain never selects, so they
-    # were removed here - see irrigation_farmer.memory for the same note).
+    # LIVE AGAIN (2026-09-26, matching the SI section 3.8 retrieval): the
+    # engine runs the composed ("legacy") retrieval, so window_size and
+    # top_k_significant are read (run_experiment.py builds the engine with
+    # --window-size, default 5, and this top_k_significant). Corpora
+    # produced before 2026-09-26 served 3 items by weighted scoring.
+    window_size: 5
+    top_k_significant: 2
     consolidation_threshold: 0.6
     consolidation_probability: 0.7
     decay_rate: 0.1
@@ -51,6 +53,17 @@ global_config:
     max_reports_per_retry: 3
     domain: irrigation               # Domain selector for validator injection
     retry_feedback_mode: silent
+    # Supply-side redesign (2026-09-25, spec FW1/FW4): every retry prompt after
+    # an ERROR ends with the actions that pass every rule given the agent's
+    # last response (framework default off).
+    feasible_set_feedback: true
+
+  # First-attempt proposal columns (initial_skill, initial_labels,
+  # attempt_skills) and the appraisal-drift columns (final_labels,
+  # appraisal_drift, appraisal_drifted) in the governance audit CSV
+  # (framework default off).
+  audit:
+    initial_proposal_columns: true
 
   # --- Colorado River Basin water system parameters ---
   water_system:
@@ -208,12 +221,18 @@ irrigation_farmer:
   # ---------------------------------------------------------------------------
   memory:
     engine_type: "human_centric"
-    # retrieval is 3 items by weighted recency/importance/context (see
-    # global_config.memory above); window_size and top_k_significant were
-    # removed here because they only applied to HumanCentricMemoryEngine's
-    # "legacy" ranking_mode, and this domain always constructs the engine
-    # with ranking_mode="weighted" (run_experiment.py), so they were never
-    # read at runtime.
+    # Composed retrieval as stated in the SI section 3.8 (2026-09-26): the
+    # window_size (5) most recent memories are always included, plus the
+    # top_k_significant (2) long-term memories with the highest decayed
+    # importance (ties: earlier first; decayed importance at or below 0.05
+    # dropped), so a prompt carries up to 7 memories. These keys are LIVE
+    # AGAIN: MemoryProvider passes them to the engine (composed_retrieval).
+    # Corpora produced before 2026-09-26 served 3 items by weighted
+    # recency / importance / context scoring (MemoryProvider's top_k=3).
+    ranking_mode: legacy
+    composed_retrieval: true
+    window_size: 5
+    top_k_significant: 2
 
     emotion_keywords:
       # "drought" was deliberately dropped from this list: build_action_outcome_feedback
@@ -260,6 +279,16 @@ irrigation_farmer:
       importance: 0.5
       context: 0.2
 
+    # reserve_types (a reserved retrieval slot per memory type, weighted
+    # mode only; framework option, default off) is OFF for irrigation since
+    # 2026-09-26: the composed retrieval above always shows the 5 most recent
+    # memories, which include the latest reflection, plus 2 significant ones.
+    # How the memory line of a year whose proposal was overruled reads:
+    # neutral (default here) names the rule and the action applied, not the
+    # rejected proposal; explicit is the pre-redesign text, kept as an
+    # ablation (spec S6, FW5).
+    rejection_line_style: neutral
+
     arousal_threshold: 0.5
     ema_alpha: 0.3
 
@@ -280,85 +309,64 @@ irrigation_farmer:
         unit: "AF"
         format: ",.0f"
     assertions:
-      # F13 (2026-09-25 audit): diversion = min(request, water_right) x
-      # (1 - curtailment_ratio), so for any agent below its water right,
-      # raising the request DOES raise actual supply (curtailment applies
-      # to the whole request, not a fixed shortfall) -- the old message
-      # claimed the opposite. The old trigger (< 0.95) also sat exactly on
-      # the Tier 1 curtailment ratio (supply/request == 1 - 0.05 == 0.95
-      # for every agent at request <= water_right, which is every agent:
-      # update_agent_request caps request AT water_right, it never exceeds
-      # it), so an Upper Basin agent's Powell-scaled ratio (a real,
-      # continuously varying value, not a fixed tier constant) straddles
-      # 0.95 for a real fraction of agents. 0.90 is exactly Tier 2's ratio
-      # (1 - 0.10) and has the identical problem one tier over -- code
-      # review caught this on the first fix attempt. 0.85 sits with real
-      # margin (0.05) from both Tier 2 (0.90) and Tier 3 (0.80). It still
-      # fires for every Tier 3 agent in either basin (20% curtailment
-      # alone gives supply/request = 0.80 < 0.85, no Powell scaling
-      # needed) as well as any Upper Basin agent under additional Powell
-      # scaling; it does not fire on a Tier 1/Tier 2 boundary coincidence,
-      # which was the actual bug.
-      #
-      # Second code-review pass (2026-09-25): in a Powell zero-delivery
-      # year (see _apply_powell_constraint's docstring) supply is exactly
-      # 0 regardless of request size, so "a larger request will still
-      # raise your supply" is itself false for that one case. The first
-      # attempt to exclude it, "and supply > 0", does not work:
-      # SafeExpressionEvaluator.evaluate (broker/components/analytics/
-      # feedback.py) replaces every 0-valued variable with 1e-10 before
-      # evaluating (its own division-by-zero guard), so supply is never
-      # seen as exactly 0 there. "and supply >= 1" DOES work: real
-      # deliveries in this domain are acre-feet (tens of thousands), never
-      # a fractional AF, so 1e-10 fails ">= 1" while every genuine
-      # nonzero delivery passes it.
+      # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
+      # whose delivery formula no longer holds). The tracked metrics are
+      # recorded in post_year from the year's FINAL settlement, so this row is
+      # last year's actual request and delivery. Delivery / request is
+      # (1 - tier cut) x (Mead physical ratio) for a Lower Basin agent and the
+      # pro-rata Upper Basin ratio for an Upper Basin agent. 0.85 is below
+      # Tier 1 and Tier 2 (0.95, 0.90), so it fires for Tier 3, for a Mead
+      # or Powell physical limit, or for a combination. "supply >= 1" stays
+      # as a unit guard: SafeExpressionEvaluator replaces 0 with 1e-10, and a
+      # real delivery is thousands of acre-feet.
       - when: "supply / request < 0.85 and supply >= 1"
         severity: "warning"
         message: >-
-          You requested {request_fmt} AF but only received {supply_fmt} AF
-          ({unmet_pct:.0f}% unmet) because curtailment reduces your whole
-          request, so a larger request will still raise your supply until
-          you reach your water right.
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
+          situation above. A declared shortage reduces any larger request by
+          the same share; when a physical limit binds, supply is shared
+          pro-rata, so a larger request raises your share only by lowering
+          other users' deliveries.
 
   # ---------------------------------------------------------------------------
   # Available Actions
   # ---------------------------------------------------------------------------
   actions:
+    # Hung and Yang (2021) action model (2026-09-26): the agent picks a
+    # direction and a small or large step; the size is drawn by the
+    # environment from the agent's own (mu + |N(0, sigma)|) x bin_size
+    # distribution. H&Y agents see no percentages, so none are stated here.
     - id: increase_large
       aliases: ["IL", "increase_large", "large increase", "aggressive increase",
                 "[IL]", "[increase_large]"]
       description: >
-        Aggressively increase water demand (8-20% change). Higher yield
-        potential but significant curtailment risk.
+        Increase your diversion request by a large step.
 
     - id: increase_small
       aliases: ["IS", "increase_small", "small increase", "cautious increase",
                 "modest increase", "[IS]", "[increase_small]"]
       description: >
-        Cautiously increase water demand (1-8% change). Modest growth
-        with lower curtailment risk.
+        Increase your diversion request by a small step.
 
     - id: maintain_demand
       aliases: ["MD", "maintain", "maintain_demand", "status quo",
                 "no change", "do nothing", "[MD]", "[maintain]",
                 "[maintain_demand]"]
       description: >
-        Maintain current water demand level. No change to irrigation
-        practices.
+        Keep your request unchanged.
 
     - id: decrease_small
       aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
                 "cautious decrease", "[DS]", "[decrease_small]"]
       description: >
-        Cautiously reduce water demand (1-8% change). Modest conservation
-        while maintaining most crop yield.
+        Reduce your diversion request by a small step.
 
     - id: decrease_large
       aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
                 "[DL]", "[decrease_large]"]
       description: >
-        Aggressively reduce water demand (8-20% change). Significant
-        conservation at the cost of reduced yield.
+        Reduce your diversion request by a large step.
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration
@@ -567,17 +575,10 @@ irrigation_farmer:
 
 personas:
   aggressive:
-    persona_scale: 1.15        # v17: Skill-level Gaussian params scaled by persona
-    magnitude_default: 10      # Legacy (v12): used as fallback if skill_magnitude missing
-    magnitude_min: 5
-    magnitude_max: 20
-    magnitude_sigma: 3.5
-    exploration_rate: 0.02
     description: >
       You are an assertive, action-oriented farmer who responds quickly
-      and decisively to water supply signals. You typically adjust your
-      water demand by **5-20%** (relative to current water use), preferring
-      measured but confident changes rather than extreme swings. Supply
+      and decisively to water supply signals. You prefer measured but confident changes
+      rather than extreme swings. Supply
       constraints and operational limits moderate your actions. You have
       a relatively low sensitivity to unmet demand penalties; you'd rather
       take bold action and occasionally overshoot than be cautious and miss
@@ -589,19 +590,11 @@ personas:
       gamma: 0.77
       epsilon: 0.16
       regret: 0.78
-      actual_range: "5-20% (Phase 1 calibration)"
 
   forward_looking_conservative:
-    persona_scale: 1.00
-    magnitude_default: 7.5
-    magnitude_min: 3
-    magnitude_max: 15
-    magnitude_sigma: 3.0
-    exploration_rate: 0.02
     description: >
-      You are a cautious but forward-thinking farmer. You typically adjust
-      your water demand by **3-15%** (relative to current water use),
-      preferring measured, gradual adjustments rather than bold swings. You
+      You are a cautious but forward-thinking farmer. You prefer measured, gradual
+      adjustments rather than bold swings. You
       learn quickly from experience and weigh future consequences heavily. You
       are highly sensitive to unmet demand — the thought of running short of
       water causes you significant concern. You are moderately willing to
@@ -613,20 +606,12 @@ personas:
       gamma: 0.78
       epsilon: 0.19
       regret: 2.22
-      actual_range: "3-15% (Phase 1 calibration)"
 
   myopic_conservative:
-    persona_scale: 0.80
-    magnitude_default: 4.0
-    magnitude_min: 1
-    magnitude_max: 8
-    magnitude_sigma: 2.0
-    exploration_rate: 0.02
     description: >
       You are a tradition-oriented farmer who relies heavily on past
-      experience and established practices. You typically adjust your
-      water demand by **1-8%** (relative to current water use), making
-      only modest, incremental changes and preferring the status quo. You
+      experience and established practices. You make only modest, incremental
+      changes and prefer the status quo. You
       update your views slowly, discount future outcomes, and rarely explore
       unfamiliar strategies. You have moderate sensitivity to unmet
       demand but generally believe that sticking to proven practices
@@ -638,34 +623,17 @@ personas:
       gamma: 0.64
       epsilon: 0.09
       regret: 1.54
-      actual_range: "1-8% (Phase 1 calibration)"
 
 
 # =============================================================================
-# SKILL-LEVEL GAUSSIAN MAGNITUDE PARAMETERS (v17: 5-skill model)
+# ACTION MAGNITUDE
 # =============================================================================
-# Base parameters per skill. Persona's persona_scale multiplies these.
-# Formula: actual_param = base_param × persona_scale
-skill_magnitude:
-  increase_large:
-    mu: 12.0
-    sigma: 3.0
-    min: 8.0
-    max: 20.0
-  increase_small:
-    mu: 4.0
-    sigma: 1.5
-    min: 1.0
-    max: 8.0
-  decrease_small:
-    mu: 4.0
-    sigma: 1.5
-    min: 1.0
-    max: 8.0
-  decrease_large:
-    mu: 12.0
-    sigma: 3.0
-    min: 8.0
-    max: 20.0
+# The former skill_magnitude block (Gaussian percentage bands per skill,
+# scaled by a per-persona persona_scale) was removed on 2026-09-26. The step
+# size is the Hung and Yang (2021) action model, drawn in
+# irrigation_env.py (hy_step_af) from per-agent data: mu and sigma from
+# ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv and the grid step of
+# ref/CRSS_DB/CRSS_DB/Div_States/*_discrete_states.csv. They are data, not
+# tunables, so nothing about the step size is configured here.
 
 metadata: { version: "v17-5skill" }
