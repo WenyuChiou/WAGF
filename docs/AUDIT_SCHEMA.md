@@ -797,6 +797,20 @@ changing behaviour and measures the soft rules' firing rate alone.
 | CSV text cells | `trace_to_csv_row` strips newlines and carriage returns from strings. | Use JSONL for exact raw text. |
 | Dynamic columns | `construct_*`, `social_*`, and `world_*` depend on keys present in traces. | Compare against the schema sidecar for the run under analysis. |
 
+## Irrigation `simulation_log.csv` magnitude columns (2026-09-26)
+
+Not audit-CSV columns; recorded here because analyses join them to the audit rows. Under the Hung and Yang action model (`examples/irrigation_abm/irrigation_env.py (hy_step_af)`):
+
+| Column | Meaning |
+|---|---|
+| `magnitude_pct` | realised change as a percent of the request before the decision (after the water-right cap or the 10 percent floor) |
+| `magnitude_pct_sampled` | the drawn step as a percent of that request (before caps) |
+| `magnitude_af` | realised change in acre-ft |
+| `magnitude_class` | `small` or `large` (the drawn step at or below / above the agent's median step) |
+| `is_exploration` | always False since 2026-09-26 (magnitude exploration dropped) |
+
+Before 2026-09-25 `magnitude_pct` held the sampled percentage; between 2026-09-25 and 2026-09-26 it held the realised percentage of a persona-scaled Gaussian band. Do not pool magnitudes across these vintages.
+
 ## Historical Note
 
 | Era | Schema | Notes |

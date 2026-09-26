@@ -328,41 +328,40 @@ irrigation_farmer:
   # Available Actions
   # ---------------------------------------------------------------------------
   actions:
+    # Hung and Yang (2021) action model (2026-09-26): the agent picks a
+    # direction and a small or large step; the size is drawn by the
+    # environment from the agent's own (mu + |N(0, sigma)|) x bin_size
+    # distribution. H&Y agents see no percentages, so none are stated here.
     - id: increase_large
       aliases: ["IL", "increase_large", "large increase", "aggressive increase",
                 "[IL]", "[increase_large]"]
       description: >
-        Request substantially more water (8 to 20 percent). In short years
-        more of the request may go undelivered.
+        Increase your diversion request by a large step.
 
     - id: increase_small
       aliases: ["IS", "increase_small", "small increase", "cautious increase",
                 "modest increase", "[IS]", "[increase_small]"]
       description: >
-        Request slightly more water (1 to 8 percent).
+        Increase your diversion request by a small step.
 
     - id: maintain_demand
       aliases: ["MD", "maintain", "maintain_demand", "status quo",
                 "no change", "do nothing", "[MD]", "[maintain]",
                 "[maintain_demand]"]
       description: >
-        Maintain current water demand level. No change to irrigation
-        practices.
+        Keep your request unchanged.
 
     - id: decrease_small
       aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
                 "cautious decrease", "[DS]", "[decrease_small]"]
       description: >
-        Request slightly less water (up to 1 to 8 percent; the cut shrinks
-        in proportion as your request falls toward the minimum-use floor).
+        Reduce your diversion request by a small step.
 
     - id: decrease_large
       aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
                 "[DL]", "[decrease_large]"]
       description: >
-        Request substantially less water (up to 8 to 20 percent; the cut
-        shrinks in proportion as your request falls toward the minimum-use
-        floor).
+        Reduce your diversion request by a large step.
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration
@@ -571,17 +570,10 @@ irrigation_farmer:
 
 personas:
   aggressive:
-    persona_scale: 1.15        # v17: Skill-level Gaussian params scaled by persona
-    magnitude_default: 10      # Legacy (v12): used as fallback if skill_magnitude missing
-    magnitude_min: 5
-    magnitude_max: 20
-    magnitude_sigma: 3.5
-    exploration_rate: 0.02
     description: >
       You are an assertive, action-oriented farmer who responds quickly
-      and decisively to water supply signals. You typically adjust your
-      water demand by **5-20%** (relative to current water use), preferring
-      measured but confident changes rather than extreme swings. Supply
+      and decisively to water supply signals. You prefer measured but confident changes
+      rather than extreme swings. Supply
       constraints and operational limits moderate your actions. You have
       a relatively low sensitivity to unmet demand penalties; you'd rather
       take bold action and occasionally overshoot than be cautious and miss
@@ -593,19 +585,11 @@ personas:
       gamma: 0.77
       epsilon: 0.16
       regret: 0.78
-      actual_range: "5-20% (Phase 1 calibration)"
 
   forward_looking_conservative:
-    persona_scale: 1.00
-    magnitude_default: 7.5
-    magnitude_min: 3
-    magnitude_max: 15
-    magnitude_sigma: 3.0
-    exploration_rate: 0.02
     description: >
-      You are a cautious but forward-thinking farmer. You typically adjust
-      your water demand by **3-15%** (relative to current water use),
-      preferring measured, gradual adjustments rather than bold swings. You
+      You are a cautious but forward-thinking farmer. You prefer measured, gradual
+      adjustments rather than bold swings. You
       learn quickly from experience and weigh future consequences heavily. You
       are highly sensitive to unmet demand — the thought of running short of
       water causes you significant concern. You are moderately willing to
@@ -617,20 +601,12 @@ personas:
       gamma: 0.78
       epsilon: 0.19
       regret: 2.22
-      actual_range: "3-15% (Phase 1 calibration)"
 
   myopic_conservative:
-    persona_scale: 0.80
-    magnitude_default: 4.0
-    magnitude_min: 1
-    magnitude_max: 8
-    magnitude_sigma: 2.0
-    exploration_rate: 0.02
     description: >
       You are a tradition-oriented farmer who relies heavily on past
-      experience and established practices. You typically adjust your
-      water demand by **1-8%** (relative to current water use), making
-      only modest, incremental changes and preferring the status quo. You
+      experience and established practices. You make only modest, incremental
+      changes and prefer the status quo. You
       update your views slowly, discount future outcomes, and rarely explore
       unfamiliar strategies. You have moderate sensitivity to unmet
       demand but generally believe that sticking to proven practices
@@ -642,34 +618,17 @@ personas:
       gamma: 0.64
       epsilon: 0.09
       regret: 1.54
-      actual_range: "1-8% (Phase 1 calibration)"
 
 
 # =============================================================================
-# SKILL-LEVEL GAUSSIAN MAGNITUDE PARAMETERS (v17: 5-skill model)
+# ACTION MAGNITUDE
 # =============================================================================
-# Base parameters per skill. Persona's persona_scale multiplies these.
-# Formula: actual_param = base_param × persona_scale
-skill_magnitude:
-  increase_large:
-    mu: 12.0
-    sigma: 3.0
-    min: 8.0
-    max: 20.0
-  increase_small:
-    mu: 4.0
-    sigma: 1.5
-    min: 1.0
-    max: 8.0
-  decrease_small:
-    mu: 4.0
-    sigma: 1.5
-    min: 1.0
-    max: 8.0
-  decrease_large:
-    mu: 12.0
-    sigma: 3.0
-    min: 8.0
-    max: 20.0
+# The former skill_magnitude block (Gaussian percentage bands per skill,
+# scaled by a per-persona persona_scale) was removed on 2026-09-26. The step
+# size is the Hung and Yang (2021) action model, drawn in
+# irrigation_env.py (hy_step_af) from per-agent data: mu and sigma from
+# ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv and the grid step of
+# ref/CRSS_DB/CRSS_DB/Div_States/*_discrete_states.csv. They are data, not
+# tunables, so nothing about the step size is configured here.
 
 metadata: { version: "v17-5skill" }

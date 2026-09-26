@@ -44,17 +44,11 @@ from examples.irrigation_abm.irrigation_env import (  # noqa: E402
 
 N_AGENTS = 16
 SEED = 42
-# Non-zero, so the epsilon-exploration COIN FLIP is drawn and each call
-# consumes two values rather than one, which is what makes the ordering bug
-# visible in a second way. It is deliberately NOT enough to take the
-# exploration arm: at these keys the smallest coin flip is 0.0311 (F12
-# follow-up, 2026-09-25: IrrigationEnvironment's pre-loop _current_year moved
-# from 2019 to 2018, which re-keys this draw; recomputed against the current
-# code), so `_build_env` always lands in the ordinary arm.
-# `_build_exploring_env` below covers the arm itself.
-EXPLORATION_RATE = 0.02
-# Above every coin flip in the fixture, so the exploration arm always runs.
-FORCED_EXPLORATION_RATE = 0.99
+# 2026-09-26: the magnitude is the Hung and Yang (2021) step
+# (mu + |N(0, sigma)|) x bin_size (irrigation_env.hy_step_af), one uniform
+# per call from _decision_rng. The former per-skill Gaussian, the v12
+# per-persona fallback and the 2 percent magnitude exploration arm are gone,
+# so their fixtures and arm-coverage tests were removed with them.
 
 
 def _agent_id(i: int) -> str:
@@ -62,56 +56,24 @@ def _agent_id(i: int) -> str:
 
 
 def _build_env() -> IrrigationEnvironment:
-    """An env whose agents all take the v17 per-skill Gaussian branch."""
+    """An env whose agents carry per-agent Hung and Yang parameters."""
     env = IrrigationEnvironment(WaterSystemConfig(seed=SEED))
     for i in range(N_AGENTS):
         env._agents[_agent_id(i)] = {
             "basin": "upper_basin",
             "diversion": 80_000.0,
             "request": 80_000.0,
-            "water_right": 100_000.0,
+            "water_right": 1_000_000.0,
             "curtailment_ratio": 0.0,
             "at_allocation_cap": False,
             "has_efficient_system": False,
             "below_minimum_utilisation": False,
             "cluster": "aggressive",
-            "persona_scale": 1.0,
-            "skill_magnitude": {
-                "increase_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
-            },
-            "magnitude_default": 10.0,
-            "magnitude_sigma": 0.0,
-            "magnitude_min": 1.0,
-            "magnitude_max": 30.0,
-            "exploration_rate": EXPLORATION_RATE,
+            "mu": 0.2 + 0.01 * i,
+            "sigma": 0.9,
+            "bin_size_af": 4_000.0,
         }
     return env
-
-
-def _build_legacy_env() -> IrrigationEnvironment:
-    """An env whose agents take the v12 legacy per-persona fallback branch
-    (no ``skill_magnitude`` block), which draws from its own code path."""
-    env = _build_env()
-    for agent in env._agents.values():
-        agent["skill_magnitude"] = {}
-        agent["magnitude_sigma"] = 3.5
-    return env
-
-
-def _build_exploring_env() -> IrrigationEnvironment:
-    """An env whose agents always take the ε-exploration arm — the branch that
-    widens sigma, clips to [0.5, 100.0] and sets ``is_exploration``. It draws
-    the same two values from the same generator, so it must be just as
-    order-independent, and without it that arm is dead in this file."""
-    env = _build_env()
-    for agent in env._agents.values():
-        agent["exploration_rate"] = FORCED_EXPLORATION_RATE
-    return env
-
-
-def _explored(env: IrrigationEnvironment, agent_id: str) -> bool:
-    result = env.execute_skill(_skill(agent_id))
-    return bool(result.state_changes.get("is_exploration"))
 
 
 def _skill(agent_id: str, name: str = "increase_small") -> ApprovedSkill:
@@ -129,7 +91,7 @@ def _run_sequential(env: IrrigationEnvironment, skill: str) -> dict:
     for i in range(N_AGENTS):
         aid = _agent_id(i)
         result = env.execute_skill(_skill(aid, skill))
-        out[aid] = result.state_changes.get("magnitude_pct_applied")
+        out[aid] = result.state_changes.get("magnitude_af")
     return out
 
 
@@ -147,7 +109,7 @@ def _run_threaded(env: IrrigationEnvironment, skill: str, workers: int = 4) -> d
     def work(aid: str):
         time.sleep(jitter.uniform(0, 0.003))
         result = env.execute_skill(_skill(aid, skill))
-        return aid, result.state_changes.get("magnitude_pct_applied")
+        return aid, result.state_changes.get("magnitude_af")
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(work, _agent_id(i)) for i in range(N_AGENTS)]
@@ -171,14 +133,7 @@ def _assert_same(label_a: str, a: dict, label_b: str, b: dict) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "builder, branch",
-    [
-        (_build_env, "v17 per-skill Gaussian"),
-        (_build_legacy_env, "v12 legacy persona"),
-        (_build_exploring_env, "v17 epsilon-exploration arm"),
-    ],
-)
+@pytest.mark.parametrize("builder, branch", [(_build_env, "Hung and Yang step")])
 def test_magnitude_is_independent_of_worker_count(builder, branch):
     """Sequential and two independent 4-thread passes must agree per agent."""
     sequential = _run_sequential(builder(), "increase_small")
@@ -191,30 +146,6 @@ def test_magnitude_is_independent_of_worker_count(builder, branch):
     )
     _assert_same("workers=1", sequential, "workers=4 (run A)", threaded_a)
     _assert_same("workers=4 (run A)", threaded_a, "workers=4 (run B)", threaded_b)
-
-
-def test_exploration_arm_is_actually_reached_and_not_reached():
-    """Pin which arm each fixture takes, so neither can quietly stop covering
-    what its name claims.
-
-    `_build_env`'s rate (EXPLORATION_RATE, 0.02 as of the F12 follow-up
-    that re-keyed this fixture's RNG) sits below every coin flip at these
-    keys, so it always takes the ordinary arm; `_build_exploring_env`'s 0.99 sits above
-    every one, so it always takes the exploration arm. If a future edit to the
-    fixture's seed or agent ids moved a coin flip across either threshold, this
-    test says so instead of silently hollowing out the parametrisation above.
-    """
-    ordinary = _build_env()
-    assert not any(_explored(ordinary, _agent_id(i)) for i in range(N_AGENTS)), (
-        "EXPLORATION_RATE is no longer below every coin flip — the "
-        "'v17 per-skill Gaussian' case is now testing the exploration arm."
-    )
-
-    exploring = _build_exploring_env()
-    assert all(_explored(exploring, _agent_id(i)) for i in range(N_AGENTS)), (
-        "FORCED_EXPLORATION_RATE is no longer above every coin flip — the "
-        "'v17 epsilon-exploration arm' case is not reaching that arm."
-    )
 
 
 def test_execute_skill_never_touches_the_env_level_generator():
@@ -242,21 +173,6 @@ def test_execute_skill_never_touches_the_env_level_generator():
         "must come from _decision_rng so the precipitation stream stays "
         "independent of how many agents decided."
     )
-
-
-def test_exploration_arm_also_leaves_the_env_generator_alone():
-    """The ε-exploration arm draws twice per call — both must be off the
-    shared stream, not just the Gaussian."""
-    env = _build_exploring_env()
-    before = env.rng.bit_generator.state
-
-    results = [env.execute_skill(_skill(_agent_id(i))) for i in range(N_AGENTS)]
-
-    assert all(r.state_changes.get("is_exploration") for r in results), (
-        "fixture did not reach the exploration arm — the assertion below "
-        "would be vacuous."
-    )
-    assert env.rng.bit_generator.state == before
 
 
 def test_advance_year_does_still_use_the_env_generator():

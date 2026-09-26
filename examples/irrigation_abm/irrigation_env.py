@@ -176,24 +176,83 @@ class WaterSystemConfig:
     seed: int = 42
 
 
+# Hung and Yang (2021) action model, used for synthetic (mock) agents that
+# have no CRSS data: the medians of mu and sigma over the calibrated
+# parameter file (ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv) and a
+# step of water_right / 25. Fallback for mock runs only; real agents carry
+# their own per-agent mu, sigma and bin size (create_profiles_from_data).
+SYNTHETIC_HY_MU = 0.218
+SYNTHETIC_HY_SIGMA = 0.923
+SYNTHETIC_BIN_DIVISOR = 25
+
+# Median of |N(0, 1)|: Phi^-1(0.75). A small step is a draw at or below the
+# agent's median step (mu + 0.6745 sigma) x bin_size, a large step above it.
+HALF_NORMAL_MEDIAN_Z = 0.6744897501960817
+
+_SMALL_SKILLS = ("increase_small", "decrease_small")
+_LARGE_SKILLS = ("increase_large", "decrease_large")
+
+
+def hy_step_af(rng: np.random.Generator, mu: float, sigma: float,
+               bin_size_af: float, size_class: str) -> float:
+    """One action magnitude of the Hung and Yang (2021) model, in acre-ft.
+
+    ``ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)``:
+    ``actions = (mu + abs(np.random.normal(0, sigma))) * bin_size``, with
+    ``bin_size = agt_states[2] - agt_states[1]`` (the step of the agent's
+    discretised diversion grid). |N(0, sigma)| is drawn by inverse CDF from
+    one uniform u: |z| = sigma * Phi^-1((1 + q) / 2), a half-normal quantile
+    at level q. ``size_class`` "small" restricts q to [0, 0.5), i.e. |z| at
+    or below the half-normal median 0.6745 sigma; "large" to (0.5, 1), above
+    it; anything else uses the whole distribution. So small and large are
+    the lower and upper halves of the same H&Y distribution, and pooled
+    50/50 they reproduce it exactly. One uniform per call keeps the
+    per-(seed, year, agent, skill) stream deterministic.
+    """
+    from statistics import NormalDist
+
+    u = float(rng.random())
+    mu = max(0.0, float(mu))  # a negative mu would flip the step's direction
+    if size_class == "small":
+        q = 0.5 * u
+    elif size_class == "large":
+        q = 0.5 + 0.5 * max(u, 1e-12)
+    else:
+        q = u
+    q = min(q, 1.0 - 1e-15)
+    z = sigma * NormalDist().inv_cdf((1.0 + q) / 2.0) if sigma > 0 else 0.0
+    return (mu + z) * bin_size_af
+
+
+def hy_threshold_af(mu: float, sigma: float, bin_size_af: float) -> float:
+    """T = (mu + 0.6745 sigma) x bin_size: the median H&Y step."""
+    return (mu + HALF_NORMAL_MEDIAN_Z * sigma) * bin_size_af
+
+
 def _set_realised_magnitude(
     state_changes: Dict[str, Any],
     action_context: Dict[str, Any],
-    sampled_pct: float,
+    step_af: float,
+    size_class: str,
     current: float,
     new_req: float,
 ) -> None:
-    """F07 follow-up (spec E9, H6): report the change actually applied.
+    """Report the change actually applied (F07 follow-up, spec E9, H6).
 
-    A decrease is tapered near the 10 percent floor and an increase is capped
-    at the water right, so the sampled magnitude can overstate the change
-    (memory once said "by 13%" for a realised 5.8 percent). The memory line
-    ("(by N%)") and ``magnitude_pct_applied`` now carry the realised
-    percentage ``100 * |new - current| / current``; the sampled value moves
-    to ``magnitude_pct_sampled``."""
-    realised = (100.0 * abs(new_req - current) / current) if current > 0 else float(sampled_pct)
+    An increase is capped at the water right and a decrease at the 10
+    percent floor, so the drawn step can overstate the change. The memory
+    line ("(by N%)"), ``magnitude_pct_applied`` and ``magnitude_af`` carry
+    the realised change; ``magnitude_pct_sampled`` is the drawn step as a
+    percent of the current request; ``magnitude_class`` is small or large."""
+    realised_af = abs(new_req - current)
+    # From a zero request a percent is undefined: log None (the memory line
+    # then omits "(by N%)") rather than a misleading 0.
+    sampled_pct = (100.0 * step_af / current) if current > 0 else None
+    realised = (100.0 * realised_af / current) if current > 0 else None
     state_changes["magnitude_pct_sampled"] = sampled_pct
     state_changes["magnitude_pct_applied"] = realised
+    state_changes["magnitude_af"] = realised_af
+    state_changes["magnitude_class"] = size_class
     action_context["magnitude_pct"] = realised
 
 
@@ -400,6 +459,9 @@ class IrrigationEnvironment:
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": "unknown",
+                "mu": float(df.loc["mu", agent_name]) if "mu" in df.index else SYNTHETIC_HY_MU,
+                "sigma": float(df.loc["sigma", agent_name]) if "sigma" in df.index else SYNTHETIC_HY_SIGMA,
+                "bin_size_af": 100_000.0 / SYNTHETIC_BIN_DIVISOR,
             }
 
     def initialize_from_profiles(self, profiles) -> None:
@@ -428,15 +490,15 @@ class IrrigationEnvironment:
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
                 "below_minimum_utilisation": False,
                 "cluster": p.cluster,
-                # v17: Skill-level magnitude params + persona scale
-                "persona_scale": getattr(p, "persona_scale", 1.0),
-                "skill_magnitude": getattr(p, "skill_magnitude", {}),
-                # v12 legacy: per-persona magnitude (fallback)
-                "magnitude_default": getattr(p, "magnitude_default", 10),
-                "magnitude_sigma": getattr(p, "magnitude_sigma", 0.0),
-                "magnitude_min": getattr(p, "magnitude_min", 1.0),
-                "magnitude_max": getattr(p, "magnitude_max", 30.0),
-                "exploration_rate": getattr(p, "exploration_rate", 0.0),
+                # Hung and Yang (2021) action model: per-agent mu, sigma
+                # (calibrated parameters) and the step of the agent's
+                # discretised diversion grid. Profiles without a grid step
+                # (synthetic) fall back to water_right / 25.
+                "mu": float(getattr(p, "mu", SYNTHETIC_HY_MU)),
+                "sigma": float(getattr(p, "sigma", SYNTHETIC_HY_SIGMA)),
+                "bin_size_af": float(
+                    getattr(p, "bin_size_af", None) or wr / SYNTHETIC_BIN_DIVISOR
+                ),
             }
 
     def initialize_synthetic(
@@ -454,8 +516,9 @@ class IrrigationEnvironment:
         """
         n_ub, n_lb = basin_split
 
-        # v12: Assign cluster-based magnitude parameters with stochasticity
-        # Mix of aggressive, forward-looking, and myopic clusters (50%-30%-20%)
+        # Mix of aggressive, forward-looking, and myopic clusters (50%-30%-20%);
+        # the cluster is a label here, the action model is the Hung and Yang
+        # draw with the synthetic fallback parameters (SYNTHETIC_HY_*).
         clusters = (
             ["aggressive"] * (n_agents // 2) +
             ["forward_looking_conservative"] * (n_agents * 3 // 10) +
@@ -467,52 +530,10 @@ class IrrigationEnvironment:
         # Shuffle for random assignment
         self.rng.shuffle(clusters)
 
-        # Phase 1 + CRSS Calibration: Reduced magnitude ranges to match FQL + CRSS scaling
-        # NOTE: Triple source of truth for cluster configuration:
-        #   1. This hardcoded fallback (synthetic initialization, default behavior)
-        #   2. config/agent_types.yaml (--real flag CSV loading)
-        #   3. run_experiment.py target_dist (rebalance_to_target call)
-        # All three sources must be kept in sync manually (verified by runtime assertion)
-        # v17: Default skill-level Gaussian params (matches agent_types.yaml)
-        _default_skill_magnitude = {
-            "increase_large": {"mu": 12.0, "sigma": 3.0, "min": 8.0, "max": 20.0},
-            "increase_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
-            "decrease_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
-            "decrease_large": {"mu": 12.0, "sigma": 3.0, "min": 8.0, "max": 20.0},
-        }
-
-        cluster_configs = {
-            "aggressive": {
-                "persona_scale": 1.15,
-                "magnitude_default": 10.0,    # Phase 1: 15.0 → 10.0 (-33%)
-                "magnitude_sigma": 3.5,        # Phase 1: 5.0 → 3.5 (-30%)
-                "magnitude_min": 5.0,          # Phase 1: 10.0 → 5.0 (wider range bottom)
-                "magnitude_max": 20.0,         # Phase 1: 30.0 → 20.0 (cap extremes)
-                "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
-            },
-            "forward_looking_conservative": {
-                "persona_scale": 1.00,
-                "magnitude_default": 7.5,      # Phase 1: 12.5 → 7.5 (-40%)
-                "magnitude_sigma": 3.0,        # Phase 1: 4.0 → 3.0 (-25%)
-                "magnitude_min": 3.0,          # Phase 1: 5.0 → 3.0
-                "magnitude_max": 15.0,         # Phase 1: 20.0 → 15.0
-                "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
-            },
-            "myopic_conservative": {
-                "persona_scale": 0.80,
-                "magnitude_default": 4.0,      # Phase 1: 5.5 → 4.0 (-27%)
-                "magnitude_sigma": 2.0,        # Phase 1: 2.5 → 2.0 (-20%)
-                "magnitude_min": 1.0,          # Unchanged
-                "magnitude_max": 8.0,          # Phase 1: 10.0 → 8.0
-                "exploration_rate": 0.02,      # Stage 3 v2: 0.0005 → 0.02 (2%)
-            },
-        }
-
         agent_index = 0
         for i in range(n_ub):
             aid = f"UB_Agent_{i:03d}"
             cluster = clusters[agent_index] if agent_index < len(clusters) else "myopic_conservative"
-            config = cluster_configs[cluster]
 
             # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
             # Derivation (from per-agent trajectory analysis):
@@ -533,22 +554,16 @@ class IrrigationEnvironment:
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": cluster,
-                # v17: skill-level magnitude + persona scale
-                "persona_scale": config["persona_scale"],
-                "skill_magnitude": dict(_default_skill_magnitude),
-                # v12 legacy: per-persona magnitude (fallback)
-                "magnitude_default": config["magnitude_default"],
-                "magnitude_sigma": config["magnitude_sigma"],
-                "magnitude_min": config["magnitude_min"],
-                "magnitude_max": config["magnitude_max"],
-                "exploration_rate": config["exploration_rate"],
+                # Hung and Yang action model, synthetic fallback (mock runs)
+                "mu": SYNTHETIC_HY_MU,
+                "sigma": SYNTHETIC_HY_SIGMA,
+                "bin_size_af": calibrated_wr / SYNTHETIC_BIN_DIVISOR,
             }
             agent_index += 1
 
         for i in range(n_lb):
             aid = f"LB_Agent_{i:03d}"
             cluster = clusters[agent_index] if agent_index < len(clusters) else "myopic_conservative"
-            config = cluster_configs[cluster]
 
             # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
             calibrated_wr = base_water_right * 0.9286
@@ -564,15 +579,10 @@ class IrrigationEnvironment:
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": cluster,
-                # v17: skill-level magnitude + persona scale
-                "persona_scale": config["persona_scale"],
-                "skill_magnitude": dict(_default_skill_magnitude),
-                # v12 legacy: per-persona magnitude (fallback)
-                "magnitude_default": config["magnitude_default"],
-                "magnitude_sigma": config["magnitude_sigma"],
-                "magnitude_min": config["magnitude_min"],
-                "magnitude_max": config["magnitude_max"],
-                "exploration_rate": config["exploration_rate"],
+                # Hung and Yang action model, synthetic fallback (mock runs)
+                "mu": SYNTHETIC_HY_MU,
+                "sigma": SYNTHETIC_HY_SIGMA,
+                "bin_size_af": calibrated_wr / SYNTHETIC_BIN_DIVISOR,
             }
             agent_index += 1
 
@@ -977,74 +987,42 @@ class IrrigationEnvironment:
         current = agent["request"]
         meta = getattr(approved_skill, "parameters", {}) or {}
 
-        # ═══ v17: Skill-level Gaussian magnitude sampling ═══
-        # Each skill defines its own (mu, sigma, min, max) base parameters.
-        # Persona's persona_scale multiplies mu and sigma (shifts distribution
-        # center and spread) while min/max stay fixed (define skill identity).
-        #
-        # NOTE: LLM cannot generate continuous Gaussian distributions (v11 analysis
-        # showed 56.6% chose 25%, only 6-7 unique values). Code-based sampling
-        # provides true stochasticity matching Hung & Yang (2021) FQL behavior.
-
-        persona_scale = agent.get("persona_scale", 1.0) or 1.0
-        skill_mag_all = agent.get("skill_magnitude", {}) or {}
-        skill_mag_cfg = skill_mag_all.get(skill, {})
-        exploration_rate = agent.get("exploration_rate", 0.0) or 0.0
-
-        # ═══ ε-UNBOUNDED EXPLORATION ═══
-        magnitude_pct = 0.0
+        # Hung and Yang (2021) action model (ref/RL-ABM-CRSS/ABM_CRSS_coupling.py
+        # (Q_learning)): step = (mu + |N(0, sigma)|) x bin_size, per-agent mu,
+        # sigma and grid step. The LLM picks the direction and the class; a
+        # small step is a draw at or below the agent's median step
+        # T = (mu + 0.6745 sigma) x bin_size, a large step a draw above it
+        # (hy_step_af). Drawn from the per-(seed, year, agent, skill) stream
+        # (_decision_rng), so thread scheduling cannot reach it. H&Y explore
+        # with epsilon-greedy over the DIRECTION, not the magnitude; the
+        # former 2 percent magnitude exploration had no analogue there and is
+        # dropped (is_exploration stays in the logs, always False).
+        mu = float(agent.get("mu", SYNTHETIC_HY_MU))
+        sigma = float(agent.get("sigma", SYNTHETIC_HY_SIGMA))
+        bin_size_af = agent.get("bin_size_af")
+        if not bin_size_af or bin_size_af <= 0:
+            if bin_size_af is not None:
+                from broker.utils.logging import logger as _logger
+                _logger.warning("[irrigation_env] %s has bin_size_af=%r; using water_right / %d",
+                                aid, bin_size_af, SYNTHETIC_BIN_DIVISOR)
+            bin_size_af = wr / SYNTHETIC_BIN_DIVISOR
+        bin_size_af = float(bin_size_af)
+        step_af = 0.0
+        size_class = ""
         is_exploration = False
-
-        if skill != "maintain_demand" and skill_mag_cfg:
-            # v17 path: per-skill Gaussian params scaled by persona
-            base_mu = skill_mag_cfg.get("mu", 10.0)
-            base_sigma = skill_mag_cfg.get("sigma", 3.0)
-            mag_min = skill_mag_cfg.get("min", 1.0)
-            mag_max = skill_mag_cfg.get("max", 20.0)
-
-            mu = base_mu * persona_scale
-            sigma = base_sigma * persona_scale
-
-            if sigma > 0:
-                # Per-(agent, year, skill) stream — see _decision_rng: this
-                # runs on a worker thread, so a shared stream would make the
-                # assignment depend on thread scheduling.
-                rng = self._decision_rng(aid, skill)
-                if exploration_rate > 0 and rng.random() < exploration_rate:
-                    noise = rng.normal(0, sigma * 2.0)
-                    magnitude_pct = mu + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
-                    is_exploration = True
-                else:
-                    noise = rng.normal(0, sigma)
-                    magnitude_pct = mu + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
+        if skill != "maintain_demand":
+            if skill in _SMALL_SKILLS:
+                size_class = "small"
+            elif skill in _LARGE_SKILLS:
+                size_class = "large"
             else:
-                magnitude_pct = mu
-
-        elif skill != "maintain_demand":
-            # Legacy fallback: per-persona params (v12 compat)
-            mag_default = agent.get("magnitude_default", 10) or 10
-            mag_sigma = agent.get("magnitude_sigma", 0.0) or 0.0
-            mag_min = agent.get("magnitude_min", 1.0) or 1.0
-            mag_max = agent.get("magnitude_max", 30.0) or 30.0
-
-            if mag_sigma > 0:
-                # Same per-(agent, year, skill) stream as the v17 branch
-                # above; the two branches are mutually exclusive, so they
-                # never draw from one key twice.
-                rng = self._decision_rng(aid, skill)
-                if exploration_rate > 0 and rng.random() < exploration_rate:
-                    noise = rng.normal(0, mag_sigma * 2.0)
-                    magnitude_pct = mag_default + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
-                    is_exploration = True
-                else:
-                    noise = rng.normal(0, mag_sigma)
-                    magnitude_pct = mag_default + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
-            else:
-                magnitude_pct = mag_default
+                size_class = "any"
+            rng = self._decision_rng(aid, skill)
+            step_af = hy_step_af(rng, mu, sigma, bin_size_af, size_class)
+            if size_class == "any":
+                size_class = (
+                    "small" if step_af <= hy_threshold_af(mu, sigma, bin_size_af) else "large"
+                )
 
         state_changes: Dict[str, Any] = {}
         state_changes["is_exploration"] = is_exploration
@@ -1061,25 +1039,25 @@ class IrrigationEnvironment:
         action_context: Dict[str, Any] = {}
 
         if skill in ("increase_large", "increase_small", "increase_demand"):
-            # v21: Scale increase by request (paper demand), capped at the
-            # water right; deliveries are limited by _settle, not here.
-            change = current * (magnitude_pct / 100.0)
-            new_req = min(current + change, wr)
+            # H&Y step added to the request, capped at the water right;
+            # deliveries are limited by _settle, not here.
+            new_req = min(current + step_af, wr)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            _set_realised_magnitude(state_changes, action_context, magnitude_pct, current, new_req)
+            _set_realised_magnitude(state_changes, action_context, step_af, size_class,
+                                    current, new_req)
 
         elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
-            # v21: Also use request as base (was water_right).
-            change = current * (magnitude_pct / 100.0)
+            # H&Y step subtracted from the request, floored at the 10
+            # percent minimum utilisation. The former taper near the floor
+            # (an invented diminishing-returns rule) is removed: H&Y bound the
+            # decision by the grid, not by a taper.
             floor = wr * MIN_UTIL
-            utilisation = current / wr if wr > 0 else 1.0
-            # P1: diminishing returns as utilisation approaches floor
-            taper = max(0.0, (utilisation - MIN_UTIL) / (1.0 - MIN_UTIL))
-            new_req = max(current - change * taper, floor)
+            new_req = max(current - step_af, min(floor, current))
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            _set_realised_magnitude(state_changes, action_context, magnitude_pct, current, new_req)
+            _set_realised_magnitude(state_changes, action_context, step_af, size_class,
+                                    current, new_req)
 
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes
