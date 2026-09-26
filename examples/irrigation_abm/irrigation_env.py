@@ -19,7 +19,7 @@ docs/irrigation_physics.md)::
     Mead:    S_M' = S_M + Release + LB_trib - Evap_M - LB_withdrawals
 
 Upper Basin deliveries are limited by the 5.0 MAF delivery capacity and by
-what Powell needs to make its 7.0 MAF minimum release; Lower Basin
+what Powell needs to keep a 7.0 MAF release; Lower Basin
 withdrawals are cut by the declared shortage tier and, when Mead cannot
 supply them, scaled down pro-rata to what is physically available above the
 dead pool. Hung and Yang (2021) take the delivered diversion from CRSS in
@@ -85,7 +85,7 @@ class WaterSystemConfig:
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
-    min_powell_release_maf: float = 7.0       # Min Powell release, USBR DCP floor (MAF/yr)
+    min_powell_release_maf: float = 7.0       # Powell release floor: pass-through topped up from storage (2007 Interim Guidelines minimum objective release; MAF/yr)
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
     # Lake Mead physical bounds (total storage, MAF), the end points of the
     # USBR storage-elevation curve in IrrigationEnvironment._STORAGE_MAF.
@@ -99,7 +99,12 @@ class WaterSystemConfig:
     # clamp broke mass conservation (water was created or destroyed
     # whenever it bound).
 
-    # Lake Powell storage buffer (total storage, MAF). Sources:
+    # Lake Powell storage buffer (total storage, MAF): a pass-through
+    # release with a 7.0 MAF floor supported by Powell storage; not the
+    # Interim Guidelines. ALL FOUR VALUES BELOW ARE TO VERIFY against the
+    # USBR/USGS originals: the numbers were read from search results and a
+    # machine text extraction of the 24-Month Study PDF, and the code review
+    # could not open the sources. Do not treat them as checked. Sources:
     #   * powell_capacity_maf: total storage at full pool (3,700 ft) in the
     #     1986 area-capacity table USBR operations used through 2019. USGS
     #     (2022, "Lake Powell's storage capacity updated for first time since
@@ -169,10 +174,12 @@ class IrrigationEnvironment:
     """Water system environment for irrigation ABM experiments.
 
     Annual two-reservoir balance at the resolution of Hung and Yang (2021):
-    Lake Powell is a storage stock with a minimum release, Lake Mead a
-    storage stock whose withdrawals cannot exceed the water above its dead
-    pool plus the year's inflow. It is a storage buffer with a minimum
-    release, NOT the full operating rules: the 2007 Interim Guidelines'
+    Lake Powell is a storage buffer with a pass-through release with a
+    7.0 MAF floor supported by Powell storage (in a normal year it passes
+    natural flow minus Upper Basin use to Mead, as the pre-redesign physics
+    did; storage tops the release up to 7.0 MAF only in a dry year); Lake
+    Mead is a storage stock whose withdrawals cannot exceed the water above
+    its dead pool plus the year's inflow. Not the Interim Guidelines: the
     Powell release tiers (equalization, balancing, 7.48 / 8.23 MAF) and the
     Lake Mead protection levels are deliberately not modelled.
 
@@ -189,7 +196,7 @@ class IrrigationEnvironment:
                         from the frozen snapshot (idempotent); storage is
                         committed only by the next advance_year().
 
-    Constraints: Powell minimum release 7.0 MAF, UB delivery capacity
+    Constraints: Powell release floor 7.0 MAF, UB delivery capacity
     5.0 MAF, NF clamped [6, 17] MAF, dead pools and full pools at both
     reservoirs. Evaporation scales with storage; Mexico follows Minute 323.
 
@@ -1174,14 +1181,17 @@ class IrrigationEnvironment:
 
         U  Upper Basin. Requests r_U. Deliverable
            D_U = min(r_U, C_UB, max(0, NF + (S_P - S_P,dead) - E_P - R_min)):
-           the 5.0 MAF delivery capacity, and what leaves Powell able to make
-           its 7.0 MAF minimum release from inflow plus usable storage. So a
-           year with NF below 7 does NOT zero the Upper Basin; it is cut only
-           when Powell storage cannot cover the release. Shared pro-rata.
-        P  Powell. Inflow I = NF - D_U. Release R = R_min, or everything
-           above the dead pool when that is less (only reachable once D_U is
-           already 0). Storage above full pool spills into R.
-           New storage = S_P + I - E_P - R.
+           the 5.0 MAF delivery capacity, and what leaves Powell able to keep
+           a 7.0 MAF release from inflow plus usable storage. So a year with
+           NF below 7 does NOT zero the Upper Basin; it is cut only when
+           Powell storage cannot cover the release. Shared pro-rata.
+        P  Powell (decision 2026-09-26, option c). Inflow I = NF - D_U is
+           the pass-through. If I >= R_min, R = I (storage only loses
+           evaporation); otherwise R = min(R_min, I + usable storage - E_P)
+           (storage tops the release up to the floor, or releases what is
+           available). R never takes Powell below its dead pool; storage
+           above full pool spills into R. New storage = S_P + I - E_P - R.
+           Storage therefore never rises: nothing refills Powell.
         L  Lake Mead. Withdrawals O = (r_LB + N) (1 - g) + X: the declared
            shortage cut g applies to the WHOLE Lower Basin consumptive use
            (agricultural agents and the 5.0 MAF non-agricultural bucket N);
@@ -1236,8 +1246,24 @@ class IrrigationEnvironment:
             # flow itself: either way, no more can be diverted upstream.
             ub_reason = "ub_capacity"
         inflow_p = nf - d_u
-        release = min(cfg.min_powell_release_maf, max(0.0, p_usable + inflow_p - e_p))
+        # Pass-through release with a 7.0 MAF floor supported by Powell
+        # storage (decision 2026-09-26, option c): in a normal year Powell
+        # passes its inflow straight to Mead, as the pre-redesign physics
+        # did; only when that pass-through falls below the minimum does
+        # storage above the dead pool top it up, and when even storage
+        # cannot, the release is what is available.
+        # Evaporation comes out of storage, so storage declines by it in a
+        # pass-through year; the release is also capped by what can leave
+        # without taking Powell below its dead pool.
+        pass_through = inflow_p
+        available_p = max(0.0, pass_through + p_usable - e_p)
+        if pass_through >= cfg.min_powell_release_maf:
+            release = min(pass_through, available_p)
+        else:
+            release = min(cfg.min_powell_release_maf, available_p)
         s_p_end = s_p + inflow_p - e_p - release
+        # Defensive: under the pass-through rule storage never rises, so this
+        # only fires if the 1 January storage is already above capacity.
         powell_spill = max(0.0, s_p_end - cfg.powell_capacity_maf)
         release += powell_spill
         s_p_end -= powell_spill

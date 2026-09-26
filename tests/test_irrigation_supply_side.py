@@ -221,15 +221,50 @@ class TestUpperBasinNotZeroed:
         assert st["powell_release_maf"] == pytest.approx(6.0 - st["powell_evap_maf"])
         assert st["powell_storage_end_maf"] == pytest.approx(cfg.powell_dead_pool_maf)
 
-    def test_full_powell_spills_into_release(self):
+    def test_normal_year_release_equals_pass_through(self):
+        """Option (c), decision 2026-09-26: when natural flow minus Upper
+        Basin use is at least 7.0 MAF, Powell releases exactly that, and its
+        storage does not creep upward (it only loses evaporation)."""
         env = _env()
         cfg = env.config
-        snap = {"powell_storage": cfg.powell_capacity_maf, "mead_storage": 9.0,
-                "natural_flow": 17.0, "lb_cut": 0.0, "mexico": 1.5}
+        for s0 in (5.0, 12.0, cfg.powell_capacity_maf):
+            snap = {"powell_storage": s0, "mead_storage": 12.0, "natural_flow": 12.0,
+                    "lb_cut": 0.0, "mexico": 1.5}
+            st = env._settle(snap)
+            pass_through = st["natural_flow_maf"] - st["ub_delivered_maf"]
+            assert pass_through >= 7.0
+            assert st["powell_release_maf"] == pytest.approx(pass_through)
+            assert st["powell_storage_end_maf"] == pytest.approx(s0 - st["powell_evap_maf"])
+            assert st["powell_storage_end_maf"] <= s0
+            assert st["powell_spill_maf"] == 0.0
+
+    def test_dry_year_storage_tops_release_up_to_minimum(self):
+        """Pass-through below 7.0 with storage available: release is exactly
+        7.0 and the shortfall comes out of storage; the Upper Basin keeps
+        its request."""
+        env = _env()
+        snap = {"powell_storage": 12.0, "mead_storage": 12.0, "natural_flow": 8.0,
+                "lb_cut": 0.0, "mexico": 1.5}
         st = env._settle(snap)
-        assert st["powell_storage_end_maf"] == pytest.approx(cfg.powell_capacity_maf)
-        assert st["powell_release_maf"] > 7.0
+        pass_through = 8.0 - st["ub_delivered_maf"]
+        assert pass_through < 7.0
+        assert st["ub_delivered_maf"] == pytest.approx(st["ub_request_maf"])
+        assert st["powell_release_maf"] == pytest.approx(7.0)
+        assert st["powell_storage_end_maf"] == pytest.approx(
+            12.0 + pass_through - st["powell_evap_maf"] - 7.0)
+
+
+    def test_storage_above_capacity_spills_into_release(self):
+        """Spill is defensive under the pass-through rule (storage never
+        rises); it still closes the balance when the snapshot is above full."""
+        env = _env()
+        cfg = env.config
+        snap = {"powell_storage": cfg.powell_capacity_maf + 1.5, "mead_storage": 9.0,
+                "natural_flow": 12.0, "lb_cut": 0.0, "mexico": 1.5}
+        st = env._settle(snap)
         assert st["powell_spill_maf"] > 0.0
+        assert st["powell_storage_end_maf"] == pytest.approx(cfg.powell_capacity_maf)
+        assert abs(_balance_error(st)) < 1e-9
 
 
 class TestSettleIdempotence:
