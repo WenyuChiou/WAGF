@@ -321,7 +321,8 @@ irrigation_farmer:
           ({unmet_pct:.0f}% not delivered). The reason is stated in your water
           situation above. A declared shortage reduces any larger request by
           the same share; when a physical limit binds, supply is shared
-          pro-rata and a larger request only lowers other users' deliveries.
+          pro-rata, so a larger request raises your share only by lowering
+          other users' deliveries.
 
   # ---------------------------------------------------------------------------
   # Available Actions
@@ -352,13 +353,16 @@ irrigation_farmer:
       aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
                 "cautious decrease", "[DS]", "[decrease_small]"]
       description: >
-        Request slightly less water (1 to 8 percent).
+        Request slightly less water (up to 1 to 8 percent; the cut shrinks
+        in proportion as your request falls toward the minimum-use floor).
 
     - id: decrease_large
       aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
                 "[DL]", "[decrease_large]"]
       description: >
-        Request substantially less water (8 to 20 percent).
+        Request substantially less water (up to 8 to 20 percent; the cut
+        shrinks in proportion as your request falls toward the minimum-use
+        floor).
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration
