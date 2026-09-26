@@ -33,6 +33,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
+    CRSS_DEMAND_TARGET_AF,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -385,8 +386,8 @@ class IrrigationLifecycleHooks:
             if year > 1:
                 # F05 (2026-09-25 audit): by this point env.advance_year(year)
                 # has already run and recomputed agent_state["diversion"]
-                # under THIS year's curtailment_ratio / Powell scaling
-                # (irrigation_env.py: _apply_curtailment, _apply_powell_constraint),
+                # under THIS year's provisional settlement
+                # (irrigation_env.py: IrrigationEnvironment.advance_year),
                 # and ctx["drought_index"]/["preceding_factor"] are this
                 # year's too. Reading agent_state/ctx here for "last year's"
                 # outcome silently reports year t's numbers under a year
@@ -479,20 +480,16 @@ class IrrigationLifecycleHooks:
 
     # -- post_year: logging, reflection --
     def post_year(self, year: int, agents: Dict):
-        # F11b (2026-09-25 audit follow-up): re-apply the Powell pro-rata
-        # cap to Upper Basin diversions HERE, once, before any agent's
-        # diversion for this year is read below. Every agent's decision
-        # for this year has already executed by the time post_year runs
-        # (ExperimentRunner.run calls post_year after the full agent-phase
-        # loop for the step), and update_agent_request (irrigation_env.py)
-        # discards Powell scaling on every execute_skill call, so without
-        # this, simulation_log.csv, the F05 snapshot below and
-        # _batch_reflect's supply_ratio would all read a diversion that
-        # ignores whatever Powell cap advance_year() applied. Must run
-        # exactly once per year, after the full decision loop -- see
-        # apply_powell_cap_to_executed_diversions's docstring for why
-        # calling it mid-loop would double-scale agents.
-        self.env.apply_powell_cap_to_executed_diversions()
+        # Final settlement of the year (supply-side redesign, 2026-09-25;
+        # keeps the F11b contract): every decision for this year has
+        # executed by the time post_year runs, so settle_year() rebuilds
+        # every agent's delivery from its final request and the frozen
+        # 1 January snapshot, exactly once, before anything below reads
+        # diversion (simulation_log.csv, the F05 snapshot, _batch_reflect).
+        settlement = self.env.settle_year()
+        basin_request_af = (
+            settlement["ub_request_maf"] + settlement["lb_request_maf"]
+        ) * 1e6
 
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
@@ -500,26 +497,18 @@ class IrrigationLifecycleHooks:
             # F05 (2026-09-25 audit): snapshot THIS year's own outcome now.
             # request/diversion/drought_index/preceding_factor are all
             # correct for year `year` at this point (this year's decision
-            # has executed, env.advance_year(year+1) has not run yet).
-            # pre_year(year+1) reads this snapshot for its "last year"
-            # memory line instead of re-querying live env state, which by
-            # then env.advance_year(year+1) will have already recomputed
-            # under year+1's curtailment/Powell scaling. This snapshot is
-            # deliberately taken from the SAME agent_state simulation_log.csv
-            # logs a few lines below, so memory and the CSV always agree
-            # (the audit's own acceptance test). F11b (2026-09-25 follow-up):
-            # agent_state["diversion"] here now correctly reflects the
-            # Powell cap for Upper Basin agents too, thanks to the
-            # apply_powell_cap_to_executed_diversions() call above --
-            # earlier review passes on this branch found and disclosed
-            # this as a gap before F11b actually fixed it (see
-            # IrrigationEnvironment._apply_powell_constraint's docstring
-            # for the full history).
+            # has executed and been settled, env.advance_year(year+1) has not
+            # run yet). pre_year(year+1) reads this snapshot for its "last
+            # year" memory line instead of re-querying live env state. Taken
+            # from the SAME agent_state simulation_log.csv logs below, so
+            # memory and the CSV always agree.
             basin_key = agent_state.get("basin", "lower_basin")
             agent._last_year_outcome = {
                 "year": year,
                 "request": agent_state.get("request", 0),
                 "diversion": agent_state.get("diversion", 0),
+                "gap_reason": agent_state.get("gap_reason", "none"),
+                "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
             }
@@ -570,6 +559,28 @@ class IrrigationLifecycleHooks:
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "lake_mead_level": self._log_lake_mead_level(),
                 "mead_storage_maf": self.env._mead_storage[-1] if self.env._mead_storage else 0,
+                # Supply-side redesign columns (appended; every older column
+                # keeps its name). lake_mead_level / mead_storage_maf are the
+                # 1 January values the agents saw; *_end_maf are this year's
+                # end-of-year storages from the final settlement.
+                "delivered": agent_state.get("diversion", 0),
+                "delivery_ratio": agent_state.get("delivery_ratio", 1.0),
+                "gap_reason": agent_state.get("gap_reason", "none"),
+                "utilisation_delivered_pct": (
+                    agent_state.get("diversion", 0) / agent_state.get("water_right", 1) * 100
+                    if agent_state.get("water_right", 0) > 0 else 0
+                ),
+                "mead_storage_end_maf": settlement["mead_storage_end_maf"],
+                "powell_storage_maf": settlement["powell_storage_maf"],
+                "powell_storage_end_maf": settlement["powell_storage_end_maf"],
+                "powell_release_maf": settlement["powell_release_maf"],
+                "natural_flow_maf": settlement["natural_flow_maf"],
+                "ub_delivered_maf": settlement["ub_delivered_maf"],
+                "lb_phys_ratio": settlement["lb_phys_ratio"],
+                # This year's FINAL request total (after every decision), not
+                # the carried total advance_year() published to the prompts.
+                "basin_request_af": basin_request_af,
+                "basin_request_over_target": basin_request_af / CRSS_DEMAND_TARGET_AF,
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
                 "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
                 "utilisation_pct": (
@@ -640,31 +651,10 @@ class IrrigationLifecycleHooks:
                 # YAML assertion trigger). round(..., 6) removes that noise
                 # without materially changing any real (non-boundary) ratio.
                 #
-                # Second code-review pass (2026-09-25): agent_state here is
-                # read AFTER update_agent_request already recomputed
-                # diversion for every agent that executed this year, from
-                # curtailment_ratio alone (see _apply_powell_constraint's
-                # docstring). At the time this note was written, that made
-                # supply_ratio land on one of the four curtailment tier
-                # ratios (1.0/0.95/0.90/0.80) for every row whose decision
-                # executed, in every run, so compute_importance's
-                # < 0.60 / < 0.80 shortage branches and drought_count were
-                # structurally unreachable from this call site.
-                #
-                # F11b (2026-09-25, same day, later pass): post_year now
-                # calls env.apply_powell_cap_to_executed_diversions() once,
-                # before this loop runs, which re-applies the Powell
-                # pro-rata cap to Upper Basin diversions after every
-                # agent's decision has executed. So for an Upper Basin
-                # agent in a Powell-constrained year, agent_state["diversion"]
-                # here is no longer just a curtailment-tier ratio -- it can
-                # be the real, continuously-varying (or fully zeroed)
-                # Powell-scaled value. The four-fixed-ratios claim above
-                # now holds only for Lower Basin agents and for Upper
-                # Basin agents in years where Powell scaling did not bind;
-                # compute_importance's shortage branches and drought_count
-                # ARE reachable again for Upper Basin agents in a
-                # Powell-constrained year.
+                # Supply-side redesign (2026-09-25): agent_state here is read
+                # after post_year's settle_year(), so diversion is the final
+                # settled delivery for every agent (shortage tier, Powell
+                # release limit, Mead availability), a continuous value.
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
                     "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,

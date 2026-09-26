@@ -383,8 +383,8 @@ class TestMemoryImportanceWiring:
 class TestPreYearReportsPriorYearOutcome:
     """F05 (2026-09-25 audit): by the time pre_year(year) runs,
     env.advance_year(year) has already recomputed agent_state["diversion"]
-    under YEAR's own curtailment_ratio / Powell scaling
-    (irrigation_env.py: _apply_curtailment, _apply_powell_constraint), for
+    under YEAR's own provisional settlement
+    (irrigation_env.py: IrrigationEnvironment.advance_year), for
     whatever request was last set (year-1's decision). Reading
     agent_state/ctx directly for the "last year" memory line therefore
     silently reports year t's re-derivation of year t-1's request, mislabeled
@@ -418,7 +418,10 @@ class TestPreYearReportsPriorYearOutcome:
         # exact mead-level -> tier mappings) so the SAME request produces a
         # different diversion in year 1 vs year 2's re-derivation.
         mead_levels = iter([1100.0, 1030.0])  # tier 0 (0%), then tier 2 (10%)
-        monkeypatch.setattr(env, "_generate_lake_mead_level", lambda: next(mead_levels))
+        # Supply-side redesign (2026-09-25): the 1 January level is read
+        # from committed storage via _storage_to_elevation inside
+        # advance_year (the old _generate_lake_mead_level is retired).
+        monkeypatch.setattr(env, "_storage_to_elevation", lambda _s: next(mead_levels))
 
         config = AgentConfig(
             name="TestAgent", agent_type="irrigation_farmer",
