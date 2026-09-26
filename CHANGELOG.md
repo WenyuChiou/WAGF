@@ -339,6 +339,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Composed retrieval's significant slots could show the same text twice
+  (2026-09-26)**: `HumanCentricMemoryEngine.retrieve`'s legacy/composed
+  branch already skipped a significant candidate whose content exactly
+  matched the recent window or an already-chosen significant slot, but the
+  comparison was an exact `==`, so two long-term items whose text was
+  identical except for incidental leading/trailing whitespace both got
+  through as distinct significant slots -- the composed block showed the
+  same text twice and a genuinely distinct, lower-ranked candidate lost its
+  slot. The comparison now strips both sides first; the stored/returned
+  content itself is never modified, ranking order (by decayed importance,
+  ties earlier-first) and the 0.05 decay floor in `_apply_decay` are
+  unchanged, and a duplicate candidate is simply skipped in favour of the
+  next-ranked one. Generic fix in `broker/components/memory/engines/
+  humancentric.py`, no domain-specific wording. New tests in
+  `broker/tests/test_memory_composed_retrieval.py` (appended to the
+  existing composed-retrieval suite): a near-duplicate pair collapses to
+  one slot and the distinct next-ranked item fills the freed slot; the
+  stored content keeps its original (unstripped) text; an exact-after-
+  strip match against the recent window is still blocked; weighted mode is
+  untouched. Verified: flood mock run (which never uses composed
+  retrieval) is byte-identical before/after (`compare_audit_csv` IDENTICAL,
+  `simulation_log.csv` diff clean) -- a no-op there, as expected.
 - **Irrigation's memory doubled up every year on the runner's own generic
   decision line (2026-09-26)**: `ExperimentRunner._apply_state_changes`
   writes a generic "Year N: Decided to: X" / "Year N: default action
