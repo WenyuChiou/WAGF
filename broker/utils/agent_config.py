@@ -730,6 +730,28 @@ class AgentTypeConfig:
             )
         return mode
 
+    def get_governance_feasible_set_feedback(self) -> bool:
+        """``global_config.governance.feasible_set_feedback`` (default False).
+
+        When True, every governance retry prompt that follows an ERROR
+        verdict ends its reports block with one line naming the actions that
+        would pass every rule given the agent's last response: the engine
+        re-runs the validators over each skill the agent may choose, with
+        the same reasoning labels, without logging those probe runs as rule
+        hits (``RetryMixin._probe_feasible_skills``). The line sits outside
+        ``max_reports_per_retry`` truncation. With this flag on, the trace
+        gains a ``feasible_by_attempt`` column (one group per retry prompt
+        that carried the line). Custom validators must tolerate being called
+        as a dry run (the probes call them; only GovernanceAuditor logging is
+        muted). The probe keeps the rejected proposal's magnitude/parameters,
+        so a magnitude-dependent check can judge another skill by them. False
+        reproduces the shipped retry prompt byte-for-byte.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict):
+            return False
+        return bool(gov.get("feasible_set_feedback", False))
+
     def has_world_grounded_rules(self) -> bool:
         """PR-6: True iff the ACTIVE governance profile declares a world-grounded rule.
 

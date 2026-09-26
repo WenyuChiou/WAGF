@@ -263,6 +263,28 @@ def _extract_construct_labels(skill_proposal) -> str:
     )
 
 
+def _label_drift(initial_labels: str, final_labels: str) -> str:
+    """Per-construct change between two ``KEY=VALUE|...`` label strings (as
+    written by ``_extract_construct_labels``), in first-attempt key order:
+    ``"A_LABEL:H>M|B_LABEL:H>VH"``. A key present on one side only shows its
+    missing side as empty (``"A_LABEL:H>"``). "" when nothing changed."""
+    def parse(text: str) -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for part in (text or "").split("|"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                out[k] = v
+        return out
+
+    first, last = parse(initial_labels), parse(final_labels)
+    keys = list(first) + [k for k in last if k not in first]
+    return "|".join(
+        f"{k}:{first.get(k, '')}>{last.get(k, '')}"
+        for k in keys
+        if first.get(k, "") != last.get(k, "")
+    )
+
+
 def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
     """Extract structured social-context audit fields from a prompt context.
 
@@ -651,6 +673,7 @@ class AuditMixin:
         advise_info: Optional[Dict[str, Any]] = None,
         soft_advise_info: Optional[Dict[str, Any]] = None,
         decider: Optional[str] = None,
+        feasible_by_attempt: Optional[List] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -768,6 +791,30 @@ class AuditMixin:
                     for s in (attempt_skills or [])
                 ),
             }
+            # Appraisal drift across retries, same gate: the final attempt's
+            # labels, the per-construct change from the first attempt ("" when
+            # none, or when the decision was never retried), and a bool.
+            _final_labels = _extract_construct_labels(skill_proposal)
+            _retried = len(attempt_skills or []) > 1
+            # Only when both ends carry labels: an unparsed final attempt (or
+            # a default-substituted one with no labels) is not a relabel.
+            _drift = (_label_drift(initial_labels, _final_labels)
+                      if _retried and _final_labels and initial_labels else "")
+            initial_extra["final_labels"] = _final_labels
+            initial_extra["appraisal_drift"] = _drift
+            initial_extra["appraisal_drifted"] = bool(_drift)
+        # Feasible set, one group per retry prompt that carried the feasible
+        # line (i.e. per retry answering a parsed ERROR attempt), in order;
+        # attempts that were unparsable, and the last failed attempt, have no
+        # group. Key-gated by the list itself: the engine passes a list only
+        # when feasible_set_feedback is on, so an off run adds no key and no
+        # column. Groups are "|"-separated, skills within a group
+        # ","-separated; an empty group means no skill passed.
+        if feasible_by_attempt is not None:
+            initial_extra["feasible_by_attempt"] = "|".join(
+                ",".join(_sanitize_audit_segment(x).replace(",", ";") for x in grp)
+                for grp in feasible_by_attempt
+            )
 
         # P0-1c: ADVISORY columns, OPT-IN via global_config.audit.advise_columns
         # (default OFF). Same key-gated discipline: flag-OFF emits no key -> no row

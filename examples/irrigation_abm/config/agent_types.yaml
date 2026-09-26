@@ -50,6 +50,17 @@ global_config:
     max_retries: 3
     max_reports_per_retry: 3
     domain: irrigation               # Domain selector for validator injection
+    # Supply-side redesign (2026-09-25, spec FW1/FW4): every retry prompt after
+    # an ERROR ends with the actions that pass every rule given the agent's
+    # last response (framework default off).
+    feasible_set_feedback: true
+
+  # First-attempt proposal columns (initial_skill, initial_labels,
+  # attempt_skills) and the appraisal-drift columns (final_labels,
+  # appraisal_drift, appraisal_drifted) in the governance audit CSV
+  # (framework default off).
+  audit:
+    initial_proposal_columns: true
 
   # --- Colorado River Basin water system parameters ---
   water_system:

@@ -831,6 +831,8 @@ evidence and document the schema era in any paper or replication package.
 | Full prompts | no | yes, if the trace writer includes them | no |
 | World commit deltas | yes, only when key-gated columns appear | yes | no |
 | Per-attempt retry sequence | yes, under `audit.initial_proposal_columns` (`attempt_skills`) | yes | no |
+| Appraisal-label change from first to final attempt | yes, under `audit.initial_proposal_columns` (`final_labels`, `appraisal_drift` e.g. `WSA_LABEL:H>M`, empty when unchanged, not retried, or when either end carries no labels such as an unparsed final attempt; `appraisal_drifted` bool) | yes | no |
+| Actions that would have passed every rule, per retry prompt | yes, under `governance.feasible_set_feedback` (`feasible_by_attempt`: one group per retry prompt that answered a parsed ERROR attempt, in order, so unparsable attempts and the last failed attempt have none; groups separated by `\|`, skills within a group by `,`; an empty group means none passed) | yes | no |
 | Executed registry-default name on `REJECTED` | yes, under `audit.executed_skill_columns` or `audit.corrected_status_columns` (`executed_skill`) | yes | no |
 | Which remap rule produced the executed action | yes, under `audit.corrected_status_columns` (`execution_path`) | yes | no |
 | Steps whose output never parsed | yes, under `audit.corrected_status_columns` (an `ABORTED` sentinel row) | yes | no |

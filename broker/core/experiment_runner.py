@@ -1442,11 +1442,29 @@ class ExperimentRunner:
         if params.get("magnitude_pct") is not None:
             action_ctx["magnitude_pct"] = params["magnitude_pct"]
             action_ctx["magnitude_fallback"] = params.get("magnitude_fallback", False)
+        # Wording of the memory line on a rejected row, from the agent type's
+        # memory config: "explicit" (default, the shipped text naming the
+        # rejected proposal) or "neutral" (names the rule(s) and the executed
+        # action, not the proposal).
+        _mem_cfg = getattr(agent, "memory_config", None)
+        line_style = (
+            _mem_cfg.get("rejection_line_style", "explicit")
+            if isinstance(_mem_cfg, dict) else "explicit"
+        )
+        if line_style not in ("explicit", "neutral"):
+            raise ValueError(
+                f"memory.rejection_line_style {line_style!r} is not 'explicit' or 'neutral'"
+            )
+        blocking_rules = list(getattr(result, "blocking_rule_ids", None) or [])
         if rejected_row:
             # Keys added only on rejected rows so approved-row contexts keep
             # exactly the keys they always had.
             action_ctx["was_fallback"] = was_fallback
             action_ctx["proposed_skill"] = proposed_name
+            if line_style == "neutral":
+                # Only under the opt-in style, so default runs keep the
+                # exact rejected-row key set.
+                action_ctx["blocking_rules"] = blocking_rules
         if result.execution_result and result.execution_result.action_context:
             action_ctx.update(result.execution_result.action_context)
         agent._last_action_context = action_ctx
@@ -1455,7 +1473,17 @@ class ExperimentRunner:
         #    DecisionFilteredMemoryEngine in baseline parity experiments)
         action_desc = executed_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
-        if was_fallback and proposed_name:
+        if was_fallback and line_style == "neutral":
+            if len(blocking_rules) == 1:
+                rule_part = f"under rule {blocking_rules[0]}, "
+            elif blocking_rules:
+                rule_part = f"under rules ({', '.join(blocking_rules)}), "
+            else:
+                rule_part = ""
+            memory_content = (
+                f"{timestamp_prefix}{rule_part}{FALLBACK_MEMORY_MARKER} {action_desc}"
+            )
+        elif was_fallback and proposed_name:
             proposed_desc = proposed_name.replace("_", " ")
             memory_content = (
                 f"{timestamp_prefix}Proposal to {proposed_desc} was rejected; "
