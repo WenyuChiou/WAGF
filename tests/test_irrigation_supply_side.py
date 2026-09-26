@@ -255,31 +255,52 @@ class TestUpperBasinNotZeroed:
             12.0 + pass_through - st["powell_evap_maf"] - 7.0)
 
 
-    def test_wet_year_releases_ceiling_and_retains_excess(self):
-        """Option (d): pass-through above 9.0 MAF releases 9.0 and storage
-        rises by pass_through - 9.0 minus evaporation; no spill below
-        capacity."""
+    @staticmethod
+    def _target(cfg):
+        return cfg.powell_dead_pool_maf + cfg.powell_target_fill * (
+            cfg.powell_capacity_maf - cfg.powell_dead_pool_maf)
+
+    def test_wet_year_below_target_retains_excess(self):
+        """Option (e), as (d) below the target fill: release 9.0 and storage
+        rises by pass_through - 9.0 minus evaporation."""
         env = _env()
-        snap = {"powell_storage": 10.0, "mead_storage": 12.0, "natural_flow": 15.0,
+        snap = {"powell_storage": 5.0, "mead_storage": 12.0, "natural_flow": 15.0,
                 "lb_cut": 0.0, "mexico": 1.5}
         st = env._settle(snap)
         pass_through = 15.0 - st["ub_delivered_maf"]
         assert pass_through > 9.0
         assert st["powell_release_maf"] == pytest.approx(9.0)
         assert st["powell_storage_end_maf"] == pytest.approx(
-            10.0 + (pass_through - 9.0) - st["powell_evap_maf"])
+            5.0 + (pass_through - 9.0) - st["powell_evap_maf"])
+        assert st["powell_storage_end_maf"] < self._target(env.config)
         assert st["powell_spill_maf"] == 0.0
         assert abs(_balance_error(st)) < 1e-9
 
-    def test_wet_year_spills_only_above_capacity(self):
+    def test_wet_year_above_target_passes_through(self):
+        """Option (e), as (c) above the target fill: the whole inflow passes
+        through and storage only loses evaporation."""
         env = _env()
         cfg = env.config
-        snap = {"powell_storage": cfg.powell_capacity_maf - 1.0, "mead_storage": 12.0,
-                "natural_flow": 17.0, "lb_cut": 0.0, "mexico": 1.5}
+        s0 = self._target(cfg) + 3.0
+        snap = {"powell_storage": s0, "mead_storage": 12.0, "natural_flow": 15.0,
+                "lb_cut": 0.0, "mexico": 1.5}
         st = env._settle(snap)
-        assert st["powell_storage_end_maf"] == pytest.approx(cfg.powell_capacity_maf)
-        assert st["powell_spill_maf"] > 0.0
-        assert st["powell_release_maf"] == pytest.approx(9.0 + st["powell_spill_maf"])
+        pass_through = 15.0 - st["ub_delivered_maf"]
+        assert st["powell_release_maf"] == pytest.approx(pass_through)
+        assert st["powell_storage_end_maf"] == pytest.approx(s0 - st["powell_evap_maf"])
+        assert st["powell_spill_maf"] == 0.0
+
+    def test_wet_year_crossing_target_retains_only_up_to_target(self):
+        env = _env()
+        cfg = env.config
+        s0 = self._target(cfg) - 1.0
+        snap = {"powell_storage": s0, "mead_storage": 12.0, "natural_flow": 15.0,
+                "lb_cut": 0.0, "mexico": 1.5}
+        st = env._settle(snap)
+        pass_through = 15.0 - st["ub_delivered_maf"]
+        assert pass_through - 9.0 > 1.0 + st["powell_evap_maf"]  # would overshoot at 9.0
+        assert st["powell_storage_end_maf"] == pytest.approx(self._target(cfg))
+        assert 9.0 < st["powell_release_maf"] < pass_through
         assert abs(_balance_error(st)) < 1e-9
 
     def test_storage_above_capacity_spills_into_release(self):
@@ -418,3 +439,9 @@ class TestReviewFollowUps:
             WaterSystemConfig(powell_initial_storage_maf=30.0)
         with pytest.raises(ValueError):
             WaterSystemConfig(min_powell_release_maf=9.5, max_powell_release_maf=9.0)
+        for bad in (-0.1, 1.1):
+            with pytest.raises(ValueError):
+                WaterSystemConfig(powell_target_fill=bad)
+        assert 0.0 <= WaterSystemConfig().powell_target_fill <= 1.0
+        WaterSystemConfig(powell_target_fill=0.0)
+        WaterSystemConfig(powell_target_fill=1.0)
