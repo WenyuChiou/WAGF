@@ -23,11 +23,14 @@ EXPECTED_SKILLS = {"increase_large", "increase_small", "maintain_demand",
                    "decrease_small", "decrease_large"}
 LEGACY_SKILLS = {"increase_demand", "decrease_demand"}
 
-MAGNITUDE_BOUNDS = {
-    "increase_large": (8, 20),
-    "increase_small": (1, 8),
-    "decrease_small": (1, 8),
-    "decrease_large": (8, 20),
+# Hung and Yang (2021) action model (2026-09-26): steps are per-agent draws
+# (mu + |N(0, sigma)|) x bin_size in acre-ft, classed small or large; there
+# are no fixed percentage bands to check any more.
+EXPECTED_CLASS = {
+    "increase_large": "large",
+    "increase_small": "small",
+    "decrease_small": "small",
+    "decrease_large": "large",
 }
 
 
@@ -214,11 +217,12 @@ def check_f_rejected_fallback(sim: pd.DataFrame, audit: pd.DataFrame | None) -> 
 
 
 def check_g_demand_floor(gov_summary: dict) -> tuple[bool, str]:
-    """G. demand_floor_stabilizer triggered at least once."""
+    """G. demand_floor_stabilizer is retired from dispatch (supply-side
+    redesign, 2026-09-25), so a current run must record zero fires."""
     rules = gov_summary.get("rule_frequency", {})
     floor_count = rules.get("demand_floor_stabilizer", 0)
-    ok = floor_count >= 1
-    return ok, f"demand_floor_stabilizer={floor_count}"
+    ok = floor_count == 0
+    return ok, f"demand_floor_stabilizer={floor_count} (retired, expect 0)"
 
 
 def check_h_retry_patterns(gov_summary: dict) -> tuple[bool, str]:
@@ -261,25 +265,23 @@ def check_i_persona_distribution(sim: pd.DataFrame) -> tuple[bool, str]:
 
 
 def check_j_magnitude_bounds(sim: pd.DataFrame) -> tuple[bool, str]:
-    """J. All magnitudes within per-skill [min, max] bounds."""
+    """J. Every executed step matches its skill's class (small or large) and
+    is non-negative in acre-ft (Hung and Yang action model). Logs without a
+    ``magnitude_class`` column (pre-2026-09-26 corpora) are reported as not
+    checkable, which passes. Note: magnitude_class is set from the executed
+    skill name, so on a well-formed log this is a wiring check (the columns
+    are written and consistent), not a check on the draw itself; the draw is
+    covered by tests/test_irrigation_hy_action.py."""
+    if "magnitude_class" not in sim.columns:
+        return True, "magnitude_class column absent (pre-2026-09-26 log); not checked"
     violations = []
-    exploration_violations = 0
-    for skill, (lo, hi) in MAGNITUDE_BOUNDS.items():
-        rows = sim[(sim["yearly_decision"] == skill) & sim["magnitude_pct"].notna()]
-        # Exploration (2%) can exceed normal bounds — skip those
-        normal = rows[rows["is_exploration"] != True]  # noqa: E712
-        explore = rows[rows["is_exploration"] == True]  # noqa: E712
-        oob = normal[(normal["magnitude_pct"] < lo) | (normal["magnitude_pct"] > hi)]
-        if len(oob) > 0:
-            violations.append(f"{skill}: {len(oob)} OOB (range [{lo},{hi}])")
-        if len(explore) > 0:
-            exploration_violations += len(explore)
-
+    for skill, cls in EXPECTED_CLASS.items():
+        rows = sim[(sim["yearly_decision"] == skill) & sim["magnitude_class"].notna()]
+        bad = rows[(rows["magnitude_class"] != cls) | (rows["magnitude_af"] < 0)]
+        if len(bad) > 0:
+            violations.append(f"{skill}: {len(bad)} rows not '{cls}' or negative")
     ok = len(violations) == 0
-    detail = f"violations={violations}" if violations else "All magnitudes in bounds"
-    if exploration_violations > 0:
-        detail += f" (exploration_exempt={exploration_violations})"
-    return ok, detail
+    return ok, (f"violations={violations}" if violations else "All steps match their class")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

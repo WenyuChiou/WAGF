@@ -1,23 +1,30 @@
 """
-Irrigation Environment — Water system simulation for Colorado River Basin.
+Irrigation Environment: water system simulation for the Colorado River Basin.
 
 Implements the TieredEnvironmentProtocol for the Hung & Yang (2021) RL-ABM
 irrigation experiment.  Provides:
 
 - Global water system state (total allocation, drought index)
 - Basin-level state (Upper Basin precipitation, Lower Basin lake level)
-- Agent-level water allocation and diversion history
+- Agent-level water requests and deliveries
 - Preceding factor computation (binary signal from water level changes)
-- Simplified Lake Mead mass balance coupling (demand → storage → elevation)
+- A two-reservoir annual water balance (Lake Powell, Lake Mead) that
+  limits deliveries on the SUPPLY side: what an agent receives is what the
+  reservoirs can physically deliver, shared pro-rata, never more.
 
-The environment uses a surrogate mass balance model for Lake Mead that
-mirrors the core physics of CRSS/RiverWare at annual resolution:
-    Storage(t+1) = Storage(t) + PowellRelease + Tributaries
-                   − LB_diversions − Mexico − Evaporation − Municipal
+Annual balance (MAF/yr; see ``IrrigationEnvironment._settle`` and
+docs/irrigation_physics.md)::
 
-This couples agent demand decisions back to reservoir elevation, creating
-the feedback loop where collective over-extraction triggers shortage tiers
-and curtailment.
+    Powell:  S_P' = S_P + (NF - UB_delivered) - Evap_P - Release
+    Mead:    S_M' = S_M + Release + LB_trib - Evap_M - LB_withdrawals
+
+Upper Basin deliveries are limited by the 5.0 MAF delivery capacity and by
+what Powell needs to keep a 7.0 MAF release; Lower Basin
+withdrawals are cut by the declared shortage tier and, when Mead cannot
+supply them, scaled down pro-rata to what is physically available above the
+dead pool. Hung and Yang (2021) take the delivered diversion from CRSS in
+the same way: the basin total is limited by the water system, not by a
+demand-side rule.
 
 References:
     Hung, F., & Yang, Y. C. E. (2021). WRR, 57, e2020WR029262.
@@ -34,6 +41,11 @@ import numpy as np
 # Minimum utilisation floor: agents cannot reduce demand below this fraction
 # of their water right.  Prevents "economic hallucination" spiral to zero.
 MIN_UTIL = 0.10
+
+# CRSS 2019-2060 aggregate agricultural demand target for the 78 agents
+# (5.86 MAF/yr; see initialize_synthetic's calibration note). Used only as
+# the denominator of the logged basin_request_over_target ratio.
+CRSS_DEMAND_TARGET_AF = 5_860_000.0
 
 
 @dataclass
@@ -65,7 +77,7 @@ class WaterSystemConfig:
     mead_shortage_tier3: float = 1025.0  # Tier 2→3 severe-block threshold
 
     # Lake Mead simplified mass balance coupling parameters
-    # Storage(t+1) = Storage(t) + PowellRelease + LB_trib - LB_div - Mexico - Evap - Muni
+    # Storage(t+1) = Storage(t) + PowellRelease + LB_trib - LB_withdrawals - Evap
     mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft)
     evaporation_maf: float = 0.8              # Reservoir evaporation at ref storage (MAF/yr)
     mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr)
@@ -73,9 +85,89 @@ class WaterSystemConfig:
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
-    min_powell_release_maf: float = 7.0       # Min Powell release, USBR DCP floor (MAF/yr)
+    # Powell release band (options d and e, 2026-09-26): release = pass-through
+    # clamped to [7.0, 9.0] MAF, subject to storage. 7.0 is a published
+    # release magnitude and 9.0 a modelling ceiling; neither is the operating
+    # rules themselves, and both are TO VERIFY against the originals like
+    # the Powell constants below:
+    #   * 7.0 MAF: minimum objective release (Long-Range Operating Criteria /
+    #     2007 Interim Guidelines); storage tops the release up to it in a
+    #     dry year.
+    #   * 9.0 MAF: a modelling ceiling motivated by the 2007 Interim
+    #     Guidelines, under which releases above about 9.0 MAF occur only in
+    #     balancing or equalization years (lower-elevation balancing can go
+    #     to 9.5); in a wet year Powell releases 9.0 and keeps the excess
+    #     only up to the target fill below (option e).
+    min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr)
+    max_powell_release_maf: float = 9.0       # Powell release ceiling in a wet year (MAF/yr)
+    # Option (e), 2026-09-26: Powell holds wet-year surplus only until it is
+    # back at its 2019 level. A wet year's excess over the 9.0 MAF ceiling is
+    # retained only while Powell's live storage is below this fraction of
+    # live capacity; above it the release is the pass-through (a crude
+    # equalization: a healthy Powell passes surplus to Mead). On [0, 1].
+    # Default = the 1 January 2019 fill, 10.10 / 24.32 MAF live = 0.415,
+    # rounded to 0.42 (target 12.10 MAF total vs 11.99 on 1 January 2019);
+    # TO VERIFY with the other Powell constants.
+    powell_target_fill: float = 0.42
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
-    mead_max_storage_delta_maf: float = 3.5  # Max annual storage change (Glen Canyon buffering)
+    # Lake Mead physical bounds (total storage, MAF), the end points of the
+    # USBR storage-elevation curve in IrrigationEnvironment._STORAGE_MAF.
+    # Water below the dead pool cannot be released; deliveries are limited
+    # to storage above it plus the year's inflow.
+    mead_dead_pool_maf: float = 2.0           # 895 ft
+    mead_capacity_maf: float = 26.1           # 1,220 ft
+    # The former +/-3.5 MAF annual storage-change clamp on Mead
+    # ("mead_max_storage_delta_maf", a proxy for Glen Canyon buffering) is
+    # RETIRED: Lake Powell storage below now does the buffering, and the
+    # clamp broke mass conservation (water was created or destroyed
+    # whenever it bound).
+
+    # Lake Powell storage buffer (total storage, MAF): a pass-through
+    # release clamped to [7.0, 9.0] MAF subject to storage; not the full
+    # operating rules. ALL FOUR VALUES BELOW ARE TO VERIFY against the
+    # USBR/USGS originals: the numbers were read from search results and a
+    # machine text extraction of the 24-Month Study PDF, and the code review
+    # could not open the sources. Do not treat them as checked. Sources:
+    #   * powell_capacity_maf: total storage at full pool (3,700 ft) in the
+    #     1986 area-capacity table USBR operations used through 2019. USGS
+    #     (2022, "Lake Powell's storage capacity updated for first time since
+    #     1986"; SIR on the 2018 survey) gives 25.160 MAF for 2018 and a
+    #     1.048 MAF loss since 1986, so 1986 = 26.21 MAF.
+    #   * powell_dead_pool_maf: storage below the 3,370 ft dead pool (river
+    #     outlet works), 26.21 MAF total minus 24.322 MAF live capacity (USBR
+    #     Glen Canyon Dam data, 1986 table) = 1.89 MAF ("about 1.9 MAF").
+    #   * powell_initial_storage_maf: live storage at the end of December
+    #     2018 = 10,099 thousand acre-ft at 3,581.85 ft (USBR Lower Colorado
+    #     Region, January 2019 24-Month Study, Most Probable, Lake Powell
+    #     table), plus the 1.89 MAF dead storage = 11.99 MAF total.
+    #   * powell_evaporation_maf: evaporation at full pool. The same 24-Month
+    #     Study reports 386 thousand acre-ft of Lake Powell evaporation in
+    #     water year 2018, when live storage averaged about 12.5 MAF (14.4 MAF
+    #     total, 0.55 of capacity), so 0.386 / 0.55 = 0.70 MAF at full pool.
+    #     Scaled by the storage fraction (a surface-area proxy), floored at
+    #     evap_min_frac, the same shape as the Mead evaporation term.
+    powell_capacity_maf: float = 26.21
+    powell_dead_pool_maf: float = 1.89
+    powell_initial_storage_maf: float = 11.99
+    powell_evaporation_maf: float = 0.70
+    evap_min_frac: float = 0.15               # on [0, 1]; same floor as Mead's evaporation term
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.evap_min_frac <= 1.0:
+            raise ValueError(f"evap_min_frac must be on [0, 1], got {self.evap_min_frac}")
+        if not (0.0 <= self.powell_dead_pool_maf < self.powell_initial_storage_maf
+                <= self.powell_capacity_maf):
+            raise ValueError(
+                "Powell storages must satisfy 0 <= dead pool < initial storage <= capacity, got "
+                f"{self.powell_dead_pool_maf} / {self.powell_initial_storage_maf} / "
+                f"{self.powell_capacity_maf}"
+            )
+        if not 0.0 <= self.powell_target_fill <= 1.0:
+            raise ValueError(f"powell_target_fill must be on [0, 1], got {self.powell_target_fill}")
+        if not 0.0 < self.min_powell_release_maf <= self.max_powell_release_maf:
+            raise ValueError("Powell release band must satisfy 0 < floor <= ceiling")
+        if not 0.0 <= self.mead_dead_pool_maf < self.mead_capacity_maf:
+            raise ValueError("Mead dead pool must be below capacity")
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
@@ -84,24 +176,117 @@ class WaterSystemConfig:
     seed: int = 42
 
 
+# Hung and Yang (2021) action model, used for synthetic (mock) agents that
+# have no CRSS data: the medians of mu and sigma over the calibrated
+# parameter file (ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv) and a
+# step of water_right / 25. Fallback for mock runs only; real agents carry
+# their own per-agent mu, sigma and bin size (create_profiles_from_data).
+SYNTHETIC_HY_MU = 0.218
+SYNTHETIC_HY_SIGMA = 0.923
+SYNTHETIC_BIN_DIVISOR = 25
+
+# Median of |N(0, 1)|: Phi^-1(0.75). A small step is a draw at or below the
+# agent's median step (mu + 0.6745 sigma) x bin_size, a large step above it.
+HALF_NORMAL_MEDIAN_Z = 0.6744897501960817
+
+_SMALL_SKILLS = ("increase_small", "decrease_small")
+_LARGE_SKILLS = ("increase_large", "decrease_large")
+
+
+def hy_step_af(rng: np.random.Generator, mu: float, sigma: float,
+               bin_size_af: float, size_class: str) -> float:
+    """One action magnitude of the Hung and Yang (2021) model, in acre-ft.
+
+    ``ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)``:
+    ``actions = (mu + abs(np.random.normal(0, sigma))) * bin_size``, with
+    ``bin_size = agt_states[2] - agt_states[1]`` (the step of the agent's
+    discretised diversion grid). |N(0, sigma)| is drawn by inverse CDF from
+    one uniform u: |z| = sigma * Phi^-1((1 + q) / 2), a half-normal quantile
+    at level q. ``size_class`` "small" restricts q to [0, 0.5), i.e. |z| at
+    or below the half-normal median 0.6745 sigma; "large" to (0.5, 1), above
+    it; anything else uses the whole distribution. So small and large are
+    the lower and upper halves of the same H&Y distribution, and pooled
+    50/50 they reproduce it exactly. One uniform per call keeps the
+    per-(seed, year, agent, skill) stream deterministic.
+    """
+    from statistics import NormalDist
+
+    u = float(rng.random())
+    mu = max(0.0, float(mu))  # a negative mu would flip the step's direction
+    if size_class == "small":
+        q = 0.5 * u
+    elif size_class == "large":
+        q = 0.5 + 0.5 * max(u, 1e-12)
+    else:
+        q = u
+    q = min(q, 1.0 - 1e-15)
+    z = sigma * NormalDist().inv_cdf((1.0 + q) / 2.0) if sigma > 0 else 0.0
+    return (mu + z) * bin_size_af
+
+
+def hy_threshold_af(mu: float, sigma: float, bin_size_af: float) -> float:
+    """T = (mu + 0.6745 sigma) x bin_size: the median H&Y step."""
+    return (mu + HALF_NORMAL_MEDIAN_Z * sigma) * bin_size_af
+
+
+def _set_realised_magnitude(
+    state_changes: Dict[str, Any],
+    action_context: Dict[str, Any],
+    step_af: float,
+    size_class: str,
+    current: float,
+    new_req: float,
+) -> None:
+    """Report the change actually applied (F07 follow-up, spec E9, H6).
+
+    An increase is capped at the water right and a decrease at the 10
+    percent floor, so the drawn step can overstate the change. The memory
+    line ("(by N%)"), ``magnitude_pct_applied`` and ``magnitude_af`` carry
+    the realised change; ``magnitude_pct_sampled`` is the drawn step as a
+    percent of the current request; ``magnitude_class`` is small or large."""
+    realised_af = abs(new_req - current)
+    # From a zero request a percent is undefined: log None (the memory line
+    # then omits "(by N%)") rather than a misleading 0.
+    sampled_pct = (100.0 * step_af / current) if current > 0 else None
+    realised = (100.0 * realised_af / current) if current > 0 else None
+    state_changes["magnitude_pct_sampled"] = sampled_pct
+    state_changes["magnitude_pct_applied"] = realised
+    state_changes["magnitude_af"] = realised_af
+    state_changes["magnitude_class"] = size_class
+    action_context["magnitude_pct"] = realised
+
+
 class IrrigationEnvironment:
     """Water system environment for irrigation ABM experiments.
 
-    Provides a water availability model with simplified Lake Mead mass
-    balance coupling that feeds agent demand decisions back to reservoir
-    elevation.  This mirrors the core physics of CRSS/RiverWare at
-    annual resolution without requiring the full RiverWare installation.
+    Annual two-reservoir balance at the resolution of Hung and Yang (2021):
+    Lake Powell is a storage buffer whose release is the pass-through
+    (natural flow minus Upper Basin use) clamped to [7.0, 9.0] MAF subject
+    to storage: storage tops a dry year up to 7.0 MAF, a normal year passes
+    through unchanged, and a wet year releases 9.0 MAF and keeps the excess
+    only until Powell is back at its target fill (its 2019 level); a Powell
+    at or above that passes the whole inflow through (spill above
+    capacity). Lake Mead is a storage stock whose withdrawals cannot exceed
+    the water above its dead pool plus the year's inflow. Not the full operating rules: the 2007 Interim Guidelines
+    release tiers (equalization, balancing, 7.48 / 8.23 MAF) and the Lake
+    Mead protection levels are deliberately not modelled.
 
-    Mass balance:
-        UB_effective  = min(UB_div, NF - MinPowellRelease, UB_InfraCap)
-        PowellRelease = NaturalFlow - UB_effective   (≥ MinPowellRelease)
-        Storage(t+1)  = Storage(t) + PowellRelease + LB_trib
-                        - LB_diversions - Mexico(DCP) - Evap(storage) - Municipal
+    Timing (one loop year, decisions at the start of the year)::
 
-    Constraints: Powell min release 7.0 MAF (USBR DCP), UB infrastructure
-    ceiling 5.0 MAF (historical capacity), NF clamped [6, 17] MAF,
-    annual storage change capped at ±3.5 MAF (Glen Canyon buffering).
-    Evaporation scales with surface area; Mexico follows Minute 323.
+        advance_year()  commit last year's settlement (end storages become
+                        this year's 1 January storages), draw precipitation,
+                        declare the Lower Basin shortage tier from the
+                        1 January Mead level, run a PROVISIONAL settlement at
+                        the carried requests (what agents see as expected
+                        delivery), freeze the 1 January snapshot.
+        decisions       execute_skill -> update_agent_request
+        settle_year()   FINAL settlement at this year's requests, rebuilt
+                        from the frozen snapshot (idempotent); storage is
+                        committed only by the next advance_year().
+
+    Constraints: Powell release floor 7.0 MAF, UB delivery capacity
+    5.0 MAF, NF clamped [6, 17] MAF, dead pools and full pools at both
+    reservoirs. Evaporation scales with storage; Mexico follows Minute 323.
 
     Usage::
 
@@ -115,6 +300,8 @@ class IrrigationEnvironment:
         env.advance_year()
         context = env.get_agent_context("MohaveValleyIDD")
         # → dict with water signals for LLM prompt injection
+        # ... agents decide (execute_skill) ...
+        env.settle_year()
     """
 
     # Lake Mead elevation–storage relationship (USBR data)
@@ -207,26 +394,32 @@ class IrrigationEnvironment:
 
         # History for preceding factor computation
         self._precip_history: List[float] = []
-        # F17 (2026-09-25 audit): this list was [1081.46, 1082.52] labelled
-        # "2017, 2018", contradicting both mead_initial_elevation (1081.46 =
-        # Dec 2018 observed, below) and docs/irrigation_physics.md ("2017
-        # (1082.52 ft) and 2018 (1081.46 ft)"). _generate_lake_mead_level
-        # appends year 1's own level BEFORE _update_preceding_factors reads
-        # it, so on loop year 1 the comparison is _mead_history[-1] (year
-        # 1's freshly generated level) against [-2], the SECOND seed value.
-        # With the old order that second value was 1082.52 (2017's real
-        # elevation, mislabelled "2018"), so year 1's rising/declining flag
-        # compared against the wrong reference year. Corrected to the
-        # documented order (2017, then 2018) so [-2] is 1081.46, the real
-        # 2018 elevation.
-        self._mead_history: List[float] = [1082.52, 1081.46]  # 2017, 2018
+        # 1 January Lake Mead levels, one per loop year (F17 history, then
+        # the 2026-09-25 supply-side redesign). Seeded with the level on
+        # 1 January 2018 (1082.52 ft, the observed end-of-2017 value);
+        # advance_year() appends each loop year's 1 January level BEFORE
+        # _update_preceding_factors reads it, so loop year 1 (2019) compares
+        # 1081.46 ft (1 January 2019 = Dec 2018 observed) against 1082.52 ft,
+        # a real one-year comparison. Before the redesign the level for year
+        # t was generated from year t-1 withdrawals inside advance_year, so
+        # the list mixed start- and end-of-year values.
+        self._mead_history: List[float] = [1082.52]  # 1 Jan 2018
 
-        # Mass balance storage tracking (MAF)
+        # Reservoir storage (MAF, total storage). _mead_storage holds one
+        # 1 January value per loop year (index 0 = 1 January 2019);
+        # _powell_storage is the current 1 January value.
         _init_elev = self.config.mead_initial_elevation
         _init_storage = float(np.interp(
             _init_elev, self._ELEVATION_FT, self._STORAGE_MAF
         ))
         self._mead_storage: List[float] = [_init_storage]
+        self._powell_storage: float = float(self.config.powell_initial_storage_maf)
+        # Settlement bookkeeping (see settle_year): the frozen 1 January
+        # snapshot of the current year, the final settlement not yet
+        # committed, and every committed settlement (one per loop year).
+        self._snapshot: Optional[Dict[str, float]] = None
+        self._pending_settlement: Optional[Dict[str, Any]] = None
+        self._settlement_history: List[Dict[str, Any]] = []
 
         # Real CRSS precipitation data (None = use synthetic)
         self._crss_precip: Optional[Any] = None  # pandas DataFrame when loaded
@@ -260,10 +453,15 @@ class IrrigationEnvironment:
                 "request": 0.0,
                 "water_right": 100_000.0,  # Default; override from data
                 "curtailment_ratio": 0.0,
+                "delivery_ratio": 1.0,
+                "gap_reason": "none",
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": "unknown",
+                "mu": float(df.loc["mu", agent_name]) if "mu" in df.index else SYNTHETIC_HY_MU,
+                "sigma": float(df.loc["sigma", agent_name]) if "sigma" in df.index else SYNTHETIC_HY_SIGMA,
+                "bin_size_af": 100_000.0 / SYNTHETIC_BIN_DIVISOR,
             }
 
     def initialize_from_profiles(self, profiles) -> None:
@@ -286,19 +484,21 @@ class IrrigationEnvironment:
                 "request": _init_div,
                 "water_right": wr,
                 "curtailment_ratio": 0.0,
+                "delivery_ratio": 1.0,
+                "gap_reason": "none",
                 "at_allocation_cap": False,
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
                 "below_minimum_utilisation": False,
                 "cluster": p.cluster,
-                # v17: Skill-level magnitude params + persona scale
-                "persona_scale": getattr(p, "persona_scale", 1.0),
-                "skill_magnitude": getattr(p, "skill_magnitude", {}),
-                # v12 legacy: per-persona magnitude (fallback)
-                "magnitude_default": getattr(p, "magnitude_default", 10),
-                "magnitude_sigma": getattr(p, "magnitude_sigma", 0.0),
-                "magnitude_min": getattr(p, "magnitude_min", 1.0),
-                "magnitude_max": getattr(p, "magnitude_max", 30.0),
-                "exploration_rate": getattr(p, "exploration_rate", 0.0),
+                # Hung and Yang (2021) action model: per-agent mu, sigma
+                # (calibrated parameters) and the step of the agent's
+                # discretised diversion grid. Profiles without a grid step
+                # (synthetic) fall back to water_right / 25.
+                "mu": float(getattr(p, "mu", SYNTHETIC_HY_MU)),
+                "sigma": float(getattr(p, "sigma", SYNTHETIC_HY_SIGMA)),
+                "bin_size_af": float(
+                    getattr(p, "bin_size_af", None) or wr / SYNTHETIC_BIN_DIVISOR
+                ),
             }
 
     def initialize_synthetic(
@@ -316,8 +516,9 @@ class IrrigationEnvironment:
         """
         n_ub, n_lb = basin_split
 
-        # v12: Assign cluster-based magnitude parameters with stochasticity
-        # Mix of aggressive, forward-looking, and myopic clusters (50%-30%-20%)
+        # Mix of aggressive, forward-looking, and myopic clusters (50%-30%-20%);
+        # the cluster is a label here, the action model is the Hung and Yang
+        # draw with the synthetic fallback parameters (SYNTHETIC_HY_*).
         clusters = (
             ["aggressive"] * (n_agents // 2) +
             ["forward_looking_conservative"] * (n_agents * 3 // 10) +
@@ -329,52 +530,10 @@ class IrrigationEnvironment:
         # Shuffle for random assignment
         self.rng.shuffle(clusters)
 
-        # Phase 1 + CRSS Calibration: Reduced magnitude ranges to match FQL + CRSS scaling
-        # NOTE: Triple source of truth for cluster configuration:
-        #   1. This hardcoded fallback (synthetic initialization, default behavior)
-        #   2. config/agent_types.yaml (--real flag CSV loading)
-        #   3. run_experiment.py target_dist (rebalance_to_target call)
-        # All three sources must be kept in sync manually (verified by runtime assertion)
-        # v17: Default skill-level Gaussian params (matches agent_types.yaml)
-        _default_skill_magnitude = {
-            "increase_large": {"mu": 12.0, "sigma": 3.0, "min": 8.0, "max": 20.0},
-            "increase_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
-            "decrease_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
-            "decrease_large": {"mu": 12.0, "sigma": 3.0, "min": 8.0, "max": 20.0},
-        }
-
-        cluster_configs = {
-            "aggressive": {
-                "persona_scale": 1.15,
-                "magnitude_default": 10.0,    # Phase 1: 15.0 → 10.0 (-33%)
-                "magnitude_sigma": 3.5,        # Phase 1: 5.0 → 3.5 (-30%)
-                "magnitude_min": 5.0,          # Phase 1: 10.0 → 5.0 (wider range bottom)
-                "magnitude_max": 20.0,         # Phase 1: 30.0 → 20.0 (cap extremes)
-                "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
-            },
-            "forward_looking_conservative": {
-                "persona_scale": 1.00,
-                "magnitude_default": 7.5,      # Phase 1: 12.5 → 7.5 (-40%)
-                "magnitude_sigma": 3.0,        # Phase 1: 4.0 → 3.0 (-25%)
-                "magnitude_min": 3.0,          # Phase 1: 5.0 → 3.0
-                "magnitude_max": 15.0,         # Phase 1: 20.0 → 15.0
-                "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
-            },
-            "myopic_conservative": {
-                "persona_scale": 0.80,
-                "magnitude_default": 4.0,      # Phase 1: 5.5 → 4.0 (-27%)
-                "magnitude_sigma": 2.0,        # Phase 1: 2.5 → 2.0 (-20%)
-                "magnitude_min": 1.0,          # Unchanged
-                "magnitude_max": 8.0,          # Phase 1: 10.0 → 8.0
-                "exploration_rate": 0.02,      # Stage 3 v2: 0.0005 → 0.02 (2%)
-            },
-        }
-
         agent_index = 0
         for i in range(n_ub):
             aid = f"UB_Agent_{i:03d}"
             cluster = clusters[agent_index] if agent_index < len(clusters) else "myopic_conservative"
-            config = cluster_configs[cluster]
 
             # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
             # Derivation (from per-agent trajectory analysis):
@@ -389,26 +548,22 @@ class IrrigationEnvironment:
                 "request": calibrated_wr * 0.8,
                 "water_right": calibrated_wr,
                 "curtailment_ratio": 0.0,
+                "delivery_ratio": 1.0,
+                "gap_reason": "none",
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": cluster,
-                # v17: skill-level magnitude + persona scale
-                "persona_scale": config["persona_scale"],
-                "skill_magnitude": dict(_default_skill_magnitude),
-                # v12 legacy: per-persona magnitude (fallback)
-                "magnitude_default": config["magnitude_default"],
-                "magnitude_sigma": config["magnitude_sigma"],
-                "magnitude_min": config["magnitude_min"],
-                "magnitude_max": config["magnitude_max"],
-                "exploration_rate": config["exploration_rate"],
+                # Hung and Yang action model, synthetic fallback (mock runs)
+                "mu": SYNTHETIC_HY_MU,
+                "sigma": SYNTHETIC_HY_SIGMA,
+                "bin_size_af": calibrated_wr / SYNTHETIC_BIN_DIVISOR,
             }
             agent_index += 1
 
         for i in range(n_lb):
             aid = f"LB_Agent_{i:03d}"
             cluster = clusters[agent_index] if agent_index < len(clusters) else "myopic_conservative"
-            config = cluster_configs[cluster]
 
             # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
             calibrated_wr = base_water_right * 0.9286
@@ -418,19 +573,16 @@ class IrrigationEnvironment:
                 "request": calibrated_wr * 0.8,
                 "water_right": calibrated_wr,
                 "curtailment_ratio": 0.0,
+                "delivery_ratio": 1.0,
+                "gap_reason": "none",
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": cluster,
-                # v17: skill-level magnitude + persona scale
-                "persona_scale": config["persona_scale"],
-                "skill_magnitude": dict(_default_skill_magnitude),
-                # v12 legacy: per-persona magnitude (fallback)
-                "magnitude_default": config["magnitude_default"],
-                "magnitude_sigma": config["magnitude_sigma"],
-                "magnitude_min": config["magnitude_min"],
-                "magnitude_max": config["magnitude_max"],
-                "exploration_rate": config["exploration_rate"],
+                # Hung and Yang action model, synthetic fallback (mock runs)
+                "mu": SYNTHETIC_HY_MU,
+                "sigma": SYNTHETIC_HY_SIGMA,
+                "bin_size_af": calibrated_wr / SYNTHETIC_BIN_DIVISOR,
             }
             agent_index += 1
 
@@ -522,7 +674,14 @@ class IrrigationEnvironment:
                 "upper_allocation": self.config.upper_basin_allocation,
                 "lower_allocation": self.config.lower_basin_allocation,
                 "shortage_tier": self._compute_shortage_tier(),
-            }
+            },
+            "reservoirs": {
+                "powell_storage_maf": self._powell_storage,
+                "mead_storage_maf": self._mead_storage[-1],
+                "powell_capacity_maf": self.config.powell_capacity_maf,
+                "powell_dead_pool_maf": self.config.powell_dead_pool_maf,
+                "min_powell_release_maf": self.config.min_powell_release_maf,
+            },
         }
 
     @property
@@ -591,9 +750,22 @@ class IrrigationEnvironment:
         self._current_year = self.config.sim_start_year + self._year_index - 1
         self._global["year"] = self._current_year
 
-        # Generate stochastic water signals
+        # 1. Commit last year's final settlement: its end-of-year storages
+        #    become this year's 1 January storages. A caller that never
+        #    called settle_year() (the FQL baseline, unit tests driving
+        #    advance_year() directly) gets it here, at last year's final
+        #    requests, so storage always evolves exactly once per year.
+        #    Always recomputed here (settle_year is idempotent), so a request
+        #    changed after an earlier settle_year() call in the same year is
+        #    still what the committed storage reflects.
+        if self._snapshot is not None:
+            self._commit_settlement(self.settle_year())
+
+        # 2. Water signals for this year
         precip = self._generate_precipitation()
-        mead_level = self._generate_lake_mead_level()
+        natural_flow = self._natural_flow_maf(precip)
+        mead_level = self._storage_to_elevation(self._mead_storage[-1])
+        self._mead_history.append(mead_level)
 
         # Update basin states
         self._basins["upper_basin"]["precipitation"] = precip
@@ -610,16 +782,40 @@ class IrrigationEnvironment:
         variability = 1.0 - self._global["drought_index"] * 0.3
         self._global["total_available_water"] = base * variability
 
-        # Apply curtailment to agents based on shortage tier
+        # 3. Declarations from the 1 January Mead level: the Lower Basin
+        #    shortage tier (curtailment_ratio, Lower Basin agents only) and
+        #    the Minute 323 Mexico reduction.
         self._apply_curtailment()
+        lb_cut = self._tier_curtailment_ratio(self._compute_shortage_tier())
 
-        # Enforce Powell minimum release: pro-rata reduce UB diversions
-        # when aggregate UB demand exceeds available supply
-        self._apply_powell_constraint()
+        # 4. Freeze this year's 1 January snapshot, then the PROVISIONAL
+        #    settlement at the carried requests: what each agent can expect
+        #    this year at its current request (the value its prompt and the
+        #    governance checks read). settle_year() redoes it at the final
+        #    requests after every decision.
+        self._snapshot = {
+            "powell_storage": float(self._powell_storage),
+            "mead_storage": float(self._mead_storage[-1]),
+            "natural_flow": float(natural_flow),
+            "lb_cut": float(lb_cut),
+            "mexico": float(self._mexico_delivery_maf(mead_level)),
+        }
+        self._pending_settlement = None
+        provisional = self._settle(self._snapshot)
+        self._write_agent_deliveries(provisional)
 
-        # Basin-level aggregate demand for ceiling validator
+        self._global["natural_flow_maf"] = float(natural_flow)
+        self._global["powell_storage_maf"] = float(self._powell_storage)
+        self._global["mead_storage_maf"] = float(self._mead_storage[-1])
+
+        # Basin-level aggregate request: a logged metric (the retired
+        # demand ceiling used to block on it); basin_request_over_target is
+        # the request total over the 5.86 MAF CRSS 2019-2060 demand target.
         self._global["total_basin_demand"] = sum(
             a["request"] for a in self._agents.values()
+        )
+        self._global["basin_request_over_target"] = (
+            self._global["total_basin_demand"] / CRSS_DEMAND_TARGET_AF
         )
 
         return self._global.copy()
@@ -662,6 +858,11 @@ class IrrigationEnvironment:
             "current_request": agent.get("request", 0),
             "water_right": agent.get("water_right", 0),
             "curtailment_ratio": agent.get("curtailment_ratio", 0),
+            # Expected share of the request delivered this year, and why it
+            # is below 1 (a settlement code, see _settle). Provisional until
+            # settle_year() runs; after it, the final values for the year.
+            "delivery_ratio": agent.get("delivery_ratio", 1.0),
+            "gap_reason": agent.get("gap_reason", "none"),
             "at_allocation_cap": agent.get("at_allocation_cap", False),
             "has_efficient_system": agent.get("has_efficient_system", False),
             "below_minimum_utilisation": agent.get("below_minimum_utilisation", False),
@@ -676,6 +877,9 @@ class IrrigationEnvironment:
             "total_available_water": self._global.get("total_available_water", 0),
             "shortage_tier": self._compute_shortage_tier(),
             "total_basin_demand": self._global.get("total_basin_demand", 0),
+            "basin_request_over_target": self._global.get("basin_request_over_target", 0),
+            "natural_flow_maf": self._global.get("natural_flow_maf", 0),
+            "powell_storage_maf": self._global.get("powell_storage_maf", 0),
         }
 
     def update_agent_request(
@@ -700,9 +904,12 @@ class IrrigationEnvironment:
             new_request < agent["water_right"] * MIN_UTIL
         )
 
-        # Actual diversion = request * (1 - curtailment_ratio)
-        curtailment = agent.get("curtailment_ratio", 0.0)
-        agent["diversion"] = new_request * (1.0 - curtailment)
+        # Provisional delivery at the new request: this year's expected
+        # delivery ratio (from the provisional settlement advance_year ran,
+        # which already includes the shortage tier and any physical limit).
+        # The authoritative value is written by settle_year() once every
+        # decision for the year has executed.
+        agent["diversion"] = new_request * agent.get("delivery_ratio", 1.0)
 
     def _decision_rng(self, agent_id: str, skill: str) -> np.random.Generator:
         """A generator private to one ``(seed, year, agent, skill)``.
@@ -774,79 +981,48 @@ class IrrigationEnvironment:
         # by curtailment + Powell constraints.  This created an asymmetry:
         # maintain_demand preserved request while increase/decrease operated
         # on the much-lower diversion.  Using request ensures a consistent
-        # base across all skill types.  The demand_ceiling_stabilizer and
-        # other governance rules still prevent unbounded request growth.
+        # base across all skill types.  A request is bounded by the water
+        # right (min(current + change, wr) below); what the agent actually
+        # receives is bounded by the supply-side settlement (_settle).
         current = agent["request"]
         meta = getattr(approved_skill, "parameters", {}) or {}
 
-        # ═══ v17: Skill-level Gaussian magnitude sampling ═══
-        # Each skill defines its own (mu, sigma, min, max) base parameters.
-        # Persona's persona_scale multiplies mu and sigma (shifts distribution
-        # center and spread) while min/max stay fixed (define skill identity).
-        #
-        # NOTE: LLM cannot generate continuous Gaussian distributions (v11 analysis
-        # showed 56.6% chose 25%, only 6-7 unique values). Code-based sampling
-        # provides true stochasticity matching Hung & Yang (2021) FQL behavior.
-
-        persona_scale = agent.get("persona_scale", 1.0) or 1.0
-        skill_mag_all = agent.get("skill_magnitude", {}) or {}
-        skill_mag_cfg = skill_mag_all.get(skill, {})
-        exploration_rate = agent.get("exploration_rate", 0.0) or 0.0
-
-        # ═══ ε-UNBOUNDED EXPLORATION ═══
-        magnitude_pct = 0.0
+        # Hung and Yang (2021) action model (ref/RL-ABM-CRSS/ABM_CRSS_coupling.py
+        # (Q_learning)): step = (mu + |N(0, sigma)|) x bin_size, per-agent mu,
+        # sigma and grid step. The LLM picks the direction and the class; a
+        # small step is a draw at or below the agent's median step
+        # T = (mu + 0.6745 sigma) x bin_size, a large step a draw above it
+        # (hy_step_af). Drawn from the per-(seed, year, agent, skill) stream
+        # (_decision_rng), so thread scheduling cannot reach it. H&Y explore
+        # with epsilon-greedy over the DIRECTION, not the magnitude; the
+        # former 2 percent magnitude exploration had no analogue there and is
+        # dropped (is_exploration stays in the logs, always False).
+        mu = float(agent.get("mu", SYNTHETIC_HY_MU))
+        sigma = float(agent.get("sigma", SYNTHETIC_HY_SIGMA))
+        bin_size_af = agent.get("bin_size_af")
+        if not bin_size_af or bin_size_af <= 0:
+            if bin_size_af is not None:
+                from broker.utils.logging import logger as _logger
+                _logger.warning("[irrigation_env] %s has bin_size_af=%r; using water_right / %d",
+                                aid, bin_size_af, SYNTHETIC_BIN_DIVISOR)
+            bin_size_af = wr / SYNTHETIC_BIN_DIVISOR
+        bin_size_af = float(bin_size_af)
+        step_af = 0.0
+        size_class = ""
         is_exploration = False
-
-        if skill != "maintain_demand" and skill_mag_cfg:
-            # v17 path: per-skill Gaussian params scaled by persona
-            base_mu = skill_mag_cfg.get("mu", 10.0)
-            base_sigma = skill_mag_cfg.get("sigma", 3.0)
-            mag_min = skill_mag_cfg.get("min", 1.0)
-            mag_max = skill_mag_cfg.get("max", 20.0)
-
-            mu = base_mu * persona_scale
-            sigma = base_sigma * persona_scale
-
-            if sigma > 0:
-                # Per-(agent, year, skill) stream — see _decision_rng: this
-                # runs on a worker thread, so a shared stream would make the
-                # assignment depend on thread scheduling.
-                rng = self._decision_rng(aid, skill)
-                if exploration_rate > 0 and rng.random() < exploration_rate:
-                    noise = rng.normal(0, sigma * 2.0)
-                    magnitude_pct = mu + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
-                    is_exploration = True
-                else:
-                    noise = rng.normal(0, sigma)
-                    magnitude_pct = mu + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
+        if skill != "maintain_demand":
+            if skill in _SMALL_SKILLS:
+                size_class = "small"
+            elif skill in _LARGE_SKILLS:
+                size_class = "large"
             else:
-                magnitude_pct = mu
-
-        elif skill != "maintain_demand":
-            # Legacy fallback: per-persona params (v12 compat)
-            mag_default = agent.get("magnitude_default", 10) or 10
-            mag_sigma = agent.get("magnitude_sigma", 0.0) or 0.0
-            mag_min = agent.get("magnitude_min", 1.0) or 1.0
-            mag_max = agent.get("magnitude_max", 30.0) or 30.0
-
-            if mag_sigma > 0:
-                # Same per-(agent, year, skill) stream as the v17 branch
-                # above; the two branches are mutually exclusive, so they
-                # never draw from one key twice.
-                rng = self._decision_rng(aid, skill)
-                if exploration_rate > 0 and rng.random() < exploration_rate:
-                    noise = rng.normal(0, mag_sigma * 2.0)
-                    magnitude_pct = mag_default + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
-                    is_exploration = True
-                else:
-                    noise = rng.normal(0, mag_sigma)
-                    magnitude_pct = mag_default + noise
-                    magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
-            else:
-                magnitude_pct = mag_default
+                size_class = "any"
+            rng = self._decision_rng(aid, skill)
+            step_af = hy_step_af(rng, mu, sigma, bin_size_af, size_class)
+            if size_class == "any":
+                size_class = (
+                    "small" if step_af <= hy_threshold_af(mu, sigma, bin_size_af) else "large"
+                )
 
         state_changes: Dict[str, Any] = {}
         state_changes["is_exploration"] = is_exploration
@@ -863,27 +1039,25 @@ class IrrigationEnvironment:
         action_context: Dict[str, Any] = {}
 
         if skill in ("increase_large", "increase_small", "increase_demand"):
-            # v21: Scale increase by request (paper demand).  Governance
-            # rules (demand_ceiling_stabilizer) prevent unbounded growth.
-            change = current * (magnitude_pct / 100.0)
-            new_req = min(current + change, wr)
+            # H&Y step added to the request, capped at the water right;
+            # deliveries are limited by _settle, not here.
+            new_req = min(current + step_af, wr)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            state_changes["magnitude_pct_applied"] = magnitude_pct
-            action_context["magnitude_pct"] = magnitude_pct
+            _set_realised_magnitude(state_changes, action_context, step_af, size_class,
+                                    current, new_req)
 
         elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
-            # v21: Also use request as base (was water_right).
-            change = current * (magnitude_pct / 100.0)
+            # H&Y step subtracted from the request, floored at the 10
+            # percent minimum utilisation. The former taper near the floor
+            # (an invented diminishing-returns rule) is removed: H&Y bound the
+            # decision by the grid, not by a taper.
             floor = wr * MIN_UTIL
-            utilisation = current / wr if wr > 0 else 1.0
-            # P1: diminishing returns as utilisation approaches floor
-            taper = max(0.0, (utilisation - MIN_UTIL) / (1.0 - MIN_UTIL))
-            new_req = max(current - change * taper, floor)
+            new_req = max(current - step_af, min(floor, current))
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            state_changes["magnitude_pct_applied"] = magnitude_pct
-            action_context["magnitude_pct"] = magnitude_pct
+            _set_realised_magnitude(state_changes, action_context, step_af, size_class,
+                                    current, new_req)
 
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes
@@ -955,86 +1129,282 @@ class IrrigationEnvironment:
         """Convert Lake Mead elevation (ft) to storage (MAF) via USBR curve."""
         return float(np.interp(elevation_ft, self._ELEVATION_FT, self._STORAGE_MAF))
 
-    def _generate_lake_mead_level(self) -> float:
-        """Generate Lake Mead level via simplified mass balance.
+    def _natural_flow_maf(self, precip: float) -> float:
+        """Natural flow at Lees Ferry (MAF/yr) from Upper Basin winter
+        precipitation, clamped to the [6, 17] MAF operational range.
+        Winter precipitation is known before the irrigation season, so the
+        year's own value is used at decision time."""
+        cfg = self.config
+        natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
+        return max(6.0, min(17.0, natural_flow))
 
-        Couples agent demand back to reservoir elevation, mirroring the
-        core physics of CRSS/RiverWare at annual resolution:
+    def _mexico_delivery_maf(self, mead_level: float) -> float:
+        """Treaty delivery to Mexico after the Minute 323 reductions keyed
+        to the 1 January Lake Mead level."""
+        cfg = self.config
+        if mead_level < 1025:
+            return cfg.mexico_treaty_maf - 0.275
+        if mead_level < 1050:
+            return cfg.mexico_treaty_maf - 0.104
+        if mead_level < 1075:
+            return cfg.mexico_treaty_maf - 0.080
+        if mead_level < 1090:
+            return cfg.mexico_treaty_maf - 0.041
+        return cfg.mexico_treaty_maf
 
-            UB_effective  = min(UB_div, NF − MinPowellRelease, UB_InfraCap)
-            PowellRelease = NaturalFlow − UB_effective   (≥ MinPowellRelease)
-            Mead_inflow   = PowellRelease + LB_tributaries
-            Mead_outflow  = LB_diversions + Mexico(DCP) + Evap(storage) + Municipal
-            Storage(t+1)  = Storage(t) + clamp(Mead_inflow − Mead_outflow, ±3.5)
+    def _mead_evaporation_maf(self, storage_maf: float) -> float:
+        """Lake Mead evaporation, scaling with storage (surface-area proxy):
+        0.8 MAF at the 13 MAF reference storage (about 1,100 ft), floored at
+        evap_min_frac of that and capped at 1.5 times it (unchanged from the
+        pre-redesign mass balance)."""
+        cfg = self.config
+        frac = storage_maf / 13.0
+        return cfg.evaporation_maf * max(cfg.evap_min_frac, min(1.5, frac))
 
-        Constraints: Powell minimum release 7.0 MAF (USBR DCP floor),
-        UB infrastructure ceiling 5.0 MAF (historical depletion capacity),
-        NF clamped to [6, 17] MAF (operational release range),
-        annual storage Δ capped at ±3.5 MAF (Glen Canyon Dam buffering).
-        Evaporation scales with surface area; Mexico follows Minute 323.
+    def _powell_evaporation_maf(self, storage_maf: float) -> float:
+        """Lake Powell evaporation: powell_evaporation_maf at full pool,
+        scaled by the storage fraction and floored at evap_min_frac (the
+        Mead term's shape, expressed on [0, 1])."""
+        cfg = self.config
+        frac = storage_maf / cfg.powell_capacity_maf
+        return cfg.powell_evaporation_maf * max(cfg.evap_min_frac, min(1.0, frac))
 
-        Agent diversions are from the *previous* year's decisions, which
-        is physically correct (withdrawals during year t determine storage
-        at the start of year t+1).
+    def _settle(
+        self,
+        snapshot: Dict[str, float],
+        requests: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, Any]:
+        """One year's two-reservoir settlement. PURE: reads only its
+        arguments, the agents' basin / request / water_right and the
+        config; writes nothing.
+
+        ``snapshot`` is the frozen 1 January state (see advance_year):
+        ``powell_storage``, ``mead_storage`` (total storage, MAF),
+        ``natural_flow`` (MAF), ``lb_cut`` (declared Lower Basin shortage
+        ratio, on [0, 1]) and ``mexico`` (MAF). ``requests`` maps agent id
+        to request (AF); default = every agent's current request.
+
+        Steps (MAF/yr):
+
+        U  Upper Basin. Requests r_U. Deliverable
+           D_U = min(r_U, C_UB, max(0, NF + (S_P - S_P,dead) - E_P - R_min)):
+           the 5.0 MAF delivery capacity, and what leaves Powell able to keep
+           a 7.0 MAF release from inflow plus usable storage. So a year with
+           NF below 7 does NOT zero the Upper Basin; it is cut only when
+           Powell storage cannot cover the release. Shared pro-rata.
+        P  Powell (decision 2026-09-26, option e). Inflow I = NF - D_U is
+           the pass-through. Wet year (I > R_max = 9.0): R = max(R_max,
+           min(I, S_P + I - E_P - S_target)), so the excess is kept only up to
+           the target fill (S_target = dead pool + powell_target_fill x live
+           capacity) and a Powell at or above it passes I through.
+           Normal year (R_min <= I <= R_max): R = I
+           (storage only loses evaporation). Dry year (I < R_min = 7.0):
+           R = min(R_min, I + usable storage - E_P). R never takes Powell
+           below its dead pool; storage above full pool spills into R.
+           New storage = S_P + I - E_P - R.
+        L  Lake Mead. Withdrawals O = (r_LB + N) (1 - g) + X: the declared
+           shortage cut g applies to the WHOLE Lower Basin consumptive use
+           (agricultural agents and the 5.0 MAF non-agricultural bucket N);
+           X is the Mexico delivery. Available A = (S_M - S_M,dead) + R + T
+           - E_M. When O > A every withdrawal is scaled by phi = A / O
+           (pro-rata). New storage = S_M + R + T - E_M - phi O; storage
+           above full pool spills below Hoover (logged).
+
+        Evaporation is taken on the 1 January storage and can never draw a
+        reservoir below its dead pool. Conservation, checked by the tests:
+        dS_P + dS_M = NF + T - D_U - E_P - E_M - phi O - spill_M.
+
+        Each agent's ``gap_reason`` names the binding limit, as a code the
+        prompt and memory text turn into a sentence: ``none``, ``ub_capacity``, ``ub_powell_release``,
+        ``lb_shortage_tier``, ``lb_mead_availability`` or
+        ``lb_shortage_tier+lb_mead_availability``.
         """
         cfg = self.config
+        if requests is None:
+            requests = {aid: a["request"] for aid, a in self._agents.items()}
 
-        # --- Inflow: natural flow scaled by precipitation ---
-        precip = self._precip_history[-1] if self._precip_history else cfg.precip_baseline_mm
-        natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
-        natural_flow = max(6.0, min(17.0, natural_flow))  # M3: 17 MAF ops ceiling
+        ub_ids = [aid for aid, a in self._agents.items() if a["basin"] == "upper_basin"]
+        lb_ids = [aid for aid, a in self._agents.items() if a["basin"] != "upper_basin"]
+        req = {
+            aid: max(0.0, min(float(requests.get(aid, self._agents[aid]["request"])),
+                              float(self._agents[aid]["water_right"])))
+            for aid in self._agents
+        }
+        r_ub = sum(req[a] for a in ub_ids) / 1e6
+        r_lb = sum(req[a] for a in lb_ids) / 1e6
 
-        # --- Upper Basin diversions (constrained by Powell min release) ---
-        ub_div_maf = sum(
-            a["diversion"] for a in self._agents.values()
-            if a["basin"] == "upper_basin"
-        ) / 1e6
-        ub_flow_cap = max(0.0, natural_flow - cfg.min_powell_release_maf)
-        ub_infra_cap = cfg.ub_infrastructure_cap_maf
-        ub_div_effective = min(ub_div_maf, ub_flow_cap, ub_infra_cap)
-        powell_release = natural_flow - ub_div_effective
-        mead_inflow = powell_release + cfg.lb_tributary_maf
+        nf = snapshot["natural_flow"]
+        s_p = snapshot["powell_storage"]
+        s_m = snapshot["mead_storage"]
+        g = snapshot["lb_cut"]
+        mexico = snapshot["mexico"]
 
-        # --- Lake Mead outflow ---
-        lb_div_maf = sum(
-            a["diversion"] for a in self._agents.values()
-            if a["basin"] == "lower_basin"
-        ) / 1e6
-        prev_storage = self._mead_storage[-1]
-
-        # Evaporation scales with surface area (storage fraction proxy)
-        storage_frac = prev_storage / 13.0  # 13 MAF ≈ 1100 ft reference
-        evap_actual = cfg.evaporation_maf * max(0.15, min(1.5, storage_frac))
-
-        # Mexico DCP reductions (Minute 323 tiered reductions)
-        prev_elev = self._storage_to_elevation(prev_storage)
-        if prev_elev < 1025:
-            mexico = cfg.mexico_treaty_maf - 0.275
-        elif prev_elev < 1050:
-            mexico = cfg.mexico_treaty_maf - 0.104
-        elif prev_elev < 1075:
-            mexico = cfg.mexico_treaty_maf - 0.080
-        elif prev_elev < 1090:
-            mexico = cfg.mexico_treaty_maf - 0.041
+        # --- U + P: Upper Basin and Lake Powell ---
+        p_usable = max(0.0, s_p - cfg.powell_dead_pool_maf)
+        e_p = min(self._powell_evaporation_maf(s_p), p_usable + nf)
+        ub_room = max(0.0, nf + p_usable - e_p - cfg.min_powell_release_maf)
+        # Upper Basin use is upstream of Powell, so it can never exceed the
+        # natural flow itself (never binding with the defaults: NF >= 6.0 >
+        # the 5.0 MAF delivery capacity).
+        d_u = min(r_ub, cfg.ub_infrastructure_cap_maf, ub_room, nf)
+        if d_u >= r_ub:
+            ub_reason = "none"
+        elif ub_room < min(cfg.ub_infrastructure_cap_maf, nf):
+            ub_reason = "ub_powell_release"
         else:
-            mexico = cfg.mexico_treaty_maf
+            # Delivery capacity, or (never with the defaults) the natural
+            # flow itself: either way, no more can be diverted upstream.
+            ub_reason = "ub_capacity"
+        inflow_p = nf - d_u
+        # Pass-through release clamped to [7.0, 9.0] MAF subject to storage
+        # (decision 2026-09-26, options d and e): a normal year passes its inflow
+        # straight to Mead, as the pre-redesign physics did; a dry year is
+        # topped up from storage to 7.0 (or what is available); a wet year
+        # releases 9.0 and keeps the excess up to the target fill (option e).
+        # Evaporation comes out of storage, so storage declines by it in a
+        # pass-through year; the release is also capped by what can leave
+        # without taking Powell below its dead pool.
+        pass_through = inflow_p
+        available_p = max(0.0, pass_through + p_usable - e_p)
+        if pass_through > cfg.max_powell_release_maf:
+            # Wet year (option e): keep the excess over the 9.0 MAF ceiling
+            # only up to the target fill (total storage at that live
+            # fraction); a Powell already at or above the target after
+            # evaporation passes the whole inflow through.
+            target_p = cfg.powell_dead_pool_maf + cfg.powell_target_fill * (
+                cfg.powell_capacity_maf - cfg.powell_dead_pool_maf)
+            release = max(cfg.max_powell_release_maf,
+                          min(pass_through, s_p + pass_through - e_p - target_p))
+            release = min(release, available_p)
+        elif pass_through >= cfg.min_powell_release_maf:
+            release = min(pass_through, available_p)
+        else:
+            release = min(cfg.min_powell_release_maf, available_p)
+        s_p_end = s_p + inflow_p - e_p - release
+        # Storage above capacity (a wet year's retained excess, or a year that
+        # starts above capacity) spills into the release.
+        powell_spill = max(0.0, s_p_end - cfg.powell_capacity_maf)
+        release += powell_spill
+        s_p_end -= powell_spill
 
-        mead_outflow = lb_div_maf + mexico + evap_actual + cfg.lb_non_ag_total_maf
+        # --- L: Lake Mead ---
+        trib = cfg.lb_tributary_maf
+        m_usable = max(0.0, s_m - cfg.mead_dead_pool_maf)
+        e_m = min(self._mead_evaporation_maf(s_m), m_usable + release + trib)
+        lb_ag = r_lb * (1.0 - g)
+        non_ag = cfg.lb_non_ag_total_maf * (1.0 - g)
+        outflow = lb_ag + non_ag + mexico
+        available = max(0.0, m_usable + release + trib - e_m)
+        phi = 1.0 if (outflow <= 0 or outflow <= available) else available / outflow
+        s_m_end = s_m + release + trib - e_m - phi * outflow
+        mead_spill = max(0.0, s_m_end - cfg.mead_capacity_maf)
+        s_m_end -= mead_spill
 
-        # --- Mass balance ---
-        # R1: Glen Canyon Dam buffers releases; cap annual storage change
-        unconstrained_delta = mead_inflow - mead_outflow
-        max_delta = cfg.mead_max_storage_delta_maf
-        delta = max(-max_delta, min(max_delta, unconstrained_delta))
-        new_storage = prev_storage + delta
-        # Physical bounds override operational buffering near dead-pool/full-pool
-        new_storage = max(2.0, min(26.1, new_storage))
-        self._mead_storage.append(new_storage)
+        if g > 0 and phi < 1.0:
+            lb_reason = "lb_shortage_tier+lb_mead_availability"
+        elif phi < 1.0:
+            lb_reason = "lb_mead_availability"
+        elif g > 0:
+            lb_reason = "lb_shortage_tier"
+        else:
+            lb_reason = "none"
 
-        # --- Convert to elevation ---
-        level = self._storage_to_elevation(new_storage)
-        self._mead_history.append(level)
-        return level
+        ub_ratio = (d_u / r_ub) if r_ub > 0 else 1.0
+        lb_ratio = (1.0 - g) * phi
+        agents: Dict[str, Dict[str, Any]] = {}
+        for aid in ub_ids:
+            agents[aid] = {
+                "request": req[aid],
+                "delivered": req[aid] * ub_ratio,
+                "delivery_ratio": ub_ratio,
+                "gap_reason": ub_reason,
+            }
+        for aid in lb_ids:
+            agents[aid] = {
+                "request": req[aid],
+                "delivered": req[aid] * lb_ratio,
+                "delivery_ratio": lb_ratio,
+                "gap_reason": lb_reason,
+            }
+
+        return {
+            "agents": agents,
+            "natural_flow_maf": nf,
+            "ub_request_maf": r_ub,
+            "ub_delivered_maf": d_u,
+            "lb_request_maf": r_lb,
+            "lb_delivered_maf": lb_ag * phi,
+            "lb_non_ag_delivered_maf": non_ag * phi,
+            "mexico_delivered_maf": mexico * phi,
+            "lb_cut": g,
+            "lb_phys_ratio": phi,
+            "powell_storage_maf": s_p,
+            "powell_storage_end_maf": s_p_end,
+            "powell_evap_maf": e_p,
+            "powell_release_maf": release,
+            "powell_spill_maf": powell_spill,
+            "mead_storage_maf": s_m,
+            "mead_storage_end_maf": s_m_end,
+            "mead_evap_maf": e_m,
+            "mead_spill_maf": mead_spill,
+            "lb_tributary_maf": trib,
+        }
+
+    def _write_agent_deliveries(self, settlement: Dict[str, Any]) -> None:
+        """Write a settlement's per-agent delivery onto the agent dicts
+        (``diversion`` = delivered, plus ``delivery_ratio``/``gap_reason``)."""
+        for aid, rec in settlement["agents"].items():
+            agent = self._agents[aid]
+            agent["diversion"] = rec["delivered"]
+            agent["delivery_ratio"] = rec["delivery_ratio"]
+            agent["gap_reason"] = rec["gap_reason"]
+
+    def settle_year(self) -> Dict[str, Any]:
+        """FINAL settlement of the current year at the agents' current
+        requests, after every decision has executed.
+
+        Keeps the F11b contract (2026-09-25): it rebuilds every agent's
+        delivery from ``request`` and the frozen 1 January snapshot, never
+        from ``diversion``, so an agent whose decision did not execute
+        (ABORTED, no fallback, inactive) is treated exactly like one that
+        executed ``maintain_demand``, and a second call with no decision in
+        between is bitwise identical. Storage is NOT committed here; the
+        next ``advance_year()`` commits the pending settlement once.
+
+        Call exactly once per year, after the full decision loop and before
+        anything logs or snapshots the year's deliveries
+        (``IrrigationLifecycleHooks.post_year``). Returns the settlement.
+        """
+        if self._snapshot is None:
+            raise RuntimeError(
+                "settle_year() called before the first advance_year(): there "
+                "is no 1 January snapshot to settle against."
+            )
+        settlement = self._settle(self._snapshot)
+        settlement["year"] = self._current_year
+        self._write_agent_deliveries(settlement)
+        self._pending_settlement = settlement
+        return settlement
+
+    def apply_powell_cap_to_executed_diversions(self) -> None:
+        """Deprecated alias of :meth:`settle_year` (the F11b name, kept so
+        older call sites and tests keep working)."""
+        self.settle_year()
+
+    def _commit_settlement(self, settlement: Dict[str, Any]) -> None:
+        """End-of-year storages become the next 1 January storages."""
+        self._powell_storage = float(settlement["powell_storage_end_maf"])
+        self._mead_storage.append(float(settlement["mead_storage_end_maf"]))
+        self._settlement_history.append(settlement)
+        self._pending_settlement = None
+
+    @property
+    def last_settlement(self) -> Optional[Dict[str, Any]]:
+        """The current year's final settlement if settle_year() ran this
+        year, else the last committed one (None before any)."""
+        if self._pending_settlement is not None:
+            return self._pending_settlement
+        return self._settlement_history[-1] if self._settlement_history else None
 
     def _update_preceding_factors(self, precip: float, mead_level: float) -> None:
         """Compute binary preceding factors from signal changes.
@@ -1102,177 +1472,22 @@ class IrrigationEnvironment:
         else:
             return 3
 
+    @staticmethod
+    def _tier_curtailment_ratio(tier: int) -> float:
+        """Lower Basin reduction by declared shortage tier (Colorado River
+        Interim Guidelines, simplified): 0 / 5 / 10 / 20 percent."""
+        return {0: 0.0, 1: 0.05, 2: 0.10, 3: 0.20}.get(tier, 0.0)
+
     def _apply_curtailment(self) -> None:
-        """Apply water curtailment to agents based on shortage tier."""
-        tier = self._compute_shortage_tier()
-        # Curtailment ratios by tier (from Colorado River Interim Guidelines)
-        curtailment_map = {0: 0.0, 1: 0.05, 2: 0.10, 3: 0.20}
-        ratio = curtailment_map.get(tier, 0.0)
-
+        """Record the declared shortage on each agent: the tier's ratio for
+        Lower Basin agents, 0 for Upper Basin agents (the Interim Guidelines
+        and DCP shortage tiers bind Lower Basin users only). The deliveries
+        themselves are computed by :meth:`_settle`."""
+        ratio = self._tier_curtailment_ratio(self._compute_shortage_tier())
         for agent in self._agents.values():
-            agent["curtailment_ratio"] = ratio
-            # Update actual diversion
-            capped_request = min(agent["request"], agent["water_right"])
-            agent["diversion"] = capped_request * (1.0 - ratio)
-
-    def _apply_powell_constraint(self) -> None:
-        """Reduce UB diversions when they exceed Powell release capacity.
-
-        Two physical constraints applied (whichever is stricter):
-        1. Powell minimum release (7.0 MAF) — USBR DCP operating rules
-        2. UB infrastructure ceiling (5.0 MAF) — historical depletion
-           capacity; UB has never exceeded ~3 MAF (2018 peak).
-
-        UB agent diversions are pro-rata scaled down so the binding
-        constraint is satisfied.
-
-        F11 (2026-09-25 audit, disclosure only, no behaviour change):
-        Powell STORAGE is not modelled here; only its minimum-release
-        floor is (constraint 1 above). In a year where natural flow is
-        below 7.0 MAF (2022 in the CRSS PRISM series), ``ub_flow_cap_af``
-        goes to 0, so every Upper Basin agent's diversion is scaled to
-        exactly 0 immediately after this method runs (verified against
-        the real CRSS PRISM CSV: loop year 4 / calendar 2022 gives 0.0
-        for every Upper Basin agent). This zero is what the agent's own
-        prompt (``get_agent_context``'s ``current_diversion``) and every
-        governance check see, since both read state between
-        ``advance_year()`` and that agent's own decision.
-
-        HISTORY (fixed by F11b, 2026-09-25, after two earlier disclosure
-        passes on the same branch got progressively more accurate but
-        never actually fixed it): ``update_agent_request`` (below)
-        recomputes ``diversion = new_request * (1 - curtailment_ratio)``
-        from ``curtailment_ratio`` alone, with no Powell scale factor,
-        and every skill branch in ``execute_skill`` (``maintain_demand``
-        included) calls it -- so the instant an Upper Basin agent's own
-        ``execute_skill`` ran, its diversion used to jump back to the
-        curtailment-only value, discarding whatever Powell scaling
-        ``advance_year()`` had applied (not only a full zero -- any
-        Powell scaling short of that). F11b fixes this at the one point
-        where it can be fixed correctly without re-scaling the same
-        agents twice: :meth:`apply_powell_cap_to_executed_diversions`,
-        called ONCE per year, after every agent has executed its
-        decision, from ``IrrigationLifecycleHooks.post_year`` (before
-        ``simulation_log.csv`` rows are built and before the F05 memory
-        snapshot) -- see that method's docstring for why this is the
-        only safe place to call it, and why calling
-        ``_apply_powell_constraint`` again mid-decision-loop would be
-        wrong. ``simulation_log.csv``'s ``diversion`` column, this
-        branch's F05 memory snapshot, and ``_batch_reflect``'s
-        ``supply_ratio`` all read ``agent["diversion"]`` directly, so all
-        three now correctly reflect the Powell cap for Upper Basin
-        agents. As a side effect this also fixes the year-over-year
-        carry-forward gap two earlier disclosure passes described here:
-        ``_generate_lake_mead_level`` reads UB diversions from the
-        *previous* year, and that value is now the F11b-corrected one,
-        not an inflated curtailment-only figure. Lower Basin diversions
-        are unaffected -- ``_apply_curtailment``'s tier-based floor at
-        0.80 (Tier 3's 20% cut) is unchanged and was never part of this
-        gap. Whether Powell storage itself should be modelled (the
-        remaining, deliberately out-of-scope half of the original F11
-        finding) is a design decision for the runner/env owner. See
-        ``docs/irrigation_physics.md``'s "Single-Reservoir Justification"
-        section for the corresponding physics-side note.
-        """
-        cfg = self.config
-        precip = (self._precip_history[-1]
-                  if self._precip_history else cfg.precip_baseline_mm)
-        natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
-        natural_flow = max(6.0, min(17.0, natural_flow))
-
-        ub_agents = [a for a in self._agents.values()
-                     if a["basin"] == "upper_basin"]
-        ub_div_total = sum(a["diversion"] for a in ub_agents)
-
-        # Binding constraint: min of flow-based and infrastructure caps
-        ub_flow_cap_af = max(0.0, natural_flow - cfg.min_powell_release_maf) * 1e6
-        ub_infra_cap_af = cfg.ub_infrastructure_cap_maf * 1e6
-        ub_effective_cap = min(ub_flow_cap_af, ub_infra_cap_af)
-
-        if ub_div_total > ub_effective_cap and ub_div_total > 0:
-            scale = ub_effective_cap / ub_div_total
-            for a in ub_agents:
-                a["diversion"] *= scale
-
-    def apply_powell_cap_to_executed_diversions(self) -> None:
-        """F11b (2026-09-25 audit follow-up): re-apply the Powell pro-rata
-        cap to Upper Basin diversions after every agent has executed its
-        decision for the year.
-
-        ``advance_year()`` already ran ``_apply_powell_constraint()`` once,
-        before any agent decided this year, using each Upper Basin agent's
-        diversion as it stood at the END of the PREVIOUS year. But
-        ``update_agent_request`` recomputes
-        ``diversion = new_request * (1 - curtailment_ratio)`` from
-        ``curtailment_ratio`` alone -- no Powell scale factor -- and every
-        skill branch in ``execute_skill`` (``maintain_demand`` included)
-        calls it. So by the time every agent has executed THIS year's
-        decision, every Upper Basin agent's diversion has silently lost
-        whatever Powell scaling ``advance_year()`` applied (see
-        ``_apply_powell_constraint``'s docstring for the full finding
-        history: F11 disclosed this, two follow-up passes narrowed and
-        corrected the disclosure, F11b is the actual fix).
-
-        Call this exactly ONCE per year, after every agent's decision for
-        the year has executed and before anything logs, snapshots, or
-        otherwise reads ``diversion`` for the year --
-        ``IrrigationLifecycleHooks.post_year``, before both the F05
-        memory snapshot and the ``simulation_log.csv`` row are built, is
-        the intended call site.
-
-        Code review (2026-09-25, same day as the fix): calling
-        ``_apply_powell_constraint`` a second time, unchanged, is WRONG
-        for any Upper Basin agent whose decision did NOT execute this
-        year (ABORTED, a REJECTED/UNCERTAIN row with no fallback, or an
-        inactive agent) -- its ``diversion`` still holds the value the
-        FIRST call (inside ``advance_year()``) already scaled down, so a
-        second raw call would add that already-reduced number into the
-        aggregate and scale it down again, while an agent that DID
-        execute contributes its full curtailment-only value. That skews
-        the pro-rata split between the two: reproduced directly with two
-        equal-request Upper Basin agents under a partial cap, one
-        ``maintain_demand``, one left un-executed -- the executed agent
-        ended up with roughly double the un-executed one's diversion
-        instead of the equal split the cap should produce.
-
-        Fixed by rebuilding EVERY Upper Basin agent's diversion from its
-        current ``request``/``water_right``/``curtailment_ratio`` (the
-        same formula ``update_agent_request`` uses) before re-deriving
-        the cap: for an agent that executed this year, ``request`` and
-        ``curtailment_ratio`` are already this year's values, so this
-        reproduces ``update_agent_request``'s own result bit for bit; for
-        an agent that did NOT execute, ``request`` is still last year's
-        value and ``curtailment_ratio`` is this year's (``_apply_curtailment``
-        sets it for every agent unconditionally, whether or not that
-        agent later executes), so this recomputes exactly what
-        ``_apply_curtailment`` produced for it during ``advance_year()``,
-        BEFORE that first Powell scaling -- undoing the first call's
-        scaling uniformly for every Upper Basin agent, executed or not,
-        so the aggregate this method then caps is the true pre-Powell
-        total, and every agent is scaled exactly once.
-
-        Idempotent, exactly: every call rebuilds ``diversion`` from
-        ``request``/``water_right``/``curtailment_ratio`` and
-        ``self._precip_history[-1]``, none of which this method modifies,
-        so a second call with no decision in between reproduces the
-        first call's result bit for bit (measured directly: 3,000
-        randomised multi-agent scenarios, 0 differed on a second call).
-        Calling
-        it mid-decision-loop, after only SOME agents have executed, would
-        still be wrong -- the aggregate cap should reflect the year's
-        FINAL demand, not a partial one -- so the "exactly once, after
-        the full decision loop" rule still applies; rebuilding from
-        ``request`` only fixes the un-executed-agent skew, not a
-        premature call. Lower Basin is untouched -- ``_apply_curtailment``'s
-        tier-based floor at 0.80 is unchanged and was never part of this
-        gap.
-        """
-        for agent in self._agents.values():
-            if agent["basin"] != "upper_basin":
-                continue
-            capped_request = min(agent["request"], agent["water_right"])
-            agent["diversion"] = capped_request * (1.0 - agent.get("curtailment_ratio", 0.0))
-        self._apply_powell_constraint()
+            agent["curtailment_ratio"] = (
+                0.0 if agent["basin"] == "upper_basin" else ratio
+            )
 
     # -----------------------------------------------------------------
     # Utility

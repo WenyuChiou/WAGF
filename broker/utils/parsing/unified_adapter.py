@@ -1412,6 +1412,7 @@ class UnifiedAdapter(ModelAdapter):
         header: Optional[str] = None,
         closer: Optional[str] = None,
         include_reports: bool = True,
+        feasible_line: Optional[str] = None,
     ) -> "tuple[str, int]":
         """P0-1c: shared renderer for retry AND advisory prompts.
 
@@ -1432,6 +1433,11 @@ class UnifiedAdapter(ModelAdapter):
         original prompt) with no rules block -- the A'' wrapper-only control, which
         exists because otherwise the placebo-minus-resample term absorbs prompt
         restructuring and position shift alongside generic corrective pressure.
+
+        ``feasible_line`` (default None) is one sentence naming the actions
+        that pass every rule; it is appended after the reports block and any
+        truncation note, before the closer, so ``max_reports`` never drops
+        it. None renders byte-identically to the prompt without it.
         """
         from ...interfaces.skill_types import InterventionReport
 
@@ -1485,6 +1491,9 @@ class UnifiedAdapter(ModelAdapter):
 
         if truncated:
             error_lines.append(f"\n[!NOTE] There were more issues detected, but only the top {max_reports} are shown for brevity. Please fix these first.")
+
+        if feasible_line:
+            error_lines.append(f"\n{feasible_line}")
 
         error_text = "\n".join(error_lines)
         return f"""{header}

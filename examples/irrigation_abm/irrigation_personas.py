@@ -48,16 +48,12 @@ class IrrigationAgentProfile:
     has_efficient_system: bool = False
     actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
 
-    # v17: Persona scale + per-skill Gaussian params
-    persona_scale: float = 1.0       # Multiplier for skill-level mu/sigma
-    skill_magnitude: Dict = field(default_factory=dict)  # Per-skill {mu, sigma, min, max}
-
-    # Magnitude parameters (v12 legacy: per-persona Gaussian sampling fallback)
-    magnitude_default: float = 10.0  # Mean of Gaussian distribution (%)
-    magnitude_sigma: float = 0.0     # Standard deviation for stochasticity
-    magnitude_min: float = 1.0       # Lower bound for clipping
-    magnitude_max: float = 30.0      # Upper bound for clipping
-    exploration_rate: float = 0.0    # ε-exploration: probability of unbounded sampling
+    # Hung and Yang (2021) action model: step = (mu + |N(0, sigma)|) x
+    # bin_size_af (mu and sigma above are that model's per-agent parameters).
+    # bin_size_af = the step of the agent's discretised diversion grid
+    # (Div_States/*_discrete_states.csv, agt_states[2] - agt_states[1]);
+    # None = synthetic profile, the environment falls back to water_right / 25.
+    bin_size_af: Optional[float] = None
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -185,12 +181,78 @@ def build_narrative_persona(
     )
 
 
+# Supply-side redesign (2026-09-25, spec S1 to S6): ONE helper turns the
+# settlement's gap_reason code into the phrase every message uses (situation
+# text, the supply-gap and shortage rule messages, the yearly memory line),
+# so the stated reason cannot drift between texts.
+_TIER_BY_CUT = {0.05: 1, 0.10: 2, 0.20: 3}
+
+
+def _tier_from_state(state: Dict[str, Any]) -> int:
+    tier = state.get("shortage_tier")
+    if isinstance(tier, (int, float)) and tier > 0:
+        return int(tier)
+    cut = round(float(state.get("curtailment_ratio", 0) or 0), 2)
+    return _TIER_BY_CUT.get(cut, 0)
+
+
+def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
+    """Phrase for why this agent's delivery is below its request.
+
+    ``agent_state`` needs ``gap_reason`` (a settlement code from
+    ``IrrigationEnvironment._settle``) and, for the Lower Basin shortage
+    code, ``curtailment_ratio`` (and ``shortage_tier`` when available).
+    Returns "" for ``none`` or a missing code; otherwise a phrase starting
+    with "because", ready to follow a comma.
+    """
+    code = str(agent_state.get("gap_reason") or "none")
+    if code == "none":
+        return ""
+    parts = []
+    for c in code.split("+"):
+        if c == "ub_capacity":
+            cap = float(agent_state.get("ub_capacity_maf", 5.0) or 5.0)
+            parts.append(f"Upper Basin deliveries are limited to the {cap:.1f} million "
+                         f"acre-ft delivery capacity, shared pro-rata")
+        elif c == "ub_powell_release":
+            parts.append("Upper Basin deliveries were reduced pro-rata so Lake Powell can "
+                         "make its minimum release to Lake Mead")
+        elif c == "lb_shortage_tier":
+            cut = float(agent_state.get("curtailment_ratio", 0) or 0)
+            tier = _tier_from_state(agent_state)
+            tier_text = f"Tier {tier} " if tier else ""
+            parts.append(f"the {tier_text}Lower Basin shortage reduces Lower Basin "
+                         f"deliveries by {cut:.0%}")
+        elif c == "lb_mead_availability":
+            parts.append("Lake Mead cannot meet all Lower Basin withdrawals this year "
+                         "without falling below its minimum pool, so all Lower Basin "
+                         "deliveries are reduced pro-rata")
+    if not parts:
+        return ""
+    return "because " + " and ".join(parts)
+
+
+def _with_reason(text: str, reason: str) -> str:
+    return f"{text}, {reason}" if reason else text
+
+
 def build_water_situation_text(
     env_context: Dict[str, Any],
+    last_year: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Generate water situation text from environment context.
 
     This is injected into the prompt as ``{water_situation_text}``.
+
+    Supply-side redesign (2026-09-25, spec S1): the Lower Basin shortage
+    line appears only for Lower Basin agents (tiers bind the Lower Basin
+    only); Upper Basin agents see natural flow and Lake Powell storage; every
+    agent sees last year's request and delivery (``last_year``: the F05
+    snapshot, with ``request``, ``diversion`` and ``gap_reason``) and the
+    delivery it can expect at its current request, with the same reason
+    phrase as the rule messages and the memory line (describe_gap_reason).
+    "Full allocation is available" appears only when the expected delivery
+    is the whole request.
     """
     year = env_context.get("year", "unknown")
     basin = env_context.get("basin", "unknown")
@@ -199,14 +261,16 @@ def build_water_situation_text(
     mead = env_context.get("lake_mead_level", 0)
     curtailment = env_context.get("curtailment_ratio", 0)
     shortage_tier = env_context.get("shortage_tier", 0)
-    current_div = env_context.get("current_diversion", 0)
+    current_req = env_context.get("current_request", 0)
+    expected = env_context.get("current_diversion", 0)
+    ratio = env_context.get("delivery_ratio", 1.0)
     water_right = env_context.get("water_right", 0)
 
     basin_display = _BASIN_DISPLAY.get(basin, basin)
 
     lines = [f"It is now the year {year}. You divert water in the {basin_display}."]
 
-    # Drought signal — balanced framing (positive when low, negative when high)
+    # Drought signal: balanced framing (positive when low, negative when high)
     if drought < 0.2:
         lines.append(
             "Water supply conditions are favorable this year. "
@@ -234,33 +298,53 @@ def build_water_situation_text(
             f"Winter precipitation in your region was {precip:.0f} mm "
             f"({'above' if env_context.get('preceding_factor', 0) else 'below'} last year)."
         )
+        nf = env_context.get("natural_flow_maf")
+        powell = env_context.get("powell_storage_maf")
+        if nf:
+            lines.append(f"Natural flow on the river this year is forecast at {nf:.1f} million acre-ft.")
+        if powell:
+            lines.append(f"Lake Powell holds {powell:.1f} million acre-ft on 1 January.")
     else:
         lines.append(
-            f"Lake Mead water level is at {mead:.0f} feet above sea level "
+            f"Lake Mead was at {mead:.0f} feet above sea level on 1 January "
             f"({'rising' if env_context.get('preceding_factor', 0) else 'declining'} from last year)."
         )
+        if shortage_tier > 0:
+            lines.append(
+                f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
+                f"shortage: Lower Basin deliveries are reduced by {curtailment:.0%}."
+            )
+        else:
+            lines.append("No Lower Basin shortage has been declared for this year.")
 
-    # Curtailment
-    if shortage_tier > 0:
+    # Last year's actual outcome (final settlement)
+    if last_year and last_year.get("request", 0) > 0:
+        lr = last_year.get("request", 0)
+        ld = last_year.get("diversion", 0)
+        lines.append(_with_reason(
+            f"Last year you requested {lr:,.0f} acre-ft and received {ld:,.0f} acre-ft "
+            f"({ld / lr:.0%} delivered)", describe_gap_reason(last_year)) + ".")
+
+    # This year's expectation at the current request
+    if ratio >= 1.0 - 1e-9:
         lines.append(
-            f"The Bureau of Reclamation has declared Tier {shortage_tier} "
-            f"shortage conditions. Your water allocation is curtailed by "
-            f"{curtailment:.0%}."
+            f"At your current request of {current_req:,.0f} acre-ft you can expect full "
+            f"delivery this year. Full allocation is available."
         )
     else:
-        lines.append("No shortage has been declared. Full allocation is available.")
+        lines.append(_with_reason(
+            f"At your current request of {current_req:,.0f} acre-ft, expected delivery this "
+            f"year is {expected:,.0f} acre-ft ({ratio:.0%} of your request)",
+            describe_gap_reason(env_context)) + ".")
 
-    # Agent's current position
-    utilisation = (current_div / water_right * 100) if water_right > 0 else 0
+    utilisation = (current_req / water_right * 100) if water_right > 0 else 0
     lines.append(
-        f"Your current water use is {current_div:,.0f} acre-ft/year out of "
-        f"your water right of {water_right:,.0f} acre-ft/year "
-        f"({utilisation:.0f}% utilisation)."
+        f"Your request is {utilisation:.0f}% of your water right of "
+        f"{water_right:,.0f} acre-ft/year."
     )
 
-    # NOTE: Supply-demand gap feedback is now handled by the generic
+    # NOTE: Supply-demand gap feedback is also shown by the generic
     # FeedbackDashboardProvider via YAML assertions in agent_types.yaml.
-    # See broker/components/feedback_provider.py
 
     return "\n".join(lines)
 
@@ -313,6 +397,22 @@ def _build_trend_text(basin: str, preceding_factor: int) -> str:
     return f"Lake Mead level was {'rising' if preceding_factor else 'declining'} last year."
 
 
+# Plain-language label (with its article) for the first blocking rule in the
+# neutral memory line.
+_RULE_LABELS = {
+    "curtailment_awareness": "the Lower Basin shortage rule",
+    "supply_gap_block_increase": "the shortage-sharing rule",
+    "high_threat_high_cope_no_increase": "the scarcity-capacity consistency rule",
+    "low_threat_no_increase": "the low-scarcity rule",
+    "observed_scarcity_low_wsa_increase": "the observed-scarcity rule",
+    "water_right_cap": "the water-right cap",
+    "minimum_utilisation_floor": "the minimum-use floor",
+    "zero_escape_floor": "the minimum-use rule for maintaining",
+    "consecutive_increase_cap": "the consecutive-increase limit",
+    "non_negative_diversion": "the zero-delivery rule",
+}
+
+
 def build_action_outcome_feedback(
     action_ctx: Optional[Dict[str, Any]],
     year: int,
@@ -321,6 +421,8 @@ def build_action_outcome_feedback(
     drought_index: float,
     preceding_factor: int,
     basin: str = "upper_basin",
+    gap_reason: str = "",
+    rejection_line_style: str = "explicit",
 ) -> str:
     """Build combined action + outcome feedback for memory.
 
@@ -333,12 +435,21 @@ def build_action_outcome_feedback(
     ``_build_trend_text``; it defaults to ``"upper_basin"`` (the original,
     precipitation-only wording) so callers that predate the basin parameter
     keep their exact prior text.
+
+    ``gap_reason`` is the ``describe_gap_reason`` phrase appended to the
+    shortfall sentence ("" = the pre-redesign sentence).
+    ``rejection_line_style`` (``explicit`` default, the shipped text naming
+    the rejected proposal; ``neutral``: "Year N: <applied action> was
+    applied under the <rule label>.", which does not name the proposal).
     """
     gap = max(0.0, request - diversion)
     gap_pct = (gap / request * 100.0) if request > 0 else 0.0
 
     if gap > 0:
-        shortfall = f"Shortfall: {gap:,.0f} acre-ft ({gap_pct:.0f}% unmet)."
+        # gap_reason: the describe_gap_reason phrase (supply-side redesign,
+        # spec S6); "" keeps the pre-redesign sentence byte-for-byte.
+        shortfall = _with_reason(
+            f"Shortfall: {gap:,.0f} acre-ft ({gap_pct:.0f}% unmet)", gap_reason) + "."
     else:
         shortfall = "Demand fully met."
 
@@ -351,6 +462,18 @@ def build_action_outcome_feedback(
     # Action portion (from _last_action_context stored by framework)
     if action_ctx and action_ctx.get("skill_name"):
         skill = action_ctx["skill_name"].replace("_", " ")
+        if action_ctx.get("was_fallback") and rejection_line_style == "neutral":
+            # Neutral style (memory.rejection_line_style): names the rule and
+            # the action that was applied, not the rejected proposal.
+            rules = action_ctx.get("blocking_rules") or []
+            if action_ctx.get("proposed_skill") and rules:
+                label = _RULE_LABELS.get(rules[0], "a governance rule")
+                lead = f"Year {year}: {skill} was applied under {label}"
+            elif action_ctx.get("proposed_skill"):
+                lead = f"Year {year}: {skill} was applied under a governance rule"
+            else:
+                lead = f"Year {year}: no valid decision was read; {skill} was applied"
+            return lead + ". " + outcome
         if action_ctx.get("was_fallback"):
             # Governance rejected the proposal and the registry default skill
             # was executed in its place; "You chose" would be false here.
@@ -675,7 +798,8 @@ def create_profiles_from_data(
     grid-top ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below
     50% utilisation, so ``demand_floor_stabilizer``
     (``DEMAND_FLOOR_RATIO = 0.50`` in ``validators/irrigation_validators.py``)
-    binds for most agents from year 1 in the governed arm. See
+    bound for most agents from year 1 in the governed arm of corpora produced
+    before 2026-09-25 (retired from dispatch since). See
     ``docs/irrigation_physics.md`` for the corresponding physics-side
     note.
 
@@ -751,6 +875,7 @@ def create_profiles_from_data(
         regret_val = float(p["regret"])
         cluster = _infer_cluster(mu, sigma, alpha, regret_val)
 
+        bin_size_af = float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
             agent_id=agent_name,
             basin="lower_basin",
@@ -764,6 +889,7 @@ def create_profiles_from_data(
             forget=str(p.get("forget", "TRUE")).upper() == "TRUE",
             farm_size_acres=water_right / 200.0,  # proportional to water_right
             water_right=water_right,
+            bin_size_af=bin_size_af,
             crop_type=_assign_crop_type("lower_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
@@ -793,6 +919,7 @@ def create_profiles_from_data(
         regret_val = float(p["regret"])
         cluster = _infer_cluster(mu, sigma, alpha, regret_val)
 
+        bin_size_af = float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
             agent_id=agent_name,
             basin="upper_basin",
@@ -806,6 +933,7 @@ def create_profiles_from_data(
             forget=str(p.get("forget", "TRUE")).upper() == "TRUE",
             farm_size_acres=water_right / 200.0,
             water_right=water_right,
+            bin_size_af=bin_size_af,
             crop_type=_assign_crop_type("upper_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )

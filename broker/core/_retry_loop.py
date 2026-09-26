@@ -28,6 +28,7 @@ attempts; same deterministic rule blocks consecutive attempts" clause):
 Distinct from the LLM format/parse retry loop above, which retries on
 malformed LLM output (parse failures), not on governance rejections.
 """
+import dataclasses
 from typing import Callable, Dict, List, Optional
 
 from ..interfaces.skill_types import (
@@ -287,6 +288,91 @@ class RetryMixin:
         return has_any_blocking
 
     # ------------------------------------------------------------------
+    # Feasible-set probe (global_config.governance.feasible_set_feedback)
+    # ------------------------------------------------------------------
+    def _step_skill_map(self, agent_type: str, context: Dict) -> Dict[str, str]:
+        """The parser's skill map for this agent and step (option id ->
+        skill), or {} when none is available."""
+        get_map = getattr(self.config, "get_skill_map", None)
+        if not callable(get_map):
+            return {}
+        try:
+            skill_map = get_map(agent_type, context)
+        except Exception:
+            return {}
+        return skill_map if isinstance(skill_map, dict) else {}
+
+    def _candidate_skills(self, agent_type: str, context: Dict) -> List[str]:
+        """Skills the agent could have chosen this step, in the order the
+        prompt offers them (the step's skill map), else registry order; each
+        must exist in the registry and be eligible for the agent type."""
+        names: List[str] = []
+        skill_map = self._step_skill_map(agent_type, context)
+        if skill_map:
+            for v in skill_map.values():
+                if isinstance(v, str) and v not in names:
+                    names.append(v)
+        else:
+            names = list(self.skill_registry.list_skills())
+        out = []
+        for name in names:
+            if not self.skill_registry.exists(name):
+                continue
+            elig = self.skill_registry.check_eligibility(name, agent_type)
+            if getattr(elig, "valid", True):
+                out.append(name)
+        return out
+
+    def _probe_feasible_skills(
+        self, skill_proposal, validation_context: Dict, agent_type: str, context: Dict,
+    ) -> List[str]:
+        """Re-run every validator on each candidate skill with the proposal's
+        own reasoning labels and parameters; a skill is feasible when no
+        result is an ERROR (valid=False). Probe runs are hypothetical: they
+        are not added to the validation history and do not count as rule
+        hits (GovernanceAuditor.muted)."""
+        from ..utils.governance_auditor import GovernanceAuditor
+
+        feasible: List[str] = []
+        with GovernanceAuditor.muted():
+            for name in self._candidate_skills(agent_type, context):
+                probe = dataclasses.replace(skill_proposal, skill_name=name)
+                results = self._run_validators(probe, dict(validation_context))
+                if all(getattr(r, "valid", True) for r in results):
+                    feasible.append(name)
+        return feasible
+
+    def _format_feasible_line(self, feasible: List[str], agent_type: str, context: Dict) -> str:
+        """One sentence naming the actions that pass every rule. Numeric ids
+        come from the step's skill map (as the prompt shows them); without a
+        map, skill names are used."""
+        inverse: Dict[str, str] = {}
+        for k, v in self._step_skill_map(agent_type, context).items():
+            if isinstance(v, str) and v not in inverse and str(k).isdigit():
+                inverse[v] = str(k)
+
+        def label(name: str) -> str:
+            text = name.replace("_", " ")
+            return f"{inverse[name]} ({text})" if name in inverse else text
+
+        if feasible:
+            return (
+                "Actions that pass every rule, given the assessment in your last "
+                "response: " + ", ".join(label(n) for n in feasible) + "."
+            )
+        if getattr(self, "_on_retry_exhausted", "default") == "keep_proposal":
+            return "No action passes every rule given your last response."
+        try:
+            default_name = self.skill_registry.get_default_skill()
+            tail = "the default action (" + default_name.replace("_", " ") + ") will be applied."
+        except ValueError:
+            tail = "the default action will be applied."
+        return (
+            "No action passes every rule given your last response; if this "
+            "continues, " + tail
+        )
+
+    # ------------------------------------------------------------------
     # Governance retry loop
     # ------------------------------------------------------------------
     def _governance_retry_loop(
@@ -296,6 +382,7 @@ class RetryMixin:
         agent_id: str, agent_type: str, env_context: Optional[Dict],
         raw_output: str, total_llm_stats: Dict,
         attempt_skills: Optional[List] = None,
+        feasible_by_attempt: Optional[List] = None,
     ):
         """Run governance validation retry loop.
 
@@ -318,6 +405,15 @@ class RetryMixin:
         Optional and default-``None`` so existing callers are unaffected; the
         list is only surfaced when the ``initial_proposal_columns`` audit flag
         is ON, keeping flag-OFF traces byte-identical.
+
+        Feasible set (``global_config.governance.feasible_set_feedback``,
+        default off): when on and the attempt being answered has an ERROR,
+        the retry prompt gains one line naming the actions that pass every
+        rule given that attempt's labels (``_probe_feasible_skills``),
+        rendered after the reports and outside ``max_reports`` truncation.
+        ``feasible_by_attempt``, when supplied, receives one list per such
+        attempt. Not rendered under ``retry_feedback_mode: placebo`` (that
+        arm carries no rule content).
         """
         # The five cost keys are seeded by _invoke_llm_with_retries, which in
         # production always runs first — but this method is also entered
@@ -413,10 +509,22 @@ class RetryMixin:
                 # P0-1c: framing defaults to "legacy", which delegates to the byte-identical
                 # published prompt. Arms B/B'/C set "neutral" so the enforce arm's text
                 # matches the advisory arms' exactly and (C-B) carries no wording delta.
+                _feasible_kw = {}
+                if (getattr(self, "_feasible_set_feedback", False) is True
+                        and skill_proposal is not None
+                        and any(v is not None and not getattr(v, "valid", True)
+                                for v in validation_results)):
+                    _feasible = self._probe_feasible_skills(
+                        skill_proposal, validation_context, agent_type, context)
+                    if feasible_by_attempt is not None:
+                        feasible_by_attempt.append(list(_feasible))
+                    _feasible_kw["feasible_line"] = self._format_feasible_line(
+                        _feasible, agent_type, context)
                 retry_prompt, _reports_shown = render_intervention_prompt(
                     self.model_adapter, prompt, errors_to_send,
                     max_reports=self.max_reports,
                     framing=getattr(self, "_intervention_framing", "legacy"),
+                    **_feasible_kw,
                 )
             res = llm_invoke(retry_prompt)
             if "llm_calls" in total_llm_stats:

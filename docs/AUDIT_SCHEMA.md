@@ -797,6 +797,20 @@ changing behaviour and measures the soft rules' firing rate alone.
 | CSV text cells | `trace_to_csv_row` strips newlines and carriage returns from strings. | Use JSONL for exact raw text. |
 | Dynamic columns | `construct_*`, `social_*`, and `world_*` depend on keys present in traces. | Compare against the schema sidecar for the run under analysis. |
 
+## Irrigation `simulation_log.csv` magnitude columns (2026-09-26)
+
+Not audit-CSV columns; recorded here because analyses join them to the audit rows. Under the Hung and Yang action model (`examples/irrigation_abm/irrigation_env.py (hy_step_af)`):
+
+| Column | Meaning |
+|---|---|
+| `magnitude_pct` | realised change as a percent of the request before the decision (after the water-right cap or the 10 percent floor) |
+| `magnitude_pct_sampled` | the drawn step as a percent of that request (before caps) |
+| `magnitude_af` | realised change in acre-ft |
+| `magnitude_class` | `small` or `large` (the drawn step at or below / above the agent's median step) |
+| `is_exploration` | always False since 2026-09-26 (magnitude exploration dropped) |
+
+Before 2026-09-25 `magnitude_pct` held the sampled percentage; between 2026-09-25 and 2026-09-26 it held the realised percentage of a persona-scaled Gaussian band. Do not pool magnitudes across these vintages.
+
 ## Historical Note
 
 | Era | Schema | Notes |
@@ -831,6 +845,8 @@ evidence and document the schema era in any paper or replication package.
 | Full prompts | no | yes, if the trace writer includes them | no |
 | World commit deltas | yes, only when key-gated columns appear | yes | no |
 | Per-attempt retry sequence | yes, under `audit.initial_proposal_columns` (`attempt_skills`) | yes | no |
+| Appraisal-label change from first to final attempt | yes, under `audit.initial_proposal_columns` (`final_labels`, `appraisal_drift` e.g. `WSA_LABEL:H>M`, empty when unchanged, not retried, or when either end carries no labels such as an unparsed final attempt; `appraisal_drifted` bool) | yes | no |
+| Actions that would have passed every rule, per retry prompt | yes, under `governance.feasible_set_feedback` (`feasible_by_attempt`: one group per retry prompt that answered a parsed ERROR attempt, in order, so unparsable attempts and the last failed attempt have none; groups separated by `\|`, skills within a group by `,`; an empty group means none passed) | yes | no |
 | Executed registry-default name on `REJECTED` | yes, under `audit.executed_skill_columns` or `audit.corrected_status_columns` (`executed_skill`) | yes | no |
 | Which remap rule produced the executed action | yes, under `audit.corrected_status_columns` (`execution_path`) | yes | no |
 | Steps whose output never parsed | yes, under `audit.corrected_status_columns` (an `ABORTED` sentinel row) | yes | no |

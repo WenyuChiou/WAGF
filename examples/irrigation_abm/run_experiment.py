@@ -33,6 +33,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
+    CRSS_DEMAND_TARGET_AF,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -44,6 +45,7 @@ from examples.irrigation_abm.irrigation_personas import (
     build_aca_hint,
     build_action_outcome_feedback,
     create_profiles_from_csv,
+    describe_gap_reason,
     rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
@@ -282,6 +284,28 @@ def _create_synthetic_profiles(
 # ---------------------------------------------------------------------------
 # Lifecycle Hooks
 # ---------------------------------------------------------------------------
+def _proposed_and_fallback(action_ctx: Optional[Dict[str, Any]]) -> Tuple[str, bool]:
+    """(the agent's own proposal, whether it was overruled) for one year.
+
+    On an approved row the executed skill IS the proposal. On a rejected
+    row ExperimentRunner._apply_state_changes records ``proposed_skill``
+    (None on UNCERTAIN rows, where no usable proposal existed) and
+    ``was_fallback``. Memory salience reads the proposal, not the executed
+    fallback (supply-side redesign, 2026-09-25, spec M1/M2/M4)."""
+    ctx = action_ctx or {}
+    was_fallback = bool(ctx.get("was_fallback", False))
+    proposed = ctx.get("proposed_skill") if "proposed_skill" in ctx else ctx.get("skill_name", "")
+    return (proposed or ""), was_fallback
+
+
+def _unmet_frac(request: float, delivered: float) -> float:
+    """1 - delivered / requested on [0, 1] (0 when nothing was requested).
+    Rounded to 6 places so float noise cannot move a band edge."""
+    if not request or request <= 0:
+        return 0.0
+    return round(min(1.0, max(0.0, 1.0 - float(delivered) / float(request))), 6)
+
+
 class IrrigationLifecycleHooks:
     """Hooks that wire water state, memory injection, and reflection."""
 
@@ -303,6 +327,11 @@ class IrrigationLifecycleHooks:
         # Feedback dashboard (attached after construction by main())
         self.metrics_tracker = None
         self.feedback_config: Dict = {}
+        # Band importance / emotion for the yearly outcome memory line.
+        self.memory_adapter = IrrigationAdapter()
+        # memory.rejection_line_style for the yearly memory line (set by main()
+        # from the irrigation_farmer.memory YAML block).
+        self.rejection_line_style = "neutral"
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -340,8 +369,12 @@ class IrrigationLifecycleHooks:
             if profile is None:
                 continue
 
-            # Build dynamic context attributes for prompt template
-            water_situation = build_water_situation_text(ctx)
+            # Build dynamic context attributes for prompt template. The F05
+            # snapshot (last year's settled request / delivery / reason) feeds
+            # the "Last year you requested ..." sentence (spec S1).
+            water_situation = build_water_situation_text(
+                ctx, last_year=getattr(agent, "_last_year_outcome", None)
+            )
             conservation = build_conservation_status(profile)
 
             agent.water_situation_text = water_situation
@@ -366,27 +399,29 @@ class IrrigationLifecycleHooks:
                 "basin": ctx.get("basin", "unknown"),
                 # Removed: total_basin_demand — broker auto-injects from env_context (was duplicate, fired Governance:Diagnostic)
                 "loop_year": year,  # use "loop_year" to avoid collision with env_context["year"] (CRSS calendar year)
+                # Supply-side redesign (2026-09-25): read by the supply-gap and
+                # shortage rule messages (describe_gap_reason).
+                "gap_reason": ctx.get("gap_reason", "none"),
+                "delivery_ratio": ctx.get("delivery_ratio", 1.0),
+                "lake_mead_level": ctx.get("lake_mead_level", 0),
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
                 agent.custom_attributes.update(validator_fields)
 
-            # Record metrics for feedback dashboard (if configured).
-            # NOTE: Year 1 has no prior history → dashboard shows only
-            # assertions, not the trend table.  This is intentional.
-            if self.metrics_tracker is not None:
-                fb_metrics = {}
-                for m_cfg in self.feedback_config.get("tracked_metrics", []):
-                    fb_metrics[m_cfg["name"]] = float(ctx.get(m_cfg["source"], 0))
-                self.metrics_tracker.record(aid, year, fb_metrics)
+            # Feedback dashboard metrics are recorded in post_year from the
+            # year's FINAL settlement (supply-side redesign, spec S2), so the
+            # dashboard's latest row is last year's actual request and
+            # delivery, the same numbers as the memory line and the "Last
+            # year" sentence. Year 1 therefore shows no dashboard.
 
             # Inject combined action + outcome feedback from last year
             if year > 1:
                 # F05 (2026-09-25 audit): by this point env.advance_year(year)
                 # has already run and recomputed agent_state["diversion"]
-                # under THIS year's curtailment_ratio / Powell scaling
-                # (irrigation_env.py: _apply_curtailment, _apply_powell_constraint),
+                # under THIS year's provisional settlement
+                # (irrigation_env.py: IrrigationEnvironment.advance_year),
                 # and ctx["drought_index"]/["preceding_factor"] are this
                 # year's too. Reading agent_state/ctx here for "last year's"
                 # outcome silently reports year t's numbers under a year
@@ -422,14 +457,33 @@ class IrrigationLifecycleHooks:
                     # is the Lake Mead trend, not precipitation; basin selects the
                     # correct wording (build_water_situation_text already does this).
                     basin=ctx.get("basin", "upper_basin"),
+                    # Supply-side redesign (spec S6): the same reason phrase as the
+                    # situation text and rule messages; neutral or explicit wording
+                    # of a rejected year (memory.rejection_line_style).
+                    gap_reason=describe_gap_reason(snapshot or {}),
+                    rejection_line_style=self.rejection_line_style,
                 )
-                # add_memory_for_agent (not add_memory) so _classify_emotion/
-                # _classify_source (broker/components/memory/engines/
-                # humancentric.py) see this agent's memory_config (the
-                # irrigation_farmer.memory YAML block, injected onto every
-                # agent by ExperimentBuilder.build()'s Phase-12 step) instead
-                # of falling back to the generic keyword/pattern banks.
-                self.runner.memory_engine.add_memory_for_agent(agent, feedback)
+                # add_memory_for_agent (not add_memory) so the engine sees this
+                # agent's memory_config (the irrigation_farmer.memory YAML
+                # block, injected by ExperimentBuilder.build()'s Phase-12 step).
+                #
+                # Supply-side redesign (2026-09-25, spec M3): importance and
+                # emotion are set here from the unmet fraction of LAST year's
+                # final settlement and the agent's own proposal, instead of by
+                # keyword match (which gave 1.0 to any line containing
+                # "shortfall", so 5 percent unmet scored like 100 percent, and
+                # filled the top 3 with 1.0 lines). A fallback year gets the
+                # same band as an approved one.
+                proposed, was_fallback = _proposed_and_fallback(action_ctx)
+                unmet = _unmet_frac(prev_request, prev_diversion)
+                salience_ctx = {"proposed_skill": proposed, "was_fallback": was_fallback,
+                                "unmet_frac": unmet}
+                self.runner.memory_engine.add_memory_for_agent(agent, feedback, {
+                    "importance": self.memory_adapter.outcome_importance(unmet),
+                    "emotion": self.memory_adapter.classify_emotion(proposed, salience_ctx),
+                    "source": "personal",
+                    "type": "outcome",
+                })
 
     # -- post_step: record each agent's decision --
     def post_step(self, agent, result):
@@ -455,13 +509,18 @@ class IrrigationLifecycleHooks:
 
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
-            # ═══ v12 FIX: Read magnitude from environment state_changes, not LLM params ═══
-            # The environment generates magnitude_pct using bounded Gaussian sampling.
-            # params.get("magnitude_pct") would be the LLM's discrete choice (wrong!).
-            # state_changes["magnitude_pct_applied"] is the actual value used by the environment.
+            # Read magnitude from environment state_changes, not LLM params:
+            # the environment draws the Hung and Yang step (hy_step_af);
+            # params.get("magnitude_pct") would be the LLM's discrete choice.
             exec_result = result.execution_result
             state_changes = exec_result.state_changes if exec_result else {}
             appraisals["magnitude_pct"] = state_changes.get("magnitude_pct_applied")
+            # F07 follow-up: magnitude_pct_applied is the REALISED change
+            # (after the water-right cap or the 10 percent floor); the drawn
+            # step is logged beside it (percent and acre-ft) with its class.
+            appraisals["magnitude_pct_sampled"] = state_changes.get("magnitude_pct_sampled")
+            appraisals["magnitude_af"] = state_changes.get("magnitude_af")
+            appraisals["magnitude_class"] = state_changes.get("magnitude_class")
             appraisals["is_exploration"] = state_changes.get("is_exploration", False)
 
             # Keep magnitude_fallback for debugging (indicates LLM didn't provide magnitude)
@@ -479,20 +538,16 @@ class IrrigationLifecycleHooks:
 
     # -- post_year: logging, reflection --
     def post_year(self, year: int, agents: Dict):
-        # F11b (2026-09-25 audit follow-up): re-apply the Powell pro-rata
-        # cap to Upper Basin diversions HERE, once, before any agent's
-        # diversion for this year is read below. Every agent's decision
-        # for this year has already executed by the time post_year runs
-        # (ExperimentRunner.run calls post_year after the full agent-phase
-        # loop for the step), and update_agent_request (irrigation_env.py)
-        # discards Powell scaling on every execute_skill call, so without
-        # this, simulation_log.csv, the F05 snapshot below and
-        # _batch_reflect's supply_ratio would all read a diversion that
-        # ignores whatever Powell cap advance_year() applied. Must run
-        # exactly once per year, after the full decision loop -- see
-        # apply_powell_cap_to_executed_diversions's docstring for why
-        # calling it mid-loop would double-scale agents.
-        self.env.apply_powell_cap_to_executed_diversions()
+        # Final settlement of the year (supply-side redesign, 2026-09-25;
+        # keeps the F11b contract): every decision for this year has
+        # executed by the time post_year runs, so settle_year() rebuilds
+        # every agent's delivery from its final request and the frozen
+        # 1 January snapshot, exactly once, before anything below reads
+        # diversion (simulation_log.csv, the F05 snapshot, _batch_reflect).
+        settlement = self.env.settle_year()
+        basin_request_af = (
+            settlement["ub_request_maf"] + settlement["lb_request_maf"]
+        ) * 1e6
 
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
@@ -500,26 +555,19 @@ class IrrigationLifecycleHooks:
             # F05 (2026-09-25 audit): snapshot THIS year's own outcome now.
             # request/diversion/drought_index/preceding_factor are all
             # correct for year `year` at this point (this year's decision
-            # has executed, env.advance_year(year+1) has not run yet).
-            # pre_year(year+1) reads this snapshot for its "last year"
-            # memory line instead of re-querying live env state, which by
-            # then env.advance_year(year+1) will have already recomputed
-            # under year+1's curtailment/Powell scaling. This snapshot is
-            # deliberately taken from the SAME agent_state simulation_log.csv
-            # logs a few lines below, so memory and the CSV always agree
-            # (the audit's own acceptance test). F11b (2026-09-25 follow-up):
-            # agent_state["diversion"] here now correctly reflects the
-            # Powell cap for Upper Basin agents too, thanks to the
-            # apply_powell_cap_to_executed_diversions() call above --
-            # earlier review passes on this branch found and disclosed
-            # this as a gap before F11b actually fixed it (see
-            # IrrigationEnvironment._apply_powell_constraint's docstring
-            # for the full history).
+            # has executed and been settled, env.advance_year(year+1) has not
+            # run yet). pre_year(year+1) reads this snapshot for its "last
+            # year" memory line instead of re-querying live env state. Taken
+            # from the SAME agent_state simulation_log.csv logs below, so
+            # memory and the CSV always agree.
             basin_key = agent_state.get("basin", "lower_basin")
             agent._last_year_outcome = {
                 "year": year,
                 "request": agent_state.get("request", 0),
                 "diversion": agent_state.get("diversion", 0),
+                "gap_reason": agent_state.get("gap_reason", "none"),
+                "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
+                "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
             }
@@ -537,6 +585,20 @@ class IrrigationLifecycleHooks:
             agent.drought_count = getattr(agent, "drought_count", 0) + (
                 1 if drought_index_this_year >= 0.5 else 0
             )
+
+            # Feedback dashboard: record this year's settled request and
+            # delivery (spec S2). Sources are the context keys the YAML names;
+            # after settle_year they equal the final request and delivery.
+            if self.metrics_tracker is not None:
+                settled = {
+                    "current_request": agent_state.get("request", 0),
+                    "current_diversion": agent_state.get("diversion", 0),
+                }
+                fb_metrics = {}
+                for m_cfg in self.feedback_config.get("tracked_metrics", []):
+                    src = m_cfg["source"]
+                    fb_metrics[m_cfg["name"]] = float(settled.get(src, agent_state.get(src, 0)) or 0)
+                self.metrics_tracker.record(aid, year, fb_metrics)
 
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
@@ -570,6 +632,28 @@ class IrrigationLifecycleHooks:
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "lake_mead_level": self._log_lake_mead_level(),
                 "mead_storage_maf": self.env._mead_storage[-1] if self.env._mead_storage else 0,
+                # Supply-side redesign columns (appended; every older column
+                # keeps its name). lake_mead_level / mead_storage_maf are the
+                # 1 January values the agents saw; *_end_maf are this year's
+                # end-of-year storages from the final settlement.
+                "delivered": agent_state.get("diversion", 0),
+                "delivery_ratio": agent_state.get("delivery_ratio", 1.0),
+                "gap_reason": agent_state.get("gap_reason", "none"),
+                "utilisation_delivered_pct": (
+                    agent_state.get("diversion", 0) / agent_state.get("water_right", 1) * 100
+                    if agent_state.get("water_right", 0) > 0 else 0
+                ),
+                "mead_storage_end_maf": settlement["mead_storage_end_maf"],
+                "powell_storage_maf": settlement["powell_storage_maf"],
+                "powell_storage_end_maf": settlement["powell_storage_end_maf"],
+                "powell_release_maf": settlement["powell_release_maf"],
+                "natural_flow_maf": settlement["natural_flow_maf"],
+                "ub_delivered_maf": settlement["ub_delivered_maf"],
+                "lb_phys_ratio": settlement["lb_phys_ratio"],
+                # This year's FINAL request total (after every decision), not
+                # the carried total advance_year() published to the prompts.
+                "basin_request_af": basin_request_af,
+                "basin_request_over_target": basin_request_af / CRSS_DEMAND_TARGET_AF,
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
                 "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
                 "utilisation_pct": (
@@ -577,6 +661,9 @@ class IrrigationLifecycleHooks:
                     if agent_state.get("water_right", 0) > 0 else 0
                 ),
                 "magnitude_pct": appr.get("magnitude_pct"),
+                "magnitude_pct_sampled": appr.get("magnitude_pct_sampled"),
+                "magnitude_af": appr.get("magnitude_af"),
+                "magnitude_class": appr.get("magnitude_class"),
                 "magnitude_fallback": appr.get("magnitude_fallback", False),
                 "is_exploration": appr.get("is_exploration", False),  # v12: Track ε-exploration
                 "memory": mem_str,
@@ -640,34 +727,21 @@ class IrrigationLifecycleHooks:
                 # YAML assertion trigger). round(..., 6) removes that noise
                 # without materially changing any real (non-boundary) ratio.
                 #
-                # Second code-review pass (2026-09-25): agent_state here is
-                # read AFTER update_agent_request already recomputed
-                # diversion for every agent that executed this year, from
-                # curtailment_ratio alone (see _apply_powell_constraint's
-                # docstring). At the time this note was written, that made
-                # supply_ratio land on one of the four curtailment tier
-                # ratios (1.0/0.95/0.90/0.80) for every row whose decision
-                # executed, in every run, so compute_importance's
-                # < 0.60 / < 0.80 shortage branches and drought_count were
-                # structurally unreachable from this call site.
-                #
-                # F11b (2026-09-25, same day, later pass): post_year now
-                # calls env.apply_powell_cap_to_executed_diversions() once,
-                # before this loop runs, which re-applies the Powell
-                # pro-rata cap to Upper Basin diversions after every
-                # agent's decision has executed. So for an Upper Basin
-                # agent in a Powell-constrained year, agent_state["diversion"]
-                # here is no longer just a curtailment-tier ratio -- it can
-                # be the real, continuously-varying (or fully zeroed)
-                # Powell-scaled value. The four-fixed-ratios claim above
-                # now holds only for Lower Basin agents and for Upper
-                # Basin agents in years where Powell scaling did not bind;
-                # compute_importance's shortage branches and drought_count
-                # ARE reachable again for Upper Basin agents in a
-                # Powell-constrained year.
+                # Supply-side redesign (2026-09-25): agent_state here is read
+                # after post_year's settle_year(), so diversion is the final
+                # settled delivery for every agent (shortage tier, Powell
+                # release limit, Mead availability), a continuous value.
+                # Supply-side redesign (2026-09-25, spec M4): the adapter
+                # reads the PROPOSED skill, the fallback flag and the unmet
+                # fraction of the final settlement; recent_decision (the
+                # executed skill) is kept for older readers.
+                proposed, was_fallback = _proposed_and_fallback(action_ctx)
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
                     "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,
+                    "unmet_frac": _unmet_frac(request, diversion),
+                    "proposed_skill": proposed,
+                    "was_fallback": was_fallback,
                     "years_farming": attrs.get("years_farming", 0),
                     "has_efficient_system": attrs.get("has_efficient_system", False),
                     "recent_decision": action_ctx.get("skill_name", ""),
@@ -787,12 +861,16 @@ def main():
     # Reset module-level flags (safe for multi-run in same process)
     irr_validators.ENABLE_CONSECUTIVE_CAP = False
     irr_validators.ENABLE_ZERO_ESCAPE = False
-    irr_validators.ENABLE_DEMAND_CEILING = True  # default ON
+    irr_validators.ENABLE_DEMAND_CEILING = True  # only gates a direct call; retired from dispatch
 
-    # Ablation mode: disable specific validator(s)
+    # Ablation mode. Supply-side redesign (2026-09-25): demand_ceiling_stabilizer
+    # and demand_floor_stabilizer are no longer dispatched (the basin limit is
+    # physical availability in the water balance), so "no_demand_ceiling" is
+    # now the default behaviour; the choice is kept so existing launchers
+    # still parse.
     if getattr(args, "ablation_mode", None) == "no_demand_ceiling":
         irr_validators.ENABLE_DEMAND_CEILING = False
-        print("[Ablation] demand_ceiling_stabilizer DISABLED — increases NOT capped at 6.0 MAF")
+        print("[Ablation] no_demand_ceiling: already the default (the ceiling is retired from dispatch)")
 
     # Always use main config (pilot config merged into agent_types.yaml)
     agent_config_path = config_dir / "agent_types.yaml"
@@ -895,20 +973,10 @@ def main():
         after = Counter(p.cluster for p in profiles)
         print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)} (target: 50%-30%-20%)")
 
-    # --- Set persona-specific magnitude parameters from config ---
-    personas_cfg = cfg_data.get("personas", {})
-    skill_mag_cfg = cfg_data.get("skill_magnitude", {})
-    for p in profiles:
-        persona = personas_cfg.get(p.cluster, {})
-        # v17: persona_scale + per-skill Gaussian params
-        p.persona_scale = persona.get("persona_scale", 1.0) or 1.0
-        p.skill_magnitude = dict(skill_mag_cfg)  # copy base params
-        # Legacy per-persona params (v12 fallback)
-        p.magnitude_default = persona.get("magnitude_default", 10) or 10
-        p.magnitude_sigma = persona.get("magnitude_sigma", 0.0) or 0.0
-        p.magnitude_min = persona.get("magnitude_min", 1.0) or 1.0
-        p.magnitude_max = persona.get("magnitude_max", 30.0) or 30.0
-        p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
+    # The action magnitude follows Hung and Yang (2021): per-agent mu, sigma
+    # and grid step come from the profiles (create_profiles_from_data), not
+    # from persona config (the former persona_scale / skill_magnitude bands
+    # were removed on 2026-09-26).
 
     # --- Create environment and initialize ---
     # PR-9 coupling-retrofit (F1): opt-in fail-loud physical-state guard,
@@ -953,9 +1021,18 @@ def main():
     irrigation_adapter = IrrigationAdapter()
     adapter_rw = irrigation_adapter.retrieval_weights
 
+    _mem_window = int(irr_mem.get("window_size", args.window_size))
+    _mem_sig = int(irr_mem.get("top_k_significant", gm.get("top_k_significant", 2)))
+    if "window_size" in irr_mem and args.window_size != _mem_window:
+        print(f"[Memory] WARNING: --window-size {args.window_size} ignored; "
+              f"irrigation_farmer.memory.window_size = {_mem_window} is used")
     memory_engine = HumanCentricMemoryEngine(
-        window_size=args.window_size,
-        top_k_significant=gm.get("top_k_significant", 2),
+        # Composed retrieval sizes: the agent-type memory block wins, so the
+        # engine (post_year log, year-end reflection) and the prompt
+        # (MemoryProvider pass-through) use one window and one significant
+        # count; --window-size applies only when the block does not set it.
+        window_size=_mem_window,
+        top_k_significant=_mem_sig,
         consolidation_prob=gm.get("consolidation_probability", 0.7),
         consolidation_threshold=gm.get("consolidation_threshold", 0.6),
         decay_rate=gm.get("decay_rate", 0.1),
@@ -973,8 +1050,11 @@ def main():
         W_context=rw.get("context", adapter_rw.get("W_context", 0.3)),
         ranking_mode=irr_mem.get("ranking_mode", "weighted"),
         seed=args.memory_seed,
+        # Reserved retrieval slot(s) by memory type (framework option,
+        # weighted mode only); not set for irrigation since 2026-09-26.
+        reserve_types=irr_mem.get("reserve_types"),
     )
-    print(f"[Pillar 2] HumanCentricMemoryEngine (window={args.window_size}, mode={memory_engine.ranking_mode})")
+    print(f"[Pillar 2] HumanCentricMemoryEngine (window={memory_engine.window_size}, top_k_significant={memory_engine.top_k_significant}, mode={memory_engine.ranking_mode})")
 
     # --- Context builder ---
     ctx_builder = TieredContextBuilder(
@@ -1073,6 +1153,12 @@ def main():
     # Attach feedback tracker so pre_year can record metrics
     hooks.metrics_tracker = _metrics_tracker
     hooks.feedback_config = feedback_cfg
+    hooks.rejection_line_style = irr_mem.get("rejection_line_style", "neutral")
+    if hooks.rejection_line_style not in ("neutral", "explicit"):
+        raise SystemExit(
+            f"irrigation_farmer.memory.rejection_line_style "
+            f"{hooks.rejection_line_style!r} is not 'neutral' or 'explicit'."
+        )
     runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
@@ -1135,7 +1221,8 @@ def parse_args():
                    help="Pilot phase: A=baseline, B=BLOCK+retry, C=+consecutive_cap, D=+zero_escape")
     p.add_argument("--ablation-mode", type=str, default=None,
                    choices=["no_demand_ceiling"],
-                   help="Policy counterfactual: disable specific validator (e.g., no_demand_ceiling)")
+                   help="Kept for older launchers: no_demand_ceiling is now the default "
+                        "(demand_ceiling_stabilizer is retired from dispatch).")
     # P0-1d: the governance profile was hardcoded to "strict" at the builder
     # call below, so the published irrigation corpus has only strict + disabled
     # arms and no enforcement-gradient condition could be run at all. Named

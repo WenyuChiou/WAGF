@@ -141,12 +141,29 @@ class MemoryProvider(ContextProvider):
         env_context = kwargs.get("env_context", {})
         query = kwargs.get("query")
 
+        # Item count and composition from the agent type's memory config:
+        # ``retrieval_top_k`` (default 3, the long-standing value, so every
+        # config without the key is unchanged). With ``composed_retrieval:
+        # true`` and an engine in composed ("legacy") ranking mode, the
+        # config's ``window_size`` / ``top_k_significant`` are passed through
+        # (recent window always in, plus the most significant long-term
+        # items) instead of a flat top_k.
+        mem_cfg = getattr(agent, "memory_config", None)
+        mem_cfg = mem_cfg if isinstance(mem_cfg, dict) else {}
+        extra = {}
+        if (mem_cfg.get("composed_retrieval") is True
+                and getattr(self.engine, "ranking_mode", None) == "legacy"):
+            for key in ("window_size", "top_k_significant"):
+                if key in mem_cfg:
+                    extra[key] = int(mem_cfg[key])
+
         context["memory"] = self.engine.retrieve(
             agent,
             query=query,
-            top_k=3,
+            top_k=int(mem_cfg.get("retrieval_top_k", 3)),
             contextual_boosters=contextual_boosters,
             world_state=env_context,
+            **extra,
         )
 
 
