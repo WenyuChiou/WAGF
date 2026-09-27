@@ -734,8 +734,8 @@ class AgentTypeConfig:
         """``global_config.governance.feasible_set_feedback`` (default False).
 
         When True, every governance retry prompt that follows an ERROR
-        verdict ends its reports block with one line naming the actions that
-        would pass every rule given the agent's last response: the engine
+        verdict ends its reports block with one line naming the list of
+        actions that pass every rule this step: the engine
         re-runs the validators over each skill the agent may choose, with
         the same reasoning labels, without logging those probe runs as rule
         hits (``RetryMixin._probe_feasible_skills``). The line sits outside

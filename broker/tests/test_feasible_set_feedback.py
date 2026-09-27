@@ -101,7 +101,7 @@ def _run(host, proposal_skill="grow_a", replies=None, feasible_by_attempt=None, 
 def test_feasible_line_present_and_equals_probe_set():
     fba = []
     prompts = _run(_Host(), feasible_by_attempt=fba)
-    line = ("Actions that pass every rule, given the assessment in your last response: "
+    line = ("Actions that pass every rule this step: "
             "3 (keep), 4 (shrink a), 5 (shrink b).")
     assert line in prompts[0]
     assert fba == [["keep", "shrink_a", "shrink_b"]]
@@ -132,13 +132,13 @@ def test_empty_feasible_set_wording():
         return [ValidationResult(valid=False, validator_name="v", errors=["no"],
                                  metadata={"rule_id": "all"})]
     prompts = _run(_Host(validator=block_all))
-    assert ("No action passes every rule given your last response; if this continues, "
+    assert ("No action passes every rule this step; if this continues, "
             "the default action (keep) will be applied.") in prompts[0]
 
 
 def test_names_without_skill_map():
     prompts = _run(_Host(with_map=False))
-    assert "response: keep, shrink a, shrink b." in prompts[0]
+    assert "this step: keep, shrink a, shrink b." in prompts[0]
 
 
 def test_flag_off_prompt_is_unchanged():
@@ -316,7 +316,7 @@ def test_keep_proposal_empty_set_wording():
     host = _Host(validator=block_all)
     host._on_retry_exhausted = "keep_proposal"
     prompts = _run(host)
-    assert "No action passes every rule given your last response." in prompts[0]
+    assert "No action passes every rule this step." in prompts[0]
     assert "default action" not in prompts[0].split("No action passes")[1].split("\n")[0]
 
 

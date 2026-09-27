@@ -357,18 +357,18 @@ class RetryMixin:
 
         if feasible:
             return (
-                "Actions that pass every rule, given the assessment in your last "
-                "response: " + ", ".join(label(n) for n in feasible) + "."
+                "Actions that pass every rule this step: "
+                + ", ".join(label(n) for n in feasible) + "."
             )
         if getattr(self, "_on_retry_exhausted", "default") == "keep_proposal":
-            return "No action passes every rule given your last response."
+            return "No action passes every rule this step."
         try:
             default_name = self.skill_registry.get_default_skill()
             tail = "the default action (" + default_name.replace("_", " ") + ") will be applied."
         except ValueError:
             tail = "the default action will be applied."
         return (
-            "No action passes every rule given your last response; if this "
+            "No action passes every rule this step; if this "
             "continues, " + tail
         )
 
