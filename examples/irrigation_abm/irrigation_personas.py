@@ -270,18 +270,55 @@ def build_water_situation_text(
 
     lines = [f"It is now the year {year}. You divert water in the {basin_display}."]
 
-    # Drought signal: balanced framing (positive when low, negative when high)
+    # Drought signal: balanced framing (positive when low, negative when high).
+    # Supply-side redesign follow-up (regression audit 2026-09-26, finding
+    # N6): the headline used to be keyed on drought_index alone, so it could
+    # read "favorable" or "adequate" while the expected-delivery sentence a
+    # few lines below says the agent will receive under half its request
+    # (560 strict prompts, 1904 disabled in the seed-42 pilot pair). The
+    # headline now uses the MORE SEVERE of the drought-index tier and a
+    # delivery-ratio tier: a ratio below 0.5 forces the most severe tier;
+    # 0.5 up to (not including) 0.7 floors the headline at the "below
+    # normal" tier. When the ratio tier is STRICTLY more severe than the
+    # drought tier, the headline uses a supply-keyed sentence instead of the
+    # drought-keyed one, so a delivery shortfall is never described as
+    # drought; a tie (or drought more severe) keeps the drought-keyed
+    # wording, byte-identical to before this fix.
     if drought < 0.2:
+        drought_tier = 0
+    elif drought < 0.5:
+        drought_tier = 1
+    elif drought < 0.8:
+        drought_tier = 2
+    else:
+        drought_tier = 3
+
+    if ratio < 0.5:
+        ratio_tier = 3
+    elif ratio < 0.7:
+        ratio_tier = 1
+    else:
+        ratio_tier = 0
+
+    if ratio_tier > drought_tier:
+        if ratio_tier == 3:
+            lines.append(
+                "Water supply is critically short this year: expected "
+                "deliveries fall well below requests."
+            )
+        else:
+            lines.append("Water supply is below normal this year.")
+    elif drought_tier == 0:
         lines.append(
             "Water supply conditions are favorable this year. "
             "Precipitation is near or above normal and reservoir levels are healthy."
         )
-    elif drought < 0.5:
+    elif drought_tier == 1:
         lines.append(
             "Water supply is adequate but slightly below normal. "
             "Mild dryness has marginally reduced availability."
         )
-    elif drought < 0.8:
+    elif drought_tier == 2:
         lines.append(
             "Water supply is tight this year. "
             "Below-normal precipitation has significantly reduced available water."
@@ -300,10 +337,23 @@ def build_water_situation_text(
         )
         nf = env_context.get("natural_flow_maf")
         powell = env_context.get("powell_storage_maf")
+        # Regression audit 2026-09-26, finding N7: a Powell at the dead-pool floor
+        # (all of it dead storage) still read "Lake Powell holds 1.9 million
+        # acre-ft on 1 January" as if that were usable water (1120 prompts in
+        # the seed-42 pilot pair). powell_dead_pool_maf is threaded in from
+        # irrigation_env.py (IrrigationEnvironment.get_agent_context); when
+        # absent (an older context dict) the sentence stays byte-identical.
+        powell_dead_pool = env_context.get("powell_dead_pool_maf")
         if nf:
             lines.append(f"Natural flow on the river this year is forecast at {nf:.1f} million acre-ft.")
         if powell:
-            lines.append(f"Lake Powell holds {powell:.1f} million acre-ft on 1 January.")
+            if powell_dead_pool is not None and powell <= powell_dead_pool + 1e-6:
+                lines.append(
+                    "Lake Powell is at its dead-pool floor on 1 January; "
+                    "releases are limited to inflow."
+                )
+            else:
+                lines.append(f"Lake Powell holds {powell:.1f} million acre-ft on 1 January.")
     else:
         lines.append(
             f"Lake Mead was at {mead:.0f} feet above sea level on 1 January "
@@ -406,6 +456,13 @@ _RULE_LABELS = {
     "low_threat_no_increase": "the low-scarcity rule",
     "observed_scarcity_low_wsa_increase": "the observed-scarcity rule",
     "water_right_cap": "the water-right cap",
+    # Regression audit 2026-09-26, finding N5: the disabled arm's ONLY blocking
+    # rule is this precondition check (an increase proposed while already
+    # at the water-right cap), and it had no entry here, so every neutral
+    # rejection line in the disabled pilot fell back to "a governance rule"
+    # (910 lines). Same phrase as water_right_cap above: it is the same cap,
+    # enforced as a precondition instead of an identity rule.
+    "precondition_violation": "the water-right cap",
     "minimum_utilisation_floor": "the minimum-use floor",
     "zero_escape_floor": "the minimum-use rule for maintaining",
     "consecutive_increase_cap": "the consecutive-increase limit",

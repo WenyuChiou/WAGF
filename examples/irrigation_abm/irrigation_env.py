@@ -942,6 +942,11 @@ class IrrigationEnvironment:
             "basin_request_over_target": self._global.get("basin_request_over_target", 0),
             "natural_flow_maf": self._global.get("natural_flow_maf", 0),
             "powell_storage_maf": self._global.get("powell_storage_maf", 0),
+            # N7 (2026-09-26 regression audit): read by
+            # irrigation_personas.py (build_water_situation_text) to render
+            # the dead-pool sentence instead of "Lake Powell holds N million
+            # acre-ft" when storage is at or below the floor.
+            "powell_dead_pool_maf": self.config.powell_dead_pool_maf,
         }
 
     def update_agent_request(
