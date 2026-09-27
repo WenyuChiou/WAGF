@@ -35,6 +35,19 @@ from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
     WaterSystemConfig,
 )
+from examples.irrigation_abm.irrigation_personas import (
+    build_simulation_log_row,
+    create_profiles_from_data,
+)
+
+# CRSS reference data (gitignored; copied by hand from the paper's data
+# bundle -- see run_fql_baseline.py --real / docs/irrigation_physics.md).
+# ALL_colorado_ABM_params_cal_1108.csv IS tracked in git despite the
+# ref/RL-ABM-CRSS/ gitignore pattern (git ls-files confirms it); only the
+# CRSS_DB/ directory needs to be supplied locally.
+CRSS_PARAMS_CSV = PROJECT_ROOT / "ref" / "RL-ABM-CRSS" / "ALL_colorado_ABM_params_cal_1108.csv"
+CRSS_DB_DIR = PROJECT_ROOT / "ref" / "CRSS_DB" / "CRSS_DB"
+_REAL_REF_AVAILABLE = CRSS_PARAMS_CSV.is_file() and CRSS_DB_DIR.is_dir()
 
 
 # ── fql_action_to_skill tests ──
@@ -228,6 +241,152 @@ class TestSmokeRun:
         # All agents should have positive water_right
         for log in logs:
             assert log["water_right"] > 0
+
+
+def _llm_simulation_log_columns():
+    """Canonical LLM simulation-log column set/order, derived from the
+    shared row builder (``build_simulation_log_row``) rather than from a
+    results file on disk -- this test tracks the builder itself, so a
+    future column added there is automatically required of the FQL
+    baseline too, instead of drifting the way the two runners' inline
+    dict literals drifted after the 2026-09-25 supply-side redesign.
+    """
+    dummy_agent_state = {
+        "request": 100.0,
+        "diversion": 90.0,
+        "water_right": 200.0,
+        "curtailment_ratio": 0.1,
+        "delivery_ratio": 0.9,
+        "gap_reason": "none",
+        "has_efficient_system": False,
+        "below_minimum_utilisation": False,
+    }
+    dummy_settlement = {
+        "mead_storage_end_maf": 10.0,
+        "powell_storage_maf": 12.0,
+        "powell_storage_end_maf": 11.5,
+        "powell_release_maf": 8.0,
+        "natural_flow_maf": 9.0,
+        "ub_delivered_maf": 3.0,
+        "lb_phys_ratio": 1.0,
+    }
+    row = build_simulation_log_row(
+        agent_id="A",
+        year=1,
+        cluster="aggressive",
+        basin="upper_basin",
+        yearly_decision="maintain_demand",
+        wsa_label="M",
+        aca_label="H",
+        agent_state=dummy_agent_state,
+        drought_index=0.3,
+        shortage_tier=0,
+        lake_mead_level=1050.0,
+        mead_storage_maf=10.5,
+        settlement=dummy_settlement,
+        basin_request_af=1_000_000.0,
+    )
+    return list(row.keys())
+
+
+class TestSimulationLogHeaderParity:
+    """FQL baseline CSVs must carry every column the LLM runs carry, or
+    downstream analysis that concatenates both arms silently drops the
+    FQL rows' extra fields as NaN (the bug this fix addresses)."""
+
+    def test_fql_header_is_superset_of_llm_header(self):
+        llm_cols = set(_llm_simulation_log_columns())
+        assert llm_cols, "sanity: the row builder must return columns at all"
+
+        seed = 42
+        np.random.seed(seed)
+        profiles = _create_synthetic_profiles(5, seed=seed)
+
+        config = WaterSystemConfig(seed=seed)
+        env = IrrigationEnvironment(config)
+        env.initialize_from_profiles(profiles)
+
+        fql_agents = create_fql_agents(profiles, seed=seed)
+        profiles_dict = {p.agent_id: p for p in profiles}
+
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logs = run_simulation(
+                env=env,
+                fql_agents=fql_agents,
+                profiles=profiles_dict,
+                n_years=2,
+                output_dir=Path(tmpdir),
+                seed=seed,
+            )
+
+        assert logs, "2-year synthetic FQL run produced no rows"
+        fql_cols = set(logs[0].keys())
+        missing = llm_cols - fql_cols
+        assert not missing, f"FQL simulation log is missing LLM columns: {sorted(missing)}"
+
+        # FQL-only columns must still be present (not dropped by the fix).
+        assert {"fql_raw_skill", "fql_action", "fql_blocked"}.issubset(fql_cols)
+
+
+@pytest.mark.skipif(
+    not _REAL_REF_AVAILABLE,
+    reason=(
+        "CRSS reference data not found under ref/CRSS_DB/CRSS_DB/ "
+        "(copy Div_States/{UB,LB}_discrete_states.csv, "
+        "Group_Agt/UB_ABM_Groups_and_Agents.csv, and the HistoricalData "
+        "series -- see run_fql_baseline.py --real)"
+    ),
+)
+class TestRealDataFQLRun:
+    """A short --real run must produce physically sane settlement columns:
+    finite reservoir storage and delivered water never exceeding what was
+    requested."""
+
+    def test_two_year_real_run_finite_storage_and_delivered_le_request(self):
+        seed = 42
+        np.random.seed(seed)
+
+        profiles = create_profiles_from_data(
+            params_csv_path=str(CRSS_PARAMS_CSV),
+            crss_db_dir=str(CRSS_DB_DIR),
+            rng=np.random.default_rng(seed),
+            paper_water_margin=0.4,
+        )
+
+        config = WaterSystemConfig(seed=seed)
+        env = IrrigationEnvironment(config)
+        env.initialize_from_profiles(profiles)
+
+        precip_csv = CRSS_DB_DIR / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv"
+        if precip_csv.exists():
+            env.load_crss_precipitation(str(precip_csv))
+
+        fql_agents = create_fql_agents(profiles, seed=seed)
+        profiles_dict = {p.agent_id: p for p in profiles}
+
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logs = run_simulation(
+                env=env,
+                fql_agents=fql_agents,
+                profiles=profiles_dict,
+                n_years=2,
+                output_dir=Path(tmpdir),
+                seed=seed,
+            )
+
+        assert logs, "2-year --real FQL run produced no rows"
+        for row in logs:
+            assert np.isfinite(row["powell_storage_maf"]), (
+                f"non-finite powell_storage_maf for {row['agent_id']} year {row['year']}"
+            )
+            assert row["delivered"] <= row["request"] + 1e-6, (
+                f"delivered ({row['delivered']}) exceeds request ({row['request']}) "
+                f"for {row['agent_id']} year {row['year']}"
+            )
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from examples.irrigation_abm.irrigation_env import CRSS_DEMAND_TARGET_AF
+
 
 @dataclass
 class IrrigationAgentProfile:
@@ -566,6 +568,153 @@ def build_action_outcome_feedback(
 
     # Fallback: outcome-only (year 1 or missing context)
     return f"Year {year}: {outcome}"
+
+
+# ============================================================================
+# Shared simulation_log.csv row builder (LLM run + FQL baseline)
+# ============================================================================
+
+def read_lake_mead_level_for_log(env: Any) -> float:
+    """Read ``lower_basin.lake_mead_level`` for a simulation-log row.
+
+    Shared between ``run_experiment.py``'s
+    ``IrrigationLifecycleHooks._log_lake_mead_level`` and
+    ``run_fql_baseline.py``'s ``run_simulation`` (2026-09-27 fix) so both
+    runners fail the same way instead of two different ones.
+
+    Review P1-b: this was the one physical-state read that stayed outside
+    the ``coupling.context_contract`` guard -- ``get_agent_context()``
+    (guarded) and this logger (unguarded, ``get_local(..., 0)``) read the
+    SAME field, so with the flag ON a missing reservoir level would raise
+    for the prompt and quietly write 0 into the analysis CSV, the two
+    artifacts of one run disagreeing about whether the value existed.
+    With the flag OFF the expression is character-for-character the old
+    one, so every frozen corpus reproduces byte-identically.
+    """
+    if getattr(env, "_coupling_contract_active", False):
+        level = env.get_local("lower_basin", "lake_mead_level")
+        if level is None:
+            raise KeyError(
+                "lake_mead_level is missing from lower_basin and "
+                "coupling.context_contract is ON: refusing to log 0 ft for a "
+                "reservoir level that was never set (the prompt path fails "
+                "loud on the same field, and the two must not disagree)."
+            )
+        return level
+    return env.get_local("lower_basin", "lake_mead_level", 0)
+
+
+def build_simulation_log_row(
+    *,
+    agent_id: str,
+    year: int,
+    cluster: str,
+    basin: str,
+    yearly_decision: str,
+    wsa_label: Any,
+    aca_label: Any,
+    agent_state: Dict[str, Any],
+    drought_index: float,
+    shortage_tier: int,
+    lake_mead_level: float,
+    mead_storage_maf: float,
+    settlement: Dict[str, Any],
+    basin_request_af: float,
+    magnitude_pct: Optional[float] = None,
+    magnitude_pct_sampled: Optional[float] = None,
+    magnitude_af: Optional[float] = None,
+    magnitude_class: Optional[str] = None,
+    magnitude_fallback: bool = False,
+    is_exploration: bool = False,
+    memory: str = "",
+) -> Dict[str, Any]:
+    """Build one per-agent-year ``simulation_log.csv`` row.
+
+    Single source of truth for the row schema (2026-09-27 fix,
+    supply-side-redesign column gap): both
+    ``run_experiment.py``'s ``IrrigationLifecycleHooks.post_year`` (the LLM
+    runs) and ``run_fql_baseline.py``'s ``run_simulation`` (the FQL
+    reference baseline) call this function, so the two CSVs cannot drift
+    apart again the way they did after the supply-side redesign added
+    ``delivered`` / ``delivery_ratio`` / ``gap_reason`` / the Powell/Mead
+    settlement columns to the LLM path only.
+
+    Callers must read every argument from the SAME environment state:
+
+    - ``agent_state`` is ``env.get_agent_state(agent_id)`` taken AFTER
+      ``env.settle_year()`` has run for this year, so ``diversion`` is the
+      settled delivery (not the provisional value from execute_skill).
+    - ``settlement`` is that same ``env.settle_year()`` return value.
+    - ``lake_mead_level`` / ``mead_storage_maf`` are the 1 January values
+      for the year (read before the year's settlement is committed by the
+      NEXT ``advance_year()``) -- e.g. ``env.get_local("lower_basin",
+      "lake_mead_level", 0)`` and ``env._mead_storage[-1]``. The
+      ``*_end_maf`` fields below come from ``settlement`` and are this
+      year's END-of-year storages instead.
+    - ``basin_request_af`` is this year's FINAL total request across both
+      basins (``(settlement["ub_request_maf"] + settlement["lb_request_maf"])
+      * 1e6``), not the provisional total ``advance_year()`` published to
+      the prompts/FQL state at the start of the year.
+
+    Returns a dict whose key order IS the canonical LLM simulation-log
+    column order (callers needing that order/set, e.g. a header-superset
+    test, should read ``list(row.keys())`` from a row built here rather
+    than hardcoding a second copy of the field list).
+    """
+    request = agent_state.get("request", 0)
+    diversion = agent_state.get("diversion", 0)
+    water_right = agent_state.get("water_right", 0)
+
+    return {
+        "agent_id": agent_id,
+        "year": year,
+        "cluster": cluster,
+        "basin": basin,
+        "yearly_decision": yearly_decision,
+        "wsa_label": wsa_label,
+        "aca_label": aca_label,
+        "request": request,
+        "diversion": diversion,
+        "water_right": water_right,
+        "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
+        "drought_index": drought_index,
+        "shortage_tier": shortage_tier,
+        "lake_mead_level": lake_mead_level,
+        "mead_storage_maf": mead_storage_maf,
+        # Supply-side redesign columns (appended; every older column keeps
+        # its name). lake_mead_level / mead_storage_maf above are the
+        # 1 January values the agents saw; *_end_maf are this year's
+        # end-of-year storages from the final settlement.
+        "delivered": diversion,
+        "delivery_ratio": agent_state.get("delivery_ratio", 1.0),
+        "gap_reason": agent_state.get("gap_reason", "none"),
+        "utilisation_delivered_pct": (
+            diversion / water_right * 100 if water_right > 0 else 0
+        ),
+        "mead_storage_end_maf": settlement["mead_storage_end_maf"],
+        "powell_storage_maf": settlement["powell_storage_maf"],
+        "powell_storage_end_maf": settlement["powell_storage_end_maf"],
+        "powell_release_maf": settlement["powell_release_maf"],
+        "natural_flow_maf": settlement["natural_flow_maf"],
+        "ub_delivered_maf": settlement["ub_delivered_maf"],
+        "lb_phys_ratio": settlement["lb_phys_ratio"],
+        # This year's FINAL request total (after every decision), not the
+        # provisional total advance_year() published to the prompts.
+        "basin_request_af": basin_request_af,
+        "basin_request_over_target": basin_request_af / CRSS_DEMAND_TARGET_AF,
+        "has_efficient_system": agent_state.get("has_efficient_system", False),
+        "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
+        "utilisation_pct": (
+            request / water_right * 100 if water_right > 0 else 0
+        ),
+        "magnitude_pct": magnitude_pct,
+        "magnitude_pct_sampled": magnitude_pct_sampled,
+        "magnitude_af": magnitude_af,
+        "magnitude_class": magnitude_class,
+        "magnitude_fallback": magnitude_fallback,
+        "is_exploration": is_exploration,
+        "memory": memory,
+    }
 
 
 # ============================================================================
