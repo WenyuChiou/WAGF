@@ -49,6 +49,14 @@ class IrrigationAgentProfile:
     years_farming: int = 20
     has_efficient_system: bool = False
     actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
+    # Historical 2017 diversion (acre-ft), same series/column/UB-split as
+    # actual_2018_diversion above. Added for the FQL calibrated warm-start
+    # (run_fql_baseline.py --fql-init calibrated): Hung & Yang's own first
+    # year action bin is a_t = Div_2018 - Div_2017
+    # (ABM_CRSS_coupling.py lines 505-508, 532-537). None whenever
+    # actual_2018_diversion is None (synthetic profiles, or --real profiles
+    # for which the 2017 row is absent from the historical file).
+    actual_2017_diversion: Optional[float] = None
 
     # Hung and Yang (2021) action model: step = (mu + |N(0, sigma)|) x
     # bin_size_af (mu and sigma above are that model's per-agent parameters).
@@ -71,6 +79,18 @@ class IrrigationAgentProfile:
     grid_top_af: Optional[float] = None  # top of the Div_States grid (Div_max)
     peak_obs_af: Optional[float] = None  # observed peak, 1971-2018, same series as actual_2018_diversion
     water_right_source: Optional[str] = None  # "grid_top" or "peak_scaled"
+
+    # The agent's REAL Div_States column (all 21 values), for the FQL
+    # calibrated warm-start's state_grid_mode="hy_exact" (P1-a fix,
+    # 2026-09-27 review). 19 of 22 LB agents' real columns are NOT a
+    # 0-to-top linspace (e.g. MohaveValleyIDD =
+    # [0, 12000, 14000, ..., 50000] -- index 0 is a wide catch-all down
+    # to 12000, not part of a uniform sequence from 0), so
+    # np.linspace(0, grid_top_af, 21) reads the wrong FQL state for
+    # those agents under calibrated init. None for profiles that do not
+    # go through create_profiles_from_data (grid_top_af is also None
+    # for those; --fql-init calibrated is not meaningful without both).
+    div_states_grid: Optional[np.ndarray] = None
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -1164,6 +1184,15 @@ def create_profiles_from_data(
     if 2018 not in lb_hist.index:
         raise ValueError(f"{lb_hist_path} has no row for year 2018; cannot compute actual_2018_diversion.")
     lb_2018 = lb_hist.loc[2018]
+    # Sibling 2017 row for the FQL calibrated warm-start's prev_action
+    # (Div_2018 - Div_2017) and prev_diversion (P1-b fix, 2026-09-27
+    # review: H&Y's first Q-update credits state(2017), not state(2018)).
+    # REQUIRED, mirroring the 2018 check above (P1-b/(v)): calibrated
+    # mode must never silently fall back to a made-up prev_action: better
+    # to fail loudly here than have resolve_prev_action() degrade later.
+    if 2017 not in lb_hist.index:
+        raise ValueError(f"{lb_hist_path} has no row for year 2017; cannot compute actual_2017_diversion.")
+    lb_2017 = lb_hist.loc[2017]
     # Only agents this function will actually build a profile for (present
     # in params_df and an active -- grid_top > 0 -- LB slot) need a column;
     # an agent skipped for either reason below is not checked here.
@@ -1205,6 +1234,11 @@ def create_profiles_from_data(
     if 2018 not in ub_hist.index:
         raise ValueError(f"{ub_hist_path} has no row for year 2018; cannot compute actual_2018_diversion.")
     ub_2018 = ub_hist.loc[2018] * 1000  # thousands AF → AF
+    # Sibling 2017 row (see lb_2017 above for rationale) -- REQUIRED,
+    # same as LB.
+    if 2017 not in ub_hist.index:
+        raise ValueError(f"{ub_hist_path} has no row for year 2017; cannot compute actual_2017_diversion.")
+    ub_2017 = ub_hist.loc[2017] * 1000
 
     # Pre-compute UB state-group water_right (grid-top) totals for
     # proportional split, and each group's observed-peak / 2018 series in
@@ -1292,11 +1326,14 @@ def create_profiles_from_data(
             grid_top_af=grid_top_af,
             peak_obs_af=peak_obs_af,
             water_right_source=water_right_source,
+            div_states_grid=np.asarray(col, dtype=float),
             crop_type=_assign_crop_type("lower_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
         if lb_2018 is not None and agent_name in lb_2018.index:
             profile.actual_2018_diversion = float(lb_2018[agent_name])
+        if lb_2017 is not None and agent_name in lb_2017.index:
+            profile.actual_2017_diversion = float(lb_2017[agent_name])
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
@@ -1353,6 +1390,7 @@ def create_profiles_from_data(
             grid_top_af=grid_top_af,
             peak_obs_af=peak_obs_af,
             water_right_source=water_right_source,
+            div_states_grid=np.asarray(col, dtype=float),
             crop_type=_assign_crop_type("upper_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
@@ -1360,6 +1398,16 @@ def create_profiles_from_data(
             hist_col = _UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group)
             if hist_col in ub_2018.index:
                 profile.actual_2018_diversion = float(ub_2018[hist_col]) * ratio
+        if ub_2017 is not None:
+            # Same per-agent `ratio` (this agent's share of its state
+            # group's grid-top total) used for actual_2018_diversion
+            # above -- an approximation of H&Y's own
+            # Within_Group_Dist_*_Div_req.csv (ABM_CRSS_coupling.py
+            # Calculate_Within_Group_Dist, lines 441-479), which we do
+            # not have a static copy of; noted per (v)/2026-09-27 review.
+            hist_col_2017 = _UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group)
+            if hist_col_2017 in ub_2017.index:
+                profile.actual_2017_diversion = float(ub_2017[hist_col_2017]) * ratio
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
