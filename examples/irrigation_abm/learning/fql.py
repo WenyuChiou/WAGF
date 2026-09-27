@@ -18,10 +18,21 @@ References:
 - Watkins & Dayan (1992). Q-learning. Machine Learning.
 """
 
+import hashlib
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Dict, Any, List
+from pathlib import Path
+from typing import Optional, Tuple, Dict, Any, List, Union
 
 import numpy as np
+
+
+class FQLCalibratedInitError(ValueError):
+    """Raised by ``load_calibrated_tables`` when a Hung & Yang (2021)
+    warm-start file (Q_Table/count/P_Tran) is missing, NUL-filled/corrupt,
+    the wrong size, or contains non-finite values. Never silently
+    substituted with a zero-initialised table -- see ``--fql-init`` in
+    ``run_fql_baseline.py``.
+    """
 
 
 @dataclass
@@ -89,8 +100,34 @@ class FQLState:
     """
 
     # Agent-specific discrete state boundaries (n_states values,
-    # evenly spaced between historical min and max diversion).
+    # evenly spaced between historical min and max diversion) under
+    # state_grid_mode="linspace" (default; --fql-init zero). Under
+    # state_grid_mode="hy_exact" (--fql-init calibrated) this instead
+    # holds the agent's ACTUAL Div_States column (often NOT a 0-to-top
+    # linspace -- see state_grid_mode below), and hy_bin_size must also
+    # be set.
     state_bounds: np.ndarray = field(default_factory=lambda: np.linspace(0, 200, 21))
+
+    # "linspace" (default): today's legacy discretisation --
+    # _div_to_state()/_sample_actions() use state_bounds[0]/bin_size
+    # directly, byte-identical to pre-2026-09-27 behavior.
+    # "hy_exact": ABM_CRSS_coupling.py's own Div_to_State rule (lines
+    # 122-132) against the real Div_States column in state_bounds, and
+    # hy_bin_size (= agt_states[2] - agt_states[1], NOT
+    # state_bounds[1]-state_bounds[0]) for the action-magnitude step.
+    # P1-a fix (2026-09-27 review): 19 of 22 LB agents' Div_States
+    # columns are "[0, first_bin, first_bin+step, ..., top]" -- index 0
+    # is a wide catch-all down to first_bin, NOT part of a uniform
+    # 0-to-top sequence -- so treating them as np.linspace(0, top, 21)
+    # (the "linspace" mode) reads the wrong state index. A flag, not a
+    # per-call parameter, so the two rules can never be mixed within one
+    # agent's lifetime.
+    state_grid_mode: str = "linspace"
+
+    # H&Y's own bin size (agt_states[2] - agt_states[1]); only read when
+    # state_grid_mode == "hy_exact". None under "linspace" (bin_size
+    # property below is used instead).
+    hy_bin_size: Optional[float] = None
 
     # Q-table: (n_preceding, n_states, n_actions)
     q_table: Optional[np.ndarray] = None
@@ -105,6 +142,12 @@ class FQLState:
     prev_diversion: float = 0.0
     prev_action: float = 0.0
     prev_diversion_request: float = 0.0
+
+    # Provenance for calibrated (Hung & Yang warm-start) initialization;
+    # populated by run_fql_baseline.create_fql_agents() only when
+    # --fql-init calibrated. Empty dict under --fql-init zero (today's
+    # zero-initialised construction path).
+    init_provenance: Dict[str, Any] = field(default_factory=dict)
 
     def initialize(self, config: FQLConfig, rng: Optional[np.random.Generator] = None) -> None:
         """Allocate Q-table and count tables with initial values."""
@@ -127,6 +170,181 @@ class FQLState:
         if len(self.state_bounds) < 2:
             return 1.0
         return float(self.state_bounds[1] - self.state_bounds[0])
+
+
+def _hy_div_to_state(
+    div_y: float,
+    agt_states: np.ndarray,
+    bin_size: float,
+    n_states: int,
+) -> int:
+    """Exact port of ABM_CRSS_coupling.py's Div_to_State (lines 122-132).
+
+        bin_size = agt_states[2] - agt_states[1]
+        temp = int((div_y - agt_states[1]) / bin_size)
+        if temp <= (n_states-2) and div_y >= agt_states[1]:
+            s_i = temp + 1
+        elif div_y < agt_states[1]:
+            s_i = 0
+        else:
+            s_i = n_states - 1
+        return s_i
+
+    ``agt_states`` is the agent's real Div_States column (21 values);
+    ``bin_size`` must be passed in (state.hy_bin_size, = agt_states[2] -
+    agt_states[1]) rather than recomputed here, so the same number the
+    caller used for _sample_actions' magnitude step is also the one used
+    for discretisation -- exactly as Q_learning() computes it once and
+    reuses it for both (line 191).
+
+    Deliberately NOT a 0-to-top linspace read: state 0 is a wide
+    catch-all for anything below agt_states[1] (P1-a fix, 2026-09-27
+    review -- 19 of 22 LB agents' real grids have this shape, e.g.
+    MohaveValleyIDD = [0, 12000, 14000, ..., 50000], where the [0,12000)
+    range collapses to state 0 and states 1-20 are then uniform
+    2000-AF-wide bins from 12000 to 50000).
+    """
+    temp = int((div_y - agt_states[1]) / bin_size)
+    if temp <= (n_states - 2) and div_y >= agt_states[1]:
+        return temp + 1
+    elif div_y < agt_states[1]:
+        return 0
+    else:
+        return n_states - 1
+
+
+# -----------------------------------------------------------------------
+# Calibrated (Hung & Yang 2021) warm-start table loading
+# -----------------------------------------------------------------------
+#
+# Hung & Yang's own coupling script (ref/RL-ABM-CRSS/ABM_CRSS_coupling.py,
+# Q_learning()) always loads three per-agent text files at every step,
+# never zero-initialised tables:
+#
+#   Q_Table_<agt>.txt   -- data = np.loadtxt(Q_path)
+#                           Q = data.reshape((n_f, n_states, n_a))          (line 203)
+#   count_<agt>.txt      -- data = np.loadtxt(count_path)
+#                           count = data.reshape((n_f, n_a, n_states, n_states))  (line 208)
+#   P_Tran_<agt>.txt      -- written (Save_Array) but never read back inside
+#                           Q_learning(): Posterior() rebuilds P_tran fully
+#                           from `count` on every call, nested (n_f, n_a,
+#                           n_states, n_states) exactly like count (lines
+#                           148-155). We still load and validate it (it is
+#                           part of the same on-disk state and
+#                           initialization_ABM_CRSS_v3.py copies it
+#                           alongside the other two), but functionally the
+#                           first _update_posterior() call overwrites it.
+#
+# Those three files are seeded, at t=0, by
+# initialization_ABM_CRSS_v3.py copying every file in
+# CRSS_DB/Initial_Files/All into the coupling working directory (lines
+# 23-27) -- i.e. Initial_Files/All *is* Hung & Yang's calibrated
+# end-of-2018 agent state.
+#
+# Axis mapping: our FQLState conventions (q_table: (n_preceding,
+# n_states, n_actions); count_table / p_transition: (n_preceding,
+# n_actions, n_states, n_states)) are IDENTICAL to the reshape calls
+# above -- no permutation is needed, only a straight reshape after
+# stripping Save_Array's "# Array shape: ..." / "# New slice" comment
+# lines (np.loadtxt's default comments='#' already does this).
+def _read_hy_array(
+    path: Path,
+    expected_shape: Tuple[int, ...],
+    label: str,
+    agent_id: str,
+) -> Tuple[np.ndarray, str]:
+    """Load and validate one Hung & Yang state-table text file.
+
+    Raises FQLCalibratedInitError (never falls back to zeros) when the
+    file is missing, NUL-filled/corrupt, the wrong size for
+    ``expected_shape``, or contains non-finite values.
+
+    Returns (array reshaped to expected_shape, sha256 hex digest of the
+    raw file bytes).
+    """
+    if not path.is_file():
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {label} calibrated-init file not found: {path}"
+        )
+
+    raw = path.read_bytes()
+    if b"\x00" in raw:
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {label} file is NUL-filled/corrupted "
+            f"(contains a NUL byte): {path}"
+        )
+    digest = hashlib.sha256(raw).hexdigest()
+
+    try:
+        data = np.loadtxt(path, comments="#")
+    except Exception as exc:  # malformed / non-numeric content
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {label} file could not be parsed as "
+            f"whitespace-delimited floats: {path} ({exc})"
+        ) from exc
+
+    expected_size = int(np.prod(expected_shape))
+    if data.size != expected_size:
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {label} file {path} has {data.size} values, "
+            f"expected {expected_size} for shape {expected_shape} "
+            f"(our FQLState convention); Hung & Yang's own reshape at "
+            f"ABM_CRSS_coupling.py Q_learning() uses the same shape, so a "
+            f"mismatch here means this file does not belong to this "
+            f"agent/n_states configuration."
+        )
+
+    array = data.reshape(expected_shape)
+    if not np.all(np.isfinite(array)):
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {label} file contains non-finite (NaN/inf) "
+            f"values: {path}"
+        )
+    return array, digest
+
+
+def load_calibrated_tables(
+    agent_id: str,
+    init_dir: Union[str, Path],
+    config: "FQLConfig",
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, str]]:
+    """Load one agent's calibrated Q_Table / count / P_Tran tables.
+
+    Mirrors ``ABM_CRSS_coupling.py``'s ``Q_learning()``, which always
+    loads ``Q_Table_<agt>.txt`` / ``count_<agt>.txt`` / ``P_Tran_<agt>.txt``
+    (see the module-level comment above for the exact reshape lines and
+    axis mapping). ``agent_id`` must match Hung & Yang's own agent naming
+    exactly (spaces preserved, e.g. ``"Fort Mohave Ind Res AZ"``) -- the
+    same identifier our ``IrrigationAgentProfile.agent_id`` already uses
+    (both come from the same ``Div_States/{UB,LB}_discrete_states.csv``
+    column headers).
+
+    Raises FQLCalibratedInitError on any missing/corrupt/malformed/
+    non-finite file (see ``_read_hy_array``) -- no silent zero fallback.
+
+    Returns (q_table, count_table, p_transition, file_hashes) where
+    file_hashes = {"q_table": sha256, "count": sha256, "p_transition": sha256}
+    of each file's raw bytes (provenance).
+    """
+    base = Path(init_dir)
+    nf, ns, na = config.n_preceding, config.n_states, config.n_actions
+
+    q_table, q_sha = _read_hy_array(
+        base / f"Q_Table_{agent_id}.txt", (nf, ns, na), "Q_Table", agent_id
+    )
+    count_table, c_sha = _read_hy_array(
+        base / f"count_{agent_id}.txt", (nf, na, ns, ns), "count", agent_id
+    )
+    p_transition, p_sha = _read_hy_array(
+        base / f"P_Tran_{agent_id}.txt", (nf, na, ns, ns), "P_Tran", agent_id
+    )
+
+    return (
+        q_table,
+        count_table,
+        p_transition,
+        {"q_table": q_sha, "count": c_sha, "p_transition": p_sha},
+    )
 
 
 class FQLAgent:
@@ -231,7 +449,17 @@ class FQLAgent:
     # -----------------------------------------------------------------
 
     def _div_to_state(self, div_y: float, state: FQLState) -> int:
-        """Map continuous diversion to discrete state index [0, n_states-1]."""
+        """Map continuous diversion to discrete state index [0, n_states-1].
+
+        state.state_grid_mode gates which rule applies (never mixed):
+        "hy_exact" uses ABM_CRSS_coupling.py's own Div_to_State exactly
+        (see _hy_div_to_state); "linspace" (default) is today's legacy
+        rule, byte-identical to pre-2026-09-27 behavior.
+        """
+        if state.state_grid_mode == "hy_exact":
+            return _hy_div_to_state(
+                div_y, state.state_bounds, state.hy_bin_size, self.config.n_states
+            )
         ns = self.config.n_states
         bounds = state.state_bounds
         bs = state.bin_size
@@ -302,10 +530,18 @@ class FQLAgent:
     def _sample_actions(self, state: FQLState) -> np.ndarray:
         """Sample action magnitudes from N(mu, sigma) * bin_size.
 
+        Under state_grid_mode == "hy_exact" the bin size is
+        state.hy_bin_size (H&Y's agt_states[2] - agt_states[1], the same
+        number _hy_div_to_state uses -- P1-a fix), not
+        state.bin_size (= state_bounds[1] - state_bounds[0], which for a
+        non-uniform real grid is a different, wrong value). Under
+        "linspace" (default) this is state.bin_size, unchanged from
+        pre-2026-09-27 behavior.
+
         Returns array of length 2: [decrease_magnitude, increase_magnitude].
         """
         cfg = self.config
-        bs = state.bin_size
+        bs = state.hy_bin_size if state.state_grid_mode == "hy_exact" else state.bin_size
         raw = np.abs(self.rng.normal(0, cfg.sigma, size=2))
         magnitudes = (cfg.mu + raw) * bs
         return np.array([-magnitudes[0], magnitudes[1]])

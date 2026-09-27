@@ -15,10 +15,18 @@ paper's own text (Extended Data Table 1, SI Table 11) correctly calls it the
 "FQL baseline". Corrected 2026-08-06; only this docstring was wrong.
 
 Usage:
-    # Smoke test (5 agents, 5 years)
-    python run_fql_baseline.py --years 5 --agents 5 --seed 42
+    # Smoke test (5 synthetic agents, 5 years). Synthetic agent ids have no
+    # Hung & Yang calibrated Q/count/P_Tran files, so --fql-init zero is
+    # required here (the CLI default, --fql-init calibrated, is for --real
+    # runs -- see below).
+    python run_fql_baseline.py --years 5 --agents 5 --seed 42 --fql-init zero
 
-    # Full production (78 CRSS agents, 42 years, 3 seeds)
+    # Full production (78 CRSS agents, 42 years, 3 seeds). --fql-init
+    # calibrated is the default: each agent's Q/count/P_Tran table is
+    # warm-started from Hung & Yang's own end-of-2018 calibrated state
+    # (ref/CRSS_DB/CRSS_DB/Initial_Files/All-1109, 2026-09-27 decision --
+    # see --fql-init-dir help / create_fql_agents docstring for why this
+    # snapshot over the others), not zero-initialised.
     python run_fql_baseline.py --years 42 --real --seed 42 --rebalance-clusters
     python run_fql_baseline.py --years 42 --real --seed 43 --rebalance-clusters
     python run_fql_baseline.py --years 42 --real --seed 44 --rebalance-clusters
@@ -46,6 +54,8 @@ from examples.irrigation_abm.learning.fql import (
     FQLAgent,
     FQLConfig,
     FQLState,
+    FQLCalibratedInitError,
+    load_calibrated_tables,
     CLUSTER_AGGRESSIVE,
     CLUSTER_FORWARD_LOOKING,
     CLUSTER_MYOPIC,
@@ -88,44 +98,231 @@ CLUSTER_CONFIGS = {
 
 
 # ─────────────────────────────────────────────────────────────────────
+# FQL calibrated-init helpers (Hung & Yang 2021 end-of-2018 warm start)
+# ─────────────────────────────────────────────────────────────────────
+
+def _load_ql_div_2017_2018(
+    agent_id: str,
+    basin: str,
+    crss_db_dir: Optional[Path],
+) -> Optional[Tuple[float, float]]:
+    """Look for Hung & Yang's own per-agent 2017/2018 diversion files.
+
+    ABM_CRSS_coupling.py's yi==0 branch (lines 505-508) reads
+    ``<Index>_QL_Div_2017.csv`` / ``<Index>_QL_Div_2018.csv`` (Index =
+    "UB" or "LB") from ``<working_dir>/CRSS_to_ABM/Div_Dist/`` -- a
+    coupling *working* directory populated by an actual RiverWare/CRSS
+    run, not part of the static reference bundle under
+    ``ref/CRSS_DB/CRSS_DB``. ``crss_db_dir`` is that CRSS_DB directory;
+    ``CRSS_to_ABM`` would be its sibling under the same working_dir. As
+    of 2026-09-27 no such directory ships with the reference data, so
+    this always returns None and the caller falls back to the historical
+    annual series -- kept so a future/complete coupling bundle is picked
+    up automatically without further code changes.
+
+    Returns (div_2017, div_2018) if both files exist and both contain a
+    column for ``agent_id``, else None.
+
+    (v)/2026-09-27 review: NEITHER file existing (the coupling directory
+    itself, or both csvs, absent) is the only allowed "miss" (this is
+    Hung & Yang's own coupling *working* directory, never shipped in the
+    static ref bundle, so this always misses today by construction).
+    Exactly one file present (a partial/broken coupling directory), a
+    parse error, or an agent-column absent from an existing file are NOT
+    silently swallowed into a None -- each would mean this data source is
+    present but broken/incomplete, which is a real defect, not "not yet
+    populated"; all three now raise instead of letting
+    resolve_prev_action() quietly fall through to the historical series
+    without anyone knowing the primary source looked wrong.
+    """
+    if crss_db_dir is None:
+        return None
+    index = "UB" if basin == "upper_basin" else "LB"
+    div_dist_dir = Path(crss_db_dir).parent / "CRSS_to_ABM" / "Div_Dist"
+    f2017 = div_dist_dir / f"{index}_QL_Div_2017.csv"
+    f2018 = div_dist_dir / f"{index}_QL_Div_2018.csv"
+    exists_2017, exists_2018 = f2017.is_file(), f2018.is_file()
+    if not exists_2017 and not exists_2018:
+        return None
+    if exists_2017 != exists_2018:
+        # Exactly one of the pair exists -- a partial/broken coupling
+        # directory, not the clean "neither file shipped" miss this
+        # function otherwise tolerates. Raising here (2026-09-27 review)
+        # closes the same silent-fallback gap as the agent-column check
+        # below: a half-written Div_Dist directory must not quietly
+        # degrade to the historical series.
+        present = f2017 if exists_2017 else f2018
+        missing = f2018 if exists_2017 else f2017
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {present} exists but its pair {missing} does "
+            f"not -- a partial coupling working directory, not a clean "
+            f"'neither file shipped' miss, so this is not silently "
+            f"treated as a fallback trigger."
+        )
+    d17 = pd.read_csv(f2017, index_col=False)
+    d18 = pd.read_csv(f2018, index_col=False)
+    if agent_id not in d17.columns or agent_id not in d18.columns:
+        raise FQLCalibratedInitError(
+            f"[{agent_id}] {f2017} / {f2018} exist but have no column for "
+            f"this agent -- not a 'file missing' condition, so this is not "
+            f"silently treated as a fallback trigger. Investigate the "
+            f"coupling working directory instead of using --fql-init zero."
+        )
+    return float(d17[agent_id].iloc[0]), float(d18[agent_id].iloc[0])
+
+
+def resolve_prev_action(
+    profile: IrrigationAgentProfile,
+    crss_db_dir: Optional[Path],
+) -> Tuple[float, float, str]:
+    """Hung & Yang's first-year action bin: a_t = Div_req_y0 - Div_y0.
+
+    At yi == 0, ABM_CRSS_coupling.py sets ``QL_Div_req = QL_Div =
+    <Index>_QL_Div_2018.csv`` and ``QL_Div_y0 = <Index>_QL_Div_2017.csv``
+    (lines 505-508 for LB, 618-621 for UB), then computes
+    ``a_t = Div_req_y0 - Div_y0`` per agent (lines 532-537, 640-647) --
+    i.e. the observed 2017-to-2018 diversion change. That value becomes
+    ``prev_action`` for the first FQL step (our FQLState.prev_action,
+    used as ``a_t`` in the reward/posterior update on year 1). The same
+    2017 value also becomes ``prev_diversion`` (P1-b fix, 2026-09-27
+    review): H&Y's first Q-update reads s_0 = state(Div_y0) = state(2017)
+    and s_deviation = Div_y - (Div_y0 + a_t) = 2018 - (2017 + (2018 -
+    2017)) = 0 exactly -- no regret penalty on year 1 -- which only
+    holds if the caller sets prev_diversion to the 2017 value returned
+    here, not 2018.
+
+    Note (v): exact ties (actual_2017_diversion == actual_2018_diversion,
+    6 of the 78 real agents, all in the NM/New Mexico state group) give
+    a_t == 0.0 exactly. H&Y's own ``a_t_i = int(a_t > 0)`` (coupling
+    script line 212) maps that to the DECREASE index (0) deliberately --
+    our ``a_t_idx = int(state.prev_action > 0)`` in fql.py's step() does
+    the same -- this is not a bug to special-case.
+
+    Tries Hung & Yang's own per-agent QL_Div_2017/2018.csv files first
+    (via ``_load_ql_div_2017_2018``); when unavailable (files genuinely
+    absent), falls back to the historical annual series already loaded
+    by ``create_profiles_from_data`` (``actual_2018_diversion -
+    actual_2017_diversion``, same series the paper's water-right
+    history-anchor uses; for UB agents both years are split across a
+    state group by the same per-agent ratio, an approximation of H&Y's
+    own ``Within_Group_Dist`` -- see the ``actual_2017_diversion``
+    assignment in ``create_profiles_from_data``).
+
+    Returns (prev_action, prev_diversion_2017, source) where source is
+    one of "ql_div_csv" or "historical_annual_series". Raises
+    FQLCalibratedInitError (v)/2026-09-27 review) when NEITHER source has
+    data for this agent -- calibrated mode never silently defaults
+    prev_action/prev_diversion to 0.0; use --fql-init zero for profiles
+    without CRSS historical data (e.g. synthetic agents).
+    """
+    ql = _load_ql_div_2017_2018(profile.agent_id, profile.basin, crss_db_dir)
+    if ql is not None:
+        div_2017, div_2018 = ql
+        return div_2018 - div_2017, div_2017, "ql_div_csv"
+
+    div_2018 = profile.actual_2018_diversion
+    div_2017 = profile.actual_2017_diversion
+    if div_2018 is not None and div_2017 is not None:
+        return float(div_2018) - float(div_2017), float(div_2017), "historical_annual_series"
+
+    raise FQLCalibratedInitError(
+        f"[{profile.agent_id}] fql_init='calibrated' could not resolve "
+        f"prev_action/prev_diversion: no QL_Div_2017/2018.csv coupling "
+        f"files and no historical actual_2017_diversion/"
+        f"actual_2018_diversion on the profile. Use --fql-init zero for "
+        f"profiles without CRSS historical data (e.g. synthetic agents)."
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────
 # FQL agent factory
 # ─────────────────────────────────────────────────────────────────────
 
 def create_fql_agents(
     profiles: List[IrrigationAgentProfile],
     seed: int = 42,
+    fql_init: str = "zero",
+    fql_init_dir: Optional[Path] = None,
+    crss_db_dir: Optional[Path] = None,
 ) -> Dict[str, Tuple[FQLAgent, FQLState]]:
     """Create FQL agent + state pairs from irrigation profiles.
 
     Each agent gets:
     - FQLConfig from its cluster's canonical parameters
-    - FQLState with state_bounds = linspace(0, grid_top_af, 21) -- the
-      ORIGINAL Hung & Yang discretisation grid, not the (possibly
-      peak-scaled) water_right. Review P1 (2026-09-27, water-right
-      history-anchor): the capped water_right reaches the FQL only
-      through the environment and validator context shared with the LLM
-      path -- the increase clip in
-      IrrigationEnvironment.execute_skill's `min(current + step_af, wr)`,
-      the 10 percent decrease floor, and the allocation-cap and
-      minimum-use flags the validators read; the FQL Q-grid stays on the
-      Hung and Yang grid top. Building the Q-grid itself from the capped
-      water_right instead would shrink the FQL's internal state bins and
-      regret-step scale (FQLState.bin_size) for every peak-scaled agent
-      -- a change to the FQL reference model beyond the intended request
-      clip. `grid_top_af` is None only for profiles that
-      never went through create_profiles_from_data (create_profiles_from_csv,
-      synthetic builders); those fall back to `water_right` unchanged, so
-      this is a no-op for every profile shape that predates the
-      history-anchor.
-    - prev_diversion initialized from actual_2018_diversion (or 80% of water_right)
+    - FQLState.state_bounds: under fql_init="zero", linspace(0,
+      grid_top_af, 21) -- the ORIGINAL Hung & Yang discretisation grid
+      (not the possibly peak-scaled water_right; see Review P1,
+      2026-09-27 water-right history-anchor, for why the capped
+      water_right must not shrink the FQL's own state bins). Under
+      fql_init="calibrated" (P1-a fix, 2026-09-27 review), state_bounds
+      is instead the agent's REAL Div_States column
+      (profile.div_states_grid) with state_grid_mode="hy_exact" and
+      hy_bin_size=profile.bin_size_af -- 19 of 22 LB agents' real columns
+      are NOT a 0-to-top linspace (e.g. MohaveValleyIDD = [0, 12000,
+      14000, ..., 50000]), so treating them as one reads the wrong FQL
+      state; see fql.py's _hy_div_to_state for the exact
+      ABM_CRSS_coupling.py port. `grid_top_af`/`div_states_grid` are None
+      only for profiles that never went through create_profiles_from_data
+      (create_profiles_from_csv, synthetic builders); those must use
+      fql_init="zero" (calibrated raises otherwise, no silent fallback).
+    - prev_diversion: under "zero", actual_2018_diversion (or 80% of
+      water_right) -- unchanged from before 2026-09-27. Under
+      "calibrated" (P1-b fix, 2026-09-27 review), the OBSERVED 2017
+      diversion (resolve_prev_action's prev_diversion_2017), matching
+      H&Y's first Q-update, which credits state(2017) and gives an exact
+      zero reward deviation on year 1 -- not the 2018 value.
+    - Q/count/P_Tran tables and prev_action: zero-initialised (FQLState
+      .initialize()'s untrained defaults; prev_action stays 0.0) under
+      fql_init="zero" -- byte-identical to this function's pre-2026-09-27
+      behavior. Under fql_init="calibrated", warm-started from Hung &
+      Yang's own end-of-2018 calibrated state via load_calibrated_tables()
+      + resolve_prev_action() instead -- see
+      examples/irrigation_abm/learning/fql.py's calibrated-init section
+      for the axis mapping and ABM_CRSS_coupling.py line references. A
+      missing/corrupt/wrong-shape/non-finite file, or an unresolvable
+      prev_action, raises FQLCalibratedInitError; there is no silent
+      zero/default fallback within "calibrated" mode.
 
     Args:
         profiles: List of IrrigationAgentProfile with cluster and water_right.
         seed: Base random seed (each agent gets seed + index for reproducibility).
+        fql_init: "zero" (this function's own default, for backward
+            compatibility with existing callers/tests using synthetic
+            profiles that have no calibrated files) or "calibrated". The
+            CLI (run_fql_baseline.py --fql-init) defaults to "calibrated"
+            and passes it through explicitly.
+        fql_init_dir: Directory holding Q_Table_<agent>.txt /
+            count_<agent>.txt / P_Tran_<agent>.txt. Required when
+            fql_init == "calibrated". The CLI defaults this to
+            ref/CRSS_DB/CRSS_DB/Initial_Files/All-1109 (2026-09-27
+            decision): the per-agent FQL parameters loaded from
+            ALL_colorado_ABM_params_cal_1108.csv are dated 2020-11-08,
+            and All-1109 is the only Initial_Files snapshot written on
+            that same day (all 78 Q tables dated 2020-11-08) -- so
+            parameters and learned tables come from one calibration run.
+            'All' (Q tables dated 2021-05-28, seven months later, no
+            matching parameter file shipped in this release) is what the
+            authors' own initialization_ABM_CRSS_v3.py copies; 'All-WRR'
+            is a composite of the 2020-09-13 Upper Basin and 2020-10-20
+            Lower Basin batches. To be confirmed with the model's
+            authors; the other snapshots are reported as a sensitivity
+            in the SI, not silently dropped.
+        crss_db_dir: ref/CRSS_DB/CRSS_DB directory, used by
+            resolve_prev_action() to look for Hung & Yang's own
+            QL_Div_2017/2018.csv coupling files before falling back to
+            the historical annual series. Only used when fql_init ==
+            "calibrated"; may be None otherwise.
 
     Returns:
-        Dict mapping agent_id → (FQLAgent, FQLState).
+        Dict mapping agent_id → (FQLAgent, FQLState). Each FQLState's
+        ``init_provenance`` dict records fql_init and (under "calibrated")
+        the per-agent file hashes and prev_action source.
     """
+    if fql_init not in ("calibrated", "zero"):
+        raise ValueError(f"fql_init must be 'calibrated' or 'zero', got {fql_init!r}")
+    if fql_init == "calibrated" and fql_init_dir is None:
+        raise ValueError("fql_init='calibrated' requires fql_init_dir")
+
     agents: Dict[str, Tuple[FQLAgent, FQLState]] = {}
 
     for i, p in enumerate(profiles):
@@ -142,15 +339,90 @@ def create_fql_agents(
             forget=p.forget,
         )
 
-        q_grid_top = p.grid_top_af if p.grid_top_af else p.water_right
-        state = FQLState(
-            state_bounds=np.linspace(0, q_grid_top, 21),
-        )
+        if fql_init == "calibrated":
+            # P1-a fix (2026-09-27 review): use H&Y's OWN Div_States
+            # column as state_bounds, not np.linspace(0, grid_top_af, 21)
+            # -- 19 of 22 LB agents' real grids are not a 0-to-top
+            # linspace (e.g. MohaveValleyIDD = [0, 12000, 14000, ...,
+            # 50000]), so the linspace read the wrong FQL state for them.
+            # state_grid_mode="hy_exact" + hy_bin_size gate this so the
+            # two discretisation rules can never mix (fql.py
+            # _div_to_state/_sample_actions).
+            if p.div_states_grid is None or p.bin_size_af is None:
+                raise ValueError(
+                    f"[{p.agent_id}] fql_init='calibrated' requires "
+                    f"div_states_grid and bin_size_af on the profile "
+                    f"(only set by create_profiles_from_data's --real "
+                    f"path); got div_states_grid={p.div_states_grid!r} "
+                    f"bin_size_af={p.bin_size_af!r}. Use --fql-init zero "
+                    f"for profiles without a real Div_States column "
+                    f"(e.g. synthetic agents)."
+                )
+            state = FQLState(
+                state_bounds=np.asarray(p.div_states_grid, dtype=float),
+                state_grid_mode="hy_exact",
+                hy_bin_size=float(p.bin_size_af),
+            )
+
+            q_table, count_table, p_transition, file_hashes = load_calibrated_tables(
+                agent_id=p.agent_id,
+                init_dir=fql_init_dir,
+                config=agent_config,
+            )
+            state.q_table = q_table
+            state.count_table = count_table
+            state.p_transition = p_transition
+
+            # P1-b fix (2026-09-27 review): prev_action AND the 2017
+            # diversion it was derived from must come from the same
+            # resolve_prev_action() call, so prev_diversion (set below,
+            # after state.initialize()) and prev_action always agree on
+            # which "2017" value was used (ql_div_csv vs the historical
+            # series can differ slightly if the former ever becomes
+            # available).
+            prev_action, prev_diversion_2017, prev_action_source = resolve_prev_action(
+                p, crss_db_dir
+            )
+            state.prev_action = prev_action
+            state.init_provenance = {
+                "fql_init": "calibrated",
+                "fql_init_dir": str(fql_init_dir),
+                "q_table_sha256": file_hashes["q_table"],
+                "count_sha256": file_hashes["count"],
+                "p_transition_sha256": file_hashes["p_transition"],
+                "prev_action": prev_action,
+                "prev_action_source": prev_action_source,
+                "prev_diversion_2017": prev_diversion_2017,
+                "state_grid_mode": "hy_exact",
+                "hy_bin_size": float(p.bin_size_af),
+            }
+        else:
+            q_grid_top = p.grid_top_af if p.grid_top_af else p.water_right
+            state = FQLState(
+                state_bounds=np.linspace(0, q_grid_top, 21),
+            )
+            state.init_provenance = {"fql_init": "zero"}
+
+        # FQLState.initialize() only fills fields that are still None, so
+        # the calibrated tables set above are left untouched; under
+        # fql_init="zero" this is unchanged from before 2026-09-27.
         state.initialize(agent_config)
 
-        # Initialize prev_diversion from historical 2018 value
         init_div = p.actual_2018_diversion if p.actual_2018_diversion else p.water_right * 0.8
-        state.prev_diversion = init_div
+        if fql_init == "calibrated":
+            # P1-b fix (2026-09-27 review): H&Y's first Q-update credits
+            # s_0 = state(Div_y0) = state(2017 diversion) and gives a
+            # reward deviation of exactly 0 (Div_y - (Div_y0 + a_t) =
+            # 2018 - (2017 + (2018-2017)) = 0) -- both only hold if
+            # prev_diversion is the 2017 value, not 2018. The
+            # environment's own current_diversion for year 1 stays the
+            # 2018 value (env.initialize_from_profiles uses
+            # actual_2018_diversion, unchanged), matching H&Y's Div_y.
+            state.prev_diversion = prev_diversion_2017
+            state.prev_diversion_request = init_div + state.prev_action
+        else:
+            # Unchanged from before 2026-09-27 (legacy "zero" behavior).
+            state.prev_diversion = init_div
 
         rng = np.random.default_rng(seed + i)
         agent = FQLAgent(agent_config, rng=rng)
@@ -593,7 +865,28 @@ def main():
             print("[Data] Loaded real CRSS precipitation projections (2017-2060)")
 
     # Create FQL agents
-    fql_agents = create_fql_agents(profiles, seed=seed)
+    crss_db_dir_for_init = ref_dir / "CRSS_DB" / "CRSS_DB"
+    try:
+        fql_agents = create_fql_agents(
+            profiles,
+            seed=seed,
+            fql_init=args.fql_init,
+            fql_init_dir=Path(args.fql_init_dir),
+            crss_db_dir=crss_db_dir_for_init,
+        )
+    except FQLCalibratedInitError as exc:
+        print(f"[FQL-init] FATAL: {exc}")
+        raise
+    if args.fql_init == "calibrated":
+        from collections import Counter
+        src_counts = Counter(
+            state.init_provenance.get("prev_action_source")
+            for _, state in fql_agents.values()
+        )
+        print(
+            f"[FQL-init] calibrated warm-start loaded for {len(fql_agents)} agents "
+            f"from {args.fql_init_dir} (prev_action source: {dict(src_counts)})"
+        )
 
     # Output directory — per-seed subdirectory under fql_raw/
     if args.output:
@@ -669,7 +962,51 @@ def main():
             "no_governance": bool(args.no_governance),
             "paper_water_margin": args.paper_water_margin,
             "paper_water_margin_applied": bool(args.real and not args.from_logs),
+            "fql_init": args.fql_init,
+            "fql_init_dir": args.fql_init_dir if args.fql_init == "calibrated" else None,
+            # Cheap reproducibility provenance (2026-09-27 review): numpy's
+            # RNG/floating-point behavior can shift across versions, and
+            # the FQL calibrated warm-start's file parsing depends on
+            # numpy's np.loadtxt. sys.executable matters concretely here:
+            # this machine has two unrelated Python installs on PATH
+            # (`python` -> C:\Python314, 3.14.0, numpy 2.4.2; `python3`
+            # -> a different 3.11.9 install, numpy 2.2.4), and re-running
+            # a reference under the wrong one reproduces the same
+            # simulation at ULP-level-different floating point values
+            # (see TestZeroInitRealDataRegressionAgainstPrimaryClone).
+            "sys_executable": sys.executable,
+            "numpy_version": np.__version__,
+            "python_version": sys.version.split()[0],
         }
+        if args.fql_init == "calibrated":
+            from collections import Counter
+            from datetime import datetime, timezone
+            # Directory name + Q-table date range (2026-09-27 decision):
+            # the provenance trail for WHICH calibration snapshot was
+            # used, since Initial_Files ships several undocumented
+            # variants with different Q_Table mtimes (see --fql-init-dir
+            # help / create_fql_agents docstring).
+            manifest["fql_init_dir_name"] = Path(args.fql_init_dir).name
+            q_mtimes = [
+                p.stat().st_mtime for p in Path(args.fql_init_dir).glob("Q_Table_*.txt")
+            ]
+            if q_mtimes:
+                manifest["fql_init_dir_q_table_date_range"] = [
+                    datetime.fromtimestamp(min(q_mtimes), tz=timezone.utc).date().isoformat(),
+                    datetime.fromtimestamp(max(q_mtimes), tz=timezone.utc).date().isoformat(),
+                ]
+            manifest["fql_init_agents_loaded"] = len(fql_agents)
+            manifest["fql_init_prev_action_source_counts"] = dict(Counter(
+                state.init_provenance.get("prev_action_source")
+                for _, state in fql_agents.values()
+            ))
+            # Per-agent sha256 of each loaded Q_Table/count/P_Tran file,
+            # plus the resolved prev_action and its source -- see
+            # create_fql_agents()/FQLState.init_provenance.
+            manifest["fql_init_per_agent"] = {
+                aid: state.init_provenance
+                for aid, (_, state) in fql_agents.items()
+            }
         with open(output_dir / "reproducibility_manifest.json", "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)
     except Exception as e:
@@ -702,6 +1039,41 @@ def parse_args():
     p.add_argument("--from-logs", type=str, default=None,
                    help="Reconstruct profiles from existing simulation_log.csv directory "
                         "(e.g., results/production_v20_42yr_seed42). Use when ref/ data is unavailable.")
+    p.add_argument("--fql-init", type=str, default="calibrated",
+                   choices=["calibrated", "zero"],
+                   help="Q/count/P_Tran warm-start (fidelity fix, 2026-09-27). "
+                        "'calibrated' (default) loads each agent's Hung & Yang "
+                        "end-of-2018 Q_Table/count/P_Tran tables from "
+                        "--fql-init-dir and sets prev_action from the observed "
+                        "2017-to-2018 diversion change, matching "
+                        "ABM_CRSS_coupling.py's Q_learning(); requires real "
+                        "CRSS agent ids (--real or --from-logs against a real "
+                        "run) with matching files, and raises rather than "
+                        "silently zero-filling a missing/corrupt file. 'zero' "
+                        "reproduces the pre-fix behavior byte for byte "
+                        "(FQLState.initialize()'s zero tables, prev_action=0.0) "
+                        "-- required for synthetic (non --real) profiles.")
+    p.add_argument("--fql-init-dir", type=str,
+                   default=str(PROJECT_ROOT / "ref" / "CRSS_DB" / "CRSS_DB" / "Initial_Files" / "All-1109"),
+                   help="Directory holding Q_Table_<agent>.txt / count_<agent>.txt / "
+                        "P_Tran_<agent>.txt for --fql-init calibrated. Default: "
+                        "ref/CRSS_DB/CRSS_DB/Initial_Files/All-1109 (2026-09-27 "
+                        "decision), resolved against PROJECT_ROOT like the other "
+                        "ref/ paths (--real's params_csv / crss_db). Rationale: "
+                        "the per-agent FQL parameters loaded from "
+                        "ALL_colorado_ABM_params_cal_1108.csv are dated 2020-11-08, "
+                        "and All-1109 is the only Initial_Files snapshot written on "
+                        "that same calibration day (all 78 Q tables dated "
+                        "2020-11-08) -- so parameters and learned tables come from "
+                        "one calibration run. 'All' (Q tables dated 2021-05-28, "
+                        "seven months later, no matching parameter file shipped in "
+                        "this release) is what the authors' own "
+                        "initialization_ABM_CRSS_v3.py copies; 'All-WRR' is a "
+                        "composite of the 2020-09-13 Upper Basin and 2020-10-20 "
+                        "Lower Basin batches. This choice is to be confirmed with "
+                        "the model's authors; the other snapshots (All, All-WRR, "
+                        "All-0913, All-1020, All-1022) are reported as a "
+                        "sensitivity in the SI, not silently dropped.")
     return p.parse_args()
 
 
