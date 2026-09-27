@@ -493,6 +493,10 @@ _OLD_REF = _primary_results_dir() / "fql_nogov_431adb5e" / "seed42" / "simulatio
 
 
 @pytest.mark.skipif(
+    not _REAL_REF_AVAILABLE,
+    reason="CRSS reference data not found under ref/CRSS_DB/CRSS_DB/",
+)
+@pytest.mark.skipif(
     not _OLD_REF.is_file(),
     reason="primary clone's fql_nogov_431adb5e/seed42 reference run not found "
            "(set WAGF_PRIMARY_RESULTS to override the default path)",
