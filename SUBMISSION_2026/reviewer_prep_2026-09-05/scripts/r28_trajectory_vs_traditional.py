@@ -2,13 +2,64 @@
 and does the validator matter for that?
 
 PART 1 -- irrigation (main text)
-  For each LLM arm (strict=governed, ungoverned) x model
-  (gemma3:4b @ faf1bb12, gemma4:12b @ c3391a53) x seed 42-46, compares two
-  42-year series against the traditional FQL baseline at the SAME seed:
-    - primary reference ("matched"): examples/irrigation_abm/results/
-      fql_raw_norebalance_faf1bb12/seed{s}  (matched cluster split)
-    - sensitivity ("rebalanced"): examples/irrigation_abm/results/
-      fql_raw_faf1bb12/seed{s}
+  For each LLM arm x model x seed 42-46, compares two 42-year series
+  against the traditional FQL baseline at the SAME seed:
+    - primary reference ("matched"): VINTAGE-SELECTABLE, and as of
+      2026-09-27 REVIEW FIX (P1-c) the LLM side and the FQL side move
+      TOGETHER via one flag, `--irr-corpus {faf1bb12,431adb5e}`
+      (IRR_MODELS_BY_CORPUS / IRR_ARMS_BY_CORPUS / NATURAL_FQL_VINTAGE_BY_
+      CORPUS), default `faf1bb12` so a plain invocation reproduces this
+      script's ORIGINAL (pre-2026-09-27) output byte-for-byte:
+        --irr-corpus faf1bb12 (DEFAULT): IRR_MODELS = [(gemma3_4b,
+          faf1bb12), (gemma4_12b, c3391a53)], IRR_ARMS = [strict,
+          ungoverned] (both models' real on-disk comparator-arm name),
+          FQL_DIR["matched"] = fql_raw_norebalance_faf1bb12 (the governed
+          FQL ablation -- the ONLY FQL tree that ever existed at this
+          physics, so "matched" here means same-physics, not "primary
+          traditional-ABM baseline" in the nogov sense).
+        --irr-corpus 431adb5e: IRR_MODELS = [(gemma3_4b, 431adb5e)] (the
+          ONLY model at this commit -- no gemma4_12b equivalent exists),
+          IRR_ARMS = [strict, disabled] (this commit's real on-disk
+          comparator-arm name is "disabled", NOT "ungoverned" --
+          `*_431adb5e_seed*` dirs), FQL_DIR["matched"] =
+          fql_nogov_78d986ed (the unruled FQL, calibrated warm start from
+          Hung & Yang's own `Initial_Files/All-1109`, commit 78d986ed --
+          see r42_irrigation_persona_pilot.py's own FQL REGEN 2026-09-27
+          docstring section for the full two-hash-vintage story: LLM stays
+          431adb5e, only the FQL runner moved to 78d986ed).
+      `--fql-vintage {78d986ed,431adb5e,faf1bb12}` remains available as an
+      EXPLICIT OVERRIDE of the FQL side alone (LLM side stays whatever
+      --irr-corpus set) -- defaults to `None`, meaning "inherit the
+      corpus's own natural pairing" (no cross-vintage risk, no flag
+      needed for the common case). Passing a `--fql-vintage` that does
+      NOT match `NATURAL_FQL_VINTAGE_BY_CORPUS[irr_corpus]` (e.g. LLM at
+      431adb5e scored against the faf1bb12-physics FQL) is a genuine
+      cross-vintage/cross-physics comparison and REFUSES to run
+      (`parser.error`, exit 2) unless `--allow-cross-vintage` is also
+      passed -- this is what "the LLM runs and the FQL reference move
+      together" means operationally: getting a mismatched pair now takes
+      two explicit flags, not one flag's default.
+      OUTPUT FILENAME SAFETY (2026-09-27 REVIEW should-fix): a non-default
+      `--irr-corpus` appends `_irr<corpus>` to the output stem, and a
+      genuine `--allow-cross-vintage` override additionally appends
+      `_fql<vintage>` -- `--irr-corpus faf1bb12` (default) with no
+      `--fql-vintage` override writes the SAME filename as before this
+      whole update (`r28_trajectory_vs_traditional.csv`/`.md`, or
+      `..._defaults.*` under `--corpus defaults`); any other choice can
+      never land on that filename and silently overwrite it.
+      MEAD-LEVEL TIMING CONVENTION DIFFERS BETWEEN THE TWO CORPORA:
+      faf1bb12 physics (pre-redesign) reports `lake_mead_level` as an
+      END-OF-YEAR value; 431adb5e physics (supply-side redesign, 5a8a8dab
+      on) reports it as the 1-JANUARY value instead (`examples/
+      irrigation_abm/docs/irrigation_physics.md`'s physics-comparison
+      table; same distinction r42_irrigation_persona_pilot.py's own
+      Method documents). Within one `--irr-corpus` run this never matters
+      (LLM and FQL share one physics tree, hence one timing convention);
+      a reader comparing raw Mead KGE/RMSE numbers ACROSS the two corpora
+      side by side is comparing series roughly one year offset from each
+      other, not the same clock.
+    - sensitivity ("rebalanced"), UNAFFECTED by --irr-corpus/--fql-vintage:
+      examples/irrigation_abm/results/fql_raw_faf1bb12/seed{s}
   Series (columns found and verified against
   examples/irrigation_abm/analysis/fig_wrr_irrigation.py, which labels
   these same two columns lake_mead_ft / request_af):
@@ -29,6 +80,16 @@ PART 1 -- irrigation (main text)
   same-model reference for how different two traditional runs naturally
   are, at the SAME KGE/RMSE definition -- this calibrates what an LLM
   arm's KGE against FQL actually means.
+  WHAT THIS KGE IS AND IS NOT (2026-09-27 REVIEW FIX, P1-b): every KGE in
+  this script is an AGREEMENT INDEX BETWEEN TWO MODELS -- the governed or
+  ungoverned LLM-ABM and the calibrated RL-ABM (FQL), run under IDENTICAL
+  hydrology (same seed, same basin inputs) -- never a validation against
+  observed data. FQL is itself only a model: Hung and Yang (2021) report
+  their own RL-ABM's fit to OBSERVED diversions ranging KGE 0.27 to 0.90
+  across their calibrated agents/reaches, so an LLM-vs-FQL KGE in this
+  script's own 0.5-0.85 range sits inside the spread that RL-ABM's own
+  fit to reality already carries -- it says the two MODELS track each
+  other reasonably, not that either one matches the river.
 
 PART 2 -- flood (SI only, categorical, not a headline)
   Per year 1-10 and seed, the protection-state distribution over the 5
@@ -135,11 +196,87 @@ import gen_fig3_regen as FIG3  # noqa: E402
 
 IRR_RESULTS = os.path.join(C.REPO, "examples", "irrigation_abm", "results")
 IRR_SEEDS = ["42", "43", "44", "45", "46"]
-IRR_MODELS = [("gemma3_4b", "faf1bb12"), ("gemma4_12b", "c3391a53")]
-IRR_ARMS = ["strict", "ungoverned"]
+
+# 2026-09-27 REVIEW FIX (P1-c): the LLM side (IRR_MODELS/IRR_ARMS) and the
+# FQL side (FQL_DIR["matched"]) now move TOGETHER, keyed by ONE flag,
+# --irr-corpus (IRR_CORPUS_CHOICES). Named "--irr-corpus", not "--corpus"
+# -- this script already has an UNRELATED "--corpus" flag
+# (`C.add_corpus_arg`, {v08,defaults}) that selects the FLOOD Part 2
+# corpus only; reusing that name for a completely different irrigation
+# dimension would either collide (argparse refuses two "--corpus"
+# definitions on one parser) or silently conflate two unrelated switches
+# under one name, so this is a deliberately different flag.
+IRR_CORPUS_CHOICES = ("faf1bb12", "431adb5e")
+# faf1bb12 (DEFAULT): the pre-2026-09-27 pairing, UNCHANGED -- both
+# LLM models at their original commits, "ungoverned" is their real
+# on-disk comparator-arm name.
+IRR_MODELS_BY_CORPUS = {
+    "faf1bb12": [("gemma3_4b", "faf1bb12"), ("gemma4_12b", "c3391a53")],
+    # 431adb5e: the ONLY model that exists at this commit (no gemma4_12b
+    # equivalent) -- `strict_42yr_gemma3_4b_431adb5e_seed*` /
+    # `disabled_42yr_gemma3_4b_431adb5e_seed*`.
+    "431adb5e": [("gemma3_4b", "431adb5e")],
+}
+IRR_ARMS_BY_CORPUS = {
+    "faf1bb12": ["strict", "ungoverned"],
+    # 431adb5e's real on-disk comparator-arm name is "disabled", NOT
+    # "ungoverned" (r42_irrigation_persona_pilot.py's own
+    # COMPARATOR_ARM_NAME confirms this per-vintage naming split).
+    "431adb5e": ["strict", "disabled"],
+}
+# The FQL tree that is a genuine SAME-PHYSICS pairing for each corpus --
+# faf1bb12 -> the only FQL tree that ever existed at that physics
+# (governed ablation, "matched" here means same-physics, not "unruled
+# primary"); 431adb5e -> fql_nogov_78d986ed, the unruled FQL calibrated
+# warm start at commit 78d986ed (the FQL REGEN 2026-09-27 follow-up --
+# LLM stays 431adb5e, only the FQL runner moved; see
+# r42_irrigation_persona_pilot.py's own FQL REGEN docstring section).
+NATURAL_FQL_VINTAGE_BY_CORPUS = {"faf1bb12": "faf1bb12", "431adb5e": "78d986ed"}
+IRR_MODELS: list = []   # set in main() from IRR_MODELS_BY_CORPUS[args.irr_corpus]
+IRR_ARMS: list = []     # set in main() from IRR_ARMS_BY_CORPUS[args.irr_corpus]
 
 FQL_DIR = {"matched": "fql_raw_norebalance_faf1bb12", "rebalanced": "fql_raw_faf1bb12"}
 FQL_REFERENCES = ["matched", "rebalanced"]
+
+# --fql-vintage (added 2026-09-27; REVISED same day, P1-c review fix) --
+# an EXPLICIT OVERRIDE of FQL_DIR["matched"] alone, independent of
+# --irr-corpus. FQL_DIR["rebalanced"] (the same-model sensitivity check,
+# FQL-vs-FQL) is UNCHANGED by this flag -- no 78d986ed/431adb5e
+# "rebalanced" dir exists yet, and this update's task brief scoped the
+# change to "the reference" (matched) only. Default is `None` (see
+# main()): with no --fql-vintage, FQL_DIR["matched"] is whatever
+# NATURAL_FQL_VINTAGE_BY_CORPUS[args.irr_corpus] names -- the LLM and FQL
+# sides move together automatically. Passing --fql-vintage to a value
+# that does NOT match that natural pairing is a deliberate cross-vintage/
+# cross-physics comparison and REFUSES to run unless
+# --allow-cross-vintage is also passed (main()) -- getting a mismatched
+# LLM/FQL pair now takes two explicit flags, never one flag's default.
+FQL_MATCHED_DIR_BY_VINTAGE = {
+    # 78d986ed: the unruled FQL, calibrated warm start from Hung & Yang's
+    # own `Initial_Files/All-1109` (FQL REGEN 2026-09-27) -- Wenyu's
+    # 2026-09-26 "unruled FQL is the traditional-ABM line" call is
+    # UNCHANGED; only the FQL RUNNER changed (shared log-row builder +
+    # the calibrated warm start, replacing the earlier zero-init trees --
+    # see r42_irrigation_persona_pilot.py's own FQL REGEN 2026-09-27
+    # docstring section for the full story, including the two SI
+    # calibration-snapshot sensitivity dirs and the per-agent-median
+    # diversion-KGE check its own Part 4 runs against this same pair).
+    # NATURAL pairing for --irr-corpus 431adb5e.
+    "78d986ed": "fql_nogov_78d986ed",
+    # 431adb5e: the ZERO-INIT unruled FQL this script briefly defaulted to
+    # (2026-09-27, before the SAME-DAY FQL REGEN above superseded it) --
+    # kept on disk unchanged and still reachable here by flag, never
+    # deleted (see r42_irrigation_persona_pilot.py's own Part 4, which
+    # reads this exact dir as its "legacy" reference to check whether the
+    # regen moved the KGE read at all). NOT the natural pairing for any
+    # --irr-corpus choice -- always a --allow-cross-vintage comparison.
+    "431adb5e": "fql_nogov_431adb5e",
+    # faf1bb12: the governed FQL ablation ("raw" in the dir name names the
+    # Q-learning policy, not an absence of governance) -- NATURAL pairing
+    # for --irr-corpus faf1bb12 (the only FQL tree that ever existed at
+    # that physics; same dir this script has always used there).
+    "faf1bb12": "fql_raw_norebalance_faf1bb12",
+}
 
 # (series_name, source_column, per-year aggregation, unit). Columns found
 # by grepping examples/irrigation_abm/analysis/*.py for existing usage of
@@ -627,20 +764,75 @@ FIELDNAMES = [c for c in FIELDNAMES if not (c in _seen or _seen.add(c))]
 
 
 def main() -> int:
+    global IRR_MODELS, IRR_ARMS
     parser = argparse.ArgumentParser(
         description="R28 -- LLM arms vs traditional-ABM trajectory (flood part is "
                      "--corpus-aware; irrigation is not)")
     C.add_corpus_arg(parser)
+    parser.add_argument(
+        "--irr-corpus", choices=IRR_CORPUS_CHOICES, default="faf1bb12",
+        help="2026-09-27 REVIEW FIX (P1-c): selects the LLM side (IRR_MODELS/IRR_ARMS) AND "
+             "the FQL reference (FQL_DIR['matched']) TOGETHER, so they move together by "
+             "default. Default faf1bb12 (this script's ORIGINAL pairing, unchanged -- a "
+             "plain invocation reproduces pre-2026-09-27 output byte-for-byte). Pass "
+             "431adb5e for the 431adb5e-commit LLM corpus (gemma3_4b only, arms "
+             "strict/disabled) scored against fql_nogov_78d986ed (the 78d986ed FQL regen's "
+             "unruled, calibrated-warm-start reference -- the two hashes differ because only "
+             "the FQL runner moved; see Method). Distinct from this script's unrelated "
+             "--corpus flag, which selects the FLOOD Part 2 sampling corpus only.")
+    parser.add_argument(
+        "--fql-vintage", choices=sorted(FQL_MATCHED_DIR_BY_VINTAGE), default=None,
+        help="EXPLICIT override of FQL_DIR['matched'] alone, independent of --irr-corpus. "
+             "Default None: inherits NATURAL_FQL_VINTAGE_BY_CORPUS[--irr-corpus] (LLM and "
+             "FQL move together automatically -- faf1bb12->faf1bb12, "
+             "431adb5e->78d986ed). Passing a value that does NOT match that natural pairing "
+             "is a deliberate cross-vintage/cross-physics comparison and this script REFUSES "
+             "to run (exit 2) unless --allow-cross-vintage is also passed. "
+             "FQL_DIR['rebalanced'] (the FQL-vs-FQL sensitivity check) is unaffected by "
+             "this flag.")
+    parser.add_argument(
+        "--allow-cross-vintage", action="store_true",
+        help="Required alongside a --fql-vintage that does not match --irr-corpus's natural "
+             "FQL pairing -- without it, a mismatched pair refuses to run rather than "
+             "silently scoring one vintage's LLM against another vintage's physics.")
     args = parser.parse_args()
     corpus = args.corpus
-    suffix = C.corpus_suffix(corpus)
+
+    IRR_MODELS = IRR_MODELS_BY_CORPUS[args.irr_corpus]
+    IRR_ARMS = IRR_ARMS_BY_CORPUS[args.irr_corpus]
+    natural_fql_vintage = NATURAL_FQL_VINTAGE_BY_CORPUS[args.irr_corpus]
+    fql_vintage = args.fql_vintage if args.fql_vintage is not None else natural_fql_vintage
+    if fql_vintage != natural_fql_vintage and not args.allow_cross_vintage:
+        parser.error(
+            f"--fql-vintage {fql_vintage!r} does not match --irr-corpus {args.irr_corpus!r}'s "
+            f"natural FQL pairing ({natural_fql_vintage!r}) -- pass --allow-cross-vintage to "
+            f"force this cross-vintage/cross-physics comparison (LLM and FQL will then NOT "
+            f"move together; see Method for the Mead-timing-convention caveat this implies).")
+    FQL_DIR["matched"] = FQL_MATCHED_DIR_BY_VINTAGE[fql_vintage]
+
+    # 2026-09-27 REVIEW FIX (should-fix): --irr-corpus/--fql-vintage change
+    # WHAT Part 1's irrigation numbers mean, so a non-default choice of
+    # EITHER must never land on the same filename as the default faf1bb12
+    # (irr_corpus) / natural (fql_vintage) output -- that default output is
+    # the one every other reviewer-prep script's byte-reproduction promise
+    # depends on. irr_suffix fires whenever --irr-corpus is not the
+    # default; fql_suffix fires only on a genuine --allow-cross-vintage
+    # override (the natural pairing already matches --irr-corpus's own
+    # tag, so it would be redundant, not wrong, to always append it).
+    irr_suffix = "" if args.irr_corpus == "faf1bb12" else f"_irr{args.irr_corpus}"
+    fql_suffix = "" if fql_vintage == natural_fql_vintage else f"_fql{fql_vintage}"
+    suffix = C.corpus_suffix(corpus) + irr_suffix + fql_suffix
 
     C.banner(f"R28  Do the LLM arms reproduce the traditional-ABM trajectory, "
-             f"and does the validator matter? (flood corpus={corpus})")
+             f"and does the validator matter? (flood corpus={corpus}, "
+             f"irr_corpus={args.irr_corpus}, fql_vintage={fql_vintage} "
+             f"({'natural' if fql_vintage == natural_fql_vintage else 'CROSS-VINTAGE override'}) "
+             f"-> FQL_DIR['matched']={FQL_DIR['matched']!r})")
     rows: list = []
 
-    print("\n-- Part 1: irrigation KGE/RMSE vs FQL baseline (always v08, unaffected "
-          "by --corpus) --")
+    print(f"\n-- Part 1: irrigation KGE/RMSE vs FQL baseline (--irr-corpus={args.irr_corpus} "
+          f"for the LLM side; fql_vintage={fql_vintage} for the FQL reference; both "
+          f"unaffected by --corpus) --")
     per_cell = _irr_part1(rows)
     _irr_part1_summary(rows, per_cell)
     _irr_part1_contrast(rows, per_cell)
