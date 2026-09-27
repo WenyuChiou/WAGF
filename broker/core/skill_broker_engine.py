@@ -232,19 +232,22 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_soft = getattr(self.config, "get_governance_advise_mode", None)
         _soft = _get_soft() if callable(_get_soft) else "off"
         self._soft_advise_mode = _soft if _soft in ("off", "record", "feedback") else "off"
-        # Red-team objection 3: the RETRY-FEEDBACK ablation (full | placebo,
-        # default full). Governs ONLY the LLM-facing text of the BLOCKING
-        # governance retry loop (`RetryMixin._governance_retry_loop`) — the
-        # validator still decides WHEN a proposal is rejected (same rules,
-        # same schedule, same `on_retry_exhausted` fallback); under "placebo"
-        # the retry prompt is the adapter's wrapper-only rendering
-        # (header + closer + original prompt, no rules block —
+        # Red-team objection 3: the RETRY-FEEDBACK ablation (full | placebo |
+        # silent, default full). Governs ONLY the LLM-facing text of the
+        # BLOCKING governance retry loop (`RetryMixin._governance_retry_loop`)
+        # -- the validator still decides WHEN a proposal is rejected (same
+        # rules, same schedule, same `on_retry_exhausted` fallback); under
+        # "placebo" the retry prompt is the adapter's wrapper-only rendering
+        # (header + closer + original prompt, no rules block --
         # `format_intervention_prompt(..., include_reports=False)`, opus W1
         # design), isolating "the model got another attempt with the same
         # governance framing" from "the model was told a specific rule".
+        # Under "silent" the retry prompt is the ORIGINAL prompt, byte for
+        # byte, on every attempt -- no header, no closer, no framing at all --
+        # a strictly more content-free control than "placebo".
         # Distinct from `_advise_mode` / `_soft_advise_mode` above, which
         # govern the separate NON-BLOCKING advisory channel and share no
-        # state with this one — including their OWN, differently-mechanised
+        # state with this one, including their OWN, differently-mechanised
         # `mode="placebo"` (same-shape reports, placebo text) which this is
         # not. Coerced to a known string for the same MagicMock reason as the
         # rest.
@@ -254,33 +257,16 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_fsf = getattr(self.config, "get_governance_feasible_set_feedback", None)
         _fsf = _get_fsf() if callable(_get_fsf) else False
         self._feasible_set_feedback = _fsf if isinstance(_fsf, bool) else False
+        # Resolved here (config-getter coercion for the same MagicMock reason
+        # as the rest of __init__), then applied through set_retry_feedback_mode
+        # below so construction and a later CLI override (run_flood.py /
+        # run_experiment.py's --retry-feedback-mode) go through the SAME path
+        # and both get the W2 advisory-conflict check, not just construction.
         _get_rfm = getattr(self.config, "get_governance_retry_feedback_mode", None)
         _rfm = _get_rfm() if callable(_get_rfm) else "full"
-        self._retry_feedback_mode = _rfm if _rfm in ("full", "placebo") else "full"
-        logger.info("[Governance] retry_feedback_mode=%s", self._retry_feedback_mode)
-        # W2 (review round 2): a placebo retry arm exists to isolate rule
-        # content from "another attempt" — but if the ADVISE channel (demoted
-        # ERROR rules, `_advise_mode`) or the SOFT-RULE channel (WARNING
-        # rules under `feedback`, `_soft_advise_mode`) is also live, either
-        # one can still put rule-specific content into a DIFFERENT prompt
-        # within the same decision (the one-shot advisory call), quietly
-        # reintroducing exactly the content this arm exists to remove and
-        # making a "placebo" corpus not actually content-free. Named here so
-        # the operator sees which attribute(s) are the conflict, at the one
-        # point construction has all three resolved.
-        if self._retry_feedback_mode == "placebo" and (
-            self._advise_mode != "off" or self._soft_advise_mode != "off"
-        ):
-            logger.warning(
-                "[Governance] retry_feedback_mode=placebo while _advise_mode=%r "
-                "and/or _soft_advise_mode=%r is not 'off' — the retry PROMPT is "
-                "content-free, but an advisory call from either channel can "
-                "still show this decision rule-specific content in a "
-                "DIFFERENT prompt within the same decision. A published "
-                "'placebo' corpus meant to be content-free end-to-end should "
-                "set both to 'off'.",
-                self._advise_mode, self._soft_advise_mode,
-            )
+        self.set_retry_feedback_mode(
+            _rfm if _rfm in ("full", "placebo", "silent") else "full"
+        )
         # PR-6 review P1-b: FRAMEWORK-AWARE LABELS parity. Two evaluators read
         # this flag from two places — AgentValidator from the config object it
         # was constructed with, the ThinkingValidator from whatever the
@@ -351,6 +337,61 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             "aborted": 0
         }
         self.auditor = GovernanceAuditor()
+
+    def set_retry_feedback_mode(self, mode: str) -> None:
+        """Set the red-team objection 3 retry-feedback arm (full | placebo |
+        silent) and re-run the W2 advisory-conflict check against the NEW
+        value.
+
+        Called from __init__ with the config-resolved default, so behaviour
+        is identical to before this method existed when no override is
+        given. ALSO called directly by a CLI override
+        (examples/single_agent/run_flood.py,
+        examples/irrigation_abm/run_experiment.py's --retry-feedback-mode)
+        instead of those callers poking `self._retry_feedback_mode` on the
+        already-built engine -- doing that bypassed the warning below
+        entirely, so an operator overriding to "silent"/"placebo" on a run
+        with an advisory channel already on got no warning at all, unlike a
+        run where the same combination was set in YAML from the start.
+
+        Raises ValueError on an unrecognised mode: unlike __init__'s own
+        config-getter coercion (a MagicMock config's return value silently
+        degrades to "full" so unit tests with mocked configs never take an
+        unintended branch), a caller of this PUBLIC method is passing a
+        literal string on purpose, so an unrecognised one is refused loudly
+        rather than silently reinterpreted as "full".
+        """
+        if mode not in ("full", "placebo", "silent"):
+            raise ValueError(
+                f"retry_feedback_mode={mode!r} is not 'full', 'placebo', or "
+                "'silent'."
+            )
+        self._retry_feedback_mode = mode
+        logger.info("[Governance] retry_feedback_mode=%s", self._retry_feedback_mode)
+        # W2 (review round 2): a placebo/silent retry arm exists to isolate
+        # rule content from "another attempt", but if the ADVISE channel
+        # (demoted ERROR rules, `_advise_mode`) or the SOFT-RULE channel
+        # (WARNING rules under `feedback`, `_soft_advise_mode`) is also live,
+        # either one can still put rule-specific content into a DIFFERENT
+        # prompt within the same decision (the one-shot advisory call),
+        # quietly reintroducing exactly the content this arm exists to
+        # remove and making a "placebo"/"silent" corpus not actually
+        # content-free. Named here so the operator sees which attribute(s)
+        # are the conflict, at every point the resolved mode changes.
+        if self._retry_feedback_mode in ("placebo", "silent") and (
+            self._advise_mode != "off" or self._soft_advise_mode != "off"
+        ):
+            logger.warning(
+                "[Governance] retry_feedback_mode=%s while _advise_mode=%r "
+                "and/or _soft_advise_mode=%r is not 'off', the retry PROMPT is "
+                "content-free, but an advisory call from either channel can "
+                "still show this decision rule-specific content in a "
+                "DIFFERENT prompt within the same decision. A published "
+                "%r corpus meant to be content-free end-to-end should "
+                "set both to 'off'.",
+                self._retry_feedback_mode, self._advise_mode, self._soft_advise_mode,
+                self._retry_feedback_mode,
+            )
 
     def _log_framework_aware_label_parity(self) -> None:
         """PR-6 P1-b: state the resolved flag once, and name any disagreement.
