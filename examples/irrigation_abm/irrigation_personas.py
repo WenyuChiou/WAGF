@@ -14,7 +14,7 @@ Each agent receives:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -53,7 +53,22 @@ class IrrigationAgentProfile:
     # bin_size_af = the step of the agent's discretised diversion grid
     # (Div_States/*_discrete_states.csv, agt_states[2] - agt_states[1]);
     # None = synthetic profile, the environment falls back to water_right / 25.
+    # NOTE: bin_size_af is the Hung and Yang STEP size and is never touched
+    # by the water_right history-anchor (see below); it always comes from
+    # the grid regardless of which ceiling water_right ends up at.
     bin_size_af: Optional[float] = None
+
+    # History-anchor ceiling (2026-09-26, water-right history-anchor):
+    # water_right above is min(grid_top_af, (1 + paper_water_margin) *
+    # peak_obs_af) for profiles built by create_profiles_from_data (see its
+    # docstring); these three fields record
+    # which bound applied and from what. None for profiles that do not go
+    # through that path (create_profiles_from_csv, synthetic builders),
+    # where water_right is set directly and grid_top_af/peak_obs_af have no
+    # meaning.
+    grid_top_af: Optional[float] = None  # top of the Div_States grid (Div_max)
+    peak_obs_af: Optional[float] = None  # observed peak, 1971-2018, same series as actual_2018_diversion
+    water_right_source: Optional[str] = None  # "grid_top" or "peak_scaled"
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -799,6 +814,20 @@ def _assign_crop_type(basin: str, rng: np.random.Generator) -> str:
 _UB_STATE_GROUPS = ["WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ_UB"]
 _UB_GROUP_AGENT_COUNTS = [5, 11, 1, 2, 7, 5, 15, 9, 3]  # 58 total
 
+# UB historical CSV column names do not all match the state-group label used
+# above: HistoricalData/UB_historical_annual_depletion.csv's Arizona column
+# is "AZ", not "AZ_UB" (the FQL calibration file's group label). A direct
+# ``state_group in ub_hist.columns`` lookup silently misses for the 3
+# ArizonaMiscUses_* agents, leaving their actual_2018_diversion (and, since
+# 2026-09-26, peak_obs_af) at None (Change 2, AZ_UB history-column bug,
+# found during the water-right history-anchor audit). Mapped explicitly
+# rather than by stripping every group's "_UB"/basin suffix, which would
+# risk a future group silently matching an unrelated column; a UB group
+# still missing its mapped column after this is a loud error, not a
+# silent None (see create_profiles_from_data).
+_UB_HIST_COLUMN_BY_GROUP: Dict[str, str] = {sg: sg for sg in _UB_STATE_GROUPS}
+_UB_HIST_COLUMN_BY_GROUP["AZ_UB"] = "AZ"
+
 
 def _build_ub_agent_names(group_agt_path: str) -> List[str]:
     """Read UB group-agent file and return agent names in Group_Slot order.
@@ -838,6 +867,7 @@ def create_profiles_from_data(
     params_csv_path: str,
     crss_db_dir: str,
     rng: Optional[np.random.Generator] = None,
+    paper_water_margin: float = 0.4,
 ) -> List[IrrigationAgentProfile]:
     """Create 78 individual agent profiles from paper data.
 
@@ -846,30 +876,102 @@ def create_profiles_from_data(
     - UB: 58 individual CRSS slots, each inheriting its state-group's
       FQL parameters.  Inactive agents (all-zero states) are skipped.
 
-    F10 (2026-09-25 audit): ``water_right`` below is ``col.iloc[-1]`` --
-    the TOP of that agent's discretised FQL diversion grid
-    (``Div_States/*_discrete_states.csv``), i.e. Hung & Yang's
-    ``Div_max`` (the ceiling the FQL state space discretises against),
-    NOT a legal Colorado River entitlement. Initial requests come from
-    2018 diversions, and most agents' 2018 use sits well under that
-    grid-top ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below
-    50% utilisation, so ``demand_floor_stabilizer``
-    (``DEMAND_FLOOR_RATIO = 0.50`` in ``validators/irrigation_validators.py``)
-    bound for most agents from year 1 in the governed arm of corpora produced
-    before 2026-09-25 (retired from dispatch since). See
-    ``docs/irrigation_physics.md`` for the corresponding physics-side
-    note.
+    F10 (2026-09-25 audit; ceiling fixed 2026-09-26, water-right
+    history-anchor): ``col.iloc[-1]`` is the TOP of that agent's
+    discretised FQL diversion grid (``Div_States/*_discrete_states.csv``),
+    i.e. Hung & Yang's ``Div_max`` (the ceiling the FQL state space
+    discretises against), NOT a legal Colorado River entitlement. For the
+    56 modelled Upper Basin agents that grid top sums to 10.54 MAF, 2.8x
+    their 1971-2018 observed peak (3.54 MAF) and 3.5x their 2018 use
+    (3.05 MAF); at that ceiling requests grow to 7-10 MAF within a few
+    years, hit the 5.0 MAF Upper Basin delivery capacity from year 2, and
+    Lake Powell sits at dead pool for roughly half the run. ``water_right``
+    below is therefore ``min(grid_top_af, (1 + paper_water_margin) *
+    peak_obs_af)`` for every one of the 78 agents (one rule, both basins)
+    -- ``paper_water_margin`` is the share by which a district's legal
+    ceiling may exceed its largest observed annual use, on ``[0, 1]``;
+    ``peak_obs_af`` is the same agent's own observed peak over 1971-2018
+    (the historical series ``actual_2018_diversion`` already reads, UB
+    depletion file / LB diversion file, UB split proportionally across a
+    state group exactly as ``actual_2018_diversion`` is), and
+    ``grid_top_af``/``peak_obs_af``/``water_right_source`` are kept on the
+    profile so a manifest or analysis script can see which bound applied.
+    ``bin_size_af`` (the Hung & Yang STEP size) is unaffected -- it always
+    comes from the grid, independent of which ceiling wins here.
+
+    Derivation of the default ``paper_water_margin`` (0.4): the 56
+    modelled Upper Basin agents used 3.0544 MAF in 2018. USBR's "Upper
+    Colorado River Basin Consumptive Uses and Losses 2016-2020"
+    (Provisional, Feb 2022), Table UC-4, gives 2018 Upper Basin irrigation
+    consumptive use as 3,079.3 kaf (within 1% of the modelled agents'
+    3.0544 MAF) against a 2018 Upper Basin total, including main-stem
+    reservoir evaporation, of 4,752.8 kaf -- irrigation's share of 2018
+    Upper Basin consumptive use is 3,079.3 / 4,752.8 = 0.648 (evaporation
+    is included in the denominator because Compact accounting charges
+    reservoir evaporation to the basin's apportionment). That share of
+    the 7.5 MAF Compact Article III(a) apportionment is 0.648 x 7.5 =
+    4.86 MAF; dividing by the 56 agents' observed-peak sum (3.536 MAF)
+    gives 4.86 / 3.536 = 1.374, rounded to one decimal, 1.4 -- a margin
+    of 0.4 over the observed peak. At the default, the 56 Upper Basin
+    agents' water_right sums to about 4.93 MAF, below the 5.0 MAF Upper
+    Basin delivery capacity (a margin of 0.5 would put the sum at about
+    5.28 MAF, above that capacity; a margin of 0.0, i.e. capping at the
+    bare observed peak, leaves most Upper Basin agents almost no room to
+    increase -- their peak-to-2018-use ratio has a median of about 1.01).
+    The Lower Basin is bound by the same rule and the same
+    ``paper_water_margin`` (not a per-basin value); its grid tops stay
+    the binding value for a narrow majority of its 22 agents, the
+    peak-scaled ceiling for the rest. See ``docs/irrigation_physics.md``
+    and ``docs/irrigation_model_caveats.md`` (item 11) for the
+    corresponding physics-side and disclosure-side notes.
+
+    Change 2 (AZ_UB history-column bug, found during the same audit): the
+    3 ``ArizonaMiscUses_*`` agents (state group ``AZ_UB``) got
+    ``actual_2018_diversion=None`` because the historical CSV's column is
+    "AZ", not "AZ_UB" -- see ``_UB_HIST_COLUMN_BY_GROUP``. With
+    ``actual_2018_diversion=None``,
+    ``IrrigationEnvironment.initialize_from_profiles`` fell back to
+    ``water_right * 0.8`` for the initial request/diversion, i.e. 80% of
+    the (then-uncapped) grid top -- 32,000 / 14,400 / 16,000 acre-ft for
+    the three agents respectively, roughly 30-60x their real 2018 use
+    (about 513 / 231 / 256 acre-ft). Fixed here by mapping the state
+    group to its historical column explicitly.
+
+    Review P2 (2026-09-27): both HistoricalData files are now REQUIRED --
+    a missing file, a missing 2018 row, or (for LB) an active agent absent
+    from the file's columns all raise ``ValueError`` (mirroring the UB
+    group-column check), instead of silently falling back to the grid top.
+    ``IrrigationEnvironment.initialize_from_profiles``'s
+    ``water_right * 0.8`` starting-request fallback therefore never fires
+    for a profile built by this function -- it only ever applies to
+    profiles that skip this function entirely (synthetic builders,
+    ``create_profiles_from_csv``), which have no historical series to
+    read at all. The peak window is restricted to ``.loc[:2018]`` so a
+    historical file extended with later years cannot silently move
+    ``peak_obs_af``.
 
     Args:
         params_csv_path: Path to ALL_colorado_ABM_params_cal_1108.csv
         crss_db_dir: Path to ref/CRSS_DB/CRSS_DB/ directory
         rng: Random number generator for crop type and persona selection.
+        paper_water_margin: Share by which a district's legal ceiling may
+            exceed its 1971-2018 observed peak diversion, on ``[0, 1]``
+            (enforced -- raises ``ValueError`` outside that range);
+            ``water_right = min(grid_top_af, (1 + paper_water_margin) *
+            peak_obs_af)``. Default 0.4 (see derivation above). Exposed
+            end-to-end via ``--paper-water-margin`` on
+            ``run_experiment.py`` and ``run_fql_baseline.py``.
 
     Returns:
         List of ~78 IrrigationAgentProfile with real water_right values.
     """
     import os
     import pandas as pd
+
+    if not (0.0 <= paper_water_margin <= 1.0):
+        raise ValueError(
+            f"paper_water_margin must be in [0, 1], got {paper_water_margin!r}"
+        )
 
     rng = rng or np.random.default_rng()
 
@@ -891,18 +993,74 @@ def create_profiles_from_data(
     ub_agent_names = _build_ub_agent_names(ub_group_file)
     ub_sg_map = _build_ub_state_group_map(ub_agent_names)
 
-    # 4. Load historical 2018 actual diversions (Hung & Yang 2021 baseline)
+    # 4. Load historical 1971-2018 series (Hung & Yang 2021 baseline).
+    # Review P2 (2026-09-27): both files, the 2018 row, and (for LB) every
+    # active agent's column are now REQUIRED -- raised loudly rather than
+    # silently degrading to the grid top, mirroring the UB group-column
+    # check. lb_hist / ub_hist are kept in full (not just their 2018 row)
+    # because peak_obs_af needs the max over every available year, sliced
+    # to .loc[:2018] below so a file extended with later years cannot
+    # silently move the peak.
     lb_hist_path = os.path.join(crss_db_dir, "HistoricalData", "LB_historical_annual_diversion.csv")
     ub_hist_path = os.path.join(crss_db_dir, "HistoricalData", "UB_historical_annual_depletion.csv")
-    lb_2018, ub_2018 = None, None
-    if os.path.isfile(lb_hist_path):
-        lb_hist = pd.read_csv(lb_hist_path, index_col=0)
-        lb_2018 = lb_hist.loc[2018] if 2018 in lb_hist.index else None
-    if os.path.isfile(ub_hist_path):
-        ub_hist = pd.read_csv(ub_hist_path, index_col=0)
-        ub_2018 = ub_hist.loc[2018] * 1000 if 2018 in ub_hist.index else None  # thousands AF → AF
 
-    # Pre-compute UB state-group water_right totals for proportional split
+    if not os.path.isfile(lb_hist_path):
+        raise ValueError(
+            f"{lb_hist_path} not found; create_profiles_from_data requires the "
+            "historical LB diversion series (actual_2018_diversion, peak_obs_af) "
+            "for every active LB agent. Synthetic profiles that do not need this "
+            "data should use create_profiles_from_csv or a synthetic builder instead."
+        )
+    lb_hist = pd.read_csv(lb_hist_path, index_col=0)
+    if 2018 not in lb_hist.index:
+        raise ValueError(f"{lb_hist_path} has no row for year 2018; cannot compute actual_2018_diversion.")
+    lb_2018 = lb_hist.loc[2018]
+    # Only agents this function will actually build a profile for (present
+    # in params_df and an active -- grid_top > 0 -- LB slot) need a column;
+    # an agent skipped for either reason below is not checked here.
+    missing_lb_agents = [
+        a for a in lb_states.columns
+        if a in params_df.columns and float(lb_states[a].iloc[-1]) > 0 and a not in lb_hist.columns
+    ]
+    if missing_lb_agents:
+        raise ValueError(
+            f"{lb_hist_path} has no column for LB agent(s) {missing_lb_agents}; "
+            "cannot compute actual_2018_diversion or peak_obs_af for them."
+        )
+
+    if not os.path.isfile(ub_hist_path):
+        raise ValueError(
+            f"{ub_hist_path} not found; create_profiles_from_data requires the "
+            "historical UB depletion series (actual_2018_diversion, peak_obs_af) "
+            "for every active UB state group. Synthetic profiles that do not need "
+            "this data should use create_profiles_from_csv or a synthetic builder instead."
+        )
+    ub_hist = pd.read_csv(ub_hist_path, index_col=0)
+    # Change 2: every UB state group must resolve to a real historical
+    # column via the explicit mapping -- a group that still does not
+    # resolve fails loudly here rather than silently leaving None on
+    # whichever agents happen to fall in it (the AZ_UB bug this closes).
+    missing = [
+        sg for sg in _UB_STATE_GROUPS
+        if _UB_HIST_COLUMN_BY_GROUP[sg] not in ub_hist.columns
+    ]
+    if missing:
+        raise ValueError(
+            f"{ub_hist_path} has no column for UB state group(s) {missing} "
+            f"(expected column(s) "
+            f"{[_UB_HIST_COLUMN_BY_GROUP[sg] for sg in missing]!r}); cannot "
+            "compute actual_2018_diversion or peak_obs_af for the agents "
+            "in this group. Update _UB_HIST_COLUMN_BY_GROUP if the "
+            "historical file's column naming changed."
+        )
+    if 2018 not in ub_hist.index:
+        raise ValueError(f"{ub_hist_path} has no row for year 2018; cannot compute actual_2018_diversion.")
+    ub_2018 = ub_hist.loc[2018] * 1000  # thousands AF → AF
+
+    # Pre-compute UB state-group water_right (grid-top) totals for
+    # proportional split, and each group's observed-peak / 2018 series in
+    # acre-ft (thousands AF → AF), keyed by the FQL group label so the
+    # per-agent loop below can look them up by state_group directly.
     ub_group_wr_totals: Dict[str, float] = {}
     for _name in ub_states.columns:
         _wr = float(ub_states[_name].iloc[-1])
@@ -912,6 +1070,33 @@ def create_profiles_from_data(
         if _sg:
             ub_group_wr_totals[_sg] = ub_group_wr_totals.get(_sg, 0) + _wr
 
+    # Peak window restricted to years <= 2018 (Review P2): an historical
+    # file later extended past 2018 must not silently move the peak.
+    ub_hist_to_2018 = ub_hist.loc[:2018]
+    ub_group_peak_af: Dict[str, float] = {
+        sg: float(ub_hist_to_2018[_UB_HIST_COLUMN_BY_GROUP[sg]].max()) * 1000
+        for sg in _UB_STATE_GROUPS
+    }
+
+    # Local multiplier derived from paper_water_margin; not itself a second
+    # exposed knob (only paper_water_margin is a parameter/CLI flag/manifest
+    # key).
+    _margin_multiplier = 1.0 + paper_water_margin
+
+    def _capped_water_right(grid_top_af: float, peak_obs_af: Optional[float]) -> Tuple[float, str]:
+        """``min(grid_top_af, (1 + paper_water_margin) * peak_obs_af)`` and its source label.
+
+        Falls back to ``grid_top_af`` (source "grid_top") when no observed
+        peak is available (e.g. the historical file was not found) -- the
+        pre-history-anchor behaviour, never worse than before.
+        """
+        if peak_obs_af is None or peak_obs_af <= 0:
+            return grid_top_af, "grid_top"
+        scaled = _margin_multiplier * peak_obs_af
+        if grid_top_af <= scaled:
+            return grid_top_af, "grid_top"
+        return scaled, "peak_scaled"
+
     profiles: List[IrrigationAgentProfile] = []
 
     # --- Lower Basin agents (22, direct CSV match) ---
@@ -919,9 +1104,17 @@ def create_profiles_from_data(
         if agent_name not in params_df.columns:
             continue
         col = lb_states[agent_name]
-        water_right = float(col.iloc[-1])
-        if water_right <= 0:
+        grid_top_af = float(col.iloc[-1])
+        if grid_top_af <= 0:
             continue  # inactive
+
+        # Peak window restricted to years <= 2018 (Review P2), same as UB.
+        peak_obs_af = (
+            float(lb_hist.loc[:2018, agent_name].max())
+            if agent_name in lb_hist.columns
+            else None
+        )
+        water_right, water_right_source = _capped_water_right(grid_top_af, peak_obs_af)
 
         p = params_df[agent_name]
         mu = float(p["mu"])
@@ -947,6 +1140,9 @@ def create_profiles_from_data(
             farm_size_acres=water_right / 200.0,  # proportional to water_right
             water_right=water_right,
             bin_size_af=bin_size_af,
+            grid_top_af=grid_top_af,
+            peak_obs_af=peak_obs_af,
+            water_right_source=water_right_source,
             crop_type=_assign_crop_type("lower_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
@@ -958,14 +1154,28 @@ def create_profiles_from_data(
     # --- Upper Basin agents (58, expanded from 9 state-groups) ---
     for agent_name in ub_states.columns:
         col = ub_states[agent_name]
-        water_right = float(col.iloc[-1])
-        if water_right <= 0:
+        grid_top_af = float(col.iloc[-1])
+        if grid_top_af <= 0:
             continue  # inactive
 
         # Look up state-group for FQL params
         state_group = ub_sg_map.get(agent_name)
         if state_group is None or state_group not in params_df.columns:
             continue
+
+        # This agent's share of its state group's grid-top total; the same
+        # ratio splits the group's observed-peak and 2018 series across its
+        # agents (Change 1: peak_obs_af uses the same split as
+        # actual_2018_diversion; Change 2: both now resolve via
+        # _UB_HIST_COLUMN_BY_GROUP instead of the bare state_group label).
+        group_total = ub_group_wr_totals.get(state_group, 1)
+        ratio = grid_top_af / group_total if group_total > 0 else 0.0
+        peak_obs_af = (
+            ub_group_peak_af[state_group] * ratio
+            if state_group in ub_group_peak_af
+            else None
+        )
+        water_right, water_right_source = _capped_water_right(grid_top_af, peak_obs_af)
 
         p = params_df[state_group]
         mu = float(p["mu"])
@@ -991,13 +1201,16 @@ def create_profiles_from_data(
             farm_size_acres=water_right / 200.0,
             water_right=water_right,
             bin_size_af=bin_size_af,
+            grid_top_af=grid_top_af,
+            peak_obs_af=peak_obs_af,
+            water_right_source=water_right_source,
             crop_type=_assign_crop_type("upper_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
-        if ub_2018 is not None and state_group in ub_2018.index:
-            group_total = ub_group_wr_totals.get(state_group, 1)
-            if group_total > 0:
-                profile.actual_2018_diversion = float(ub_2018[state_group]) * (water_right / group_total)
+        if ub_2018 is not None:
+            hist_col = _UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group)
+            if hist_col in ub_2018.index:
+                profile.actual_2018_diversion = float(ub_2018[hist_col]) * ratio
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
