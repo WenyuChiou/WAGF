@@ -61,7 +61,9 @@ from examples.irrigation_abm.irrigation_env import (
 )
 from examples.irrigation_abm.irrigation_personas import (
     IrrigationAgentProfile,
+    build_simulation_log_row,
     create_profiles_from_data,
+    read_lake_mead_level_for_log,
     rebalance_to_target,
 )
 from examples.irrigation_abm.validators.irrigation_validators import (
@@ -248,6 +250,7 @@ def run_simulation(
 
         year_skills = {}
         year_blocked = 0
+        year_decisions: Dict[str, Dict[str, Any]] = {}
 
         for aid in agent_ids:
             if aid not in fql_agents:
@@ -311,58 +314,83 @@ def run_simulation(
             # ── Update consecutive tracker (same as LLM post_step) ──
             update_consecutive_tracker(aid, final_skill)
 
-            # ── Logging (identical columns to LLM output) ──
-            new_agent_state = env.get_agent_state(aid)
-            logs.append({
-                "agent_id": aid,
-                "year": year_idx,
+            # Stash everything needed to log this agent's row AFTER
+            # settle_year() runs for the whole year (below) -- the
+            # settlement-derived columns (mead_storage_end_maf,
+            # powell_storage_maf, delivered, ...) do not exist yet.
+            year_decisions[aid] = {
                 "cluster": profile.cluster,
                 "basin": profile.basin,
-                "yearly_decision": final_skill,
-                "fql_raw_skill": raw_skill,
-                "fql_action": action,
-                "fql_blocked": was_blocked,
+                "final_skill": final_skill,
+                "raw_skill": raw_skill,
+                "action": action,
+                "was_blocked": was_blocked,
                 "wsa_label": compute_wsa_label(ctx["drought_index"]),
                 "aca_label": compute_aca_label(profile.cluster),
-                "request": new_agent_state.get("request", 0),
-                "diversion": new_agent_state.get("diversion", 0),
-                "water_right": new_agent_state.get("water_right", 0),
-                "curtailment_ratio": new_agent_state.get("curtailment_ratio", 0),
-                "drought_index": ctx["drought_index"],
-                "shortage_tier": ctx["shortage_tier"],
-                "lake_mead_level": env.get_local("lower_basin", "lake_mead_level", 0),
-                "mead_storage_maf": env._mead_storage[-1] if env._mead_storage else 0,
-                "has_efficient_system": new_agent_state.get("has_efficient_system", False),
-                "below_minimum_utilisation": new_agent_state.get("below_minimum_utilisation", False),
-                "utilisation_pct": (
-                    new_agent_state.get("request", 0) / new_agent_state.get("water_right", 1) * 100
-                    if new_agent_state.get("water_right", 0) > 0 else 0
-                ),
                 "magnitude_pct": state_changes.get("magnitude_pct_applied"),
                 "magnitude_pct_sampled": state_changes.get("magnitude_pct_sampled"),
                 "magnitude_af": state_changes.get("magnitude_af"),
                 "magnitude_class": state_changes.get("magnitude_class"),
-                "magnitude_fallback": False,
                 "is_exploration": state_changes.get("is_exploration", False),
-                "memory": "FQL_BASELINE",
-            })
+            }
 
             year_skills[final_skill] = year_skills.get(final_skill, 0) + 1
 
         # Supply-side redesign (2026-09-25): settle the year once, after every
-        # agent's decision, and log the SETTLED delivery (the LLM runner logs
-        # the same quantity after IrrigationLifecycleHooks.post_year's
-        # settle_year()). Rows above were written right after each agent's
-        # execute_skill, with a provisional delivery.
-        env.settle_year()
-        for row in logs:
-            if row["year"] == year_idx:
-                row["diversion"] = env.get_agent_state(row["agent_id"]).get("diversion", 0)
+        # agent's decision (mirrors the LLM runner's
+        # IrrigationLifecycleHooks.post_year, which calls settle_year() before
+        # building any row). Only after this call are delivered / *_end_maf /
+        # basin_request_af defined for the year.
+        settlement = env.settle_year()
+        basin_request_af = (
+            settlement["ub_request_maf"] + settlement["lb_request_maf"]
+        ) * 1e6
+        drought_index_year = env.global_state.get("drought_index", 0)
+        shortage_tier_year = env.institutions.get("colorado_compact", {}).get("shortage_tier", 0)
+        # Guarded read (2026-09-27 fix): same helper as run_experiment.py's
+        # IrrigationLifecycleHooks._log_lake_mead_level, so both runners
+        # raise the same way instead of this one silently logging 0 when
+        # coupling.context_contract is ON and the level is missing.
+        lake_mead_level_year = read_lake_mead_level_for_log(env)
+        mead_storage_maf_year = env._mead_storage[-1] if env._mead_storage else 0
 
-        # Year summary
+        # ── Logging (same schema as the LLM run; see build_simulation_log_row) ──
+        for aid, dec in year_decisions.items():
+            agent_state = env.get_agent_state(aid)
+            row = build_simulation_log_row(
+                agent_id=aid,
+                year=year_idx,
+                cluster=dec["cluster"],
+                basin=dec["basin"],
+                yearly_decision=dec["final_skill"],
+                wsa_label=dec["wsa_label"],
+                aca_label=dec["aca_label"],
+                agent_state=agent_state,
+                drought_index=drought_index_year,
+                shortage_tier=shortage_tier_year,
+                lake_mead_level=lake_mead_level_year,
+                mead_storage_maf=mead_storage_maf_year,
+                settlement=settlement,
+                basin_request_af=basin_request_af,
+                magnitude_pct=dec["magnitude_pct"],
+                magnitude_pct_sampled=dec["magnitude_pct_sampled"],
+                magnitude_af=dec["magnitude_af"],
+                magnitude_class=dec["magnitude_class"],
+                magnitude_fallback=False,
+                is_exploration=dec["is_exploration"],
+                memory="FQL_BASELINE",
+            )
+            # FQL-only columns, appended after the full LLM column set.
+            row["fql_raw_skill"] = dec["raw_skill"]
+            row["fql_action"] = dec["action"]
+            row["fql_blocked"] = dec["was_blocked"]
+            logs.append(row)
+
+        # Year summary (reuses the same guarded read computed above, so the
+        # console line and the logged column never disagree)
         n_agents = len(agent_ids)
         skill_summary = ", ".join(f"{k}={v}" for k, v in sorted(year_skills.items()))
-        mead = env.get_local("lower_basin", "lake_mead_level", 0)
+        mead = lake_mead_level_year
         drought = env.global_state.get("drought_index", 0)
         print(
             f"  Year {year_idx:3d} (sim {sim_year}) | "
