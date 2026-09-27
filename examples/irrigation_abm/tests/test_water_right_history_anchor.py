@@ -126,18 +126,22 @@ def _write_synthetic_ref(tmp_path: Path) -> Path:
 
     _write_ub_agent_group_fixture(crss_db_dir / "Group_Agt" / "UB_ABM_Groups_and_Agents.csv")
 
-    # LB historical series: peak 900 (in 1971), 2018 use 700, both agents.
+    # LB historical series: peak 900 (in 1971), 2017 use 700, 2018 use
+    # 700, both agents. 2017 row required (mirrors the 2018 check,
+    # P1-b/(v) 2026-09-27 review) even though this fixture's tests don't
+    # exercise the FQL calibrated warm-start itself.
     lb_hist = pd.DataFrame(
-        {"LB_Below": [900.0, 700.0], "LB_Above": [900.0, 700.0]},
-        index=[1971, 2018],
+        {"LB_Below": [900.0, 700.0, 700.0], "LB_Above": [900.0, 700.0, 700.0]},
+        index=[1971, 2017, 2018],
     )
     lb_hist.to_csv(crss_db_dir / "HistoricalData" / "LB_historical_annual_diversion.csv")
 
     # UB historical file (Review P2: required even with no active UB
     # agents) -- one row per required column, all values irrelevant here.
+    # 2017 row required alongside 2018 (P1-b/(v) 2026-09-27 review).
     ub_hist = pd.DataFrame(
-        {sg_col: [0.0] for sg_col in {"WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ"}},
-        index=[2018],
+        {sg_col: [0.0, 0.0] for sg_col in {"WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ"}},
+        index=[2017, 2018],
     )
     ub_hist.to_csv(crss_db_dir / "HistoricalData" / "UB_historical_annual_depletion.csv")
 
@@ -217,8 +221,8 @@ class TestSyntheticCeilingFormula:
         params_path, crss_db_dir = _write_synthetic_ref(tmp_path)
         lb_hist_path = crss_db_dir / "HistoricalData" / "LB_historical_annual_diversion.csv"
         extended = pd.DataFrame(
-            {"LB_Below": [900.0, 700.0, 999999.0], "LB_Above": [900.0, 700.0, 999999.0]},
-            index=[1971, 2018, 2019],
+            {"LB_Below": [900.0, 700.0, 700.0, 999999.0], "LB_Above": [900.0, 700.0, 700.0, 999999.0]},
+            index=[1971, 2017, 2018, 2019],
         )
         extended.to_csv(lb_hist_path)
 
@@ -251,7 +255,7 @@ class TestSyntheticCeilingFormula:
         params_path, crss_db_dir = _write_synthetic_ref(tmp_path)
         lb_hist_path = crss_db_dir / "HistoricalData" / "LB_historical_annual_diversion.csv"
         # Drop LB_Above's column entirely (still an active, params-listed agent).
-        truncated = pd.DataFrame({"LB_Below": [900.0, 700.0]}, index=[1971, 2018])
+        truncated = pd.DataFrame({"LB_Below": [900.0, 700.0, 700.0]}, index=[1971, 2017, 2018])
         truncated.to_csv(lb_hist_path)
         with pytest.raises(ValueError, match="LB_Above"):
             create_profiles_from_data(
@@ -272,9 +276,11 @@ def _write_ub_two_agent_group_fixture(tmp_path: Path) -> Path:
     (crss_db_dir / "HistoricalData").mkdir(parents=True, exist_ok=True)
     (crss_db_dir / "Group_Agt").mkdir(parents=True, exist_ok=True)
 
-    # LB: no active agents, but both files must still exist (Review P2).
+    # LB: no active agents, but both files must still exist (Review P2),
+    # and both the 2017 and 2018 rows are required file-wide regardless
+    # of whether any LB agent is active (P1-b/(v) 2026-09-27 review).
     pd.DataFrame({"LBDummy": [0.0]}).to_csv(crss_db_dir / "Div_States" / "LB_discrete_states.csv", index=False)
-    pd.DataFrame({"LBDummy": [0.0]}, index=[2018]).to_csv(
+    pd.DataFrame({"LBDummy": [0.0, 0.0]}, index=[2017, 2018]).to_csv(
         crss_db_dir / "HistoricalData" / "LB_historical_annual_diversion.csv")
 
     # 58-slot Group_Agt fixture: slots 1-2 of the first (WY) group are the
@@ -294,11 +300,15 @@ def _write_ub_two_agent_group_fixture(tmp_path: Path) -> Path:
     # e.g. AZ_UB -> "AZ") must exist; only "WY" (the group under test)
     # carries a real series -- 1971 peak 800, 2018 use 500 (thousand AF,
     # matching the real file's units -- *1000 in the loader).
+    # 2017 row required alongside 2018 (P1-b/(v) 2026-09-27 review);
+    # WY's 2017 use set equal to its 2018 use (0.5) since this fixture's
+    # own tests only exercise peak_obs_af / grid-top-share, not the FQL
+    # calibrated warm-start's prev_action.
     ub_hist_data = {
-        _UB_HIST_COLUMN_BY_GROUP[sg]: [0.0, 0.0] for sg in _UB_STATE_GROUPS if sg != "WY"
+        _UB_HIST_COLUMN_BY_GROUP[sg]: [0.0, 0.0, 0.0] for sg in _UB_STATE_GROUPS if sg != "WY"
     }
-    ub_hist_data["WY"] = [0.8, 0.5]
-    ub_hist = pd.DataFrame(ub_hist_data, index=[1971, 2018])
+    ub_hist_data["WY"] = [0.8, 0.5, 0.5]
+    ub_hist = pd.DataFrame(ub_hist_data, index=[1971, 2017, 2018])
     ub_hist.to_csv(crss_db_dir / "HistoricalData" / "UB_historical_annual_depletion.csv")
 
     params = pd.DataFrame(
@@ -463,6 +473,11 @@ class TestManifestRecordsMargin:
             "--seed", "1",
             "--output", str(tmp_path),
             "--paper-water-margin", "0.4",
+            # Synthetic agent ids (Agent_000, ...) have no calibrated
+            # Q/count/P_Tran files under ref/CRSS_DB; --fql-init calibrated
+            # is the CLI default but only applies to real CRSS agent ids
+            # (see run_fql_baseline.py --fql-init help).
+            "--fql-init", "zero",
         ]
         old_argv = sys.argv
         sys.argv = argv
