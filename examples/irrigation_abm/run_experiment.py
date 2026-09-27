@@ -1321,6 +1321,30 @@ def main():
         # agent_types_config) - no broker init-time change needed.
         runner.broker._derived_from_config = str(original_agent_config_path)
 
+    # Red-team objection 3 ablation (default None = whatever
+    # global_config.governance.retry_feedback_mode in agent_types.yaml
+    # resolved to on the engine, normally "full"). Same mechanism
+    # run_flood.py's --retry-feedback-mode uses: SkillBrokerEngine.
+    # set_retry_feedback_mode (opus review, 2026-09-27) validates the mode,
+    # sets the already-constructed broker's resolved attribute, re-logs via
+    # logger.info in the engine's own startup shape ("[Governance]
+    # retry_feedback_mode=%s", parity with flood -- both runners now share
+    # the SAME log line instead of each printing their own), and re-runs the
+    # W2 advisory-channel-conflict check against the NEW value. Called here,
+    # before runner.run() below, rather than editing the loaded YAML:
+    # RetryMixin._governance_retry_loop reads `self._retry_feedback_mode` at
+    # every retry call (not just once at engine construction), so setting it
+    # here governs every retry for the whole run.
+    # ExperimentRunner._finalize_experiment / _collect_reproducibility_
+    # metadata already read this same attribute generically (domain-
+    # agnostic, shared with flood) into config_snapshot.yaml's
+    # metadata.retry_feedback_mode and reproducibility_manifest.json's
+    # retry_feedback_mode key -- no irrigation-specific manifest patch
+    # needed, unlike _record_paper_water_margin_provenance below (which
+    # exists only because paper_water_margin has no generic-framework home).
+    if args.retry_feedback_mode is not None:
+        runner.broker.set_retry_feedback_mode(args.retry_feedback_mode)
+
     # --- Reflection engine (Pillar 2) ---
     refl_cfg = global_cfg.get("reflection", {})
     reflection_engine = ReflectionEngine(
@@ -1452,6 +1476,24 @@ def parse_args():
                         "contract-off run at the same seed/years/agents, and the governance "
                         "audit CSV is identical under broker.tools.compare_audit_csv apart "
                         "from two added world_request / world_contention_rule columns.")
+    p.add_argument("--retry-feedback-mode", type=str, default=None,
+                   choices=["full", "placebo", "silent"],
+                   help="Red-team objection 3 ablation, same three arms as "
+                        "run_flood.py's flag of the same name. 'full' (default "
+                        "behaviour): the governance retry prompt carries the real "
+                        "rule id/reason/suggestion. 'placebo': the validator still "
+                        "rejects on the same rules/schedule/fallback, but the "
+                        "LLM-facing retry text is a fixed, content-free sentence. "
+                        "'silent': the retry prompt is the ORIGINAL prompt, "
+                        "byte-for-byte, on every attempt -- no header, no closer, "
+                        "no framing at all. None (default) leaves "
+                        "global_config.governance.retry_feedback_mode (default "
+                        "'full') in agent_types.yaml unchanged, so prompt bytes "
+                        "stay identical to a run with this flag omitted entirely. "
+                        "Replaces the old config_variants/silent_gemma3_4b/ "
+                        "full-config-copy approach (removed 2026-09-27): use "
+                        "this flag against the in-tree config instead of "
+                        "--config-dir pointing at a stale copy.")
     return p.parse_args()
 
 

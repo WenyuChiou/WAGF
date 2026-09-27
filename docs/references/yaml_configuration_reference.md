@@ -272,7 +272,7 @@ not accepted" framing on purpose.
 
 Read by `AgentTypeConfig.get_governance_retry_feedback_mode()`. An unknown
 value raises at config load, and `_governance_retry_loop` raises again if it
-ever sees an unrecognised value on the resolved attribute — a config/override
+ever sees an unrecognised value on the resolved attribute, a config/override
 bug here must never silently run as `full` and leak rule content into a run
 an operator believed was content-free. CLI: `examples/single_agent/run_flood.py
 --retry-feedback-mode {full,placebo,silent}`. Full semantics:
