@@ -306,6 +306,82 @@ def _unmet_frac(request: float, delivered: float) -> float:
     return round(min(1.0, max(0.0, 1.0 - float(delivered) / float(request))), 6)
 
 
+_QUOTE_CHARS = "\"'“”‘’"
+
+# The fixed prefix _batch_reflect stores every consolidated reflection under
+# (see the add_memory call below). Stripped before normalising a RETRIEVED
+# item's content so the quote/whitespace check runs on the model's own text,
+# not on a string where the prefix pushes a real leading quote away from the
+# string's own boundary (where str.strip() can reach it).
+_REFLECTION_MEMORY_PREFIX = "Consolidated Reflection: "
+
+
+def _normalize_reflection_text(text: str) -> str:
+    """Strip, collapse internal whitespace, and strip surrounding quotes.
+
+    Used by ``IrrigationLifecycleHooks._batch_reflect`` to detect a reflection
+    that only echoes the agent's previous one (gemma3:4b does this often;
+    see the 2026-09-26 regression audit, N3): a run of whitespace or a
+    quoting difference must not defeat the dedup check, but any real change
+    in wording must still count as a new reflection.
+    """
+    collapsed = " ".join((text or "").split())
+    return collapsed.strip(_QUOTE_CHARS)
+
+
+def _agent_retrieval_content_set(memory_engine, agent) -> set:
+    """Normalised content of every memory item ``agent`` can currently
+    retrieve. Parameters match ``broker/components/context/providers.py
+    (MemoryProvider.provide)`` for LEGACY ranking mode ONLY: ``query``,
+    ``contextual_boosters`` and ``world_state`` are not passed here (this
+    hook runs at year-end, outside prompt construction, so none are
+    available) and would matter only under WEIGHTED ranking, where they
+    feed the relevance/contextual-boost/interference terms of the score;
+    legacy mode ignores all three (composed retrieval is window + decayed
+    long-term importance only), so omitting them changes nothing for the
+    composed path this helper is built for.
+
+    One deliberate difference from the prompt's own call: when composed
+    retrieval is on, the window is queried at ``window_size - 1`` (minimum
+    1), not the full ``window_size``. The dedup check in ``_batch_reflect``
+    runs at year-end, one memory item EARLIER than the next year's prompt
+    will see -- ``pre_year`` adds one more feedback memory before that
+    prompt is built. Querying the full window here would count a
+    reflection sitting in the LAST slot as still visible, when by the time
+    the agent actually reads its next prompt that slot has been pushed out.
+    Checking one slot short treats "about to age out" the same as "already
+    aged out", so a reflection is restored proactively instead of a year
+    late.
+
+    Returns an empty set on a missing agent or a non-list retrieve()
+    result rather than raising.
+    """
+    if agent is None:
+        return set()
+    mem_cfg = getattr(agent, "memory_config", None)
+    mem_cfg = mem_cfg if isinstance(mem_cfg, dict) else {}
+    extra = {}
+    if (mem_cfg.get("composed_retrieval") is True
+            and getattr(memory_engine, "ranking_mode", None) == "legacy"):
+        for key in ("window_size", "top_k_significant"):
+            if key in mem_cfg:
+                extra[key] = int(mem_cfg[key])
+        if "window_size" in extra:
+            extra["window_size"] = max(1, extra["window_size"] - 1)
+    retrieved = memory_engine.retrieve(
+        agent, top_k=int(mem_cfg.get("retrieval_top_k", 3)), **extra
+    )
+    if not isinstance(retrieved, list):
+        return set()
+    out = set()
+    for item in retrieved:
+        content = item.get("content", "") if isinstance(item, dict) else str(item)
+        if content.startswith(_REFLECTION_MEMORY_PREFIX):
+            content = content[len(_REFLECTION_MEMORY_PREFIX):]
+        out.add(_normalize_reflection_text(content))
+    return out
+
+
 class IrrigationLifecycleHooks:
     """Hooks that wire water state, memory injection, and reflection."""
 
@@ -332,6 +408,10 @@ class IrrigationLifecycleHooks:
         # memory.rejection_line_style for the yearly memory line (set by main()
         # from the irrigation_farmer.memory YAML block).
         self.rejection_line_style = "neutral"
+        # Store-time reflection dedup (2026-09-26, N3): agent_id -> the
+        # normalised text of the last reflection actually STORED via
+        # add_memory (not merely seen); see _batch_reflect.
+        self._last_reflection_by_agent: Dict[str, str] = {}
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -759,6 +839,9 @@ class IrrigationLifecycleHooks:
 
         llm_call = self.runner.get_llm_invoke("irrigation_farmer")
         print(f"  [Reflection] {len(candidates)} agents in batches of {batch_size}...")
+        reflections_stored = 0
+        reflections_skipped = 0
+        reflections_restored = 0
         for i in range(0, len(candidates), batch_size):
             batch = candidates[i: i + batch_size]
             batch_ids = [c["agent_id"] for c in batch]
@@ -784,6 +867,11 @@ class IrrigationLifecycleHooks:
                             )
                             insight.importance = dynamic_imp
 
+                        # store_insight and the reflection_log.jsonl write it
+                        # makes stay UNCONDITIONAL, so the duplicate rate stays
+                        # reportable from that log even when the add_memory
+                        # call below is skipped as a duplicate or an empty
+                        # summary.
                         self.reflection_engine.store_insight(aid, insight)
                         emotion = "major"
                         if self.reflection_engine.adapter and ctx_item and ctx_item.get("context"):
@@ -791,9 +879,52 @@ class IrrigationLifecycleHooks:
                             emotion = self.reflection_engine.adapter.classify_emotion(
                                 decision, ctx_item["context"]
                             )
+
+                        # An empty or missing summary must never become the
+                        # literal memory line "Consolidated Reflection: None".
+                        summary = getattr(insight, "summary", None)
+                        if not summary or not str(summary).strip():
+                            reflections_skipped += 1
+                            continue
+
+                        # Store-time dedup (regression audit 2026-09-26,
+                        # finding N3): gemma3:4b often echoes the previous
+                        # year's stored reflection verbatim (70.7 percent of
+                        # stored reflections equal the agent's previous one
+                        # in the seed-42 pilot pair), and the composed 5+2
+                        # retrieval window then shows the same text twice
+                        # inside the 5-item recent slice. Skip the memory add
+                        # ONLY when the normalised new SUMMARY equals the
+                        # agent's most recently STORED summary AND that
+                        # stored reflection is STILL in the agent's current
+                        # retrieval set (the same composed-retrieval call the
+                        # prompt's own provider uses; see
+                        # _agent_retrieval_content_set). Normalising the
+                        # summary alone (not the "Consolidated Reflection: "
+                        # -prefixed content) matters: a quote wrapping the
+                        # model's own text sits at the SUMMARY's boundary,
+                        # where str.strip() can reach it, not at the
+                        # prefixed string's boundary. An echo the agent can
+                        # no longer see in its own context is not a visible
+                        # duplicate, so it is stored again and counted
+                        # separately (reflections_restored) instead of being
+                        # silently dropped.
+                        normalized = _normalize_reflection_text(summary)
+                        last = self._last_reflection_by_agent.get(aid)
+                        if last is not None and normalized == last:
+                            agent_obj = self.runner.agents.get(aid)
+                            retrievable = _agent_retrieval_content_set(
+                                self.runner.memory_engine, agent_obj
+                            )
+                            if normalized in retrievable:
+                                reflections_skipped += 1
+                                continue
+                            reflections_restored += 1
+                        self._last_reflection_by_agent[aid] = normalized
+                        reflections_stored += 1
                         self.runner.memory_engine.add_memory(
                             aid,
-                            f"Consolidated Reflection: {insight.summary}",
+                            f"{_REFLECTION_MEMORY_PREFIX}{summary}",
                             {
                                 # "importance", not "significance": HumanCentricMemoryEngine
                                 # only reads metadata.get("importance", 0.5). See
@@ -808,6 +939,9 @@ class IrrigationLifecycleHooks:
             except Exception as e:
                 print(f"  [Reflection:Error] Batch {i // batch_size + 1}: {e}")
         print(f"  [Reflection] Year {year} complete.")
+        print(f"  [reflect] year {year}: stored {reflections_stored} reflections, "
+              f"skipped {reflections_skipped} duplicates, restored {reflections_restored} "
+              f"aged-out duplicates")
 
 
 # ---------------------------------------------------------------------------

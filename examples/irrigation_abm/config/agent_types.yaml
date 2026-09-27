@@ -53,8 +53,8 @@ global_config:
     max_reports_per_retry: 3
     domain: irrigation               # Domain selector for validator injection
     # Supply-side redesign (2026-09-25, spec FW1/FW4): every retry prompt after
-    # an ERROR ends with the actions that pass every rule given the agent's
-    # last response (framework default off).
+    # an ERROR ends with the list of actions that pass every rule this step
+    # (framework default off).
     feasible_set_feedback: true
 
   # First-attempt proposal columns (initial_skill, initial_labels,
