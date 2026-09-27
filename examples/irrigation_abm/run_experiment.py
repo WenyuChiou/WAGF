@@ -34,7 +34,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
-    CRSS_DEMAND_TARGET_AF,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -45,8 +44,10 @@ from examples.irrigation_abm.irrigation_personas import (
     build_conservation_status,
     build_aca_hint,
     build_action_outcome_feedback,
+    build_simulation_log_row,
     create_profiles_from_csv,
     describe_gap_reason,
+    read_lake_mead_level_for_log,
     rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
@@ -418,26 +419,12 @@ class IrrigationLifecycleHooks:
     def _log_lake_mead_level(self):
         """Read ``lower_basin.lake_mead_level`` for the simulation log.
 
-        Review P1-b: this column was the ONE physical-state read that stayed
-        outside the ``coupling.context_contract`` guard. ``get_agent_context``
-        (guarded) and this logger (unguarded, ``get_local(..., 0)``) read the
-        SAME field, so with the flag ON a missing reservoir level would raise
-        for the prompt and quietly write 0 into the analysis CSV — the two
-        artifacts of one run disagreeing about whether the value existed.
-        With the flag OFF the expression is character-for-character the old
-        one, so every frozen corpus reproduces byte-identically.
+        Delegates to the shared ``read_lake_mead_level_for_log`` (2026-09-27
+        fix) so this runner and ``run_fql_baseline.py`` fail the same way;
+        see that function's docstring for the coupling-contract guard this
+        preserves (Review P1-b).
         """
-        if getattr(self.env, "_coupling_contract_active", False):
-            level = self.env.get_local("lower_basin", "lake_mead_level")
-            if level is None:
-                raise KeyError(
-                    "lake_mead_level is missing from lower_basin and "
-                    "coupling.context_contract is ON: refusing to log 0 ft for a "
-                    "reservoir level that was never set (the prompt path fails "
-                    "loud on the same field, and the two must not disagree)."
-                )
-            return level
-        return self.env.get_local("lower_basin", "lake_mead_level", 0)
+        return read_lake_mead_level_for_log(self.env)
 
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
@@ -697,58 +684,29 @@ class IrrigationLifecycleHooks:
                 mem_str = str(mem_items)
 
             profile = self.profiles.get(aid)
-            self.logs.append({
-                "agent_id": aid,
-                "year": year,
-                "cluster": profile.cluster if profile else "unknown",
-                "basin": profile.basin if profile else "unknown",
-                "yearly_decision": skill or "N/A",
-                "wsa_label": appr.get("wsa_label", "N/A"),
-                "aca_label": appr.get("aca_label", "N/A"),
-                "request": agent_state.get("request", 0),
-                "diversion": agent_state.get("diversion", 0),
-                "water_right": agent_state.get("water_right", 0),
-                "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
-                "drought_index": self.env.global_state.get("drought_index", 0),
-                "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
-                "lake_mead_level": self._log_lake_mead_level(),
-                "mead_storage_maf": self.env._mead_storage[-1] if self.env._mead_storage else 0,
-                # Supply-side redesign columns (appended; every older column
-                # keeps its name). lake_mead_level / mead_storage_maf are the
-                # 1 January values the agents saw; *_end_maf are this year's
-                # end-of-year storages from the final settlement.
-                "delivered": agent_state.get("diversion", 0),
-                "delivery_ratio": agent_state.get("delivery_ratio", 1.0),
-                "gap_reason": agent_state.get("gap_reason", "none"),
-                "utilisation_delivered_pct": (
-                    agent_state.get("diversion", 0) / agent_state.get("water_right", 1) * 100
-                    if agent_state.get("water_right", 0) > 0 else 0
-                ),
-                "mead_storage_end_maf": settlement["mead_storage_end_maf"],
-                "powell_storage_maf": settlement["powell_storage_maf"],
-                "powell_storage_end_maf": settlement["powell_storage_end_maf"],
-                "powell_release_maf": settlement["powell_release_maf"],
-                "natural_flow_maf": settlement["natural_flow_maf"],
-                "ub_delivered_maf": settlement["ub_delivered_maf"],
-                "lb_phys_ratio": settlement["lb_phys_ratio"],
-                # This year's FINAL request total (after every decision), not
-                # the carried total advance_year() published to the prompts.
-                "basin_request_af": basin_request_af,
-                "basin_request_over_target": basin_request_af / CRSS_DEMAND_TARGET_AF,
-                "has_efficient_system": agent_state.get("has_efficient_system", False),
-                "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
-                "utilisation_pct": (
-                    agent_state.get("request", 0) / agent_state.get("water_right", 1) * 100
-                    if agent_state.get("water_right", 0) > 0 else 0
-                ),
-                "magnitude_pct": appr.get("magnitude_pct"),
-                "magnitude_pct_sampled": appr.get("magnitude_pct_sampled"),
-                "magnitude_af": appr.get("magnitude_af"),
-                "magnitude_class": appr.get("magnitude_class"),
-                "magnitude_fallback": appr.get("magnitude_fallback", False),
-                "is_exploration": appr.get("is_exploration", False),  # v12: Track ε-exploration
-                "memory": mem_str,
-            })
+            self.logs.append(build_simulation_log_row(
+                agent_id=aid,
+                year=year,
+                cluster=profile.cluster if profile else "unknown",
+                basin=profile.basin if profile else "unknown",
+                yearly_decision=skill or "N/A",
+                wsa_label=appr.get("wsa_label", "N/A"),
+                aca_label=appr.get("aca_label", "N/A"),
+                agent_state=agent_state,
+                drought_index=self.env.global_state.get("drought_index", 0),
+                shortage_tier=self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
+                lake_mead_level=self._log_lake_mead_level(),
+                mead_storage_maf=self.env._mead_storage[-1] if self.env._mead_storage else 0,
+                settlement=settlement,
+                basin_request_af=basin_request_af,
+                magnitude_pct=appr.get("magnitude_pct"),
+                magnitude_pct_sampled=appr.get("magnitude_pct_sampled"),
+                magnitude_af=appr.get("magnitude_af"),
+                magnitude_class=appr.get("magnitude_class"),
+                magnitude_fallback=appr.get("magnitude_fallback", False),
+                is_exploration=appr.get("is_exploration", False),  # v12: Track ε-exploration
+                memory=mem_str,
+            ))
 
         # Print yearly summary
         n_agents = len(agents)
