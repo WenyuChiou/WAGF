@@ -30,6 +30,7 @@ from examples.irrigation_abm.run_fql_baseline import (
     _create_synthetic_profiles,
     run_simulation,
     FQL_SKILLS,
+    main as fql_baseline_main,
 )
 from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
@@ -387,6 +388,59 @@ class TestRealDataFQLRun:
                 f"delivered ({row['delivered']}) exceeds request ({row['request']}) "
                 f"for {row['agent_id']} year {row['year']}"
             )
+
+
+class TestLaunchCommandTiming:
+    """LAUNCH_COMMAND.txt must carry the runner's own timing -- the FQL
+    references generated at 431adb5e had Started:/Finished: (see
+    results/fql_nogov_431adb5e/seed42/LAUNCH_COMMAND.txt); it was written
+    by an ad hoc, never-committed launcher rather than by this file, and a
+    later launcher for the 78d986ed references dropped that timing. main()
+    now appends RunnerStarted:/RunnerFinished:/RunnerWallSeconds: itself
+    (namespaced so they never collide with a launcher's own lines), and
+    never writes ExitCode: -- only the launcher that invoked this script
+    knows the real process exit status."""
+
+    def test_two_year_synthetic_run_writes_launch_command_timing(self, monkeypatch, tmp_path):
+        # Simulate an external launcher that already wrote its own header
+        # (command line, worktree, commit) before invoking this script --
+        # main() must append after it, not overwrite it.
+        launcher_header = (
+            "python -u run_fql_baseline.py --years 2 --agents 5 --seed 42\n"
+            "(run from worktree fake-launcher-worktree, detached HEAD)\n"
+            "Commit: deadbeef\n"
+        )
+        (tmp_path / "LAUNCH_COMMAND.txt").write_text(launcher_header, encoding="utf-8")
+
+        argv = [
+            "run_fql_baseline.py",
+            "--years", "2",
+            "--agents", "5",
+            "--seed", "42",
+            "--fql-init", "zero",
+            "--output", str(tmp_path),
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+
+        fql_baseline_main()
+
+        launch_command_path = tmp_path / "LAUNCH_COMMAND.txt"
+        assert launch_command_path.is_file(), "main() did not write LAUNCH_COMMAND.txt"
+        content = launch_command_path.read_text(encoding="utf-8")
+
+        assert content.startswith(launcher_header), (
+            "runner must append after the launcher's header, not overwrite it"
+        )
+        assert "RunnerStarted:" in content
+        assert "RunnerFinished:" in content
+        assert "RunnerWallSeconds:" in content
+        assert content.index("RunnerStarted:") < content.index("RunnerFinished:"), (
+            "RunnerStarted: must precede RunnerFinished:"
+        )
+        assert "ExitCode:" not in content, (
+            "the runner must never claim ExitCode: -- only a launcher knows "
+            "the real process exit status"
+        )
 
 
 if __name__ == "__main__":

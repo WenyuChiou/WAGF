@@ -40,6 +40,7 @@ import argparse
 import json
 import random
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -778,7 +779,38 @@ def _create_synthetic_profiles(
 # Main
 # ─────────────────────────────────────────────────────────────────────
 
+def _append_launch_command_line(output_dir: Path, text: str) -> None:
+    """Append one line to LAUNCH_COMMAND.txt in output_dir.
+
+    Creates the file if it does not already exist, or appends to it if an
+    external launcher already wrote command/worktree/commit lines before
+    invoking this script (as the LAUNCH_COMMAND.txt beside every
+    fql_nogov_* results directory records). Restores the run-timing this
+    runner's references carried at 431adb5e but lost afterward -- that
+    pair was never written by this file itself (git log -p on this file
+    across 00654d14 and 044c9fd5 shows neither commit touched it); it
+    came from an ad hoc, never-committed launch script, the same pattern
+    documented for the LLM runner's own launch_seed.sh in commit
+    7c9be94f. Writing RunnerStarted:/RunnerFinished: from inside the
+    runner means every future run gets them regardless of which launcher
+    is used. The lines are namespaced Runner* (not Started:/Finished:)
+    so they never collide with a launcher's own lines of those names,
+    and the runner never writes ExitCode: -- only the process that
+    invoked this script (the launcher) can know the real exit status;
+    claiming it from inside main() would be a lie whenever the launcher
+    itself does extra work (e.g. copying output) after main() returns.
+    Never fails the run over a provenance write (mirrors the
+    reproducibility_manifest.json guard below).
+    """
+    try:
+        with open(output_dir / "LAUNCH_COMMAND.txt", "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not write LAUNCH_COMMAND.txt: {e}")
+
+
 def main():
+    run_started_at = datetime.now()
     args = parse_args()
     base = Path(__file__).parent
     ref_dir = PROJECT_ROOT / "ref"
@@ -894,6 +926,9 @@ def main():
     else:
         output_dir = base / "results" / "fql_raw" / f"seed{seed}"
     output_dir.mkdir(parents=True, exist_ok=True)
+    _append_launch_command_line(
+        output_dir, f"RunnerStarted: {run_started_at.strftime('%Y/%m/%d %H:%M:%S.%f')[:-3]}"
+    )
 
     # Profile dict for fast lookup
     profiles_dict = {p.agent_id: p for p in profiles}
@@ -980,7 +1015,7 @@ def main():
         }
         if args.fql_init == "calibrated":
             from collections import Counter
-            from datetime import datetime, timezone
+            from datetime import timezone
             # Directory name + Q-table date range (2026-09-27 decision):
             # the provenance trail for WHICH calibration snapshot was
             # used, since Initial_Files ships several undocumented
@@ -1011,6 +1046,14 @@ def main():
             json.dump(manifest, f, indent=2)
     except Exception as e:
         print(f"[Provenance] WARNING: could not write reproducibility_manifest.json: {e}")
+
+    run_finished_at = datetime.now()
+    _append_launch_command_line(
+        output_dir, f"RunnerFinished: {run_finished_at.strftime('%Y/%m/%d %H:%M:%S.%f')[:-3]}"
+    )
+    _append_launch_command_line(
+        output_dir, f"RunnerWallSeconds: {(run_finished_at - run_started_at).total_seconds()}"
+    )
 
     print(f"\n--- FQL Baseline Complete! Results in {output_dir} ---")
 
