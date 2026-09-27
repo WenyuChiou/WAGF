@@ -336,6 +336,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - irrigation: physics doc corrected (no 12 MAF Powell ceiling in code), README validator count clarified (compact_allocation_check inactive), new docs/irrigation_model_caveats.md with the ten Methods/SI caveats from the 2026-09-16 model review, centroid provenance note, UB group-count assertion.
+- **irrigation: `coupling.context_contract` default-on for the paper config** (`examples/irrigation_abm/config/agent_types.yaml`, PR-9 F1 follow-up): the fail-loud presence/range guard on `get_agent_context()`'s fifteen physical-state fields is now active for every paper-config run instead of opt-in. Verified byte-identical to flag-off mock runs: 4 runs at `--agents 5 --years 3 --seed 42 --workers 1` (strict + disabled governance) plus one at paper scale, `--real --years 42 --seed 42 --governance-mode strict` (78 CRSS agents, `coupling_guard_calls: 3276`). Every pair produced an identical `irrigation_farmer_governance_audit.csv` (`broker.tools.compare_audit_csv`), an identical `simulation_log.csv` (same raw sha256), and, for the 3-year runs, an identical year-2 rendered prompt. New regression test `examples/irrigation_abm/tests/test_context_contract_default_on.py` pins the config default and a live `run_integrity.json` read (`coupling_contract_active: true`, `coupling_guard_calls > 0`).
 
 ### Fixed
 
