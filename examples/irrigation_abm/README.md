@@ -256,15 +256,15 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 
 | Parameter | Value | Source |
 | :-------- | :---- | :----- |
-| Natural flow baseline | 12.0 MAF/yr | CRSS historical average |
-| Powell release floor | 7.0 MAF/yr | minimum objective release (Long-Range Operating Criteria / 2007 Interim Guidelines); TO VERIFY |
-| Powell release ceiling (wet year) | 9.0 MAF/yr | modelling ceiling motivated by the 2007 Interim Guidelines (releases above about 9.0 MAF only in balancing or equalization years); TO VERIFY |
-| Powell target fill (`powell_target_fill`, on [0, 1]) | 0.42 of live capacity | 1 January 2019 live fill (10.10 / 24.32 MAF = 0.415, rounded): Powell holds wet-year surplus only until it is back at its 2019 level; TO VERIFY |
+| Natural flow baseline | 12.0 MAF/yr | Lees Ferry post-2000 (drought-era) average, not the long-term average (~14.6 MAF/yr for 1906-2018) |
+| Powell release floor | 7.0 MAF/yr | Modelling choice: floor of the 2007 Interim Guidelines' Lower Elevation Balancing Tier (7.0-9.5 MAF), not the "minimum objective release" (8.23 MAF/yr, also the *initial* WY2019 release volume -- the actual WY2019 release was 8.91 MAF; the Mid-Elevation Release Tier releases 7.48 MAF/yr below a Mead-elevation threshold, 8.23 above it) |
+| Powell release ceiling (wet year) | 9.0 MAF/yr | Modelling choice motivated by the Guidelines' balancing-tier cap; the real tiered structure runs 7.48/8.23 up to 9.0, with the SAME Lower Elevation Balancing Tier reaching up to 9.5 MAF |
+| Powell target fill (`powell_target_fill`, on [0, 1]) | 0.42 of live capacity | Modelling choice, not a Guidelines figure: 1 January 2019 live fill (10.10 / 24.32 MAF = 0.415, rounded) -- Powell holds wet-year surplus only until it is back at its 2019 level |
 | UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
-| Mexico treaty delivery | 1.5 MAF/yr | 1944 Treaty (before DCP reductions) |
-| Initial Mead elevation | 1081.46 ft | USBR observed December 2018 |
-| Lake Powell capacity / dead pool | 26.21 / 1.89 MAF | 1986 area-capacity table (USGS 2022 capacity update); TO VERIFY against the originals |
-| Initial Powell storage | 11.99 MAF (10.099 live) | USBR January 2019 24-Month Study, end of December 2018; TO VERIFY |
+| Mexico treaty delivery | 1.5 MAF/yr | VERIFIED (canonical). 1944 Treaty (before DCP reductions) |
+| Initial Mead elevation | 1081.46 ft | VERIFIED. USBR observed December 2018 |
+| Lake Powell capacity / dead pool | 26.21 / 1.89 MAF | Capacity VERIFIED (1986 area-capacity table, USGS 2022 capacity update); dead pool is a calibrated aggregate without a single primary table |
+| Initial Powell storage | 11.99 MAF (10.099 live) | Live storage VERIFIED; the 11.99 MAF total depends on the calibrated dead-pool aggregate above. USBR February 2019 24-Month Study, end of December 2018 |
 | Simulation period | 2019-2060 | Following Hung & Yang (2021) |
 
 ### Shortage Tiers

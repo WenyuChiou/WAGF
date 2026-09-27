@@ -526,12 +526,26 @@ class HumanCentricMemoryEngine(MemoryEngine):
                  key=lambda x: x.get("decayed_importance", 0)
              )
              
+             # Content-level dedup (2026-09-26): two stored long-term items
+             # can carry visually-identical text that differs only in
+             # incidental leading/trailing whitespace, which an exact ==
+             # comparison lets through as two distinct significant slots
+             # (the same text shown twice in the composed block). Compare
+             # on a stripped copy; the stored/returned content itself is
+             # never modified. Ordering (by decayed importance, ties
+             # earlier-first) and the 0.05 decay floor in ``_apply_decay``
+             # are both unchanged; a duplicate candidate is simply skipped
+             # in favour of the next-ranked one, same as an already-in-
+             # recent-window candidate was skipped before this change.
+             recent_texts_normalized = {t.strip() for t in recent_texts}
              significant = []
              seen_significant = set()
              for m in top_significant:
-                 if m["content"] not in recent_texts and m["content"] not in seen_significant:
+                 content_normalized = m["content"].strip()
+                 if (content_normalized not in recent_texts_normalized
+                         and content_normalized not in seen_significant):
                      significant.append(self._memory_payload(m, round(float(m.get("decayed_importance", m.get("importance", 0.0))), 4)))
-                     seen_significant.add(m["content"])
+                     seen_significant.add(content_normalized)
                  if len(significant) >= _n_sig:
                      break
 

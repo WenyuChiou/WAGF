@@ -1470,7 +1470,26 @@ class ExperimentRunner:
         agent._last_action_context = action_ctx
 
         # 3. Legacy immediate memory (kept for backward compat; filtered by
-        #    DecisionFilteredMemoryEngine in baseline parity experiments)
+        #    DecisionFilteredMemoryEngine in baseline parity experiments).
+        #    Generic opt-out (2026-09-26): a domain whose pre_year/post_year
+        #    hook already writes its own outcome line for the period can set
+        #    memory.runner_decision_line: false on the agent type to skip
+        #    this generic line entirely, instead of writing it and relying
+        #    on a filtering memory engine downstream (the flood pattern,
+        #    unchanged here). Default True keeps every existing run
+        #    byte-identical; a domain that turns this off is by definition
+        #    changing its own memory stream (see CHANGELOG).
+        runner_decision_line = (
+            _mem_cfg.get("runner_decision_line", True)
+            if isinstance(_mem_cfg, dict) else True
+        )
+        if not isinstance(runner_decision_line, bool):
+            raise ValueError(
+                f"memory.runner_decision_line must be a bool, got "
+                f"{runner_decision_line!r}"
+            )
+        if not runner_decision_line:
+            return
         action_desc = executed_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
         if was_fallback and line_style == "neutral":
