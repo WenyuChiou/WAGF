@@ -156,6 +156,22 @@ own reporting disappear). See
 `examples/irrigation_abm/tests/test_coupling.py` for the byte-identity
 and violation checks.
 
+**Default-on for the paper config**: `config/agent_types.yaml` ships with
+`global_config.coupling.context_contract: true`, so every paper-config run
+now fail-loud-guards the fifteen physical-state fields `get_agent_context()`
+reads (precipitation, Lake Mead elevation, water right, curtailment ratio,
+and eleven more; see `IRRIGATION_CONTEXT_FIELD_SOURCES` in
+`irrigation_coupling.py`) instead of silently defaulting a missing one to
+0/False/"unknown". Verified byte-identical to flag-off mock runs: 4 runs at
+`--agents 5 --years 3 --seed 42 --workers 1` (strict and disabled
+governance) plus one at paper scale, `--real --years 42 --seed 42
+--governance-mode strict` (78 CRSS agents, `coupling_guard_calls: 3276`).
+Every pair produced an identical `irrigation_farmer_governance_audit.csv`
+(`broker.tools.compare_audit_csv`), an identical `simulation_log.csv`
+(same raw sha256), and, for the 3-year runs, an identical year-2 rendered
+prompt for one agent. See `test_context_contract_default_on.py` and
+CHANGELOG `[Unreleased]`.
+
 ---
 
 ## 2. Production Results (v21)
