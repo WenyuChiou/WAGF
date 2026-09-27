@@ -221,7 +221,7 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     # arm; `advise_mode` governs rules already authored as WARNING) and writing
     # one where you meant the other is the mistake this entry exists to name.
     "advise_mode",               # agent_config.get_governance_advise_mode
-    # Red-team objection 3 ablation (full | placebo, default full). Governs
+    # Red-team objection 3 ablation (full | placebo | silent, default full). Governs
     # ONLY the BLOCKING governance retry loop's LLM-facing text — distinct
     # from `advise` (demotes ERROR rules) and `advise_mode` (the WARNING
     # channel) above; writing one where you meant this one produces a run

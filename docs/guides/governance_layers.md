@@ -91,8 +91,8 @@ a bare id does not say which layer produced it. `construct_missing` and
 
 ### `retry_feedback_mode` — red-team objection 3: is it the content, or just another try?
 
-`global_config.governance.retry_feedback_mode` is `full` (default) or `placebo`.
-It governs only the **Hard** row above: the BLOCKING governance retry loop
+`global_config.governance.retry_feedback_mode` is `full` (default), `placebo`,
+or `silent`. It governs only the **Hard** row above: the BLOCKING governance retry loop
 (`RetryMixin._governance_retry_loop`), which fires after an ERROR-level
 validator rejection and re-prompts up to `max_retries` times.
 
@@ -109,6 +109,25 @@ attempt with no framing at all" (nothing states or implies the latter).
 |---|---|---|---|
 | `full` (default) | rejects on the same rules, same schedule, same `on_retry_exhausted` fallback | the rendered `InterventionReport`(s): rule id, reason, suggestion | the real validation results |
 | `placebo` | identical — same rules, same schedule, same fallback | the adapter's wrapper only — header + closer + the original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`, the same "A''" mechanism `governance.advise`'s own `mode="wrapper"` uses for the advisory channel). Header/closer text still depends on `intervention_framing` ("was flagged by..." / "triggered..."), but neither wording names a rule id, a blocked skill, a reason, or a suggestion. | the real validation results — unchanged |
+| `silent` | identical (same rules, same schedule, same fallback) | the ORIGINAL prompt, byte-for-byte, on every retry attempt: no header, no closer, no rules block, no governance framing at all. `_governance_retry_loop` sets `retry_prompt = prompt` directly rather than calling the adapter at all, so there is nothing left to differ between attempts except the LLM's own sampling. | the real validation results, unchanged |
+
+`silent` is a strictly more content-free control than `placebo`: `placebo`
+still tells the model "your previous response was flagged / triggered the
+governance layer... please reconsider" (the framing is kept on purpose, to
+isolate rule content from framing); `silent` removes that framing too, so a
+`silent` retry is indistinguishable from the model simply being asked the
+same question again. It answers a stricter version of the same red-team
+objection: not "was it the rule content or the framing", but "was it
+anything the framework said at all, or just another roll of the dice".
+
+`silent` only measures something under non-zero sampling temperature and no
+fixed generation seed: an identical prompt sent to a deterministic decoding
+configuration returns an identical output, so a `silent` corpus run that way
+would show no retry ever changing anything, by construction of the decoding
+setup rather than by anything the arm is testing. Current corpora already
+satisfy this (flood sends `temperature: 0.8`, irrigation sends the model's
+own default of `1.0`; neither pins an Ollama `seed`), but a future config
+that pins both should not be run under `silent` without checking this first.
 
 **What changes is exactly one thing: the text of the retry prompt.** The
 validator still decides *when* a proposal is rejected; the retry count, the
@@ -131,23 +150,34 @@ at all (the wrapper-only A'' control), for the actual BLOCKING retry loop.
 They gate different code paths, different config keys, and never share
 state — running one does not imply or affect the other.
 
-**Interaction warning.** If `retry_feedback_mode: placebo` is set while
-`governance.advise` (`_advise_mode`) or the soft-rule channel's `advise_mode`
-(`_soft_advise_mode`) is anything other than `off`, the engine logs a
-WARNING at construction: the retry PROMPT is content-free, but either
+**Interaction warning.** If `retry_feedback_mode` is `placebo` OR `silent`
+while `governance.advise` (`_advise_mode`) or the soft-rule channel's
+`advise_mode` (`_soft_advise_mode`) is anything other than `off`, the engine
+logs a WARNING at construction: the retry PROMPT is content-free, but either
 advisory channel can still show the SAME decision rule-specific content in a
-*different* prompt (the one-shot advisory call), so a "placebo" corpus meant
-to be content-free end-to-end needs both set to `off` too.
+*different* prompt (the one-shot advisory call), so a `placebo`/`silent`
+corpus meant to be content-free end-to-end needs both set to `off` too.
 
 Default `full` reproduces the shipped retry prompt byte-for-byte; every
 frozen baseline (v21 / paper-3 mock) reruns unchanged unless the key is set
 explicitly. CLI: `examples/single_agent/run_flood.py --retry-feedback-mode
-{full,placebo}` overrides the resolved config value for that run; the
+{full,placebo,silent}` overrides the resolved config value for that run; the
 resolved mode is logged in the SAME shape both at engine construction and
 again (if overridden) after the CLI override is applied
 (`[Governance] retry_feedback_mode=...`, so the LAST such line in a run's
 output always names the value in effect), and recorded in the reproducibility
 manifest's `retry_feedback_mode` field.
+
+Irrigation (`examples/irrigation_abm/run_experiment.py`) has the same
+`--retry-feedback-mode {full,placebo,silent}` flag as of 2026-09-27, replacing
+the earlier approach of pointing `--config-dir` at a full copy of `config/`
+with only the YAML line changed (`config_variants/silent_gemma3_4b/`, now
+removed: a plain file copy silently drifts out of parity with `config/`
+every time the source changes, which is exactly what happened once already
+during the supply-side redesign). Omitting the flag leaves
+`global_config.governance.retry_feedback_mode` in `agent_types.yaml`
+unchanged, so prompt bytes stay identical to a run with no flag at all; use
+the flag against the in-tree config instead of maintaining a second copy.
 
 ---
 

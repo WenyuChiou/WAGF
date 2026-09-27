@@ -190,7 +190,7 @@ per retry prompt.
 | `shuffle_options` | bool | No | false | Randomize skill option order per LLM call (mitigates positional bias) |
 | `domain` | string | No | (none) | Domain selector for domain-specific validator injection (e.g., `irrigation`) |
 | `advise_mode` | string | No | `off` | Soft-rule channel: `off` / `record` / `feedback`. See below. |
-| `retry_feedback_mode` | string | No | `full` | Red-team objection 3 ablation on the BLOCKING retry loop: `full` / `placebo`. See below. |
+| `retry_feedback_mode` | string | No | `full` | Red-team objection 3 ablation on the BLOCKING retry loop: `full` / `placebo` / `silent`. See below. |
 
 **Example:**
 
@@ -247,6 +247,7 @@ specific rule".
 |---|---|---|
 | `full` (default) | same rules, same schedule, same `on_retry_exhausted` fallback | the rendered `InterventionReport`(s): rule id, reason, suggestion |
 | `placebo` | identical | the adapter's wrapper-only rendering — header + closer + original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`) |
+| `silent` | identical | the ORIGINAL prompt, byte-for-byte, on every retry attempt: no header, no closer, no rules block, no framing at all |
 
 `placebo` removes rule-SPECIFIC content (identity, reason, suggestion) from the
 retry prompt while KEEPING the governance framing ("your previous response was
@@ -261,13 +262,20 @@ This is mechanically the **A'' wrapper-only control** already used by
 same mechanism as that channel's `mode="placebo"` (which keeps the same
 report count/shape and replaces each report's text, for the separate,
 NON-BLOCKING single advisory call). Same knob NAME (`placebo`), different
-mechanism, different code path, no shared state. Read by
-`AgentTypeConfig.get_governance_retry_feedback_mode()`. An unknown value
-raises at config load, and `_governance_retry_loop` raises again if it ever
-sees an unrecognised value on the resolved attribute — a config/override bug
-here must never silently run as `full` and leak rule content into a run an
-operator believed was content-free. CLI: `examples/single_agent/run_flood.py
---retry-feedback-mode {full,placebo}`. Full semantics:
+mechanism, different code path, no shared state.
+
+`silent` goes further: `_governance_retry_loop` sets the retry prompt to
+`prompt` (the unchanged original) directly, with no adapter call at all: no
+header, no closer, no framing, nothing. It is a strictly more content-free
+control than `placebo`, which still keeps the "your previous response was
+not accepted" framing on purpose.
+
+Read by `AgentTypeConfig.get_governance_retry_feedback_mode()`. An unknown
+value raises at config load, and `_governance_retry_loop` raises again if it
+ever sees an unrecognised value on the resolved attribute, a config/override
+bug here must never silently run as `full` and leak rule content into a run
+an operator believed was content-free. CLI: `examples/single_agent/run_flood.py
+--retry-feedback-mode {full,placebo,silent}`. Full semantics:
 `docs/guides/governance_layers.md`.
 
 ---
@@ -1292,7 +1300,7 @@ Implemented in `broker/utils/agent_config.py`. Key methods:
 | `.get_shared(key)` | Any | Value from the `shared` section |
 | `.get_governance_retries()` | int | `global_config.governance.max_retries` (default: 3) |
 | `.get_governance_max_reports()` | int | `global_config.governance.max_reports_per_retry` (default: 3) |
-| `.get_governance_retry_feedback_mode()` | str | `global_config.governance.retry_feedback_mode` (default: `"full"`; `"full"`/`"placebo"`, raises on any other value) |
+| `.get_governance_retry_feedback_mode()` | str | `global_config.governance.retry_feedback_mode` (default: `"full"`; `"full"`/`"placebo"`/`"silent"`, raises on any other value) |
 | `.get_llm_retries()` | int | `global_config.llm.max_retries` (default: 2) |
 | `.get_reflection_config()` | dict | Merged reflection config (global > shared > defaults) |
 | `.get_valid_actions(agent_type)` | list[str] | All valid skill IDs and aliases for the agent type |

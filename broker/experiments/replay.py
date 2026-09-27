@@ -1168,7 +1168,7 @@ def build_replay_decider(
     # the two sources agreed from a case where the manifest corrected a stale
     # or hand-edited config.
     _manifest_rfm = manifest.get("retry_feedback_mode")
-    if _manifest_rfm in ("full", "placebo"):
+    if _manifest_rfm in ("full", "placebo", "silent"):
         if _manifest_rfm != engine._retry_feedback_mode:
             logger.warning(
                 "[Replay] retry_feedback_mode: manifest says %r, reloaded "

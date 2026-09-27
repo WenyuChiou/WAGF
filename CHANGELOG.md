@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`global_config.governance.retry_feedback_mode: silent`**, a third
+  red-team-objection-3 retry-feedback arm alongside `full` and `placebo`.
+  Under `silent` the BLOCKING governance retry loop
+  (`RetryMixin._governance_retry_loop`) re-sends the ORIGINAL prompt
+  byte-for-byte on every retry attempt: no rule id/reason/suggestion (as
+  `full` carries), no wrapper header/closer framing (as `placebo` carries),
+  no "attempt N" text, so the only thing that can differ between attempts is
+  the LLM's own sampling. Validators, retry count, `on_retry_exhausted`, and
+  audit rows (`retry_count`, `failed_rules`, initial-proposal columns) are
+  unchanged from `full`/`placebo`. Accepted wherever `full`/`placebo` already
+  were: `AgentTypeConfig.get_governance_retry_feedback_mode()`,
+  `SkillBrokerEngine`, `examples/single_agent/run_flood.py
+  --retry-feedback-mode`, and `broker/experiments/replay.py`'s
+  manifest-preferred-over-reloaded-config path. Default remains `full`;
+  every frozen baseline reruns byte-identically with the key absent.
+  `examples/irrigation_abm/run_experiment.py` now has the same
+  `--retry-feedback-mode` flag (2026-09-27), replacing the earlier
+  `config_variants/silent_gemma3_4b/` full-config-copy (removed) that a
+  copy-then-edit approach kept drifting out of parity with `config/`.
+
 - **Reproducibility manifest records the LLM sampling params actually sent,
   not just the global singleton, for Ollama runs (r19 G7/G8, verified
   2026-09-23, hardened per review the same day)**: the manifest's existing
