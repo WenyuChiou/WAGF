@@ -128,17 +128,28 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
 
 
 # Keys ``get_agent_context()`` returns that the contract deliberately does
-# NOT cover, and why (review P2: "the contract covers 20 of 23 context keys"
-# is only checkable if the other 3 are written down somewhere the manifest
+# NOT cover, and why (review P2: "the contract covers 20 of 24 context keys"
+# is only checkable if the other 4 are written down somewhere the manifest
 # can quote). None of them is read from a source dict with a silent default,
 # which is what this contract guards:
-#   agent_id      — the caller's own argument, echoed back; never looked up.
-#   year          — ``self._current_year``, a plain attribute set in __init__
-#                   and incremented by advance_year; cannot be "missing".
-#   shortage_tier — computed by ``_compute_shortage_tier()`` from
-#                   lake_mead_level, which IS covered; guarding the derived
-#                   value as well would double-report one underlying fact.
-IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = ("agent_id", "shortage_tier", "year")
+#   agent_id             -- the caller's own argument, echoed back; never
+#                          looked up.
+#   year                 -- ``self._current_year``, a plain attribute set in
+#                          __init__ and incremented by advance_year; cannot
+#                          be "missing".
+#   shortage_tier        -- computed by ``_compute_shortage_tier()`` from
+#                          lake_mead_level, which IS covered; guarding the
+#                          derived value as well would double-report one
+#                          underlying fact.
+#   powell_dead_pool_maf -- ``self.config.powell_dead_pool_maf``, a
+#                          ``WaterSystemConfig`` field validated at
+#                          construction (``__post_init__``); never read from
+#                          ``self._agents`` / ``self._basins`` / ``self._global``
+#                          with a silent default, so it carries none of the F1
+#                          risk this contract exists to guard.
+IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
+    "agent_id", "shortage_tier", "year", "powell_dead_pool_maf",
+)
 
 
 def irrigation_contract_field_names() -> List[str]:
