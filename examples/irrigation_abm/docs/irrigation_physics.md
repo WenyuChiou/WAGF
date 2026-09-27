@@ -101,13 +101,56 @@ The 2018 survey gives about 1 MAF less capacity than the 1986 table; the model u
 | $\gamma_\tau$ | Lower Basin shortage cut for tier $\tau$ (0, 0.05, 0.10, 0.20) | [0, 1] |
 | $d_i$ | Agent $i$ delivered water (`diversion` in the code and logs) | AF/yr |
 
-F10 (2026-09-25 audit): $w_i$ is `col.iloc[-1]` of that agent's
-`Div_States/*_discrete_states.csv`, the TOP of the discretised FQL
+F10 (2026-09-25 audit; ceiling fixed 2026-09-26, water-right
+history-anchor): `col.iloc[-1]` of that agent's
+`Div_States/*_discrete_states.csv` is the TOP of the discretised FQL
 diversion grid (Hung & Yang's `Div_max`), not a legal Colorado River
-entitlement. Initial requests come from 2018 diversions, and most
-agents' 2018 use sits well under that grid-top ceiling: 61 of 78 agents
-(52 of 56 Upper Basin) start below 50% utilisation. See
-`irrigation_personas.py:create_profiles_from_data`.
+entitlement. For the 56 modelled Upper Basin agents that grid top sums
+to 10.54 MAF, 2.8x their 1971-2018 observed peak (3.54 MAF) and 3.5x
+their 2018 use (3.05 MAF); at that ceiling requests grow to 7-10 MAF
+within a few years, hit the 5.0 MAF Upper Basin delivery capacity from
+year 2, and Lake Powell sits at dead pool for roughly half the run
+(Lower Basin grid tops are milder, 1.24x their observed peak: 4.27 MAF
+vs 3.43 MAF).
+
+$w_i$ is now $\min(w_i^{grid}, (1 + m) \cdot w_i^{peak})$ for every agent
+in both basins (one rule): $w_i^{grid}$ is the grid top above, $w_i^{peak}$
+is that agent's own observed peak diversion over 1971-2018 (the same
+per-agent historical series `actual_2018_diversion` reads; Upper Basin
+agents split their state group's series proportionally, exactly as
+`actual_2018_diversion` does), and $m$ = `paper_water_margin` (default
+0.4, on [0, 1]) is the share by which a district's legal ceiling may
+exceed its observed peak.
+
+Derivation of the default: the 56 modelled Upper Basin agents used
+3.0544 MAF in 2018. USBR's "Upper Colorado River Basin Consumptive Uses
+and Losses 2016-2020" (Provisional, Feb 2022), Table UC-4, gives 2018
+Upper Basin irrigation consumptive use as 3,079.3 kaf (within 1% of the
+modelled agents' figure) against a 2018 Upper Basin total, including
+main-stem reservoir evaporation, of 4,752.8 kaf -- irrigation's share of
+2018 Upper Basin consumptive use is 3,079.3 / 4,752.8 = 0.648 (evaporation
+is included in the denominator because Compact accounting charges
+reservoir evaporation to the basin's apportionment). That share of the
+7.5 MAF Compact Article III(a) apportionment is 0.648 x 7.5 = 4.86 MAF;
+dividing by the 56 agents' observed-peak sum (3.536 MAF) gives
+4.86 / 3.536 = 1.374, rounded to one decimal, 1.4 -- a margin of 0.4 over
+the observed peak (`paper_water_margin`, exposed as
+`--paper-water-margin` on `run_experiment.py` and `run_fql_baseline.py`).
+The Lower Basin is bound by the same rule and the same
+`paper_water_margin` (not a separate per-basin value); its 22 grid tops
+stay the binding value for a narrow majority of agents, the peak-scaled
+ceiling for the rest.
+
+At the default, the 56 Upper Basin agents' new $w_i$ sums to about
+4.93 MAF, below the 5.0 MAF Upper Basin delivery capacity (no agent
+falls below its own 2018 use), and the 22 Lower Basin agents' sums to
+about 4.18 MAF. A margin of 0.5 would put the Upper Basin sum at about
+5.28 MAF, above the delivery capacity; a margin of 0.0 (the bare
+observed peak, no margin) leaves most Upper Basin agents almost no room
+to increase, since their peak-to-2018-use ratio has a median of about
+1.01. See `irrigation_personas.py (create_profiles_from_data)` for the
+implementation and `docs/irrigation_model_caveats.md` (item 11) for the
+disclosure-side note.
 
 ---
 
@@ -273,7 +316,7 @@ Lake Mead starts at 1081.46 ft, the USBR-observed elevation at the end of Decemb
 | Data | Source | File |
 | :--- | :----- | :--- |
 | Winter precipitation (2017-2060) | CRSS/PRISM NOAA projection | `ref/CRSS_DB/CRSS_DB/HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` |
-| Agent water rights (78 agents) | Top of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`); not a legal entitlement, see the F10 note above | `ref/CRSS_DB/CRSS_DB/Div_States/UB_discrete_states.csv`, `.../LB_discrete_states.csv` |
+| Agent water rights (78 agents) | `min(grid_top, (1 + paper_water_margin) * observed_peak)`; the grid top is Hung & Yang's `Div_max`, not a legal entitlement, see the F10 note above | `ref/CRSS_DB/CRSS_DB/Div_States/UB_discrete_states.csv`, `.../LB_discrete_states.csv`, plus the historical files below for the peak |
 | Historical UB depletion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv` |
 | Historical LB diversion | CRSS (2018 baseline) | `ref/CRSS_DB/CRSS_DB/HistoricalData/LB_historical_annual_diversion.csv` |
 | Lake Mead storage-elevation | USBR 2009 area-capacity survey | Hardcoded in `irrigation_env.py` (`_STORAGE_MAF`, `_ELEVATION_FT`) |

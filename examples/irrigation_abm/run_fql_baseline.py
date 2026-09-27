@@ -29,6 +29,7 @@ References:
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import sys
 from pathlib import Path
@@ -96,7 +97,24 @@ def create_fql_agents(
 
     Each agent gets:
     - FQLConfig from its cluster's canonical parameters
-    - FQLState with state_bounds = linspace(0, water_right, 21)
+    - FQLState with state_bounds = linspace(0, grid_top_af, 21) -- the
+      ORIGINAL Hung & Yang discretisation grid, not the (possibly
+      peak-scaled) water_right. Review P1 (2026-09-27, water-right
+      history-anchor): the capped water_right reaches the FQL only
+      through the environment and validator context shared with the LLM
+      path -- the increase clip in
+      IrrigationEnvironment.execute_skill's `min(current + step_af, wr)`,
+      the 10 percent decrease floor, and the allocation-cap and
+      minimum-use flags the validators read; the FQL Q-grid stays on the
+      Hung and Yang grid top. Building the Q-grid itself from the capped
+      water_right instead would shrink the FQL's internal state bins and
+      regret-step scale (FQLState.bin_size) for every peak-scaled agent
+      -- a change to the FQL reference model beyond the intended request
+      clip. `grid_top_af` is None only for profiles that
+      never went through create_profiles_from_data (create_profiles_from_csv,
+      synthetic builders); those fall back to `water_right` unchanged, so
+      this is a no-op for every profile shape that predates the
+      history-anchor.
     - prev_diversion initialized from actual_2018_diversion (or 80% of water_right)
 
     Args:
@@ -122,8 +140,9 @@ def create_fql_agents(
             forget=p.forget,
         )
 
+        q_grid_top = p.grid_top_af if p.grid_top_af else p.water_right
         state = FQLState(
-            state_bounds=np.linspace(0, p.water_right, 21),
+            state_bounds=np.linspace(0, q_grid_top, 21),
         )
         state.initialize(agent_config)
 
@@ -486,8 +505,12 @@ def main():
             params_csv_path=params_csv,
             crss_db_dir=crss_db,
             rng=np.random.default_rng(seed),
+            paper_water_margin=args.paper_water_margin,
         )
-        print(f"[Data] Loaded {len(profiles)} real CRSS agents from paper data")
+        print(
+            f"[Data] Loaded {len(profiles)} real CRSS agents from paper data "
+            f"(paper_water_margin={args.paper_water_margin})"
+        )
     else:
         profiles = _create_synthetic_profiles(args.agents, seed)
         print(f"[Data] Created {len(profiles)} synthetic agents")
@@ -598,6 +621,32 @@ def main():
         for skill, count in skill_dist.items():
             print(f"    {skill}: {count} ({count/len(df)*100:.1f}%)")
 
+    # Reproducibility manifest (this runner has no ExperimentRunner/broker
+    # behind it, so nothing else writes one). Kept minimal and specific to
+    # what a bespoke FQL run needs to reproduce, rather than mirroring
+    # run_experiment.py's broker-generated schema field-for-field.
+    # paper_water_margin is recorded even for a synthetic (non --real) run,
+    # since it is a resolved CLI value either way (create_profiles_from_data
+    # only reads it on the --real path). Never fails the run over a
+    # provenance write.
+    try:
+        manifest = {
+            "runner": "run_fql_baseline",
+            "seed": seed,
+            "years": args.years,
+            "real": bool(args.real),
+            "from_logs": args.from_logs,
+            "n_agents": len(profiles),
+            "rebalance_clusters": bool(args.rebalance_clusters),
+            "no_governance": bool(args.no_governance),
+            "paper_water_margin": args.paper_water_margin,
+            "paper_water_margin_applied": bool(args.real and not args.from_logs),
+        }
+        with open(output_dir / "reproducibility_manifest.json", "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not write reproducibility_manifest.json: {e}")
+
     print(f"\n--- FQL Baseline Complete! Results in {output_dir} ---")
 
 
@@ -610,6 +659,12 @@ def parse_args():
                    help="Number of synthetic agents (ignored if --real)")
     p.add_argument("--real", action="store_true",
                    help="Use real 78-agent CRSS data from paper")
+    p.add_argument("--paper-water-margin", type=float, default=0.4,
+                   help="Water-right history-anchor margin, same meaning and default "
+                        "as run_experiment.py --paper-water-margin, on [0, 1]: "
+                        "water_right = min(grid_top_af, (1 + paper_water_margin) * "
+                        "peak_obs_af). Only affects --real profiles. Recorded in "
+                        "reproducibility_manifest.json.")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output", type=str, default=None)
     p.add_argument("--rebalance-clusters", action="store_true",

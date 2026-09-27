@@ -18,6 +18,7 @@ References:
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import sys
 import yaml
@@ -944,6 +945,51 @@ class IrrigationLifecycleHooks:
               f"aged-out duplicates")
 
 
+def _record_paper_water_margin_provenance(
+    output_dir: Path, paper_water_margin: float, is_real: bool
+) -> None:
+    """Additively record ``--paper-water-margin`` in this run's two provenance files.
+
+    ``ExperimentRunner._finalize_experiment`` (broker/core/experiment_runner.py)
+    already wrote ``reproducibility_manifest.json`` and ``config_snapshot.yaml``
+    by the time ``runner.run()`` returns; this patches both in place with one
+    additive key each rather than teaching the generic broker manifest about
+    an irrigation-only CLI parameter. ``paper_water_margin`` is recorded even
+    for a synthetic (non ``--real``) run, since it is a resolved CLI value
+    either way (a synthetic run just never calls the code path that reads
+    it). Wrapped so a provenance-write problem (disk full, permissions) can
+    never fail the experiment itself -- same posture as the broker's own
+    manifest-enrichment try/except (F3 fix).
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["paper_water_margin"] = paper_water_margin
+            manifest["paper_water_margin_applied"] = bool(is_real)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record paper_water_margin in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["paper_water_margin"] = paper_water_margin
+            snapshot["metadata"]["paper_water_margin_applied"] = bool(is_real)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record paper_water_margin in "
+              f"config_snapshot.yaml: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1077,8 +1123,12 @@ def main():
             params_csv_path=params_csv,
             crss_db_dir=crss_db,
             rng=np.random.default_rng(seed),
+            paper_water_margin=args.paper_water_margin,
         )
-        print(f"[Data] Loaded {len(profiles)} real CRSS agents from paper data")
+        print(
+            f"[Data] Loaded {len(profiles)} real CRSS agents from paper data "
+            f"(paper_water_margin={args.paper_water_margin})"
+        )
     else:
         profiles = _create_synthetic_profiles(args.agents, seed)
         print(f"[Data] Created {len(profiles)} synthetic agents")
@@ -1311,6 +1361,15 @@ def main():
     )
     runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
 
+    # Water-right history-anchor provenance (Change 1): additive patch of the
+    # two files ExperimentRunner._finalize_experiment already wrote, done
+    # here rather than inside broker/ since paper_water_margin is an
+    # irrigation-domain-only CLI parameter (irrigation_farmer's
+    # create_profiles_from_data, --real only) with no generic-framework
+    # home. Never fails the run over a provenance write (same posture as
+    # broker's own manifest-enrichment try/except, F3 fix).
+    _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
+
     # Finalize audit
     if runner.broker.audit_writer:
         runner.broker.audit_writer.finalize()
@@ -1339,6 +1398,15 @@ def parse_args():
     p.add_argument("--years", type=int, default=5)
     p.add_argument("--agents", type=int, default=5, help="Number of synthetic agents (ignored if --real)")
     p.add_argument("--real", action="store_true", help="Use real 78-agent CRSS data from paper")
+    p.add_argument("--paper-water-margin", type=float, default=0.4,
+                   help="Water-right history-anchor margin, on [0, 1]: the share by "
+                        "which a real agent's legal ceiling may exceed its 1971-2018 "
+                        "observed peak diversion. water_right = min(grid_top_af, "
+                        "(1 + paper_water_margin) * peak_obs_af). Only affects --real "
+                        "profiles (create_profiles_from_data). Default 0.4 (see "
+                        "irrigation_personas.create_profiles_from_data docstring and "
+                        "docs/irrigation_physics.md for the derivation). Recorded in "
+                        "reproducibility_manifest.json and config_snapshot.yaml.")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--memory-seed", type=int, default=42)
