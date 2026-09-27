@@ -340,6 +340,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Composed retrieval's significant slots could show the same text twice
+  (2026-09-26)**: `HumanCentricMemoryEngine.retrieve`'s legacy/composed
+  branch already skipped a significant candidate whose content exactly
+  matched the recent window or an already-chosen significant slot, but the
+  comparison was an exact `==`, so two long-term items whose text was
+  identical except for incidental leading/trailing whitespace both got
+  through as distinct significant slots -- the composed block showed the
+  same text twice and a genuinely distinct, lower-ranked candidate lost its
+  slot. The comparison now strips both sides first; the stored/returned
+  content itself is never modified, ranking order (by decayed importance,
+  ties earlier-first) and the 0.05 decay floor in `_apply_decay` are
+  unchanged, and a duplicate candidate is simply skipped in favour of the
+  next-ranked one. Generic fix in `broker/components/memory/engines/
+  humancentric.py`, no domain-specific wording. New tests in
+  `broker/tests/test_memory_composed_retrieval.py` (appended to the
+  existing composed-retrieval suite): a near-duplicate pair collapses to
+  one slot and the distinct next-ranked item fills the freed slot; the
+  stored content keeps its original (unstripped) text; an exact-after-
+  strip match against the recent window is still blocked; weighted mode is
+  untouched. Verified: flood mock run (which never uses composed
+  retrieval) is byte-identical before/after (`compare_audit_csv` IDENTICAL,
+  `simulation_log.csv` diff clean) -- a no-op there, as expected.
+- **Irrigation's memory doubled up every year on the runner's own generic
+  decision line (2026-09-26)**: `ExperimentRunner._apply_state_changes`
+  writes a generic "Year N: Decided to: X" / "Year N: default action
+  applied: X" memory line every period, on top of irrigation's own per-year
+  outcome line (`build_action_outcome_feedback`,
+  `examples/irrigation_abm/run_experiment.py`), which already states the
+  executed action and the rule. With the SI's composed retrieval (5 recent
+  + 2 significant) the two lines together occupied two of the five recent
+  slots each year, so the recent window covered about 2.5 years of history
+  instead of 5. Added a generic opt-out, `memory.runner_decision_line`
+  (bool, default `true`, so every existing run is byte-identical):
+  when an agent type's memory config sets it `false`,
+  `_apply_state_changes` skips the generic line on both approved and
+  fallback rows, leaving state application, `_last_action_context`, and
+  audit untouched. Irrigation's `agent_types.yaml` sets it `false`; flood
+  is unaffected (never sets the key) and keeps relying on
+  `DecisionFilteredMemoryEngine` as before. Verified: flood mock run is
+  byte-identical before/after (`compare_audit_csv` IDENTICAL,
+  `simulation_log.csv` diff clean); a 3-year irrigation mock run's year-3
+  composed memory block now holds exactly one outcome line per prior year
+  plus the year-2 reflection, with no runner-generic marker text. **A
+  domain that turns this opt-out on is, by definition, changing its own
+  memory stream: irrigation runs from this commit forward are not
+  byte-identical or pool-safe with any irrigation corpus produced before
+  it** (which memories fill the composed retrieval's recent/significant
+  slots changes); flood corpora are unaffected and remain poolable.
+- **Lake Powell/Mead constant labels corrected (docs and docstrings only,
+  no numeric change), per `.research/powell_constants_verification_2026-09-26.md`**:
+  in `examples/irrigation_abm/irrigation_env.py (WaterSystemConfig)`,
+  `examples/irrigation_abm/docs/irrigation_physics.md`, and
+  `examples/irrigation_abm/README.md`. (a) `min_powell_release_maf = 7.0`
+  is the FLOOR of the 2007 Interim Guidelines' Lower Elevation Balancing
+  Tier (7.0-9.5 MAF), not the "minimum objective release" (that is 8.23
+  MAF, historical Upper Elevation Balancing Tier -- also the *initial*
+  water year 2019 release volume, though the release actually realised
+  was 8.91 MAF; the current Mid-Elevation Release Tier releases 7.48 MAF
+  below a Mead-elevation threshold in the Guidelines' own tier table, 8.23
+  MAF above it). (b) `natural_flow_base_maf = 12.0` is the post-2000
+  (drought-era) average naturalized flow at Lees Ferry, not the long-term
+  average (~14.6 MAF for 1906-2018). (c) Powell capacity (26.21 MAF), the
+  Mead initial elevation (1081.46 ft), and the Mexico treaty delivery (1.5
+  MAF, canonical) are now marked VERIFIED, with source URLs; the raw
+  inputs behind the 1 January 2019 storage (10.099 MAF live) and the water
+  year 2018 evaporation (0.386 MAF) are VERIFIED too, but each stored
+  field (`powell_initial_storage_maf = 11.99`, `powell_evaporation_maf =
+  0.70`) also folds in a modelling step -- the dead-pool split, or a 0.55
+  storage-fraction scale-up -- that is not itself independently confirmed,
+  so those totals are documented as contingent rather than flatly
+  VERIFIED. The source document is the USBR **February** 2019 24-Month
+  Study (was mislabelled "January" in five places). (d)
+  `powell_dead_pool_maf = 1.89`, `lb_non_ag_total_maf = 5.0`, and
+  `lb_tributary_maf = 1.0` are documented as calibrated aggregates without
+  a single primary table, not "TO VERIFY" constants that a future pass
+  could confirm outright. (e) The 9.0 MAF release ceiling and the 0.42
+  target fill are stated as modelling choices motivated by, but not equal
+  to, the Guidelines' tiers (both bullets now consistently attribute the
+  7.0-9.5 MAF band to the same Lower Elevation Balancing Tier), which the
+  Methods text can now cite by name. No `TO VERIFY` markers remain in any
+  of the three files; every changed constant's numeric value is unchanged.
 - **Rejected rows now apply the fallback skill the broker executed (audit
   F06 + F20, 2026-09-25)**: on REJECTED / UNCERTAIN results
   `SkillBrokerEngine.process_step` runs the registry default skill, but
