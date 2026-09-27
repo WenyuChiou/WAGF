@@ -287,7 +287,7 @@ class TestCouplingRetrofitMetadata:
         # The two sets together account for EVERY key the context returns.
         assert covered | uncovered == ctx_keys
         assert not (covered & uncovered)
-        assert len(covered) == 20 and len(uncovered) == 3
+        assert len(covered) == 20 and len(uncovered) == 4
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never
