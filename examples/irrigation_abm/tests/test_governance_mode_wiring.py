@@ -702,6 +702,311 @@ class TestBatchReflectImportanceKey:
         assert stored["emotion"] == "water_crisis"
 
 
+class TestBatchReflectStoreTimeDedup:
+    """Regression audit 2026-09-26, finding N3: gemma3:4b frequently echoes
+    its own previous reflection verbatim (70.7 percent of stored NS
+    reflections in the seed-42 pilot pair equal the agent's previous one),
+    and _batch_reflect used to store every one unconditionally. It now skips
+    the add_memory call ONLY when the normalised new summary equals the
+    agent's most recently STORED reflection AND that stored reflection is
+    still in the agent's current retrieval set (so an echo the agent can no
+    longer see is stored again, not silently dropped -- see
+    test_aged_out_duplicate_is_restored). store_insight (the
+    reflection_log.jsonl write) stays unconditional so the duplicate rate
+    stays reportable, and a genuinely different summary is still stored."""
+
+    @staticmethod
+    def _fake_llm_invoke(agent_type):
+        def _invoke(prompt):
+            return "RAW_REFLECTION_TEXT"
+        return _invoke
+
+    def _make_hooks(self, engine, agent, insight_holder, store_calls):
+        from types import SimpleNamespace
+
+        from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
+
+        outer = self
+
+        class _StubReflectionEngine:
+            adapter = None
+
+            def generate_batch_reflection_prompt(
+                self, batch, year, reflection_questions=None, persona_instruction=None,
+            ):
+                return "PROMPT"
+
+            def parse_batch_reflection_response(self, text, batch_ids, year):
+                return {batch_ids[0]: insight_holder[0]}
+
+            def store_insight(self, aid, ins):
+                store_calls.append((aid, ins.summary))
+
+        runner_stub = SimpleNamespace(
+            broker=SimpleNamespace(config=SimpleNamespace(get_reflection_config=lambda: {})),
+            agents={agent.id: agent},
+            memory_engine=engine,
+            get_llm_invoke=outer._fake_llm_invoke,
+        )
+        return IrrigationLifecycleHooks(
+            env=SimpleNamespace(get_agent_state=lambda aid: {}),
+            runner=runner_stub,
+            profiles=[],
+            reflection_engine=_StubReflectionEngine(),
+            output_dir=None,
+        )
+
+    def test_identical_summary_skipped_differing_summary_stored(self, capsys):
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+
+        config = AgentConfig(
+            name="Agent_1", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agent.is_active = True
+        # Seed a prior memory so retrieve(top_k=10) is non-empty and the
+        # agent enters the reflection batch every year.
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        insight_holder = [SimpleNamespace(
+            importance=0.9, summary="I will keep my request steady next year.",
+        )]
+        store_calls = []
+        hooks = self._make_hooks(engine, agent, insight_holder, store_calls)
+
+        # Year 3: no prior stored reflection to compare against -> stored.
+        hooks._batch_reflect(year=3)
+        assert len(engine.working["Agent_1"]) == 2  # seed memory + reflection
+        assert engine.working["Agent_1"][-1]["content"] == (
+            "Consolidated Reflection: I will keep my request steady next year."
+        )
+
+        # Year 4: gemma3:4b echoes the same text (plus whitespace/quoting
+        # noise a real model adds) -- add_memory must be skipped, but
+        # store_insight (reflection_log.jsonl) still runs.
+        insight_holder[0] = SimpleNamespace(
+            importance=0.9,
+            summary='  "I will keep my request steady next year."  ',
+        )
+        hooks._batch_reflect(year=4)
+        assert len(engine.working["Agent_1"]) == 2  # unchanged: skipped
+        assert len(store_calls) == 2  # store_insight ran both years
+
+        # Year 5: a genuinely different summary is stored.
+        insight_holder[0] = SimpleNamespace(
+            importance=0.9,
+            summary="This year I decided to cut back because of the shortage.",
+        )
+        hooks._batch_reflect(year=5)
+        assert len(engine.working["Agent_1"]) == 3
+        assert engine.working["Agent_1"][-1]["content"] == (
+            "Consolidated Reflection: This year I decided to cut back because of the shortage."
+        )
+        assert len(store_calls) == 3
+
+        out = capsys.readouterr().out
+        assert "[reflect] year 4: stored 0 reflections, skipped 1 duplicates" in out
+        assert "[reflect] year 5: stored 1 reflections, skipped 0 duplicates" in out
+
+    def test_aged_out_duplicate_is_restored(self, capsys):
+        """The identical-summary skip only applies while the agent can still
+        see the earlier reflection in its own retrieval window. Once it has
+        aged out (simulated here by making the retrieve() call the dedup
+        check uses return an empty list, while the SEPARATE top_k=10 call
+        that gates batch entry still sees the seeded memory), the same
+        summary is stored again and counted as reflections_restored, not
+        skipped."""
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+
+        config = AgentConfig(
+            name="Agent_1", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agent.is_active = True
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        insight_holder = [SimpleNamespace(
+            importance=0.9, summary="I will keep my request steady next year.",
+        )]
+        store_calls = []
+        hooks = self._make_hooks(engine, agent, insight_holder, store_calls)
+
+        hooks._batch_reflect(year=3)
+        assert len(engine.working["Agent_1"]) == 2
+
+        # Simulate the reflection aging out of the composed retrieval window
+        # by year 4: the candidates-gate call (top_k=10, un-composed
+        # memory_config here) must still see the seeded memory so the agent
+        # enters the batch; the dedup check's own retrieve() call
+        # (top_k=3, the retrieval_top_k default for an agent with no
+        # memory_config overrides) must see nothing.
+        real_retrieve = engine.retrieve
+
+        def _stub_retrieve(agent_arg, top_k=3, **kwargs):
+            if top_k == 10:
+                return real_retrieve(agent_arg, top_k=top_k, **kwargs)
+            return []
+
+        engine.retrieve = _stub_retrieve
+
+        insight_holder[0] = SimpleNamespace(
+            importance=0.9, summary="I will keep my request steady next year.",
+        )
+        hooks._batch_reflect(year=4)
+
+        assert len(engine.working["Agent_1"]) == 3  # stored again, not skipped
+        assert engine.working["Agent_1"][-1]["content"] == (
+            "Consolidated Reflection: I will keep my request steady next year."
+        )
+        out = capsys.readouterr().out
+        assert "[reflect] year 4: stored 1 reflections, skipped 0 duplicates, restored 1" in out
+
+    def test_empty_or_none_summary_skipped_not_stored_as_none(self, capsys):
+        """S5: an empty or missing insight.summary must never become the
+        literal memory line "Consolidated Reflection: None"; add_memory is
+        skipped and counted, but store_insight still runs."""
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+
+        config = AgentConfig(
+            name="Agent_1", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agent.is_active = True
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        insight_holder = [SimpleNamespace(importance=0.9, summary=None)]
+        store_calls = []
+        hooks = self._make_hooks(engine, agent, insight_holder, store_calls)
+
+        hooks._batch_reflect(year=3)
+        assert len(engine.working["Agent_1"]) == 1  # unchanged: no add_memory
+        assert len(store_calls) == 1  # store_insight still ran
+        assert not any("None" in item["content"] for item in engine.working["Agent_1"])
+
+        insight_holder[0] = SimpleNamespace(importance=0.9, summary="   ")
+        hooks._batch_reflect(year=4)
+        assert len(engine.working["Agent_1"]) == 1
+        assert len(store_calls) == 2
+
+        out = capsys.readouterr().out
+        assert "[reflect] year 3: stored 0 reflections, skipped 1 duplicates" in out
+        assert "[reflect] year 4: stored 0 reflections, skipped 1 duplicates" in out
+
+    def test_reverse_quote_case_still_skipped(self, capsys):
+        """S-a: the quote noise can land on either side of a dedup pair --
+        stored WITH quotes, echoed WITHOUT, must still be recognised as the
+        same underlying text and skipped (not just quotes-added, the
+        direction this class's first test already covers)."""
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+
+        config = AgentConfig(
+            name="Agent_1", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agent.is_active = True
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        insight_holder = [SimpleNamespace(importance=0.9, summary='"X"')]
+        store_calls = []
+        hooks = self._make_hooks(engine, agent, insight_holder, store_calls)
+
+        hooks._batch_reflect(year=3)
+        assert len(engine.working["Agent_1"]) == 2
+        assert engine.working["Agent_1"][-1]["content"] == 'Consolidated Reflection: "X"'
+
+        insight_holder[0] = SimpleNamespace(importance=0.9, summary="X")
+        hooks._batch_reflect(year=4)
+        assert len(engine.working["Agent_1"]) == 2  # skipped, not stored again
+
+        out = capsys.readouterr().out
+        assert "[reflect] year 4: stored 0 reflections, skipped 1 duplicates" in out
+
+    def test_composed_retrieval_real_engine_restores_after_aging_out(self, capsys):
+        """W-b: exercises the composed-retrieval path for real against the
+        actual HumanCentricMemoryEngine (legacy mode), no retrieve() stub.
+        An agent declares ``memory_config={"composed_retrieval": True,
+        "window_size": 5, "top_k_significant": 2}``; the reflection's own
+        importance (0.4) is kept below consolidation_threshold (0.6, the
+        real config's default) so it is NEVER copied to long-term and can
+        only ever be seen via the recent working-memory window -- once
+        enough newer (also below-threshold) memories push it out of that
+        window, it is genuinely unretrievable by any path, exactly the
+        "aged out" case the dedup skip must not apply to."""
+        from types import SimpleNamespace
+
+        from broker.agents import AgentConfig, BaseAgent
+
+        engine, _irr_mem = _build_memory_engine_like_run_experiment()
+        assert engine.ranking_mode == "legacy"
+
+        config = AgentConfig(
+            name="Agent_1", agent_type="irrigation_farmer",
+            state_params=[], objectives=[], constraints=[], skills=[],
+        )
+        agent = BaseAgent(config)
+        agent.custom_attributes = {}
+        agent.is_active = True
+        agent.memory_config = {
+            "composed_retrieval": True, "window_size": 5, "top_k_significant": 2,
+        }
+        engine.add_memory_for_agent(agent, "I requested less water than usual this year.")
+
+        insight_holder = [SimpleNamespace(
+            importance=0.4, summary="I will keep my request steady next year.",
+        )]
+        store_calls = []
+        hooks = self._make_hooks(engine, agent, insight_holder, store_calls)
+
+        hooks._batch_reflect(year=3)
+        assert len(engine.working["Agent_1"]) == 2
+
+        # Push the reflection out of the checked window (window_size - 1 = 4
+        # here) with newer, below-threshold-importance filler memories, so
+        # none of them (or the reflection) is ever consolidated to
+        # long-term either.
+        for i in range(5):
+            engine.add_memory_for_agent(
+                agent, f"Filler memory {i}.", {"importance": 0.1, "source": "personal"},
+            )
+        assert len(engine.working["Agent_1"]) == 7
+
+        insight_holder[0] = SimpleNamespace(
+            importance=0.4, summary="I will keep my request steady next year.",
+        )
+        hooks._batch_reflect(year=4)
+
+        assert len(engine.working["Agent_1"]) == 8  # stored again, not skipped
+        assert engine.working["Agent_1"][-1]["content"] == (
+            "Consolidated Reflection: I will keep my request steady next year."
+        )
+        out = capsys.readouterr().out
+        assert "[reflect] year 4: stored 1 reflections, skipped 0 duplicates, restored 1" in out
+
+
 class TestIrrigationAdapterRealisticInputs:
     """F08+F33 (2026-09-25 audit): with real (correctly-scaled) inputs,
     IrrigationAdapter.compute_importance/classify_emotion must actually
