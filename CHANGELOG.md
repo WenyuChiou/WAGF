@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   --retry-feedback-mode`, and `broker/experiments/replay.py`'s
   manifest-preferred-over-reloaded-config path. Default remains `full`;
   every frozen baseline reruns byte-identically with the key absent.
+  `examples/irrigation_abm/run_experiment.py` now has the same
+  `--retry-feedback-mode` flag (2026-09-27), replacing the earlier
+  `config_variants/silent_gemma3_4b/` full-config-copy (removed) that a
+  copy-then-edit approach kept drifting out of parity with `config/`.
 
 - **Reproducibility manifest records the LLM sampling params actually sent,
   not just the global singleton, for Ollama runs (r19 G7/G8, verified

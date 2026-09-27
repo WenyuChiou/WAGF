@@ -1363,32 +1363,26 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # Red-team objection 3: retry-feedback ablation (default None = whatever
     # global_config.governance.retry_feedback_mode in agent_types.yaml
     # resolved to on the engine, normally "full"). Mirrors --thinking-mode's
-    # "None means leave the resolved default alone" contract. Overriding the
-    # already-constructed broker attribute, exactly like log_prompt above,
-    # rather than the loaded (and process-cached) AgentTypeConfig.
+    # "None means leave the resolved default alone" contract. Overrides the
+    # already-constructed broker's resolved mode, exactly like log_prompt
+    # above, rather than the loaded (and process-cached) AgentTypeConfig.
+    #
+    # SkillBrokerEngine.set_retry_feedback_mode (opus review, 2026-09-27)
+    # replaces poking runner.broker._retry_feedback_mode directly: the
+    # setter (a) validates (W3, review round 2 -- the CLI's
+    # `choices=["full","placebo","silent"]` guards the argparse entry point
+    # only; run_parity_benchmark is a public function a library caller can
+    # invoke directly with an arbitrary string, bypassing argparse
+    # entirely), (b) re-logs in the engine's own startup shape (C2, review
+    # round 2: "[Governance] retry_feedback_mode=%s", so the LAST such line
+    # in the run's output always names the value actually in effect), and
+    # (c) re-runs the W2 advisory-channel-conflict check against the NEW
+    # value -- poking the attribute directly skipped that check entirely,
+    # so an override to "silent"/"placebo" on a run with an advisory
+    # channel already on got no warning, unlike the same combination set in
+    # YAML from the start.
     if retry_feedback_mode is not None:
-        # W3 (review round 2): the CLI's `choices=["full","placebo","silent"]` guards
-        # the argparse entry point only -- `run_parity_benchmark` is a public
-        # function a library caller can invoke directly with an arbitrary
-        # string, bypassing argparse entirely. Validate here too, or a typo'd
-        # value would silently reach `_governance_retry_loop`'s own "unknown
-        # value is an error, not full" check LATER, deep in the first
-        # decision of the run, instead of failing immediately at the call
-        # that caused it.
-        if retry_feedback_mode not in ("full", "placebo", "silent"):
-            raise ValueError(
-                f"retry_feedback_mode={retry_feedback_mode!r} is not 'full', "
-                "'placebo', or 'silent'."
-            )
-        runner.broker._retry_feedback_mode = retry_feedback_mode
-        # C2 (review round 2): re-log in the SAME shape as the engine's own
-        # startup line (SkillBrokerEngine.__init__: "[Governance]
-        # retry_feedback_mode=%s") so the LAST such line in the run's output
-        # always names the value actually in effect -- before this, the
-        # override was announced with different wording ("overridden via
-        # CLI: ...") that a log-grep for the engine's shape would miss
-        # entirely, silently reading the pre-override YAML default instead.
-        logger.info("[Governance] retry_feedback_mode=%s", retry_feedback_mode)
+        runner.broker.set_retry_feedback_mode(retry_feedback_mode)
 
     # 5. Execute Run
     # This uses the enhanced llm_invoke in llm_utils.py with 3-attempt LLM-level retry

@@ -124,6 +124,66 @@ def test_silent_mode_suppresses_the_format_violation_synthetic_report_too():
         assert forbidden not in prompt
 
 
+def test_silent_mode_with_feasible_set_feedback_never_probes():
+    """W2 (opus review of the irrigation --retry-feedback-mode flag, 2026-09):
+    ``global_config.governance.feasible_set_feedback``
+    (``RetryMixin._probe_feasible_skills`` / ``_format_feasible_line``,
+    ``broker/core/_retry_loop.py``) is a SEPARATE knob from
+    ``retry_feedback_mode`` -- under "full" mode it appends one line naming
+    which actions would pass every rule this attempt. The two flags gate
+    independent things, so an operator could plausibly turn both on in the
+    same config. This pins that "silent" wins: `_governance_retry_loop`'s
+    ``if _retry_feedback_mode == "silent":`` branch returns `retry_prompt =
+    prompt` before the `else` branch that runs the feasible probe is ever
+    reached, so with `_feasible_set_feedback=True` AND a validator that
+    always rejects (the exact precondition `_probe_feasible_skills` needs to
+    fire under "full"), the retry prompt is still byte-identical to the
+    initial prompt on every attempt, and the probe/formatter are never
+    called at all -- not called-and-ignored, never invoked."""
+
+    class _AlwaysRejectHostFeasible(_Host):
+        max_retries = 3
+        skill_registry = SimpleNamespace(
+            get_default_skill=lambda: "do_nothing",
+            exists=lambda skill_name: True,
+        )
+        _feasible_set_feedback = True
+
+        def _run_validators(self, proposal, context):
+            return _rejected_results()
+
+        def _probe_feasible_skills(self, *a, **k):
+            raise AssertionError(
+                "_probe_feasible_skills must never be called under "
+                "retry_feedback_mode='silent', even with "
+                "_feasible_set_feedback=True"
+            )
+
+        def _format_feasible_line(self, *a, **k):
+            raise AssertionError(
+                "_format_feasible_line must never be called under "
+                "retry_feedback_mode='silent'"
+            )
+
+    host = _AlwaysRejectHostFeasible(retry_feedback_mode="silent")
+    captured = []
+
+    def llm_invoke(retry_prompt):
+        captured.append(retry_prompt)
+        return SkillProposal(
+            skill_name="elevate_structure", agent_id="H01",
+            agent_type="household", reasoning={},
+        )
+
+    result = host._governance_retry_loop(llm_invoke=llm_invoke, **_retry_kwargs())
+    retry_count = result[5]
+
+    assert retry_count == 3, "EarlyExit fired; test is not exercising 3 full retries"
+    assert len(captured) == 3
+    for i, prompt in enumerate(captured, start=1):
+        assert prompt == ORIGINAL_PROMPT, f"attempt {i} retry prompt != initial prompt"
+
+
 # ---------------------------------------------------------------------------
 # (b) full and placebo prompts unchanged vs today (regression against the
 #     placebo test's own fixtures / golden text)

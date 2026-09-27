@@ -168,6 +168,17 @@ again (if overridden) after the CLI override is applied
 output always names the value in effect), and recorded in the reproducibility
 manifest's `retry_feedback_mode` field.
 
+Irrigation (`examples/irrigation_abm/run_experiment.py`) has the same
+`--retry-feedback-mode {full,placebo,silent}` flag as of 2026-09-27, replacing
+the earlier approach of pointing `--config-dir` at a full copy of `config/`
+with only the YAML line changed (`config_variants/silent_gemma3_4b/`, now
+removed: a plain file copy silently drifts out of parity with `config/`
+every time the source changes, which is exactly what happened once already
+during the supply-side redesign). Omitting the flag leaves
+`global_config.governance.retry_feedback_mode` in `agent_types.yaml`
+unchanged, so prompt bytes stay identical to a run with no flag at all; use
+the flag against the in-tree config instead of maintaining a second copy.
+
 ---
 
 ## 2. Grounding: what a rule's antecedent is anchored in
