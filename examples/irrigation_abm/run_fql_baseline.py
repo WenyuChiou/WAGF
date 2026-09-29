@@ -886,6 +886,11 @@ def _create_synthetic_profiles(
             # treatment.
             precip_group=None,
             synthetic_no_subbasin=(basin == "upper_basin"),
+            # WP1c review round 2 (LOW 6): same "no real location/entitlement"
+            # treatment as synthetic_no_subbasin above, for the Lower Basin
+            # priority-split table; unconditional on basin (harmless/unused
+            # for an Upper Basin profile).
+            synthetic_no_priority_split=True,
         )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)

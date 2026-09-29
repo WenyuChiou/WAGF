@@ -454,13 +454,26 @@ class TestZeroInitByteIdenticalToPreFix:
         # instead of raising or (the pre-MEDIUM-2 bug) round-robinning it
         # into a real sub-basin's request cap -- so both sides of the
         # comparison see the same, mode-consistent treatment.
+        # WP1c review round 2 (2026-09-29): the SAME shim, extended for the
+        # Lower Basin priority-split table -- this 00654d14 snapshot also
+        # predates initialize_from_profiles requiring every Lower Basin
+        # profile to be one of the 22 real lb_priority_split_v3.csv names
+        # (item 22), so its frozen _create_synthetic_profiles ("Agent_NNN"
+        # ids, never one of the 22) would otherwise raise. Marks
+        # synthetic_no_priority_split=True for any Lower Basin profile not
+        # in the table, the same "this agent has no real entitlement"
+        # treatment run_fql_baseline.py's CURRENT _create_synthetic_profiles
+        # now sets unconditionally.
         compat_shim = (
             "import examples.irrigation_abm.irrigation_env as _irr_env\n"
             "_orig_init_from_profiles = _irr_env.IrrigationEnvironment.initialize_from_profiles\n"
             "def _patched_init_from_profiles(self, profiles):\n"
+            "    _lb_table = _irr_env._load_lb_priority_split_table()\n"
             "    for _p in profiles:\n"
             "        if getattr(_p, 'basin', None) == 'upper_basin' and not getattr(_p, 'precip_group', None):\n"
             "            _p.synthetic_no_subbasin = True\n"
+            "        if getattr(_p, 'basin', None) == 'lower_basin' and _p.agent_id not in _lb_table:\n"
+            "            _p.synthetic_no_priority_split = True\n"
             "    return _orig_init_from_profiles(self, profiles)\n"
             "_irr_env.IrrigationEnvironment.initialize_from_profiles = _patched_init_from_profiles\n"
         )

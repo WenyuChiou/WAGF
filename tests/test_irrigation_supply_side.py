@@ -84,8 +84,15 @@ def _random_snapshot(rng, cfg):
         "natural_flow": float(rng.uniform(6.0, 17.0)),
         # PI decision 2026-09-28: _settle now computes g from the declared
         # shortage VOLUME (0-0.5 MAF, the real tier range) and the
-        # non-agricultural bucket, not a supplied ratio.
+        # non-agricultural bucket, not a supplied ratio. WP1c review round 2
+        # (LOW 6): a random volume in this range never matches a real
+        # tier's exact figure, and _settle now raises rather than silently
+        # guessing tier 0 for an unrecognised volume -- state tier 0
+        # explicitly (f_g = 0, inert for this file's synthetic LB agents,
+        # which are not in lb_priority_split_v3.csv and are treated as
+        # fully senior regardless).
         "lb_shortage_volume_maf": float(rng.uniform(0.0, 0.5)),
+        "lb_shortage_tier": 0,
         "mexico": float(rng.uniform(1.225, 1.5)),
         # Review fix 8: no silent fallback -- the default config's source
         # is "usbr_intervening", which REQUIRES this key.

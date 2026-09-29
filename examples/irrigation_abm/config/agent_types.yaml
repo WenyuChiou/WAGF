@@ -336,6 +336,17 @@ irrigation_farmer:
         source: "ub_subbasin_sole_bound"
         unit: ""
         format: ".0f"
+      # WP1c review round 2 (HIGH 1, 2026-09-29): a per-agent 0/1 flag,
+      # same pattern as ub_subbasin_solo_bound above -- IrrigationEnvironment
+      # writes it onto agent_state after each settlement
+      # (_write_agent_deliveries), 1.0 only when the declared tier actually
+      # cut THIS agent's own junior-priority water this year (item 22,
+      # lb_priority_mode="split"; always 0.0 in "senior_all" mode, at tier
+      # 0, or for any of the 16 agents with no junior entitlement).
+      - name: "lb_junior_cut_active"
+        source: "lb_junior_cut_active"
+        unit: ""
+        format: ".0f"
     assertions:
       # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
       # whose delivery formula no longer holds). The tracked metrics are
@@ -356,10 +367,29 @@ irrigation_farmer:
       # must not name Lake Mead specifically -- "only Lake Mead's physical
       # availability does" is false for an Upper Basin agent, whose delivery
       # is bounded by natural flow or the 5.0 MAF capacity, never by Mead.
+      # WP1c review round 2 (HIGH 1, 2026-09-29): a junior-cut agent (item
+      # 22) is checked FIRST -- "a declared shortage does not by itself
+      # reduce your delivery" is false for it this year, since the tier
+      # cuts its junior-priority water directly, before any physical
+      # limit is even checked. Lower Basin only (lb_junior_cut_active is
+      # always 0 for an Upper Basin agent), so this message never needs to
+      # branch on which basin's physical limit applies.
+      - when: "supply / request < 0.85 and supply >= 1 and lb_junior_cut_active >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
+          situation above. Part or all of your water right is junior-priority,
+          and the declared shortage tier cuts that part directly. A larger
+          request would have its junior-priority part cut by the same tier.
+          If Lake Mead is also physically short, the rest is shared pro-rata
+          with other Lower Basin users.
       # WP1b (item 20): "ub_subbasin_solo_bound < 1" excludes the one agent
       # (H&Y's UT2) for whom "lowering other users' deliveries" would be
       # false this year -- see the second assertion below for that case.
-      - when: "supply / request < 0.85 and supply >= 1 and ub_subbasin_solo_bound < 1"
+      # WP1c review round 2: "lb_junior_cut_active < 1" excludes a Lower
+      # Basin agent already covered by the assertion above.
+      - when: "supply / request < 0.85 and supply >= 1 and lb_junior_cut_active < 1 and ub_subbasin_solo_bound < 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -373,6 +403,8 @@ irrigation_farmer:
       # WP1b (item 20): the sole member of its sub-basin (UT2) has no other
       # user in it to share with, so a larger request cannot raise its share
       # by lowering anyone else's -- it would simply not add water.
+      # (lb_junior_cut_active is always 0 for an Upper Basin agent, so no
+      # extra guard is needed here.)
       - when: "supply / request < 0.85 and supply >= 1 and ub_subbasin_solo_bound >= 1"
         severity: "warning"
         message: >-

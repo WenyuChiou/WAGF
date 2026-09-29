@@ -292,7 +292,17 @@ class TestCouplingRetrofitMetadata:
         guards against). supply_group and ub_subbasin_member_count landed
         there too but moved to COVERED in the same-day re-review (LOW 9):
         special-cased in guard_agent_context_sources like "precipitation",
-        checked only for an agent that claims a sub-basin at all."""
+        checked only for an agent that claims a sub-basin at all.
+
+        WP1c (item 22, 2026-09-29) adds four more uncovered keys --
+        lb_senior_entitlement_af, lb_junior_entitlement_af,
+        lb_junior_request_af, lb_junior_tier_cut_fraction (same
+        IRRIGATION_CONTEXT_UNCOVERED_KEYS comment covers why each is safe:
+        a checksum-verified table read or a derived value, never a bare
+        source-dict read, and None/0 only in legitimate "not applicable"
+        cases) -- moving this pin's uncovered count from 8 to 12; covered
+        stays 22, since none of the four new keys is added to the coupling
+        contract itself."""
         env = _minimal_synthetic_env(coupling_contract_active=True)
         env.advance_year()
         meta = env.get_coupling_retrofit_metadata()
@@ -303,7 +313,7 @@ class TestCouplingRetrofitMetadata:
         # The two sets together account for EVERY key the context returns.
         assert covered | uncovered == ctx_keys
         assert not (covered & uncovered)
-        assert len(covered) == 22 and len(uncovered) == 8
+        assert len(covered) == 22 and len(uncovered) == 12
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never

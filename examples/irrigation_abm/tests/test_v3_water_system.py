@@ -340,7 +340,17 @@ class TestPowellPriority:
                 "powell_storage": float(rng.uniform(cfg.powell_dead_pool_maf, cfg.powell_capacity_maf)),
                 "mead_storage": float(rng.uniform(cfg.mead_dead_pool_maf, cfg.mead_capacity_maf)),
                 "natural_flow": float(rng.uniform(6.0, 22.0)),
+                # WP1c review round 2 (LOW 6): a random volume never matches
+                # a real declared tier's exact figure, and _settle now
+                # raises rather than silently guessing tier 0 for such a
+                # volume -- this fuzz test is about Powell/Mead storage
+                # bounds, not the declared tier, so it states tier 0
+                # explicitly (f_g = 0, inert either way for this file's
+                # synthetic LB0/LB1 agents, which are not in
+                # lb_priority_split_v3.csv and are treated as fully senior
+                # regardless).
                 "lb_shortage_volume_maf": float(rng.uniform(0.0, 0.5)),
+                "lb_shortage_tier": 0,
                 "mexico": float(rng.uniform(1.0, 1.5)),
                 "lb_tributary": float(rng.uniform(0.3, 2.0)),
                 # Re-review 2026-09-29 (HIGH 1): independent of the requests
@@ -363,7 +373,12 @@ class TestPowellPriority:
                 "powell_storage": float(rng.uniform(cfg.powell_dead_pool_maf, cfg.powell_capacity_maf)),
                 "mead_storage": float(rng.uniform(cfg.mead_dead_pool_maf, cfg.mead_capacity_maf)),
                 "natural_flow": float(rng.uniform(6.0, 22.0)),
+                # WP1c review round 2 (LOW 6): explicit tier 0, same
+                # rationale as test_conservation_and_bounds_random_states
+                # above -- a random volume never matches a real tier, and
+                # _settle now raises rather than guessing.
                 "lb_shortage_volume_maf": float(rng.uniform(0.0, 0.5)),
+                "lb_shortage_tier": 0,
                 "mexico": float(rng.uniform(1.0, 1.5)),
                 "lb_tributary": float(rng.uniform(0.3, 2.0)),
                 "lb_request_projected_maf": float(rng.uniform(0.0, 4.0)),
@@ -670,14 +685,42 @@ class TestKeepEveryYear42Years:
         lower delivery from then on. Less Upper Basin draw leaves more
         water for Powell's inflow than the held-fixed replay above, so
         more years clear Tier 0 (21->29) and Mead's 1 January minimum
-        rises again (7.4665->7.4989 MAF, about 1,007.7 to 1,008.3 ft)."""
+        rises again (7.4665->7.4989 MAF, about 1,007.7 to 1,008.3 ft).
+
+        WP1c (item 22, PI-approved 2026-09-29) moved this pin AGAIN, from
+        {0: 29, 1: 7, 2: 4, 3: 2} / 7.4989 MAF to the values below: this is
+        the one scenario in this file with real request FEEDBACK (a "keep"
+        request tracks the AGENT'S OWN prior delivery, unlike the held-
+        fixed replay above, where item 22 is proven mathematically inert
+        in test_v3_lb_priority.py: TestSplitMatchesSeniorAllAggregate).
+        item 22's split (the v3 default, lb_priority_mode="split") gives
+        the six Arizona 4th/5th/6th-priority agents a genuinely smaller
+        delivery than "senior_all" in a declared-tier year whenever their
+        request already exceeds their (much smaller) senior entitlement --
+        true from year 1 for several of them (e.g. MohaveValleyIDD's 2018
+        use, 28,295 AF, is roughly 4.8x its PUBLISHED 5,940 AF senior
+        entitlement, review round 2 MEDIUM 4) -- so their OWN subsequent
+        "keep" requests decay lower than under "senior_all", shifting one
+        year from Tier 2 to Tier 1 (Tier 1 count 7->8, Tier 2 count 4->3)
+        over the 42-year trajectory and raising Mead's minimum a little
+        further (7.4989->7.5184 MAF, about 1,008.3 to 1,008.6 ft).
+
+        Review round 2 (MEDIUM 4, 2026-09-29): moved this pin's Mead
+        minimum a further hair, from round 1's 7.5173 to 7.5184 MAF, when
+        the split switched from a share of each agent's water_right to
+        the agents' own PUBLISHED USBR entitlement figures (round 1's
+        MohaveValleyIDD senior entitlement, 7,243.90 AF, was a share of
+        its 50,000 AF water_right; the published figure is 5,940 AF, its
+        actual Priority 1 entitlement) -- the Tier counts did not move
+        again. Read directly off ``_run_real_2018_fixed_demand_42_years``
+        (this test's own callee), not re-derived by hand."""
         tier_counts, mead_min_maf = (
             TestMassBalanceClosureV3._run_real_2018_fixed_demand_42_years(
                 "subbasin", hold_requests_fixed=False,
             )
         )
-        assert tier_counts == {0: 29, 1: 7, 2: 4, 3: 2}
-        assert mead_min_maf == pytest.approx(7.4989, abs=1e-3)  # ~1,008.3 ft
+        assert tier_counts == {0: 29, 1: 8, 2: 3, 3: 2}
+        assert mead_min_maf == pytest.approx(7.5184, abs=1e-3)  # ~1,008.6 ft
 
 
 # ===========================================================================
