@@ -294,6 +294,13 @@ def _create_synthetic_profiles(
             # location" treatment.
             precip_group=None,
             synthetic_no_subbasin=(basin == "upper_basin"),
+            # WP1c review round 2 (LOW 6): this mock agent's id ("Agent_NNN")
+            # is never one of the 22 real Lower Basin names in
+            # lb_priority_split_v3.csv either, regardless of basin -- same
+            # "this agent has no real location/entitlement" treatment as
+            # synthetic_no_subbasin above, unconditional on basin since it
+            # is harmless (unused) for an Upper Basin profile.
+            synthetic_no_priority_split=True,
         )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)

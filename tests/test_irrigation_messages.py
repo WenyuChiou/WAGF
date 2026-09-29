@@ -32,10 +32,16 @@ def _ub_powell_state():
 
 
 def _lb_tier2_state():
+    # WP1c review round 2 (LOW 6): a senior-only agent's context (this
+    # helper is about OTHER gap reasons, not the junior-priority cut --
+    # lb_junior_request_af=0 keeps the pre-item-22 "Your own delivery is
+    # reduced only if Lake Mead..." sentence these tests check).
     return {"basin": "lower_basin", "year": 2021, "drought_index": 0.5, "lake_mead_level": 1040.0,
             "preceding_factor": 0, "current_request": 100_000.0, "current_diversion": 90_000.0,
             "delivery_ratio": 0.9, "water_right": 200_000.0, "gap_reason": "lb_shortage_tier",
             "curtailment_ratio": 0.10, "shortage_tier": 2, "lb_shortage_volume_maf": 0.417,
+            "lb_junior_request_af": 0.0, "lb_junior_tier_cut_fraction": 0.253220,
+            "lb_senior_entitlement_af": 200_000.0,
             "loop_year": 5}
 
 
@@ -210,8 +216,13 @@ def test_dashboard_situation_and_memory_state_the_same_numbers(tmp_path):
     cfg = yaml.safe_load((root / "examples/irrigation_abm/config/agent_types.yaml").read_text(encoding="utf-8"))
     fb_cfg = cfg["irrigation_farmer"]["feedback"]
 
-    profile = IrrigationAgentProfile(agent_id="LB1", basin="lower_basin", cluster="aggressive",
-                                     water_right=200_000.0)
+    profile = IrrigationAgentProfile(
+        agent_id="LB1", basin="lower_basin", cluster="aggressive",
+        water_right=200_000.0,
+        # WP1c review round 2 (LOW 6): "LB1" is not one of the 22 real
+        # Lower Basin names -- mark it, same as synthetic_no_subbasin.
+        synthetic_no_priority_split=True,
+    )
     env = IrrigationEnvironment(WaterSystemConfig(seed=42))
     env.initialize_from_profiles([profile])
     cfg_ws = env.config
@@ -278,12 +289,28 @@ def test_dashboard_message_true_for_tier_only_year():
     """PI decision 2026-09-28: a declared shortage tier alone (no Lake
     Mead physical limit) no longer reduces a Lower Basin agricultural
     agent's delivery at all, so the F13 message must say so rather than
-    claim a same-share cut that no longer happens in that case."""
+    claim a same-share cut that no longer happens in that case.
+
+    WP1c review round 2 (HIGH 1, 2026-09-29): assertions[0] is now the
+    NEW junior-cut-specific message (item 22) -- inserted first so a
+    junior-cut agent gets it instead of the claim below, which is false
+    for it. The general, senior-agent message this test originally
+    checked is assertions[1]."""
     import yaml
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     cfg = yaml.safe_load((root / "examples/irrigation_abm/config/agent_types.yaml").read_text(encoding="utf-8"))
-    msg = cfg["irrigation_farmer"]["feedback"]["assertions"][0]["message"]
+    assertions = cfg["irrigation_farmer"]["feedback"]["assertions"]
+    junior_msg = assertions[0]["message"]
+    assert "lb_junior_cut_active" in assertions[0]["when"]
+    assert "your water right is junior-priority" in junior_msg
+    assert "declared shortage tier cuts that part directly" in junior_msg
+    # WP1c re-review: at phi = 1 a junior agent keeps (1 - f) of any
+    # increase, so "raises your share only by lowering other users'
+    # deliveries" is false for it and must not appear in its message.
+    assert "raises your share only by lowering" not in junior_msg
+    assert "A larger request would have its junior-priority part cut by the same tier" in " ".join(junior_msg.split())
+    msg = assertions[1]["message"]
     assert "A declared shortage does not by itself reduce your delivery" in msg
     assert "When a physical limit binds" in msg
     assert "raises your share only by lowering" in msg

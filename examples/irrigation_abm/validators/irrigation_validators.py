@@ -660,6 +660,19 @@ def _join_reason(text: str, reason: str) -> str:
     return f"{text}, {reason}" if reason else text
 
 
+# WP1c review round 2 (WP3 note, 2026-09-29, not for this round): when
+# WP3 merges this rule into the spec item 2 form (block when the expected
+# delivery at the keep request is below FULL_SUPPLY_RATIO of it, no other
+# threshold), it must NOT let a declared tier's PROPORTIONAL junior cut
+# (item 22, f_g typically 20-30%) alone satisfy that condition for one of
+# the six junior-holding agents. Increasing the request still adds
+# (1 - f_g) of the increase to the agent's own delivery -- a real,
+# positive marginal return, unlike a genuine physical shortfall -- so
+# blocking on the junior cut alone would create an ARTIFICIAL RATCHET
+# under WP2's request-tracks-last-delivery base (spec 2.1): a blocked
+# increase keeps the agent at its (junior-cut-reduced) base forever, even
+# though a real increase would have been partly honoured. The post hoc
+# executed-violation check (WP6) needs the same carve-out.
 def supply_gap_block_increase(
     skill_name: str,
     rules: List[GovernanceRule],
@@ -676,6 +689,18 @@ def supply_gap_block_increase(
     with describe_gap_reason (supply-side redesign, 2026-09-25).
 
     Tier B suggestion: neutral enumeration of remaining feasible skills.
+
+    WP1c review round 2 (2026-09-29): this v3-committed version reads a
+    70% flat threshold, not yet the WP3 FULL_SUPPLY_RATIO form, and the
+    early Tier-2+ skip above (curtailment_awareness_check handles those
+    instead) means this function's own fulfilment check is only ever
+    reached at Tier 0 or Tier 1. At Tier 1, f_g is about 20.3% -- even a
+    100%-junior agent's worst case (no physical shortage at all) is about
+    1 - 0.203 = 79.7%, comfortably above 70% -- so item 22's junior cut
+    cannot yet, by itself, trigger this rule; the module comment's WP3
+    warning is about the FUTURE FULL_SUPPLY_RATIO threshold (0.999), which
+    a Tier 1 junior cut alone WOULD cross, once curtailment_awareness_check
+    (and its Tier-2+ carve-out) is retired the same work package.
     """
     if skill_name not in INCREASE_SKILLS:
         return []

@@ -215,10 +215,41 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
 #                          ``self._global`` read either. ``None`` for a
 #                          Lower Basin agent or an Upper Basin agent with
 #                          no sub-basin, same as the two fields above.
+#   lb_senior_entitlement_af, lb_junior_entitlement_af -- WP1c (item 22,
+#                          2026-09-29): this Lower Basin agent's fixed
+#                          senior/junior entitlement split, read from the
+#                          committed, checksum-verified
+#                          ``lb_priority_split_v3.csv`` (raises on a
+#                          missing/short table, never silently defaults) --
+#                          not a bare source-dict read. ``None`` for every
+#                          Upper Basin agent (there is no Lower Basin
+#                          priority structure to report), a legitimate
+#                          "not applicable" case, not F1 risk.
+#   lb_junior_request_af -- WP1c: THIS decision's junior portion of the
+#                          agent's request (before any tier cut), written
+#                          by ``_write_agent_deliveries`` from ``_settle``'s
+#                          own per-agent split -- never a silent default.
+#                          ``None`` for an Upper Basin agent; 0 for a Lower
+#                          Basin agent with no junior entitlement, or one
+#                          whose request has not yet exceeded its senior
+#                          entitlement this year -- both legitimate zeros,
+#                          not F1 risk.
+#   lb_junior_tier_cut_fraction -- WP1c: the CURRENT declared tier's f_g
+#                          (``_lb_junior_tier_fraction(self._compute_
+#                          shortage_tier())``), computed fresh each call,
+#                          same derived-value reasoning as
+#                          ``lb_shortage_volume_maf`` above. ``None`` for
+#                          every Upper Basin agent (not applicable); 0 for
+#                          a Lower Basin agent at tier 0 or in
+#                          ``lb_priority_mode="senior_all"`` -- legitimate,
+#                          not a guess.
 IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     "agent_id", "shortage_tier", "year", "powell_dead_pool_maf",
     "precipitation_flag", "lb_shortage_volume_maf",
     "ub_subbasin_ratio", "ub_subbasin_flow_share",
+    # WP1c (item 22, 2026-09-29)
+    "lb_senior_entitlement_af", "lb_junior_entitlement_af",
+    "lb_junior_request_af", "lb_junior_tier_cut_fraction",
 )
 
 

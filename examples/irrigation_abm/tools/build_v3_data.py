@@ -81,11 +81,36 @@ Regenerates two committed, checksum-pinned CSVs under
    its own mean for the agent-facing sub-basin flow-share sentence, not
    the recommended envelope's.
 
+5. ``lb_priority_split_v3.csv`` (WP1c, item 22; method revised review
+   round 2, MEDIUM 4, 2026-09-29) -- Lower Basin priority split. 22 rows,
+   one per Lower Basin agricultural agent: ``water_right_af`` (its live
+   water right, read by calling ``irrigation_personas.create_profiles_from_data``
+   directly -- informational only, no longer used to derive the split),
+   ``senior_entitlement_af`` / ``junior_entitlement_af`` (the AGENT'S OWN
+   PUBLISHED USBR figures, in whatever basis that listing gives them --
+   NOT a share of ``water_right_af``, a separate, unrelated request
+   ceiling; 0 junior for the 16 agents H&Y modelled as a single priority
+   class, who are not split at all), ``basis`` (diversion or consumptive
+   use, as the listing states it), ``priority_classes`` and ``source`` --
+   every one hand-entered and cited in ``_LB_PRIORITY_SOURCE_TABLE`` from
+   ``.research/design_specs/irrigation_v3_lb_rights_check_2026-09-29.md``
+   (itself cross-checked here against the USBR AZ Priority 4 listing's own
+   footnotes). A leading ``#`` comment line records the AZ priority-4 total
+   (CAP's statutory 1,415,000 AF ceiling, Public Law 108-451 Sec.
+   104(c)(1)(A), plus the 164,652 AF on-river ceiling, USBR's "Water
+   Priorities Within the State of Arizona") and its source. The build
+   function asserts the table's agent ids equal the Lower Basin profiles'
+   own ids exactly, raising on any mismatch. Re-run with
+   ``--target lb_priority`` (only ``--params-csv`` / ``--crss-db``, both
+   defaulted to the in-repo ``ref/`` paths, are needed -- not the large
+   USBR workbook the other targets require).
+
 Usage::
 
     python examples/irrigation_abm/tools/build_v3_data.py --source-xlsx <path> [--target all|hydrology|mead]
     python examples/irrigation_abm/tools/build_v3_data.py --target ub_supply --source-xlsx <path> --crss-db <path>
     python examples/irrigation_abm/tools/build_v3_data.py --target ub_supply_variants --source-xlsx <path> --crss-db <path>
+    python examples/irrigation_abm/tools/build_v3_data.py --target lb_priority
 
 Never imported by ``irrigation_env.py`` at runtime -- it is a one-off data
 generator; the environment loads the checked-in CSVs directly (see
@@ -96,6 +121,7 @@ this script still runs.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import io
 import sys
@@ -140,6 +166,245 @@ UB_SUBBASIN_VARIANT_MEANS_SHA256 = "c79ac70bad3db3f9fc22dec572740e0e29d74d67c3c7
 # per sub-basin), as pinned by irrigation_v3_spec_2026-09-28.md item 1b.1
 # and the sub-basin memo section 10.
 UB_HISTORICAL_DEPLETION_SHA256 = "097fc2cbf48529b8f691f0cc76002e84b7ca9140cdf202ef797326d5d1910542"
+
+# WP1c (irrigation_v3_spec_2026-09-28.md item 22, PI-approved 2026-09-29):
+# Lower Basin priority split. Restores Hung and Yang's/CRSS's senior-then-
+# junior fill order (ref/RL-ABM-CRSS/ABM_CRSS_coupling.py,
+# Calculate_Annual_Div_QL_LB / multi_priority_agts: "fills the senior slot
+# up to its upper bound first and sends the rest to the junior slot") for
+# the 22 Lower Basin agricultural agents, refining item 14 (all 22 modelled
+# as uniformly senior).
+LB_PRIORITY_SPLIT_CSV = DATA_DIR / "lb_priority_split_v3.csv"
+# Filled in after the first --target lb_priority run verifies the freshly
+# built bytes (same bootstrap procedure as every other *_SHA256 constant
+# in this module).
+LB_PRIORITY_SPLIT_SHA256 = "0b4462d7ea5a3364f433bc84847232d1a42a17e36329e8dbfa2143b6d195d165"
+
+# Arizona's Fourth Priority (USBR, "Water Priorities Within the State of
+# Arizona", https://www.usbr.gov/lc/region/g4000/contracts/entitlements/AZpriorities.pdf,
+# read in full 2026-09-29) is defined there as TWO coequal components --
+# quoted verbatim:
+#   (i) "contracts, Secretarial Reservations, Perfected Rights, and other
+#       arrangements ... entered into or established subsequent to
+#       September 30, 1968 ... (for a total quantity of not to exceed
+#       164,652 acre-feet of diversions annually)" -- the on-river
+#       (non-CAP) fourth-priority contracts. USBR's
+#       Entitlements_AZ_Priority_4.pdf (read in full 2026-09-29) lists them
+#       individually (Domestic and Agricultural Section 5 contracts) but
+#       states no summary total itself, so the ceiling comes from this
+#       definitional document, not a sum of the individual listing (which
+#       can be below the ceiling: unused/unallocated capacity, e.g. the
+#       "RECOMMENDED SECTION 5 CONTRACT (Not Completed)" rows).
+#   (ii) "Contract No. 14-06-W-245 ... between the United States and the
+#       Central Arizona Water Conservation District for the delivery of
+#       Mainstream Water for the Central Arizona Project" -- CAP. The AZ4
+#       listing gives CAP itself no acre-foot figure ("Balance of
+#       Arizona's apportionment" -- CAP is legally a RESIDUAL claimant, not
+#       a fixed quantity); the number below is the STATUTORY CEILING on
+#       CAP's total long-term contract entitlement, Public Law 108-451
+#       (Arizona Water Settlements Act of 2004), Sec. 104(c)(1)(A), 118
+#       Stat. 3490 (read in full 2026-09-29, congress.gov/108/plaws/
+#       publ451/PLAW-108publ451.pdf): "The total amount of entitlements
+#       under long-term contracts ... for the delivery of Central Arizona
+#       Project water in the State shall not exceed 1,415,000 acre-feet".
+# "Entitlements having a fourth-priority as defined in (i) and (ii) herein
+# are coequal. Reductions in Entitlements having a fourth priority shall be
+# borne by each Entitlement holder in the same proportion as its
+# Entitlement" (AZpriorities.pdf) is the legal basis for spec item 22's
+# f_g = AZ tier volume / AZ_PRIORITY_4_TOTAL_AF, applied uniformly to CAP
+# and to every on-river fourth-priority (or coequal fifth/sixth-priority
+# rider) holder alike.
+AZ_ON_RIVER_PRIORITY_4_ENTITLEMENT_AF = 164_652.0
+AZ_CAP_PRIORITY_4_ENTITLEMENT_AF = 1_415_000.0
+# 1,579,652.0 AF.
+AZ_PRIORITY_4_TOTAL_AF = AZ_ON_RIVER_PRIORITY_4_ENTITLEMENT_AF + AZ_CAP_PRIORITY_4_ENTITLEMENT_AF
+
+# 2007 Interim Guidelines Record of Decision, Section 2.D.1 (p. 36): the
+# ARIZONA share of the Lower Basin declared-shortage volumes (spec item 22;
+# WaterSystemConfig._tier_shortage_volume_maf's LB totals are 333/417/500
+# kaf, with Nevada bearing 13/17/20 kaf of each -- both already verified in
+# .research/design_specs/irrigation_v3_lb_rights_check_2026-09-29.md's
+# companion documents).
+AZ_LB_TIER_VOLUME_AF = {0: 0.0, 1: 320_000.0, 2: 400_000.0, 3: 480_000.0}
+
+# Hand-entered, per-agent source table (spec item 22's "pinned CSV ... with
+# every value cited"): agent_id -> (published entitlement AF, published
+# JUNIOR component AF, basis, priority classes, source). Every figure is
+# read directly from a primary USBR entitlement listing or a document that
+# VERIFIED against one --
+# .research/design_specs/irrigation_v3_lb_rights_check_2026-09-29.md's
+# per-agent table -- and, for the six fourth-priority-or-junior agents,
+# independently cross-checked here against the AZ4 PDF's own footnotes
+# (read in full 2026-09-29): MohaveValleyIDD's footnote 6 ("the 41,000
+# acre-feet includes 5,940 acre-feet of Priority 1 water ... and 35,060
+# acre-feet of priority 4 water"), CibolaValleyIDD's footnote 5 and its
+# 7,442.52 AF Priority 4 line (plus 1,500 AF Priority 5 / 2,000 AF Priority
+# 6 from Entitlements_AZ_Priority_5_and_6.pdf), GilaMonsterFarms' own line
+# ("1,435 (also has a PPR for 780 afy, 6,285 afy of 3rd priority water, and
+# 656 afy of 5th priority water)"), CocopahIndRes' own line ("2,026 (also
+# has PPR No. 1 for 7,681 afy and U.S. PPR No. 8 for 1,140 afy)"),
+# HopiTribe's own line ("4,278 (also has 750 afy of 5th priority water and
+# 1,000 afy of 6th priority water)") and NorthBajaLLC's own line ("480",
+# no other priority).
+#
+# WP1c review round 2 (MEDIUM 4, PI instruction "follow H&Y", 2026-09-29):
+# the two entitlement figures below are the PUBLISHED USBR figures
+# THEMSELVES, in the SAME units and basis the listing gives (diversion or
+# consumptive use -- see the ``basis`` column of the built CSV), never
+# derived from or scaled by the model's water_right W (min(grid_top, 1.4 x
+# peak diversion) -- a modelling proxy for a DIFFERENT purpose, the request
+# ceiling, unrelated to which priority class a unit of water falls in).
+# H&Y's own coupling code (ABM_CRSS_coupling.py, Calculate_Annual_Div_QL_LB)
+# fills each priority slot up to an ABSOLUTE bound (``QL_UpperBounds``),
+# not a share of some other ceiling -- this restores that shape exactly.
+# Consequence: senior_entitlement_af + junior_entitlement_af does NOT
+# generally equal the agent's water_right_af (the published total can sit
+# anywhere relative to W -- see the rights-check memo's own W/Ent ratios,
+# 0.18 to 8.40x); at runtime (_settle) the split applies ONLY up to
+# whichever of the two is reached first as the request grows, capped
+# overall by W as always.
+#   * The three 100%-junior agents (CibolaValleyIDD, HopiTribe,
+#     NorthBajaLLC) have senior_entitlement_af = 0.0 -- their published
+#     entitlement is entirely 4th/5th/6th priority, no Priority 1-3
+#     component at all.
+#   * The three partly-junior agents (MohaveValleyIDD, GilaMonsterFarms,
+#     CocopahIndRes) split their OWN published total between a senior
+#     component (their Priority 1 and/or 3 lines) and a junior one (their
+#     Priority 4, plus 5 and/or 6 where the same contract carries them --
+#     LOW 7: the spec words the cut as landing on "junior water", not
+#     "priority-4 water specifically", and 5th/6th priority is junior to
+#     4th, so it is cut by the SAME f_g here, disclosed in the caveats as
+#     a simplification: in reality 5th/6th priority water would likely see
+#     zero delivery outright in any shortage, ahead of a 4th-priority cut).
+#   * The other 16 agents are NOT split at all -- H&Y's own single-priority
+#     agents were never divided into a senior and a junior part, so
+#     ``junior_entitlement_af`` is 0.0 for every one of them and
+#     ``senior_entitlement_af`` is informational only (the agent's own
+#     published entitlement where USBR gives one; ``None`` for
+#     PVIDDiversionAG and Bard Unit, whose figure is an undivided shared
+#     California Priority block with no individual total) -- IrrigationEnvironment._settle
+#     never caps their delivery against this number; the water-right cap
+#     upstream is what limits their request, exactly as for every other
+#     single-priority agent H&Y modelled.
+# Agent ids match ref/CRSS_DB/CRSS_DB/Div_States/LB_discrete_states.csv's
+# column headers exactly (irrigation_personas.py: create_profiles_from_data
+# reads this same file 1:1 for its 22 Lower Basin agents) -- build_lb_
+# priority_split_csv asserts this set equality, raising on any mismatch.
+_LB_PRIORITY_SOURCE_TABLE: Dict[str, Tuple[Optional[float], float, str, str, str]] = {
+    "PVIDDiversionAG": (
+        None, 0.0, "diversion", "CA-1(+3b)",
+        "USBR Entitlements_State_of_CA.pdf p.5 (Seven Party Agreement: PVID shares the undivided "
+        "3.85 MAF CU Priority 1-3 block with IID/CVWD/Bard Unit, PPR 219,780 AF for 33,604 ac; no "
+        "individual total)",
+    ),
+    "CRIR AZ": (
+        662_402.0, 0.0, "diversion", "AZ-1 (PPR)",
+        "USBR Entitlements_AZ_Priority_1.pdf p.1, PPR#2",
+    ),
+    "CRIR CA": (
+        56_846.0, 0.0, "diversion", "CA-1 (PPR)",
+        "USBR Entitlements_State_of_CA.pdf p.1, PPR#24",
+    ),
+    "YumaCountyWUA": (
+        254_200.0, 0.0, "diversion", "AZ-1 (PPR)",
+        "USBR Entitlements_AZ_Priority_1.pdf p.1 / Entitlements_AZ_Priority_3.pdf p.1, PPR#4, 1901",
+    ),
+    "WelltonMohawkIDD": (
+        278_000.0, 0.0, "consumptive_use", "AZ-3",
+        "USBR Entitlements_AZ_Priority_3.pdf p.1, 1952",
+    ),
+    "YumaMesaIDD": (
+        141_519.0, 0.0, "consumptive_use", "AZ-3",
+        "USBR Entitlements_AZ_Priority_3.pdf p.1 (shares a 250,000 AF CU project)",
+    ),
+    "Fort Mohave Ind Res AZ": (
+        103_535.0, 0.0, "diversion", "AZ-1 (PPR)",
+        "USBR Entitlements_AZ_Priority_1.pdf p.1, PPR#3",
+    ),
+    "YumaIrrDist": (
+        67_278.0, 0.0, "consumptive_use", "AZ-3",
+        "USBR Entitlements_AZ_Priority_3.pdf p.1 (shares a project)",
+    ),
+    "Bard Unit": (
+        None, 0.0, "diversion", "CA-2",
+        "USBR Entitlements_State_of_CA.pdf p.5 (Seven Party Agreement, CA Priority 2 block, "
+        "<=25,000 gross ac, PPR#28; no individual acre-feet total)",
+    ),
+    "NorthGilaValleyIDD": (
+        41_203.0, 0.0, "consumptive_use", "AZ-3",
+        "USBR Entitlements_AZ_Priority_3.pdf p.1 (shares a project)",
+    ),
+    "Quechan Res Unit": (
+        71_616.0, 0.0, "diversion", "CA-1 (PPR)",
+        "USBR Entitlements_State_of_CA.pdf p.1, PPR#23 (CA side of Fort Yuma Reservation)",
+    ),
+    "UnitBIDD": (
+        6_800.0, 0.0, "diversion", "AZ-1 (PPR)",
+        "USBR Entitlements_AZ_Priority_1.pdf p.1 / Entitlements_AZ_Priority_3.pdf p.1, PPR#5, 1905",
+    ),
+    # senior = 5,940 AF Priority 1; junior = 35,060 AF Priority 4 (footnote 6).
+    "MohaveValleyIDD": (
+        5_940.0, 35_060.0, "diversion", "AZ-1+4",
+        "USBR Entitlements_AZ_Priority_4.pdf p.5, Contract 14-06-W-204, footnote 6: 41,000 AF total "
+        "= 5,940 AF Priority 1 (senior) + 35,060 AF Priority 4 (junior)",
+    ),
+    # senior = 0 (no Priority 1-3 component at all); junior = 7,442.52 AF
+    # Priority 4 + 1,500 AF Priority 5 + 2,000 AF Priority 6 = 10,942.52 AF.
+    "CibolaValleyIDD": (
+        0.0, 10_942.52, "diversion", "AZ-4/5/6",
+        "USBR Entitlements_AZ_Priority_4.pdf p.4, Contract 2-07-30-W0028 (7,442.52 AF Priority 4) "
+        "+ Entitlements_AZ_Priority_5_and_6.pdf p.1 (1,500 AF Priority 5 + 2,000 AF Priority 6, "
+        "same contract) = 10,942.52 AF, all junior (no Priority 1-3 component)",
+    ),
+    "Fort Mohave Ind Res CA": (
+        16_720.0, 0.0, "diversion", "CA-1 (PPR)",
+        "USBR Entitlements_State_of_CA.pdf p.1, PPR#25",
+    ),
+    # senior = 780 AF Priority 1 + 6,285 AF Priority 3 = 7,065 AF;
+    # junior = 1,435 AF Priority 4 + 656 AF Priority 5 = 2,091 AF.
+    "GilaMonsterFarms": (
+        7_065.0, 2_091.0, "diversion", "AZ-1/3/4/5",
+        "USBR Entitlements_AZ_Priority_4.pdf p.5, Contract 6-07-30-W0337: 9,156 AF total = "
+        "780 AF PPR Priority 1 + 6,285 AF Priority 3 (senior, 7,065 AF) + 1,435 AF Priority 4 + "
+        "656 AF Priority 5 (junior, 2,091 AF)",
+    ),
+    # senior = 7,681 AF PPR#1 + 1,140 AF US PPR#8 = 8,821 AF; junior = 2,026
+    # AF Priority 4.
+    "CocopahIndRes": (
+        8_821.0, 2_026.0, "diversion", "AZ-1+4",
+        "USBR Entitlements_AZ_Priority_4.pdf p.4, Consolidated Decree: 10,847 AF total = 7,681 AF "
+        "PPR#1 + 1,140 AF US PPR#8 (senior, 8,821 AF) + 2,026 AF Priority 4 (junior)",
+    ),
+    # senior = 0 (no Priority 1-3 component at all); junior = 4,278 AF
+    # Priority 4 + 750 AF Priority 5 + 1,000 AF Priority 6 = 6,028 AF.
+    "HopiTribe": (
+        0.0, 6_028.0, "diversion", "AZ-4/5/6",
+        "USBR Entitlements_AZ_Priority_4.pdf p.5, Contract 04-XX-30-W0432 (4,278 AF Priority 4) "
+        "+ Entitlements_AZ_Priority_5_and_6.pdf p.1 (750 AF Priority 5 + 1,000 AF Priority 6, same "
+        "contract) = 6,028 AF, all junior (no Priority 1-3 component)",
+    ),
+    "Powers": (
+        960.0, 0.0, "diversion", "AZ-1 (PPR)",
+        "USBR Entitlements_AZ_Priority_1.pdf p.2, PPR#7, 1915",
+    ),
+    "FtYumaReservation": (
+        6_350.0, 0.0, "diversion", "AZ-1 (PPR)",
+        "USBR Entitlements_AZ_Priority_1.pdf p.1, PPR#3a, 1884 (AZ side of Fort Yuma Reservation)",
+    ),
+    "Chemehuevi Ind Res": (
+        11_340.0, 0.0, "diversion", "CA-1 (PPR)",
+        "USBR Entitlements_State_of_CA.pdf p.1, PPR#22, 1907",
+    ),
+    # senior = 0 (no Priority 1-3 component at all); junior = 480 AF
+    # Priority 4, its only entitlement line.
+    "NorthBajaLLC": (
+        0.0, 480.0, "diversion", "AZ-4",
+        "USBR Entitlements_AZ_Priority_4.pdf p.5, Contract 04-XX-30-W0433, 2005: 480 AF Priority 4, "
+        "no other priority, all junior",
+    ),
+}
+DEFAULT_PARAMS_CSV = Path("ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv")
+DEFAULT_CRSS_DB_DIR = Path("ref/CRSS_DB/CRSS_DB")
 
 LEES_FERRY_COL = "Colorado R At Lees Ferry, AZ"
 BELOW_HOOVER_COL = "Colorado River Below Hoover Dam, AZ-NV"
@@ -604,6 +869,144 @@ def build_mead_capacity_csv() -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
+def build_lb_priority_split_csv(
+    params_csv: Path = DEFAULT_PARAMS_CSV,
+    crss_db_dir: Path = DEFAULT_CRSS_DB_DIR,
+    *,
+    paper_water_margin: float = 0.4,
+    cluster_method: str = "hy2021",
+) -> bytes:
+    """``lb_priority_split_v3.csv`` (spec item 22): for each of the 22
+    Lower Basin agricultural agents, its senior and junior entitlement
+    (AF) and the basis (diversion or consumptive use) that figure is
+    published in.
+
+    WP1c review round 2 (MEDIUM 4, PI instruction "follow H&Y",
+    2026-09-29): ``senior_entitlement_af`` / ``junior_entitlement_af`` are
+    the ABSOLUTE, PUBLISHED USBR figures themselves (``_LB_PRIORITY_SOURCE_TABLE``,
+    hand-entered and cited), NEVER derived from or scaled by the agent's
+    ``water_right`` (the SEPARATE ``min(grid_top_af, (1 + paper_water_margin)
+    * peak_obs_af)`` value -- a modelling proxy for the request ceiling,
+    unrelated to which priority class a unit of water falls in; round 1's
+    "senior_entitlement_af = (1 - junior_share) * water_right_af" coupled
+    the two together, so a paper_water_margin change alone would have
+    silently moved the priority split -- MEDIUM 5). H&Y's own coupling
+    code fills each priority slot up to an ABSOLUTE bound (``QL_UpperBounds``
+    in ``ABM_CRSS_coupling.py``), not a share of some other quantity, and
+    this restores that shape. ``water_right_af`` is still read here (by
+    calling ``create_profiles_from_data`` directly, never re-derived) and
+    written to the CSV for information and for the agent-id equality check
+    below, but no longer used to compute the split. For the 16 agents H&Y
+    modelled as a single priority class, ``junior_entitlement_af`` is 0.0
+    and ``senior_entitlement_af`` is informational only (the agent's own
+    published figure where one exists; blank for the two agents -- PVID,
+    Bard -- whose figure is an undivided shared California block); at
+    runtime (``irrigation_env.py._settle``) neither is used as a cap for
+    those 16 -- the water-right cap alone still limits their request, as
+    for every H&Y single-priority agent.
+
+    Agent ids in ``_LB_PRIORITY_SOURCE_TABLE`` must equal the Lower Basin
+    profiles' own agent ids exactly (both read
+    ``ref/CRSS_DB/CRSS_DB/Div_States/LB_discrete_states.csv``'s column
+    list, one directly and one via ``create_profiles_from_data``) --
+    checked below, raising on any mismatch in EITHER direction (a table
+    agent with no matching profile, or a profile with no matching table
+    row) rather than silently building a table that has quietly drifted
+    from what the environment will actually load.
+
+    A leading ``#``-prefixed comment line records the AZ priority-4 total
+    (the f_g denominator) and its two-part source; loaders must skip it
+    before handing the remaining lines to ``csv.DictReader`` (see
+    ``irrigation_env.py (_load_lb_priority_split_table)``).
+    """
+    import sys as _sys
+
+    import numpy as np  # local import: not needed by this tool's other targets
+
+    # Local import (mirrors the pattern of every other function here that
+    # needs a heavier dependency): irrigation_personas pulls in numpy and
+    # pandas, not needed by this tool's other targets.
+    _repo_root = Path(__file__).resolve().parents[3]
+    if str(_repo_root) not in _sys.path:
+        _sys.path.insert(0, str(_repo_root))
+    from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
+
+    if not params_csv.is_file():
+        raise ValueError(
+            f"{params_csv} not found; --params-csv must point at "
+            "ALL_colorado_ABM_params_cal_1108.csv (Hung and Yang's calibrated parameter file)."
+        )
+    if not crss_db_dir.is_dir():
+        raise ValueError(
+            f"{crss_db_dir} not found; --crss-db must point at a directory containing "
+            "Div_States/LB_discrete_states.csv and "
+            "HistoricalData/LB_historical_annual_diversion.csv (H&Y's CRSS_DB data release)."
+        )
+    profiles = create_profiles_from_data(
+        str(params_csv), str(crss_db_dir),
+        rng=np.random.default_rng(0),
+        paper_water_margin=paper_water_margin, cluster_method=cluster_method,
+    )
+    lb_profiles = {p.agent_id: p for p in profiles if p.basin == "lower_basin"}
+    missing = [a for a in _LB_PRIORITY_SOURCE_TABLE if a not in lb_profiles]
+    if missing:
+        raise ValueError(
+            f"create_profiles_from_data produced no Lower Basin agent(s) {missing}; "
+            "_LB_PRIORITY_SOURCE_TABLE and LB_discrete_states.csv have drifted apart."
+        )
+    extra = [a for a in lb_profiles if a not in _LB_PRIORITY_SOURCE_TABLE]
+    if extra:
+        raise ValueError(
+            f"create_profiles_from_data produced Lower Basin agent(s) {extra} with no row in "
+            "_LB_PRIORITY_SOURCE_TABLE; every one of the 22 must be hand-entered and cited "
+            "before it can be split."
+        )
+
+    buf = io.StringIO()
+    buf.write(
+        "# AZ priority-4 total (denominator of f_g = AZ tier volume / AZ priority-4 total) = "
+        f"{AZ_PRIORITY_4_TOTAL_AF:,.1f} AF = CAP {AZ_CAP_PRIORITY_4_ENTITLEMENT_AF:,.1f} AF "
+        "(Public Law 108-451, Arizona Water Settlements Act of 2004, Sec. 104(c)(1)(A), "
+        "118 Stat. 3490: total CAP long-term contract entitlements 'shall not exceed "
+        "1,415,000 acre-feet') + on-river fourth-priority contracts "
+        f"{AZ_ON_RIVER_PRIORITY_4_ENTITLEMENT_AF:,.1f} AF (USBR, Water Priorities Within the "
+        "State of Arizona, Fourth Priority (i): 'not to exceed 164,652 acre-feet of "
+        "diversions annually'). AZ tier volumes (2007 ROD Sec. 2.D.1, p.36): "
+        f"{AZ_LB_TIER_VOLUME_AF[1]:,.0f} / {AZ_LB_TIER_VOLUME_AF[2]:,.0f} / "
+        f"{AZ_LB_TIER_VOLUME_AF[3]:,.0f} AF for tiers 1-3. WP1c review round 2 (MEDIUM 4, "
+        "PI instruction 'follow H&Y'): senior_entitlement_af / junior_entitlement_af below "
+        "are the PUBLISHED USBR figures themselves (not derived from or scaled by "
+        "water_right_af, the model's separate 1.4x-peak-diversion request ceiling); "
+        "junior_entitlement_af is 0 for the 16 agents H&Y modelled as a single priority "
+        "class (no split applies to them at all -- see irrigation_env.py's docstring and "
+        "docs/irrigation_model_caveats.md for the units/method caveat).\n"
+    )
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([
+        "agent_id", "water_right_af", "senior_entitlement_af", "junior_entitlement_af",
+        "basis", "priority_classes", "source",
+    ])
+    for agent_id in sorted(_LB_PRIORITY_SOURCE_TABLE):
+        senior_af, junior_af, basis, priority_classes, source = _LB_PRIORITY_SOURCE_TABLE[agent_id]
+        if junior_af < 0.0 or (senior_af is not None and senior_af < 0.0):
+            raise ValueError(
+                f"{agent_id}: senior_entitlement_af={senior_af!r} / "
+                f"junior_entitlement_af={junior_af!r} must both be >= 0; check "
+                "_LB_PRIORITY_SOURCE_TABLE."
+            )
+        water_right_af = float(lb_profiles[agent_id].water_right)
+        writer.writerow([
+            agent_id,
+            f"{water_right_af:.2f}",
+            "" if senior_af is None else f"{senior_af:.2f}",
+            f"{junior_af:.2f}",
+            basis,
+            priority_classes,
+            source,
+        ])
+    return buf.getvalue().encode("utf-8")
+
+
 def _write_checked(path: Path, data: bytes, expected_sha256: str, label: str) -> None:
     actual = _sha256_bytes(data)
     if actual != expected_sha256:
@@ -632,8 +1035,13 @@ def main(argv=None) -> int:
              "ub_supply).",
     )
     parser.add_argument(
+        "--params-csv", type=Path, default=DEFAULT_PARAMS_CSV,
+        help="Path to ALL_colorado_ABM_params_cal_1108.csv (required for "
+             f"--target lb_priority; default {DEFAULT_PARAMS_CSV}).",
+    )
+    parser.add_argument(
         "--target",
-        choices=("all", "hydrology", "mead", "ub_supply", "ub_supply_variants"),
+        choices=("all", "hydrology", "mead", "ub_supply", "ub_supply_variants", "lb_priority"),
         default="all",
     )
     args = parser.parse_args(argv)
@@ -717,6 +1125,19 @@ def main(argv=None) -> int:
             UB_SUBBASIN_VARIANT_MEANS_CSV,
             build_ub_subbasin_variant_means_csv(args.source_xlsx, args.crss_db),
             UB_SUBBASIN_VARIANT_MEANS_SHA256, "ub_subbasin_variant_means_v3.csv",
+        )
+
+    # WP1c (spec item 22): needs only the already-in-repo RL-ABM-CRSS
+    # calibrated-parameter file and CRSS_DB checkout (--params-csv /
+    # --crss-db, both with repo-relative defaults) -- neither is the large
+    # USBR workbook the other targets need, so this one is not part of
+    # "all".
+    if args.target == "lb_priority":
+        crss_db = args.crss_db or DEFAULT_CRSS_DB_DIR
+        _write_checked(
+            LB_PRIORITY_SPLIT_CSV,
+            build_lb_priority_split_csv(args.params_csv, crss_db),
+            LB_PRIORITY_SPLIT_SHA256, "lb_priority_split_v3.csv",
         )
 
     return 0

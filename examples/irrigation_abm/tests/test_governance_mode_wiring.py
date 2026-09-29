@@ -265,6 +265,11 @@ class TestMemoryImportanceWiring:
         profile = IrrigationAgentProfile(
             agent_id="TestAgent", basin="lower_basin", cluster="aggressive",
             water_right=100_000.0,
+            # WP1c review round 2 (LOW 6): "TestAgent" is not one of the
+            # 22 real Lower Basin names -- mark it, same as
+            # synthetic_no_subbasin, so it routes to fully senior instead
+            # of raising.
+            synthetic_no_priority_split=True,
         )
         env = IrrigationEnvironment(WaterSystemConfig(seed=42))
         env.initialize_from_profiles([profile])
@@ -417,6 +422,11 @@ class TestPreYearReportsPriorYearOutcome:
         profile = IrrigationAgentProfile(
             agent_id="TestAgent", basin="lower_basin", cluster="aggressive",
             water_right=100_000.0,
+            # WP1c review round 2 (LOW 6): "TestAgent" is not one of the
+            # 22 real Lower Basin names -- mark it, same as
+            # synthetic_no_subbasin, so it routes to fully senior instead
+            # of raising.
+            synthetic_no_priority_split=True,
         )
         env = IrrigationEnvironment(WaterSystemConfig(seed=42))
         env.initialize_from_profiles([profile])

@@ -75,8 +75,13 @@ def _hooks_with_snapshot(tmp_path, action_ctx, request, diversion):
     from examples.irrigation_abm.irrigation_personas import IrrigationAgentProfile
     from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
 
-    profile = IrrigationAgentProfile(agent_id="A1", basin="lower_basin", cluster="aggressive",
-                                     water_right=100_000.0)
+    profile = IrrigationAgentProfile(
+        agent_id="A1", basin="lower_basin", cluster="aggressive",
+        water_right=100_000.0,
+        # WP1c review round 2 (LOW 6): "A1" is not one of the 22 real
+        # Lower Basin names -- mark it, same as synthetic_no_subbasin.
+        synthetic_no_priority_split=True,
+    )
     env = IrrigationEnvironment(WaterSystemConfig(seed=42))
     env.initialize_from_profiles([profile])
     agent = BaseAgent(AgentConfig(name="A1", agent_type="irrigation_farmer", state_params=[],

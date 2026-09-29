@@ -151,6 +151,18 @@ class IrrigationAgentProfile:
     # never set this) keeps today's strict behaviour unless it opts in.
     synthetic_no_subbasin: bool = False
 
+    # WP1c review round 2 (LOW 6, 2026-09-29): the SAME marker pattern as
+    # synthetic_no_subbasin above, for the Lower Basin priority-split table
+    # (lb_priority_split_v3.csv) instead of the Upper Basin sub-basin one.
+    # A Lower Basin profile whose agent_id is not one of the 22 real names
+    # in that table is either a mock-smoke-only synthetic profile (this
+    # flag True; IrrigationEnvironment.initialize_from_profiles routes it
+    # to fully senior, logging that it did so) or a real profile that
+    # forgot to set one (this flag left False; initialize_from_profiles
+    # raises). Default False for the same reason: every existing profile
+    # keeps today's strict behaviour unless it opts in.
+    synthetic_no_priority_split: bool = False
+
     # Narrative (generated)
     narrative_persona: str = ""
     water_situation_summary: str = ""
@@ -358,6 +370,25 @@ def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
             # that change still renders something rather than nothing.
             parts.append("Upper Basin deliveries were reduced pro-rata so Lake Powell can "
                          "make its minimum release to Lake Mead")
+        elif c == "lb_junior_tier_cut":
+            # WP1c (item 22): only one of the six Arizona 4th/5th/6th-
+            # priority agents can carry this code, and only in
+            # lb_priority_mode="split" (IrrigationEnvironment._settle never
+            # produces it in "senior_all" mode or for the other 16 senior-
+            # only agents). The percentage is the state's OWN
+            # lb_junior_tier_cut_fraction (f_g), never hand-copied, so this
+            # phrase and _settle's actual cut can never disagree.
+            frac = agent_state.get("lb_junior_tier_cut_fraction")
+            if not frac:
+                raise ValueError(
+                    "describe_gap_reason: gap_reason names lb_junior_tier_cut but "
+                    "lb_junior_tier_cut_fraction is missing or 0 in agent_state; "
+                    "refusing to silently guess the cut percentage."
+                )
+            parts.append(
+                "the declared Lower Basin shortage tier cuts your junior-priority "
+                f"water by about {frac:.0%}"
+            )
         elif c == "lb_mead_availability":
             parts.append("Lake Mead cannot meet all Lower Basin withdrawals this year "
                          "without falling below its minimum pool, so all Lower Basin "
@@ -540,19 +571,78 @@ def build_water_situation_text(
                     "fabricated 0 acre-ft cut."
                 )
             # Re-review 2026-09-29 (HIGH 2): the declared tier's volume is
-            # borne entirely by the non-agricultural bucket (Arizona and
-            # Nevada's stand-in), never by this (agricultural) agent's own
-            # delivery -- the old wording claimed a flat reduction that no
+            # borne by the non-agricultural bucket (Arizona and Nevada's
+            # stand-in) -- the old wording claimed a flat reduction that no
             # longer happens under the PI decision. curtailment_ratio (V/N)
             # is informational only; the real acre-feet cut is
             # lb_shortage_volume_maf x 1e6.
-            lines.append(
-                f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
-                f"shortage: this cuts non-agricultural Lower Basin deliveries "
-                f"(Arizona and Nevada) by {shortage_volume_maf * 1e6:,.0f} acre-ft. "
-                f"Your own delivery is reduced only if Lake Mead cannot physically "
-                f"supply all Lower Basin withdrawals this year."
-            )
+            #
+            # WP1c review round 2 (MEDIUM 2): "non-agricultural Lower Basin
+            # deliveries (Arizona and Nevada)" is no longer accurate for the
+            # OPENING sentence either -- part of V now falls on junior farm
+            # water (below), so the true statement is that the DECLARED
+            # VOLUME, split between the non-agricultural bucket and any
+            # junior farms, totals V; naming "Arizona and Nevada" without
+            # "non-agricultural" covers both.
+            #
+            # WP1c (item 22): for the six agents who hold some Arizona
+            # 4th/5th/6th-priority ("junior") water, "your own delivery is
+            # reduced only if Lake Mead cannot physically supply ..." is no
+            # longer true in a year the tier actually cuts their junior
+            # water (lb_junior_request_af > 0 this decision) -- their
+            # junior part is cut by the tier directly, before any physical
+            # shortage. Everyone else's text (the other 16, and these same
+            # six in a year their request has not exceeded their senior
+            # entitlement) is BYTE-IDENTICAL to before item 22.
+            #
+            # WP1c review round 2 (LOW 6): direct index, not
+            # ``.get(key) or 0.0`` -- a Lower Basin context with a declared
+            # tier and no lb_junior_request_af / lb_junior_tier_cut_fraction
+            # is a real wiring defect (get_agent_context always sets both
+            # for a Lower Basin agent), not a legitimate "no junior water"
+            # case to silently paper over with a fabricated 0.
+            if "lb_junior_request_af" not in env_context or "lb_junior_tier_cut_fraction" not in env_context:
+                raise ValueError(
+                    f"build_water_situation_text: shortage_tier={shortage_tier} is "
+                    "declared for a Lower Basin agent but 'lb_junior_request_af' or "
+                    "'lb_junior_tier_cut_fraction' is missing from env_context; "
+                    "refusing to silently treat a real value as 0."
+                )
+            junior_request_af = env_context["lb_junior_request_af"] or 0.0
+            junior_cut_fraction = env_context["lb_junior_tier_cut_fraction"] or 0.0
+            if junior_request_af > 1e-6 and junior_cut_fraction > 0:
+                # WP1c review round 2 (MEDIUM 2): the three 100%-junior
+                # agents (senior entitlement 0 -- Cibola Valley IDD, Hopi
+                # Tribe, North Baja LLC) hold no senior water at all, so
+                # "Part of your water right" is false for them; the other
+                # three (Mohave Valley, Gila Monster Farms, Cocopah) hold
+                # some senior water alongside their junior share.
+                senior_ent = env_context.get("lb_senior_entitlement_af")
+                if senior_ent is None:
+                    raise ValueError(
+                        "build_water_situation_text: this decision has a positive "
+                        "lb_junior_request_af but 'lb_senior_entitlement_af' is "
+                        "missing from env_context; refusing to silently guess "
+                        "whether this agent holds any senior water at all."
+                    )
+                share_word = "All" if senior_ent <= 1e-6 else "Part"
+                lines.append(
+                    f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
+                    f"shortage: this cuts Arizona and Nevada deliveries by "
+                    f"{shortage_volume_maf * 1e6:,.0f} acre-ft in total. "
+                    f"{share_word} of your water right is junior-priority, and this tier cuts "
+                    f"your junior-priority water by about {junior_cut_fraction:.0%}. The rest of "
+                    f"your delivery is reduced only if Lake Mead cannot physically supply "
+                    f"all Lower Basin withdrawals this year."
+                )
+            else:
+                lines.append(
+                    f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
+                    f"shortage: this cuts Arizona and Nevada deliveries by "
+                    f"{shortage_volume_maf * 1e6:,.0f} acre-ft in total. "
+                    f"Your own delivery is reduced only if Lake Mead cannot physically "
+                    f"supply all Lower Basin withdrawals this year."
+                )
         else:
             lines.append("No Lower Basin shortage has been declared for this year.")
 
@@ -1080,6 +1170,16 @@ def build_simulation_log_row(
         "ub_subbasin_available_af": ub_subbasin_rec["available_af"] if ub_subbasin_rec else None,
         "ub_subbasin_request_af": ub_subbasin_rec["request_af"] if ub_subbasin_rec else None,
         "ub_subbasin_ratio": ub_subbasin_rec["ratio"] if ub_subbasin_rec else None,
+        # WP1c (item 22): this decision's Lower Basin senior/junior split
+        # (AF, before and after the tier cut respectively) and the declared
+        # tier's junior-cut fraction f_g. None for an Upper Basin agent
+        # (agent_state never carries these keys there); 0 for a Lower Basin
+        # agent with no junior entitlement or an untouched request, exactly
+        # like curtailment_ratio's own 0-for-unaffected convention above.
+        "lb_senior_af": agent_state.get("lb_senior_af"),
+        "lb_junior_af": agent_state.get("lb_junior_af"),
+        "lb_junior_cut_af": agent_state.get("lb_junior_cut_af"),
+        "lb_junior_tier_cut_fraction": agent_state.get("lb_junior_tier_cut_fraction"),
     }
 
 

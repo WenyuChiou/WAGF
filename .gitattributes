@@ -17,3 +17,6 @@ examples/irrigation_abm/data/ub_subbasin_supply_v3_rho02.csv text eol=lf
 examples/irrigation_abm/data/ub_subbasin_supply_v3_lees_ferry_all.csv text eol=lf
 examples/irrigation_abm/data/ub_subbasin_supply_v3_tributary.csv text eol=lf
 examples/irrigation_abm/data/ub_subbasin_variant_means_v3.csv text eol=lf
+# WP1c (irrigation_v3_spec_2026-09-28.md item 22): Lower Basin priority
+# split, same checksum-at-load / LF-forcing rationale as above.
+examples/irrigation_abm/data/lb_priority_split_v3.csv text eol=lf
