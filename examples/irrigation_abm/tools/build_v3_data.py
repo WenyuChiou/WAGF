@@ -44,9 +44,48 @@ Regenerates two committed, checksum-pinned CSVs under
    check the existing file in place), without touching the hydrology
    table.
 
+3. ``ub_subbasin_supply_v3.csv`` / ``ub_subbasin_envelope_v3.csv`` (WP1b,
+   item 20) -- Upper Basin supply per sub-basin, replacing the single
+   Lees Ferry pool. Formula and gauge table:
+   ``.research/design_specs/irrigation_v3_ub_subbasin_supply_2026-09-29.md``
+   sections 5-6. ``ub_subbasin_supply_v3.csv`` has 42 rows (sim_year
+   2019-2060), ``q_{s}_af`` (USBR calendar-year total natural flow, sheet
+   ``AnnualCYTotalNaturalFlow``, summed over the sub-basin's gauges) and
+   ``a_{s}_af`` (= ``c_s x q_{s}_af``) for each of the nine sub-basins
+   (WY, UT1, UT2, UT3, NM, CO1, CO2, CO3, AZ). ``ub_subbasin_envelope_v3.csv``
+   has 9 rows: each sub-basin's gauges, ``c_s`` = max over 1971-2018 of
+   recorded depletion / natural flow (H&Y, 2021, p.8-9; source:
+   ``CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv``, sha256
+   097fc2cbf48529b8f691f0cc76002e84b7ca9140cdf202ef797326d5d1910542,
+   passed with ``--crss-db``), its binding and runner-up year, and the
+   1971-2018 mean flow (the denominator of the agent-facing sub-basin
+   flow-share sentence). Re-run with ``--target ub_supply --source-xlsx
+   <path> --crss-db <path to a checkout of the CRSS_DB data release>``.
+
+4. ``ub_subbasin_supply_v3_{rho02,lees_ferry_all,tributary}.csv`` (WP1b
+   re-review, MEDIUM 4, spec 1b.6) -- the three CPU-sensitivity variants
+   named in the sub-basin memo sections 8 and 11: the recommended
+   envelope's own c_s scaled by 1.2 (H&Y's own rho = 0.2 margin), the
+   Lees Ferry gauge standing in for every sub-basin's own flow, and a
+   per-sub-basin upstream/headwater gauge in place of the recommended
+   downstream/confluence set (the memo's own named gauges, MAP_TRIB in
+   the session scratchpad's ``ub_subbasin/s3_options.py``, adopted
+   exactly as ``UB_SUBBASIN_GAUGES_TRIBUTARY``). Same 42-row shape as
+   ``ub_subbasin_supply_v3.csv``, no separate envelope files. Re-run with
+   ``--target ub_supply_variants --source-xlsx <path> --crss-db <path>``.
+   Selected via ``WaterSystemConfig.ub_subbasin_supply_variant`` at
+   runtime ("recommended" default, or "rho_0_2" / "lees_ferry_all" /
+   "tributary_gauges"). ``ub_subbasin_variant_means_v3.csv`` (WP1b
+   re-review, LOW 1) is generated alongside them: each variant's own
+   1971-2018 mean flow, since a variant with a different gauge map needs
+   its own mean for the agent-facing sub-basin flow-share sentence, not
+   the recommended envelope's.
+
 Usage::
 
     python examples/irrigation_abm/tools/build_v3_data.py --source-xlsx <path> [--target all|hydrology|mead]
+    python examples/irrigation_abm/tools/build_v3_data.py --target ub_supply --source-xlsx <path> --crss-db <path>
+    python examples/irrigation_abm/tools/build_v3_data.py --target ub_supply_variants --source-xlsx <path> --crss-db <path>
 
 Never imported by ``irrigation_env.py`` at runtime -- it is a one-off data
 generator; the environment loads the checked-in CSVs directly (see
@@ -60,11 +99,22 @@ import argparse
 import hashlib
 import io
 import sys
+from collections import OrderedDict
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 HYDROLOGY_CSV = DATA_DIR / "hydrology_v3.csv"
 MEAD_CSV = DATA_DIR / "mead_capacity_usbr2009_1ft.csv"
+UB_SUBBASIN_SUPPLY_CSV = DATA_DIR / "ub_subbasin_supply_v3.csv"
+UB_SUBBASIN_ENVELOPE_CSV = DATA_DIR / "ub_subbasin_envelope_v3.csv"
+# WP1b re-review (MEDIUM 4, spec 1b.6): the three CPU-sensitivity variant
+# supply tables (memo sections 8, 11) -- no separate envelope files.
+UB_SUBBASIN_SUPPLY_RHO02_CSV = DATA_DIR / "ub_subbasin_supply_v3_rho02.csv"
+UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_CSV = DATA_DIR / "ub_subbasin_supply_v3_lees_ferry_all.csv"
+UB_SUBBASIN_SUPPLY_TRIBUTARY_CSV = DATA_DIR / "ub_subbasin_supply_v3_tributary.csv"
+# WP1b re-review (LOW 1): each variant's own 1971-2018 mean flow.
+UB_SUBBASIN_VARIANT_MEANS_CSV = DATA_DIR / "ub_subbasin_variant_means_v3.csv"
 
 # sha256 of NaturalFlows1906-2020_20221215.xlsx as retrieved 2026-09-28
 # (spec irrigation_v3_spec_2026-09-28.md, WP1 item 1.1).
@@ -74,10 +124,111 @@ SOURCE_XLSX_SHA256 = "b586fa1aa4e6e82c7ba0a0dc0184f1b3ac5cfb53c30ef14b248127c12d
 HYDROLOGY_V3_SHA256 = "9951f2224334a859a7adbc9d55914e6505bbce38ea0424f26f10f7c8d51a04b5"
 # sha256 of the 335-row Mead capacity CSV this script writes.
 MEAD_CAPACITY_SHA256 = "7f233bd8149cc9416612991c27ed130c22842e93bbbbdd121d7716d5f8d9c8d6"
+# sha256 of the 42-row ub_subbasin_supply_v3.csv / 9-row
+# ub_subbasin_envelope_v3.csv this script writes (WP1b, item 20).
+UB_SUBBASIN_SUPPLY_SHA256 = "ac0a17639488e4d4e7e4cba6ae876ff4a7930a8e9012b5487e2a920189662d48"
+UB_SUBBASIN_ENVELOPE_SHA256 = "7f38c4dbfe5a57dc897ef9c2b7983c504fa71dd7ad86b82799a448848e618ca2"
+# WP1b re-review (MEDIUM 4): filled in after the first --target
+# ub_supply_variants run below verifies the freshly built bytes (same
+# bootstrap procedure as the two sha256 values above).
+UB_SUBBASIN_SUPPLY_RHO02_SHA256 = "0e65b6fa6d23e209b5c0c1425f73a2f51218fb2a59d6e7a803a7ee5d37a33048"
+UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_SHA256 = "228099d21019e458241ea1ea216e3f46d33f6563c5a8e644960711db25029589"
+UB_SUBBASIN_SUPPLY_TRIBUTARY_SHA256 = "f1b4b2379ba6091ac1667f734ab008d38fd4019320f0c1fdf203d127f954b394"
+UB_SUBBASIN_VARIANT_MEANS_SHA256 = "c79ac70bad3db3f9fc22dec572740e0e29d74d67c3c7ac573ffbba86d693f288"
+# sha256 of CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv (H&Y's
+# own historical Upper Basin depletion series, 1971-2018, kaf, one column
+# per sub-basin), as pinned by irrigation_v3_spec_2026-09-28.md item 1b.1
+# and the sub-basin memo section 10.
+UB_HISTORICAL_DEPLETION_SHA256 = "097fc2cbf48529b8f691f0cc76002e84b7ca9140cdf202ef797326d5d1910542"
 
 LEES_FERRY_COL = "Colorado R At Lees Ferry, AZ"
 BELOW_HOOVER_COL = "Colorado River Below Hoover Dam, AZ-NV"
 SHEET_NAME = "AnnualCYTotalNaturalFlow"
+
+# irrigation_v3_ub_subbasin_supply_2026-09-29.md section 5: each of Hung
+# and Yang's (2021) nine Upper Basin sub-basins and the USGS gauge(s)
+# below which every one of its CRSS water-user groups diverts, matched
+# against irrigation_personas.py (_UB_STATE_GROUPS, _UB_GROUP_AGENT_COUNTS)
+# and H&Y Fig. 2. Order matches _UB_STATE_GROUPS (AZ_UB there == AZ here,
+# the same PrismWinterPrecip_ST_NOAA_Future.csv / UB_historical_annual_
+# depletion.csv column both already use, via _UB_HIST_COLUMN_BY_GROUP).
+UB_SUBBASIN_GAUGES: "OrderedDict[str, List[str]]" = OrderedDict([
+    ("WY", ["09234500", "09260000"]),
+    ("UT1", ["09315000", "09328500"]),
+    ("UT2", ["09315000"]),
+    ("UT3", ["09180500", "09379500"]),
+    ("NM", ["09379500"]),
+    ("CO1", ["09251000", "09260000", "09306500"]),
+    ("CO2", ["09180500"]),
+    ("CO3", ["09379500", "09180000"]),
+    ("AZ", ["09380000"]),
+])
+UB_SUBBASINS: Tuple[str, ...] = tuple(UB_SUBBASIN_GAUGES)
+
+# c_s fit period: H&Y's own Upper Basin training-data period (p. 9).
+UB_SUBBASIN_FIT_START_YEAR = 1971
+UB_SUBBASIN_FIT_END_YEAR = 2018
+
+# WP1b re-review (MEDIUM 4, spec 1b.6; gauge map corrected in the third
+# re-review round, 2026-09-29): the two gauge-map CPU sensitivities (memo
+# sections 8, 11; the third sensitivity, rho = 0.2, reuses
+# UB_SUBBASIN_GAUGES with compute_ub_subbasin_envelope's rho parameter, no
+# separate gauge map). "lees_ferry_all" is the basin-wide gauge standing
+# in for every sub-basin's own flow, named directly in the memo;
+# "tributary_gauges" is the memo's OWN named gauge set, MAP_TRIB in the
+# session scratchpad's analysis script (``ub_subbasin/s3_options.py``,
+# read-only cross-check, never imported) -- not this repo's own choice
+# (the memo text says only "the WP1b author lists them", which an earlier
+# round of this file read as an open choice; MAP_TRIB was already the
+# memo's own answer).
+UB_SUBBASIN_GAUGES_LEES_FERRY_ALL: "OrderedDict[str, List[str]]" = OrderedDict(
+    (s, ["09380000"]) for s in UB_SUBBASINS
+)
+
+# WP1b re-review (2026-09-29, third round): this IS the sub-basin memo's
+# own tributary-gauge variant, ``MAP_TRIB`` in the session scratchpad's
+# ``ub_subbasin/s3_options.py`` (the memo's own analysis script, read-only
+# cross-check, never imported) -- adopted exactly, not this repo's own
+# choice. An earlier version of this constant picked a different,
+# self-reasoned upstream gauge per sub-basin; recomputed, MAP_TRIB gives
+# the memo's own recorded short-sub-basin-year count at 2018 use, 12
+# (``s3_results.json``, key ``bTRIB``); the earlier self-reasoned version
+# gave 23 and, on inspection, gauged UT3 on the Colorado (it is a San Juan
+# and Colorado sub-basin, but its own CRSS groups are on the San Juan) and
+# left the Gunnison out of CO2 (whose groups include Grand Junction and
+# Cameo, both below the Gunnison confluence).
+UB_SUBBASIN_GAUGES_TRIBUTARY: "OrderedDict[str, List[str]]" = OrderedDict([
+    # Green R nr Greendale + Little Snake R nr Lily: same as recommended.
+    ("WY", ["09234500", "09260000"]),
+    # Duchesne R nr Randlett + White R nr Watson + San Rafael R nr Green
+    # River: the three named tributaries, not the Green mainstem +
+    # San Rafael the recommended gauges sum together.
+    ("UT1", ["09302000", "09306500", "09328500"]),
+    # Green R at Green River UT: same as recommended (UT2's only gauge).
+    ("UT2", ["09315000"]),
+    # San Juan R nr Bluff: UT3's own CRSS groups (the Utah anticipated-
+    # depletion group and San Juan Utah uses) are on the San Juan, not the
+    # Colorado; drops the recommended Colorado R nr Cisco gauge.
+    ("UT3", ["09379500"]),
+    # San Juan R nr Archuleta: upstream of Bluff, at NM's own group names
+    # (Archuleta-to-Farmington etc).
+    ("NM", ["09355500"]),
+    # Yampa R nr Maybell + Little Snake R nr Lily + White R nr Watson:
+    # same as recommended (already headwater gauges).
+    ("CO1", ["09251000", "09260000", "09306500"]),
+    # Colorado R nr Cameo + Gunnison R nr Grand Junction + Dolores R nr
+    # Cisco: CO2's groups (Glenwood Springs, Cameo, Blue Mesa, Crystal,
+    # Grand Junction, Dallas Creek, below Cameo, Dolores, San Miguel)
+    # include the Gunnison and Dolores tributaries the recommended
+    # single Colorado R nr Cisco gauge (below both confluences) omits.
+    ("CO2", ["09095500", "09152500", "09180000"]),
+    # San Juan R nr Archuleta (upstream of Bluff) + Dolores R nr Cisco:
+    # same as recommended.
+    ("CO3", ["09355500", "09180000"]),
+    # Colorado R at Lees Ferry: same as recommended (AZ Misc Uses sit at
+    # Lees Ferry itself).
+    ("AZ", ["09380000"]),
+])
 
 # sim_year -> source calendar year (H&Y 2021 p. 15 of 21: 2019-2046 repeats
 # 1988-2015, 2047-2060 repeats 1934-1947 -- CRSS's own default resample).
@@ -198,6 +349,250 @@ def build_hydrology_csv(source_xlsx: Path) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
+def _norm_gauge(value: Any) -> str:
+    """A USGS gauge number as an 8-digit, zero-padded string, whether the
+    workbook's gauge-number row (spec 1b.2) came through openpyxl/pandas as
+    text (``"09234500"``) or a number (``9234500.0``)."""
+    if isinstance(value, str):
+        s = value.strip()
+    else:
+        s = str(int(value))
+    return s.zfill(8)
+
+
+def _read_natural_flow_by_gauge(source_xlsx: Path):
+    """``AnnualCYTotalNaturalFlow`` sheet (spec 1b.2), indexed by calendar
+    year, one column per USGS gauge number. Same sha256-checked workbook
+    and row/column layout as :func:`build_hydrology_csv` (name row 4, data
+    from row 7, year in column 3) but keyed by the GAUGE NUMBER row (row 3)
+    instead of the site-name row: the sub-basin memo's gauge table
+    (section 5) is written in gauge numbers, the stable, unique key -- two
+    site names in the workbook are not guaranteed unique or stable."""
+    import pandas as pd  # local import: this tool is not on the runtime path
+
+    xlsx_bytes = source_xlsx.read_bytes()
+    actual = _sha256_bytes(xlsx_bytes)
+    if actual != SOURCE_XLSX_SHA256:
+        raise ValueError(
+            f"{source_xlsx} sha256 {actual} does not match the expected "
+            f"{SOURCE_XLSX_SHA256} (NaturalFlows1906-2020_20221215.xlsx); "
+            "refusing to build the sub-basin supply table from an "
+            "unverified or different source file."
+        )
+
+    xl = pd.ExcelFile(source_xlsx)
+    raw = xl.parse(SHEET_NAME, header=None)
+    # The sheet has one blank spacer column with no gauge number (between
+    # the Lees Ferry and Paria columns -- the Upper/Lower Basin reach
+    # boundary); skip it rather than fail normalising a NaN gauge id.
+    raw_gauges = raw.iloc[2, 3:].tolist()
+    keep_cols = [i for i, g in enumerate(raw_gauges) if pd.notna(g)]
+    gauges = [_norm_gauge(raw_gauges[i]) for i in keep_cols]
+    body = raw.iloc[6:, [2] + [3 + i for i in keep_cols]].copy()
+    body.columns = ["year"] + gauges
+    body = body[pd.to_numeric(body["year"], errors="coerce").notna()]
+    body["year"] = body["year"].astype(int)
+    body = body.set_index("year").apply(pd.to_numeric, errors="coerce")
+    return body
+
+
+def _read_ub_historical_depletion(crss_db_dir: Path):
+    """``HistoricalData/UB_historical_annual_depletion.csv`` (kaf,
+    1971-2018, one column per sub-basin: WY, UT1, UT2, UT3, NM, CO1, CO2,
+    CO3, AZ -- the same nine labels as ``UB_SUBBASINS``), sha256-checked
+    (spec 1b.1)."""
+    import pandas as pd
+
+    path = crss_db_dir / "HistoricalData" / "UB_historical_annual_depletion.csv"
+    if not path.is_file():
+        raise ValueError(
+            f"{path} not found; --crss-db must point at a directory "
+            "containing HistoricalData/UB_historical_annual_depletion.csv "
+            "(H&Y's CRSS_DB data release)."
+        )
+    raw_bytes = path.read_bytes()
+    actual = _sha256_bytes(raw_bytes)
+    if actual != UB_HISTORICAL_DEPLETION_SHA256:
+        raise ValueError(
+            f"{path} sha256 {actual} does not match the expected "
+            f"{UB_HISTORICAL_DEPLETION_SHA256} (UB_historical_annual_depletion.csv); "
+            "refusing to compute sub-basin envelope constants from an "
+            "unverified or different depletion file."
+        )
+    df = pd.read_csv(path, index_col=0)
+    missing = [s for s in UB_SUBBASINS if s not in df.columns]
+    if missing:
+        raise ValueError(f"{path} has no column(s) {missing} (expected {UB_SUBBASINS}).")
+    return df
+
+
+def _subbasin_flow_af(
+    flow_by_gauge, subbasin: str, year: int,
+    gauge_map: Optional[Dict[str, List[str]]] = None,
+) -> float:
+    """Q_s(year) = sum over the sub-basin's gauges of USBR calendar-year
+    total natural flow (memo section 6, step 1), AF.
+
+    ``gauge_map`` (WP1b re-review, MEDIUM 4, spec 1b.6) overrides
+    ``UB_SUBBASIN_GAUGES`` -- the CPU-sensitivity variants (rho aside) swap
+    in a different gauge assignment, never a different formula."""
+    gauges = (gauge_map or UB_SUBBASIN_GAUGES)[subbasin]
+    missing = [g for g in gauges if g not in flow_by_gauge.columns]
+    if missing:
+        raise ValueError(
+            f"AnnualCYTotalNaturalFlow has no column for gauge(s) {missing} "
+            f"(sub-basin {subbasin!r}); update the gauge map or check "
+            "the workbook's gauge-number row."
+        )
+    if year not in flow_by_gauge.index:
+        raise ValueError(f"AnnualCYTotalNaturalFlow has no row for calendar year {year}.")
+    return float(flow_by_gauge.loc[year, gauges].sum())
+
+
+def compute_ub_subbasin_envelope(
+    source_xlsx: Path, crss_db_dir: Path, *,
+    gauge_map: Optional[Dict[str, List[str]]] = None,
+    rho: float = 0.0,
+) -> Tuple[Dict[str, Dict[str, Any]], Any]:
+    """Sub-basin memo sections 5-6: c_s (and its binding/runner-up year)
+    and the 1971-2018 mean flow, for each of the nine sub-basins.
+
+    c_s = max over 1971-2018 of recorded depletion D_s(y) / natural flow
+    Q_s(y) -- derived, not tuned (memo section 6 step 3), THEN scaled by
+    ``1 + rho`` (default rho = 0, no margin; WP1b re-review, MEDIUM 4, spec
+    1b.6: rho = 0.2 is H&Y's own envelope margin, memo sections 8 and 11).
+    ``gauge_map`` overrides which gauges each sub-basin's Q_s sums over
+    (default: the recommended ``UB_SUBBASIN_GAUGES``) -- the
+    "lees_ferry_all" and "tributary_gauges" CPU sensitivities. Returns
+    ``({subbasin: {"c_s", "binding_year", "runner_up_year",
+    "runner_up_c_s", "q_mean_1971_2018_af"}}, flow_by_gauge)``; the second
+    element is returned too so :func:`build_ub_subbasin_supply_csv` does
+    not re-read and re-verify the workbook a second time.
+    """
+    gauge_map = gauge_map or UB_SUBBASIN_GAUGES
+    flow_by_gauge = _read_natural_flow_by_gauge(source_xlsx)
+    depletion = _read_ub_historical_depletion(crss_db_dir)
+
+    years = range(UB_SUBBASIN_FIT_START_YEAR, UB_SUBBASIN_FIT_END_YEAR + 1)
+    envelope: Dict[str, Dict[str, Any]] = {}
+    for s in UB_SUBBASINS:
+        ratios: Dict[int, float] = {}
+        flows: Dict[int, float] = {}
+        for y in years:
+            q_y = _subbasin_flow_af(flow_by_gauge, s, y, gauge_map=gauge_map)
+            flows[y] = q_y
+            if y not in depletion.index:
+                raise ValueError(f"UB_historical_annual_depletion.csv has no row for {y}.")
+            d_y = 1000.0 * float(depletion.loc[y, s])
+            if q_y <= 0:
+                raise ValueError(f"Sub-basin {s} has non-positive flow {q_y} AF in {y}.")
+            ratios[y] = d_y / q_y
+        ranked = sorted(ratios.items(), key=lambda kv: kv[1], reverse=True)
+        binding_year, c_s_base = ranked[0]
+        runner_up_year, runner_up_c_s = ranked[1]
+        envelope[s] = {
+            "c_s": c_s_base * (1.0 + rho),
+            "binding_year": binding_year,
+            "runner_up_year": runner_up_year,
+            "runner_up_c_s": runner_up_c_s,
+            "q_mean_1971_2018_af": sum(flows.values()) / len(flows),
+        }
+    return envelope, flow_by_gauge
+
+
+def build_ub_subbasin_supply_csv(
+    source_xlsx: Path, crss_db_dir: Path, *,
+    gauge_map: Optional[Dict[str, List[str]]] = None,
+    rho: float = 0.0,
+) -> bytes:
+    """``ub_subbasin_supply_v3.csv`` (spec 1b.1/1b.2): 42 rows, sim_year
+    2019-2060, Q_s(m(t)) and A_s(t) = c_s x Q_s(m(t)) for each of the nine
+    sub-basins, whole AF, LF endings. ``gauge_map`` / ``rho`` (MEDIUM 4)
+    select a CPU-sensitivity variant; the recommended table is the
+    ``gauge_map=None, rho=0.0`` default."""
+    envelope, flow_by_gauge = compute_ub_subbasin_envelope(
+        source_xlsx, crss_db_dir, gauge_map=gauge_map, rho=rho
+    )
+
+    header = ["sim_year", "source_calendar_year"]
+    for s in UB_SUBBASINS:
+        header += [f"q_{s}_af", f"a_{s}_af"]
+    buf = io.StringIO()
+    buf.write(",".join(header) + "\n")
+    for sim_year in range(2019, 2061):
+        cal_year = YEAR_MAP[sim_year]
+        row = [str(sim_year), str(cal_year)]
+        for s in UB_SUBBASINS:
+            q_af = _subbasin_flow_af(flow_by_gauge, s, cal_year, gauge_map=gauge_map)
+            a_af = envelope[s]["c_s"] * q_af
+            row += [str(int(round(q_af))), str(int(round(a_af)))]
+        buf.write(",".join(row) + "\n")
+    return buf.getvalue().encode("utf-8")
+
+
+def build_ub_subbasin_envelope_csv(source_xlsx: Path, crss_db_dir: Path) -> bytes:
+    """``ub_subbasin_envelope_v3.csv`` (spec 1b.1): 9 rows, one per
+    sub-basin -- its gauges, c_s and the year it binds in (plus the
+    runner-up year and c_s, memo section 11's reproducibility note), and
+    the 1971-2018 mean flow (the denominator of the agent-facing sub-basin
+    flow-share sentence, memo section 9)."""
+    envelope, _ = compute_ub_subbasin_envelope(source_xlsx, crss_db_dir)
+    buf = io.StringIO()
+    buf.write(
+        "subbasin,gauges,c_s,binding_year,runner_up_year,runner_up_c_s,"
+        "q_s_mean_1971_2018_af\n"
+    )
+    for s in UB_SUBBASINS:
+        gauges = "+".join(UB_SUBBASIN_GAUGES[s])
+        e = envelope[s]
+        buf.write(
+            f"{s},{gauges},{e['c_s']:.5f},{e['binding_year']},"
+            f"{e['runner_up_year']},{e['runner_up_c_s']:.5f},"
+            f"{e['q_mean_1971_2018_af']:.2f}\n"
+        )
+    return buf.getvalue().encode("utf-8")
+
+
+# WP1b re-review (LOW 1, 2026-09-29, third round): the variant name ->
+# gauge map (None = the recommended UB_SUBBASIN_GAUGES) every non-rho
+# variant needs its OWN 1971-2018 mean flow for -- "rho_0_2" reuses the
+# recommended gauges (only c_s is scaled), so its mean is identical to
+# "recommended"'s and is included only so the loader needs no special
+# case, not because the two could differ.
+UB_SUBBASIN_SUPPLY_VARIANT_GAUGE_MAPS: Dict[str, Optional[Dict[str, List[str]]]] = {
+    "recommended": None,
+    "rho_0_2": None,
+    "lees_ferry_all": UB_SUBBASIN_GAUGES_LEES_FERRY_ALL,
+    "tributary_gauges": UB_SUBBASIN_GAUGES_TRIBUTARY,
+}
+
+
+def build_ub_subbasin_variant_means_csv(source_xlsx: Path, crss_db_dir: Path) -> bytes:
+    """``ub_subbasin_variant_means_v3.csv`` (WP1b re-review, LOW 1): one
+    row per ``ub_subbasin_supply_variant`` value, the SAME 1971-2018 mean
+    flow ``compute_ub_subbasin_envelope`` already computes per sub-basin,
+    for that variant's own gauge map.
+
+    Without this, ``IrrigationEnvironment.get_agent_context`` divided a
+    variant table's flow (say, "lees_ferry_all"'s Lees Ferry gauge) by the
+    RECOMMENDED envelope's mean (each sub-basin's own downstream gauge) --
+    two different physical quantities -- so the agent-facing sub-basin
+    flow-share sentence was comparing apples to oranges for any variant
+    whose gauge map differs from the recommended one. "recommended" and
+    "rho_0_2" share the recommended gauges (rho only scales c_s), so their
+    rows are identical; "lees_ferry_all" and "tributary_gauges" genuinely
+    differ.
+    """
+    buf = io.StringIO()
+    header = ["variant"] + [f"q_{s}_mean_af" for s in UB_SUBBASINS]
+    buf.write(",".join(header) + "\n")
+    for variant, gauge_map in UB_SUBBASIN_SUPPLY_VARIANT_GAUGE_MAPS.items():
+        envelope, _ = compute_ub_subbasin_envelope(source_xlsx, crss_db_dir, gauge_map=gauge_map)
+        row = [variant] + [f"{envelope[s]['q_mean_1971_2018_af']:.2f}" for s in UB_SUBBASINS]
+        buf.write(",".join(row) + "\n")
+    return buf.getvalue().encode("utf-8")
+
+
 def build_mead_capacity_csv() -> bytes:
     """Return the 336-line (header + 335 rows) mead_capacity_usbr2009_1ft.csv
     content as bytes (LF endings), converting the literal kaf table above
@@ -230,7 +625,16 @@ def main(argv=None) -> int:
              "--target hydrology/all)",
     )
     parser.add_argument(
-        "--target", choices=("all", "hydrology", "mead"), default="all",
+        "--crss-db", type=Path, default=None,
+        help="Path to a checkout of the CRSS_DB data release (H&Y 2021), "
+             "i.e. the directory containing HistoricalData/"
+             "UB_historical_annual_depletion.csv (required for --target "
+             "ub_supply).",
+    )
+    parser.add_argument(
+        "--target",
+        choices=("all", "hydrology", "mead", "ub_supply", "ub_supply_variants"),
+        default="all",
     )
     args = parser.parse_args(argv)
 
@@ -252,6 +656,68 @@ def main(argv=None) -> int:
         else:
             _write_checked(HYDROLOGY_CSV, build_hydrology_csv(args.source_xlsx),
                             HYDROLOGY_V3_SHA256, "hydrology_v3.csv")
+
+    # WP1b (item 20): not part of "all" -- it needs a SECOND external input
+    # (--crss-db, H&Y's CRSS_DB data release) not committed to this repo,
+    # on top of the USBR workbook every other target already needs.
+    if args.target == "ub_supply":
+        if args.source_xlsx is None or args.crss_db is None:
+            print(
+                "--source-xlsx and --crss-db are both required to (re)build "
+                "ub_subbasin_supply_v3.csv / ub_subbasin_envelope_v3.csv "
+                "(neither the USBR workbook nor the CRSS_DB data release is "
+                "committed to this repo).",
+                file=sys.stderr,
+            )
+            return 2
+        _write_checked(
+            UB_SUBBASIN_SUPPLY_CSV,
+            build_ub_subbasin_supply_csv(args.source_xlsx, args.crss_db),
+            UB_SUBBASIN_SUPPLY_SHA256, "ub_subbasin_supply_v3.csv",
+        )
+        _write_checked(
+            UB_SUBBASIN_ENVELOPE_CSV,
+            build_ub_subbasin_envelope_csv(args.source_xlsx, args.crss_db),
+            UB_SUBBASIN_ENVELOPE_SHA256, "ub_subbasin_envelope_v3.csv",
+        )
+
+    # WP1b re-review (MEDIUM 4, spec 1b.6): the three CPU-sensitivity
+    # variant supply tables (memo sections 8, 11). Also not part of "all"
+    # (same two external inputs as --target ub_supply).
+    if args.target == "ub_supply_variants":
+        if args.source_xlsx is None or args.crss_db is None:
+            print(
+                "--source-xlsx and --crss-db are both required to (re)build "
+                "the CPU-sensitivity variant supply tables.",
+                file=sys.stderr,
+            )
+            return 2
+        _write_checked(
+            UB_SUBBASIN_SUPPLY_RHO02_CSV,
+            build_ub_subbasin_supply_csv(args.source_xlsx, args.crss_db, rho=0.2),
+            UB_SUBBASIN_SUPPLY_RHO02_SHA256, "ub_subbasin_supply_v3_rho02.csv",
+        )
+        _write_checked(
+            UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_CSV,
+            build_ub_subbasin_supply_csv(
+                args.source_xlsx, args.crss_db, gauge_map=UB_SUBBASIN_GAUGES_LEES_FERRY_ALL
+            ),
+            UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_SHA256, "ub_subbasin_supply_v3_lees_ferry_all.csv",
+        )
+        _write_checked(
+            UB_SUBBASIN_SUPPLY_TRIBUTARY_CSV,
+            build_ub_subbasin_supply_csv(
+                args.source_xlsx, args.crss_db, gauge_map=UB_SUBBASIN_GAUGES_TRIBUTARY
+            ),
+            UB_SUBBASIN_SUPPLY_TRIBUTARY_SHA256, "ub_subbasin_supply_v3_tributary.csv",
+        )
+        # WP1b re-review (LOW 1): each variant's own 1971-2018 mean flow,
+        # generated alongside the tables above from the same two inputs.
+        _write_checked(
+            UB_SUBBASIN_VARIANT_MEANS_CSV,
+            build_ub_subbasin_variant_means_csv(args.source_xlsx, args.crss_db),
+            UB_SUBBASIN_VARIANT_MEANS_SHA256, "ub_subbasin_variant_means_v3.csv",
+        )
 
     return 0
 

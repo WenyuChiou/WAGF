@@ -531,6 +531,10 @@ class TestFQLClipParity:
             water_right=water_right,
             grid_top_af=grid_top_af,
             bin_size_af=1_000_000.0,  # so the increase clip is guaranteed
+            # WP1b (item 20): initialize_from_profiles now requires every
+            # Upper Basin profile to carry a sub-basin -- this test is
+            # about the Q-grid/water-right clip, unrelated to which one.
+            precip_group="WY",
         )                             # to engage regardless of the RNG draw.
 
     def test_q_grid_stays_on_grid_top_not_capped_water_right(self):

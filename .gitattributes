@@ -7,3 +7,13 @@
 # regardless of platform or local git config.
 examples/irrigation_abm/data/hydrology_v3.csv text eol=lf
 examples/irrigation_abm/data/mead_capacity_usbr2009_1ft.csv text eol=lf
+# WP1b (irrigation_v3_spec_2026-09-28.md, item 20): Upper Basin supply per
+# sub-basin, same checksum-at-load / LF-forcing rationale as above.
+examples/irrigation_abm/data/ub_subbasin_supply_v3.csv text eol=lf
+examples/irrigation_abm/data/ub_subbasin_envelope_v3.csv text eol=lf
+# WP1b re-review (MEDIUM 4, spec 1b.6): the three CPU-sensitivity variant
+# supply tables, same rationale.
+examples/irrigation_abm/data/ub_subbasin_supply_v3_rho02.csv text eol=lf
+examples/irrigation_abm/data/ub_subbasin_supply_v3_lees_ferry_all.csv text eol=lf
+examples/irrigation_abm/data/ub_subbasin_supply_v3_tributary.csv text eol=lf
+examples/irrigation_abm/data/ub_subbasin_variant_means_v3.csv text eol=lf

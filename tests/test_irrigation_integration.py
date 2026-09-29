@@ -19,6 +19,11 @@ def _make_env_with_agent(agent_id="TestAgent", water_right=100_000.0):
         water_right=water_right,
         has_efficient_system=False,
         cluster="aggressive",
+        # WP1b (item 20): initialize_from_profiles now requires every
+        # Upper Basin profile to carry a sub-basin (supply_group, from
+        # precip_group) -- this test is about execute_skill's action-model
+        # step math, unrelated to which sub-basin, so any valid one works.
+        precip_group="WY",
     )
     env.initialize_from_profiles([profile])
     return env
