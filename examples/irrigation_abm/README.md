@@ -292,17 +292,17 @@ Since 2026-09-26 the cluster is a persona label only; it no longer scales the st
 
 The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/20) is opt-in and was OFF in every LLM run. The FQL baseline exists in both variants (`fql_raw_faf1bb12` rebalanced, `fql_raw_norebalance_faf1bb12` matched).
 
-### Action Space (5 Skills)
+### Action Space (3 Skills)
+
+v3 (WP2, 2026-09-29): the LLM chooses the DIRECTION only; the environment draws the whole Hung and Yang step magnitude, with no small/large split.
 
 | Skill | Real-World Analog |
 | :---- | :---------------- |
-| `increase_large` | Major acreage expansion |
-| `increase_small` | Marginal crop intensity increase |
+| `increase_demand` | Expanding acreage or crop intensity |
 | `maintain_demand` | Status quo under long-term contracts |
-| `decrease_small` | Minor conservation adjustments |
-| `decrease_large` | Fallowing fields, crop switching |
+| `decrease_demand` | Conservation, fallowing fields, crop switching |
 
-The LLM chooses the skill (direction and small or large step); the step size follows the Hung & Yang (2021) action model (`ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)`): step = (mu + |N(0, sigma)|) x bin_size acre-ft, drawn at execution time (`irrigation_env.py (hy_step_af)`).
+The LLM chooses the direction; the step size follows the Hung & Yang (2021) action model (`ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)`): step = (mu + |N(0, sigma)|) x step_bin_af acre-ft, drawn at execution time (`irrigation_env.py (hy_step_af)`) against the agent's BASE (last year's committed delivery, `IrrigationEnvironment._reset_requests_to_base`), not its carried request.
 
 | Quantity | Value | Kind |
 | :------- | :---- | :--- |

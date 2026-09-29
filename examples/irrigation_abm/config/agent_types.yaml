@@ -194,12 +194,13 @@ irrigation_farmer:
           "conservation_capacity",
         ]
 
+    # v3 (WP2 spec 2.2, 2026-09-29): three skills -- the LLM chooses the
+    # direction only, the environment draws the whole Hung and Yang
+    # magnitude (replaces the five-entry small/large map).
     skill_map:
-      "1": "increase_large"
-      "2": "increase_small"
-      "3": "maintain_demand"
-      "4": "decrease_small"
-      "5": "decrease_large"
+      "1": "increase_demand"
+      "2": "maintain_demand"
+      "3": "decrease_demand"
 
     constructs:
       WSA_LABEL:
@@ -387,21 +388,19 @@ irrigation_farmer:
   # Available Actions
   # ---------------------------------------------------------------------------
   actions:
-    # Hung and Yang (2021) action model (2026-09-26): the agent picks a
-    # direction and a small or large step; the size is drawn by the
-    # environment from the agent's own (mu + |N(0, sigma)|) x bin_size
-    # distribution. H&Y agents see no percentages, so none are stated here.
-    - id: increase_large
-      aliases: ["IL", "increase_large", "large increase", "aggressive increase",
-                "[IL]", "[increase_large]"]
+    # v3 (WP2 spec 2.2, 2026-09-29): the agent picks a DIRECTION only
+    # (increase / maintain / decrease); the size is drawn by the
+    # environment from the agent's own (mu + |N(0, sigma)|) x step_bin_af
+    # distribution, the whole Hung and Yang half-normal (no small/large
+    # split -- replaces the five-skill menu). H&Y agents see no
+    # percentages, so none are stated here; the per-agent option text
+    # (irrigation_personas.build_option_texts) states the resulting
+    # request in acre-ft instead, via option_text_overrides.
+    - id: increase_demand
+      aliases: ["ID", "increase_demand", "increase", "increase request",
+                "[ID]", "[increase_demand]", "[increase]"]
       description: >
-        Increase your diversion request by a large step.
-
-    - id: increase_small
-      aliases: ["IS", "increase_small", "small increase", "cautious increase",
-                "modest increase", "[IS]", "[increase_small]"]
-      description: >
-        Increase your diversion request by a small step.
+        Increase your diversion request.
 
     - id: maintain_demand
       aliases: ["MD", "maintain", "maintain_demand", "status quo",
@@ -410,17 +409,11 @@ irrigation_farmer:
       description: >
         Keep your request unchanged.
 
-    - id: decrease_small
-      aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
-                "cautious decrease", "[DS]", "[decrease_small]"]
+    - id: decrease_demand
+      aliases: ["DD", "decrease_demand", "decrease", "decrease request",
+                "[DD]", "[decrease_demand]", "[decrease]"]
       description: >
-        Reduce your diversion request by a small step.
-
-    - id: decrease_large
-      aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
-                "[DL]", "[decrease_large]"]
-      description: >
-        Reduce your diversion request by a large step.
+        Reduce your diversion request.
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration
@@ -438,6 +431,29 @@ irrigation_farmer:
   governance:
     # Strict governance: enforces water allocation rules + behavioral
     # consistency checks for the WSA/ACA appraisal structure.
+    # v3 (WP2, 2026-09-29): every blocked_skills list below is RENAMED from
+    # the retired "increase_large"/"increase_small" (now "increase_demand")
+    # and "decrease_large"/"decrease_small" (now "decrease_demand") --
+    # the only names the v3 3-skill menu (spec 2.2) can ever produce -- so
+    # these pre-WP3 rules keep firing under the new action set instead of
+    # going silently inert. A pure rename, not additive: keeping the old
+    # names alongside the new ones would leave them as ghost-skill
+    # references (broker/tools/validate_prompt.py,
+    # check_skill_rule_coverage warns on a blocked_skills id absent from
+    # actions:), since no live path can ever produce them again. WP3
+    # replaces this whole rule set (R1/R2/R4 removed, TR1/TR3 added,
+    # relaxed/grounded_v1 deleted).
+    #
+    # Review round 1 (MEDIUM 6) correction: this rename, BY ITSELF, changes
+    # no rule's matched skill set -- the block a rule below used to reach
+    # via "increase_large" alone now reaches via "increase_demand" alone,
+    # the same real proposals under the same conditions. That claim does
+    # NOT extend to the whole five-to-three-skill collapse: irrigation_
+    # validators.py's curtailment_awareness_check kept a Tier 1
+    # differential (BLOCK increase_large, WARN increase_small) that has no
+    # three-skill equivalent -- any increase now reaches the BLOCK branch,
+    # a real behaviour change, corrected in that function's own text
+    # separately (not by this rename).
     strict:
       thinking_rules:
         # R1: High water threat → cannot maintain status quo
@@ -456,7 +472,7 @@ irrigation_farmer:
         - {
             id: low_threat_no_increase,
             conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: ERROR,
             message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
           }
@@ -468,7 +484,7 @@ irrigation_farmer:
                 { construct: WSA_LABEL, values: ["H", "VH"] },
                 { construct: ACA_LABEL, values: ["H", "VH"] },
               ],
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: ERROR,
             message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
           }
@@ -478,7 +494,7 @@ irrigation_farmer:
         - {
             id: water_right_cap,
             precondition: at_allocation_cap,
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: ERROR,
             message: "Cannot increase demand — already at maximum water right allocation.",
           }
@@ -486,7 +502,7 @@ irrigation_farmer:
         - {
             id: minimum_utilisation_floor,
             precondition: below_minimum_utilisation,
-            blocked_skills: ["decrease_large", "decrease_small"],
+            blocked_skills: ["decrease_demand"],
             level: ERROR,
             message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
           }
@@ -505,7 +521,7 @@ irrigation_farmer:
         - {
             id: water_right_cap,
             precondition: at_allocation_cap,
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: WARNING,
           }
 
@@ -531,7 +547,7 @@ irrigation_farmer:
         - {
             id: low_threat_no_increase,
             conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: ERROR,
             message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
           }
@@ -542,7 +558,7 @@ irrigation_farmer:
                 { construct: WSA_LABEL, values: ["H", "VH"] },
                 { construct: ACA_LABEL, values: ["H", "VH"] },
               ],
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: ERROR,
             message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
           }
@@ -588,21 +604,21 @@ irrigation_farmer:
           conditions:
             - { variable: drought_index, scope: env, operator: ">", value: 0.08 }
             - { construct: WSA_LABEL, values: ["VL", "L"] }
-          blocked_skills: ["increase_large", "increase_small"]
+          blocked_skills: ["increase_demand"]
           level: ERROR
           message: "Demand increase blocked: the basin drought index is high this year, which your own low scarcity rating does not account for. Re-appraise scarcity against the water actually available, then choose."
       identity_rules:
         - {
             id: water_right_cap,
             precondition: at_allocation_cap,
-            blocked_skills: ["increase_large", "increase_small"],
+            blocked_skills: ["increase_demand"],
             level: ERROR,
             message: "Cannot increase demand — already at maximum water right allocation.",
           }
         - {
             id: minimum_utilisation_floor,
             precondition: below_minimum_utilisation,
-            blocked_skills: ["decrease_large", "decrease_small"],
+            blocked_skills: ["decrease_demand"],
             level: ERROR,
             message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
           }

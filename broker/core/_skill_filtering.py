@@ -565,11 +565,28 @@ class SkillFilterMixin:
             _rng = _rng_mod.Random(seed_material)
             _rng.shuffle(skills)
 
+        # Generic per-agent, per-step option-text override (irrigation v3,
+        # WP2 spec 2.6: irrigation_personas.build_option_texts computes a
+        # {skill_id: text} dict from that decision's own state -- e.g. the
+        # request that RESULTS from each option -- and
+        # IrrigationLifecycleHooks.pre_year stores it as
+        # option_text_overrides in the agent's custom_attributes, which
+        # AttributeProvider copies into context["state"]). A skill absent
+        # from the override dict, or no override dict at all, falls back
+        # to the registry's static description -- byte-identical to
+        # before this override existed for every domain that never sets
+        # one (flood included).
+        state = context.get("state") or {}
+        overrides = state.get("option_text_overrides") if isinstance(state, dict) else None
+
         options = []
         dynamic_skill_map = {}
         for i, skill_id in enumerate(skills, 1):
-            skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
-            desc = skill_def.description if skill_def else skill_id
+            if isinstance(overrides, dict) and skill_id in overrides:
+                desc = overrides[skill_id]
+            else:
+                skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
+                desc = skill_def.description if skill_def else skill_id
             options.append(f"{i}. {desc}")
             dynamic_skill_map[str(i)] = skill_id
         personal = context.setdefault("personal", {})

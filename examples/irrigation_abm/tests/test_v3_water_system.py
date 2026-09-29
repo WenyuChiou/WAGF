@@ -544,15 +544,30 @@ class TestMassBalanceClosureV3:
                 assert rec["delivered"] <= rec["request"] + 1e-6
 
     @staticmethod
-    def _run_real_2018_fixed_demand_42_years(ub_supply_mode: str):
+    def _run_real_2018_fixed_demand_42_years(ub_supply_mode: str, hold_requests_fixed: bool = True):
         """Shared body (WP1b, item 20): the L2-replay scenario, real
-        78-agent 2018 requests held fixed (no decisions), 42 years, under
-        the given ``ub_supply_mode``. Asserts mass balance closes and
-        natural flow equals the committed table every year; returns
-        ``(tier_counts, mead_min_maf)`` for the caller to pin."""
+        78-agent 2018 requests, 42 years, under the given
+        ``ub_supply_mode``. Asserts mass balance closes and natural flow
+        equals the committed table every year; returns ``(tier_counts,
+        mead_min_maf)`` for the caller to pin.
+
+        ``hold_requests_fixed`` (WP2 review round 1, HIGH 1; default True,
+        this scenario's original meaning): every agent's request stays at
+        its 2018 use for the whole replay, via
+        ``WaterSystemConfig.hold_requests_fixed`` -- NOT an emergent
+        property of "no decisions are ever applied" any more, since
+        ``IrrigationEnvironment._reset_requests_to_base`` (spec 2.1) runs
+        unconditionally otherwise and would let a cut sub-basin's request
+        decay below 2018 use after its first short year. ``False`` gives
+        the OTHER real scenario -- every agent always chooses "keep",
+        every year, with no other option ever available -- see
+        ``TestKeepEveryYear42Years`` below, which pins that case
+        separately."""
         rng = np.random.default_rng(7)
         profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
-        env = IrrigationEnvironment(WaterSystemConfig(seed=7, ub_supply_mode=ub_supply_mode))
+        env = IrrigationEnvironment(WaterSystemConfig(
+            seed=7, ub_supply_mode=ub_supply_mode, hold_requests_fixed=hold_requests_fixed,
+        ))
         env.initialize_from_profiles(profiles)
         tier_counts = {0: 0, 1: 0, 2: 0, 3: 0}
         mead_min_maf = None
@@ -600,11 +615,18 @@ class TestMassBalanceClosureV3:
         years) are now short of their fixed 2018 request in below-median-
         flow years even though the Upper Basin AGGREGATE never was under
         the single pool (memo section 6: 19 short sub-basin-years at 2018
-        use). Every acre-foot the Upper Basin does not receive stays in
-        Powell's inflow, so Powell (and, through the storage-balancing
-        release, Mead) carries slightly MORE water: one Tier-2 year moves
-        to Tier-0 (2:8->7, 0:20->21) and Mead's 1 January minimum rises
-        from 7.3516 to 7.4665 MAF (about 1,005.8 to 1,007.7 ft)."""
+        use).
+
+        WP2 review round 1 (HIGH 1, 2026-09-29): these values are held
+        through ``hold_requests_fixed=True`` (the helper's default), which
+        makes ``IrrigationEnvironment._reset_requests_to_base`` (spec 2.1,
+        unconditional otherwise) a no-op for this replay, so this pin is
+        UNCHANGED from the WP1b value above -- "2018 requests held fixed"
+        means literally that again, not "every agent's first-ever
+        shortfall permanently lowers its request". The OTHER real
+        scenario -- every agent always chooses keep, so the reset DOES
+        apply every year -- is a different experiment, pinned separately
+        by ``TestKeepEveryYear42Years`` below (29/7/4/2, 7.4989 MAF)."""
         tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("subbasin")
         assert tier_counts == {0: 21, 1: 11, 2: 7, 3: 3}
         assert mead_min_maf == pytest.approx(7.4665, abs=1e-3)  # ~1,007.7 ft
@@ -616,10 +638,46 @@ class TestMassBalanceClosureV3:
         is the v3 default and changes these numbers (see
         ``test_real_2018_fixed_demand_42_years`` above): this is
         ``lees_ferry_pool`` mode's own bitwise reproduction of the pin
-        WP1 originally pinned in this scenario, and must never drift."""
+        WP1 originally pinned in this scenario, and must never drift.
+        Held fixed the same way (``hold_requests_fixed=True``, the
+        helper's default) -- though in this mode the single pool delivers
+        every agent's full 2018 request every year regardless (delivered
+        always equals requested), so the reset was always a no-op here."""
         tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("lees_ferry_pool")
         assert tier_counts == {0: 20, 1: 11, 2: 8, 3: 3}
         assert mead_min_maf == pytest.approx(7.3516, abs=1e-3)  # ~1,005.8 ft
+
+
+class TestKeepEveryYear42Years:
+    """WP2 review round 1 (HIGH 1, 2026-09-29): the OTHER real 42-year,
+    no-agents scenario -- every agent always chooses "keep" (the only
+    thing a no-decisions replay can represent once WP2's
+    ``_reset_requests_to_base`` runs unconditionally by default), so a
+    request follows its OWN delivery down after its first shortfall,
+    exactly as a real "always keep" LLM or FQL agent's would (provenance
+    B7/B8). This is a DIFFERENT scenario from
+    ``TestMassBalanceClosureV3.test_real_2018_fixed_demand_42_years``
+    (2018 requests held fixed forever, via ``hold_requests_fixed=True``)
+    -- both are real, named scenarios, not one a regression of the other.
+    """
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_keep_every_year_42_years_subbasin(self):
+        """``hold_requests_fixed=False`` (the default -- every real LLM or
+        FQL run's actual behaviour): under ``subbasin`` mode, a UB agent
+        short in one of the 19 short sub-basin-years (memo section 6,
+        starting with UT1 in 2020) has its request permanently track that
+        lower delivery from then on. Less Upper Basin draw leaves more
+        water for Powell's inflow than the held-fixed replay above, so
+        more years clear Tier 0 (21->29) and Mead's 1 January minimum
+        rises again (7.4665->7.4989 MAF, about 1,007.7 to 1,008.3 ft)."""
+        tier_counts, mead_min_maf = (
+            TestMassBalanceClosureV3._run_real_2018_fixed_demand_42_years(
+                "subbasin", hold_requests_fixed=False,
+            )
+        )
+        assert tier_counts == {0: 29, 1: 7, 2: 4, 3: 2}
+        assert mead_min_maf == pytest.approx(7.4989, abs=1e-3)  # ~1,008.3 ft
 
 
 # ===========================================================================

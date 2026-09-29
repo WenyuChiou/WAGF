@@ -215,6 +215,21 @@ class WaterSystemConfig:
     # this repo's own disclosed choice, memo section 11: "the WP1b author
     # lists them"). Ignored in "lees_ferry_pool" mode.
     ub_subbasin_supply_variant: str = "recommended"
+
+    # WP2 review round 1, HIGH 1 (2026-09-29): a "held-fixed" replay (every
+    # agent's request set once, at initialisation, to a target such as
+    # 2018 use or 0.99 W, and never touched again -- the water-system-only
+    # diagnostics of design record section 3 / spec 1.9's acceptance
+    # replays) needs advance_year() to leave ``request`` alone.
+    # _reset_requests_to_base (spec 2.1) runs UNCONDITIONALLY otherwise --
+    # correct for every real run (LLM or FQL), where "the keep request
+    # tracks last year's delivery" is the fix WP2 makes -- so a caller
+    # that wants a genuinely fixed target must say so explicitly here.
+    # Default False (every real run's actual behaviour, unaffected).
+    # Diagnostic/replay use ONLY: no runner (run_experiment.py,
+    # run_fql_baseline.py) ever sets this to True --
+    # test_hold_requests_fixed_never_set_by_a_runner asserts it.
+    hold_requests_fixed: bool = False
     # Lake Mead physical bounds (total storage, MAF), the end points of the
     # USBR storage-elevation curve loaded by IrrigationEnvironment from
     # data/mead_capacity_usbr2009_1ft.csv (v3, spec 1.4, L2 H4). Water
@@ -355,6 +370,10 @@ class WaterSystemConfig:
                 "ub_subbasin_supply_variant must be one of "
                 f"{_UB_SUBBASIN_SUPPLY_VARIANTS}, got "
                 f"{self.ub_subbasin_supply_variant!r}"
+            )
+        if not isinstance(self.hold_requests_fixed, bool):
+            raise ValueError(
+                f"hold_requests_fixed must be a bool, got {self.hold_requests_fixed!r}"
             )
 
     # Number of Monte Carlo runs
@@ -642,6 +661,32 @@ _SMALL_SKILLS = ("increase_small", "decrease_small")
 _LARGE_SKILLS = ("increase_large", "decrease_large")
 
 
+def resolve_step_bin_af(
+    step_bin_af: Optional[float],
+    bin_size_af: Optional[float],
+    water_right: float,
+) -> float:
+    """ONE shared step-bin resolver (WP2 review round 1, LOW 8): the same
+    precedence, used by ``execute_skill``, ``irrigation_personas.
+    build_option_texts`` and ``irrigation_personas.build_simulation_log_row``,
+    so the value drawn against, the value shown in the option text and the
+    value logged can never silently disagree.
+
+    Prefers ``step_bin_af`` (spec 2.3/2.4: the UB-converted, possibly
+    rescaled bin ``create_profiles_from_data`` computes); falls back to
+    the legacy ``bin_size_af`` for an older hand-built agent dict or
+    profile that only ever set that; falls back to ``water_right / 25``
+    (``SYNTHETIC_BIN_DIVISOR``) only when NEITHER real value is set -- a
+    synthetic/mock profile with no calibrated Hung and Yang grid at all,
+    the one case this is a deliberate, disclosed placeholder rather than
+    missing data (see ``SYNTHETIC_BIN_DIVISOR``'s own definition)."""
+    if step_bin_af and step_bin_af > 0:
+        return float(step_bin_af)
+    if bin_size_af and bin_size_af > 0:
+        return float(bin_size_af)
+    return float(water_right) / SYNTHETIC_BIN_DIVISOR
+
+
 def hy_step_af(rng: np.random.Generator, mu: float, sigma: float,
                bin_size_af: float, size_class: str) -> float:
     """One action magnitude of the Hung and Yang (2021) model, in acre-ft.
@@ -674,8 +719,12 @@ def hy_step_af(rng: np.random.Generator, mu: float, sigma: float,
 
 
 def hy_threshold_af(mu: float, sigma: float, bin_size_af: float) -> float:
-    """T = (mu + 0.6745 sigma) x bin_size: the median H&Y step."""
-    return (mu + HALF_NORMAL_MEDIAN_Z * sigma) * bin_size_af
+    """T = (max(0, mu) + 0.6745 sigma) x bin_size: the median H&Y step
+    (WP2 spec 2.5 -- the same ``max(0, mu)`` clamp ``hy_step_af`` applies
+    to the draw itself, so the threshold a "small"/"large" draw is judged
+    against, and the "typical step" shown to the agent, never disagree
+    with the draw for a negative-mu agent)."""
+    return (max(0.0, float(mu)) + HALF_NORMAL_MEDIAN_Z * sigma) * bin_size_af
 
 
 def _set_realised_magnitude(
@@ -1040,6 +1089,14 @@ class IrrigationEnvironment:
                 "bin_size_af": float(
                     getattr(p, "bin_size_af", None) or wr / SYNTHETIC_BIN_DIVISOR
                 ),
+                # WP2 (spec 2.3/2.4): the FINAL step bin execute_skill
+                # draws against -- None for a profile that never computed
+                # one (pre-WP2 builder, synthetic/mock), in which case
+                # execute_skill itself falls back to bin_size_af, then to
+                # water_right / 25.
+                "step_bin_af": getattr(p, "step_bin_af", None),
+                "step_bin_source": getattr(p, "step_bin_source", None),
+                "demand_per_grid_unit": getattr(p, "demand_per_grid_unit", None),
             }
 
         # WP1b: each Upper Basin agent's sub-basin member count (the
@@ -1389,16 +1446,32 @@ class IrrigationEnvironment:
         lb_tributary = self._lb_tributary_for_year(self._current_year)
         mexico = self._mexico_delivery_maf(mead_level)
 
+        # WP2 (spec 2.1; WP1 re-review ordering requirement): every agent's
+        # request is reset to its base -- the delivered amount from the
+        # last COMMITTED settlement (step 1 above; 2019 starts from
+        # actual_2018_diversion, already the year-1 request/diversion
+        # initialize_from_profiles sets) -- BEFORE anything below sums
+        # this year's projected requests or plans the Powell release, so
+        # the plan, the provisional settlement and the supply rule all see
+        # the keep request, never last year's carried (pre-reset) ask.
+        # WP2 review round 1 (HIGH 1): skipped when
+        # config.hold_requests_fixed is True -- a held-fixed replay (every
+        # agent's request set once, at initialisation, and never touched
+        # again) needs THIS year's projected sums and Powell plan to see
+        # that fixed target too, which they cannot if it is overwritten
+        # here. No real run (LLM or FQL) ever sets the flag.
+        if not self.config.hold_requests_fixed:
+            self._reset_requests_to_base()
+
         # Re-review 2026-09-29 (HIGH 1, then HIGH A round 3): the Powell
         # release must be planned ONCE for the whole year BEFORE agents
         # decide, exactly as the 2007 Guidelines set the annual release
         # target from PROJECTED end-of-year contents (the 24-Month Study),
         # not from whatever agents end up requesting. Both basins' request
-        # totals are frozen here, at each agent's CURRENT (last year's
-        # CARRIED, pre-decision) request -- see MEDIUM B: this is the
-        # carried request, NOT last year's actual receipt; WP2 resets a
-        # carried request to last year's receipt before this sum runs, so
-        # the two coincide there, but WP1 has no such reset. HIGH A: the
+        # totals are frozen here, at each agent's CURRENT request -- WP2's
+        # _reset_requests_to_base() above (spec 2.1) has already reset
+        # that to last year's receipt, so "current" and "keep request"
+        # coincide by the time this sum runs. HIGH A: the
         # first pass only froze the Lower Basin total, so a mid-year Upper
         # Basin request change still moved the release (the reviewer's
         # probe: a 15 percent Upper Basin raise after advance_year moved
@@ -1447,6 +1520,12 @@ class IrrigationEnvironment:
             "mexico": float(mexico),
             "lb_tributary": float(lb_tributary),
             "lb_request_projected_maf": float(lb_request_projected_maf),
+            # WP2 review round 1 (MEDIUM 3): the Upper Basin counterpart of
+            # lb_request_projected_maf above -- frozen so a test (or any
+            # other caller) can read what advance_year() actually summed,
+            # rather than re-deriving it and risking exactly the drift
+            # _basin_request_projected_maf was factored out to prevent.
+            "ub_request_projected_maf": float(ub_request_projected_maf),
             "powell_release_planned_maf": float(powell_release_planned_maf),
             # WP1b (item 20): known on 1 January (memo section 6 step 4),
             # so _settle (both the provisional call below and settle_year's
@@ -1476,6 +1555,47 @@ class IrrigationEnvironment:
         )
 
         return self._global.copy()
+
+    def _reset_requests_to_base(self) -> None:
+        """WP2 spec 2.1: reset every agent's request to its BASE -- the
+        delivered amount from the last COMMITTED settlement (``diversion``,
+        just written by step 1's commit block above; 2019 starts from
+        ``actual_2018_diversion``, the year-1 request/diversion
+        ``initialize_from_profiles`` sets, so this is a no-op the first
+        time ``advance_year`` ever runs). This function itself applies NO
+        clipping -- ``request`` is simply set equal to ``diversion``,
+        never raised toward the minimum-use floor F. It never needs to
+        clip to ``[0, W]`` either, because a committed delivery already
+        satisfies ``0 <= delivered <= request <= W`` (the settlement that
+        produced ``diversion`` enforces that bound), so the water-right
+        cap cannot bind on the value this function assigns.
+
+        Skipped entirely when ``config.hold_requests_fixed`` is True (WP2
+        review round 1, HIGH 1): a held-fixed replay (every agent's
+        request set once, at initialisation, and never touched again)
+        needs this year's projected sums and Powell plan to see that
+        fixed value, not last year's delivery.
+
+        MUST run before anything sums this year's projected requests (the
+        Powell release plan, ``_basin_request_projected_maf``) or takes
+        the provisional settlement -- the ordering requirement from the
+        WP1 re-review (2026-09-29), pinned by
+        ``test_v3_action_model.py::test_reset_precedes_release_plan``.
+
+        Sets ``at_allocation_cap`` / ``below_minimum_utilisation`` FROM
+        THE BASE (spec 2.1's "flags are set from the base"), with the
+        same 1-percent tolerances ``update_agent_request`` uses, so the
+        registry preconditions that filter this year's menu (built from
+        this state, before the agent decides) see the base's limits, not
+        whatever an earlier decision temporarily left behind.
+        """
+        for agent in self._agents.values():
+            base_af = float(agent["diversion"])
+            wr = float(agent["water_right"])
+            agent["base_af"] = base_af
+            agent["request"] = base_af
+            agent["at_allocation_cap"] = base_af >= 0.99 * wr
+            agent["below_minimum_utilisation"] = base_af <= 1.01 * wr * MIN_UTIL
 
     def get_agent_context(self, agent_id: str) -> Dict[str, Any]:
         """Build context dict for a specific agent's LLM prompt.
@@ -1694,8 +1814,12 @@ class IrrigationEnvironment:
         new_request = max(0.0, min(new_request, agent["water_right"]))
         agent["request"] = new_request
         agent["at_allocation_cap"] = new_request >= agent["water_right"] * 0.99
+        # WP2 spec 2.1/C7: "at the floor" uses the SAME 1-percent tolerance
+        # as the cap (<= 1.01 F, not < F) -- so a request within 1 percent
+        # of the floor is treated as AT it, matching execute_skill's own
+        # decrease no-op guard below and _reset_requests_to_base's flag.
         agent["below_minimum_utilisation"] = (
-            new_request < agent["water_right"] * MIN_UTIL
+            new_request <= agent["water_right"] * MIN_UTIL * 1.01
         )
 
         # Provisional delivery at the new request: this year's expected
@@ -1778,6 +1902,19 @@ class IrrigationEnvironment:
         # base across all skill types.  A request is bounded by the water
         # right (min(current + change, wr) below); what the agent actually
         # receives is bounded by the supply-side settlement (_settle).
+        # WP2 (spec 2.1): ``request`` is reset to the WP2 base (last year's
+        # committed delivery, ``_reset_requests_to_base``) before any agent
+        # decides, so ``current`` below already IS that base. Review round
+        # 1, MEDIUM 4 correction: this is NOT limited to the LLM path --
+        # ``_reset_requests_to_base`` runs inside ``advance_year()``
+        # unconditionally (``config.hold_requests_fixed`` aside), and the
+        # FQL baseline calls the SAME ``advance_year()``, so its carried
+        # request is reset the same way. That is Div_t becoming "last
+        # final delivery" a WP2 commit early, ahead of WP5 5.1's own
+        # explicit statement of it and 5.4's UB-unit follow-up -- WP5
+        # still owns removing this function's OWN redraw for FQL (L1-04)
+        # and the state/reward unit conversion, neither of which has
+        # happened yet.
         current = agent["request"]
         meta = getattr(approved_skill, "parameters", {}) or {}
 
@@ -1793,14 +1930,20 @@ class IrrigationEnvironment:
         # dropped (is_exploration stays in the logs, always False).
         mu = float(agent.get("mu", SYNTHETIC_HY_MU))
         sigma = float(agent.get("sigma", SYNTHETIC_HY_SIGMA))
-        bin_size_af = agent.get("bin_size_af")
-        if not bin_size_af or bin_size_af <= 0:
-            if bin_size_af is not None:
-                from broker.utils.logging import logger as _logger
-                _logger.warning("[irrigation_env] %s has bin_size_af=%r; using water_right / %d",
-                                aid, bin_size_af, SYNTHETIC_BIN_DIVISOR)
-            bin_size_af = wr / SYNTHETIC_BIN_DIVISOR
-        bin_size_af = float(bin_size_af)
+        # WP2 (spec 2.3/2.4): the agent's FINAL step bin -- the UB-converted,
+        # possibly-rescaled value ``create_profiles_from_data`` computes as
+        # ``profile.step_bin_af`` -- is what the LLM path draws against, NOT
+        # the raw ``bin_size_af`` (which WP5 still needs unconverted for the
+        # FQL grid-state discretisation). ``resolve_step_bin_af`` (review
+        # round 1, LOW 8) is the ONE shared resolver, also used by
+        # ``build_option_texts`` and ``build_simulation_log_row``, so the
+        # drawn, shown and logged values can never silently disagree.
+        _raw_step_bin_af = agent.get("step_bin_af") or agent.get("bin_size_af")
+        if not _raw_step_bin_af or _raw_step_bin_af <= 0:
+            from broker.utils.logging import logger as _logger
+            _logger.warning("[irrigation_env] %s has step_bin_af=%r; using water_right / %d",
+                            aid, _raw_step_bin_af, SYNTHETIC_BIN_DIVISOR)
+        step_bin_af = resolve_step_bin_af(agent.get("step_bin_af"), agent.get("bin_size_af"), wr)
         step_af = 0.0
         size_class = ""
         is_exploration = False
@@ -1812,10 +1955,10 @@ class IrrigationEnvironment:
             else:
                 size_class = "any"
             rng = self._decision_rng(aid, skill)
-            step_af = hy_step_af(rng, mu, sigma, bin_size_af, size_class)
+            step_af = hy_step_af(rng, mu, sigma, step_bin_af, size_class)
             if size_class == "any":
                 size_class = (
-                    "small" if step_af <= hy_threshold_af(mu, sigma, bin_size_af) else "large"
+                    "small" if step_af <= hy_threshold_af(mu, sigma, step_bin_af) else "large"
                 )
 
         state_changes: Dict[str, Any] = {}
@@ -1846,8 +1989,20 @@ class IrrigationEnvironment:
             # percent minimum utilisation. The former taper near the floor
             # (an invented diminishing-returns rule) is removed: H&Y bound the
             # decision by the grid, not by a taper.
+            # WP2 spec 2.1: max(base - s, F) only when base > 1.01 F; at or
+            # below that tolerance the request is already treated as AT the
+            # floor (below_minimum_utilisation, same 1.01 tolerance as
+            # update_agent_request/_reset_requests_to_base) and a decrease
+            # is a NO-OP -- never floor-anchored back UP to F. Without this
+            # branch, an agent whose base already sits below F (4 LB agents
+            # start there, spec/provenance C6) would have its "decrease"
+            # RAISE its request to F, which spec 2.1 explicitly forbids
+            # ("never raised to F").
             floor = wr * MIN_UTIL
-            new_req = max(current - step_af, min(floor, current))
+            if current > 1.01 * floor:
+                new_req = max(current - step_af, floor)
+            else:
+                new_req = current
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             _set_realised_magnitude(state_changes, action_context, step_af, size_class,

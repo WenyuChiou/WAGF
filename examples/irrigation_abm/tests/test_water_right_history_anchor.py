@@ -502,6 +502,106 @@ class TestManifestRecordsMargin:
 
 
 # ---------------------------------------------------------------------------
+# (e) Manifest records step_bin_source (WP2 review round 1, MEDIUM 2)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsStepBinSource:
+    def test_record_step_bin_source_provenance(self, tmp_path):
+        from examples.irrigation_abm.irrigation_personas import IrrigationAgentProfile
+        from examples.irrigation_abm.run_experiment import _record_step_bin_source_provenance
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        profiles = [
+            IrrigationAgentProfile(
+                agent_id="A", basin="upper_basin", cluster="aggressive",
+                step_bin_source="grid",
+            ),
+            IrrigationAgentProfile(
+                agent_id="B", basin="lower_basin", cluster="aggressive",
+                step_bin_source="rescaled",
+            ),
+        ]
+        _record_step_bin_source_provenance(tmp_path, profiles, True)
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["step_bin_source"] == {"A": "grid", "B": "rescaled"}
+        assert manifest["step_bin_source_applied"] is True
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["step_bin_source"] == {"A": "grid", "B": "rescaled"}
+
+    @requires_real_ref
+    def test_mock_real_run_manifest_has_step_bin_source_for_all_78_agents(self, tmp_path):
+        """WP2 review round 1 (MEDIUM 2): a full --real --model mock run
+        (the only path that ever calls create_profiles_from_data, the
+        only step_bin_source producer) must land the per-agent
+        step_bin_source dict in reproducibility_manifest.json -- exactly
+        70 "grid" and 8 "rescaled" (spec 2.4's own acceptance count)."""
+        import examples.irrigation_abm.run_experiment as run_experiment
+
+        argv = [
+            "run_experiment.py",
+            "--real",
+            "--model", "mock",
+            "--years", "1",
+            "--seed", "1",
+            "--output", str(tmp_path),
+            "--governance-mode", "disabled",
+        ]
+        old_argv = sys.argv
+        sys.argv = argv
+        try:
+            run_experiment.main()
+        finally:
+            sys.argv = old_argv
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["step_bin_source_applied"] is True
+        step_bin_source = manifest["step_bin_source"]
+        assert len(step_bin_source) == 78
+        assert set(step_bin_source.values()) == {"grid", "rescaled"}
+        counts = {v: list(step_bin_source.values()).count(v) for v in ("grid", "rescaled")}
+        assert counts == {"grid": 70, "rescaled": 8}
+        assert step_bin_source["CocopahIndRes"] == "rescaled"
+
+
+# ---------------------------------------------------------------------------
+# (e2) Manifest records hold_requests_fixed (WP2 review round 2, LOW 3)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsHoldRequestsFixed:
+    def test_record_hold_requests_fixed_provenance(self, tmp_path):
+        from examples.irrigation_abm.run_experiment import (
+            _record_hold_requests_fixed_provenance,
+        )
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        _record_hold_requests_fixed_provenance(tmp_path, False)
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["hold_requests_fixed"] is False
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["hold_requests_fixed"] is False
+
+    def test_missing_files_do_not_raise(self, tmp_path):
+        from examples.irrigation_abm.run_experiment import (
+            _record_hold_requests_fixed_provenance,
+        )
+        _record_hold_requests_fixed_provenance(tmp_path, False)  # no exception
+
+
+# ---------------------------------------------------------------------------
 # (e) FQL parity: the ceiling binds the FQL path exactly as the LLM path
 # ---------------------------------------------------------------------------
 class TestFQLClipParity:

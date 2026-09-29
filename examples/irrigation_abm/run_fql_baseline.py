@@ -264,11 +264,17 @@ def create_fql_agents(
       fql_init="calibrated" (P1-a fix, 2026-09-27 review), state_bounds
       is instead the agent's REAL Div_States column
       (profile.div_states_grid) with state_grid_mode="hy_exact" and
-      hy_bin_size=profile.bin_size_af -- 19 of 22 LB agents' real columns
-      are NOT a 0-to-top linspace (e.g. MohaveValleyIDD = [0, 12000,
-      14000, ..., 50000]), so treating them as one reads the wrong FQL
-      state; see fql.py's _hy_div_to_state for the exact
-      ABM_CRSS_coupling.py port. `grid_top_af`/`div_states_grid` are None
+      hy_bin_size=profile.bin_size_af / profile.demand_per_grid_unit --
+      19 of 22 LB agents' real columns are NOT a 0-to-top linspace (e.g.
+      MohaveValleyIDD = [0, 12000, 14000, ..., 50000]), so treating them
+      as one reads the wrong FQL state; see fql.py's _hy_div_to_state for
+      the exact ABM_CRSS_coupling.py port. The ``/ demand_per_grid_unit``
+      (WP2 spec 2.3, 2026-09-29) undoes the Upper Basin k=0.5 depletion
+      conversion create_profiles_from_data now applies to bin_size_af
+      itself (for the LLM-agent action model), so this state
+      discretisation keeps reading the grid in its ORIGINAL diversion
+      units, unchanged from before WP2 -- Lower Basin's
+      demand_per_grid_unit is 1.0, a no-op. `grid_top_af`/`div_states_grid` are None
       only for profiles that never went through create_profiles_from_data
       (create_profiles_from_csv, synthetic builders); those must use
       fql_init="zero" (calibrated raises otherwise, no silent fallback).
@@ -365,10 +371,27 @@ def create_fql_agents(
                     f"for profiles without a real Div_States column "
                     f"(e.g. synthetic agents)."
                 )
+            # WP2 review round 1 (LOW 8): demand_per_grid_unit is set by
+            # the SAME create_profiles_from_data --real path as
+            # div_states_grid/bin_size_af just checked above, so a
+            # profile that passed that check but has no
+            # demand_per_grid_unit is a wiring defect, not a legitimate
+            # "assume no conversion" case -- no silent `or 1.0` default.
+            if not p.demand_per_grid_unit:
+                raise ValueError(
+                    f"[{p.agent_id}] fql_init='calibrated' requires "
+                    f"demand_per_grid_unit on the profile (set by "
+                    f"create_profiles_from_data alongside bin_size_af); "
+                    f"got {p.demand_per_grid_unit!r}."
+                )
+            # WP2 (spec 2.3): bin_size_af is now UB-converted (k=0.5); undo
+            # that here so the FQL grid-state math keeps reading H&Y's
+            # original diversion-unit grid, byte-identical to pre-WP2.
+            hy_bin_size = float(p.bin_size_af) / float(p.demand_per_grid_unit)
             state = FQLState(
                 state_bounds=np.asarray(p.div_states_grid, dtype=float),
                 state_grid_mode="hy_exact",
-                hy_bin_size=float(p.bin_size_af),
+                hy_bin_size=hy_bin_size,
             )
 
             q_table, count_table, p_transition, file_hashes = load_calibrated_tables(
@@ -401,7 +424,7 @@ def create_fql_agents(
                 "prev_action_source": prev_action_source,
                 "prev_diversion_2017": prev_diversion_2017,
                 "state_grid_mode": "hy_exact",
-                "hy_bin_size": float(p.bin_size_af),
+                "hy_bin_size": hy_bin_size,
             }
         else:
             q_grid_top = p.grid_top_af if p.grid_top_af else p.water_right
@@ -670,6 +693,10 @@ def run_simulation(
                 magnitude_fallback=False,
                 is_exploration=dec["is_exploration"],
                 memory="FQL_BASELINE",
+                # WP2 (spec 2.1): same keep-request base as the LLM path,
+                # set once a year by
+                # IrrigationEnvironment._reset_requests_to_base.
+                base_af=agent_state.get("base_af"),
                 precipitation_mm=agent_context.get("precipitation"),
                 precipitation_flag=agent_context.get("precipitation_flag"),
             )
@@ -991,6 +1018,17 @@ def main():
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config = WaterSystemConfig(seed=seed)
+    # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
+    # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
+    # runner never exposes a flag for it (test_hold_requests_fixed_
+    # never_set_by_a_runner asserts that), so a True value here could only
+    # come from a change to THIS line; fail loud rather than let a real
+    # FQL run silently skip the WP2 keep-tracks-delivery reset.
+    assert config.hold_requests_fixed is False, (
+        "run_fql_baseline.py must never construct WaterSystemConfig with "
+        "hold_requests_fixed=True -- that switch is for replays and CPU "
+        "diagnostics only"
+    )
     env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
@@ -1112,6 +1150,18 @@ def main():
             "paper_water_margin_applied": bool(args.real and not args.from_logs),
             "cluster_method": args.cluster_method,
             "cluster_method_applied": bool(args.real and not args.from_logs),
+            # WP2 review round 2 (LOW 2, spec 7.2): the same per-agent
+            # {agent_id: "grid"|"rescaled"} dict run_experiment.py writes,
+            # None for a profile create_profiles_from_data never built
+            # (synthetic --agents run, or --from-logs).
+            "step_bin_source": {p.agent_id: p.step_bin_source for p in profiles},
+            "step_bin_source_applied": bool(args.real and not args.from_logs),
+            # WP2 review round 2 (LOW 3): the REAL value, read from the
+            # environment's own config (asserted False right after
+            # construction above) rather than a literal -- if a future
+            # change ever threads an override through, the manifest
+            # reflects reality instead of a stale hard-coded False.
+            "hold_requests_fixed": env.config.hold_requests_fixed,
             "fql_init": args.fql_init,
             "fql_init_dir": args.fql_init_dir if args.fql_init == "calibrated" else None,
             # Cheap reproducibility provenance (2026-09-27 review): numpy's

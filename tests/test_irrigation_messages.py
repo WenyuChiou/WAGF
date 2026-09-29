@@ -167,7 +167,9 @@ def test_option_descriptions_have_no_yield():
     reg = yaml.safe_load((root / "examples/irrigation_abm/config/skill_registry.yaml").read_text(encoding="utf-8"))
     texts = [a["description"] for a in cfg["irrigation_farmer"]["actions"]]
     texts += [sk["description"] for sk in reg["skills"]]
-    assert len(texts) == 10
+    # v3 (WP2 spec 2.2): three skills, not five -- 3 actions + 3 registry
+    # descriptions.
+    assert len(texts) == 6
     for d in texts:
         d = d.lower()
         assert "yield" not in d and "crop" not in d and "curtailment risk" not in d

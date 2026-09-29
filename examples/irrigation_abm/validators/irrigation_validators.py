@@ -306,7 +306,18 @@ def curtailment_awareness_check(
             )
         ]
 
-    # Tier 1: differential — block increase_large, warn increase_small
+    # Tier 1: v17 differential governance blocked increase_large and
+    # warned increase_small. WP2 (spec 2.2) collapsed the menu to one
+    # increase skill, increase_demand, with no small/large distinction
+    # (review MEDIUM 6, 2026-09-29) -- so the differential itself is now
+    # moot for any live proposal, and the message must not offer a "small
+    # increase" alternative the menu no longer has. The BLOCK branch below
+    # is what a real increase_demand proposal actually reaches; the WARN
+    # branch stays dead code for a caller that still passes the legacy
+    # "increase_small" string directly (a replay of a pre-WP2 corpus), and
+    # is left as-is (this rule, and its dead branch, are retired
+    # unchanged when WP3 removes curtailment_awareness_check from
+    # dispatch, spec 3.2).
     if shortage_tier == 1:
         if skill_name in ("increase_large", "increase_demand"):
             return [
@@ -314,9 +325,10 @@ def curtailment_awareness_check(
                     valid=False,
                     validator_name="IrrigationCurtailmentValidator",
                     errors=[
-                        f"Large increase blocked {_tier_reason(context)}; a small "
-                        f"increase is allowed (subject to Lake Mead's physical "
-                        f"availability)."
+                        f"Demand increase blocked {_tier_reason(context)}: a Tier 1 "
+                        f"Lower Basin shortage is declared, and this rule blocks "
+                        f"every increase at that tier (subject to Lake Mead's "
+                        f"physical availability for any request already made)."
                     ],
                     warnings=[],
                     metadata={
@@ -324,12 +336,14 @@ def curtailment_awareness_check(
                         "category": "institutional",
                         "blocked_skill": skill_name,
                         "level": "ERROR",
-                        "suggestion": "A Tier 1 shortage blocks large increases.",
+                        "suggestion": "A Tier 1 shortage blocks demand increases this year.",
                     },
                 )
             ]
         else:
-            # increase_small: warning only at Tier 1
+            # increase_small: warning only at Tier 1 -- dead for a live
+            # v3 proposal (see comment above); kept for a replayed
+            # pre-WP2 decision that still carries the legacy skill name.
             return [
                 ValidationResult(
                     valid=True,

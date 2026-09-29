@@ -268,6 +268,14 @@ class TestMemoryImportanceWiring:
         )
         env = IrrigationEnvironment(WaterSystemConfig(seed=42))
         env.initialize_from_profiles([profile])
+        # WP2 review round 1 (LOW 8): the real ExperimentRunner always
+        # calls advance_year() before pre_year() for a given year (the
+        # coupling loop's own ordering) -- advance_year() is what sets
+        # base_af via _reset_requests_to_base, which pre_year now reads by
+        # direct indexing (no more silent 0.0 default). Without this call
+        # env._agents["TestAgent"] would never have base_af at all, a gap
+        # in this test's fixture, not a real runner scenario.
+        env.advance_year()
 
         config = AgentConfig(
             name="TestAgent", agent_type="irrigation_farmer",

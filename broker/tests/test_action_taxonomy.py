@@ -157,12 +157,13 @@ def test_default_domain_pack_returns_empty():
 def test_irrigation_domain_pack_full_taxonomy():
     from examples.irrigation_abm.adapters.irrigation_pack import IrrigationDomainPack
     tax = IrrigationDomainPack().action_taxonomy()
+    # WP2 (spec 2.2): three skills -- the LLM chooses the direction only,
+    # the environment draws the whole Hung and Yang magnitude, so there is
+    # no more small/large distinction (replaces the five-skill taxonomy).
     expected = {
-        "increase_large": ("increase", "large", "annual"),
-        "increase_small": ("increase", "small", "annual"),
+        "increase_demand": ("increase", "any", "annual"),
         "maintain_demand": ("maintain", "none", "annual"),
-        "decrease_small": ("decrease", "small", "annual"),
-        "decrease_large": ("decrease", "large", "annual"),
+        "decrease_demand": ("decrease", "any", "annual"),
     }
     assert set(tax.keys()) == set(expected.keys())
     for sid, (cat, intens, rev) in expected.items():
