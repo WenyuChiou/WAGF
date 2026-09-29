@@ -384,6 +384,30 @@ class LLMStats:
     calls: int = 1
     prompt_tokens_total: int = 0
     response_tokens_total: int = 0
+    # Spec item 24 fix round (audit gap: 1,638 real HTTP calls vs 1,170
+    # reported): backoff-layer bookkeeping, both additive and both defaulting
+    # to their pre-fix-round values so a call site that never sets them is
+    # unaffected.
+    #
+    # `transport_error` is an internal signal ONLY, from an invoke function to
+    # `broker.utils.llm_safeguard.wrap_llm_invoke_with_backoff`: "this specific
+    # failure was a connection-type transport failure (OSError, or an HTTP 5xx
+    # status), safe to retry" -- as opposed to a timeout (the inner layer
+    # already waited the configured timeout, retrying it again would double
+    # that wait for no benefit), an HTTP 4xx (a persistent client-side
+    # problem no retry fixes), empty/thinking-only content (the model's own
+    # empty-content retry loop already tried and failed), or a generic
+    # exception such as TypeError (a bug, not a transport blip). Deliberately
+    # excluded from `to_dict()` -- it exists to route ONE retry decision, not
+    # to be reported.
+    transport_error: bool = False
+    # `backoff_retries` is how many times wrap_llm_invoke_with_backoff retried
+    # THIS call after a transport failure. Read by `broker/core/_retry_loop.py`
+    # to call `GovernanceAuditor.log_backoff_retry()` once per retry, the same
+    # pattern `empty_content_retries` already uses -- so a backoff retry counts
+    # toward `total_extra_llm_calls` in the audit / governance_summary.json,
+    # instead of being invisible the way it was before this field existed.
+    backoff_retries: int = 0
 
     def to_dict(self) -> Dict:
         d = {
@@ -391,6 +415,7 @@ class LLMStats:
             "llm_success": self.success,
             "empty_content_retries": self.empty_content_retries,
             "empty_content_failure": self.empty_content_failure,
+            "backoff_retries": self.backoff_retries,
         }
         if self.prompt_tokens > 0:
             d["prompt_tokens"] = self.prompt_tokens
@@ -779,15 +804,30 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
             return content, stats
         else:
             _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
-            return "", LLMStats(retries=0, success=False, latency_ms=latency_ms)
+            # Spec item 24 fix round: transport_error=True only for 5xx (a
+            # server-side condition a retry can plausibly ride out); a 4xx is
+            # a persistent client-side problem (bad request body, auth) that
+            # retrying will not fix, so it is left False -- the backoff
+            # wrapper reads this flag to decide whether to retry at all.
+            return "", LLMStats(
+                retries=0, success=False, latency_ms=latency_ms,
+                transport_error=(response.status_code >= 500),
+            )
     except requests.exceptions.Timeout:
         _LOGGER.error(f" [LLM:Direct] Model '{model}' timed out after {timeout}s. Consider increasing timeout for this model.")
+        # transport_error stays False (default) on purpose: this call already
+        # waited the full configured timeout, so the backoff wrapper must not
+        # retry it and wait again for no benefit (spec item 24 fix round).
         return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
     except requests.exceptions.ConnectionError:
         _LOGGER.error(f" [LLM:Direct] Model '{model}' connection refused. Is Ollama running at {url}?")
-        return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
+        # transport_error=True: a refused/reset connection is exactly the
+        # transient failure the backoff wrapper exists to retry.
+        return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0), transport_error=True)
     except Exception as e:
         _LOGGER.error(f" [LLM:Direct] Model '{model}' unexpected error: {type(e).__name__}: {e}")
+        # transport_error stays False: an unclassified exception (a bug, a
+        # parsing error in this function) is not assumed safe to retry.
         return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
 
 
@@ -917,6 +957,16 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     calls=max(calls_made, 1),
                     prompt_tokens_total=acc_prompt_tokens,
                     response_tokens_total=acc_response_tokens,
+                    # Spec item 24 fix round 3 (CRITICAL 1): without this,
+                    # _invoke_ollama_direct's transport_error=True (set on a
+                    # ConnectionError or an HTTP 5xx) never survived this
+                    # reconstruction, so broker.utils.llm_safeguard's backoff
+                    # wrapper -- which wraps THIS closure, not
+                    # _invoke_ollama_direct directly -- always saw
+                    # transport_error=False and never retried a single real
+                    # Ollama connection failure. Verified with the real
+                    # create_llm_invoke('gemma3:4b').
+                    transport_error=getattr(last_stats, "transport_error", False),
                 )
 
             for attempt in range(max_llm_retries):
@@ -1076,11 +1126,16 @@ def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLM
             return response.content, stats
         except (ConnectionError, OSError) as e:
             _LOGGER.error(f" [LLM:Error] {provider.provider_name} connection failed: {e}")
-            return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
+            # Spec item 24 fix round: transport_error=True, the same signal
+            # _invoke_ollama_direct sends for its own ConnectionError branch --
+            # a connection failure is what the backoff wrapper retries.
+            return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0), transport_error=True)
         except Exception as e:
             _LOGGER.error(f" [LLM:Error] {provider.provider_name} {type(e).__name__}: {e}")
+            # transport_error stays False: an unclassified provider exception
+            # (auth failure, malformed request, SDK bug) is not retried.
             return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
-            
+
     return invoke
 
 

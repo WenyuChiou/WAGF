@@ -48,6 +48,59 @@ global_config:
     num_predict: 4096
     max_retries: 2
 
+  # Extra insurance before the v3 corpus launch (spec item 24, audit gap F42,
+  # PI approved 2026-09-29). Generic framework feature
+  # (broker/utils/llm_safeguard.py); OFF by default for every other domain.
+  # Values chosen for a 78-agent x 42-year real-LLM run where each Ollama
+  # call already takes tens of seconds. Fix round (post-review): retries are
+  # now TRANSPORT-failures only (a refused/reset connection, or an HTTP 5xx)
+  # -- a timeout is never retried here (the inner call already waited its
+  # own configured timeout), nor is an HTTP 4xx, empty content, or any other
+  # exception.
+  llm_safeguard:
+    enabled: true
+    # 5 retries (6 attempts total), delay doubling from 2s: 2, 4, 8, 16, 32s
+    # (62s of backoff delay total, not counting the calls' own durations).
+    # Long enough to ride out an Ollama restart or a slow GPU-driver
+    # recovery; backoff_max_seconds=60 is a defensive per-delay ceiling that
+    # does not bind for this sequence (its largest single delay is 32s) but
+    # protects a future edit to these numbers from producing an unbounded
+    # wait. Fix round 3 (TIME TO ABORT): once backoff gives up on a
+    # transport failure, the format-retry and governance-retry loops treat
+    # the decision as failed at once instead of re-prompting the same dead
+    # endpoint, so one decision's worst-case time to give up is this ~62s
+    # backoff schedule ONCE, not multiplied by however many retry-loop
+    # attempts a decision can otherwise take.
+    backoff_max_retries: 5
+    backoff_initial_seconds: 2
+    backoff_max_seconds: 60
+    # abort_window (a count, integer) and abort_threshold (a continuous
+    # share, fraction in (0, 1]) per the PI's framework-parameter rule
+    # (2026-09-25). The abort check is EARLY: it fires as soon as
+    # ceil(abort_threshold * abort_window) = ceil(0.5 * 50) = 25 failures
+    # have occurred in the current window, not only once the window is full
+    # -- so a genuinely broken endpoint (every call failing) trips at
+    # decision 25, not 50. One year of this domain is 78 agent-decisions,
+    # larger than the 50-decision window, so a badly-broken run is caught
+    # before it even finishes its first year -- well before a multi-day,
+    # multi-seed batch has burned meaningful GPU time on a run that could
+    # never have produced usable data.
+    abort_window: 50
+    abort_threshold: 0.5
+    # KNOWN LIMIT (fix round 4): the ~62s-once time-to-abort above is the
+    # DEAD-endpoint case (connection refused/reset) -- a HUNG endpoint
+    # (one that accepts the connection but never answers, so every call
+    # times out) is not sped up by any of this. A timeout is deliberately
+    # never retried by the backoff wrapper and never sets transport_error,
+    # so the early-break added this round never fires for it either; it
+    # falls back to the pre-safeguard behaviour of paying the full
+    # timeout on every attempt. At this domain's own numbers that is 3
+    # format-retry attempts x 2 inner create_llm_invoke attempts x the
+    # model's 120s timeout = 12 minutes for ONE decision to give up, so
+    # reaching the 25-failure early-stop above (still the same
+    # ceil(0.5 * 50) = 25) takes about 5 hours on a persistently hung
+    # endpoint, not the ~26 minutes a persistently DEAD one takes.
+
   governance:
     max_retries: 3
     max_reports_per_retry: 3
@@ -63,6 +116,15 @@ global_config:
   # (framework default off).
   audit:
     initial_proposal_columns: true
+    # Spec item 24 fix round 3 (CRITICAL 2, PI decision): the audit schema
+    # must not depend on whether a given run happened to hit a parse
+    # failure. This is a new corpus, so paying for one consistent column
+    # set from the start is free, and the governance metrics need
+    # execution_path and executed_skill regardless. Also closes a gap the
+    # LLM safeguard exposed: without this, a run that aborts on an
+    # unparsable decision could write zero rows to the audit CSV for the
+    # very decision that stopped it.
+    corrected_status_columns: true
 
   coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
 

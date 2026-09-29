@@ -1585,44 +1585,63 @@ def main():
         f"--- Irrigation ABM | {args.model} | {len(profiles)} agents ({n_real}) "
         f"| {args.years} years | seed={seed}{phase_str} ---"
     )
-    runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
+    # Spec item 24 fix round: runner.run() can now raise LLMFailureRateAborted
+    # (the LLM safeguard, on by default for this domain). Pre-fix, the four
+    # _record_*_provenance patches, the explicit audit finalize, and the
+    # simulation_log.csv save all ran only AFTER runner.run() returned, so an
+    # abort skipped every one of them -- including
+    # _record_hold_requests_fixed_provenance, whose value every manifest must
+    # carry (see main()'s own `assert config.hold_requests_fixed is False`
+    # above). try/finally: these run whether the call above returned or
+    # raised, and the exception (if any) still propagates afterward so the
+    # process still exits non-zero with the safeguard's one-line reason.
+    try:
+        runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
+    finally:
+        # Water-right history-anchor provenance (Change 1): additive patch of
+        # the two files ExperimentRunner._finalize_experiment already wrote,
+        # done here rather than inside broker/ since paper_water_margin is an
+        # irrigation-domain-only CLI parameter (irrigation_farmer's
+        # create_profiles_from_data, --real only) with no generic-framework
+        # home. Never fails the run over a provenance write (same posture as
+        # broker's own manifest-enrichment try/except, F3 fix) -- each of the
+        # four functions below already guards its own body and only prints a
+        # WARNING on failure, so none of them can mask an in-flight abort.
+        _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
+        _record_cluster_method_provenance(output_dir, args.cluster_method, args.real)
+        _record_step_bin_source_provenance(output_dir, profiles, args.real)
+        _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
 
-    # Water-right history-anchor provenance (Change 1): additive patch of the
-    # two files ExperimentRunner._finalize_experiment already wrote, done
-    # here rather than inside broker/ since paper_water_margin is an
-    # irrigation-domain-only CLI parameter (irrigation_farmer's
-    # create_profiles_from_data, --real only) with no generic-framework
-    # home. Never fails the run over a provenance write (same posture as
-    # broker's own manifest-enrichment try/except, F3 fix).
-    _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
-    _record_cluster_method_provenance(output_dir, args.cluster_method, args.real)
-    _record_step_bin_source_provenance(output_dir, profiles, args.real)
-    _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
+        # Finalize audit. Also already called from inside
+        # ExperimentRunner._finalize_experiment's own finally (run() wraps
+        # its whole loop in try/finally too), so this is belt-and-braces
+        # rather than the only path -- kept for the pre-existing explicit
+        # call sequence here.
+        if runner.broker.audit_writer:
+            runner.broker.audit_writer.finalize()
 
-    # Finalize audit
-    if runner.broker.audit_writer:
-        runner.broker.audit_writer.finalize()
-
-    # Save simulation log
-    if hooks.logs:
-        # Sanitize text for CSV compatibility
-        sanitized_logs = []
-        for log in hooks.logs:
-            sanitized_log = {
-                k: (v.replace('\n', ' ').replace('\r', ' ').strip() if isinstance(v, str) else v)
-                for k, v in log.items()
-            }
-            sanitized_logs.append(sanitized_log)
-        log_df = pd.DataFrame(sanitized_logs)
-        if "precipitation_flag" in log_df.columns:
-            # Re-review 2026-09-29 (NIT): a mix of int 0/1 (Upper Basin)
-            # and None (Lower Basin, MEDIUM 4) upcasts a plain int column
-            # to float64, rendering "1.0"/"0.0" in the CSV instead of
-            # "1"/"0". pandas' nullable Int64 dtype keeps real values as
-            # ints and a missing one blank, matching precipitation_mm's
-            # own blank-for-missing behavior.
-            log_df["precipitation_flag"] = log_df["precipitation_flag"].astype("Int64")
-        log_df.to_csv(output_dir / "simulation_log.csv", index=False)
+        # Save simulation log. hooks.logs accumulates per-year as the run
+        # progresses, so an aborted run still has every year it completed
+        # before the abort in it, and the CSV below carries exactly those.
+        if hooks.logs:
+            # Sanitize text for CSV compatibility
+            sanitized_logs = []
+            for log in hooks.logs:
+                sanitized_log = {
+                    k: (v.replace('\n', ' ').replace('\r', ' ').strip() if isinstance(v, str) else v)
+                    for k, v in log.items()
+                }
+                sanitized_logs.append(sanitized_log)
+            log_df = pd.DataFrame(sanitized_logs)
+            if "precipitation_flag" in log_df.columns:
+                # Re-review 2026-09-29 (NIT): a mix of int 0/1 (Upper Basin)
+                # and None (Lower Basin, MEDIUM 4) upcasts a plain int column
+                # to float64, rendering "1.0"/"0.0" in the CSV instead of
+                # "1"/"0". pandas' nullable Int64 dtype keeps real values as
+                # ints and a missing one blank, matching precipitation_mm's
+                # own blank-for-missing behavior.
+                log_df["precipitation_flag"] = log_df["precipitation_flag"].astype("Int64")
+            log_df.to_csv(output_dir / "simulation_log.csv", index=False)
 
     GovernanceAuditor().print_summary()
     print(f"--- Complete! Results in {output_dir} ---")
