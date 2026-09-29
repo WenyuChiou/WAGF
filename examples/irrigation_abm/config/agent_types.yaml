@@ -324,22 +324,33 @@ irrigation_farmer:
       # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
       # whose delivery formula no longer holds). The tracked metrics are
       # recorded in post_year from the year's FINAL settlement, so this row is
-      # last year's actual request and delivery. Delivery / request is
-      # (1 - tier cut) x (Mead physical ratio) for a Lower Basin agent and the
-      # pro-rata Upper Basin ratio for an Upper Basin agent. 0.85 is below
-      # Tier 1 and Tier 2 (0.95, 0.90), so it fires for Tier 3, for a Mead
-      # or Powell physical limit, or for a combination. "supply >= 1" stays
-      # as a unit guard: SafeExpressionEvaluator replaces 0 with 1e-10, and a
-      # real delivery is thousands of acre-feet.
+      # last year's actual request and delivery. PI decision 2026-09-28
+      # (supersedes the "(1 - tier cut) x (Mead physical ratio)" formula this
+      # comment used to state): delivery / request for a Lower Basin
+      # agricultural agent is the Mead physical ratio (phi) ALONE -- the
+      # declared tier's shortage volume is borne entirely by the
+      # non-agricultural bucket, never by this agent's own delivery. For an
+      # Upper Basin agent it is still the pro-rata natural-flow-or-capacity
+      # ratio. 0.85 is now a genuine physical-scarcity threshold (there is no
+      # tier-only path below it any more: a declared tier with no physical
+      # Mead or Powell shortfall leaves this ratio at 1.0). "supply >= 1"
+      # stays as a unit guard: SafeExpressionEvaluator replaces 0 with
+      # 1e-10, and a real delivery is thousands of acre-feet. Re-review
+      # 2026-09-29 (LOW 9): this one message is shared by BOTH basins, so it
+      # must not name Lake Mead specifically -- "only Lake Mead's physical
+      # availability does" is false for an Upper Basin agent, whose delivery
+      # is bounded by natural flow or the 5.0 MAF capacity, never by Mead.
       - when: "supply / request < 0.85 and supply >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
           ({unmet_pct:.0f}% not delivered). The reason is stated in your water
-          situation above. A declared shortage reduces any larger request by
-          the same share; when a physical limit binds, supply is shared
-          pro-rata, so a larger request raises your share only by lowering
-          other users' deliveries.
+          situation above. A declared shortage does not by itself reduce your
+          delivery; only a physical supply limit does (Lake Mead's
+          availability for the Lower Basin, natural flow or delivery
+          capacity for the Upper Basin). When a physical limit binds, supply
+          is shared pro-rata, so a larger request raises your share only by
+          lowering other users' deliveries.
 
   # ---------------------------------------------------------------------------
   # Available Actions

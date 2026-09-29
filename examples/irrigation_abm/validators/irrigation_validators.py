@@ -41,12 +41,22 @@ _SHARING_SENTENCE = (
 
 
 def _tier_reason(context: Dict[str, Any]) -> str:
-    """The describe_gap_reason phrase for the declared Lower Basin shortage."""
-    return describe_gap_reason({
-        "gap_reason": "lb_shortage_tier",
-        "curtailment_ratio": context.get("curtailment_ratio", 0),
-        "shortage_tier": context.get("shortage_tier", 0),
-    })
+    """Phrase naming the declared Lower Basin shortage tier, for the
+    demand-increase block message.
+
+    PI decision 2026-09-28: the declared tier's shortage volume is borne
+    entirely by the Lower Basin non-agricultural bucket, never by an
+    agricultural agent's own delivery (that is why
+    ``describe_gap_reason``'s ``lb_shortage_tier`` case was removed --
+    it no longer describes any agent's actual gap). This helper only
+    names the tier as institutional context for the increase-block rule
+    below (DCP mandatory conservation policy), and does not claim the
+    tier reduced the requesting agent's own delivery.
+    """
+    tier = int(context.get("shortage_tier", 0) or 0)
+    if tier <= 0:
+        return ""
+    return f"because a Tier {tier} Lower Basin shortage has been declared"
 
 
 # =============================================================================
@@ -181,6 +191,16 @@ def curtailment_awareness_check(
     curtailment = context.get("curtailment_ratio", 0)
     if curtailment <= 0:
         return []
+    # Re-review 2026-09-29 (NIT, then round 4 LOW 2): the acre-feet figure
+    # matching build_water_situation_text's own HIGH-2 wording, not the
+    # bare curtailment_ratio percentage (informational V/N, not itself an
+    # acre-foot quantity a reader can act on). Direct index, not
+    # .get(..., 0): a declared tier (curtailment > 0, just checked above)
+    # with no lb_shortage_volume_maf in context is a real wiring defect --
+    # IRRIGATION_CONTEXT_PRODUCERS declares this key guaranteed present --
+    # not a legitimate "no shortage" case to silently paper over with a
+    # fabricated 0.
+    shortage_volume_af = context["lb_shortage_volume_maf"] * 1e6
 
     shortage_tier = context.get("shortage_tier", 0)
     # loop_year is 1-indexed from pre_year hook; default 99 skips grace period safely
@@ -196,8 +216,9 @@ def curtailment_awareness_check(
                 warnings=[
                     f"Cold-start grace period (Year {year}): increase allowed "
                     f"although a Tier 2 Lower Basin shortage is declared "
-                    f"({curtailment:.0%} reduction of Lower Basin deliveries); "
-                    f"it is reduced by the same share."
+                    f"(the non-agricultural allocation is cut {shortage_volume_af:,.0f} "
+                    f"acre-ft); your own delivery is governed by Lake Mead's "
+                    f"physical availability, not by this tier directly."
                 ],
                 metadata={
                     "rule_id": "curtailment_awareness",
@@ -243,7 +264,8 @@ def curtailment_awareness_check(
                     validator_name="IrrigationCurtailmentValidator",
                     errors=[
                         f"Large increase blocked {_tier_reason(context)}; a small "
-                        f"increase is allowed and is reduced by the same share."
+                        f"increase is allowed (subject to Lake Mead's physical "
+                        f"availability)."
                     ],
                     warnings=[],
                     metadata={
@@ -264,8 +286,10 @@ def curtailment_awareness_check(
                     errors=[],
                     warnings=[
                         f"Small increase allowed although a Tier 1 Lower Basin "
-                        f"shortage is declared ({curtailment:.0%} reduction of "
-                        f"Lower Basin deliveries); it is reduced by the same share."
+                        f"shortage is declared (the non-agricultural allocation "
+                        f"is cut {shortage_volume_af:,.0f} acre-ft); your own "
+                        f"delivery is governed by Lake Mead's physical "
+                        f"availability, not by this tier directly."
                     ],
                     metadata={
                         "rule_id": "curtailment_awareness",
@@ -284,8 +308,8 @@ def curtailment_awareness_check(
             errors=[],
             warnings=[
                 f"Water curtailment active (Tier {shortage_tier}, "
-                f"{curtailment:.0%} reduction). Increasing demand may "
-                f"result in unmet allocation."
+                f"non-agricultural allocation cut {shortage_volume_af:,.0f} "
+                f"acre-ft). Increasing demand may result in unmet allocation."
             ],
             metadata={
                 "rule_id": "curtailment_awareness",
@@ -1011,6 +1035,10 @@ IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     "basin", "loop_year",
     # supply-side redesign (2026-09-25): read by the rule messages
     "gap_reason", "delivery_ratio", "lake_mead_level",
+    # re-review 2026-09-29 (NIT): read by curtailment_awareness_check's
+    # acre-feet wording (IrrigationLifecycleHooks.pre_year's
+    # validator_fields now wires it from ctx["lb_shortage_volume_maf"]).
+    "lb_shortage_volume_maf",
     # auto-injected from env_context by the broker's env merge
     "drought_index", "total_available_water", "total_basin_demand", "year",
 })

@@ -29,7 +29,8 @@ def _lb_tier2_state():
     return {"basin": "lower_basin", "year": 2021, "drought_index": 0.5, "lake_mead_level": 1040.0,
             "preceding_factor": 0, "current_request": 100_000.0, "current_diversion": 90_000.0,
             "delivery_ratio": 0.9, "water_right": 200_000.0, "gap_reason": "lb_shortage_tier",
-            "curtailment_ratio": 0.10, "shortage_tier": 2, "loop_year": 5}
+            "curtailment_ratio": 0.10, "shortage_tier": 2, "lb_shortage_volume_maf": 0.417,
+            "loop_year": 5}
 
 
 def test_describe_gap_reason_codes():
@@ -37,11 +38,21 @@ def test_describe_gap_reason_codes():
     assert describe_gap_reason({}) == ""
     assert "minimum release" in describe_gap_reason({"gap_reason": "ub_powell_release"})
     assert "5.0 million acre-ft" in describe_gap_reason({"gap_reason": "ub_capacity"})
-    tier = describe_gap_reason({"gap_reason": "lb_shortage_tier", "curtailment_ratio": 0.2})
-    assert tier == "because the Tier 3 Lower Basin shortage reduces Lower Basin deliveries by 20%"
-    both = describe_gap_reason({"gap_reason": "lb_shortage_tier+lb_mead_availability",
-                                "curtailment_ratio": 0.2, "shortage_tier": 3})
-    assert "Tier 3" in both and "minimum pool" in both and " and " in both
+    assert "natural flow" in describe_gap_reason({"gap_reason": "ub_natural_flow"})
+    # PI decision 2026-09-28: the declared tier's shortage volume is borne
+    # entirely by the Lower Basin non-agricultural bucket, never by an
+    # agricultural agent's own delivery, so "lb_shortage_tier" is no
+    # longer a real per-agent gap reason -- describe_gap_reason silently
+    # contributes nothing for it (not a guessed phrase).
+    assert describe_gap_reason({"gap_reason": "lb_shortage_tier", "curtailment_ratio": 0.2}) == ""
+    combined = describe_gap_reason({"gap_reason": "lb_shortage_tier+lb_mead_availability",
+                                    "curtailment_ratio": 0.2, "shortage_tier": 3})
+    # Only the physical lb_mead_availability half is real now; the tier
+    # half contributes nothing, so this reduces to that single phrase
+    # (no "and", no injected "Tier 3").
+    assert "minimum pool" in combined
+    assert "Tier 3" not in combined
+    assert " and " not in combined
 
 
 def test_ub_powell_consistent_across_situation_rule_and_memory():
@@ -70,10 +81,24 @@ def test_lb_tier2_consistent_across_situation_and_rule():
     st = _lb_tier2_state()
     text = build_water_situation_text(st)
     reason = describe_gap_reason(st)
-    assert "Tier 2 Lower Basin shortage" in text and reason in text
+    # PI decision 2026-09-28: this fixture's gap_reason ("lb_shortage_tier")
+    # is a declared-tier-only state with no physical Mead shortfall, so it
+    # no longer reduces this agent's own delivery -- describe_gap_reason
+    # correctly has nothing to name (reason == ""), unlike the pre-PI
+    # behaviour this test used to check ("reason in text" would otherwise
+    # pass vacuously for any text once reason is empty).
+    assert reason == ""
+    assert "Tier 2 Lower Basin shortage" in text
+    # Re-review 2026-09-29 (HIGH 2): the declared tier cuts the
+    # non-agricultural bucket by an acre-feet volume, never "Lower Basin
+    # deliveries" as a flat percentage of this (agricultural) agent's own
+    # delivery.
+    assert "deliveries are reduced by" not in text
+    assert "417,000 acre-ft" in text
     assert "Full allocation is available" not in text
     msg = curtailment_awareness_check("increase_small", [], st)[0].errors[0]
-    assert reason in msg and "1040 ft on 1 January" in msg
+    assert "Tier 2 Lower Basin shortage has been declared" in msg
+    assert "1040 ft on 1 January" in msg
 
 
 def test_full_allocation_only_when_ratio_one():
@@ -145,10 +170,24 @@ def test_option_descriptions_have_no_yield():
 
 
 def test_dashboard_situation_and_memory_state_the_same_numbers(tmp_path):
-    """T12 end to end for a Lower Basin agent at Tier 3: the dashboard WARNING
-    (recorded in post_year from the settlement), the next year's "Last year"
-    situation sentence and the memory line carry the same request and
-    delivery, and the situation text and memory line the same reason."""
+    """T12 end to end for a Lower Basin agent under a real Lake Mead
+    physical shortfall: the dashboard WARNING (recorded in post_year from
+    the settlement), the next year's "Last year" situation sentence and
+    the memory line carry the same request and delivery, and the
+    situation text and memory line the same reason.
+
+    PI decision 2026-09-28 (supersedes review fix 4 and this test's
+    original below-0.85 setup, which shrank
+    WaterSystemConfig.lb_non_ag_total_maf): the declared tier's shortage
+    volume is borne entirely by the Lower Basin non-agricultural bucket,
+    never by an agricultural agent's own delivery -- shrinking that
+    bucket no longer pushes an agricultural agent's own delivery down (if
+    anything it frees more water for agriculture). The below-0.85
+    dashboard alert is restored here by forcing a genuine PHYSICAL Lake
+    Mead shortfall instead (both reservoirs just above their dead pools,
+    plus an overridden severe-drought natural flow), which is the only
+    way an agricultural agent's delivery is reduced under the new rule
+    (lb_phys_ratio, phi < 1)."""
     from unittest.mock import MagicMock
 
     from broker.agents import AgentConfig, BaseAgent
@@ -167,7 +206,14 @@ def test_dashboard_situation_and_memory_state_the_same_numbers(tmp_path):
                                      water_right=200_000.0)
     env = IrrigationEnvironment(WaterSystemConfig(seed=42))
     env.initialize_from_profiles([profile])
-    env._mead_storage = [7.0]  # about 1,012 ft on 1 January -> Tier 3
+    cfg_ws = env.config
+    # Both reservoirs just above their dead pools, plus an overridden
+    # severe-drought natural flow for every year, force a real physical
+    # shortfall (lb_phys_ratio well below 0.85) -- not a declared-tier
+    # cut, which no longer touches agricultural delivery at all.
+    env._mead_storage = [cfg_ws.mead_dead_pool_maf + 0.2]  # ~901 ft, near dead pool
+    env._powell_storage = cfg_ws.powell_dead_pool_maf + 0.2
+    env._natural_flow_for_year = lambda year: 0.5
     agent = BaseAgent(AgentConfig(name="LB1", agent_type="irrigation_farmer", state_params=[],
                                   objectives=[], constraints=[], skills=[]))
     agent.custom_attributes = {}
@@ -187,18 +233,33 @@ def test_dashboard_situation_and_memory_state_the_same_numbers(tmp_path):
     hooks.post_step(agent, SimpleNamespace(approved_skill=skill, execution_result=res, skill_proposal=None))
     hooks.post_year(1, {"LB1": agent})
     req, got = hooks.logs[-1]["request"], hooks.logs[-1]["diversion"]
-    assert got / req == pytest.approx(0.80)
+    # PI decision 2026-09-28: an agricultural agent's own delivery ratio
+    # is exactly lb_phys_ratio (phi) -- the declared tier plays no part.
+    phi = env.last_settlement["lb_phys_ratio"]
+    assert env.last_settlement["agents"]["LB1"]["gap_reason"] == "lb_mead_availability"
+    assert phi < 0.85, "scenario must actually cross the dashboard alert threshold"
+    assert got / req == pytest.approx(phi)
 
     ctx = {}
     FeedbackDashboardProvider(tracker, fb_cfg).provide("LB1", {}, ctx, env_context={})
     dash = ctx["feedback_dashboard"]
+    # The property this test cares about -- the dashboard shows the SAME
+    # numbers as the situation text and memory line -- plus the below-0.85
+    # WARNING sentence itself (config/agent_types.yaml,
+    # irrigation_farmer.feedback.assertions), restored here via a real
+    # physical shortfall rather than a declared tier. Re-review 2026-09-29
+    # (MEDIUM 5): restore the exact phrase assertions (confirmed to still
+    # hold under the new physical-shortfall scenario), not just a loose
+    # number/keyword check.
     assert f"You requested {req:,.0f} AF and received {got:,.0f} AF" in dash
     assert "The reason is stated in your water situation above" in dash
 
     runner._current_year = 2
     env.advance_year()
     hooks.pre_year(2, {}, {"LB1": agent})
-    reason = describe_gap_reason({"gap_reason": "lb_shortage_tier", "curtailment_ratio": 0.20})
+    # The physical shortfall (lb_mead_availability), not a declared tier,
+    # is why LB1's delivery was below its request last year.
+    reason = describe_gap_reason({"gap_reason": "lb_mead_availability"})
     assert f"Last year you requested {req:,.0f} acre-ft and received {got:,.0f} acre-ft" in agent.water_situation_text
     assert reason in agent.water_situation_text
     mem = runner.memory_engine.add_memory_for_agent.call_args.args[1]
@@ -206,16 +267,17 @@ def test_dashboard_situation_and_memory_state_the_same_numbers(tmp_path):
 
 
 def test_dashboard_message_true_for_tier_only_year():
-    """The F13 text must hold in a tier-only year (ratio 0.80, no physical
-    limit), where a larger request is cut by the same share, not taken from
-    other users."""
+    """PI decision 2026-09-28: a declared shortage tier alone (no Lake
+    Mead physical limit) no longer reduces a Lower Basin agricultural
+    agent's delivery at all, so the F13 message must say so rather than
+    claim a same-share cut that no longer happens in that case."""
     import yaml
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     cfg = yaml.safe_load((root / "examples/irrigation_abm/config/agent_types.yaml").read_text(encoding="utf-8"))
     msg = cfg["irrigation_farmer"]["feedback"]["assertions"][0]["message"]
-    assert "A declared shortage reduces any larger request by the same share" in msg
-    assert "when a physical limit binds" in msg
+    assert "A declared shortage does not by itself reduce your delivery" in msg
+    assert "When a physical limit binds" in msg
     assert "raises your share only by lowering" in msg
 
 
@@ -238,6 +300,29 @@ def test_situation_text_carries_each_reason(code, needle):
 def test_year_one_has_no_last_year_sentence():
     text = build_water_situation_text(_lb_tier2_state(), last_year=None)
     assert "Last year you requested" not in text
+
+
+def test_missing_shortage_volume_raises_only_when_it_would_be_shown():
+    """Re-review 2026-09-29 (LOW D): a Lower Basin context with a declared
+    tier and no lb_shortage_volume_maf is a real data-shape defect
+    (get_agent_context should always set it once a tier is declared) --
+    raise rather than silently reporting a fabricated 0 acre-ft cut. An
+    Upper Basin context never reads the value at all (the sentence it
+    feeds is Lower-Basin-only), so the same missing key must not raise
+    there, and neither does a Lower Basin context at tier 0 (never
+    displayed)."""
+    st = dict(_lb_tier2_state(), shortage_tier=2)
+    del st["lb_shortage_volume_maf"]
+    with pytest.raises(ValueError, match="lb_shortage_volume_maf"):
+        build_water_situation_text(st)
+
+    st_tier0 = dict(st, shortage_tier=0)
+    build_water_situation_text(st_tier0)  # does not raise
+
+    ub_state = dict(_ub_powell_state())
+    ub_state.pop("lb_shortage_volume_maf", None)
+    assert ub_state["shortage_tier"] > 0
+    build_water_situation_text(ub_state)  # does not raise: Upper Basin never reads it
 
 
 def test_new_message_text_has_no_em_dash():

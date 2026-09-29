@@ -89,7 +89,13 @@ class TestIrrigationEnvironment:
         assert "total_available_water" in state
 
     def test_drought_index_bounded(self, env):
-        for _ in range(50):
+        # v3 (spec 1.1, 2026-09-28): natural flow (and, via it, nothing
+        # here directly, but the simulation horizon it defines) comes from
+        # the committed 42-row USBR hydrology table (sim years 2019-2060),
+        # which raises for a year outside that range rather than falling
+        # back to a synthetic extrapolation -- so this loop no longer runs
+        # past the table's 42 years.
+        for _ in range(42):
             env.advance_year()
             di = env.global_state["drought_index"]
             assert 0.0 <= di <= 1.0
@@ -279,6 +285,11 @@ class TestIrrigationValidators:
             "basin": "lower_basin",
             "total_basin_demand": 5_000_000,
             "basin_allocation": 7_500_000,
+            # Re-review 2026-09-29 round 4 (LOW 2): curtailment_awareness_check
+            # now direct-indexes this (no silent 0 fallback) whenever
+            # curtailment_ratio > 0, which several tests below set via
+            # overrides.
+            "lb_shortage_volume_maf": 0.417,
         }
         base.update(overrides)
         return base
@@ -634,6 +645,9 @@ class TestDomainDispatch:
         ctx = {
             "curtailment_ratio": 0.15,
             "shortage_tier": 2,
+            # Re-review 2026-09-29 round 4 (LOW 2): no silent 0 fallback
+            # any more in curtailment_awareness_check.
+            "lb_shortage_volume_maf": 0.417,
         }
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [r for r in results if not r.valid and r.errors]
@@ -648,6 +662,7 @@ class TestDomainDispatch:
         ctx = {
             "curtailment_ratio": 0.05,
             "shortage_tier": 1,
+            "lb_shortage_volume_maf": 0.333,
         }
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [r for r in results if not r.valid]
@@ -659,6 +674,7 @@ class TestDomainDispatch:
         ctx = {
             "curtailment_ratio": 0.05,
             "shortage_tier": 1,
+            "lb_shortage_volume_maf": 0.333,
         }
         results = validate_all("increase_small", self._make_rules(), ctx, domain="irrigation")
         warnings = [r for r in results if r.valid and r.warnings]
@@ -1022,6 +1038,9 @@ class TestColdStartGracePeriod:
             "curtailment_ratio": 0.10,
             "shortage_tier": 2,
             "loop_year": 1,
+            # Re-review 2026-09-29 round 4 (LOW 2): no silent 0 fallback
+            # any more in curtailment_awareness_check.
+            "lb_shortage_volume_maf": 0.417,
         }
         base.update(overrides)
         return base

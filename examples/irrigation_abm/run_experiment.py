@@ -472,6 +472,14 @@ class IrrigationLifecycleHooks:
                 "gap_reason": ctx.get("gap_reason", "none"),
                 "delivery_ratio": ctx.get("delivery_ratio", 1.0),
                 "lake_mead_level": ctx.get("lake_mead_level", 0),
+                # Re-review 2026-09-29 (NIT, then round 4 LOW 2): read by
+                # curtailment_awareness_check's acre-feet wording (the
+                # F04 startup check caught this key having no producer).
+                # Direct index, not .get(..., 0): get_agent_context sets
+                # this unconditionally (HIGH 2), so a missing value here
+                # is a real wiring defect, not a legitimate "no shortage"
+                # case to silently paper over with a fabricated 0.
+                "lb_shortage_volume_maf": ctx["lb_shortage_volume_maf"],
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
@@ -619,6 +627,12 @@ class IrrigationLifecycleHooks:
 
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
+            # Review 2026-09-28 (fix 5): the agent's own precipitation and
+            # flag for the year (spec 1.6), for the simulation_log.csv
+            # columns -- frozen for the whole year (advance_year sets
+            # them once), so this is the same value the agent's own
+            # decision saw, not a re-roll.
+            agent_context = self.env.get_agent_context(aid)
 
             # F05 (2026-09-25 audit): snapshot THIS year's own outcome now.
             # request/diversion/drought_index/preceding_factor are all
@@ -706,6 +720,8 @@ class IrrigationLifecycleHooks:
                 magnitude_fallback=appr.get("magnitude_fallback", False),
                 is_exploration=appr.get("is_exploration", False),  # v12: Track ε-exploration
                 memory=mem_str,
+                precipitation_mm=agent_context.get("precipitation"),
+                precipitation_flag=agent_context.get("precipitation_flag"),
             ))
 
         # Print yearly summary
@@ -756,15 +772,21 @@ class IrrigationLifecycleHooks:
                 request = agent_state.get("request", 0) or 0
                 diversion = agent_state.get("diversion", 0) or 0
                 action_ctx = getattr(agent, "_last_action_context", None) or {}
-                # F08 code review (2026-09-25): diversion = request * (1 -
-                # curtailment_ratio) is mathematically an exact tier ratio
-                # (0.95/0.90/0.80/0.80...), but float64 division does not
-                # always round-trip exactly -- measured 5-6% of random
-                # requests landing on the wrong side of a 0.60/0.80
-                # boundary in compute_importance's shortage branches purely
-                # from float noise (the same class of bug F13 fixed in the
-                # YAML assertion trigger). round(..., 6) removes that noise
-                # without materially changing any real (non-boundary) ratio.
+                # F08 code review (2026-09-25), re-review 2026-09-29 (NIT):
+                # diversion / request is the agent's actual delivery ratio
+                # for the year -- phi for a Lower Basin agricultural agent,
+                # the Upper Basin pro-rata ratio otherwise -- a continuous
+                # physical value, NOT the exact tier fraction (1 -
+                # curtailment_ratio, e.g. 0.95/0.90/0.80) this comment used
+                # to describe before PI decision 2026-09-28 (a declared
+                # tier no longer multiplies into an agricultural agent's
+                # own delivery at all). round(..., 6) still removes
+                # float64 noise near a boundary compute_importance's
+                # shortage branches read (0.60/0.80) -- measured 5-6% of
+                # random requests landing on the wrong side purely from
+                # float noise before this fix (the same class of bug F13
+                # fixed in the YAML assertion trigger) -- without
+                # materially changing any real (non-boundary) ratio.
                 #
                 # Supply-side redesign (2026-09-25): agent_state here is read
                 # after post_year's settle_year(), so diversion is the final
@@ -1423,7 +1445,16 @@ def main():
                 for k, v in log.items()
             }
             sanitized_logs.append(sanitized_log)
-        pd.DataFrame(sanitized_logs).to_csv(output_dir / "simulation_log.csv", index=False)
+        log_df = pd.DataFrame(sanitized_logs)
+        if "precipitation_flag" in log_df.columns:
+            # Re-review 2026-09-29 (NIT): a mix of int 0/1 (Upper Basin)
+            # and None (Lower Basin, MEDIUM 4) upcasts a plain int column
+            # to float64, rendering "1.0"/"0.0" in the CSV instead of
+            # "1"/"0". pandas' nullable Int64 dtype keeps real values as
+            # ints and a missing one blank, matching precipitation_mm's
+            # own blank-for-missing behavior.
+            log_df["precipitation_flag"] = log_df["precipitation_flag"].astype("Int64")
+        log_df.to_csv(output_dir / "simulation_log.csv", index=False)
 
     GovernanceAuditor().print_summary()
     print(f"--- Complete! Results in {output_dir} ---")

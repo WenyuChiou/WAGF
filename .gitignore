@@ -89,6 +89,12 @@ temp_*.json
 # scoped to data, and silently swallowed these when they were first added.
 !reproduction/**/*.csv
 
+# ...and the irrigation v3 water-system reference data (small, committed,
+# checksum-pinned at load -- irrigation_v3_spec_2026-09-28.md WP1), not a
+# results/audit CSV the blanket rule above is meant to catch.
+!examples/irrigation_abm/data/hydrology_v3.csv
+!examples/irrigation_abm/data/mead_capacity_usbr2009_1ft.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/

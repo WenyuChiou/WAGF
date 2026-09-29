@@ -1,0 +1,632 @@
+"""Irrigation case study v3, Work Package 1 (water system and data).
+
+Spec: .research/design_specs/irrigation_v3_spec_2026-09-28.md (WP1) and
+.research/design_specs/irrigation_v3_design_provenance_2026-09-28.md.
+Audit: .ai/irrigation_prerun_audit_2026-09-28/L2_water_system.md (H1, H2,
+H4, D1, D2, D6, N2).
+
+Re-review 2026-09-29 (NIT): most tests here fail on the pre-WP1 code (main
+f3aa2d87 / the persona commit cb1656eb) -- ``_natural_flow_for_year``,
+``_tier_shortage_volume_maf``, ``precip_group``, ``precipitation_flag`` and
+the new data files do not exist there, and the pre-WP1 Mead curve,
+evaporation calibration and Mexico schedule give different numbers -- but
+this is no longer true of EVERY test: several (the storage-balancing
+Powell release, the non-agricultural-only shortage sharing, and the tests
+each review round added since) instead fail on an EARLIER post-WP1 code
+state, the one each test's own docstring names, not necessarily on
+f3aa2d87/cb1656eb.
+
+Covers: the committed hydrology table and its checksum (1.1); natural
+flow with no clamp (1.1); Upper Basin non-farm use taken first, never
+curtailed (1.2); the Lower Basin tributary series (1.3); Upper Basin
+priority over Powell's release, and the release never exceeding
+inflow plus storage above dead pool (PI decision 4); the USBR 2009 Mead
+curve and its calibrated evaporation (1.4, PI decision 5); shortage
+volumes by tier and the Minute 323 Mexico schedule including the
+1,045-1,025 ft band (1.5, PI decisions f and 6); 42-year mass balance
+closure at fixed demand; and per-sub-basin precipitation (1.6).
+"""
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from examples.irrigation_abm.irrigation_env import (
+    HYDROLOGY_V3_PATH,
+    HYDROLOGY_V3_SHA256,
+    MEAD_CAPACITY_PATH,
+    MEAD_CAPACITY_SHA256,
+    IrrigationEnvironment,
+    WaterSystemConfig,
+)
+from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
+
+CRSS_PARAMS_CSV = Path("ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv")
+CRSS_DB_DIR = Path("ref/CRSS_DB/CRSS_DB")
+_REAL_REF_AVAILABLE = CRSS_PARAMS_CSV.is_file() and CRSS_DB_DIR.is_dir()
+
+
+def _agent(basin: str, request: float, water_right: float = 4_000_000.0) -> dict:
+    return {
+        "basin": basin,
+        "diversion": request,
+        "request": request,
+        "water_right": water_right,
+        "curtailment_ratio": 0.0,
+        "delivery_ratio": 1.0,
+        "gap_reason": "none",
+        "at_allocation_cap": False,
+        "has_efficient_system": False,
+        "below_minimum_utilisation": False,
+        "cluster": "aggressive",
+    }
+
+
+def _env(ub=(), lb=()) -> IrrigationEnvironment:
+    env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+    for i, r in enumerate(ub):
+        env._agents[f"UB{i}"] = _agent("upper_basin", r)
+    for i, r in enumerate(lb):
+        env._agents[f"LB{i}"] = _agent("lower_basin", r)
+    return env
+
+
+def _planned(env, snap, ub_requested_maf=None):
+    """Test helper (re-review 2026-09-29, HIGH A round 3): compute
+    powell_release_planned_maf via the REAL planning method
+    (_plan_powell_release), from the snapshot's own projected Lower Basin
+    total and either an explicit projected Upper Basin total or (default)
+    the env's actual Upper Basin request sum -- i.e. no planned-vs-actual
+    divergence unless a test explicitly asks for one. Returns a NEW dict
+    (does not mutate snap).
+
+    Re-review 2026-09-29 round 4 (LOW 1): the default comes from the SAME
+    _basin_request_projected_maf advance_year itself calls, water-right
+    cap included -- not a hand-rolled, easily-stale re-derivation."""
+    cfg = env.config
+    if ub_requested_maf is None:
+        ub_requested_maf = env._basin_request_projected_maf(is_upper_basin=True)
+    out = dict(snap)
+    out["powell_release_planned_maf"] = env._plan_powell_release(
+        nf=snap["natural_flow"], s_p=snap["powell_storage"], s_m=snap["mead_storage"],
+        trib=snap.get("lb_tributary", cfg.lb_tributary_maf),
+        shortage_volume=snap["lb_shortage_volume_maf"], mexico=snap["mexico"],
+        ub_requested_maf=ub_requested_maf,
+        lb_requested_maf=snap["lb_request_projected_maf"],
+    )
+    return out
+
+
+# ===========================================================================
+# 1.1 Hydrology table
+# ===========================================================================
+
+class TestHydrologyTable:
+    def test_hydrology_table_checksum_and_row_count(self):
+        """42-row table, sha256-pinned; first and last rows match the
+        source USBR sheet exactly."""
+        data = Path(HYDROLOGY_V3_PATH).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == HYDROLOGY_V3_SHA256
+        lines = data.decode("utf-8").splitlines()
+        assert len(lines) == 43, "header + 42 rows"
+        assert lines[0] == (
+            "sim_year,source_calendar_year,lees_ferry_cy_natural_flow_af,"
+            "lees_ferry_to_below_hoover_cy_intervening_af"
+        )
+        assert lines[1] == "2019,1988,11210331,821325"
+        assert lines[-1] == "2060,1947,16380601,700234"
+
+    def test_hydrology_table_sums(self):
+        """Acceptance: 42-year sums 563,919,110 AF (Lees Ferry) and
+        33,323,733 AF (intervening)."""
+        lines = Path(HYDROLOGY_V3_PATH).read_text(encoding="utf-8").splitlines()[1:]
+        lf_sum = sum(int(line.split(",")[2]) for line in lines)
+        trib_sum = sum(int(line.split(",")[3]) for line in lines)
+        assert lf_sum == 563_919_110
+        assert trib_sum == 33_323_733
+
+    def test_natural_flow_no_clamp(self):
+        """2028 = 21.655579 MAF (above the old [6, 17] MAF ceiling -- no
+        clamp), 2033 = 6.088144 MAF."""
+        env = _env()
+        assert env._natural_flow_for_year(2028) == pytest.approx(21.655579)
+        assert env._natural_flow_for_year(2028) > 17.0
+        assert env._natural_flow_for_year(2033) == pytest.approx(6.088144)
+
+    def test_year_outside_table_raises(self):
+        env = _env()
+        with pytest.raises(ValueError, match="2061"):
+            env._natural_flow_for_year(2061)
+        with pytest.raises(ValueError):
+            env._natural_flow_for_year(2018)
+
+    def test_mead_capacity_table_checksum(self):
+        data = Path(MEAD_CAPACITY_PATH).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == MEAD_CAPACITY_SHA256
+
+
+# ===========================================================================
+# 1.2 Upper Basin non-farm consumptive use
+# ===========================================================================
+
+class TestUbNonFarm:
+    def test_ub_non_farm_subtracted(self):
+        """Powell inflow = NF - 1.2213 - D_U (spec 1.2)."""
+        env = _env(ub=(500_000.0,))  # well below NF, fully delivered
+        snap = {"powell_storage": 15.0, "mead_storage": 12.0,
+                "natural_flow": 11.210331, "lb_shortage_volume_maf": 0.0,
+                "mexico": 1.5, "lb_tributary": 0.8, "lb_request_projected_maf": 0.0}
+        st = env._settle(_planned(env, snap))
+        assert st["ub_non_farm_maf"] == pytest.approx(1.2213)
+        assert st["ub_delivered_maf"] == pytest.approx(0.5)
+        inflow_p = st["natural_flow_maf"] - st["ub_non_farm_maf"] - st["ub_delivered_maf"]
+        assert inflow_p == pytest.approx(11.210331 - 1.2213 - 0.5)
+
+    def test_ub_non_farm_is_constant_and_documented(self):
+        cfg = WaterSystemConfig()
+        assert cfg.ub_non_farm_depletion_maf == pytest.approx(1.2213)
+
+    def test_ub_non_farm_taken_first_never_negative_net_flow(self):
+        """A pathologically low natural flow (below the non-farm amount):
+        review fix 12 caps non-farm use itself at NF (the ACTUAL amount
+        consumed, never more than NF even in an extremely dry year), so
+        net flow floors at 0 rather than going negative, and the Upper
+        Basin gets nothing."""
+        env = _env(ub=(1_000_000.0,))
+        snap = {"powell_storage": 15.0, "mead_storage": 12.0,
+                "natural_flow": 0.5, "lb_shortage_volume_maf": 0.0,
+                "mexico": 1.5, "lb_tributary": 0.8, "lb_request_projected_maf": 0.0}
+        st = env._settle(_planned(env, snap))
+        assert st["ub_non_farm_maf"] == pytest.approx(0.5)
+        assert st["ub_delivered_maf"] == 0.0
+
+
+# ===========================================================================
+# 1.3 Lower Basin tributary inflow
+# ===========================================================================
+
+class TestTributary:
+    def test_tributary_series_usbr_intervening(self):
+        """2019 = 0.821325 MAF under usbr_intervening (the default)."""
+        env = _env()
+        assert env.config.lb_tributary_source == "usbr_intervening"
+        assert env._lb_tributary_for_year(2019) == pytest.approx(0.821325)
+
+    def test_tributary_constant_fallback(self):
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42, lb_tributary_source="constant"))
+        assert env._lb_tributary_for_year(2019) == pytest.approx(1.0)
+
+    def test_settle_uses_snapshot_tributary_when_present(self):
+        """_settle reads the snapshot's own lb_tributary (spec 1.3). Review
+        fix 8 (no silent fallbacks): a missing key falls back to the
+        config constant only when config.lb_tributary_source is itself
+        'constant'; with the default 'usbr_intervening' source a missing
+        key is a hard error, since advance_year always supplies a real
+        value and a silent substitution would hide a real bug."""
+        env = _env(lb=(1_000_000.0,))
+        snap_with = _planned(env, {
+            "powell_storage": 15.0, "mead_storage": 12.0, "natural_flow": 11.0,
+            "lb_shortage_volume_maf": 0.0, "mexico": 1.5, "lb_tributary": 0.3,
+            "lb_request_projected_maf": 1.0,
+        })
+        st_with = env._settle(snap_with)
+        assert st_with["lb_tributary_maf"] == pytest.approx(0.3)
+
+        snap_without = dict(snap_with)
+        del snap_without["lb_tributary"]
+        with pytest.raises(ValueError, match="lb_tributary"):
+            env._settle(snap_without)
+
+        const_env = IrrigationEnvironment(WaterSystemConfig(seed=42, lb_tributary_source="constant"))
+        const_env._agents["LB0"] = _agent("lower_basin", 1_000_000.0)
+        st_without = const_env._settle(snap_without)
+        assert st_without["lb_tributary_maf"] == pytest.approx(const_env.config.lb_tributary_maf)
+
+
+# ===========================================================================
+# Powell operations: Upper Basin priority (PI decision 4)
+# ===========================================================================
+
+class TestPowellPriority:
+    def test_upper_basin_never_curtailed_for_powell_release(self):
+        """Even with Powell empty and a low natural flow, the Upper Basin
+        is bounded only by (non-farm-net) natural flow and the 5.0 MAF
+        capacity -- never cut to protect Powell's release. Reverses the
+        pre-v3 'ub_powell_release' gap reason, which no longer occurs."""
+        env = _env(ub=(1_500_000.0, 1_500_000.0))
+        cfg = env.config
+        for p_storage in (cfg.powell_dead_pool_maf, cfg.powell_dead_pool_maf + 2.0, 15.0):
+            snap = {"powell_storage": p_storage, "mead_storage": 9.0,
+                    "natural_flow": 6.0, "lb_shortage_volume_maf": 0.417,
+                    "mexico": 1.225, "lb_tributary": 0.8, "lb_request_projected_maf": 0.0}
+            st = env._settle(_planned(env, snap))
+            nf_net = 6.0 - cfg.ub_non_farm_depletion_maf
+            assert st["ub_delivered_maf"] == pytest.approx(min(st["ub_request_maf"], nf_net))
+            for aid in ("UB0", "UB1"):
+                assert st["agents"][aid]["gap_reason"] != "ub_powell_release"
+            assert st["powell_storage_end_maf"] >= cfg.powell_dead_pool_maf - 1e-9
+
+    def test_upper_basin_bound_by_natural_flow_not_capacity(self):
+        """Review fix 9: when (non-farm-net) natural flow is the tighter
+        constraint, gap_reason is 'ub_natural_flow' and the delivered
+        amount is the flow itself -- the 5.0 MAF capacity never gets
+        reported as binding when it did not."""
+        env = _env(ub=(2_450_000.0, 2_450_000.0))  # r_UB = 4.9 MAF
+        cfg = env.config
+        snap = {"powell_storage": 15.0, "mead_storage": 12.0,
+                "natural_flow": 6.0, "lb_shortage_volume_maf": 0.0,
+                "mexico": 1.5, "lb_tributary": 0.8, "lb_request_projected_maf": 0.0}
+        st = env._settle(_planned(env, snap))
+        nf_net = 6.0 - cfg.ub_non_farm_depletion_maf  # 4.7787, below both
+        # r_UB (4.9) and the 5.0 MAF capacity -- flow is the tight bound.
+        assert nf_net < cfg.ub_infrastructure_cap_maf
+        assert st["ub_delivered_maf"] == pytest.approx(nf_net)
+        assert st["ub_delivered_maf"] < cfg.ub_infrastructure_cap_maf
+        for aid in ("UB0", "UB1"):
+            assert st["agents"][aid]["gap_reason"] == "ub_natural_flow"
+
+    def test_powell_evaporation_capped_after_upper_basin_depletion_at_dead_pool(self):
+        """Review fix 1: at Powell's dead pool with 2033's natural flow
+        (6.088144 MAF) and an Upper Basin request (4.9 MAF) that consumes
+        essentially all of net flow (inflow_p = 0), evaporation must be
+        capped at usable storage PLUS inflow_p (both zero here) -- not at
+        the pre-Upper-Basin nf_net (4.866844 MAF), which would let Powell
+        'evaporate' water the Upper Basin already took and push storage
+        below the dead pool. Fails on the pre-fix ordering (e_p would be
+        ~0.105 MAF, s_p_end ~1.785 < the 1.89 MAF dead pool); passes
+        after."""
+        env = _env(ub=(4_900_000.0,), lb=(2_000_000.0,))
+        # _agent()'s default water_right (4.0 MAF) would itself clamp the
+        # request below 4.9 MAF; raise it so the request really is 4.9.
+        env._agents["UB0"]["water_right"] = 6_000_000.0
+        cfg = env.config
+        snap = {"powell_storage": cfg.powell_dead_pool_maf, "mead_storage": 12.0,
+                "natural_flow": 6.088144, "lb_shortage_volume_maf": 0.0,
+                "mexico": 1.5, "lb_tributary": 0.8, "lb_request_projected_maf": 2.0}
+        st = env._settle(_planned(env, snap))
+        nf_net = st["natural_flow_maf"] - st["ub_non_farm_maf"]
+        inflow_p = nf_net - st["ub_delivered_maf"]
+        assert inflow_p == pytest.approx(0.0, abs=1e-6)
+        # The raw (uncapped) evaporation demand at the dead pool is
+        # strictly positive -- if it were applied uncapped (or capped at
+        # nf_net instead of inflow_p) storage would go negative below
+        # dead pool. The fix caps it at (usable + inflow_p) = 0.
+        raw_evap = env._powell_evaporation_maf(cfg.powell_dead_pool_maf)
+        assert raw_evap > 0.0
+        assert st["powell_evap_maf"] == pytest.approx(0.0, abs=1e-9)
+        assert st["powell_release_maf"] == pytest.approx(0.0, abs=1e-9)
+        assert st["powell_storage_end_maf"] == pytest.approx(cfg.powell_dead_pool_maf)
+
+    def test_powell_never_below_dead_pool(self):
+        """Fuzz: 2,000 random snapshots and requests, Powell's end storage
+        never drops below its dead pool."""
+        rng = np.random.default_rng(101)
+        env = _env(ub=(3_000_000.0,), lb=(2_000_000.0,))
+        cfg = env.config
+        for _ in range(2000):
+            for aid in env._agents:
+                env._agents[aid]["request"] = float(rng.uniform(0.0, 4_000_000.0))
+            snap = {
+                "powell_storage": float(rng.uniform(cfg.powell_dead_pool_maf, cfg.powell_capacity_maf)),
+                "mead_storage": float(rng.uniform(cfg.mead_dead_pool_maf, cfg.mead_capacity_maf)),
+                "natural_flow": float(rng.uniform(6.0, 22.0)),
+                "lb_shortage_volume_maf": float(rng.uniform(0.0, 0.5)),
+                "mexico": float(rng.uniform(1.0, 1.5)),
+                "lb_tributary": float(rng.uniform(0.3, 2.0)),
+                # Re-review 2026-09-29 (HIGH 1): independent of the requests
+                # randomized above, exactly like a real year where the
+                # projection is frozen before requests are known.
+                "lb_request_projected_maf": float(rng.uniform(0.0, 4.0)),
+            }
+            st = env._settle(_planned(env, snap))
+            assert st["powell_storage_end_maf"] >= cfg.powell_dead_pool_maf - 1e-9
+            assert st["mead_storage_end_maf"] >= cfg.mead_dead_pool_maf - 1e-9
+
+    def test_release_never_exceeds_physically_available(self):
+        """Fuzz: Powell's release never exceeds inflow plus storage above
+        the dead pool (pass-through at dead pool, PI decision 4)."""
+        rng = np.random.default_rng(102)
+        env = _env(ub=(1_000_000.0,), lb=(2_000_000.0,))
+        cfg = env.config
+        for _ in range(2000):
+            snap = {
+                "powell_storage": float(rng.uniform(cfg.powell_dead_pool_maf, cfg.powell_capacity_maf)),
+                "mead_storage": float(rng.uniform(cfg.mead_dead_pool_maf, cfg.mead_capacity_maf)),
+                "natural_flow": float(rng.uniform(6.0, 22.0)),
+                "lb_shortage_volume_maf": float(rng.uniform(0.0, 0.5)),
+                "mexico": float(rng.uniform(1.0, 1.5)),
+                "lb_tributary": float(rng.uniform(0.3, 2.0)),
+                "lb_request_projected_maf": float(rng.uniform(0.0, 4.0)),
+            }
+            st = env._settle(_planned(env, snap))
+            nf_net = max(0.0, snap["natural_flow"] - cfg.ub_non_farm_depletion_maf)
+            inflow_p = nf_net - st["ub_delivered_maf"]
+            p_usable = max(0.0, snap["powell_storage"] - cfg.powell_dead_pool_maf)
+            available = inflow_p + p_usable  # generous upper bound (ignores evap)
+            assert st["powell_release_maf"] <= available + 1e-6
+
+
+# ===========================================================================
+# 1.4 Lake Mead USBR 2009 curve and calibrated evaporation
+# ===========================================================================
+
+class TestMeadCurve:
+    def test_mead_curve_usbr2009_checkpoints(self):
+        """Acceptance checkpoints (available capacity + 2.547 MAF dead
+        storage), and the 1081.46 ft round trip."""
+        env = _env()
+        checkpoints_kaf = {
+            950: 2006, 1000: 4475, 1025: 5981, 1050: 7683, 1075: 9601,
+            1100: 11735, 1220: 26177, 1229: 27620,
+        }
+        for ft, kaf in checkpoints_kaf.items():
+            assert env._elevation_to_storage(ft) == pytest.approx(kaf / 1000 + 2.547, abs=1e-6)
+        assert env._storage_to_elevation(10.132 + 2.547) == pytest.approx(1081.46, abs=0.01)
+        assert env._elevation_to_storage(1050.0) == pytest.approx(7.683 + 2.547, abs=1e-6)
+
+    def test_mead_curve_monotone(self):
+        env = _env()
+        assert np.all(np.diff(env._ELEVATION_FT) > 0)
+        assert np.all(np.diff(env._STORAGE_MAF) > 0)
+
+    def test_mead_dead_pool_and_capacity_config(self):
+        cfg = WaterSystemConfig()
+        assert cfg.mead_dead_pool_maf == pytest.approx(2.547)
+        assert cfg.mead_capacity_maf == pytest.approx(30.167)
+
+    def test_mead_evaporation_calibration_point(self):
+        """Evaporation at the WY2018 Mead condition is within 1% of
+        0.541 MAF (Feb 2019 24-Month Study)."""
+        env = _env()
+        cfg = env.config
+        evap = env._mead_evaporation_maf(cfg.mead_evap_ref_storage_maf)
+        assert evap == pytest.approx(0.541, rel=0.01)
+        assert cfg.mead_evap_ref_storage_maf == pytest.approx(10.132 + 2.547, abs=1e-6)
+
+    def test_mead_evaporation_scales_away_from_calibration_point(self):
+        """Re-review 2026-09-29 (NIT): a check away from the 1,081.46 ft
+        calibration point -- evaporation tracks surface area, not a
+        constant, so it must be LOWER near the dead pool (a small, shallow
+        remaining surface) and HIGHER near full pool. LOW 8 dropped the
+        unsourced 1.5x cap on the area ratio: at 1,200 ft the real area
+        ratio exceeds 1.5x the reference, so this also fails if that cap
+        is ever restored (0.541 x 1.5 = 0.8115 MAF, well below the
+        uncapped value asserted here)."""
+        env = _env()
+        cfg = env.config
+        evap_dead_pool = env._mead_evaporation_maf(cfg.mead_dead_pool_maf)
+        evap_near_full = env._mead_evaporation_maf(env._elevation_to_storage(1200.0))
+        assert evap_dead_pool < 0.3
+        assert evap_near_full > 0.9
+        assert evap_dead_pool < evap_near_full
+
+
+# ===========================================================================
+# 1.5 Shortage volumes and Mexico schedule
+# ===========================================================================
+
+class TestShortageVolumesAndMexico:
+    def test_shortage_volume_by_tier(self):
+        env = _env()
+        assert env._tier_shortage_volume_maf(0) == 0.0
+        assert env._tier_shortage_volume_maf(1) == pytest.approx(0.333)
+        assert env._tier_shortage_volume_maf(2) == pytest.approx(0.417)
+        assert env._tier_shortage_volume_maf(3) == pytest.approx(0.500)
+
+    def test_shortage_volume_informational_ratio_is_v_over_n(self):
+        """PI decision 2026-09-28 (supersedes the spec's original pro-rata
+        acceptance example, V / (r_LB + N) = 0.417 / 7.7): the
+        informational lb_cut _settle produces is V / N alone -- the
+        non-agricultural bucket's own share -- because agricultural
+        deliveries are no longer part of the shared denominator."""
+        env = _env(lb=(1_350_000.0, 1_350_000.0))  # r_LB = 2.7 MAF, irrelevant to g now
+        cfg = env.config
+        v = env._tier_shortage_volume_maf(2)
+        snap = {"powell_storage": 15.0, "mead_storage": 20.0, "natural_flow": 15.0,
+                "lb_shortage_volume_maf": v, "mexico": 1.5, "lb_tributary": 0.8,
+                "lb_request_projected_maf": 2.7}
+        st = env._settle(_planned(env, snap))
+        assert st["lb_cut"] == pytest.approx(v / cfg.lb_non_ag_total_maf)
+        assert st["lb_cut"] != pytest.approx(v / (2.7 + cfg.lb_non_ag_total_maf))
+
+    def test_declared_shortage_volume_reduces_non_ag_bucket_only(self):
+        """PI decision 2026-09-28 (supersedes review fix 4 and the spec's
+        original pro-rata-across-all-LB-use rule): the declared tier's
+        shortage volume V comes ENTIRELY out of the 5.0 MAF
+        non-agricultural bucket. The 22 LB agricultural agents are senior
+        and unaffected by the declared tier itself -- only by physical
+        Mead availability (phi, = 1.0 here since Mead has ample storage).
+        ADOPT 12: assert on the actual 'lb_cut' the environment produces
+        (V / N, informational only -- not a ratio applied to ag
+        deliveries)."""
+        env = _env(lb=(1_350_000.0, 1_350_000.0))  # r_LB = 2.7 MAF
+        cfg = env.config
+        v = env._tier_shortage_volume_maf(2)  # 0.417 MAF
+        snap = {"powell_storage": 15.0, "mead_storage": 20.0, "natural_flow": 15.0,
+                "lb_shortage_volume_maf": v, "mexico": 1.5, "lb_tributary": 0.8,
+                "lb_request_projected_maf": 2.7}
+        st = env._settle(_planned(env, snap))
+        assert st["lb_phys_ratio"] == pytest.approx(1.0)  # Mead has ample storage here
+        assert st["lb_non_ag_delivered_maf"] == pytest.approx(cfg.lb_non_ag_total_maf - v)
+        lb_sum = sum(st["agents"][f"LB{i}"]["delivered"] for i in range(2)) / 1e6
+        assert lb_sum == pytest.approx(2.7)  # unaffected by the declared tier
+        for aid in ("LB0", "LB1"):
+            assert st["agents"][aid]["gap_reason"] == "none"
+        assert st["lb_cut"] == pytest.approx(v / cfg.lb_non_ag_total_maf)
+
+    def test_mexico_schedule_by_band(self):
+        """Minute 323 / BWSCP bands (review fix 3, PI decision 6): the DOI
+        2022 Minute 323 base reduction (70 kaf = the 104 kaf total at
+        1,050-1,045 ft minus its 34 kaf BWSCP saving) plus each band's own
+        IBWC 2019 BWSCP saving (76/84/92/101 kaf for 1,045-1,040 /
+        1,040-1,035 / 1,035-1,030 / 1,030-1,025 ft) gives the exact
+        146/154/162/171 kaf reductions -- replacing the single 158.5 kaf
+        midpoint the pre-fix code used for that whole span (L2 N2)."""
+        env = _env()
+        treaty = env.config.mexico_treaty_maf
+        cases = [
+            (1095.0, treaty - 0.0),
+            (1080.0, treaty - 0.041),
+            (1060.0, treaty - 0.080),
+            (1047.0, treaty - 0.104),
+            (1042.0, treaty - 0.146),
+            (1037.0, treaty - 0.154),
+            (1032.0, treaty - 0.162),
+            (1027.0, treaty - 0.171),
+            (1000.0, treaty - 0.275),
+        ]
+        for mead_level, expected in cases:
+            assert env._mexico_delivery_maf(mead_level) == pytest.approx(expected)
+        # Strictly decreasing delivery (increasing reduction) through the
+        # four 5-ft bands the pre-v3 code collapsed into one.
+        levels = [1047.0, 1042.0, 1037.0, 1032.0, 1027.0, 1000.0]
+        deliveries = [env._mexico_delivery_maf(lv) for lv in levels]
+        assert deliveries == sorted(deliveries, reverse=True)
+        assert len(set(deliveries)) == len(deliveries)
+
+
+# ===========================================================================
+# 42-year mass balance closure at fixed demand
+# ===========================================================================
+
+class TestMassBalanceClosureV3:
+    def test_synthetic_fixed_demand_42_years(self):
+        """No decisions between advance_year() calls == every agent
+        maintains its carried request (the F11b contract); residual below
+        1e-9 MAF every year, exactly as required for a 42-year run over
+        the full v3 hydrology table."""
+        env = IrrigationEnvironment(WaterSystemConfig(seed=11))
+        env.initialize_synthetic(n_agents=24, basin_split=(10, 14))
+        for year_index in range(1, 43):
+            env.advance_year()
+            st = env.settle_year()
+            assert env._natural_flow_for_year(2018 + year_index) == pytest.approx(
+                st["natural_flow_maf"]
+            )
+            lhs = (st["powell_storage_end_maf"] - st["powell_storage_maf"]) + (
+                st["mead_storage_end_maf"] - st["mead_storage_maf"])
+            withdrawals = st["lb_delivered_maf"] + st["lb_non_ag_delivered_maf"] + st["mexico_delivered_maf"]
+            rhs = (st["natural_flow_maf"] + st["lb_tributary_maf"] - st["ub_non_farm_maf"]
+                   - st["ub_delivered_maf"] - st["powell_evap_maf"] - st["mead_evap_maf"]
+                   - withdrawals - st["mead_spill_maf"])
+            assert abs(lhs - rhs) < 1e-9
+            for aid, rec in st["agents"].items():
+                assert rec["delivered"] <= rec["request"] + 1e-6
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_real_2018_fixed_demand_42_years(self):
+        """The L2-replay scenario: real 78-agent 2018 requests held fixed
+        (no decisions), 42 years, mass balance closes and natural flow
+        equals the committed table every year.
+
+        Re-review 2026-09-29 round 3 (NIT): also pins the shortage-tier
+        counts and Mead's minimum 1 January storage this exact scenario
+        produces -- confirmed to come from THIS real 78-agent run (not a
+        smaller synthetic replay, LOW C), and matched independently on
+        seed 7 here and seed 42 elsewhere to 4 decimal places (the
+        aggregate is set by the real CRSS demand data, not the profile
+        RNG seed). WP1b (spec item 20, per-sub-basin Upper Basin supply)
+        is expected to change these numbers -- update the pin rather than
+        deleting it when that lands."""
+        rng = np.random.default_rng(7)
+        profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
+        env = IrrigationEnvironment(WaterSystemConfig(seed=7))
+        env.initialize_from_profiles(profiles)
+        tier_counts = {0: 0, 1: 0, 2: 0, 3: 0}
+        mead_min_maf = None
+        for year_index in range(1, 43):
+            env.advance_year()
+            tier_counts[env._compute_shortage_tier()] += 1
+            mead_1jan = env._mead_storage[-1]
+            if mead_min_maf is None or mead_1jan < mead_min_maf:
+                mead_min_maf = mead_1jan
+            st = env.settle_year()
+            assert env._natural_flow_for_year(2018 + year_index) == pytest.approx(
+                st["natural_flow_maf"]
+            )
+            lhs = (st["powell_storage_end_maf"] - st["powell_storage_maf"]) + (
+                st["mead_storage_end_maf"] - st["mead_storage_maf"])
+            withdrawals = st["lb_delivered_maf"] + st["lb_non_ag_delivered_maf"] + st["mexico_delivered_maf"]
+            rhs = (st["natural_flow_maf"] + st["lb_tributary_maf"] - st["ub_non_farm_maf"]
+                   - st["ub_delivered_maf"] - st["powell_evap_maf"] - st["mead_evap_maf"]
+                   - withdrawals - st["mead_spill_maf"])
+            assert abs(lhs - rhs) < 1e-9
+            assert st["powell_storage_end_maf"] >= env.config.powell_dead_pool_maf - 1e-9
+            assert st["mead_storage_end_maf"] >= env.config.mead_dead_pool_maf - 1e-9
+        assert tier_counts == {0: 20, 1: 11, 2: 8, 3: 3}
+        assert mead_min_maf == pytest.approx(7.3516, abs=1e-3)  # ~1,005.8 ft
+
+
+# ===========================================================================
+# 1.6 Per-sub-basin precipitation
+# ===========================================================================
+
+class TestPrecipOwnGroup:
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_precip_own_group_nm(self):
+        """An NM-group UB agent in 2019 reads the NM column x 25.4 mm; the
+        flag compares against the 2018 row (H&Y's strict '>')."""
+        rng = np.random.default_rng(1)
+        profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
+        nm_profiles = [p for p in profiles if p.precip_group == "NM"]
+        assert nm_profiles, "expected at least one NM-group profile"
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        env.initialize_from_profiles(profiles)
+        env.load_crss_precipitation(
+            str(CRSS_DB_DIR / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv")
+        )
+        env.advance_year()  # sim year 2019 -> calendar year 1988's row... see note below
+        ctx = env.get_agent_context(nm_profiles[0].agent_id)
+        # NOTE: precipitation is read from the PRISM CSV by CALENDAR year of
+        # the CSV itself (2017-2060 index), independent of the hydrology
+        # resample -- 2019 is literally row 2019 of the PRISM file, per
+        # H&Y's own information design (D9/G4 in the provenance doc).
+        assert ctx["precipitation"] == pytest.approx(5.591091328 * 25.4)
+        assert ctx["precipitation_flag"] == 0  # 2019 (142.0 mm) < 2018 (233.8 mm)
+        assert ctx["preceding_factor"] == ctx["precipitation_flag"]
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_precip_flag_seeded_from_2018_when_2019_is_wetter(self):
+        """Review fix 2: load_crss_precipitation seeds _precip_history with
+        the sim_start_year - 1 (2018) row, so every UB group's first
+        (2019) flag compares 2019 against the real 2018 row rather than
+        against nothing. UT1 is wetter in 2019 (1.899918 in) than 2018
+        (1.680784 in), so the flag must be 1."""
+        rng = np.random.default_rng(1)
+        profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
+        ut1_profiles = [p for p in profiles if p.precip_group == "UT1"]
+        assert ut1_profiles, "expected at least one UT1-group profile"
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        env.initialize_from_profiles(profiles)
+        env.load_crss_precipitation(
+            str(CRSS_DB_DIR / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv")
+        )
+        env.advance_year()  # sim year 2019 -> PRISM row 2019 (see note above)
+        ctx = env.get_agent_context(ut1_profiles[0].agent_id)
+        assert ctx["precipitation"] == pytest.approx(1.899917512 * 25.4)
+        assert ctx["precipitation_flag"] == 1  # 2019 (48.26 mm) > 2018 (42.69 mm)
+        assert ctx["preceding_factor"] == ctx["precipitation_flag"]
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_az_ub_group_reads_az_column(self):
+        """AZ_UB agents read PRISM column 'AZ', not 'AZ_UB' (spec 1.6)."""
+        rng = np.random.default_rng(1)
+        profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
+        az_profiles = [p for p in profiles if p.precip_group == "AZ"]
+        assert az_profiles, "expected at least one AZ_UB-group (precip_group='AZ') profile"
+
+    def test_agent_without_precip_group_falls_back_to_basin_mean(self):
+        """A synthetic/mock profile with no precip_group still gets a
+        sane, present precipitation value (the basin-level legacy mean),
+        not a KeyError or crash."""
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        env.initialize_synthetic(n_agents=4, basin_split=(2, 2))
+        env.advance_year()
+        ub_agent = next(a for a in env.agent_ids if env._agents[a]["basin"] == "upper_basin")
+        assert env._agents[ub_agent].get("precip_group") is None
+        ctx = env.get_agent_context(ub_agent)
+        assert ctx["precipitation"] > 0
+        assert ctx["precipitation_flag"] in (0, 1)

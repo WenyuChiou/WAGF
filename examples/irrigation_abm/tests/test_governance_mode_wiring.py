@@ -412,16 +412,32 @@ class TestPreYearReportsPriorYearOutcome:
         )
         env = IrrigationEnvironment(WaterSystemConfig(seed=42))
         env.initialize_from_profiles([profile])
+        cfg = env.config
 
-        # Force a deterministic, DIFFERENT curtailment tier each year (see
-        # TestIrrigationEnvironment.test_shortage_tier_computation for these
-        # exact mead-level -> tier mappings) so the SAME request produces a
-        # different diversion in year 1 vs year 2's re-derivation.
-        mead_levels = iter([1100.0, 1030.0])  # tier 0 (0%), then tier 2 (10%)
-        # Supply-side redesign (2026-09-25): the 1 January level is read
-        # from committed storage via _storage_to_elevation inside
-        # advance_year (the old _generate_lake_mead_level is retired).
-        monkeypatch.setattr(env, "_storage_to_elevation", lambda _s: next(mead_levels))
+        # PI decision 2026-09-28 (supersedes this test's original setup):
+        # an agricultural agent's own delivery ratio is lb_phys_ratio
+        # (Mead physical availability) ALONE -- a declared tier no longer
+        # touches it, so the old "force a different declared tier each
+        # year via a monkeypatched _storage_to_elevation" approach no
+        # longer produces a different diversion in year 2 (it also broke
+        # separately: review fix 10's surface-area evaporation makes
+        # _mead_evaporation_maf call _storage_to_elevation internally
+        # too, so a plain next()-per-call iterator now starves inside
+        # _settle's own evaporation lookups before either year finishes).
+        # Force a REAL physical difference instead: both reservoirs start
+        # just above their dead pools (plenty for TestAgent's tiny
+        # request under year 1's healthy natural flow, since Mead's
+        # baseline non-agricultural + Mexico demand is what Powell's
+        # 7.0-9.5 MAF/yr release floor is sized for), then year 2's
+        # natural flow is overridden to a severe-drought value, which
+        # (with both reservoirs still low) genuinely drops Powell's
+        # release and Mead's physical availability.
+        env._mead_storage = [cfg.mead_dead_pool_maf + 0.3]
+        env._powell_storage = cfg.powell_dead_pool_maf + 0.3
+        monkeypatch.setattr(
+            env, "_natural_flow_for_year",
+            lambda year: 11.21 if year == cfg.sim_start_year else 0.3,
+        )
 
         config = AgentConfig(
             name="TestAgent", agent_type="irrigation_farmer",
@@ -438,9 +454,9 @@ class TestPreYearReportsPriorYearOutcome:
         hooks.metrics_tracker = None
         hooks.feedback_config = {}
 
-        # --- Year 1: healthy conditions, no curtailment ---
+        # --- Year 1: healthy natural flow, full delivery ---
         env.advance_year()
-        assert env._agents["TestAgent"]["curtailment_ratio"] == 0.0
+        assert env._agents["TestAgent"]["delivery_ratio"] == pytest.approx(1.0)
         hooks.pre_year(1, {}, agents)  # year 1: no prior-year memory write
 
         skill = ApprovedSkill(
@@ -455,15 +471,19 @@ class TestPreYearReportsPriorYearOutcome:
         ))
         hooks.post_year(1, agents)
 
+        year1_request = hooks.logs[-1]["request"]
         year1_diversion = hooks.logs[-1]["diversion"]
 
-        # --- Year 2: severe curtailment re-derives year 1's OWN request ---
+        # --- Year 2: a severe-drought re-derivation of year 1's OWN
+        # (unchanged) request, at year 2's own physical conditions ---
         runner_stub._current_year = 2
         env.advance_year()
-        assert env._agents["TestAgent"]["curtailment_ratio"] == pytest.approx(0.10)
+        assert env._agents["TestAgent"]["request"] == pytest.approx(year1_request)  # unchanged
         # Sanity: advance_year(2) DID overwrite agent["diversion"] in place,
-        # under year 2's curtailment, for year 1's unchanged request -- this
-        # is the corrupted value the pre-fix pre_year read directly.
+        # under year 2's OWN physical shortfall, for year 1's unchanged
+        # request -- this is the corrupted value the pre-fix pre_year read
+        # directly.
+        assert env._agents["TestAgent"]["gap_reason"] == "lb_mead_availability"
         assert env._agents["TestAgent"]["diversion"] != pytest.approx(year1_diversion)
 
         hooks.pre_year(2, {}, agents)

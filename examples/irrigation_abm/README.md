@@ -256,10 +256,8 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 
 | Parameter | Value | Source |
 | :-------- | :---- | :----- |
-| Natural flow baseline | 12.0 MAF/yr | Lees Ferry post-2000 (drought-era) average, not the long-term average (~14.6 MAF/yr for 1906-2018) |
-| Powell release floor | 7.0 MAF/yr | Modelling choice: floor of the 2007 Interim Guidelines' Lower Elevation Balancing Tier (7.0-9.5 MAF), not the "minimum objective release" (8.23 MAF/yr, also the *initial* WY2019 release volume -- the actual WY2019 release was 8.91 MAF; the Mid-Elevation Release Tier releases 7.48 MAF/yr below a Mead-elevation threshold, 8.23 above it) |
-| Powell release ceiling (wet year) | 9.0 MAF/yr | Modelling choice motivated by the Guidelines' balancing-tier cap; the real tiered structure runs 7.48/8.23 up to 9.0, with the SAME Lower Elevation Balancing Tier reaching up to 9.5 MAF |
-| Powell target fill (`powell_target_fill`, on [0, 1]) | 0.42 of live capacity | Modelling choice, not a Guidelines figure: 1 January 2019 live fill (10.10 / 24.32 MAF = 0.415, rounded) -- Powell holds wet-year surplus only until it is back at its 2019 level |
+| Natural flow | USBR calendar-year naturalized flow at Lees Ferry, `data/hydrology_v3.csv` (no clamp) | v3 (2026-09-28): the same resampled trace Hung and Yang (2021, p. 15) used; see `docs/irrigation_physics.md`. Replaces the earlier precipitation-scaled proxy (12.0 MAF baseline, clamped [6, 17] MAF) |
+| Powell release band | [7.0, 9.5] MAF/yr | QUOTED: the 2007 Interim Guidelines' Lower Elevation Balancing Tier's own bound (ROD p. 52). Review 2026-09-28: Powell's release is chosen to equalize Powell's and Mead's live-storage fractions within this band (a simplified balancing rule, ROD Section 6), replacing the earlier pass-through-with-target-fill rule and its modelling-choice 9.0 MAF ceiling / `powell_target_fill` (both retired) |
 | UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
 | Mexico treaty delivery | 1.5 MAF/yr | VERIFIED (canonical). 1944 Treaty (before DCP reductions) |
 | Initial Mead elevation | 1081.46 ft | VERIFIED. USBR observed December 2018 |

@@ -147,8 +147,28 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
 #                          ``self._agents`` / ``self._basins`` / ``self._global``
 #                          with a silent default, so it carries none of the F1
 #                          risk this contract exists to guard.
+#   precipitation_flag   -- v3 (spec 1.6, 2026-09-28): the Upper Basin
+#                          agent's own sub-basin strict ">" flag, computed
+#                          in get_agent_context from
+#                          self._precip_group_flags (or the basin-level
+#                          fallback for an agent with no precip_group) --
+#                          not a bare ``dict.get(key, default)`` read off
+#                          one of the three source dicts this contract
+#                          guards, so it carries none of the F1 risk
+#                          either. ("preceding_factor", the pre-existing
+#                          contract-covered field, keeps that role.)
+#   lb_shortage_volume_maf -- re-review 2026-09-29 (HIGH 2): the declared
+#                          tier's own shortage volume (2007 ROD Section
+#                          2.D.1), computed by
+#                          ``self._tier_shortage_volume_maf(self._compute_
+#                          shortage_tier())`` -- a derived value from
+#                          ``shortage_tier`` above, itself already
+#                          uncovered for the same reason (derived from
+#                          lake_mead_level, which IS covered); never a
+#                          bare source-dict read either.
 IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     "agent_id", "shortage_tier", "year", "powell_dead_pool_maf",
+    "precipitation_flag", "lb_shortage_volume_maf",
 )
 
 
@@ -231,6 +251,7 @@ def guard_agent_context_sources(
     basin_key: str,
     basin: Dict[str, Any],
     global_state: Dict[str, Any],
+    precip_by_group: Dict[str, float],
 ) -> None:
     """Raise ``CouplingViolation`` naming every declared observation whose
     backing key is ACTUALLY ABSENT (or ``None``) in its source dict, or
@@ -246,6 +267,20 @@ def guard_agent_context_sources(
     fully-populated agent/basin/global state produces IDENTICAL output
     whether this guard ran or not (F1 remediation: the guard adds a
     fail-loud floor, it does not change a single value on the happy path).
+
+    ``precip_by_group`` (re-review 2026-09-29, LOW E) is this year's
+    per-sub-basin precipitation dict (``IrrigationEnvironment
+    ._precip_history[-1]``). ``precipitation`` is special-cased below
+    rather than handled by the generic ``IRRIGATION_CONTEXT_FIELD_SOURCES``
+    lookup: an Upper Basin agent with a ``precip_group`` set (every real
+    ``create_profiles_from_data`` profile) is checked against ITS OWN
+    sub-basin column here, matching the value ``get_agent_context``
+    actually reads for it -- the basin-level legacy mean
+    (``basin["precipitation"]``) it used to check unconditionally could be
+    present and in range while the real per-agent value was missing or
+    broken, an F1-class gap this closes. An agent with no ``precip_group``
+    (synthetic/mock profiles) still falls back to the legacy mean, exactly
+    matching ``get_agent_context``'s own fallback.
     """
     sources = {"agent": agent, "basin": basin, "global": global_state}
     problems: List[str] = []
@@ -260,6 +295,23 @@ def guard_agent_context_sources(
         required_basin = _BASIN_SCOPED_FIELDS.get(vs.name)
         if required_basin is not None and basin_key != required_basin:
             continue  # not applicable to this agent's basin (see table docstring)
+        if vs.name == "precipitation":
+            precip_group = agent.get("precip_group")
+            if precip_group:
+                if precip_group not in precip_by_group or precip_by_group[precip_group] is None:
+                    if vs.on_missing == "fail_loud":
+                        problems.append(
+                            f"precipitation: missing for precip_group={precip_group!r} "
+                            "(on_missing=fail_loud)"
+                        )
+                    continue
+                rv = vs.range_violation(precip_by_group[precip_group])
+                if rv:
+                    problems.append(rv)
+                continue
+            # No precip_group (synthetic/mock): falls through to the
+            # generic basin-level legacy-mean check below, matching
+            # get_agent_context's own fallback.
         source_name, raw_key = IRRIGATION_CONTEXT_FIELD_SOURCES[vs.name]
         src = sources[source_name]
         if raw_key not in src or src[raw_key] is None:

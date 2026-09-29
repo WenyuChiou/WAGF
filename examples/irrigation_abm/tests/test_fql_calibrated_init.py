@@ -463,13 +463,72 @@ class TestZeroInitByteIdenticalToPreFix:
         )
         assert res_new.returncode == 0, res_new.stderr
 
-        old_bytes = (out_old / "simulation_log.csv").read_bytes()
-        new_bytes = (out_new / "simulation_log.csv").read_bytes()
-        assert old_bytes == new_bytes, (
-            "--fql-init zero diverged from the pre-fix (00654d14) "
-            "simulation_log.csv -- 'zero' must be byte-identical to "
-            "today's default behavior"
+        # Review fix 5 (2026-09-28, after 00654d14): run_fql_baseline.py
+        # now wires precipitation_mm / precipitation_flag into the log
+        # row from get_agent_context; the pre-fix (00654d14) script never
+        # passed those kwargs to build_simulation_log_row at all, so they
+        # were always blank there. That is the ONLY deliberate difference
+        # this comparison allows -- everything else, including the
+        # --fql-init zero path itself, must still be byte-for-byte
+        # identical. Re-review 2026-09-29 (NIT): compare RAW CSV text via
+        # the csv module, not a pandas round-trip -- to_csv on a
+        # freshly-parsed DataFrame can reformat a cell (float precision,
+        # quoting) differently from what the two scripts actually wrote on
+        # disk, which could mask a real difference or manufacture a fake
+        # one.
+        import csv as csv_module
+
+        def _read_csv_rows(path):
+            with open(path, newline="", encoding="utf-8") as f:
+                reader = csv_module.DictReader(f)
+                return reader.fieldnames, list(reader)
+
+        old_fields, old_rows = _read_csv_rows(out_old / "simulation_log.csv")
+        new_fields, new_rows = _read_csv_rows(out_new / "simulation_log.csv")
+        assert new_fields == old_fields, (
+            "the column set itself changed -- expected only the values of "
+            "precipitation_mm/precipitation_flag to differ, not the schema"
         )
+        assert len(old_rows) == len(new_rows), "row count diverged"
+
+        precip_cols = ["precipitation_mm", "precipitation_flag"]
+        other_cols = [c for c in old_fields if c not in precip_cols]
+
+        for i, (old_row, new_row) in enumerate(zip(old_rows, new_rows)):
+            for col in other_cols:
+                assert old_row[col] == new_row[col], (
+                    f"row {i} column {col!r} diverged from the pre-fix "
+                    f"(00654d14) simulation_log.csv: {old_row[col]!r} != "
+                    f"{new_row[col]!r} -- 'zero' must be byte-identical to "
+                    "today's default behavior everywhere except the "
+                    "deliberately added precipitation columns"
+                )
+            # The pre-fix script never populated these for ANY agent.
+            for col in precip_cols:
+                assert old_row[col] == "", (
+                    f"row {i} column {col!r}: the pre-fix (00654d14) script "
+                    "is expected to never populate this field"
+                )
+            # Re-review 2026-09-29 (MEDIUM 4): get_agent_context now returns
+            # None (a blank CSV cell) for a Lower Basin agent's
+            # precipitation / precipitation_flag -- this basin has no
+            # precipitation signal in this model at all -- so review fix 5
+            # is only required to POPULATE these for an Upper Basin agent;
+            # a Lower Basin row stays blank in the new script too.
+            if new_row["basin"] == "upper_basin":
+                for col in precip_cols:
+                    assert new_row[col] != "", (
+                        f"row {i} ({new_row['agent_id']}, upper_basin): "
+                        f"review fix 5 must populate {col!r}, not just "
+                        "avoid crashing"
+                    )
+            else:
+                for col in precip_cols:
+                    assert new_row[col] == "", (
+                        f"row {i} ({new_row['agent_id']}, {new_row['basin']}): "
+                        f"{col!r} should stay blank -- this basin has no "
+                        "precipitation signal"
+                    )
 
 
 def _primary_results_dir() -> Path:
@@ -492,6 +551,21 @@ def _primary_results_dir() -> Path:
 _OLD_REF = _primary_results_dir() / "fql_nogov_431adb5e" / "seed42" / "simulation_log.csv"
 
 
+@pytest.mark.skip(
+    reason="Superseded by the irrigation v3 water-system rewrite (WP1, "
+           "2026-09-28, irrigation_v3_spec_2026-09-28.md): the "
+           "fql_nogov_431adb5e/seed42 reference was captured under the "
+           "pre-v3 hydrology, Mead curve, shortage-tier and Upper Basin "
+           "priority rules. mead_storage_maf and lake_mead_level now "
+           "differ from year 1 (new Mead area-capacity curve, L2 H4); "
+           "curtailment_ratio and shortage_tier differ from the declared-"
+           "shortage volume mechanism (spec 1.5) onward; and this is a "
+           "'--fql-init zero' FQL run, so those water-system differences "
+           "feed back into the Q-learning state and cascade into every "
+           "later request/decision column too. A new byte-identity "
+           "baseline against the v3 water system belongs to WP5 (the FQL "
+           "reference), not this pre-v3 regression guard."
+)
 @pytest.mark.skipif(
     not _REAL_REF_AVAILABLE,
     reason="CRSS reference data not found under ref/CRSS_DB/CRSS_DB/",
