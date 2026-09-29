@@ -429,15 +429,25 @@ class TestSupplyRuleBySubbasin:
 
         rng = np.random.default_rng(7)
         profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
-        env = IrrigationEnvironment(WaterSystemConfig(seed=7))
+        # WP2 review round 1 (HIGH 1): WaterSystemConfig.hold_requests_fixed
+        # holds every agent's request at its 2018 use for the whole
+        # replay. Without it, IrrigationEnvironment._reset_requests_to_base
+        # (spec 2.1) runs unconditionally inside advance_year() and would
+        # let a cut sub-basin's request decay below 2018 use after its
+        # first short year (2020, per the memo) -- exactly the H&Y
+        # `keep`-tracks-delivery semantics WP2 fixes, but not what THIS
+        # test means by "2018 keep requests": every agent explicitly held
+        # at its fixed 2018 use, every year, so 2033's comparison is
+        # against the SAME 2018 request the memo's own numbers assume.
+        env = IrrigationEnvironment(WaterSystemConfig(seed=7, hold_requests_fixed=True))
         env.initialize_from_profiles(profiles)
 
         ut1_agent = next(p.agent_id for p in profiles if p.precip_group == "UT1")
         nm_agent = next(p.agent_id for p in profiles if p.precip_group == "NM")
 
-        # 2019 is loop year 1; 2033 is loop year 15. No decision is ever
-        # applied (requests are never touched), so every agent's request
-        # stays at its 2018 use for the whole replay.
+        # 2019 is loop year 1; 2033 is loop year 15. No DECISION is ever
+        # applied, and hold_requests_fixed keeps every request at its
+        # initial (2018 use) value throughout.
         for _ in range(15):
             env.advance_year()
             env.settle_year()

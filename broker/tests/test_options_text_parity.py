@@ -183,6 +183,52 @@ def test_guard_silent_when_order_matches_registry():
     }
 
 
+def test_option_text_overrides_used_when_present_in_state():
+    """WP2 (irrigation v3, spec 2.6): a per-decision ``option_text_overrides``
+    dict in ``context["state"]`` -- set from an agent's ``custom_attributes``
+    by ``AttributeProvider``, e.g. ``irrigation_personas.build_option_texts``
+    -- overrides the registry's static description, by skill id. A skill
+    absent from the override dict still falls back to its registry
+    description."""
+    engine = _engine(
+        action_ids=REGISTRY_ORDER,
+        template="Available actions:\n{options_text}\n{response_format}",
+    )
+    context: Dict[str, Any] = {
+        "personal": {},
+        "state": {
+            "option_text_overrides": {
+                "get_vaccinated": "Get the shot now.",
+                "delay": "Wait one more month.",
+            },
+        },
+    }
+    engine._inject_options_text(context, list(REGISTRY_ORDER), agent_type="individual")
+    options_text = context["personal"]["options_text"]
+    assert "1. Get the shot now." in options_text
+    assert "2. Wait one more month." in options_text
+    # "refuse" has no override entry -- falls back to the registry
+    # description (the fake registry echoes the skill id back).
+    assert "3. refuse" in options_text
+
+
+def test_no_option_text_overrides_falls_back_to_registry_description():
+    """WP2 review round 1 (LOW 10): renamed from test_flood_options_unchanged
+    -- this uses the generic fake vaccination-style registry/engine harness
+    above, not flood's real config, so the old name overclaimed what it
+    checks. No ``state`` key at all -- every domain that never sets
+    ``option_text_overrides`` (flood included, but not exercised here)
+    renders byte-identically to before this override existed: the
+    registry description, verbatim."""
+    engine = _engine(
+        action_ids=REGISTRY_ORDER,
+        template="Available actions:\n{options_text}\n{response_format}",
+    )
+    context: Dict[str, Any] = {"personal": {}}  # no "state" key at all
+    engine._inject_options_text(context, list(REGISTRY_ORDER), agent_type="individual")
+    assert context["personal"]["options_text"] == "1. get_vaccinated\n2. delay\n3. refuse"
+
+
 def test_guard_silent_for_name_based_decision_templates():
     """Discovered mid-fix: MA flood's government/insurance institutional
     agents render NO {options_text} placeholder at all -- they hand-write

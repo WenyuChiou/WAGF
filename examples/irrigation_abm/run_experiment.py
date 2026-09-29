@@ -34,6 +34,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
+    MIN_UTIL,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -44,6 +45,7 @@ from examples.irrigation_abm.irrigation_personas import (
     build_conservation_status,
     build_aca_hint,
     build_action_outcome_feedback,
+    build_option_texts,
     build_simulation_log_row,
     create_profiles_from_csv,
     describe_gap_reason,
@@ -69,9 +71,12 @@ import examples.irrigation_abm.validators.irrigation_validators as irr_validator
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+# v3 (WP2 spec 2.2, 2026-09-29): three skills -- the LLM chooses the
+# direction only, the environment draws the whole Hung and Yang
+# magnitude (replaces the five-skill "increase_large"/"increase_small"/
+# "decrease_small"/"decrease_large" set).
 IRRIGATION_SKILLS = [
-    "increase_large", "increase_small", "maintain_demand",
-    "decrease_small", "decrease_large",
+    "increase_demand", "maintain_demand", "decrease_demand",
 ]
 
 
@@ -503,6 +508,25 @@ class IrrigationLifecycleHooks:
                 # its own ten-or-so-member sub-basin.
                 "supply_group": ctx.get("supply_group"),
                 "ub_subbasin_member_count": ctx.get("ub_subbasin_member_count"),
+                # WP2 (spec 2.6): {skill_id: option text} computed from
+                # THIS year's base (last year's committed delivery,
+                # agent_state["base_af"] -- spec 2.1) and this agent's own
+                # water right / floor. SkillFilterMixin._inject_options_text
+                # (broker/core/_skill_filtering.py) reads this ahead of the
+                # skill registry's static description once it reaches
+                # context["state"] via custom_attributes (AttributeProvider).
+                # WP2 review round 1 (LOW 8): direct indexing, not
+                # .get(key, default) -- IrrigationEnvironment._reset_requests_to_base
+                # sets base_af for every agent every year, and
+                # get_agent_context always sets water_right, so a missing
+                # key here is a real wiring defect, not a legitimate
+                # "agent has none yet" case to silently paper over with 0.
+                "option_text_overrides": build_option_texts(
+                    profile,
+                    base=agent_state["base_af"],
+                    water_right=ctx["water_right"],
+                    floor=ctx["water_right"] * MIN_UTIL,
+                ),
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
@@ -748,6 +772,10 @@ class IrrigationLifecycleHooks:
                 magnitude_fallback=appr.get("magnitude_fallback", False),
                 is_exploration=appr.get("is_exploration", False),  # v12: Track ε-exploration
                 memory=mem_str,
+                # WP2 (spec 2.1): the keep request this year started from --
+                # last year's committed delivery, set once a year by
+                # IrrigationEnvironment._reset_requests_to_base.
+                base_af=agent_state.get("base_af"),
                 precipitation_mm=agent_context.get("precipitation"),
                 precipitation_flag=agent_context.get("precipitation_flag"),
             ))
@@ -995,6 +1023,98 @@ def _record_paper_water_margin_provenance(
                 yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     except Exception as e:
         print(f"[Provenance] WARNING: could not record paper_water_margin in "
+              f"config_snapshot.yaml: {e}")
+
+
+def _record_step_bin_source_provenance(
+    output_dir: Path, profiles: List[IrrigationAgentProfile], is_real: bool
+) -> None:
+    """Additively record every profile's ``step_bin_source`` (spec 2.4:
+    "grid" or "rescaled") in this run's two provenance files (WP2 review
+    round 1, MEDIUM 2; spec 7.2's "the step_bin_source list").
+
+    Same pattern as ``_record_paper_water_margin_provenance`` above
+    (patches the two files ``ExperimentRunner._finalize_experiment``
+    already wrote), but PER-AGENT rather than a single scalar: a dict
+    ``{agent_id: step_bin_source}`` for every profile, ``None`` for a
+    synthetic profile (non ``--real``, or any profile builder other than
+    ``create_profiles_from_data``) that never computed one. Recorded
+    unconditionally like the other two -- a run with no real step bins at
+    all still gets a manifest key showing that, rather than a silently
+    absent one indistinguishable from "the write failed". Wrapped so a
+    provenance-write problem can never fail the experiment itself.
+    """
+    step_bin_source = {p.agent_id: p.step_bin_source for p in profiles}
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["step_bin_source"] = step_bin_source
+            manifest["step_bin_source_applied"] = bool(is_real)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record step_bin_source in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["step_bin_source"] = step_bin_source
+            snapshot["metadata"]["step_bin_source_applied"] = bool(is_real)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record step_bin_source in "
+              f"config_snapshot.yaml: {e}")
+
+
+def _record_hold_requests_fixed_provenance(
+    output_dir: Path, hold_requests_fixed: bool
+) -> None:
+    """Additively record ``WaterSystemConfig.hold_requests_fixed`` in this
+    run's two provenance files (WP2 review round 2, LOW 3).
+
+    Same pattern as ``_record_paper_water_margin_provenance`` above.
+    Always recorded (not conditioned on ``--real``, unlike the other two
+    provenance functions here): the switch is meaningful for BOTH real
+    and synthetic runs alike, and its value is resolved regardless. This
+    runner's own ``main()`` asserts ``hold_requests_fixed is False`` right
+    after constructing ``WaterSystemConfig`` -- this function records
+    THAT already-verified value, so the manifest can only ever show
+    ``False`` for a run that reached this point, never a value the
+    assertion would have already refused to let through. Wrapped so a
+    provenance-write problem can never fail the experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["hold_requests_fixed"] = hold_requests_fixed
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record hold_requests_fixed in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["hold_requests_fixed"] = hold_requests_fixed
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record hold_requests_fixed in "
               f"config_snapshot.yaml: {e}")
 
 
@@ -1246,6 +1366,17 @@ def main():
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config = WaterSystemConfig(seed=seed)
+    # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
+    # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
+    # runner never exposes a flag for it (test_hold_requests_fixed_
+    # never_set_by_a_runner asserts that), so a True value here could only
+    # come from a change to THIS line; fail loud rather than let a real
+    # LLM run silently skip the WP2 keep-tracks-delivery reset.
+    assert config.hold_requests_fixed is False, (
+        "run_experiment.py must never construct WaterSystemConfig with "
+        "hold_requests_fixed=True -- that switch is for replays and CPU "
+        "diagnostics only"
+    )
     env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
@@ -1458,6 +1589,8 @@ def main():
     # broker's own manifest-enrichment try/except, F3 fix).
     _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
     _record_cluster_method_provenance(output_dir, args.cluster_method, args.real)
+    _record_step_bin_source_provenance(output_dir, profiles, args.real)
+    _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
 
     # Finalize audit
     if runner.broker.audit_writer:

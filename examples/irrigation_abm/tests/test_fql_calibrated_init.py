@@ -523,7 +523,15 @@ class TestZeroInitByteIdenticalToPreFix:
         assert len(old_rows) == len(new_rows), "row count diverged"
 
         precip_cols = ["precipitation_mm", "precipitation_flag"]
-        other_cols = [c for c in old_fields if c not in precip_cols]
+        # WP2 (2026-09-29, spec 2.1): run_fql_baseline.py now also passes
+        # base_af=agent_state.get("base_af") to build_simulation_log_row --
+        # populated by IrrigationEnvironment._reset_requests_to_base, which
+        # did not exist at 00654d14 (nor anywhere before this WP2 commit),
+        # so the pre-fix script always left it blank. A SECOND deliberate
+        # difference this comparison allows, on top of review fix 5's
+        # precipitation columns.
+        base_af_cols = ["base_af"]
+        other_cols = [c for c in old_fields if c not in precip_cols and c not in base_af_cols]
 
         for i, (old_row, new_row) in enumerate(zip(old_rows, new_rows)):
             for col in other_cols:
@@ -539,6 +547,19 @@ class TestZeroInitByteIdenticalToPreFix:
                 assert old_row[col] == "", (
                     f"row {i} column {col!r}: the pre-fix (00654d14) script "
                     "is expected to never populate this field"
+                )
+            # base_af (WP2): blank pre-fix, populated for EVERY agent
+            # (unlike precipitation, not basin-restricted) in the new run.
+            for col in base_af_cols:
+                assert old_row[col] == "", (
+                    f"row {i} column {col!r}: the pre-fix (00654d14) script "
+                    "predates _reset_requests_to_base and is expected to "
+                    "never populate this field"
+                )
+                assert new_row[col] != "", (
+                    f"row {i} ({new_row['agent_id']}): WP2's "
+                    "_reset_requests_to_base must populate base_af for "
+                    "every agent, every year"
                 )
             # Re-review 2026-09-29 (MEDIUM 4): get_agent_context now returns
             # None (a blank CSV cell) for a Lower Basin agent's

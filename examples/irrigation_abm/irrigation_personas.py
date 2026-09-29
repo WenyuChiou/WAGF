@@ -23,6 +23,7 @@ from examples.irrigation_abm.irrigation_env import (
     SYNTHETIC_HY_MU,
     SYNTHETIC_HY_SIGMA,
     hy_threshold_af,
+    resolve_step_bin_af,
 )
 
 
@@ -66,12 +67,41 @@ class IrrigationAgentProfile:
     # Hung and Yang (2021) action model: step = (mu + |N(0, sigma)|) x
     # bin_size_af (mu and sigma above are that model's per-agent parameters).
     # bin_size_af = the step of the agent's discretised diversion grid
-    # (Div_States/*_discrete_states.csv, agt_states[2] - agt_states[1]);
-    # None = synthetic profile, the environment falls back to water_right / 25.
+    # (Div_States/*_discrete_states.csv, agt_states[2] - agt_states[1]),
+    # converted to this agent's own delivery units (WP2 spec 2.3):
+    # demand_per_grid_unit (k) x (grid[2] - grid[1]), k = 0.5 for Upper
+    # Basin (the grid is in diversion units; H&Y p. 9 assumes 50 percent
+    # of a diversion is depleted) or 1.0 for Lower Basin (the grid is
+    # already consumptive use). None = synthetic profile, the environment
+    # falls back to water_right / 25.
     # NOTE: bin_size_af is the Hung and Yang STEP size and is never touched
     # by the water_right history-anchor (see below); it always comes from
     # the grid regardless of which ceiling water_right ends up at.
     bin_size_af: Optional[float] = None
+
+    # WP2 spec 2.3: k itself, kept on the profile so a caller needing the
+    # RAW (unconverted, diversion-unit) grid step -- e.g. the FQL
+    # baseline's own grid-state discretisation, which WP5 still runs on
+    # H&Y's original units -- can recover it as
+    # bin_size_af / demand_per_grid_unit. None for a profile this field
+    # was never set on (pre-WP2 code path, synthetic profile): treated as
+    # 1.0 (no conversion) wherever it is read back.
+    demand_per_grid_unit: Optional[float] = None
+
+    # WP2 spec 2.4: the FINAL step bin the LLM-agent path draws against
+    # (hy_step_af/hy_threshold_af) and shows the agent as its "typical
+    # step". Equals bin_size_af, UNLESS bin_size_af exceeds 20 percent of
+    # this agent's 2018 use, in which case it is rescaled to 10 percent of
+    # that use (H&Y p. 8's own description of the grid increment) --
+    # exactly 8 agents, all with a grid built far from their actual scale.
+    # None = synthetic profile; execute_skill/build_option_texts fall back
+    # to bin_size_af, then to water_right / 25.
+    step_bin_af: Optional[float] = None
+
+    # "grid" (bin_size_af used as-is) or "rescaled" (the 10-percent-of-
+    # 2018-use override fired) -- written to the manifest (spec 2.4).
+    # None for a profile step_bin_af was never computed for.
+    step_bin_source: Optional[str] = None
 
     # History-anchor ceiling (2026-09-26, water-right history-anchor):
     # water_right above is min(grid_top_af, (1 + paper_water_margin) *
@@ -558,6 +588,96 @@ def build_water_situation_text(
     return "\n".join(lines)
 
 
+def build_option_texts(
+    profile: IrrigationAgentProfile,
+    base: float,
+    water_right: float,
+    floor: float,
+) -> Dict[str, str]:
+    """WP2 spec 2.6: ``{skill_id: option text}`` for the v3 skills, each
+    stating the request that RESULTS, relative to ``base`` (the amount
+    received last year -- the WP2 step base, spec 2.1). Numbers are
+    formatted ``,.0f`` per spec.
+
+    ``s``, the "typical step" shown in every option, is the median of the
+    agent's own Hung and Yang distribution (spec 2.5), computed from
+    ``resolve_step_bin_af`` (review round 1, LOW 8 -- the SAME resolver
+    ``execute_skill`` and ``build_simulation_log_row`` use: prefer
+    ``profile.step_bin_af``, else ``profile.bin_size_af``, else
+    ``water_right / SYNTHETIC_BIN_DIVISOR`` for a profile with no real
+    Hung and Yang grid at all).
+
+    WP2 review round 1 (LOW 9): ``base``, ``s``, ``water_right`` and
+    ``floor`` are rounded to whole acre-ft ONCE, and every target is then
+    computed from those ROUNDED parts -- so the printed base plus the
+    printed step always equals the printed target exactly (rounding each
+    number independently at display time could disagree by 1 acre-ft).
+
+    WP2 review round 1 (MEDIUM 5, PI decision): the minimum-use floor is
+    a menu filter in EVERY arm, so a decrease is never offered once
+    ``base`` is within 1 percent of the floor -- the returned dict OMITS
+    ``"decrease_demand"`` entirely in that case (the same RAW,
+    pre-rounding tolerance ``execute_skill``'s own no-op guard and
+    ``below_minimum_utilisation`` use), rather than state a request
+    ``execute_skill`` will never execute. WP3 wires this into the
+    identity-rule menu filter for every profile INCLUDING ``disabled``
+    (spec 3.1, not yet true of ``disabled`` at this commit); until then
+    this omission is this function's own contract, independent of which
+    profile is running. The water-right cap has no matching omission
+    here: an increase at the cap still names a real, if capped, target
+    (``water_right`` itself), unlike a decrease at the floor, which the
+    old unconditional formula could describe as landing ABOVE base --
+    the asymmetry review MEDIUM 5 flagged.
+
+    ``IrrigationLifecycleHooks.pre_year`` stores the returned dict as
+    ``option_text_overrides`` in the agent's ``custom_attributes``;
+    ``SkillFilterMixin._inject_options_text`` (broker/core/
+    _skill_filtering.py) reads it ahead of the skill registry's static
+    description.
+    """
+    step_bin_af = resolve_step_bin_af(profile.step_bin_af, profile.bin_size_af, water_right)
+    s = hy_threshold_af(profile.mu, profile.sigma, step_bin_af)
+
+    base_r = round(base)
+    s_r = round(s)
+    w_r = round(water_right)
+    f_r = round(floor)
+
+    increase_to = min(base_r + s_r, w_r)
+    text_increase = (
+        f"Increase your request to about {increase_to:,.0f} acre-ft: the "
+        f"{base_r:,.0f} acre-ft you received last year plus your typical "
+        f"step of about {s_r:,.0f} acre-ft"
+    )
+    if base_r + s_r > w_r:
+        text_increase += f" (your water right stops it at {w_r:,.0f} acre-ft)"
+    text_increase += "."
+
+    text_maintain = (
+        f"Keep your request at {base_r:,.0f} acre-ft, the amount you "
+        f"received last year."
+    )
+
+    texts: Dict[str, str] = {
+        "increase_demand": text_increase,
+        "maintain_demand": text_maintain,
+    }
+
+    if base > 1.01 * floor:  # RAW comparison: matches execute_skill's own gate exactly
+        decrease_to = max(base_r - s_r, f_r)
+        text_decrease = (
+            f"Decrease your request to about {decrease_to:,.0f} acre-ft: the "
+            f"{base_r:,.0f} acre-ft you received last year minus your typical "
+            f"step of about {s_r:,.0f} acre-ft"
+        )
+        if base_r - s_r < f_r:
+            text_decrease += f" (the minimum-use floor stops it at {f_r:,.0f} acre-ft)"
+        text_decrease += "."
+        texts["decrease_demand"] = text_decrease
+
+    return texts
+
+
 def build_conservation_status(profile: IrrigationAgentProfile) -> str:
     """Return conservation status string for prompt."""
     if profile.has_efficient_system:
@@ -620,13 +740,37 @@ _RULE_LABELS = {
     # at the water-right cap), and it had no entry here, so every neutral
     # rejection line in the disabled pilot fell back to "a governance rule"
     # (910 lines). Same phrase as water_right_cap above: it is the same cap,
-    # enforced as a precondition instead of an identity rule.
+    # enforced as a precondition instead of an identity rule. WP2 (spec
+    # 2.2) adds a SECOND registry precondition (decrease_demand's "not
+    # below_minimum_utilisation"), so this fixed string is no longer
+    # correct for every precondition_violation -- see
+    # _precondition_violation_label below, which this entry is now only
+    # the FALLBACK for (no proposed_skill to disambiguate by direction).
     "precondition_violation": "the water-right cap",
     "minimum_utilisation_floor": "the minimum-use floor",
     "zero_escape_floor": "the minimum-use rule for maintaining",
     "consecutive_increase_cap": "the consecutive-increase limit",
     "non_negative_diversion": "the zero-delivery rule",
 }
+
+
+def _precondition_violation_label(rule_id: str, proposed_skill: str) -> str:
+    """Disambiguate the generic ``precondition_violation`` rule id (any
+    registry ``preconditions:`` failure, ``broker/core/skill_broker_engine.py``)
+    by the DIRECTION of the proposed skill it was raised against (WP2, spec
+    2.2): an increase can only have failed ``not at_allocation_cap`` (the
+    water-right cap); a decrease can only have failed ``not
+    below_minimum_utilisation`` (the minimum-use floor) -- the registry's
+    only two preconditions, one per direction. Any other rule id, or a
+    ``proposed_skill`` that is neither, falls back to ``_RULE_LABELS``
+    (its own "the water-right cap" default, kept for a caller that predates
+    this disambiguation)."""
+    if rule_id == "precondition_violation":
+        if proposed_skill.startswith("increase"):
+            return "the water-right cap"
+        if proposed_skill.startswith("decrease"):
+            return "the minimum-use floor"
+    return _RULE_LABELS.get(rule_id, "a governance rule")
 
 
 def build_action_outcome_feedback(
@@ -682,8 +826,9 @@ def build_action_outcome_feedback(
             # Neutral style (memory.rejection_line_style): names the rule and
             # the action that was applied, not the rejected proposal.
             rules = action_ctx.get("blocking_rules") or []
-            if action_ctx.get("proposed_skill") and rules:
-                label = _RULE_LABELS.get(rules[0], "a governance rule")
+            proposed_skill_for_label = action_ctx.get("proposed_skill")
+            if proposed_skill_for_label and rules:
+                label = _precondition_violation_label(rules[0], proposed_skill_for_label)
                 lead = f"Year {year}: {skill} was applied under {label}"
             elif action_ctx.get("proposed_skill"):
                 lead = f"Year {year}: {skill} was applied under a governance rule"
@@ -809,15 +954,22 @@ def build_simulation_log_row(
     already returns them); ``calendar_year`` likewise, when the snapshot
     that produced ``settlement`` carried one (real ``advance_year()`` runs
     always do; a hand-built settlement in an older test may not, and gets
-    ``None``). ``step_bin_af`` / ``typical_step_af`` are computed here from
-    ``agent_state``'s own ``bin_size_af`` / ``mu`` / ``sigma`` (already
-    stored per agent; ``hy_threshold_af`` is the exact WP2 spec 2.5
-    formula, ``(max(0, mu) + 0.6745 sigma) x bin_size_af`` -- WP1 only
-    logs it, WP2 renders it to the agent). ``base_af`` (the WP2 "step
-    base": the agent's request as of the last COMMITTED settlement, before
-    this year's decision) has no tracked value yet -- ``None`` until WP2's
-    ``_reset_requests_to_base`` exists; callers may pass it explicitly
-    once it does. ``precipitation_mm`` / ``precipitation_flag`` are the
+    ``None``). ``step_bin_af`` / ``typical_step_af`` are computed here via
+    ``resolve_step_bin_af`` (review round 1, LOW 8: the SAME resolver
+    ``execute_skill`` and ``build_option_texts`` use -- ``agent_state``'s
+    own ``step_bin_af``, WP2 spec 2.3/2.4's FINAL, UB-converted and
+    possibly rescaled bin; else the legacy ``bin_size_af``; else
+    ``water_right / 25`` -- never ``None``, so this column always reflects
+    what the environment actually drew against) and ``mu`` / ``sigma``
+    (already stored per agent; ``hy_threshold_af`` is the exact WP2 spec
+    2.5 formula, ``(max(0, mu) + 0.6745 sigma) x step_bin_af``). ``base_af`` (the WP2
+    "step base": the agent's request as of the last COMMITTED settlement,
+    before this year's decision, spec 2.1) is ``agent_state["base_af"]``,
+    set once a year by ``IrrigationEnvironment._reset_requests_to_base``
+    -- callers still pass it explicitly (this function only ever reads
+    ``agent_state``, never the environment directly), ``None`` for a
+    hand-built ``agent_state`` from an older test that predates it.
+    ``precipitation_mm`` / ``precipitation_flag`` are the
     agent's own value and flag for the year (``IrrigationEnvironment.
     get_agent_context(agent_id)["precipitation"]`` /
     ``["precipitation_flag"]``, spec 1.6) -- ``None`` unless the caller
@@ -832,7 +984,14 @@ def build_simulation_log_row(
     request = agent_state.get("request", 0)
     diversion = agent_state.get("diversion", 0)
     water_right = agent_state.get("water_right", 0)
-    bin_size_af = agent_state.get("bin_size_af")
+    # WP2 review round 1 (LOW 8): the SAME shared resolver execute_skill
+    # and build_option_texts use, so the logged typical_step_af always
+    # matches the value the environment actually drew against (including
+    # the water_right / 25 synthetic fallback -- previously this function
+    # logged None there instead of the value execute_skill really used).
+    step_bin_af = resolve_step_bin_af(
+        agent_state.get("step_bin_af"), agent_state.get("bin_size_af"), water_right,
+    )
 
     # WP1b (item 20, spec 1b.4): the per-sub-basin record this year's
     # settlement carries (None for a Lower Basin agent, a lees_ferry_pool
@@ -844,14 +1003,10 @@ def build_simulation_log_row(
     ub_subbasin_rec = None
     if ub_subbasin_id and isinstance(settlement.get("ub_subbasin"), dict):
         ub_subbasin_rec = settlement["ub_subbasin"].get(ub_subbasin_id)
-    typical_step_af = (
-        hy_threshold_af(
-            agent_state.get("mu", SYNTHETIC_HY_MU),
-            agent_state.get("sigma", SYNTHETIC_HY_SIGMA),
-            bin_size_af,
-        )
-        if bin_size_af
-        else None
+    typical_step_af = hy_threshold_af(
+        agent_state.get("mu", SYNTHETIC_HY_MU),
+        agent_state.get("sigma", SYNTHETIC_HY_SIGMA),
+        step_bin_af,
     )
 
     return {
@@ -918,7 +1073,7 @@ def build_simulation_log_row(
         "lb_shortage_volume_maf": settlement.get("lb_shortage_volume_maf"),
         "precipitation_mm": precipitation_mm,
         "precipitation_flag": precipitation_flag,
-        "step_bin_af": bin_size_af,
+        "step_bin_af": step_bin_af,
         "typical_step_af": typical_step_af,
         # WP1b (item 20, spec 1b.4)
         "ub_subbasin": ub_subbasin_id if ub_subbasin_rec is not None else None,
@@ -1666,6 +1821,31 @@ def create_profiles_from_data(
             return grid_top_af, "grid_top"
         return scaled, "peak_scaled"
 
+    def _step_bin_and_source(
+        agent_name: str, bin_size_af: float, actual_2018_diversion: Optional[float],
+    ) -> Tuple[float, str]:
+        """WP2 spec 2.4: rescale the step bin to 10 percent of this
+        agent's 2018 use where the (already UB-converted, spec 2.3)
+        ``bin_size_af`` exceeds 20 percent of that use -- H&Y p. 8's own
+        description of the grid increment ("approximately 10% of the
+        2018 diversion"), for the 8 agents whose grid was evidently not
+        built at their own scale. Requires a positive
+        ``actual_2018_diversion``: create_profiles_from_data's own
+        historical-data checks (Review P2, 2026-09-27) already guarantee
+        one for every active real profile, so a missing value here is a
+        wiring defect, not a legitimate gap to paper over with the
+        unrescaled grid step.
+        """
+        if not actual_2018_diversion or actual_2018_diversion <= 0:
+            raise ValueError(
+                f"{agent_name}: actual_2018_diversion is required to "
+                f"compute step_bin_af (WP2 spec 2.4) but is "
+                f"{actual_2018_diversion!r}."
+            )
+        if bin_size_af > 0.20 * actual_2018_diversion:
+            return 0.10 * actual_2018_diversion, "rescaled"
+        return bin_size_af, "grid"
+
     profiles: List[IrrigationAgentProfile] = []
 
     # --- Lower Basin agents (22, direct CSV match) ---
@@ -1694,7 +1874,10 @@ def create_profiles_from_data(
         regret_val = float(p["regret"])
         cluster = _resolve_cluster(agent_name, mu, sigma, alpha, regret_val, cluster_method)
 
-        bin_size_af = float(col.iloc[2] - col.iloc[1])
+        # WP2 spec 2.3: k = 1.0 in the Lower Basin -- its grid already
+        # reports consumptive use, so bin_size_af needs no conversion.
+        demand_per_grid_unit = 1.0
+        bin_size_af = demand_per_grid_unit * float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
             agent_id=agent_name,
             basin="lower_basin",
@@ -1709,6 +1892,7 @@ def create_profiles_from_data(
             farm_size_acres=water_right / 200.0,  # proportional to water_right
             water_right=water_right,
             bin_size_af=bin_size_af,
+            demand_per_grid_unit=demand_per_grid_unit,
             grid_top_af=grid_top_af,
             peak_obs_af=peak_obs_af,
             water_right_source=water_right_source,
@@ -1720,6 +1904,9 @@ def create_profiles_from_data(
             profile.actual_2018_diversion = float(lb_2018[agent_name])
         if lb_2017 is not None and agent_name in lb_2017.index:
             profile.actual_2017_diversion = float(lb_2017[agent_name])
+        profile.step_bin_af, profile.step_bin_source = _step_bin_and_source(
+            agent_name, bin_size_af, profile.actual_2018_diversion,
+        )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
@@ -1758,7 +1945,13 @@ def create_profiles_from_data(
         regret_val = float(p["regret"])
         cluster = _resolve_cluster(state_group, mu, sigma, alpha, regret_val, cluster_method)
 
-        bin_size_af = float(col.iloc[2] - col.iloc[1])
+        # WP2 spec 2.3 (L1-02, L2 H3): k = 0.5 in the Upper Basin -- the
+        # grid is in DIVERSION units, and H&Y (2021, p. 9) assume 50
+        # percent of a diversion is depleted (the CRSS convention), so a
+        # step drawn on the raw grid overstates the depletion-unit change
+        # by 2x unless converted here.
+        demand_per_grid_unit = 0.5
+        bin_size_af = demand_per_grid_unit * float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
             agent_id=agent_name,
             basin="upper_basin",
@@ -1773,6 +1966,7 @@ def create_profiles_from_data(
             farm_size_acres=water_right / 200.0,
             water_right=water_right,
             bin_size_af=bin_size_af,
+            demand_per_grid_unit=demand_per_grid_unit,
             grid_top_af=grid_top_af,
             peak_obs_af=peak_obs_af,
             water_right_source=water_right_source,
@@ -1798,6 +1992,9 @@ def create_profiles_from_data(
             hist_col_2017 = _UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group)
             if hist_col_2017 in ub_2017.index:
                 profile.actual_2017_diversion = float(ub_2017[hist_col_2017]) * ratio
+        profile.step_bin_af, profile.step_bin_source = _step_bin_and_source(
+            agent_name, bin_size_af, profile.actual_2018_diversion,
+        )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
