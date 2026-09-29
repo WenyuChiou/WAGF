@@ -34,10 +34,61 @@ from examples.irrigation_abm.irrigation_personas import describe_gap_reason
 # supply-gap message ends with. Under pro-rata sharing a larger request DOES
 # raise that agent's share; what it does not do is add water, so the old
 # "System cannot deliver more" was removed.
-_SHARING_SENTENCE = (
-    "When supply is short it is shared pro-rata: a larger request would lower "
-    "other users' deliveries, not add water."
-)
+#
+# WP1b (item 20, 2026-09-29): made sub-basin aware -- a function of the
+# triggering context, not a fixed string, since WHO shares a shortage with
+# this agent now depends on its basin, its sub-basin's member count, and
+# whether the basin-wide backstop or its own sub-basin's supply is what
+# bound (IrrigationEnvironment._settle). True in both ub_supply_mode
+# values: a Lower Basin agent, or an Upper Basin agent whose basin-wide
+# backstop bound (gap_reason ub_natural_flow / ub_capacity, or
+# ub_supply_mode="lees_ferry_pool"), shares with the whole relevant basin
+# exactly as before WP1b; only an Upper Basin agent whose OWN sub-basin
+# bound (gap_reason ub_subbasin_supply) is scoped to "your sub-basin", and
+# only when that sub-basin has more than one member -- H&Y's UT2 is alone
+# in its sub-basin, so a larger UT2 request when UT2's own supply is short
+# has no one else's delivery to lower (memo section 9).
+def _sharing_sentence(context: Dict[str, Any]) -> str:
+    """The pro-rata sharing sentence appended to the supply-gap block
+    message (see module docstring above for the full rationale).
+
+    WP1b re-review (HIGH 1, 2026-09-29): a real UB agent with gap_reason
+    ``ub_subbasin_supply`` ALWAYS has a known ``ub_subbasin_member_count``
+    (IrrigationEnvironment._settle only ever produces that code for an
+    agent in one of the nine real sub-basins, and initialize_from_profiles
+    computes the count for every such agent) -- a missing count reaching
+    here is a wiring defect (the found bug: IrrigationLifecycleHooks.
+    pre_year not copying it into validator_fields), never a legitimate
+    state. Raise rather than silently falling back to "other Upper Basin
+    users", which names the wrong users."""
+    if context.get("basin") != "upper_basin":
+        others = "other Lower Basin users"
+    else:
+        gap_codes = str(context.get("gap_reason") or "").split("+")
+        member_count = context.get("ub_subbasin_member_count")
+        if "ub_subbasin_supply" in gap_codes:
+            if member_count is None:
+                raise ValueError(
+                    "_sharing_sentence: gap_reason names ub_subbasin_supply "
+                    "but ub_subbasin_member_count is missing from context -- "
+                    "IrrigationLifecycleHooks.pre_year must copy it into "
+                    "validator_fields (HIGH 1, 2026-09-29 re-review); "
+                    "refusing to silently fall back to basin-wide wording "
+                    "that would name the wrong users."
+                )
+            if member_count <= 1:
+                return "When water is short, a larger request would not add water."
+            others = "other users in your sub-basin"
+        else:
+            # The basin-wide backstop bound (ub_natural_flow / ub_capacity),
+            # lees_ferry_pool mode, or no shortfall at all: the whole Upper
+            # Basin shares here regardless of member_count, so a missing
+            # count is not a defect in this branch.
+            others = "other Upper Basin users"
+    return (
+        "When supply is short it is shared pro-rata: a larger request would "
+        f"lower the deliveries of {others}, not add water."
+    )
 
 
 def _tier_reason(context: Dict[str, Any]) -> str:
@@ -668,7 +719,7 @@ def supply_gap_block_increase(
                     f"Demand increase blocked: at your current request, expected "
                     f"delivery this year is {fulfilment:.0%} ({unmet:,.0f} AF short)",
                     describe_gap_reason(context),
-                ) + ". " + _SHARING_SENTENCE
+                ) + ". " + _sharing_sentence(context)
             ],
             warnings=[],
             metadata={
@@ -1039,6 +1090,13 @@ IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     # acre-feet wording (IrrigationLifecycleHooks.pre_year's
     # validator_fields now wires it from ctx["lb_shortage_volume_maf"]).
     "lb_shortage_volume_maf",
+    # WP1b re-review (HIGH 1, 2026-09-29): read by _sharing_sentence, a
+    # helper supply_gap_block_increase calls (this static scan only reads
+    # supply_gap_block_increase's own source text, so it will not catch
+    # these two on its own -- listed here anyway to keep this registry an
+    # honest record of every key the pipeline actually produces for a
+    # governance-reachable message, not just what the scanner can see).
+    "supply_group", "ub_subbasin_member_count",
     # auto-injected from env_context by the broker's env merge
     "drought_index", "total_available_water", "total_basin_demand", "year",
 })

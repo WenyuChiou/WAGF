@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 from datetime import datetime
@@ -76,6 +77,11 @@ from examples.irrigation_abm.irrigation_personas import (
     create_profiles_from_data,
     read_lake_mead_level_for_log,
     rebalance_to_target,
+    # WP1b re-review (MEDIUM 3, 2026-09-29): _reconstruct_profiles_from_logs'
+    # CRSS-group fallback for a log with no ub_subbasin column.
+    _build_ub_agent_names,
+    _build_ub_state_group_map,
+    _UB_HIST_COLUMN_BY_GROUP,
 )
 from examples.irrigation_abm.validators.irrigation_validators import (
     ALL_IRRIGATION_CHECKS,
@@ -695,6 +701,7 @@ def run_simulation(
 def _reconstruct_profiles_from_logs(
     log_dir: str,
     seed: int = 42,
+    crss_db_dir: str = "ref/CRSS_DB/CRSS_DB",
 ) -> List[IrrigationAgentProfile]:
     """Reconstruct agent profiles from an existing simulation_log.csv.
 
@@ -707,10 +714,24 @@ def _reconstruct_profiles_from_logs(
     water_right / 25, and mu / sigma are cluster centroids, while --real
     profiles carry each agent's own Hung and Yang mu, sigma and grid step.
 
+    WP1b re-review (MEDIUM 3, 2026-09-29): each Upper Basin profile's
+    sub-basin (precip_group) is filled from the logged ``ub_subbasin``
+    column (spec 1b.4) when the source log has one and it is non-empty for
+    that agent's year-1 row -- a log from a run made after WP1b landed.
+    Otherwise it falls back to the same CRSS Group_Agt mapping
+    ``create_profiles_from_data`` uses (a log from before WP1b, which never
+    wrote that column). Raises if neither source has it: a silent
+    ``precip_group=None`` here would make initialize_from_profiles either
+    raise later (in subbasin mode) or, worse, silently route a REAL Upper
+    Basin agent into the unconstrained pool bucket meant only for
+    synthetic profiles (MEDIUM 2).
+
     Args:
         log_dir: Path to a directory containing simulation_log.csv
             (e.g., results/production_v20_42yr_seed42).
         seed: Random seed for any stochastic profile attributes.
+        crss_db_dir: CRSS_DB checkout, used only as the CRSS-group fallback
+            when the log predates the ub_subbasin column.
     """
     from examples.irrigation_abm.irrigation_personas import build_narrative_persona
 
@@ -721,15 +742,57 @@ def _reconstruct_profiles_from_logs(
     df = pd.read_csv(csv_path, encoding="utf-8")
     y1 = df[df["year"] == 1].copy()
     rng = np.random.default_rng(seed)
+    has_ub_subbasin_column = "ub_subbasin" in y1.columns
+
+    # CRSS group mapping, built lazily (only once, only if some row's
+    # logged ub_subbasin is unusable) rather than unconditionally -- a
+    # post-WP1b log never needs it and should not require crss_db_dir to
+    # exist on disk.
+    ub_sg_map: Optional[Dict[str, str]] = None
+
+    def _crss_group_subbasin(agent_id: str) -> Optional[str]:
+        nonlocal ub_sg_map
+        if ub_sg_map is None:
+            group_agt_path = os.path.join(
+                crss_db_dir, "Group_Agt", "UB_ABM_Groups_and_Agents.csv"
+            )
+            if not os.path.isfile(group_agt_path):
+                return None
+            ub_agent_names = _build_ub_agent_names(group_agt_path)
+            ub_sg_map = _build_ub_state_group_map(ub_agent_names)
+        state_group = ub_sg_map.get(agent_id)
+        if state_group is None:
+            return None
+        return _UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group)
 
     profiles = []
     for _, row in y1.iterrows():
         cluster = row["cluster"]
         ref = CLUSTER_CONFIGS.get(cluster, CLUSTER_FORWARD_LOOKING)
+        basin = row["basin"]
+
+        precip_group = None
+        if basin == "upper_basin":
+            logged = row.get("ub_subbasin") if has_ub_subbasin_column else None
+            if isinstance(logged, str) and logged.strip():
+                precip_group = logged.strip()
+            else:
+                precip_group = _crss_group_subbasin(row["agent_id"])
+            if not precip_group:
+                raise ValueError(
+                    f"{row['agent_id']}: {csv_path} has no usable ub_subbasin "
+                    f"value for this agent (column present: "
+                    f"{has_ub_subbasin_column}), and no CRSS group mapping "
+                    f"was found under {crss_db_dir!r} either -- cannot "
+                    "determine this Upper Basin agent's sub-basin (MEDIUM 3, "
+                    "2026-09-29 re-review). Pass crss_db_dir explicitly if "
+                    "the CRSS_DB checkout used to build this run lives "
+                    "elsewhere."
+                )
 
         profile = IrrigationAgentProfile(
             agent_id=row["agent_id"],
-            basin=row["basin"],
+            basin=basin,
             cluster=cluster,
             mu=ref.mu,
             sigma=ref.sigma,
@@ -744,6 +807,7 @@ def _reconstruct_profiles_from_logs(
             years_farming=int(rng.integers(5, 40)),
             has_efficient_system=bool(row.get("has_efficient_system", False)),
             actual_2018_diversion=row["diversion"],
+            precip_group=precip_group,
         )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
@@ -782,6 +846,19 @@ def _create_synthetic_profiles(
             water_right=rng.uniform(50_000, 200_000),
             crop_type=str(rng.choice(["alfalfa", "cotton", "vegetables", "corn"])),
             years_farming=int(rng.integers(5, 40)),
+            # WP1b re-review (MEDIUM 2, 2026-09-29): a mock-smoke-only
+            # profile must NOT be assigned a real sub-basin (precip_group
+            # stays None) -- an earlier version of this fix round-robinned
+            # the nine real ones, which put a synthetic agent inside a REAL
+            # sub-basin's request cap (Agent_002 landing in UT2 and getting
+            # 29 percent of its request, a number that describes UT2's real
+            # farms, not this mock agent). synthetic_no_subbasin=True
+            # instead routes it to IrrigationEnvironment.
+            # initialize_from_profiles's unconstrained pool bucket (logged
+            # once there), the correct "this agent has no real location"
+            # treatment.
+            precip_group=None,
+            synthetic_no_subbasin=(basin == "upper_basin"),
         )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
@@ -852,7 +929,9 @@ def main():
 
     # Create profiles
     if args.from_logs:
-        profiles = _reconstruct_profiles_from_logs(args.from_logs, seed)
+        profiles = _reconstruct_profiles_from_logs(
+            args.from_logs, seed, crss_db_dir=str(ref_dir / "CRSS_DB" / "CRSS_DB")
+        )
         print(f"[Data] Reconstructed {len(profiles)} agents from existing simulation logs")
     elif args.real:
         params_csv = str(ref_dir / "RL-ABM-CRSS" / "ALL_colorado_ABM_params_cal_1108.csv")

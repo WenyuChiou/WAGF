@@ -439,7 +439,38 @@ class TestZeroInitByteIdenticalToPreFix:
         )
         assert show.returncode == 0, show.stderr
         assert show.stdout, "git show returned empty content for the pre-fix script"
-        old_script.write_text(show.stdout, encoding="utf-8")
+        # WP1b compatibility shim (2026-09-29, spec item 20; re-review
+        # MEDIUM 2, same date): this 00654d14 snapshot predates
+        # IrrigationEnvironment.initialize_from_profiles requiring every
+        # Upper Basin profile to carry a sub-basin (precip_group), so its
+        # own frozen _create_synthetic_profiles never sets one and would
+        # otherwise raise when run against the CURRENT environment -- a
+        # real invariant this snapshot cannot know about, unrelated to the
+        # --fql-init zero fix this test verifies. Patched here, in this
+        # test-owned copy only (never in production code): mark each Upper
+        # Basin profile ``synthetic_no_subbasin`` (the SAME marker the
+        # current run_fql_baseline.py's own _create_synthetic_profiles now
+        # sets, MEDIUM 2), routing it to the unconstrained pool bucket
+        # instead of raising or (the pre-MEDIUM-2 bug) round-robinning it
+        # into a real sub-basin's request cap -- so both sides of the
+        # comparison see the same, mode-consistent treatment.
+        compat_shim = (
+            "import examples.irrigation_abm.irrigation_env as _irr_env\n"
+            "_orig_init_from_profiles = _irr_env.IrrigationEnvironment.initialize_from_profiles\n"
+            "def _patched_init_from_profiles(self, profiles):\n"
+            "    for _p in profiles:\n"
+            "        if getattr(_p, 'basin', None) == 'upper_basin' and not getattr(_p, 'precip_group', None):\n"
+            "            _p.synthetic_no_subbasin = True\n"
+            "    return _orig_init_from_profiles(self, profiles)\n"
+            "_irr_env.IrrigationEnvironment.initialize_from_profiles = _patched_init_from_profiles\n"
+        )
+        # "from __future__ import annotations" must stay the first
+        # statement in the file, so the shim is spliced in right after it
+        # rather than prepended.
+        future_line = "from __future__ import annotations\n"
+        assert future_line in show.stdout, "old script has no future-annotations import to splice after"
+        old_text = show.stdout.replace(future_line, future_line + compat_shim, 1)
+        old_script.write_text(old_text, encoding="utf-8")
 
         import os
         env = dict(os.environ)

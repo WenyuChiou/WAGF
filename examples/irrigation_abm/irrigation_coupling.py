@@ -90,6 +90,13 @@ IRRIGATION_CONTEXT_FIELD_SOURCES: Dict[str, Tuple[str, str]] = {
     "basin_request_over_target": ("global", "basin_request_over_target"),
     "natural_flow_maf": ("global", "natural_flow_maf"),
     "powell_storage_maf": ("global", "powell_storage_maf"),
+    # WP1b re-review (LOW 9, 2026-09-29): special-cased in
+    # guard_agent_context_sources like "precipitation" above (never reaches
+    # this generic lookup at runtime); listed here only so
+    # irrigation_contract_field_names/_checks (provenance reporting) see
+    # them.
+    "supply_group": ("agent", "supply_group"),
+    "ub_subbasin_member_count": ("agent", "ub_subbasin_member_count"),
 }
 
 
@@ -121,6 +128,16 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
             VarSpec("basin_request_over_target", float, "ratio_decimal", lo=0.0, cadence="per_decision"),
             VarSpec("natural_flow_maf", float, "maf", lo=0.0, cadence="per_decision"),
             VarSpec("powell_storage_maf", float, "maf", lo=0.0, cadence="per_decision"),
+            # WP1b re-review (LOW 9, 2026-09-29): covered for an Upper Basin
+            # agent that claims a sub-basin at all (precip_group set --
+            # every real create_profiles_from_data profile); see
+            # guard_agent_context_sources's special case for why this is
+            # NOT a plain _BASIN_SCOPED_FIELDS entry (an upper_basin agent
+            # legitimately has neither when it is a synthetic/mock profile,
+            # MEDIUM 2 -- basin alone cannot distinguish the two cases the
+            # way it does for precipitation / lake_mead_level).
+            VarSpec("supply_group", str, "", cadence="per_decision"),
+            VarSpec("ub_subbasin_member_count", int, "count", lo=1, hi=60, cadence="per_decision"),
         ),
         decision_cadence="annual",
         solver_cadence="annual",
@@ -166,9 +183,42 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
 #                          uncovered for the same reason (derived from
 #                          lake_mead_level, which IS covered); never a
 #                          bare source-dict read either.
+#   (supply_group and ub_subbasin_member_count moved to COVERED, LOW 9,
+#   2026-09-29 re-review -- see build_irrigation_agent_context_contract
+#   and guard_agent_context_sources's special case for them, modelled on
+#   the "precipitation" one above: checked only for an agent that claims a
+#   sub-basin at all, i.e. precip_group set, since None is legitimate for
+#   every Lower Basin agent AND for a MEDIUM-2 synthetic_no_subbasin Upper
+#   Basin profile -- basin alone cannot tell those apart from a real
+#   profile missing one, so a plain _BASIN_SCOPED_FIELDS entry would
+#   misfire).
+#   ub_subbasin_ratio    -- WP1b: this agent's own sub-basin ratio_s from
+#                          the last settlement (written by
+#                          ``_write_agent_deliveries``, itself copied from
+#                          ``_settle``'s per-sub-basin record, never a
+#                          silent default). ``None`` before any
+#                          settlement has run, for every Lower Basin
+#                          agent, under ``ub_supply_mode="lees_ferry_pool"``,
+#                          and for an Upper Basin agent with no sub-basin
+#                          -- all legitimate "not applicable" cases, not
+#                          F1 risk (unlike ``delivery_ratio``, which IS
+#                          covered: that field is a real number for every
+#                          agent, always).
+#   ub_subbasin_flow_share -- WP1b: this agent's sub-basin's flow this
+#                          year as a share of its 1971-2018 average,
+#                          computed fresh each call from the committed,
+#                          checksum-verified ``ub_subbasin_supply_v3.csv``
+#                          / ``ub_subbasin_envelope_v3.csv`` tables (which
+#                          raise on a missing year/sub-basin, never
+#                          silently default) -- not a bare
+#                          ``self._agents`` / ``self._basins`` /
+#                          ``self._global`` read either. ``None`` for a
+#                          Lower Basin agent or an Upper Basin agent with
+#                          no sub-basin, same as the two fields above.
 IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     "agent_id", "shortage_tier", "year", "powell_dead_pool_maf",
     "precipitation_flag", "lb_shortage_volume_maf",
+    "ub_subbasin_ratio", "ub_subbasin_flow_share",
 )
 
 
@@ -312,6 +362,34 @@ def guard_agent_context_sources(
             # No precip_group (synthetic/mock): falls through to the
             # generic basin-level legacy-mean check below, matching
             # get_agent_context's own fallback.
+        if vs.name in ("supply_group", "ub_subbasin_member_count"):
+            # WP1b re-review (LOW 9, 2026-09-29): special-cased like
+            # "precipitation" above, for the SAME reason -- basin alone
+            # (a plain _BASIN_SCOPED_FIELDS entry) cannot tell a real
+            # Upper Basin profile missing its sub-basin (a real defect)
+            # from a synthetic/mock one that legitimately has none
+            # (MEDIUM 2's synthetic_no_subbasin route). Checked ONLY when
+            # the agent claims a sub-basin at all (precip_group set, the
+            # same signal the precipitation case above uses) -- exactly
+            # matching what get_agent_context itself does (it only reads
+            # supply_group / ub_subbasin_member_count for such an agent).
+            precip_group = agent.get("precip_group")
+            if precip_group:
+                value = agent.get(vs.name)
+                if value is None:
+                    if vs.on_missing == "fail_loud":
+                        problems.append(
+                            f"{vs.name}: missing despite agent.precip_group="
+                            f"{precip_group!r} being set (on_missing=fail_loud)"
+                        )
+                else:
+                    rv = vs.range_violation(value)
+                    if rv:
+                        problems.append(rv)
+            # No precip_group: this agent (Lower Basin, or an Upper Basin
+            # synthetic/mock profile) legitimately has neither field --
+            # not a violation.
+            continue
         source_name, raw_key = IRRIGATION_CONTEXT_FIELD_SOURCES[vs.name]
         src = sources[source_name]
         if raw_key not in src or src[raw_key] is None:

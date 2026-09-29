@@ -28,6 +28,7 @@ from examples.irrigation_abm.run_fql_baseline import (
     create_fql_agents,
     validate_skill,
     _create_synthetic_profiles,
+    _reconstruct_profiles_from_logs,
     run_simulation,
     FQL_SKILLS,
     main as fql_baseline_main,
@@ -441,6 +442,61 @@ class TestLaunchCommandTiming:
             "the runner must never claim ExitCode: -- only a launcher knows "
             "the real process exit status"
         )
+
+
+class TestReconstructProfilesFromLogsSubbasin:
+    """WP1b re-review (MEDIUM 3, 2026-09-29): --from-logs' sub-basin fill
+    order -- the logged ub_subbasin column (spec 1b.4, a post-WP1b log),
+    then the CRSS Group_Agt mapping (a pre-WP1b log), then raise."""
+
+    @staticmethod
+    def _write_log(tmp_path, rows) -> str:
+        import pandas as pd
+
+        log_dir = tmp_path / "run"
+        log_dir.mkdir()
+        pd.DataFrame(rows).to_csv(log_dir / "simulation_log.csv", index=False)
+        return str(log_dir)
+
+    def test_uses_logged_ub_subbasin_column_when_present(self, tmp_path):
+        log_dir = self._write_log(tmp_path, [
+            {"year": 1, "agent_id": "UB_Agent_000", "basin": "upper_basin",
+             "cluster": "aggressive", "water_right": 100_000.0, "diversion": 80_000.0,
+             "ub_subbasin": "WY"},
+            {"year": 1, "agent_id": "LB_Agent_000", "basin": "lower_basin",
+             "cluster": "aggressive", "water_right": 50_000.0, "diversion": 40_000.0,
+             "ub_subbasin": ""},
+        ])
+        profiles = _reconstruct_profiles_from_logs(log_dir, seed=1, crss_db_dir="does/not/exist")
+        ub = next(p for p in profiles if p.agent_id == "UB_Agent_000")
+        lb = next(p for p in profiles if p.agent_id == "LB_Agent_000")
+        assert ub.precip_group == "WY"
+        assert lb.precip_group is None
+
+    def test_raises_when_no_column_and_no_crss_mapping(self, tmp_path):
+        log_dir = self._write_log(tmp_path, [
+            {"year": 1, "agent_id": "UB_Agent_000", "basin": "upper_basin",
+             "cluster": "aggressive", "water_right": 100_000.0, "diversion": 80_000.0},
+        ])
+        with pytest.raises(ValueError, match="sub-basin"):
+            _reconstruct_profiles_from_logs(log_dir, seed=1, crss_db_dir="does/not/exist")
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_falls_back_to_crss_group_mapping_when_column_absent(self, tmp_path):
+        """A pre-WP1b log (no ub_subbasin column) still resolves a real
+        agent's sub-basin from the same CRSS Group_Agt file
+        create_profiles_from_data uses."""
+        profiles_real = create_profiles_from_data(
+            str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=np.random.default_rng(7)
+        )
+        real_ub = next(p for p in profiles_real if p.basin == "upper_basin")
+        log_dir = self._write_log(tmp_path, [
+            {"year": 1, "agent_id": real_ub.agent_id, "basin": "upper_basin",
+             "cluster": "aggressive", "water_right": 100_000.0, "diversion": 80_000.0},
+        ])
+        profiles = _reconstruct_profiles_from_logs(log_dir, seed=1, crss_db_dir=str(CRSS_DB_DIR))
+        got = next(p for p in profiles if p.agent_id == real_ub.agent_id)
+        assert got.precip_group == real_ub.precip_group
 
 
 if __name__ == "__main__":

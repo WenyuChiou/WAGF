@@ -95,6 +95,17 @@ temp_*.json
 !examples/irrigation_abm/data/hydrology_v3.csv
 !examples/irrigation_abm/data/mead_capacity_usbr2009_1ft.csv
 
+# ...and the WP1b Upper Basin per-sub-basin supply tables (same rationale,
+# irrigation_v3_spec_2026-09-28.md item 20).
+!examples/irrigation_abm/data/ub_subbasin_supply_v3.csv
+!examples/irrigation_abm/data/ub_subbasin_envelope_v3.csv
+
+# ...and the WP1b CPU-sensitivity variant supply tables (MEDIUM 4, spec 1b.6).
+!examples/irrigation_abm/data/ub_subbasin_supply_v3_rho02.csv
+!examples/irrigation_abm/data/ub_subbasin_supply_v3_lees_ferry_all.csv
+!examples/irrigation_abm/data/ub_subbasin_supply_v3_tributary.csv
+!examples/irrigation_abm/data/ub_subbasin_variant_means_v3.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/

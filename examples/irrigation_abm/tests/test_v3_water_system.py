@@ -39,9 +39,22 @@ from examples.irrigation_abm.irrigation_env import (
     HYDROLOGY_V3_SHA256,
     MEAD_CAPACITY_PATH,
     MEAD_CAPACITY_SHA256,
+    UB_SUBBASINS,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
+
+# WP1b (item 20): a large per-sub-basin placeholder for tests in this file
+# that never assign any agent a supply_group (_agent/_env below). Such an
+# agent falls into _settle's / _ub_delivery_for_planning's unconstrained
+# "no sub-basin" bucket regardless of these numbers -- proven identical to
+# the single Lees Ferry pool in
+# .research/design_specs/irrigation_v3_ub_subbasin_supply_2026-09-29.md
+# section 10 -- so its actual value never binds anything in this file; it
+# only needs to exist so _settle's "every UB_SUBBASINS key present" check
+# passes for a hand-built snapshot that (unlike advance_year) does not
+# come from the real 42-row table.
+_UB_SUBBASIN_PLACEHOLDER_MAF = {s: 5.0 for s in UB_SUBBASINS}
 from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
 
 CRSS_PARAMS_CSV = Path("ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv")
@@ -85,17 +98,31 @@ def _planned(env, snap, ub_requested_maf=None):
 
     Re-review 2026-09-29 round 4 (LOW 1): the default comes from the SAME
     _basin_request_projected_maf advance_year itself calls, water-right
-    cap included -- not a hand-rolled, easily-stale re-derivation."""
+    cap included -- not a hand-rolled, easily-stale re-derivation.
+
+    WP1b (item 20): also injects ``ub_subbasin_available_af`` into the
+    returned snapshot (required by ``_settle`` in ``subbasin`` mode,
+    ``WaterSystemConfig``'s default) and passes the live per-sub-basin
+    projected-request breakdown to ``_plan_powell_release`` -- see
+    ``_UB_SUBBASIN_PLACEHOLDER_MAF`` above for why the actual availability
+    numbers are inert for every test in this file."""
     cfg = env.config
     if ub_requested_maf is None:
         ub_requested_maf = env._basin_request_projected_maf(is_upper_basin=True)
+    ub_by_subbasin = env._ub_request_projected_by_subbasin_maf()
     out = dict(snap)
+    out.setdefault(
+        "ub_subbasin_available_af",
+        {s: v * 1e6 for s, v in _UB_SUBBASIN_PLACEHOLDER_MAF.items()},
+    )
     out["powell_release_planned_maf"] = env._plan_powell_release(
         nf=snap["natural_flow"], s_p=snap["powell_storage"], s_m=snap["mead_storage"],
         trib=snap.get("lb_tributary", cfg.lb_tributary_maf),
         shortage_volume=snap["lb_shortage_volume_maf"], mexico=snap["mexico"],
         ub_requested_maf=ub_requested_maf,
         lb_requested_maf=snap["lb_request_projected_maf"],
+        ub_requested_by_subbasin_maf=ub_by_subbasin,
+        ub_available_by_subbasin_maf=_UB_SUBBASIN_PLACEHOLDER_MAF,
     )
     return out
 
@@ -516,24 +543,16 @@ class TestMassBalanceClosureV3:
             for aid, rec in st["agents"].items():
                 assert rec["delivered"] <= rec["request"] + 1e-6
 
-    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
-    def test_real_2018_fixed_demand_42_years(self):
-        """The L2-replay scenario: real 78-agent 2018 requests held fixed
-        (no decisions), 42 years, mass balance closes and natural flow
-        equals the committed table every year.
-
-        Re-review 2026-09-29 round 3 (NIT): also pins the shortage-tier
-        counts and Mead's minimum 1 January storage this exact scenario
-        produces -- confirmed to come from THIS real 78-agent run (not a
-        smaller synthetic replay, LOW C), and matched independently on
-        seed 7 here and seed 42 elsewhere to 4 decimal places (the
-        aggregate is set by the real CRSS demand data, not the profile
-        RNG seed). WP1b (spec item 20, per-sub-basin Upper Basin supply)
-        is expected to change these numbers -- update the pin rather than
-        deleting it when that lands."""
+    @staticmethod
+    def _run_real_2018_fixed_demand_42_years(ub_supply_mode: str):
+        """Shared body (WP1b, item 20): the L2-replay scenario, real
+        78-agent 2018 requests held fixed (no decisions), 42 years, under
+        the given ``ub_supply_mode``. Asserts mass balance closes and
+        natural flow equals the committed table every year; returns
+        ``(tier_counts, mead_min_maf)`` for the caller to pin."""
         rng = np.random.default_rng(7)
         profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
-        env = IrrigationEnvironment(WaterSystemConfig(seed=7))
+        env = IrrigationEnvironment(WaterSystemConfig(seed=7, ub_supply_mode=ub_supply_mode))
         env.initialize_from_profiles(profiles)
         tier_counts = {0: 0, 1: 0, 2: 0, 3: 0}
         mead_min_maf = None
@@ -556,6 +575,49 @@ class TestMassBalanceClosureV3:
             assert abs(lhs - rhs) < 1e-9
             assert st["powell_storage_end_maf"] >= env.config.powell_dead_pool_maf - 1e-9
             assert st["mead_storage_end_maf"] >= env.config.mead_dead_pool_maf - 1e-9
+        return tier_counts, mead_min_maf
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_real_2018_fixed_demand_42_years(self):
+        """The L2-replay scenario under ``ub_supply_mode="subbasin"``, the
+        v3 default (WP1b, item 20).
+
+        Re-review 2026-09-29 round 3 (NIT): also pins the shortage-tier
+        counts and Mead's minimum 1 January storage this exact scenario
+        produces -- confirmed to come from THIS real 78-agent run (not a
+        smaller synthetic replay, LOW C), and matched independently on
+        seed 7 here and seed 42 elsewhere to 4 decimal places (the
+        aggregate is set by the real CRSS demand data, not the profile
+        RNG seed).
+
+        WP1b (2026-09-29): these values CHANGED from the WP1 pin
+        ({0: 20, 1: 11, 2: 8, 3: 3}, mead_min ~7.3516 MAF / ~1,005.8 ft --
+        now held under ``ub_supply_mode="lees_ferry_pool"``, see
+        ``test_real_2018_fixed_demand_42_years_pool_mode`` below) once the
+        Upper Basin's single 5.0 MAF-or-natural-flow pool was replaced by
+        nine independent sub-basin supplies. Several sub-basins (UT1 most,
+        per the sub-basin memo section 5: 2018 is UT1's highest use in 48
+        years) are now short of their fixed 2018 request in below-median-
+        flow years even though the Upper Basin AGGREGATE never was under
+        the single pool (memo section 6: 19 short sub-basin-years at 2018
+        use). Every acre-foot the Upper Basin does not receive stays in
+        Powell's inflow, so Powell (and, through the storage-balancing
+        release, Mead) carries slightly MORE water: one Tier-2 year moves
+        to Tier-0 (2:8->7, 0:20->21) and Mead's 1 January minimum rises
+        from 7.3516 to 7.4665 MAF (about 1,005.8 to 1,007.7 ft)."""
+        tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("subbasin")
+        assert tier_counts == {0: 21, 1: 11, 2: 7, 3: 3}
+        assert mead_min_maf == pytest.approx(7.4665, abs=1e-3)  # ~1,007.7 ft
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_real_2018_fixed_demand_42_years_pool_mode(self):
+        """The WP1 regression pin, held under ``ub_supply_mode=
+        "lees_ferry_pool"`` (the SI mode, spec 1b.3) now that "subbasin"
+        is the v3 default and changes these numbers (see
+        ``test_real_2018_fixed_demand_42_years`` above): this is
+        ``lees_ferry_pool`` mode's own bitwise reproduction of the pin
+        WP1 originally pinned in this scenario, and must never drift."""
+        tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("lees_ferry_pool")
         assert tier_counts == {0: 20, 1: 11, 2: 8, 3: 3}
         assert mead_min_maf == pytest.approx(7.3516, abs=1e-3)  # ~1,005.8 ft
 

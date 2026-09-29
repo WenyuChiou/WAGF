@@ -320,6 +320,21 @@ irrigation_farmer:
         source: "current_diversion"
         unit: "AF"
         format: ",.0f"
+      # WP1b (item 20, 2026-09-29): a per-agent 0/1 flag -- IrrigationEnvironment
+      # writes it onto agent_state after each settlement (_write_agent_deliveries),
+      # 1.0 only when this agent is the SOLE member of a sub-basin whose OWN
+      # supply (not the basin-wide backstop) is what bound this year, 0.0 for
+      # every other agent and in every other year (including every Lower Basin
+      # agent, and any Upper Basin agent under ub_supply_mode="lees_ferry_pool",
+      # where the flag is never set). Named as its own tracked metric (the
+      # per-agent variable the sub-basin memo section 9 calls for) so the
+      # two assertions below can select the wording that is actually true --
+      # SafeExpressionEvaluator (broker/components/analytics/feedback.py) only
+      # evaluates numeric comparisons, never a string branch.
+      - name: "ub_subbasin_solo_bound"
+        source: "ub_subbasin_sole_bound"
+        unit: ""
+        format: ".0f"
     assertions:
       # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
       # whose delivery formula no longer holds). The tracked metrics are
@@ -340,7 +355,10 @@ irrigation_farmer:
       # must not name Lake Mead specifically -- "only Lake Mead's physical
       # availability does" is false for an Upper Basin agent, whose delivery
       # is bounded by natural flow or the 5.0 MAF capacity, never by Mead.
-      - when: "supply / request < 0.85 and supply >= 1"
+      # WP1b (item 20): "ub_subbasin_solo_bound < 1" excludes the one agent
+      # (H&Y's UT2) for whom "lowering other users' deliveries" would be
+      # false this year -- see the second assertion below for that case.
+      - when: "supply / request < 0.85 and supply >= 1 and ub_subbasin_solo_bound < 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -351,6 +369,19 @@ irrigation_farmer:
           capacity for the Upper Basin). When a physical limit binds, supply
           is shared pro-rata, so a larger request raises your share only by
           lowering other users' deliveries.
+      # WP1b (item 20): the sole member of its sub-basin (UT2) has no other
+      # user in it to share with, so a larger request cannot raise its share
+      # by lowering anyone else's -- it would simply not add water.
+      - when: "supply / request < 0.85 and supply >= 1 and ub_subbasin_solo_bound >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
+          situation above. A declared shortage does not by itself reduce your
+          delivery; only a physical supply limit does (natural flow or
+          delivery capacity for the Upper Basin). You are the only user in
+          your sub-basin, so when a physical limit binds, a larger request
+          would not add water.
 
   # ---------------------------------------------------------------------------
   # Available Actions

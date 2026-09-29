@@ -47,6 +47,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+# WP1b re-review (MEDIUM 4, spec 1b.6): the four ub_subbasin_supply_variant
+# values WaterSystemConfig accepts -- referenced by its __post_init__.
+_UB_SUBBASIN_SUPPLY_VARIANTS = (
+    "recommended", "rho_0_2", "lees_ferry_all", "tributary_gauges",
+)
+
 # Minimum utilisation floor: agents cannot reduce demand below this fraction
 # of their water right.  Prevents "economic hallucination" spiral to zero.
 MIN_UTIL = 0.10
@@ -186,6 +192,29 @@ class WaterSystemConfig:
     max_powell_release_maf: float = 9.5       # Powell release ceiling (MAF/yr); Lower Elevation
     # Balancing Tier bound (ROD p. 52), not a modelling choice.
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
+    # WP1b (item 20): "subbasin" (v3 default) gives each of the nine H&Y
+    # Upper Basin sub-basins its own available water A_s(t) = c_s x
+    # Q_s(m(t)) (see _load_ub_subbasin_supply_table / IrrigationEnvironment.
+    # _settle), with agents in a sub-basin sharing any shortfall by request
+    # (memo section 6). "lees_ferry_pool" is the WP1 single-pool behaviour
+    # (min(5.0 MAF, NF - ub_non_farm_depletion_maf) shared pro-rata across
+    # all 56 Upper Basin agents), kept for the SI. Either way,
+    # ub_infrastructure_cap_maf and non-farm-net natural flow stay a
+    # basin-wide BACKSTOP the recommended formula's own envelope never
+    # binds (irrigation_v3_ub_subbasin_supply_2026-09-29.md section 5).
+    ub_supply_mode: str = "subbasin"
+    # WP1b re-review (MEDIUM 4, spec 1b.6, memo sections 8 and 11): which
+    # per-sub-basin supply TABLE to load in "subbasin" mode -- the
+    # recommended formula (default) or one of three CPU sensitivities,
+    # each its own committed, checksum-pinned 42-row table built by
+    # build_v3_data.py's ub_supply target: "rho_0_2" (the envelope with a
+    # 20% margin, A_s = 1.2 c_s Q_s, H&Y's own rho), "lees_ferry_all" (the
+    # basin-wide Lees Ferry gauge standing in for every sub-basin's own
+    # flow), and "tributary_gauges" (a single upstream/headwater gauge per
+    # sub-basin in place of the recommended downstream/confluence set --
+    # this repo's own disclosed choice, memo section 11: "the WP1b author
+    # lists them"). Ignored in "lees_ferry_pool" mode.
+    ub_subbasin_supply_variant: str = "recommended"
     # Lake Mead physical bounds (total storage, MAF), the end points of the
     # USBR storage-elevation curve loaded by IrrigationEnvironment from
     # data/mead_capacity_usbr2009_1ft.csv (v3, spec 1.4, L2 H4). Water
@@ -316,6 +345,17 @@ class WaterSystemConfig:
             raise ValueError(
                 f"mead_evap_ref_storage_maf must be > 0, got {self.mead_evap_ref_storage_maf}"
             )
+        if self.ub_supply_mode not in ("subbasin", "lees_ferry_pool"):
+            raise ValueError(
+                "ub_supply_mode must be 'subbasin' or 'lees_ferry_pool', "
+                f"got {self.ub_supply_mode!r}"
+            )
+        if self.ub_subbasin_supply_variant not in _UB_SUBBASIN_SUPPLY_VARIANTS:
+            raise ValueError(
+                "ub_subbasin_supply_variant must be one of "
+                f"{_UB_SUBBASIN_SUPPLY_VARIANTS}, got "
+                f"{self.ub_subbasin_supply_variant!r}"
+            )
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
@@ -332,6 +372,20 @@ class WaterSystemConfig:
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 HYDROLOGY_V3_PATH = os.path.join(_DATA_DIR, "hydrology_v3.csv")
 MEAD_CAPACITY_PATH = os.path.join(_DATA_DIR, "mead_capacity_usbr2009_1ft.csv")
+UB_SUBBASIN_SUPPLY_PATH = os.path.join(_DATA_DIR, "ub_subbasin_supply_v3.csv")
+UB_SUBBASIN_ENVELOPE_PATH = os.path.join(_DATA_DIR, "ub_subbasin_envelope_v3.csv")
+# WP1b re-review (MEDIUM 4, spec 1b.6): the three CPU-sensitivity variant
+# supply tables (memo sections 8, 11); no separate envelope files (spec
+# 1b.6 names only "the supply-table path", not an envelope one).
+UB_SUBBASIN_SUPPLY_RHO02_PATH = os.path.join(_DATA_DIR, "ub_subbasin_supply_v3_rho02.csv")
+UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_PATH = os.path.join(
+    _DATA_DIR, "ub_subbasin_supply_v3_lees_ferry_all.csv"
+)
+UB_SUBBASIN_SUPPLY_TRIBUTARY_PATH = os.path.join(
+    _DATA_DIR, "ub_subbasin_supply_v3_tributary.csv"
+)
+# WP1b re-review (LOW 1): each variant's own 1971-2018 mean flow.
+UB_SUBBASIN_VARIANT_MEANS_PATH = os.path.join(_DATA_DIR, "ub_subbasin_variant_means_v3.csv")
 
 # USBR Colorado River Basin natural flow data,
 # NaturalFlows1906-2020_20221215.xlsx, sheet AnnualCYTotalNaturalFlow,
@@ -342,6 +396,42 @@ HYDROLOGY_V3_SHA256 = "9951f2224334a859a7adbc9d55914e6505bbce38ea0424f26f10f7c8d
 # USBR Lake Mead Area and Capacity Tables (Tighi and Callejo, 2011,
 # 2001/2009 surveys; retrieved 2026-09-28). 335 rows, 1-ft steps, 895-1,229 ft.
 MEAD_CAPACITY_SHA256 = "7f233bd8149cc9416612991c27ed130c22842e93bbbbdd121d7716d5f8d9c8d6"
+# WP1b (item 20): Upper Basin supply per sub-basin. Built by
+# examples/irrigation_abm/tools/build_v3_data.py (--target ub_supply) from
+# the same USBR workbook and CRSS_DB/HistoricalData/
+# UB_historical_annual_depletion.csv (H&Y 2021 p. 9); formula and gauge
+# table in .research/design_specs/irrigation_v3_ub_subbasin_supply_2026-09-29.md
+# sections 5-6. 42 rows (sim_year 2019-2060), q_{s}_af / a_{s}_af for each
+# of the nine sub-basins.
+UB_SUBBASIN_SUPPLY_SHA256 = "ac0a17639488e4d4e7e4cba6ae876ff4a7930a8e9012b5487e2a920189662d48"
+# 9 rows: one per sub-basin -- its gauges, c_s (and its binding/runner-up
+# year), and the 1971-2018 mean flow (the denominator of the agent-facing
+# sub-basin flow-share sentence, memo section 9).
+UB_SUBBASIN_ENVELOPE_SHA256 = "7f38c4dbfe5a57dc897ef9c2b7983c504fa71dd7ad86b82799a448848e618ca2"
+# WP1b re-review (MEDIUM 4, spec 1b.6): the three CPU-sensitivity variant
+# supply tables (memo sections 8, 11), same 42-row shape as the
+# recommended table above, built by build_v3_data.py's ub_supply target.
+UB_SUBBASIN_SUPPLY_RHO02_SHA256 = "0e65b6fa6d23e209b5c0c1425f73a2f51218fb2a59d6e7a803a7ee5d37a33048"
+UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_SHA256 = "228099d21019e458241ea1ea216e3f46d33f6563c5a8e644960711db25029589"
+UB_SUBBASIN_SUPPLY_TRIBUTARY_SHA256 = "f1b4b2379ba6091ac1667f734ab008d38fd4019320f0c1fdf203d127f954b394"
+UB_SUBBASIN_VARIANT_MEANS_SHA256 = "c79ac70bad3db3f9fc22dec572740e0e29d74d67c3c7ac573ffbba86d693f288"
+
+# The nine Hung and Yang (2021) Upper Basin sub-basins, in the same order
+# irrigation_personas.py (_UB_STATE_GROUPS) and the two CSVs above use
+# (AZ_UB there == AZ here -- see _UB_HIST_COLUMN_BY_GROUP).
+UB_SUBBASINS: Tuple[str, ...] = ("WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ")
+
+# WP1b re-review (MEDIUM 4): ub_subbasin_supply_variant -> (path, sha256).
+_UB_SUBBASIN_SUPPLY_VARIANT_FILES: Dict[str, Tuple[str, str]] = {
+    "recommended": (UB_SUBBASIN_SUPPLY_PATH, UB_SUBBASIN_SUPPLY_SHA256),
+    "rho_0_2": (UB_SUBBASIN_SUPPLY_RHO02_PATH, UB_SUBBASIN_SUPPLY_RHO02_SHA256),
+    "lees_ferry_all": (
+        UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_PATH, UB_SUBBASIN_SUPPLY_LEES_FERRY_ALL_SHA256
+    ),
+    "tributary_gauges": (
+        UB_SUBBASIN_SUPPLY_TRIBUTARY_PATH, UB_SUBBASIN_SUPPLY_TRIBUTARY_SHA256
+    ),
+}
 # USBR Lake Mead Area and Capacity Tables, p. 5: "Dead storage capacity
 # (below the lowest outlet structure at elevation 895.0 feet) is
 # 2,547 KAF" -- the fixed physical constant the checked-in table's
@@ -443,6 +533,96 @@ def _mead_area_proxy_table() -> Tuple[np.ndarray, np.ndarray]:
     elevation_ft, storage_maf = _load_mead_capacity_table()
     area = np.gradient(storage_maf, elevation_ft)
     return elevation_ft, area
+
+
+@functools.lru_cache(maxsize=4)
+def _load_ub_subbasin_supply_table(variant: str = "recommended") -> Dict[int, Dict[str, float]]:
+    """The committed 42-row per-sub-basin Upper Basin supply table (WP1b,
+    item 20), keyed by simulation year: ``source_calendar_year`` and, for
+    each of the nine ``UB_SUBBASINS``, ``q_{s}_af`` (USBR calendar-year
+    natural flow at the sub-basin's gauges) and ``a_{s}_af`` (= c_s x
+    q_{s}_af, the sub-basin's available water). Cached process-wide (once
+    per distinct ``variant``), same rationale as :func:`_load_hydrology_table`.
+
+    ``variant`` (WP1b re-review, MEDIUM 4, spec 1b.6) selects one of the
+    four tables in ``_UB_SUBBASIN_SUPPLY_VARIANT_FILES``: the recommended
+    formula (default) or one of the three CPU sensitivities. Every caller
+    should pass ``self.config.ub_subbasin_supply_variant`` explicitly
+    rather than relying on the default, which exists only so this
+    function's signature stays backward compatible."""
+    if variant not in _UB_SUBBASIN_SUPPLY_VARIANT_FILES:
+        raise ValueError(
+            f"_load_ub_subbasin_supply_table: unknown variant {variant!r}, "
+            f"expected one of {tuple(_UB_SUBBASIN_SUPPLY_VARIANT_FILES)}"
+        )
+    path, sha256 = _UB_SUBBASIN_SUPPLY_VARIANT_FILES[variant]
+    data = _sha256_checked_bytes(
+        path, sha256, f"ub_subbasin_supply_v3 (variant={variant})"
+    )
+    reader = csv.DictReader(data.decode("utf-8").splitlines())
+    table: Dict[int, Dict[str, float]] = {}
+    for row in reader:
+        sim_year = int(row["sim_year"])
+        entry: Dict[str, float] = {"source_calendar_year": int(row["source_calendar_year"])}
+        for s in UB_SUBBASINS:
+            entry[f"q_{s}_af"] = float(row[f"q_{s}_af"])
+            entry[f"a_{s}_af"] = float(row[f"a_{s}_af"])
+        table[sim_year] = entry
+    if len(table) != 42:
+        raise ValueError(
+            f"{path} has {len(table)} rows after parsing, expected 42"
+        )
+    return table
+
+
+@functools.lru_cache(maxsize=1)
+def _load_ub_subbasin_envelope() -> Dict[str, Dict[str, Any]]:
+    """The committed 9-row Upper Basin sub-basin envelope table (WP1b,
+    item 20): gauges, c_s (and its binding/runner-up year), and the
+    1971-2018 mean flow, keyed by sub-basin."""
+    data = _sha256_checked_bytes(
+        UB_SUBBASIN_ENVELOPE_PATH, UB_SUBBASIN_ENVELOPE_SHA256, "ub_subbasin_envelope_v3.csv"
+    )
+    reader = csv.DictReader(data.decode("utf-8").splitlines())
+    table: Dict[str, Dict[str, Any]] = {}
+    for row in reader:
+        table[row["subbasin"]] = {
+            "gauges": row["gauges"],
+            "c_s": float(row["c_s"]),
+            "binding_year": int(row["binding_year"]),
+            "runner_up_year": int(row["runner_up_year"]),
+            "runner_up_c_s": float(row["runner_up_c_s"]),
+            "q_s_mean_1971_2018_af": float(row["q_s_mean_1971_2018_af"]),
+        }
+    missing = [s for s in UB_SUBBASINS if s not in table]
+    if missing:
+        raise ValueError(f"{UB_SUBBASIN_ENVELOPE_PATH} has no row(s) for {missing}")
+    return table
+
+
+@functools.lru_cache(maxsize=1)
+def _load_ub_subbasin_variant_means() -> Dict[str, Dict[str, float]]:
+    """WP1b re-review (LOW 1): each ``ub_subbasin_supply_variant`` value's
+    own 1971-2018 mean flow per sub-basin -- ``UB_SUBBASIN_ENVELOPE_PATH``'s
+    mean is fit to the RECOMMENDED gauge map only, so a variant with a
+    DIFFERENT gauge map ("lees_ferry_all", "tributary_gauges") needs its
+    own mean here, or the agent-facing sub-basin flow-share sentence
+    (``get_agent_context``) divides that variant's flow by the wrong
+    sub-basin's average flow entirely. "recommended" and "rho_0_2" share
+    the recommended gauges (rho only scales c_s), so their rows are
+    identical by construction, not a coincidence."""
+    data = _sha256_checked_bytes(
+        UB_SUBBASIN_VARIANT_MEANS_PATH, UB_SUBBASIN_VARIANT_MEANS_SHA256,
+        "ub_subbasin_variant_means_v3.csv",
+    )
+    reader = csv.DictReader(data.decode("utf-8").splitlines())
+    table: Dict[str, Dict[str, float]] = {}
+    for row in reader:
+        table[row["variant"]] = {s: float(row[f"q_{s}_mean_af"]) for s in UB_SUBBASINS}
+    missing = [v for v in _UB_SUBBASIN_SUPPLY_VARIANTS if v not in table]
+    if missing:
+        raise ValueError(f"{UB_SUBBASIN_VARIANT_MEANS_PATH} has no row(s) for {missing}")
+    return table
 
 
 # Hung and Yang (2021) action model, used for synthetic (mock) agents that
@@ -759,10 +939,71 @@ class IrrigationEnvironment:
             profiles: List of IrrigationAgentProfile objects created by
                 ``create_profiles_from_data()`` or ``create_profiles_from_csv()``.
         """
+        # WP1b re-review (MEDIUM 2, 2026-09-29): collected across the loop
+        # so mock-smoke runs (often dozens of synthetic Upper Basin
+        # profiles) get ONE aggregate log line, not one per agent.
+        _synthetic_no_subbasin_ids: List[str] = []
         for p in profiles:
             wr = getattr(p, "water_right", 100_000.0)
             _actual = getattr(p, "actual_2018_diversion", None)
             _init_div = _actual if _actual is not None else wr * 0.8
+            precip_group = getattr(p, "precip_group", None)
+            # WP1b (item 20, spec 1b.3): supply_group carries precip_group
+            # forward as the agent's sub-basin for the water-SUPPLY side
+            # (IrrigationEnvironment._settle in "subbasin" mode), distinct
+            # in name from precip_group (the agent's own-sub-basin winter
+            # precipitation INFORMATION, spec 1.6) even though every real
+            # create_profiles_from_data profile sets both to the same
+            # value -- they answer different questions and a future
+            # profile could set one without the other. A real Upper Basin
+            # profile ALWAYS has one (precip_group is set for every state
+            # group create_profiles_from_data builds); a profile built
+            # another way (synthetic/mock, initialize_synthetic,
+            # initialize_from_csv) that never sets it is a legitimate,
+            # different case -- _settle treats such an agent as its own
+            # unconstrained pool, bound only by the basin-wide backstop,
+            # never by a sub-basin cap it was never assigned to (see
+            # _settle's docstring). What must never happen silently is a
+            # REAL profile missing it: create_profiles_from_data's own bug
+            # (an unmapped state group) must fail loudly here, not
+            # manufacture a plausible-looking pool agent instead.
+            #
+            # MEDIUM 3 (2026-09-29 re-review): only checked in "subbasin"
+            # mode -- "lees_ferry_pool" never partitions by sub-basin, so a
+            # missing one there is not a defect worth raising over.
+            #
+            # MEDIUM 2 (2026-09-29 re-review): a profile explicitly marked
+            # ``synthetic_no_subbasin`` (run_experiment.py /
+            # run_fql_baseline.py's mock-smoke-only _create_synthetic_
+            # profiles) is NOT the "real profile forgot to set one" case --
+            # it is routed to the unconstrained pool on purpose, logged
+            # once below, and does not raise. Before this flag existed,
+            # such a profile would either raise (if it also had no
+            # precip_group) or silently land inside a REAL sub-basin's cap
+            # if it happened to collide with one by chance -- neither is
+            # correct for a profile that was never meant to represent a
+            # real Upper Basin diverter.
+            if (
+                p.basin == "upper_basin"
+                and not precip_group
+                and self.config.ub_supply_mode == "subbasin"
+            ):
+                if getattr(p, "synthetic_no_subbasin", False):
+                    _synthetic_no_subbasin_ids.append(p.agent_id)
+                else:
+                    raise ValueError(
+                        f"{p.agent_id}: Upper Basin profile has no precip_group; "
+                        "IrrigationEnvironment.initialize_from_profiles needs "
+                        "every Upper Basin agent's sub-basin (supply_group) to "
+                        "compute its v3 per-sub-basin water supply in "
+                        "ub_supply_mode='subbasin' (WP1b, item 20). "
+                        "create_profiles_from_data sets precip_group for "
+                        "every real Upper Basin profile; a profile built "
+                        "another way must set it explicitly, set "
+                        "synthetic_no_subbasin=True if it is intentionally a "
+                        "mock/smoke profile, or use "
+                        "ub_supply_mode='lees_ferry_pool'."
+                    )
             self._agents[p.agent_id] = {
                 "basin": p.basin,
                 "diversion": _init_div,
@@ -778,7 +1019,18 @@ class IrrigationEnvironment:
                 # Own sub-basin winter precipitation column (v3, spec 1.6);
                 # None for Lower Basin agents and any profile that never
                 # set it (get_agent_context falls back to the basin mean).
-                "precip_group": getattr(p, "precip_group", None),
+                "precip_group": precip_group,
+                # WP1b (item 20, spec 1b.3): this agent's sub-basin for the
+                # water-supply step (see the comment above); None for Lower
+                # Basin agents and any profile without one.
+                "supply_group": precip_group,
+                # Per-settlement sub-basin diagnostics (WP1b): None/0.0
+                # until the first settlement writes them (_write_agent_
+                # deliveries); log columns and the yaml dashboard warning
+                # read these, not a settlement dict, so a year-1 read
+                # before any settlement gets a defined, disclosed value.
+                "ub_subbasin_ratio": None,
+                "ub_subbasin_sole_bound": 0.0,
                 # Hung and Yang (2021) action model: per-agent mu, sigma
                 # (calibrated parameters) and the step of the agent's
                 # discretised diversion grid. Profiles without a grid step
@@ -789,6 +1041,30 @@ class IrrigationEnvironment:
                     getattr(p, "bin_size_af", None) or wr / SYNTHETIC_BIN_DIVISOR
                 ),
             }
+
+        # WP1b: each Upper Basin agent's sub-basin member count (the
+        # structural fact the "UT2's request would not add water" wording
+        # needs, memo section 9) -- a second pass, after every profile is
+        # in self._agents, so it counts the FINAL active agent set (56),
+        # not the 58 CRSS slots create_profiles_from_data started from.
+        _group_counts: Dict[str, int] = {}
+        for a in self._agents.values():
+            sg = a.get("supply_group")
+            if sg:
+                _group_counts[sg] = _group_counts.get(sg, 0) + 1
+        for a in self._agents.values():
+            sg = a.get("supply_group")
+            a["ub_subbasin_member_count"] = _group_counts.get(sg) if sg else None
+
+        if _synthetic_no_subbasin_ids:
+            from broker.utils.logging import logger as _logger
+            _logger.info(
+                "[irrigation_env] %d synthetic Upper Basin profile(s) with no "
+                "sub-basin (synthetic_no_subbasin=True) routed to the "
+                "unconstrained pool bucket under ub_supply_mode='subbasin' "
+                "(mock-smoke only, MEDIUM 2, 2026-09-29 re-review): %s",
+                len(_synthetic_no_subbasin_ids), _synthetic_no_subbasin_ids,
+            )
 
     def initialize_synthetic(
         self,
@@ -1135,6 +1411,16 @@ class IrrigationEnvironment:
         # cannot silently drift from what production actually does.
         ub_request_projected_maf = self._basin_request_projected_maf(is_upper_basin=True)
         lb_request_projected_maf = self._basin_request_projected_maf(is_upper_basin=False)
+        # WP1b (item 20): A_s(t) is known on 1 January (memo section 6 step
+        # 4), computed here so it can be frozen into the snapshot below and
+        # so _settle stays pure (it only ever reads the snapshot, never
+        # this table directly). Computed unconditionally (cheap: one
+        # dict-of-9-floats lookup) -- only actually USED downstream when
+        # ub_supply_mode is "subbasin", but always available for the
+        # agent-facing sub-basin flow-share text (get_agent_context),
+        # which is true regardless of mode.
+        ub_subbasin_available_maf = self._ub_subbasin_available_maf_for_year(self._current_year)
+        ub_request_projected_by_subbasin_maf = self._ub_request_projected_by_subbasin_maf()
         powell_release_planned_maf = self._plan_powell_release(
             nf=natural_flow,
             s_p=float(self._powell_storage),
@@ -1144,6 +1430,8 @@ class IrrigationEnvironment:
             mexico=mexico,
             ub_requested_maf=ub_request_projected_maf,
             lb_requested_maf=lb_request_projected_maf,
+            ub_requested_by_subbasin_maf=ub_request_projected_by_subbasin_maf,
+            ub_available_by_subbasin_maf=ub_subbasin_available_maf,
         )
 
         # 4. Freeze this year's 1 January snapshot, then the PROVISIONAL
@@ -1160,6 +1448,10 @@ class IrrigationEnvironment:
             "lb_tributary": float(lb_tributary),
             "lb_request_projected_maf": float(lb_request_projected_maf),
             "powell_release_planned_maf": float(powell_release_planned_maf),
+            # WP1b (item 20): known on 1 January (memo section 6 step 4),
+            # so _settle (both the provisional call below and settle_year's
+            # final call) reads it from here and stays pure.
+            "ub_subbasin_available_af": {s: v * 1e6 for s, v in ub_subbasin_available_maf.items()},
             "calendar_year": self._calendar_year_for(self._current_year),
         }
         self._pending_settlement = None
@@ -1269,6 +1561,63 @@ class IrrigationEnvironment:
             own_precip = None
             own_precip_flag = None
 
+        # WP1b (item 20, spec 1b.4): the sub-basin flow share p = Q_s(m(t))
+        # / mean over 1971-2018 of Q_s, and the sub-basin's member count --
+        # TRUE regardless of ub_supply_mode (a descriptive fact about the
+        # sub-basin's own hydrology, not about which rule currently
+        # governs deliveries, spec item 20 text: "every sentence must be
+        # true in both supply modes"), so computed here unconditionally
+        # for any Upper Basin agent with a supply_group. None for a Lower
+        # Basin agent or an Upper Basin agent without one (synthetic/mock
+        # profile) -- build_water_situation_text falls back to the
+        # pre-WP1b absolute-flow sentence in that case.
+        supply_group = agent.get("supply_group")
+        ub_subbasin_flow_share = None
+        if basin_key == "upper_basin" and supply_group:
+            supply_row = _load_ub_subbasin_supply_table(
+                self.config.ub_subbasin_supply_variant
+            ).get(self._current_year)
+            if supply_row is None:
+                raise ValueError(
+                    f"{agent_id}: no ub_subbasin_supply_v3.csv row for simulation "
+                    f"year {self._current_year}."
+                )
+            # WP1b re-review (LOW 1, 2026-09-29, third round): the mean
+            # flow must come from THIS agent's own ub_subbasin_supply_
+            # variant, not always the recommended envelope's -- a variant
+            # with a different gauge map ("lees_ferry_all",
+            # "tributary_gauges") has a genuinely different Q_s(y), so
+            # dividing its flow by the recommended envelope's mean compared
+            # two different physical quantities (the bug this fixes).
+            variant = self.config.ub_subbasin_supply_variant
+            variant_means = _load_ub_subbasin_variant_means().get(variant)
+            if variant_means is None:
+                raise ValueError(
+                    f"{agent_id}: ub_subbasin_supply_variant={variant!r} is not "
+                    f"among the rows in ub_subbasin_variant_means_v3.csv."
+                )
+            q_s_mean = variant_means.get(supply_group)
+            if q_s_mean is None:
+                raise ValueError(
+                    f"{agent_id}: supply_group={supply_group!r} is not among the "
+                    f"sub-basins in ub_subbasin_variant_means_v3.csv ({UB_SUBBASINS})."
+                )
+            # WP1b re-review (LOW 6, 2026-09-29): a non-positive mean flow
+            # is a real data defect in the checksum-verified means file,
+            # not a legitimate "cannot compute a share" case -- raise
+            # rather than silently leaving ub_subbasin_flow_share None,
+            # which build_water_situation_text would read as "no sub-basin
+            # data available" and fall back to the pre-WP1b Lees Ferry
+            # sentence for an agent that DOES have a real sub-basin.
+            if q_s_mean <= 0:
+                raise ValueError(
+                    f"{agent_id}: ub_subbasin_variant_means_v3.csv "
+                    f"q_{supply_group}_mean_af for variant={variant!r} is "
+                    f"{q_s_mean}, not positive; refusing to silently fall "
+                    "back to the Lees Ferry sentence for a real sub-basin."
+                )
+            ub_subbasin_flow_share = supply_row[f"q_{supply_group}_af"] / q_s_mean
+
         return {
             # Agent state
             "agent_id": agent_id,
@@ -1286,6 +1635,15 @@ class IrrigationEnvironment:
             "has_efficient_system": agent.get("has_efficient_system", False),
             "below_minimum_utilisation": agent.get("below_minimum_utilisation", False),
             "cluster": agent.get("cluster", "unknown"),
+            # WP1b (item 20): this agent's sub-basin (None for Lower Basin
+            # / no-sub-basin agents), its member count, its own sub-basin
+            # ratio_s from the last settlement (None until one has run, or
+            # outside subbasin mode / no sub-basin -- see _settle), and its
+            # flow share p (computed above, true in both supply modes).
+            "supply_group": supply_group,
+            "ub_subbasin_member_count": agent.get("ub_subbasin_member_count"),
+            "ub_subbasin_ratio": agent.get("ub_subbasin_ratio"),
+            "ub_subbasin_flow_share": ub_subbasin_flow_share,
             # Basin signals
             "precipitation": own_precip,
             "precipitation_flag": own_precip_flag,
@@ -1713,23 +2071,89 @@ class IrrigationEnvironment:
             if (a["basin"] == "upper_basin") == is_upper_basin
         ) / 1e6
 
-    def _ub_delivery_for_planning(self, ub_requested_maf: float, nf_net: float) -> float:
-        """Upper Basin PROJECTED delivery, for Powell release planning
-        ONLY (re-review 2026-09-29, HIGH A round 3): min(requested, the
-        5.0 MAF delivery capacity, non-farm-net natural flow) -- the same
-        bound :meth:`_settle` applies to the ACTUAL delivery, evaluated
-        here at frozen planning-time inputs instead of whatever an agent's
-        live request happens to be when a particular ``_settle`` call
-        runs.
+    def _ub_request_projected_by_subbasin_maf(self) -> Dict[Optional[str], float]:
+        """The SAME projected, water-right-capped, carried Upper Basin
+        request total :meth:`_basin_request_projected_maf` sums in
+        aggregate, broken down by sub-basin (WP1b, item 20) -- the
+        per-sub-basin input :meth:`_ub_delivery_for_planning` needs in
+        ``subbasin`` mode. Keyed by ``supply_group``; ``None`` collects
+        any Upper Basin agent with no sub-basin (never a real
+        create_profiles_from_data profile -- initialize_from_profiles
+        raises for those -- only a synthetic/hand-built one), which
+        :meth:`_ub_delivery_for_planning` and :meth:`_settle` both treat
+        as its own unconstrained pool (see their docstrings)."""
+        out: Dict[Optional[str], float] = {}
+        for a in self._agents.values():
+            if a["basin"] != "upper_basin":
+                continue
+            s = a.get("supply_group")
+            r = max(0.0, min(float(a["request"]), float(a["water_right"])))
+            out[s] = out.get(s, 0.0) + r
+        return {k: v / 1e6 for k, v in out.items()}
 
-        Deliberately its own helper, not inlined into
-        :meth:`_plan_powell_release`: the next commit (WP1b, per-sub-basin
-        Upper Basin supply, spec item 20) replaces this single 5.0 MAF
-        capacity formula with the sum over sub-basins of ``min(that
-        sub-basin's projected requests, its own availability A_s)`` --
-        this is the one seam that change touches; nothing else in the
-        planning method needs to know the Upper Basin has sub-basins."""
+    def _ub_subbasin_available_maf_for_year(self, year: int) -> Dict[str, float]:
+        """A_s(t) for every sub-basin (WP1b, item 20), MAF, for simulation
+        year ``year``: the committed per-sub-basin supply table's value
+        (``self.config.ub_subbasin_supply_variant``, MEDIUM 4), raising if
+        the year is outside its 42-row range (same contract as
+        :meth:`_natural_flow_for_year`)."""
+        table = _load_ub_subbasin_supply_table(self.config.ub_subbasin_supply_variant)
+        row = table.get(year)
+        if row is None:
+            raise ValueError(
+                f"No Upper Basin sub-basin supply row for simulation year {year} in "
+                f"{UB_SUBBASIN_SUPPLY_PATH} (covers {min(table)}-{max(table)})."
+            )
+        return {s: row[f"a_{s}_af"] / 1e6 for s in UB_SUBBASINS}
+
+    def _ub_delivery_for_planning(
+        self,
+        ub_requested_maf: float,
+        nf_net: float,
+        *,
+        ub_requested_by_subbasin_maf: Optional[Dict[Optional[str], float]] = None,
+        ub_available_by_subbasin_maf: Optional[Dict[str, float]] = None,
+    ) -> float:
+        """Upper Basin PROJECTED delivery, for Powell release planning
+        ONLY (re-review 2026-09-29, HIGH A round 3): the same bound
+        :meth:`_settle` applies to the ACTUAL delivery, evaluated here at
+        frozen planning-time inputs instead of whatever an agent's live
+        request happens to be when a particular ``_settle`` call runs.
+
+        WP1b (per-sub-basin Upper Basin supply, spec item 20): in
+        ``ub_supply_mode == "subbasin"``, the projected delivery is the
+        sum over sub-basins of ``min(that sub-basin's projected requests,
+        its own availability A_s)`` -- ``ub_requested_by_subbasin_maf``
+        and ``ub_available_by_subbasin_maf`` (both REQUIRED in that mode;
+        :meth:`advance_year` always supplies them) -- then the SAME
+        basin-wide backstop as ``lees_ferry_pool`` mode: capped at the 5.0
+        MAF delivery capacity and non-farm-net natural flow. In
+        ``lees_ferry_pool`` mode (the WP1 behaviour, kept for the SI):
+        min(requested, the 5.0 MAF delivery capacity, non-farm-net
+        natural flow) on the single aggregate ``ub_requested_maf``, as
+        before WP1b.
+
+        This is the one seam WP1b touches: nothing else in
+        :meth:`_plan_powell_release` needs to know the Upper Basin has
+        sub-basins."""
         cfg = self.config
+        if cfg.ub_supply_mode == "subbasin":
+            if ub_requested_by_subbasin_maf is None or ub_available_by_subbasin_maf is None:
+                raise ValueError(
+                    "_ub_delivery_for_planning: ub_supply_mode is 'subbasin' "
+                    "but ub_requested_by_subbasin_maf / ub_available_by_subbasin_maf "
+                    "were not supplied; advance_year always computes both."
+                )
+            d_u_prebackstop = sum(
+                min(ub_requested_by_subbasin_maf.get(s, 0.0), a_s)
+                for s, a_s in ub_available_by_subbasin_maf.items()
+            )
+            # Any Upper Basin agent with no sub-basin (see
+            # _ub_request_projected_by_subbasin_maf) is its own
+            # unconstrained pool: nothing caps it before the basin-wide
+            # backstop below.
+            d_u_prebackstop += ub_requested_by_subbasin_maf.get(None, 0.0)
+            return min(d_u_prebackstop, cfg.ub_infrastructure_cap_maf, nf_net)
         return min(ub_requested_maf, cfg.ub_infrastructure_cap_maf, nf_net)
 
     def _plan_powell_release(
@@ -1742,6 +2166,9 @@ class IrrigationEnvironment:
         mexico: float,
         ub_requested_maf: float,
         lb_requested_maf: float,
+        *,
+        ub_requested_by_subbasin_maf: Optional[Dict[Optional[str], float]] = None,
+        ub_available_by_subbasin_maf: Optional[Dict[str, float]] = None,
     ) -> float:
         """Plan the year's Powell release ONCE (re-review 2026-09-29, HIGH
         A round 3), from PROJECTED inputs only -- never a live agent
@@ -1762,6 +2189,13 @@ class IrrigationEnvironment:
         last year's end-of-year Mead elevation); ``ub_requested_maf`` and
         ``lb_requested_maf`` are the carried, pre-decision request totals
         ``advance_year`` freezes before this year's decisions run.
+        ``ub_requested_by_subbasin_maf`` / ``ub_available_by_subbasin_maf``
+        (WP1b, item 20) are the same projected Upper Basin request total,
+        broken down by sub-basin, and that year's A_s(t) per sub-basin --
+        passed straight through to :meth:`_ub_delivery_for_planning`,
+        which is the only place that reads them (REQUIRED there in
+        ``ub_supply_mode == "subbasin"``; unused in ``lees_ferry_pool``
+        mode, where ``ub_requested_maf`` alone still drives the plan).
 
         Returns the planned release, bounded to
         [``min_powell_release_maf``, ``max_powell_release_maf``] and to
@@ -1775,7 +2209,11 @@ class IrrigationEnvironment:
         cfg = self.config
         ub_non_farm = min(nf, cfg.ub_non_farm_depletion_maf)
         nf_net = max(0.0, nf - ub_non_farm)
-        d_u_plan = self._ub_delivery_for_planning(ub_requested_maf, nf_net)
+        d_u_plan = self._ub_delivery_for_planning(
+            ub_requested_maf, nf_net,
+            ub_requested_by_subbasin_maf=ub_requested_by_subbasin_maf,
+            ub_available_by_subbasin_maf=ub_available_by_subbasin_maf,
+        )
         inflow_plan = nf_net - d_u_plan
         p_usable = max(0.0, s_p - cfg.powell_dead_pool_maf)
         e_p_plan = min(self._powell_evaporation_maf(s_p), p_usable + inflow_plan)
@@ -1827,10 +2265,13 @@ class IrrigationEnvironment:
         :meth:`_plan_powell_release` inside advance_year, from that same
         projected Lower Basin total AND a projected Upper Basin total --
         REQUIRED, always set by advance_year; ``_settle`` itself no longer
-        derives any release target, see step P) and ``calendar_year``
-        (passed through to the return dict for logging only). ``requests``
-        maps agent id to request (AF); default = every agent's current
-        request.
+        derives any release target, see step P), ``ub_subbasin_available_af``
+        (WP1b, item 20: A_s(t) AF for each of the nine ``UB_SUBBASINS`` --
+        REQUIRED when ``config.ub_supply_mode == "subbasin"``, always set
+        by advance_year then; unused in ``lees_ferry_pool`` mode) and
+        ``calendar_year`` (passed through to the return dict for logging
+        only). ``requests`` maps agent id to request (AF); default = every
+        agent's current request.
 
         Steps (MAF/yr):
 
@@ -1839,14 +2280,25 @@ class IrrigationEnvironment:
            ub_non_farm_depletion_maf) -- the ACTUAL amount consumed,
            never more than NF itself even in an extremely dry year
            (review fix 12); NF_net = NF - ub_non_farm.
-        U  Upper Basin. Requests r_U. Deliverable D_U = min(r_U, C_UB,
-           NF_net): the 5.0 MAF delivery capacity and the (non-farm-net)
-           natural flow itself. PI decision 4 (2026-09-28): the Upper
-           Basin has PRIORITY and is NEVER cut to protect Powell's
-           release -- Hung and Yang's CRSS gives the Upper Basin
-           "priority access to the water until its consumption reaches
-           the sub-basin allowance" (Hung, Son and Yang 2022, p. 11).
-           ``gap_reason`` distinguishes which bound actually bound
+        U  Upper Basin (WP1b, item 20). In ``ub_supply_mode ==
+           "subbasin"`` (v3 default), each of the nine H&Y sub-basins gets
+           its own A_s(t); agent i in sub-basin s with request r_i
+           receives d_i = r_i x min(1, A_s(t) / sum over j in s of r_j)
+           (memo section 6 step 5) -- shortage shared by request WITHIN a
+           sub-basin, sub-basins independent of each other. D_U = sum of
+           d_i; if D_U exceeds min(C_UB, NF_net), every d_i is scaled by
+           that bound / D_U (the same basin-wide backstop as
+           ``lees_ferry_pool`` mode, below, which the recommended
+           envelope never actually binds at requests within the rights,
+           memo section 5). In ``lees_ferry_pool`` mode (WP1, kept for the
+           SI): D_U = min(r_U, C_UB, NF_net), shared pro-rata across all
+           Upper Basin agents together. Either way, PI decision 4
+           (2026-09-28): the Upper Basin has PRIORITY and is NEVER cut to
+           protect Powell's release -- Hung and Yang's CRSS gives the
+           Upper Basin "priority access to the water until its
+           consumption reaches the sub-basin allowance" (Hung, Son and
+           Yang 2022, p. 11). ``gap_reason`` distinguishes which bound
+           actually bound
            (review fix 9): ``ub_natural_flow`` when NF_net < C_UB (flow
            is the tighter constraint; the 5.0 MAF capacity never
            mattered), ``ub_capacity`` otherwise.
@@ -1911,8 +2363,13 @@ class IrrigationEnvironment:
         - phi (r_LB + non_ag + X) - spill_M.
 
         Each agent's ``gap_reason`` names the binding limit: Upper Basin
-        ``none``, ``ub_natural_flow`` or ``ub_capacity``; Lower Basin
-        (agricultural) ``none`` or ``lb_mead_availability`` only --
+        ``none``, ``ub_subbasin_supply`` (WP1b, ``subbasin`` mode only:
+        this agent's OWN sub-basin's A_s(t) bound, the basin-wide backstop
+        did not), ``ub_natural_flow`` or ``ub_capacity`` (the basin-wide
+        backstop bound -- in ``subbasin`` mode this overrides
+        ``ub_subbasin_supply`` for every Upper Basin agent, even one whose
+        own sub-basin was not itself short); Lower Basin (agricultural)
+        ``none`` or ``lb_mead_availability`` only --
         ``lb_shortage_tier`` no longer occurs for an agricultural agent
         (PI decision 2026-09-28: the declared tier no longer reduces
         their own delivery), and ``ub_powell_release`` no longer occurs
@@ -1969,16 +2426,129 @@ class IrrigationEnvironment:
         nf_net = max(0.0, nf - ub_non_farm)
 
         # --- U: Upper Basin (priority, PI decision 4) ---
-        d_u = min(r_ub, cfg.ub_infrastructure_cap_maf, nf_net)
-        if d_u >= r_ub:
-            ub_reason = "none"
-        elif nf_net < cfg.ub_infrastructure_cap_maf:
-            # Review fix 9: natural flow (net of non-farm use), not the
-            # 5.0 MAF capacity, is the tighter constraint -- the capacity
-            # never bound.
-            ub_reason = "ub_natural_flow"
+        # WP1b (item 20): per-sub-basin supply is the v3 default
+        # (ub_supply_mode == "subbasin"); the single Lees Ferry pool (WP1)
+        # is kept for the SI (ub_supply_mode == "lees_ferry_pool"). Both
+        # branches produce the SAME three things the rest of _settle and
+        # the per-agent loop below need: d_u (this call's actual aggregate
+        # Upper Basin delivery, MAF -- feeds Powell's inflow exactly as
+        # before), ub_ratio_by_agent (each Upper Basin agent's own
+        # delivered/request ratio) and ub_reason_by_agent (its gap_reason).
+        ub_subbasin_result: Optional[Dict[str, Dict[str, float]]] = None
+        if cfg.ub_supply_mode == "subbasin":
+            available_af = snapshot.get("ub_subbasin_available_af")
+            if available_af is None:
+                raise ValueError(
+                    "_settle: ub_supply_mode is 'subbasin' but the snapshot "
+                    "has no 'ub_subbasin_available_af' -- advance_year "
+                    "always sets it; a hand-built snapshot for a "
+                    "subbasin-mode call must supply it (see "
+                    "_ub_subbasin_available_maf_for_year)."
+                )
+            missing_s = [s for s in UB_SUBBASINS if s not in available_af]
+            if missing_s:
+                raise ValueError(
+                    f"_settle: ub_subbasin_available_af is missing sub-basin(s) "
+                    f"{missing_s}"
+                )
+
+            # Group requests by sub-basin (agent.supply_group); an agent
+            # with none at all -- never a real create_profiles_from_data
+            # profile, initialize_from_profiles raises for those; only a
+            # synthetic/hand-built one -- falls into the None bucket, which
+            # memo section 6 never describes because it never arises for a
+            # real Upper Basin agent: treated as its own pool with no
+            # sub-basin cap of its own, bound only by the basin-wide
+            # backstop below. This reproduces exactly the pre-WP1b (single
+            # pool) delivery such an agent got, since d_u's final min(...,
+            # cap, nf_net) is unchanged (irrigation_v3_ub_subbasin_supply
+            # memo section 10).
+            ids_by_group: Dict[Optional[str], List[str]] = {}
+            for aid in ub_ids:
+                s_id = self._agents[aid].get("supply_group")
+                if s_id is not None and s_id not in UB_SUBBASINS:
+                    # A SET supply_group that names no real sub-basin is a
+                    # real data-shape defect (a typo, a stale label) --
+                    # refuse to silently drop this agent into either a real
+                    # sub-basin's bucket or the "no sub-basin" pool (review
+                    # fix 8's precip_group precedent, get_agent_context).
+                    raise ValueError(
+                        f"{aid}: supply_group={s_id!r} is not one of the nine "
+                        f"sub-basins ({UB_SUBBASINS}); refusing to silently "
+                        "treat it as either a real sub-basin or as having none."
+                    )
+                ids_by_group.setdefault(s_id, []).append(aid)
+
+            pre_backstop_af: Dict[str, float] = {}
+            ub_subbasin_result = {}
+            for s in UB_SUBBASINS:
+                ids_s = ids_by_group.get(s, [])
+                r_s_af = sum(req[aid] for aid in ids_s)
+                a_s_af = float(available_af[s])
+                ratio_s = 1.0 if r_s_af <= 0 else min(1.0, a_s_af / r_s_af)
+                for aid in ids_s:
+                    pre_backstop_af[aid] = req[aid] * ratio_s
+                ub_subbasin_result[s] = {
+                    "available_af": a_s_af,
+                    "request_af": r_s_af,
+                    "delivered_af": r_s_af * ratio_s,  # backstop-scaled below if it binds
+                    "ratio": ratio_s,
+                }
+            for aid in ids_by_group.get(None, []):
+                pre_backstop_af[aid] = req[aid]  # unconstrained pool, see above
+
+            d_u_prebackstop = sum(pre_backstop_af.values()) / 1e6
+            d_u = min(d_u_prebackstop, cfg.ub_infrastructure_cap_maf, nf_net)
+            backstop_factor = (
+                1.0 if d_u_prebackstop <= 0 else min(1.0, d_u / d_u_prebackstop)
+            )
+            if backstop_factor < 1.0 - 1e-9:
+                # Basin-wide backstop bound (memo section 6 step 6): names
+                # the same reason WP1's single pool would, for EVERY Upper
+                # Basin agent, regardless of its own sub-basin's ratio_s --
+                # the memo's own gauge/depletion envelope keeps this from
+                # binding at requests within the rights (section 5).
+                backstop_reason = (
+                    "ub_natural_flow" if nf_net < cfg.ub_infrastructure_cap_maf
+                    else "ub_capacity"
+                )
+            else:
+                backstop_reason = None
+            for s in UB_SUBBASINS:
+                ub_subbasin_result[s]["delivered_af"] *= backstop_factor
+
+            ub_ratio_by_agent: Dict[str, float] = {}
+            ub_reason_by_agent: Dict[str, str] = {}
+            ub_subbasin_ratio_by_agent: Dict[str, Optional[float]] = {}
+            for aid in ub_ids:
+                pre = pre_backstop_af.get(aid, 0.0)
+                ratio_i = (pre / req[aid] * backstop_factor) if req[aid] > 0 else backstop_factor
+                ub_ratio_by_agent[aid] = ratio_i
+                s = self._agents[aid].get("supply_group")
+                ub_subbasin_ratio_by_agent[aid] = (
+                    ub_subbasin_result[s]["ratio"] if s in UB_SUBBASINS else None
+                )
+                if backstop_reason is not None:
+                    ub_reason_by_agent[aid] = backstop_reason
+                elif ratio_i < 1.0 - 1e-9:
+                    ub_reason_by_agent[aid] = "ub_subbasin_supply"
+                else:
+                    ub_reason_by_agent[aid] = "none"
         else:
-            ub_reason = "ub_capacity"
+            d_u = min(r_ub, cfg.ub_infrastructure_cap_maf, nf_net)
+            if d_u >= r_ub:
+                pool_reason = "none"
+            elif nf_net < cfg.ub_infrastructure_cap_maf:
+                # Review fix 9: natural flow (net of non-farm use), not the
+                # 5.0 MAF capacity, is the tighter constraint -- the
+                # capacity never bound.
+                pool_reason = "ub_natural_flow"
+            else:
+                pool_reason = "ub_capacity"
+            pool_ratio = (d_u / r_ub) if r_ub > 0 else 1.0
+            ub_ratio_by_agent = {aid: pool_ratio for aid in ub_ids}
+            ub_reason_by_agent = {aid: pool_reason for aid in ub_ids}
+            ub_subbasin_ratio_by_agent = {aid: None for aid in ub_ids}
         inflow_p = nf_net - d_u
 
         # PI decision 2026-09-28: the declared shortage volume V is borne
@@ -2045,15 +2615,20 @@ class IrrigationEnvironment:
             if cfg.lb_non_ag_total_maf > 0 else 0.0
         )
 
-        ub_ratio = (d_u / r_ub) if r_ub > 0 else 1.0
         lb_ratio = phi
         agents: Dict[str, Dict[str, Any]] = {}
         for aid in ub_ids:
             agents[aid] = {
                 "request": req[aid],
-                "delivered": req[aid] * ub_ratio,
-                "delivery_ratio": ub_ratio,
-                "gap_reason": ub_reason,
+                "delivered": req[aid] * ub_ratio_by_agent[aid],
+                "delivery_ratio": ub_ratio_by_agent[aid],
+                "gap_reason": ub_reason_by_agent[aid],
+                # WP1b (item 20): this agent's own sub-basin ratio_s,
+                # BEFORE the basin-wide backstop (None in lees_ferry_pool
+                # mode, or for an Upper Basin agent with no sub-basin) --
+                # feeds the ub_subbasin_ratio log column and the agent's
+                # persistent ub_subbasin_ratio state (_write_agent_deliveries).
+                "ub_subbasin_ratio": ub_subbasin_ratio_by_agent[aid],
             }
         for aid in lb_ids:
             agents[aid] = {
@@ -2069,6 +2644,10 @@ class IrrigationEnvironment:
             "ub_non_farm_maf": ub_non_farm,
             "ub_request_maf": r_ub,
             "ub_delivered_maf": d_u,
+            # WP1b (item 20): the per-sub-basin record (available, request,
+            # delivered, ratio -- spec 1b.3), None in lees_ferry_pool mode
+            # (there is no sub-basin structure to report).
+            "ub_subbasin": ub_subbasin_result,
             "lb_request_maf": r_lb,
             "lb_delivered_maf": r_lb * phi,
             "lb_non_ag_delivered_maf": non_ag * phi,
@@ -2093,12 +2672,49 @@ class IrrigationEnvironment:
 
     def _write_agent_deliveries(self, settlement: Dict[str, Any]) -> None:
         """Write a settlement's per-agent delivery onto the agent dicts
-        (``diversion`` = delivered, plus ``delivery_ratio``/``gap_reason``)."""
+        (``diversion`` = delivered, plus ``delivery_ratio``/``gap_reason``).
+
+        WP1b (item 20): also ``ub_subbasin_ratio`` (this agent's own
+        sub-basin ratio_s, pre-backstop; ``None`` outside ``subbasin``
+        mode or for a Lower Basin / no-sub-basin agent -- see ``_settle``)
+        and the derived ``ub_subbasin_sole_bound`` flag (1.0 only when
+        this agent is the SOLE member of a sub-basin whose OWN supply,
+        not the basin-wide backstop, is what bound -- see
+        ``agent_types.yaml (irrigation_farmer.feedback)``'s UT2-specific
+        dashboard message, and ``_sharing_sentence`` in
+        irrigation_validators.py for the analogous, more precise check
+        the governance rule message makes). Both are ``agent_state``
+        fields (not settlement fields) because ``run_experiment.py``'s
+        feedback-dashboard tracked-metrics loop reads a NAMED field off
+        ``env.get_agent_state(aid)``, not off the settlement dict."""
         for aid, rec in settlement["agents"].items():
             agent = self._agents[aid]
             agent["diversion"] = rec["delivered"]
             agent["delivery_ratio"] = rec["delivery_ratio"]
             agent["gap_reason"] = rec["gap_reason"]
+            sub_ratio = rec.get("ub_subbasin_ratio")
+            agent["ub_subbasin_ratio"] = sub_ratio
+            # WP1b re-review (LOW 6, 2026-09-29): sub_ratio is not None only
+            # for a real UB agent in a real sub-basin (see _settle), which
+            # initialize_from_profiles always gives a computed
+            # ub_subbasin_member_count -- a missing one here is a wiring
+            # defect, not a legitimate "unknown" case (unlike a Lower Basin
+            # or no-sub-basin agent, where sub_ratio is itself None and this
+            # flag is simply 0.0, no count needed at all).
+            member_count = agent.get("ub_subbasin_member_count")
+            if sub_ratio is not None and member_count is None:
+                raise ValueError(
+                    f"{aid}: ub_subbasin_ratio is set ({sub_ratio}) but "
+                    "ub_subbasin_member_count is missing; "
+                    "initialize_from_profiles should have computed it for "
+                    "every agent with a supply_group (LOW 6, 2026-09-29 "
+                    "re-review)."
+                )
+            agent["ub_subbasin_sole_bound"] = (
+                1.0 if (sub_ratio is not None and sub_ratio < 1.0 - 1e-9
+                        and member_count <= 1)
+                else 0.0
+            )
 
     def settle_year(self) -> Dict[str, Any]:
         """FINAL settlement of the current year at the agents' current

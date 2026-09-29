@@ -108,6 +108,19 @@ class IrrigationAgentProfile:
     # IrrigationEnvironment.get_agent_context.
     precip_group: Optional[str] = None
 
+    # WP1b re-review (MEDIUM 2, 2026-09-29): an explicit, disclosed marker
+    # that an Upper Basin profile with no precip_group is a mock-smoke-only
+    # synthetic profile (run_experiment.py / run_fql_baseline.py
+    # _create_synthetic_profiles), not a real create_profiles_from_data
+    # profile that forgot to set one. IrrigationEnvironment.
+    # initialize_from_profiles routes such a profile to the unconstrained
+    # "no sub-basin" pool in ub_supply_mode="subbasin" (logging that it did
+    # so) instead of raising; a REAL Upper Basin profile with no
+    # precip_group and this flag left False still raises. Default False so
+    # every existing profile (a real one, or an old test fixture that
+    # never set this) keeps today's strict behaviour unless it opts in.
+    synthetic_no_subbasin: bool = False
+
     # Narrative (generated)
     narrative_persona: str = ""
     water_situation_summary: str = ""
@@ -268,7 +281,38 @@ def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
         return ""
     parts = []
     for c in code.split("+"):
-        if c == "ub_natural_flow":
+        if c == "ub_subbasin_supply":
+            # WP1b (item 20, memo section 9): this agent's OWN sub-basin
+            # is short, not the basin-wide backstop (ub_natural_flow /
+            # ub_capacity below) -- true only in ub_supply_mode="subbasin"
+            # (IrrigationEnvironment._settle never produces this code in
+            # "lees_ferry_pool" mode). A real agent with this code always
+            # has a known ub_subbasin_member_count (see _sharing_sentence's
+            # docstring for why); a missing one is the same wiring defect
+            # HIGH 1 found, not a legitimate state.
+            member_count = agent_state.get("ub_subbasin_member_count")
+            if member_count is None:
+                raise ValueError(
+                    "describe_gap_reason: gap_reason names ub_subbasin_supply "
+                    "but ub_subbasin_member_count is missing from agent_state; "
+                    "refusing to silently guess whether this sub-basin has "
+                    "other members (MEDIUM 5, 2026-09-29 re-review)."
+                )
+            if member_count <= 1:
+                # MEDIUM 5: the sole member of its sub-basin (UT2) shares
+                # with no one -- "combined requests of its users" and
+                # "shared in proportion to requests" would both be false.
+                parts.append(
+                    "the natural flow of the rivers your sub-basin draws on is "
+                    "below your own request"
+                )
+            else:
+                parts.append(
+                    "the natural flow of the rivers your sub-basin draws on is below "
+                    "the combined requests of its users, and the shortfall is shared "
+                    "in proportion to requests"
+                )
+        elif c == "ub_natural_flow":
             # Review 2026-09-28 (fix 9): this year's (non-farm-net)
             # natural flow, not the 5.0 MAF delivery capacity, was the
             # binding constraint -- never name a limit that did not bind.
@@ -419,7 +463,24 @@ def build_water_situation_text(
         # irrigation_env.py (IrrigationEnvironment.get_agent_context); when
         # absent (an older context dict) the sentence stays byte-identical.
         powell_dead_pool = env_context.get("powell_dead_pool_maf")
-        if nf:
+        # WP1b (item 20, memo section 9): the sub-basin's own flow as a
+        # share of its 1971-2018 average replaces the absolute Lees Ferry
+        # figure -- it is the sub-basin's own flow, not Lees Ferry's, that
+        # sets this agent's supply (in ub_supply_mode="subbasin"), and an
+        # absolute acre-foot figure invites comparison with a request that
+        # is only a small part of it. True in both supply modes (a
+        # descriptive fact about the sub-basin's own hydrology, not about
+        # which rule governs deliveries this year); falls back to the
+        # pre-WP1b absolute-flow sentence for a context with no sub-basin
+        # flow share (a Lower Basin caller never reaches this branch; a
+        # synthetic/mock Upper Basin context with no supply_group does).
+        subbasin_flow_share = env_context.get("ub_subbasin_flow_share")
+        if subbasin_flow_share is not None:
+            lines.append(
+                "The natural flow of the rivers your sub-basin draws on is "
+                f"{subbasin_flow_share:.0%} of its 1971-2018 average this year."
+            )
+        elif nf:
             lines.append(f"Natural flow on the river this year is forecast at {nf:.1f} million acre-ft.")
         if powell:
             if powell_dead_pool is not None and powell <= powell_dead_pool + 1e-6:
@@ -772,6 +833,17 @@ def build_simulation_log_row(
     diversion = agent_state.get("diversion", 0)
     water_right = agent_state.get("water_right", 0)
     bin_size_af = agent_state.get("bin_size_af")
+
+    # WP1b (item 20, spec 1b.4): the per-sub-basin record this year's
+    # settlement carries (None for a Lower Basin agent, a lees_ferry_pool
+    # settlement, or an Upper Basin agent with no sub-basin) -- looked up
+    # by THIS agent's own supply_group, never fabricated for one it does
+    # not have. Lower Basin rows stay blank (None), not 0 (spec: "Lower
+    # Basin rows are blank, not 0").
+    ub_subbasin_id = agent_state.get("supply_group") if basin == "upper_basin" else None
+    ub_subbasin_rec = None
+    if ub_subbasin_id and isinstance(settlement.get("ub_subbasin"), dict):
+        ub_subbasin_rec = settlement["ub_subbasin"].get(ub_subbasin_id)
     typical_step_af = (
         hy_threshold_af(
             agent_state.get("mu", SYNTHETIC_HY_MU),
@@ -848,6 +920,11 @@ def build_simulation_log_row(
         "precipitation_flag": precipitation_flag,
         "step_bin_af": bin_size_af,
         "typical_step_af": typical_step_af,
+        # WP1b (item 20, spec 1b.4)
+        "ub_subbasin": ub_subbasin_id if ub_subbasin_rec is not None else None,
+        "ub_subbasin_available_af": ub_subbasin_rec["available_af"] if ub_subbasin_rec else None,
+        "ub_subbasin_request_af": ub_subbasin_rec["request_af"] if ub_subbasin_rec else None,
+        "ub_subbasin_ratio": ub_subbasin_rec["ratio"] if ub_subbasin_rec else None,
     }
 
 

@@ -1,6 +1,7 @@
 """Irrigation messages (supply-side redesign, 2026-09-25, spec S1 to S6): one
 reason helper shared by the situation text, the rule messages and the memory
 line; neutral and explicit rejection lines; realised F07 magnitude."""
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,9 +13,14 @@ from examples.irrigation_abm.irrigation_personas import (
     describe_gap_reason,
 )
 from examples.irrigation_abm.validators.irrigation_validators import (
+    _sharing_sentence,
     curtailment_awareness_check,
     supply_gap_block_increase,
 )
+
+CRSS_PARAMS_CSV = Path("ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv")
+CRSS_DB_DIR = Path("ref/CRSS_DB/CRSS_DB")
+_REAL_REF_AVAILABLE = CRSS_PARAMS_CSV.is_file() and CRSS_DB_DIR.is_dir()
 
 
 def _ub_powell_state():
@@ -352,3 +358,87 @@ def test_zero_delivery_message_does_not_claim_sharing():
     st = dict(_ub_powell_state(), current_diversion=0.0, delivery_ratio=0.0)
     msg = supply_gap_block_increase("increase_small", [], st)[0].errors[0]
     assert "no delivery is expected" in msg and "other users" not in msg
+
+
+@pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+def test_pre_year_wires_subbasin_fields_for_sharing_sentence(tmp_path):
+    """WP1b re-review (HIGH 1, 2026-09-29): IrrigationLifecycleHooks.
+    pre_year must copy supply_group and ub_subbasin_member_count into
+    validator_fields, or _sharing_sentence cannot tell a sub-basin-scoped
+    shortfall from a basin-wide one and falls back to naming "other Upper
+    Basin users" even for a UT1 agent, whose real sharing group is its own
+    eleven-member sub-basin. Goes through pre_year's OWN field wiring
+    (like test_dashboard_message_true_for_tier_only_year above), not a
+    hand-built context dict, for both a real (UT1) and the lone-member
+    (UT2) case."""
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    from broker.agents import AgentConfig, BaseAgent
+    from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
+    from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
+
+    def _make_agent(agent_id: str) -> BaseAgent:
+        a = BaseAgent(AgentConfig(name=agent_id, agent_type="irrigation_farmer", state_params=[],
+                                  objectives=[], constraints=[], skills=[]))
+        a.custom_attributes = {}
+        return a
+
+    rng = np.random.default_rng(7)
+    profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
+    env = IrrigationEnvironment(WaterSystemConfig(seed=7))
+    env.initialize_from_profiles(profiles)
+    ut1_profile = next(p for p in profiles if p.precip_group == "UT1")
+    ut2_profile = next(p for p in profiles if p.precip_group == "UT2")
+    assert ut1_profile.agent_id != ut2_profile.agent_id
+
+    runner = SimpleNamespace(memory_engine=MagicMock(), _current_year=1)
+    runner.memory_engine.retrieve.return_value = []
+    hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine=None, output_dir=tmp_path)
+
+    # UT1: 2018 requests held fixed through sim year 2033 (loop year 15),
+    # where UT1's own sub-basin is genuinely short (memo section 6: ratio
+    # 0.674) -- no manual manipulation, a real settlement.
+    for _ in range(15):
+        env.advance_year()
+        env.settle_year()
+    assert env._current_year == 2033
+    ut1_agent = _make_agent(ut1_profile.agent_id)
+    runner._current_year = 15
+    hooks.pre_year(15, {}, {ut1_profile.agent_id: ut1_agent})
+    assert ut1_agent.custom_attributes["supply_group"] == "UT1"
+    assert ut1_agent.custom_attributes["ub_subbasin_member_count"] == 11
+    assert ut1_agent.custom_attributes["gap_reason"] == "ub_subbasin_supply"
+    sentence = _sharing_sentence(ut1_agent.custom_attributes)
+    assert "other users in your sub-basin" in sentence
+    assert "other Upper Basin users" not in sentence
+
+    # UT2: never short at 2018 use (memo section 6), so its own sub-basin
+    # shortfall is forced here for test purposes only -- _settle is pure
+    # (its own docstring), so this does not disturb any other agent's
+    # already-committed state.
+    forced_snapshot = dict(env._snapshot)
+    forced_available = dict(forced_snapshot["ub_subbasin_available_af"])
+    forced_available["UT2"] = 1.0  # AF: far below UT2's request
+    forced_snapshot["ub_subbasin_available_af"] = forced_available
+    env._write_agent_deliveries(env._settle(forced_snapshot))
+    ut2_agent = _make_agent(ut2_profile.agent_id)
+    hooks.pre_year(15, {}, {ut2_profile.agent_id: ut2_agent})
+    assert ut2_agent.custom_attributes["supply_group"] == "UT2"
+    assert ut2_agent.custom_attributes["ub_subbasin_member_count"] == 1
+    assert ut2_agent.custom_attributes["gap_reason"] == "ub_subbasin_supply"
+    assert _sharing_sentence(ut2_agent.custom_attributes) == (
+        "When water is short, a larger request would not add water."
+    )
+
+
+@pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+def test_sharing_sentence_raises_on_missing_count_for_subbasin_reason():
+    """HIGH 1: a context that names gap_reason=ub_subbasin_supply without
+    ub_subbasin_member_count is the exact wiring defect this re-review
+    found (pre_year not copying the field) -- must raise, never silently
+    read as basin-wide."""
+    incomplete = {"basin": "upper_basin", "gap_reason": "ub_subbasin_supply"}
+    with pytest.raises(ValueError, match="ub_subbasin_member_count"):
+        _sharing_sentence(incomplete)

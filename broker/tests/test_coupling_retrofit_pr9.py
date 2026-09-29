@@ -236,6 +236,10 @@ class TestContractFieldEnumeration:
             # supply-side redesign (2026-09-25)
             "delivery_ratio", "gap_reason", "basin_request_over_target",
             "natural_flow_maf", "powell_storage_maf",
+            # WP1b re-review (LOW 9, 2026-09-29): special-cased like
+            # precipitation (checked only when precip_group is set), not a
+            # plain _BASIN_SCOPED_FIELDS entry.
+            "supply_group", "ub_subbasin_member_count",
         }
         assert set(IRRIGATION_CONTEXT_FIELD_SOURCES.keys()) == expected
         contract = build_irrigation_agent_context_contract()
@@ -259,28 +263,36 @@ class TestCouplingRetrofitMetadata:
 
     def test_fields_report_per_field_check_kind(self):
         """Review P1-c: a flat list read as though all fifteen fields were
-        range-guarded; five are bool/str and have no range."""
+        range-guarded; five are bool/str and have no range. WP1b re-review
+        (LOW 9, 2026-09-29) adds a sixth, supply_group (str)."""
         meta = _minimal_synthetic_env(coupling_contract_active=True).get_coupling_retrofit_metadata()
         checks = meta["coupling_contract_fields"]
         assert isinstance(checks, dict)
         assert checks == irrigation_contract_field_checks()
         assert set(checks.values()) == {"presence+range", "presence+type"}
-        # The five non-numeric fields, named so a rename cannot silently
+        # The non-numeric fields, named so a rename cannot silently
         # reclassify one into the range bucket.
         type_only = {k for k, v in checks.items() if v == "presence+type"}
         assert type_only == {
             "at_allocation_cap", "has_efficient_system",
             "below_minimum_utilisation", "cluster", "basin", "gap_reason",
+            "supply_group",
         }
         assert checks["lake_mead_level"] == "presence+range"
+        assert checks["ub_subbasin_member_count"] == "presence+range"
 
     def test_metadata_names_the_uncovered_context_keys(self):
         """Review P2: 'the contract covers 15 of 18 context keys' is only
         checkable if the other three are in the artifact. v3 (spec 1.6,
         2026-09-28) adds one more uncovered key, precipitation_flag; the
-        2026-09-29 re-review (HIGH 2) adds a second, lb_shortage_volume_maf
-        (see IRRIGATION_CONTEXT_UNCOVERED_KEYS's comment for why each
-        carries none of the F1 risk the contract guards against)."""
+        2026-09-29 re-review (HIGH 2) adds a second, lb_shortage_volume_maf;
+        WP1b (item 20, 2026-09-29) adds two -- ub_subbasin_ratio,
+        ub_subbasin_flow_share (see IRRIGATION_CONTEXT_UNCOVERED_KEYS's
+        comment for why each carries none of the F1 risk the contract
+        guards against). supply_group and ub_subbasin_member_count landed
+        there too but moved to COVERED in the same-day re-review (LOW 9):
+        special-cased in guard_agent_context_sources like "precipitation",
+        checked only for an agent that claims a sub-basin at all."""
         env = _minimal_synthetic_env(coupling_contract_active=True)
         env.advance_year()
         meta = env.get_coupling_retrofit_metadata()
@@ -291,7 +303,7 @@ class TestCouplingRetrofitMetadata:
         # The two sets together account for EVERY key the context returns.
         assert covered | uncovered == ctx_keys
         assert not (covered & uncovered)
-        assert len(covered) == 20 and len(uncovered) == 6
+        assert len(covered) == 22 and len(uncovered) == 8
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never

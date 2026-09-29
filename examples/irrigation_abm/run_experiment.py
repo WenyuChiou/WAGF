@@ -276,6 +276,19 @@ def _create_synthetic_profiles(
             water_right=rng.uniform(50_000, 200_000),
             crop_type=str(rng.choice(["alfalfa", "cotton", "vegetables", "corn"])),
             years_farming=int(rng.integers(5, 40)),
+            # WP1b re-review (MEDIUM 2, 2026-09-29): a mock-smoke-only
+            # profile must NOT be assigned a real sub-basin (precip_group
+            # stays None) -- an earlier version of this fix round-robinned
+            # the nine real ones, which put a synthetic agent inside a REAL
+            # sub-basin's request cap (Agent_002 landing in UT2 and getting
+            # 29 percent of its request, a number that describes UT2's real
+            # farms, not this mock agent). synthetic_no_subbasin=True
+            # instead routes it to IrrigationEnvironment.
+            # initialize_from_profiles's unconstrained pool bucket
+            # (logged once there), the correct "this agent has no real
+            # location" treatment.
+            precip_group=None,
+            synthetic_no_subbasin=(basin == "upper_basin"),
         )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
@@ -480,6 +493,16 @@ class IrrigationLifecycleHooks:
                 # is a real wiring defect, not a legitimate "no shortage"
                 # case to silently paper over with a fabricated 0.
                 "lb_shortage_volume_maf": ctx["lb_shortage_volume_maf"],
+                # WP1b re-review (HIGH 1, 2026-09-29): read by
+                # _sharing_sentence (irrigation_validators.py) to name WHO
+                # shares a shortage with this agent. Without these two,
+                # _sharing_sentence could not tell a sub-basin-scoped
+                # shortfall from a basin-wide one and fell back to naming
+                # "other Upper Basin users" for every Upper Basin agent,
+                # even one (e.g. a UT1 agent) whose real sharing group is
+                # its own ten-or-so-member sub-basin.
+                "supply_group": ctx.get("supply_group"),
+                "ub_subbasin_member_count": ctx.get("ub_subbasin_member_count"),
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
@@ -652,6 +675,11 @@ class IrrigationLifecycleHooks:
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
+                # WP1b re-review (MEDIUM 5, 2026-09-29): describe_gap_reason
+                # needs this to pick the single-member (UT2) wording for
+                # both the "Last year ..." situation-text sentence and the
+                # memory line, which both read this same F05 snapshot.
+                "ub_subbasin_member_count": agent_context.get("ub_subbasin_member_count"),
             }
 
             # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative

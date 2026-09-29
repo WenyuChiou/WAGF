@@ -12,12 +12,22 @@ import pytest
 
 from examples.irrigation_abm.irrigation_env import (
     CRSS_DEMAND_TARGET_AF,
+    UB_SUBBASINS,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
 
+# WP1b (item 20): see the identical constant in test_v3_water_system.py --
+# every agent in this file's _agent()/_env() has no supply_group, so this
+# placeholder's actual values never bind anything (proven identical to the
+# single Lees Ferry pool, irrigation_v3_ub_subbasin_supply_2026-09-29.md
+# section 10); it only needs to exist so _settle's per-sub-basin lookups
+# find every key.
+_UB_SUBBASIN_PLACEHOLDER_MAF = {s: 5.0 for s in UB_SUBBASINS}
 
-def _agent(basin: str, request: float, water_right: float = 4_000_000.0) -> dict:
+
+def _agent(basin: str, request: float, water_right: float = 4_000_000.0,
+           supply_group=None) -> dict:
     return {
         "basin": basin,
         "diversion": request,
@@ -37,6 +47,11 @@ def _agent(basin: str, request: float, water_right: float = 4_000_000.0) -> dict
         "magnitude_min": 1.0,
         "magnitude_max": 30.0,
         "exploration_rate": 0.0,
+        # WP1b (item 20): None (the default) is the "no sub-basin" pool
+        # every other test in this file relies on; LOW 8's fuzz test below
+        # is the one caller that sets a real sub-basin.
+        "supply_group": supply_group,
+        "ub_subbasin_member_count": None,
     }
 
 
@@ -110,12 +125,22 @@ def _planned(env, snap):
         env._basin_request_projected_maf(is_upper_basin=True),
     )
     out = dict(snap)
+    out.setdefault(
+        "ub_subbasin_available_af",
+        {s: v * 1e6 for s, v in _UB_SUBBASIN_PLACEHOLDER_MAF.items()},
+    )
     out["powell_release_planned_maf"] = env._plan_powell_release(
         nf=snap["natural_flow"], s_p=snap["powell_storage"], s_m=snap["mead_storage"],
         trib=snap.get("lb_tributary", cfg.lb_tributary_maf),
         shortage_volume=snap["lb_shortage_volume_maf"], mexico=snap["mexico"],
         ub_requested_maf=ub_requested,
         lb_requested_maf=snap["lb_request_projected_maf"],
+        # WP1b (item 20): this file's agents never set supply_group, so the
+        # whole (possibly overridden, possibly random) Upper Basin total
+        # goes into the unconstrained "no sub-basin" bucket -- see
+        # _UB_SUBBASIN_PLACEHOLDER_MAF above.
+        ub_requested_by_subbasin_maf={None: ub_requested},
+        ub_available_by_subbasin_maf=_UB_SUBBASIN_PLACEHOLDER_MAF,
     )
     out.pop("ub_request_projected_maf", None)
     return out
@@ -163,6 +188,46 @@ class TestMassBalance:
             env.advance_year()
             st = env.settle_year()
             assert abs(_balance_error(st)) < 1e-9
+
+    def test_conservation_with_random_subbasin_sharing(self):
+        """LOW 8 (2026-09-29 re-review): T1 above fuzzes requests only,
+        with every agent in the "no sub-basin" pool
+        (_UB_SUBBASIN_PLACEHOLDER_MAF, never binding). This fuzzes REAL
+        sub-basin agents (several per sub-basin, spread over all nine) AND
+        a random A_s(t) per sub-basin each iteration -- the pro-rata
+        sharing / basin-wide backstop code path T1 never exercises -- and
+        checks the same two-reservoir identity still closes to 1e-9 MAF,
+        every delivery stays within its own request, and Upper Basin
+        deliveries never exceed availability."""
+        rng = np.random.default_rng(13)
+        env = IrrigationEnvironment(WaterSystemConfig(seed=13))
+        for s_idx, s in enumerate(UB_SUBBASINS):
+            for j in range(3):  # 3 agents per sub-basin, 27 Upper Basin agents
+                env._agents[f"{s}_{j}"] = _agent("upper_basin", 0.0, supply_group=s)
+        for i in range(2):
+            env._agents[f"LB_{i}"] = _agent("lower_basin", 0.0)
+
+        for _ in range(500):
+            for aid in env._agents:
+                env._agents[aid]["request"] = float(rng.uniform(0.0, 1_500_000.0))
+            available_af = {s: float(rng.uniform(0.0, 3_000_000.0)) for s in UB_SUBBASINS}
+            snap = _planned(env, _random_snapshot(rng, env.config))
+            snap["ub_subbasin_available_af"] = available_af
+            st = env._settle(snap)
+            assert abs(_balance_error(st)) < 1e-9
+            for aid, rec in st["agents"].items():
+                assert rec["delivered"] <= rec["request"] + 1e-6
+            for s in UB_SUBBASINS:
+                delivered_s = sum(
+                    rec["delivered"] for aid, rec in st["agents"].items()
+                    if env._agents[aid].get("supply_group") == s
+                )
+                # A sub-basin's own delivery never exceeds its own A_s(t):
+                # true whether or not the basin-wide backstop also fired,
+                # since the backstop only ever scales every sub-basin's
+                # already-capped delivery DOWN by a shared factor <= 1.
+                assert delivered_s <= available_af[s] + 1e-3, s
+            assert st["ub_delivered_maf"] <= min(5.0, st["natural_flow_maf"]) + 1e-9
 
 
 class TestDeliveriesWithinAvailability:
