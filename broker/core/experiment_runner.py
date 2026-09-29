@@ -19,6 +19,9 @@ from ..components.context.builder import BaseAgentContextBuilder
 from ..components.memory.engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
 from ..utils.logging import logger
+from ..utils.llm_safeguard import (
+    LLMSafeguardConfig, LLMFailureRateAborted, wrap_llm_invoke_with_backoff,
+)
 from .efficiency import CognitiveCache
 
 
@@ -282,12 +285,50 @@ class ExperimentRunner:
                 self._llm_resolved_params = resolved_cache
             resolved_cache[agent_type] = resolved_params
 
-            self._llm_cache[agent_type] = create_llm_invoke(
+            raw_invoke = create_llm_invoke(
                 model_name,
                 verbose=self.config.verbose,
                 overrides=overrides
             )
+            # Spec item 24 (audit gap F42): backoff on a transient provider
+            # failure, wired HERE because this is the one choke point every
+            # LLM call in the framework passes through (the format-retry
+            # loop, the governance retry loop, the advisory pass, the
+            # hybrid decider all call get_llm_invoke(agent_type) or reuse
+            # this cache entry). A no-op wrapper (returns raw_invoke
+            # unchanged) unless global_config.llm_safeguard.enabled is true,
+            # which is what keeps every domain that has not opted in
+            # byte-identical.
+            self._llm_cache[agent_type] = wrap_llm_invoke_with_backoff(
+                raw_invoke, self._resolve_llm_safeguard_config(),
+            )
         return self._llm_cache[agent_type]
+
+    def _resolve_llm_safeguard_config(self) -> LLMSafeguardConfig:
+        """Resolved ``global_config.llm_safeguard`` (spec item 24), cached
+        after the first call.
+
+        Read off ``self.broker.config`` -- the SAME ``AgentTypeConfig``
+        ``SkillBrokerEngine.__init__`` reads for its own copy (the abort-rate
+        tracker) -- so the backoff wrapper here and the abort tracker there
+        can never resolve to different settings for one run. Defensive the
+        same way ``overrides`` just above is: a broker/config predating this
+        feature, or a MagicMock test double, degrades to the disabled
+        default rather than raising.
+        """
+        cached = getattr(self, "_llm_safeguard_cfg", None)
+        if cached is not None:
+            return cached
+        get_cfg = None
+        if hasattr(self.broker, 'config') and self.broker.config:
+            get_cfg = getattr(self.broker.config, "get_llm_safeguard_config", None)
+        raw = get_cfg() if callable(get_cfg) else None
+        resolved = (
+            LLMSafeguardConfig.from_dict(raw) if isinstance(raw, dict)
+            else LLMSafeguardConfig()
+        )
+        self._llm_safeguard_cfg = resolved
+        return resolved
 
     # ------------------------------------------------------------------
     # PR-8: deciders — get_llm_invoke generalised to "whatever decides"
@@ -567,6 +608,12 @@ class ExperimentRunner:
                 "Configure model/verbosity via ExperimentConfig instead."
             )
         llm_invoke = llm_invoke or self.llm_invoke
+        # Spec item 24 fix round: reset at the TOP of every run(), not only
+        # set on abort. Without this, a SECOND run() on the same instance
+        # (a reused runner, a test harness) that finishes cleanly would still
+        # carry the FIRST run's abort and stamp a clean corpus's manifest
+        # with run_status: aborted_llm_failure_rate.
+        self._llm_safeguard_abort = None
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
@@ -670,6 +717,16 @@ class ExperimentRunner:
                     self._call_hook("post_year", step, self.agents)
 
                 self._finalize_step(step)
+        except LLMFailureRateAborted as exc:
+            # Spec item 24: stash the exception BEFORE `finally` runs, so
+            # `_finalize_experiment`'s manifest build (unconditional, below)
+            # can see it and record `run_status` -- reading it off `self`
+            # rather than threading it through `_finalize_experiment`'s
+            # signature, since `finally` cannot see the exception object
+            # directly. Re-raised unchanged: the run still exits non-zero
+            # with a one-line reason (this exception's own message).
+            self._llm_safeguard_abort = exc
+            raise
         finally:
             self._finalize_experiment(iterations)
 
@@ -767,6 +824,29 @@ class ExperimentRunner:
             ),
         }
         manifest.update(self._collect_reproducibility_metadata())
+        # Spec item 24 (audit gap F42): when the LLM-failure abort-rate
+        # safeguard stopped this run, say so IN THE MANIFEST, not only in the
+        # exception that already ended the process. `run()`'s own
+        # except-before-finally clause sets `self._llm_safeguard_abort`
+        # before this method runs (it is called from that `finally`), so the
+        # value is available here regardless of how deep inside the step the
+        # raise happened. Absent (no key at all, not `null`) on every run the
+        # safeguard did not abort -- including every run where it was never
+        # enabled -- so an unrelated corpus's manifest never grows this key.
+        _llm_abort = getattr(self, "_llm_safeguard_abort", None)
+        if _llm_abort is not None:
+            manifest["run_status"] = "aborted_llm_failure_rate"
+            manifest["llm_safeguard_abort"] = {
+                "observed_rate": _llm_abort.observed_rate,
+                "window": _llm_abort.window,
+                "threshold": _llm_abort.threshold,
+                # Fix round 3, WARNING 3: the raw counts behind
+                # observed_rate. decisions_in_window can be LESS than
+                # window -- the early-stop rule can fire before the window
+                # ever fills (broker/utils/llm_safeguard.py:LLMAbortTracker).
+                "failed_count": _llm_abort.failed_count,
+                "decisions_in_window": _llm_abort.decisions_in_window,
+            }
         # Memory write policy snapshot (populated if the engine is wrapped by
         # PolicyFilteredMemoryEngine). This captures the policy and dropped-count
         # summary so the audit trace explains any "missing" memories unambiguously.
@@ -1137,6 +1217,23 @@ class ExperimentRunner:
         except Exception as exc:
             metadata["llm_sampling_seeded"] = False
             logger.debug(f"[Integrity] llm_sampling_seeded skipped: {exc}")
+
+        # 3f. LLM-failure safeguard (spec item 24, audit gap F42): backoff +
+        #     abort-rate stop, resolved once by `_resolve_llm_safeguard_config`
+        #     (the same values `SkillBrokerEngine.__init__` independently
+        #     resolves for its abort tracker -- both read
+        #     AgentTypeConfig.get_llm_safeguard_config(), so they cannot
+        #     disagree for one run). Recorded regardless of whether this run
+        #     aborted: an operator comparing two corpora needs the settings
+        #     on a run that finished cleanly too. `None` only when resolution
+        #     itself failed (never for "not configured" -- that reads as the
+        #     disabled defaults, same as every other domain).
+        try:
+            from dataclasses import asdict
+            metadata["llm_safeguard"] = asdict(self._resolve_llm_safeguard_config())
+        except Exception as exc:
+            metadata["llm_safeguard"] = None
+            logger.debug(f"[Integrity] llm_safeguard skipped: {exc}")
 
         # 4. Hash config files
         try:
@@ -1717,6 +1814,15 @@ class ExperimentRunner:
                     self.efficiency.put(context_hash, result.to_dict())
 
                 results.append((agent, result))
+            except LLMFailureRateAborted:
+                # Spec item 24: the abort-rate safeguard tripped inside this
+                # agent's process_step. This must NOT fall into the broad
+                # handler below -- that one turns a raising step into another
+                # ABORTED row and keeps the run going, which is exactly what
+                # this exception exists to prevent. Re-raise past run()'s
+                # loop, whose except/finally records it in the manifest and
+                # flushes the audit writers before the run actually stops.
+                raise
             except Exception as e:
                 # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):
                 # pre-fix path logged + dropped the agent from `results`,
@@ -1981,6 +2087,26 @@ class ExperimentRunner:
                 try:
                     agent, result = future.result()
                     results.append((agent, result))
+                except LLMFailureRateAborted:
+                    # Spec item 24: same reasoning as the sequential path's
+                    # identical clause -- must escape this handler, not
+                    # become another ABORTED row. `future.result()` re-raises
+                    # whatever the worker thread raised, so this is reached
+                    # exactly when some agent's process_step tripped the
+                    # abort-rate window.
+                    #
+                    # Fix round: cancel_futures=True drops every QUEUED-but-
+                    # not-yet-started submission so those agents never even
+                    # begin (a future already running cannot be interrupted
+                    # mid-call in Python threading, but one that has not
+                    # started yet now never will). wait=True blocks until the
+                    # in-flight ones finish, which the `with` block's own
+                    # __exit__ would do anyway -- doing it here explicitly,
+                    # before `raise`, means the executor is already fully
+                    # drained by the time this exception reaches run()'s
+                    # finally, instead of racing it.
+                    executor.shutdown(wait=True, cancel_futures=True)
+                    raise
                 except Exception as e:
                     # F4 fix (post-Phase-6T silent-failure audit,
                     # 2026-05-27): parallel mirror of F1. The

@@ -154,6 +154,35 @@ class RetryMixin:
                             self.auditor.log_empty_content_retry()
                         if getattr(llm_stats_obj, 'empty_content_failure', False):
                             self.auditor.log_empty_content_failure()
+                    # Spec item 24 fix round: backoff-layer retries (a REAL
+                    # extra network call each) made INVISIBLE the audit
+                    # before this -- the reviewer measured 1,638 real HTTP
+                    # calls against 1,170 reported. Same pattern as
+                    # empty_content_retries above, one call per extra call.
+                    for _ in range(getattr(llm_stats_obj, 'backoff_retries', 0)):
+                        self.auditor.log_backoff_retry()
+                    # Fix round 3 (TIME TO ABORT): the backoff wrapper already
+                    # exhausted every retry against a TRANSPORT failure --
+                    # the endpoint is the problem, not the prompt. Re-prompting
+                    # it here (and again in the governance retry loop) would
+                    # pay the full backoff schedule again on every remaining
+                    # attempt, for a connection already proven dead. Fail this
+                    # decision at once instead. Gated on the safeguard being
+                    # enabled: transport_error is a raw signal an invoke
+                    # function can set on a REAL failure whether or not the
+                    # safeguard is even on, and a domain that never opted in
+                    # must keep today's retry-then-give-up behaviour exactly
+                    # as it is.
+                    if (getattr(self, "_llm_safeguard", None) is not None
+                            and self._llm_safeguard.enabled
+                            and not llm_stats_obj.success
+                            and getattr(llm_stats_obj, "transport_error", False)):
+                        logger.error(
+                            f" [LLM:Error] Transport failure persisted through "
+                            f"backoff for {agent_id}; not re-prompting the same "
+                            f"endpoint."
+                        )
+                        break
                 else:
                     raw_output = res
                     from ..utils.llm_utils import get_llm_stats
@@ -549,6 +578,38 @@ class RetryMixin:
                 total_llm_stats["llm_success"] = llm_stats_obj.success
                 # R5-C token counts + 2026-09-15 latency/total columns.
                 accumulate_llm_stats(total_llm_stats, llm_stats_obj)
+                # Spec item 24 fix round: same backoff-retry accounting as
+                # _invoke_llm_with_retries above -- a governance-retry LLM
+                # call can ALSO have gone through the backoff wrapper.
+                for _ in range(getattr(llm_stats_obj, 'backoff_retries', 0)):
+                    self.auditor.log_backoff_retry()
+                # Fix round 3 (TIME TO ABORT): same reasoning as
+                # _invoke_llm_with_retries -- a governance retry that hits a
+                # transport failure backoff already gave up on must not be
+                # retried again here either. skill_proposal is set to None
+                # (this attempt produced nothing usable) and the while loop
+                # below exits immediately, same as retries-exhausted.
+                if (getattr(self, "_llm_safeguard", None) is not None
+                        and self._llm_safeguard.enabled
+                        and not llm_stats_obj.success
+                        and getattr(llm_stats_obj, "transport_error", False)):
+                    logger.error(
+                        f" [Governance:Retry] Transport failure persisted "
+                        f"through backoff for {agent_id}; not re-prompting "
+                        f"the same endpoint."
+                    )
+                    skill_proposal = None
+                    # Fix round 4 (CRITICAL B): this attempt HAPPENED -- it
+                    # is the one retry_count was just incremented for, at
+                    # the top of this while loop -- it just produced nothing
+                    # parseable. Record it as None here, same reasoning as
+                    # the analogous failure branches in _advise_pass.py, so
+                    # attempt_skills stays in lockstep with retry_count
+                    # instead of coming up one short and breaking the P0-1a
+                    # length invariant (len(attempt_skills) == retry_count + 1).
+                    if attempt_skills is not None:
+                        attempt_skills.append(None)
+                    break
             else:
                 raw_output = res
                 from ..utils.llm_utils import get_llm_stats

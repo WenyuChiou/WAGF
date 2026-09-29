@@ -56,6 +56,7 @@ from ..components.analytics.interaction import InteractionHub
 from ..components.analytics.audit import AuditWriter
 from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
+from ..utils.llm_safeguard import LLMSafeguardConfig, LLMAbortTracker
 
 from ._retry_loop import RetryMixin
 from ._audit_helpers import (
@@ -292,6 +293,28 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # run_integrity.json — a failed sentinel write is a missing row, which
         # is the same denominator hole the sentinel exists to close.
         self._audit_sentinel_write_failures = 0
+        # Spec item 24 (audit gap F42, PI approved 2026-09-29): the LLM-failure
+        # abort-rate safeguard. Backoff is wired separately, into
+        # ExperimentRunner.get_llm_invoke (broker/utils/llm_safeguard.py) --
+        # this engine owns the per-DECISION rolling window instead, since
+        # process_step is the one place that sees both failure signals for a
+        # decision (the provider call's final success flag, and whether the
+        # output ever parsed) for ANY llm_invoke it is given, not only the
+        # framework's own get_llm_invoke path. Coerced the same defensive way
+        # as every other config-resolved flag above: a MagicMock config (most
+        # of this file's own tests) returns a Mock, not a dict, from a bare
+        # getattr call, and must resolve to the disabled default rather than
+        # raise out of __init__. A FRESH tracker per engine instance, never a
+        # module-level singleton like GovernanceAuditor -- two engines in one
+        # process (two tests, two arms of one script) must never share a
+        # window.
+        _get_safeguard = getattr(self.config, "get_llm_safeguard_config", None)
+        _safeguard_raw = _get_safeguard() if callable(_get_safeguard) else None
+        self._llm_safeguard = (
+            LLMSafeguardConfig.from_dict(_safeguard_raw)
+            if isinstance(_safeguard_raw, dict) else LLMSafeguardConfig()
+        )
+        self._llm_abort_tracker = LLMAbortTracker(self._llm_safeguard)
         # C1: the uncategorised-rule tally is a module global, so a second run
         # in the same interpreter (a seed sweep driven from one script) would
         # otherwise report the FIRST run's rule ids as well as its own. Cleared
@@ -595,6 +618,16 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             # the JSONL or the CSV — the arm with more parse failures silently
             # ran a smaller denominator. Under corrected_status_columns a
             # sentinel row conserves the agent x year count instead.
+            #
+            # Fix round 3 (CRITICAL 2, PI decision): a safeguard-specific
+            # special case here (writing the sentinel whenever the safeguard
+            # was enabled, regardless of this flag) was tried and reverted --
+            # it made the audit schema depend on a runtime event (did THIS
+            # run happen to hit a parse failure), which is exactly the
+            # inconsistency the PI ruled against. A domain that wants the
+            # abort-triggering decision's own row preserved turns
+            # corrected_status_columns on itself in its own config; the
+            # safeguard no longer reaches into this gate at all.
             if self.audit_writer and self._corrected_status_columns:
                 self._write_aborted_sentinel_trace(
                     agent_type=agent_type, run_id=run_id, step_id=step_id,
@@ -621,6 +654,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     # column set rather than two.
                     decider=decider,
                 )
+            # Spec item 24: this decision never produced a usable proposal --
+            # an unconditional failure for the abort-rate window. After the
+            # sentinel trace above, so the row this decision writes to the
+            # audit trail exists before a possible raise. A no-op unless the
+            # safeguard is enabled (LLMAbortTracker.record short-circuits).
+            self._llm_abort_tracker.record(failed=True)
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
 
         if format_retry_count > 0:
@@ -964,6 +1003,22 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 decider=decider,
                 feasible_by_attempt=feasible_by_attempt,
             )
+
+        # Spec item 24: this decision's outcome for the abort-rate window --
+        # failed when the LAST provider call this decision made ultimately
+        # did not succeed, OR the final output never parsed. skill_proposal
+        # can still be None here even after the early-return branch above:
+        # RetryMixin._governance_retry_loop can exhaust its retries on an
+        # unparsed final attempt too (see its own "self.auditor.log_parse_error()"
+        # branch). A governance-rejected but well-formed proposal is NOT a
+        # failure here: that is the existing, unrelated rule-violation path.
+        # After the trace write, before the row is handed back, so a raise
+        # here still leaves this decision's own row on disk. A no-op unless
+        # the safeguard is enabled.
+        self._llm_abort_tracker.record(
+            failed=(skill_proposal is None)
+            or (not bool(total_llm_stats.get("llm_success", True)))
+        )
 
         result = SkillBrokerResult(
             outcome=outcome,

@@ -189,6 +189,10 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "audit",        # see KNOWN_AUDIT_KEYS (opt-in column flags, all default OFF)
     "parsing",      # see KNOWN_PARSING_KEYS (PR-4 hardened-parsing flag, default OFF)
     "validators",   # see KNOWN_VALIDATORS_KEYS (PR-6 label-resolution flag, default OFF)
+    "llm_safeguard",  # LLM-failure backoff + abort-rate stop (spec item 24, audit
+                      # gap F42, default OFF); AgentTypeConfig.get_llm_safeguard_config
+                      # validates its five sub-keys itself, so no KNOWN_*_KEYS
+                      # sub-block here -- same shape as "llm" / "memory" / "reflection".
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {

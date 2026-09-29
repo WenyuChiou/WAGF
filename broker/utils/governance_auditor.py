@@ -75,6 +75,12 @@ class GovernanceAuditor:
         self.empty_content_retries = 0        # LLM returned empty content, retry triggered
         self.empty_content_failures = 0       # LLM returned empty after all retries exhausted
         self.invalid_label_retries = 0        # Invalid _LABEL values triggered retry
+        # Spec item 24 fix round (audit gap: reviewer measured 1,638 real HTTP
+        # calls against 1,170 reported): backoff-layer retries
+        # (broker/utils/llm_safeguard.py's wrap_llm_invoke_with_backoff), a
+        # real extra network call per retry, distinct from the LLM's own
+        # empty-content retry loop above.
+        self.backoff_retries = 0
 
         # WARNING-level rule tracking (non-blocking observations)
         self.total_warnings = 0
@@ -157,13 +163,28 @@ class GovernanceAuditor:
         with self.stats_lock:
             self.invalid_label_retries += 1
 
+    def log_backoff_retry(self):
+        """Record one backoff-layer retry (spec item 24 fix round).
+
+        A real extra network call the LLM safeguard's backoff wrapper made
+        after a transport failure. Counts toward ``total_extra_llm_calls``
+        the same way ``empty_content_retries`` / ``invalid_label_retries`` /
+        ``format_retry_attempts`` already do.
+        """
+        with self.stats_lock:
+            self.backoff_retries += 1
+
     def save_summary(self, output_path: Path):
         """Save aggregated statistics to JSON."""
-        # Calculate total extra LLM calls from retries
+        # Calculate total extra LLM calls from retries. backoff_retries
+        # (spec item 24 fix round) folded in here, not just added as its own
+        # sibling key, so total_extra_llm_calls stays what its name promises:
+        # every extra LLM call this run made beyond one-per-decision.
         total_extra_llm_calls = (
             self.empty_content_retries +
             self.invalid_label_retries +
-            self.format_retry_attempts
+            self.format_retry_attempts +
+            self.backoff_retries
         )
 
         summary = {
@@ -183,6 +204,7 @@ class GovernanceAuditor:
                 "empty_content_retries": self.empty_content_retries,
                 "empty_content_failures": self.empty_content_failures,
                 "invalid_label_retries": self.invalid_label_retries,
+                "backoff_retries": self.backoff_retries,
                 "total_extra_llm_calls": total_extra_llm_calls
             },
             "warnings": {
@@ -196,11 +218,13 @@ class GovernanceAuditor:
 
     def print_summary(self):
         """Print a human-readable summary to console."""
-        # Calculate total extra LLM calls
+        # Calculate total extra LLM calls (backoff_retries folded in, same
+        # reasoning as save_summary above).
         total_extra_llm_calls = (
             self.empty_content_retries +
             self.invalid_label_retries +
-            self.format_retry_attempts
+            self.format_retry_attempts +
+            self.backoff_retries
         )
 
         lines = [
@@ -222,6 +246,7 @@ class GovernanceAuditor:
             f"  - Empty Content Retries:   {self.empty_content_retries}",
             f"  - Empty Content Failures:  {self.empty_content_failures}",
             f"  - Invalid Label Retries:   {self.invalid_label_retries}",
+            f"  - Backoff Retries:         {self.backoff_retries}",
             f"  - Total Extra LLM Calls:   {total_extra_llm_calls}",
             "-" * 50,
             "  Top Rule Violations (ERROR):",

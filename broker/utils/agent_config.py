@@ -1228,7 +1228,41 @@ class AgentTypeConfig:
         # 1. Check Global Config
         global_llm = self._config.get("global_config", {}).get("llm", {})
         return global_llm.get("max_retries", self._config.get("shared", {}).get("llm", {}).get("max_retries", default))
-    
+
+    def get_llm_safeguard_config(self) -> Dict[str, Any]:
+        """``global_config.llm_safeguard``: backoff + abort-rate stop for LLM
+        call failures (spec item 24, audit gap F42, PI approved 2026-09-29
+        as "extra insurance" before the corpus launch).
+
+        YAML surface, entire block absent by default::
+
+            global_config:
+              llm_safeguard:
+                enabled: true
+                backoff_max_retries: 3
+                backoff_initial_seconds: 2
+                abort_window: 50
+                abort_threshold: 0.5
+
+        Returns a dict with all five keys always present -- the absent-block
+        default is every key at its all-disabled value, which is what keeps
+        a domain that has never heard of this key byte-identical:
+        ``broker/utils/llm_safeguard.py`` wraps ``get_llm_invoke``'s backoff
+        and the per-decision abort tracker as pure no-ops when ``enabled`` is
+        False.
+
+        Validated eagerly, same convention as
+        :meth:`get_governance_on_retry_exhausted` / :meth:`get_governance_advise`
+        above: ``abort_threshold`` must be a fraction in [0, 1] and every
+        count (``backoff_max_retries``, ``backoff_initial_seconds``,
+        ``abort_window``) must be a positive integer -- the PI's rule for
+        framework parameters (2026-09-25).
+        """
+        from broker.utils.llm_safeguard import validate_llm_safeguard_dict
+
+        llm_safeguard = self._config.get("global_config", {}).get("llm_safeguard")
+        return validate_llm_safeguard_dict(llm_safeguard)
+
     def get_reflection_config(self) -> dict:
         """Get reflection configuration (Global > Shared > Default).
 

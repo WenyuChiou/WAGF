@@ -363,6 +363,142 @@ mem = cfg.get_memory_config("household_owner")
 
 ---
 
+## LLM call safeguard (backoff + abort-rate stop)
+
+`broker/utils/llm_safeguard.py` is a generic, opt-in safeguard against LLM
+provider failures, added for spec item 24 of the irrigation v3 case study
+(audit gap F42, "no LLM backoff or abort-rate stop"). It has two independent
+parts, both driven by one `global_config.llm_safeguard` block:
+
+```yaml
+global_config:
+  llm_safeguard:
+    enabled: true
+    backoff_max_retries: 3        # positive integer, capped at 8
+    backoff_initial_seconds: 2    # positive integer; delay doubles each retry
+    backoff_max_seconds: 60       # positive integer; caps EACH delay (not the total)
+    abort_window: 50              # positive integer; rolling count of decisions
+    abort_threshold: 0.5          # fraction in (0, 1] -- 0 is rejected
+```
+
+1. **Backoff on a TRANSPORT failure only.** `wrap_llm_invoke_with_backoff`
+   wraps the callable `ExperimentRunner.get_llm_invoke` returns, so every LLM
+   call in the framework goes through it without any other call site
+   changing. Retried: the call raising `OSError` (this includes `requests.
+   exceptions.ConnectionError`), or it returning normally with
+   `LLMStats.transport_error is True` (the shape `_invoke_ollama_direct` /
+   `create_provider_invoke` already use for a connection failure or an HTTP
+   5xx they caught internally; `create_llm_invoke`'s own closure carries that
+   flag into its final `LLMStats` too, since it -- not
+   `_invoke_ollama_direct` -- is what the wrapper actually wraps on the
+   Ollama path every shipped domain uses). NOT retried, even though each can
+   also carry `success=False`: a timeout (the inner call already waited its
+   own configured timeout; the wrapper does not wait again on top of that),
+   an HTTP 4xx (a persistent client-side problem), empty or thinking-only
+   content (the model's own empty-content retry loop already tried), or any
+   other exception such as `TypeError`. Each delay is capped at
+   `backoff_max_seconds` regardless of `backoff_initial_seconds` or how many
+   retries remain. Every retry is logged; if every retry fails, the wrapper
+   gives up and the decision fails AT ONCE -- the format-retry loop and the
+   governance retry loop (`broker/core/_retry_loop.py`) both recognise a
+   spent, still-transport-failing call and stop re-prompting the same dead
+   endpoint instead of paying the full backoff schedule again on every
+   remaining attempt; a normal (non-transport) failure is retried by those
+   loops exactly as before. Every attempt's calls and tokens are folded into
+   the returned `LLMStats` (`calls`, `prompt_tokens_total`,
+   `response_tokens_total` sum across attempts). The new `backoff_retries`
+   field is `total_calls - stats.calls` (the final attempt's own call count):
+   the calls spent on the OTHER, non-final backoff attempts, not a count of
+   backoff rounds -- one round can itself cost more than one inner call,
+   since `create_llm_invoke`'s own closure has its own short empty-content
+   retry loop. The final attempt's own calls are excluded on purpose: they
+   are already reflected in that attempt's own `retries`, so folding them
+   into `backoff_retries` too would double-count them (fix round 3's
+   `calls - 1` formula did exactly that whenever the final, successful
+   attempt itself cost more than one raw call). `broker/core/_retry_loop.py` reads
+   `backoff_retries` and calls `GovernanceAuditor.log_backoff_retry()` that
+   many times, which folds into `total_extra_llm_calls` in
+   `governance_summary.json` the same way `empty_content_retries` already
+   does. Every domain's `governance_summary.json` gains this
+   `backoff_retries` counter (0 when never triggered, including when the
+   safeguard is disabled), not only a domain that enables the safeguard.
+
+2. **Abort-rate stop, early.** `LLMAbortTracker`, owned by `SkillBrokerEngine`,
+   keeps a rolling window of the last `abort_window` DECISIONS (one entry per
+   `process_step` call). A decision counts as failed when the provider call
+   ultimately did not succeed, or its output never parsed
+   (`skill_proposal is None`, the same condition that already drives
+   `GovernanceAuditor.log_parse_error()`). It aborts as soon as the failure
+   COUNT in the current window reaches `ceil(abort_threshold * abort_window)`
+   -- which can happen well before the window is full, catching a badly
+   broken endpoint sooner than waiting for a full window would. When it fires
+   it raises `LLMFailureRateAborted`, carrying `observed_rate`, `window`,
+   `threshold`, `failed_count`, and `decisions_in_window` (the last of which
+   can be less than `window` for an early-stop abort). `ExperimentRunner.
+   _run_agents_sequential` / `_run_agents_parallel` let this exception
+   through instead of converting it into another ABORTED row (the parallel
+   path also calls `executor.shutdown(wait=True, cancel_futures=True)`
+   first, so no queued agent starts after the abort), so `run()`'s existing
+   `finally` still flushes the audit writers and JSONL traces
+   (`GenericAuditWriter.finalize`) and the reproducibility manifest records
+   `run_status: aborted_llm_failure_rate` with all five of those values,
+   before the process exits non-zero.
+
+Both mechanisms read the identical resolved `LLMSafeguardConfig` (via
+`AgentTypeConfig.get_llm_safeguard_config()`) and are OFF by default
+(`enabled: false`): `wrap_llm_invoke_with_backoff` then returns its input
+UNCHANGED and `LLMAbortTracker.record` is a no-op, so a domain that never
+sets this block has a byte-identical audit CSV and simulation log. Its
+manifest and `governance_summary.json` are NOT untouched, though: EVERY
+domain's manifest gains an `llm_safeguard` key (`enabled: false` and the
+defaults, for a domain that never opts in) and EVERY domain's
+`governance_summary.json` gains the `backoff_retries` counter described
+above (0 when unused) -- these are unconditional, additive fields, not
+something only an opted-in domain sees. `run_status` /
+`llm_safeguard_abort` remain conditional on an actual abort. It is enabled
+in `examples/irrigation_abm/config/agent_types.yaml` for the v3 corpus,
+which also sets `audit.corrected_status_columns: true` so its audit schema
+does not depend on whether any particular run happened to hit a parse
+failure or an abort -- a domain that enables the safeguard without also
+turning that flag on keeps whatever audit-row behavior it already had for
+an unparsable decision (the safeguard does not force it on).
+
+**For any other domain runner's `main()`:** if you enable this safeguard, wrap
+your call to `runner.run(...)` in `try/finally` and move every post-run
+provenance patch, manifest enrichment, and simulation-log save into the
+`finally` block, letting the exception propagate afterward. `ExperimentRunner.
+run()`'s own `finally` already flushes the audit writer and manifest
+regardless of how the run ends, but a domain runner's OWN post-`run()` code
+(anything your `main()` does after the call returns) does not run at all if
+`run()` raises unless you wrap it the same way --
+`examples/irrigation_abm/run_experiment.py`'s `main()` is the reference
+implementation of this pattern. One consequence worth stating plainly: a
+simulation log built by accumulating rows across years (as
+`run_experiment.py`'s does) exists after an abort only if at least one year
+fully completed before the abort fired -- an abort partway through year one
+leaves nothing to save, and the `finally` block's save is a no-op, not a
+bug.
+
+**Known limit: a HUNG endpoint is much slower to abort on than a DEAD one.**
+The backoff wrapper and the format/governance-loop early-break both key off
+`transport_error`, which is only ever set for a connection that was refused
+or reset -- never for a timeout. A HUNG server (one that accepts the
+connection but never answers) times out instead, which the wrapper
+deliberately never retries and which never sets `transport_error`, so the
+early-break added in fix round 3 never triggers for it either; the decision
+falls back to paying the full per-call timeout on every attempt, exactly as
+it did before this safeguard existed. At `examples/irrigation_abm`'s own
+numbers that is 3 format-retry attempts x 2 inner `create_llm_invoke`
+attempts x its 120s model timeout = 12 minutes for ONE decision to give up,
+so reaching that domain's 25-failure early-stop
+(`ceil(abort_threshold * abort_window)` = `ceil(0.5 * 50)`) takes roughly
+5 hours against a persistently HUNG endpoint, versus roughly 26 minutes
+(25 decisions x the ~62s backoff-then-give-up schedule) against a
+persistently DEAD one. Both eventually abort; a hung endpoint is just far
+slower to.
+
+---
+
 ## Migration Guide
 
 For release-to-release migration notes see `CHANGELOG.md`. Notable
