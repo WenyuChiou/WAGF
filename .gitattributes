@@ -1,0 +1,9 @@
+# Irrigation v3 water-system data files (irrigation_v3_spec_2026-09-28.md
+# WP1) are sha256-checked at load (IrrigationEnvironment raises on
+# mismatch) against a checksum computed over LF line endings. Without this
+# rule, a checkout on a machine with core.autocrlf=true (common on
+# Windows) silently rewrites them to CRLF and the checksum check fails for
+# everyone who is not the machine that authored them -- force LF
+# regardless of platform or local git config.
+examples/irrigation_abm/data/hydrology_v3.csv text eol=lf
+examples/irrigation_abm/data/mead_capacity_usbr2009_1ft.csv text eol=lf

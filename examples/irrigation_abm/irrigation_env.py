@@ -15,16 +15,21 @@ irrigation experiment.  Provides:
 Annual balance (MAF/yr; see ``IrrigationEnvironment._settle`` and
 docs/irrigation_physics.md)::
 
-    Powell:  S_P' = S_P + (NF - UB_delivered) - Evap_P - Release
-    Mead:    S_M' = S_M + Release + LB_trib - Evap_M - LB_withdrawals
+    Powell:  S_P' = S_P + (NF - UB_non_farm - UB_delivered) - Evap_P - Release
+    Mead:    S_M' = S_M + Release + LB_trib - Evap_M - LB_withdrawals - Spill_M
 
-Upper Basin deliveries are limited by the 5.0 MAF delivery capacity and by
-what Powell needs to keep a 7.0 MAF release; Lower Basin
-withdrawals are cut by the declared shortage tier and, when Mead cannot
-supply them, scaled down pro-rata to what is physically available above the
-dead pool. Hung and Yang (2021) take the delivered diversion from CRSS in
-the same way: the basin total is limited by the water system, not by a
-demand-side rule.
+Upper Basin deliveries have PRIORITY: they are limited only by the 5.0 MAF
+delivery capacity and by (non-farm-net) natural flow itself, never by what
+Powell needs for its own release. Lake Powell releases R to keep its and
+Lake Mead's end-of-year live-storage fractions as equal as possible
+(a simplification of the 2007 Interim Guidelines' balancing tiers),
+bounded to [7.0, 9.5] MAF. The declared Lower Basin shortage tier's volume
+is borne entirely by the 5.0 MAF non-agricultural bucket, never by the 22
+Lower Basin agricultural agents' own requests; those are scaled down only
+when Mead cannot physically supply all Lower Basin withdrawals, pro-rata to
+what is available above the dead pool. Hung and Yang (2021) take the
+delivered diversion from CRSS in the same way: the basin total is limited
+by the water system, not by a demand-side rule.
 
 References:
     Hung, F., & Yang, Y. C. E. (2021). WRR, 57, e2020WR029262.
@@ -32,6 +37,10 @@ References:
 
 from __future__ import annotations
 
+import csv
+import functools
+import hashlib
+import os
 import zlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -84,7 +93,21 @@ class WaterSystemConfig:
     # against the USBR Feb 2019 24-Month Study,
     # https://www.usbr.gov/lc/region/g4000/24mo/2019/FEB19.pdf;
     # 2026-09-26 verification pass)
-    evaporation_maf: float = 0.8              # Reservoir evaporation at ref storage (MAF/yr)
+    evaporation_maf: float = 0.541            # Mead evaporation AT the reference storage (MAF/yr)
+    # v3 (PI decision 5, 2026-09-28, supersedes the earlier 0.8 MAF at
+    # 1,100 ft relation, S7): calibrated so that evaporation at the WY2018
+    # Mead condition (mead_evap_ref_storage_maf below) equals the February
+    # 2019 24-Month Study's reported WY2018 Mead evaporation, about
+    # 541 thousand acre-ft (irrigation_v3_design_provenance_2026-09-28.md
+    # row E11; .research/powell_constants_verification_2026-09-26.md).
+    # See _mead_evaporation_maf.
+    mead_evap_ref_storage_maf: float = 12.679  # WY2018 total storage (MAF): 10.132 (USBR 2009 curve
+    # at 1,081.46 ft, available capacity above 895 ft) + 2.547 (dead
+    # storage) -- both from the February 2019 24-Month Study (Dec 2018
+    # observed elevation) and the USBR Lake Mead Area and Capacity Tables
+    # (Tighi and Callejo, 2011) respectively. This IS the calibration
+    # point: _mead_evaporation_maf(mead_evap_ref_storage_maf) == exactly
+    # evaporation_maf.
     mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr) -- VERIFIED (canonical)
     # (1944 US-Mexico Water Treaty, Treaty Series 994: canonical, uncontested
     # figure, restated throughout the 2007 ROD and the 24-Month Study
@@ -97,77 +120,112 @@ class WaterSystemConfig:
     # consistent with 5.0 MAF once tribal deliveries and lower-river system
     # losses are added, but this stays a modelling aggregate without a
     # single primary table (2026-09-26 verification pass).
-    lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
+    lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr) -- the "constant" fallback
     # Calibrated aggregate: a plausible order of magnitude for the ungauged
     # Lower Basin inflow between Powell and Mead (Virgin River, Muddy River,
     # ...), but no primary CRSS/USBR table was opened to pin this figure
-    # down (2026-09-26 verification pass).
-    natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
-    # 12.0 MAF is the POST-2000 (drought-era) average naturalized flow at
-    # Lees Ferry, not the long-term average: the full 1906-2018 record
-    # averages about 14.6 MAF/yr, roughly 20% higher (USU "How Dry Can the
-    # Colorado River Basin Get"; NOAA PSL Lees Ferry natural flow series;
-    # TreeFlow Lees Ferry gaged flow record). Defensible for modelling
-    # 21st-century hydrology; docs/irrigation_physics.md and README.md
-    # label it the same way (2026-09-26 verification pass).
-    precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
-    # Powell release band (options d and e, 2026-09-26): release = pass-through
-    # clamped to [7.0, 9.0] MAF, subject to storage; not the 2007 Interim
-    # Guidelines' operating rules themselves. CORRECTED framing (2026-09-26
-    # verification pass, .research/powell_constants_verification_2026-09-26.md):
-    #   * 7.0 MAF is the FLOOR of the Guidelines' Lower Elevation Balancing
-    #     Tier (which balances the two reservoirs within a 7.0-9.5 MAF
-    #     band), NOT the "minimum objective release." That name belongs to a
-    #     different, higher figure: 8.23 MAF/yr under the historical Upper
-    #     Elevation Balancing Tier (2007 Record of Decision, p.15,
+    # down (2026-09-26 verification pass). v3 (spec 1.3, sign-off S1):
+    # used only when lb_tributary_source == "constant"; the default reads
+    # the hydrology table's own intervening-flow column instead (mean
+    # 0.793 MAF over the mapped years) -- see _lb_tributary_for_year.
+    lb_tributary_source: str = "usbr_intervening"  # "usbr_intervening" or "constant"
+    ub_non_farm_depletion_maf: float = 1.2213  # UB non-farm consumptive use (MAF/yr), taken first
+    # v3 (spec 1.2, L2 H2). USBR "Upper Colorado River Basin Consumptive
+    # Uses and Losses 2016-2020" (Provisional, Feb 2022), Table UC-4, 2018:
+    # Upper Basin total (excluding main-stem reservoir evaporation)
+    # 4,300.6 kaf minus irrigation 3,079.3 kaf = 1,221.3 kaf (M&I, exports,
+    # energy, stock-pond and livestock use). Subtracted from natural flow
+    # before Upper Basin agriculture and Lake Powell in _settle; held
+    # constant at the 2018 value every year and never curtailed (disclosed,
+    # provenance row D6).
+    # Re-review 2026-09-29 (LOW 7): the retired "natural_flow_base_maf"
+    # field (the precipitation-to-flow proxy's coefficient, 12.0 MAF at the
+    # post-2000 average precipitation, L2 H1) is removed outright rather
+    # than kept as a dead placeholder -- natural flow is computed by
+    # _natural_flow_for_year from the committed USBR hydrology table only,
+    # never from this field, and the one other reader
+    # (broker/tests/test_coupling_retrofit_pr9.py) tested its own
+    # re-derivation of the retired formula, not any current code path (now
+    # removed there too). A caller that still needs it gets a normal
+    # AttributeError, not a silently-present, silently-unused constant.
+    precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm); still used by the
+    # synthetic (mock, no --real data) precipitation fallback and by
+    # _compute_drought_index's legacy proxy -- NOT by natural flow (v3).
+    # Powell release rule (PI decision 2026-09-28, replaces the pass-through-
+    # with-target-fill rule, option e, 2026-09-26): a storage-BALANCING rule,
+    # a simplification of the 2007 Interim Guidelines' balancing tiers (ROD
+    # Section 6: "the Secretary shall determine the operation of Lake Powell
+    # and Lake Mead ... to, to the extent practicable ... balance the
+    # contents of Lake Powell and Lake Mead"). Each year Powell releases R
+    # bounded to [min_powell_release_maf, max_powell_release_maf] and never
+    # more than its own inflow plus usable storage (pass-through at dead
+    # pool), chosen so the two reservoirs' end-of-year LIVE-storage
+    # fractions (storage above dead pool / live capacity; Mead's live
+    # capacity runs to the conservation-pool top, mead_conservation_pool_maf,
+    # not mead_capacity_maf) are as equal as possible -- see _settle. The
+    # four named tiers (equalization, Upper Elevation Balancing, Mid-
+    # Elevation Release, Lower Elevation Balancing) collapse into this one
+    # rule; the release band itself IS the Lower Elevation Balancing Tier's
+    # own bound (ROD p. 52: "not more than 9.5 maf and not less than 7.0
+    # maf"), re-verified 2026-09-26
+    # (.research/powell_constants_verification_2026-09-26.md):
+    #   * 7.0 MAF is also quotable as the FLOOR of that same tier, not the
+    #     "minimum objective release" (that name belongs to a different,
+    #     higher figure: 8.23 MAF/yr under the historical Upper Elevation
+    #     Balancing Tier, 2007 Record of Decision, p.15,
     #     https://www.usbr.gov/lc/region/programs/strategies/RecordofDecision.pdf;
     #     also the INITIAL water year 2019 release volume -- the water year
-    #     2019 release actually realised was 8.91 MAF). The current
-    #     Mid-Elevation Release Tier releases 7.48 MAF/yr below a Mead-
-    #     elevation threshold in the Guidelines' own tier table (8.23 MAF
-    #     above it). Storage tops the modelled release up to 7.0 MAF in a
-    #     dry year.
-    #   * 9.0 MAF: a modelling ceiling motivated by the Guidelines' balancing-
-    #     tier cap ("not more than 9.0 maf and not less than 8.23 maf shall
-    #     be released" under equalization/balancing), NOT itself a quoted
-    #     rule -- the real tiered structure runs 7.48 / 8.23 MAF (floor side)
-    #     up to 9.0, with the SAME Lower Elevation Balancing Tier named above
-    #     reaching up to 9.5 MAF (a later alternatives analysis is where this
-    #     verification pass found that figure explicitly quoted). In a wet
-    #     year Powell releases 9.0 and keeps the excess only up to the
-    #     target fill below (option e).
+    #     2019 release actually realised was 8.91 MAF). The Mid-Elevation
+    #     Release Tier releases 7.48 MAF/yr below a Mead-elevation threshold
+    #     in the Guidelines' own tier table (8.23 MAF above it).
+    #   * 9.5 MAF is the Lower Elevation Balancing Tier's own ceiling (ROD
+    #     p. 52, quoted above); the model's earlier 9.0 MAF ceiling (option
+    #     d/e, 2026-09-26) was a narrower modelling choice, replaced here by
+    #     the Guidelines' own number now that a balancing rule is in use.
     min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr)
-    max_powell_release_maf: float = 9.0       # Powell release ceiling in a wet year (MAF/yr)
-    # Option (e), 2026-09-26: Powell holds wet-year surplus only until it is
-    # back at its 2019 level. A wet year's excess over the 9.0 MAF ceiling is
-    # retained only while Powell's live storage is below this fraction of
-    # live capacity; above it the release is the pass-through (a crude
-    # equalization: a healthy Powell passes surplus to Mead). On [0, 1].
-    # Default = the 1 January 2019 fill, 10.10 / 24.32 MAF live = 0.415,
-    # rounded to 0.42 (target 12.10 MAF total vs 11.99 on 1 January 2019).
-    # A MODELLING CHOICE, not a quoted Guidelines rule: the Guidelines
-    # specify release tiers (7.48 / 8.23 up to 9.0-9.5 MAF), not a target
-    # storage fraction; the arithmetic behind 0.42 checks out against the
-    # VERIFIED capacity and 1 January 2019 storage figures below
-    # (2026-09-26 verification pass).
-    powell_target_fill: float = 0.42
+    max_powell_release_maf: float = 9.5       # Powell release ceiling (MAF/yr); Lower Elevation
+    # Balancing Tier bound (ROD p. 52), not a modelling choice.
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
     # Lake Mead physical bounds (total storage, MAF), the end points of the
-    # USBR storage-elevation curve in IrrigationEnvironment._STORAGE_MAF.
-    # Water below the dead pool cannot be released; deliveries are limited
-    # to storage above it plus the year's inflow.
-    mead_dead_pool_maf: float = 2.0           # 895 ft
-    mead_capacity_maf: float = 26.1           # 1,220 ft
+    # USBR storage-elevation curve loaded by IrrigationEnvironment from
+    # data/mead_capacity_usbr2009_1ft.csv (v3, spec 1.4, L2 H4). Water
+    # below the dead pool cannot be released; deliveries are limited to
+    # storage above it plus the year's inflow.
+    mead_dead_pool_maf: float = 2.547         # 895 ft (USBR Lake Mead Area and Capacity Tables,
+    # Tighi and Callejo, 2011, p. 5: "Dead storage capacity (below the
+    # lowest outlet structure at elevation 895.0 feet) is 2,547 KAF").
+    # Replaces the earlier calibrated-aggregate 2.0 MAF.
+    mead_capacity_maf: float = 30.167         # 1,229 ft: 27.620 MAF available above 895 ft (same
+    # source, p. 1) plus the 2.547 MAF dead storage above. TOTAL storage at
+    # the curve's true endpoint, INCLUDING the flood-control space above
+    # the conservation pool (1,219.6-1,229 ft); the curve is interpolated
+    # up to here so elevation stays defined for any storage this far.
+    # Replaces the earlier 26.1 MAF (which used a different, non-physical
+    # curve, L2 H4). Not the operational ceiling -- see
+    # mead_conservation_pool_maf.
+    mead_conservation_pool_maf: float = 28.647  # 2.547 dead storage + 26.1 MAF conservation
+    # pool (about 1,219.6 ft on the USBR 2009 curve). Review 2026-09-28:
+    # real operations do not fill the flood-control space above this
+    # (1,219.6-1,229 ft, 26.1-27.620 MAF available); storage above it is
+    # treated as spill (``_settle``'s ``mead_spill_maf``), not retained up
+    # to mead_capacity_maf. Total versus live/operational storage: this
+    # field and mead_dead_pool_maf are both TOTAL storage (the convention
+    # every Mead quantity in this module uses); "26.1 MAF" in the name
+    # refers to the live conservation-pool depth above the dead pool, per
+    # the review's own wording.
     # The former +/-3.5 MAF annual storage-change clamp on Mead
     # ("mead_max_storage_delta_maf", a proxy for Glen Canyon buffering) is
     # RETIRED: Lake Powell storage below now does the buffering, and the
     # clamp broke mass conservation (water was created or destroyed
     # whenever it bound).
 
-    # Lake Powell storage buffer (total storage, MAF): a pass-through
-    # release clamped to [7.0, 9.0] MAF subject to storage; not the full
-    # operating rules. RE-VERIFIED 2026-09-26 against primary USBR/USGS
-    # sources (.research/powell_constants_verification_2026-09-26.md).
+    # Lake Powell storage buffer (total storage, MAF): the release itself
+    # is the storage-BALANCING rule described above min_powell_release_maf
+    # (bounded to [7.0, 9.5] MAF, not [7.0, 9.0] and not a plain
+    # pass-through -- PI decision 2026-09-28 superseded that); a
+    # simplification of the four named 2007 Interim Guidelines tiers, not
+    # the full operating rules. RE-VERIFIED 2026-09-26 against primary
+    # USBR/USGS sources (.research/powell_constants_verification_2026-09-26.md).
     # powell_capacity_maf is VERIFIED outright; the RAW inputs behind
     # powell_initial_storage_maf (live storage) and powell_evaporation_maf
     # (WY2018 evaporation) are VERIFIED, but each stored field also folds in
@@ -224,18 +282,167 @@ class WaterSystemConfig:
                 f"{self.powell_dead_pool_maf} / {self.powell_initial_storage_maf} / "
                 f"{self.powell_capacity_maf}"
             )
-        if not 0.0 <= self.powell_target_fill <= 1.0:
-            raise ValueError(f"powell_target_fill must be on [0, 1], got {self.powell_target_fill}")
         if not 0.0 < self.min_powell_release_maf <= self.max_powell_release_maf:
             raise ValueError("Powell release band must satisfy 0 < floor <= ceiling")
         if not 0.0 <= self.mead_dead_pool_maf < self.mead_capacity_maf:
             raise ValueError("Mead dead pool must be below capacity")
+        if not self.mead_dead_pool_maf < self.mead_conservation_pool_maf <= self.mead_capacity_maf:
+            raise ValueError(
+                "Mead storages must satisfy dead pool < conservation pool <= "
+                f"capacity, got {self.mead_dead_pool_maf} / "
+                f"{self.mead_conservation_pool_maf} / {self.mead_capacity_maf}"
+            )
+        # Review 2026-09-28 (fix 12): the dead-pool config field and the
+        # USBR table's dead storage must never drift apart -- a caller
+        # changing one without the other would silently make the curve and
+        # the mass balance disagree about what "empty" means.
+        if abs(self.mead_dead_pool_maf - _MEAD_DEAD_STORAGE_AF / 1e6) > 1e-9:
+            raise ValueError(
+                f"mead_dead_pool_maf ({self.mead_dead_pool_maf}) must equal "
+                f"the USBR table's dead storage ({_MEAD_DEAD_STORAGE_AF / 1e6} "
+                "MAF, data/mead_capacity_usbr2009_1ft.csv); the config and "
+                "the curve must stay in sync."
+            )
+        if self.lb_tributary_source not in ("usbr_intervening", "constant"):
+            raise ValueError(
+                "lb_tributary_source must be 'usbr_intervening' or 'constant', "
+                f"got {self.lb_tributary_source!r}"
+            )
+        if self.ub_non_farm_depletion_maf < 0.0:
+            raise ValueError(
+                f"ub_non_farm_depletion_maf must be >= 0, got {self.ub_non_farm_depletion_maf}"
+            )
+        if self.mead_evap_ref_storage_maf <= 0.0:
+            raise ValueError(
+                f"mead_evap_ref_storage_maf must be > 0, got {self.mead_evap_ref_storage_maf}"
+            )
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
 
     # Random seed
     seed: int = 42
+
+
+# ---------------------------------------------------------------------
+# v3 water-system data files (spec 2026-09-28 WP1): committed, small,
+# checksum-pinned at load. See examples/irrigation_abm/tools/build_v3_data.py
+# for how each is generated and its full source provenance.
+# ---------------------------------------------------------------------
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+HYDROLOGY_V3_PATH = os.path.join(_DATA_DIR, "hydrology_v3.csv")
+MEAD_CAPACITY_PATH = os.path.join(_DATA_DIR, "mead_capacity_usbr2009_1ft.csv")
+
+# USBR Colorado River Basin natural flow data,
+# NaturalFlows1906-2020_20221215.xlsx, sheet AnnualCYTotalNaturalFlow,
+# columns "Colorado R At Lees Ferry, AZ" and "Colorado River Below Hoover
+# Dam, AZ-NV" (retrieved 2026-09-28). 42 rows, sim_year 2019-2060 mapped to
+# calendar years 1988-2015 / 1934-1947 (Hung and Yang 2021, p. 15 of 21).
+HYDROLOGY_V3_SHA256 = "9951f2224334a859a7adbc9d55914e6505bbce38ea0424f26f10f7c8d51a04b5"
+# USBR Lake Mead Area and Capacity Tables (Tighi and Callejo, 2011,
+# 2001/2009 surveys; retrieved 2026-09-28). 335 rows, 1-ft steps, 895-1,229 ft.
+MEAD_CAPACITY_SHA256 = "7f233bd8149cc9416612991c27ed130c22842e93bbbbdd121d7716d5f8d9c8d6"
+# USBR Lake Mead Area and Capacity Tables, p. 5: "Dead storage capacity
+# (below the lowest outlet structure at elevation 895.0 feet) is
+# 2,547 KAF" -- the fixed physical constant the checked-in table's
+# "available capacity above 895 ft" column is converted to TOTAL storage
+# with. Independent of WaterSystemConfig.mead_dead_pool_maf (a config
+# field a caller could in principle mis-set); the two are expected to
+# agree, and review fix 12 (2026-09-28) made WaterSystemConfig.__post_init__
+# ENFORCE that agreement (raises if mead_dead_pool_maf drifts from this
+# constant by more than 1e-9 MAF) -- this constant itself stays a property
+# of the data file, set here rather than read from the config, since it is
+# never a runtime knob.
+_MEAD_DEAD_STORAGE_AF = 2_547_000.0
+
+
+def _sha256_checked_bytes(path: str, expected_sha256: str, label: str) -> bytes:
+    """Read ``path`` and raise if its sha256 does not match
+    ``expected_sha256`` -- a hand-edited, truncated, or stale data file
+    must never silently feed a different water system into a run."""
+    data = open(path, "rb").read()
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected_sha256:
+        raise ValueError(
+            f"{label} at {path} has sha256 {actual}, expected {expected_sha256}. "
+            "Refusing to load a water-system data file that does not match "
+            "the checksum this codebase (tests, docs, manifests) is pinned "
+            "to. Regenerate it with "
+            "examples/irrigation_abm/tools/build_v3_data.py if the change "
+            "is intentional, and update the expected constant alongside it."
+        )
+    return data
+
+
+@functools.lru_cache(maxsize=1)
+def _load_hydrology_table() -> Dict[int, Dict[str, Any]]:
+    """The committed 42-row USBR hydrology table (spec 1.1), keyed by
+    simulation year (2019-2060). Cached process-wide: the file is
+    immutable for the lifetime of one Python process, and every
+    ``IrrigationEnvironment`` reads the same rows."""
+    data = _sha256_checked_bytes(HYDROLOGY_V3_PATH, HYDROLOGY_V3_SHA256, "hydrology_v3.csv")
+    reader = csv.DictReader(data.decode("utf-8").splitlines())
+    table: Dict[int, Dict[str, Any]] = {}
+    for row in reader:
+        sim_year = int(row["sim_year"])
+        table[sim_year] = {
+            "source_calendar_year": int(row["source_calendar_year"]),
+            "lees_ferry_cy_natural_flow_af": float(row["lees_ferry_cy_natural_flow_af"]),
+            "lees_ferry_to_below_hoover_cy_intervening_af": float(
+                row["lees_ferry_to_below_hoover_cy_intervening_af"]
+            ),
+        }
+    if len(table) != 42:
+        raise ValueError(
+            f"{HYDROLOGY_V3_PATH} has {len(table)} rows after parsing, expected 42"
+        )
+    return table
+
+
+@functools.lru_cache(maxsize=1)
+def _load_mead_capacity_table() -> Tuple[np.ndarray, np.ndarray]:
+    """The committed USBR 2009 Mead area-capacity table (spec 1.4), as
+    ``(elevation_ft, storage_maf)``, both strictly ascending, ready for
+    ``np.interp``. ``storage_maf`` is TOTAL storage (available capacity
+    above 895 ft plus the 2.547 MAF dead storage below it), matching the
+    convention the rest of this module uses (dead pool is a non-zero
+    storage floor, never 0)."""
+    data = _sha256_checked_bytes(
+        MEAD_CAPACITY_PATH, MEAD_CAPACITY_SHA256, "mead_capacity_usbr2009_1ft.csv"
+    )
+    reader = csv.DictReader(data.decode("utf-8").splitlines())
+    elevations: List[float] = []
+    storages_af: List[float] = []
+    for row in reader:
+        elevations.append(float(row["elevation_ft"]))
+        storages_af.append(float(row["available_capacity_above_895ft_af"]))
+    if len(elevations) != 335:
+        raise ValueError(
+            f"{MEAD_CAPACITY_PATH} has {len(elevations)} rows after parsing, expected 335"
+        )
+    elevation_ft = np.array(elevations)
+    storage_maf = (np.array(storages_af) + _MEAD_DEAD_STORAGE_AF) / 1e6
+    if np.any(np.diff(elevation_ft) <= 0):
+        raise ValueError(f"{MEAD_CAPACITY_PATH} elevation_ft is not strictly ascending")
+    if np.any(np.diff(storage_maf) <= 0):
+        raise ValueError(f"{MEAD_CAPACITY_PATH} storage is not strictly monotone")
+    return elevation_ft, storage_maf
+
+
+@functools.lru_cache(maxsize=1)
+def _mead_area_proxy_table() -> Tuple[np.ndarray, np.ndarray]:
+    """Surface-area PROXY at each grid elevation (review 2026-09-28, fix
+    10): the local slope dStorage/dElevation (MAF per ft) of the USBR 2009
+    curve, via central differences on its 1-ft grid. The table has no
+    direct area column; for a smoothly-varying basin, incremental storage
+    per unit elevation rise is proportional to surface area at that
+    elevation, so a RATIO of this proxy at two elevations approximates the
+    same ratio of true surface areas (the proportionality constant --
+    whatever it is -- cancels). Used only by ``_mead_evaporation_maf``,
+    always as a ratio, never as an absolute area."""
+    elevation_ft, storage_maf = _load_mead_capacity_table()
+    area = np.gradient(storage_maf, elevation_ft)
+    return elevation_ft, area
 
 
 # Hung and Yang (2021) action model, used for synthetic (mock) agents that
@@ -321,17 +528,28 @@ def _set_realised_magnitude(
 class IrrigationEnvironment:
     """Water system environment for irrigation ABM experiments.
 
-    Annual two-reservoir balance at the resolution of Hung and Yang (2021):
-    Lake Powell is a storage buffer whose release is the pass-through
-    (natural flow minus Upper Basin use) clamped to [7.0, 9.0] MAF subject
-    to storage: storage tops a dry year up to 7.0 MAF, a normal year passes
-    through unchanged, and a wet year releases 9.0 MAF and keeps the excess
-    only until Powell is back at its target fill (its 2019 level); a Powell
-    at or above that passes the whole inflow through (spill above
-    capacity). Lake Mead is a storage stock whose withdrawals cannot exceed
-    the water above its dead pool plus the year's inflow. Not the full operating rules: the 2007 Interim Guidelines
-    release tiers (equalization, balancing, 7.48 / 8.23 MAF) and the Lake
-    Mead protection levels are deliberately not modelled.
+    Annual two-reservoir balance at the resolution of Hung and Yang (2021),
+    rewritten for the v3 water system (2026-09-28 spec, PI decisions
+    2026-09-28/29): natural flow is the committed USBR hydrology table's
+    value for the year (no clamp). Lake Powell releases R, planned once at
+    the 1 January snapshot from PROJECTED end-of-year contents (before
+    agents decide), to keep its and Lake Mead's end-of-year live-storage
+    fractions (storage above dead pool / live capacity) as close as
+    possible after that year's projected Lower Basin withdrawals -- a
+    simplification of the 2007 Interim Guidelines' balancing tiers (ROD
+    Section 6), bounded to the Guidelines' own Lower Elevation Balancing
+    Tier band [7.0, 9.5] MAF and never more than physically available
+    (pass-through at dead pool); excess above Powell's own capacity spills
+    into the release. Lake Mead's withdrawals cannot exceed the water above
+    its dead pool plus the year's inflow; the declared Lower Basin shortage
+    tier's volume (2007 ROD Section 2.D.1) is borne entirely by the 5.0 MAF
+    non-agricultural bucket, never by the 22 Lower Basin agricultural
+    agents' own requests. Not the full operating rules: the four named
+    2007 Interim Guidelines tiers (equalization, Upper Elevation
+    Balancing, Mid-Elevation Release, Lower Elevation Balancing) collapse
+    into this one balancing rule, and the Lake Mead protection levels are
+    deliberately not modelled. See ``_settle`` for the full derivation and
+    docs/irrigation_physics.md for the equations.
 
     Timing (one loop year, decisions at the start of the year)::
 
@@ -346,9 +564,11 @@ class IrrigationEnvironment:
                         from the frozen snapshot (idempotent); storage is
                         committed only by the next advance_year().
 
-    Constraints: Powell release floor 7.0 MAF, UB delivery capacity
-    5.0 MAF, NF clamped [6, 17] MAF, dead pools and full pools at both
-    reservoirs. Evaporation scales with storage; Mexico follows Minute 323.
+    Constraints: Powell release band [7.0, 9.5] MAF, UB delivery capacity
+    5.0 MAF, natural flow uncapped (no clamp, v3), dead pools and full
+    pools at both reservoirs. Evaporation scales with surface area
+    (a storage-elevation-curve proxy); Mexico follows Minute 323 / the
+    Binational Water Scarcity Contingency Plan.
 
     Usage::
 
@@ -366,13 +586,12 @@ class IrrigationEnvironment:
         env.settle_year()
     """
 
-    # Lake Mead elevation–storage relationship (USBR data)
-    _STORAGE_MAF = np.array(
-        [2.0, 3.6, 5.8, 8.0, 9.5, 11.0, 13.0, 17.5, 23.3, 26.1]
-    )
-    _ELEVATION_FT = np.array(
-        [895.0, 950.0, 1000.0, 1025.0, 1050.0, 1075.0, 1100.0, 1150.0, 1200.0, 1220.0]
-    )
+    # Lake Mead elevation-storage relationship: USBR 2009 area-capacity
+    # table (Tighi and Callejo, 2011), 1-ft steps from 895 to 1,229 ft,
+    # loaded and checksum-verified from data/mead_capacity_usbr2009_1ft.csv
+    # (v3, spec 1.4, L2 H4; replaces the earlier 10-point curve, which did
+    # not match this table and was non-physical between 1,000 and 1,050 ft).
+    _ELEVATION_FT, _STORAGE_MAF = _load_mead_capacity_table()
 
     def __init__(
         self,
@@ -454,8 +673,12 @@ class IrrigationEnvironment:
         # Agent-level state: agent_id → {diversion, request, water_right, basin}
         self._agents: Dict[str, Dict[str, Any]] = {}
 
-        # History for preceding factor computation
-        self._precip_history: List[float] = []
+        # History for preceding factor computation. Each entry is a dict
+        # {state_group: mm} (spec 1.6, v3); _precip_group_flags is this
+        # year's per-group strict ">" flag, keyed the same way, computed
+        # by _update_preceding_factors and read by get_agent_context.
+        self._precip_history: List[Dict[str, float]] = []
+        self._precip_group_flags: Dict[str, int] = {}
         # 1 January Lake Mead levels, one per loop year (F17 history, then
         # the 2026-09-25 supply-side redesign). Seeded with the level on
         # 1 January 2018 (1082.52 ft, the observed end-of-2017 value);
@@ -552,6 +775,10 @@ class IrrigationEnvironment:
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
                 "below_minimum_utilisation": False,
                 "cluster": p.cluster,
+                # Own sub-basin winter precipitation column (v3, spec 1.6);
+                # None for Lower Basin agents and any profile that never
+                # set it (get_agent_context falls back to the basin mean).
+                "precip_group": getattr(p, "precip_group", None),
                 # Hung and Yang (2021) action model: per-agent mu, sigma
                 # (calibrated parameters) and the step of the agent's
                 # discretised diversion grid. Profiles without a grid step
@@ -717,6 +944,19 @@ class IrrigationEnvironment:
             )
         self._crss_precip = mm
 
+        # Review 2026-09-28 (fix 2): seed _precip_history with the
+        # sim_start_year - 1 (2018) row BEFORE the first advance_year()
+        # call, so loop year 1's (2019) per-group flag compares 2019
+        # against 2018 (H&Y's own convention, spec 1.6) instead of
+        # defaulting every group to 0 for lack of a prior year on record.
+        # Only when _precip_history is still empty (this must run before
+        # any advance_year() call to mean anything; a caller that has
+        # already advanced does not get retroactively reseeded).
+        seed_year = self.config.sim_start_year - 1
+        if not self._precip_history and seed_year in mm.index:
+            groups = ("WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ")
+            self._precip_history.append({g: float(mm.loc[seed_year, g]) for g in groups})
+
     # -----------------------------------------------------------------
     # TieredEnvironmentProtocol interface
     # -----------------------------------------------------------------
@@ -820,35 +1060,91 @@ class IrrigationEnvironment:
         #    Always recomputed here (settle_year is idempotent), so a request
         #    changed after an earlier settle_year() call in the same year is
         #    still what the committed storage reflects.
+        # L2 N4 (2026-09-28): the settlement being committed here is last
+        # loop year's (self._current_year is about to be, or on the FIRST
+        # commit already was, bumped past it), so it is labelled with
+        # ``self._current_year - 1``, not whatever _current_year holds when
+        # _commit_settlement actually runs.
         if self._snapshot is not None:
-            self._commit_settlement(self.settle_year())
+            self._commit_settlement(self.settle_year(), year=self._current_year - 1)
 
-        # 2. Water signals for this year
-        precip = self._generate_precipitation()
-        natural_flow = self._natural_flow_maf(precip)
+        # 2. Water signals for this year. Natural flow no longer depends on
+        #    precipitation (v3, spec 1.1): it is the committed USBR
+        #    hydrology table's value for this simulation year, no clamp,
+        #    raising if the year is outside the table (removes the
+        #    precipitation-to-flow proxy and its [6, 17] MAF clamp, L2 H1,
+        #    D5). Precipitation survives only as Upper Basin agents' own
+        #    information (spec 1.6) and the legacy drought_index input.
+        precip_by_group = self._generate_precipitation()
+        natural_flow = self._natural_flow_for_year(self._current_year)
         mead_level = self._storage_to_elevation(self._mead_storage[-1])
         self._mead_history.append(mead_level)
 
-        # Update basin states
-        self._basins["upper_basin"]["precipitation"] = precip
+        # Legacy 7-column (WY, UT1-3, CO1-3) mean: kept ONLY as the
+        # drought_index input (spec 1.6: "no prompt, rule or metric reads"
+        # it) and as the basin-level fallback for an agent with no
+        # precip_group (synthetic/mock profiles) -- see get_agent_context.
+        legacy_cols = ("WY", "UT1", "UT2", "UT3", "CO1", "CO2", "CO3")
+        legacy_precip_mean = float(np.mean([precip_by_group.get(c, 0.0) for c in legacy_cols]))
+        self._basins["upper_basin"]["precipitation"] = legacy_precip_mean
         self._basins["lower_basin"]["lake_mead_level"] = mead_level
 
-        # Compute preceding factors
-        self._update_preceding_factors(precip, mead_level)
+        # Compute preceding factors (per-UB-group, spec 1.6; LB unchanged)
+        self._update_preceding_factors(precip_by_group, mead_level)
 
-        # Compute drought index (0 = no drought, 1 = severe)
-        self._global["drought_index"] = self._compute_drought_index(precip, mead_level)
+        # Compute drought index (0 = no drought, 1 = severe) -- legacy
+        # proxy, disclosed as unread by any prompt, rule or metric.
+        self._global["drought_index"] = self._compute_drought_index(legacy_precip_mean, mead_level)
 
         # Compute total available water with some variability
         base = self.config.upper_basin_allocation + self.config.lower_basin_allocation
         variability = 1.0 - self._global["drought_index"] * 0.3
         self._global["total_available_water"] = base * variability
 
-        # 3. Declarations from the 1 January Mead level: the Lower Basin
-        #    shortage tier (curtailment_ratio, Lower Basin agents only) and
-        #    the Minute 323 Mexico reduction.
-        self._apply_curtailment()
-        lb_cut = self._tier_curtailment_ratio(self._compute_shortage_tier())
+        # 3. Declarations from the 1 January Mead level: the tier and its
+        #    shortage VOLUME (2007 ROD, spec 1.5; replaces the flat
+        #    0/5/10/20 percent cuts). PI decision 2026-09-28: the volume
+        #    is borne entirely by the non-agricultural bucket, a fixed
+        #    computation independent of any agent's request -- _settle
+        #    derives it (and the informational curtailment_ratio) from V
+        #    directly, so no carried-request sum is needed here.
+        tier = self._compute_shortage_tier()
+        shortage_volume = self._tier_shortage_volume_maf(tier)
+        lb_tributary = self._lb_tributary_for_year(self._current_year)
+        mexico = self._mexico_delivery_maf(mead_level)
+
+        # Re-review 2026-09-29 (HIGH 1, then HIGH A round 3): the Powell
+        # release must be planned ONCE for the whole year BEFORE agents
+        # decide, exactly as the 2007 Guidelines set the annual release
+        # target from PROJECTED end-of-year contents (the 24-Month Study),
+        # not from whatever agents end up requesting. Both basins' request
+        # totals are frozen here, at each agent's CURRENT (last year's
+        # CARRIED, pre-decision) request -- see MEDIUM B: this is the
+        # carried request, NOT last year's actual receipt; WP2 resets a
+        # carried request to last year's receipt before this sum runs, so
+        # the two coincide there, but WP1 has no such reset. HIGH A: the
+        # first pass only froze the Lower Basin total, so a mid-year Upper
+        # Basin request change still moved the release (the reviewer's
+        # probe: a 15 percent Upper Basin raise after advance_year moved
+        # the release in 16 of 42 years, by up to 0.237 MAF) -- both totals
+        # are frozen now, and the release itself (not just its inputs) is
+        # computed here and stored, so _settle only ever APPLIES it.
+        # Re-review 2026-09-29 round 4 (LOW 1): the sum-with-water-right-cap
+        # formula is factored into _basin_request_projected_maf so test
+        # helpers can call the SAME method instead of re-deriving it, and
+        # cannot silently drift from what production actually does.
+        ub_request_projected_maf = self._basin_request_projected_maf(is_upper_basin=True)
+        lb_request_projected_maf = self._basin_request_projected_maf(is_upper_basin=False)
+        powell_release_planned_maf = self._plan_powell_release(
+            nf=natural_flow,
+            s_p=float(self._powell_storage),
+            s_m=float(self._mead_storage[-1]),
+            trib=lb_tributary,
+            shortage_volume=shortage_volume,
+            mexico=mexico,
+            ub_requested_maf=ub_request_projected_maf,
+            lb_requested_maf=lb_request_projected_maf,
+        )
 
         # 4. Freeze this year's 1 January snapshot, then the PROVISIONAL
         #    settlement at the carried requests: what each agent can expect
@@ -859,12 +1155,19 @@ class IrrigationEnvironment:
             "powell_storage": float(self._powell_storage),
             "mead_storage": float(self._mead_storage[-1]),
             "natural_flow": float(natural_flow),
-            "lb_cut": float(lb_cut),
-            "mexico": float(self._mexico_delivery_maf(mead_level)),
+            "lb_shortage_volume_maf": float(shortage_volume),
+            "mexico": float(mexico),
+            "lb_tributary": float(lb_tributary),
+            "lb_request_projected_maf": float(lb_request_projected_maf),
+            "powell_release_planned_maf": float(powell_release_planned_maf),
+            "calendar_year": self._calendar_year_for(self._current_year),
         }
         self._pending_settlement = None
         provisional = self._settle(self._snapshot)
         self._write_agent_deliveries(provisional)
+        # spec 1.5: curtailment_ratio is written from each settlement,
+        # provisional (here) then final (settle_year) -- see _apply_curtailment.
+        self._apply_curtailment(provisional["lb_cut"])
 
         self._global["natural_flow_maf"] = float(natural_flow)
         self._global["powell_storage_maf"] = float(self._powell_storage)
@@ -892,6 +1195,11 @@ class IrrigationEnvironment:
         agent = self._agents.get(agent_id, {})
         basin_key = agent.get("basin", "lower_basin")
         basin = self._basins.get(basin_key, {})
+        # Re-review 2026-09-29 (LOW E): computed here, BEFORE the guard
+        # call below, so the guard can check presence of the REAL
+        # per-agent sub-basin value the Upper Basin branch below actually
+        # reads, not just the basin-level legacy mean.
+        current_precip_by_group = self._precip_history[-1] if self._precip_history else {}
 
         # PR-9 coupling-retrofit (F1): with the flag ON, fail loud on a
         # genuinely missing field INSTEAD of the .get(key, 0) defaults
@@ -906,11 +1214,60 @@ class IrrigationEnvironment:
                 self._irrigation_contract,
                 agent=agent, basin_key=basin_key, basin=basin,
                 global_state=self._global,
+                precip_by_group=current_precip_by_group,
             )
             # Counted AFTER the guard returns, so the number means "calls
             # that passed", not "calls attempted" — a run that raised is
             # reported by the exception, not by this tally.
             self._coupling_guard_calls += 1
+
+        # Upper Basin own-sub-basin precipitation and flag (spec 1.6,
+        # L1-03): an agent whose profile set precip_group (every real
+        # create_profiles_from_data profile) reads ITS OWN group's value
+        # and strict ">" flag for the current year; an agent with no
+        # precip_group (synthetic/mock profiles) falls back to the
+        # basin-level legacy value (7-column mean, ">="), exactly as
+        # before this change -- so a mock run's context shape is
+        # unaffected. preceding_factor keeps its name (read by
+        # irrigation_personas.build_water_situation_text, unchanged in
+        # WP1) but now carries the per-group flag for a real UB agent,
+        # not the legacy basin mean.
+        precip_group = agent.get("precip_group")
+        if basin_key == "upper_basin" and precip_group:
+            # Review 2026-09-28 (fix 8): a SET precip_group that is not
+            # among this year's known columns is a real data-shape defect
+            # (a typo, a stale group label), not a legitimate "no group"
+            # case -- refuse to launder it into the basin-level fallback.
+            if precip_group not in current_precip_by_group:
+                raise ValueError(
+                    f"{agent_id}: precip_group={precip_group!r} is not among "
+                    f"this year's precipitation columns "
+                    f"({sorted(current_precip_by_group) or 'none loaded'}); "
+                    "refusing to silently fall back to the basin-level mean "
+                    "for an agent whose profile explicitly set a group."
+                )
+            own_precip = float(current_precip_by_group[precip_group])
+            own_precip_flag = int(self._precip_group_flags.get(precip_group, 0))
+        elif basin_key == "upper_basin":
+            # No precip_group at all (synthetic/mock profiles): the
+            # legitimate fallback to the basin-level legacy mean.
+            own_precip = basin.get("precipitation", 0)
+            own_precip_flag = int(basin.get("preceding_factor", 0))
+        else:
+            # Re-review 2026-09-29 (MEDIUM 4): the Lower Basin has no
+            # precipitation signal in this model at all -- Upper Basin
+            # winter precipitation is not even observed at a Lower Basin
+            # location (F15, irrigation_personas.py:_build_trend_text).
+            # The pre-fix code returned 0 for precipitation_mm and
+            # self._basins["lower_basin"]["preceding_factor"] (a REAL,
+            # correctly-named Lake Mead level-change flag) relabelled as
+            # "precipitation_flag" -- a fabricated reading and a real
+            # signal wearing the wrong name. That real signal is already
+            # exposed correctly below under its own "preceding_factor"
+            # key; None here says plainly that this basin has no
+            # precipitation reading, rather than manufacturing one.
+            own_precip = None
+            own_precip_flag = None
 
         return {
             # Agent state
@@ -930,14 +1287,26 @@ class IrrigationEnvironment:
             "below_minimum_utilisation": agent.get("below_minimum_utilisation", False),
             "cluster": agent.get("cluster", "unknown"),
             # Basin signals
-            "precipitation": basin.get("precipitation", 0),
+            "precipitation": own_precip,
+            "precipitation_flag": own_precip_flag,
             "lake_mead_level": basin.get("lake_mead_level", 0),
-            "preceding_factor": basin.get("preceding_factor", 0),
+            "preceding_factor": (
+                own_precip_flag if basin_key == "upper_basin" else basin.get("preceding_factor", 0)
+            ),
             # Global signals
             "year": self._current_year,
             "drought_index": self._global.get("drought_index", 0),
             "total_available_water": self._global.get("total_available_water", 0),
             "shortage_tier": self._compute_shortage_tier(),
+            # Re-review 2026-09-29 (HIGH 2): the declared tier's own
+            # shortage volume (2007 ROD Section 2.D.1: 0 / 0.333 / 0.417 /
+            # 0.500 MAF), so build_water_situation_text can state the real
+            # acre-feet cut to the non-agricultural bucket instead of
+            # implying curtailment_ratio (V / N) is applied to this
+            # agent's own delivery.
+            "lb_shortage_volume_maf": self._tier_shortage_volume_maf(
+                self._compute_shortage_tier()
+            ),
             "total_basin_demand": self._global.get("total_basin_demand", 0),
             "basin_request_over_target": self._global.get("basin_request_over_target", 0),
             "natural_flow_maf": self._global.get("natural_flow_maf", 0),
@@ -1147,17 +1516,24 @@ class IrrigationEnvironment:
     # Internal: water signal generation
     # -----------------------------------------------------------------
 
-    def _generate_precipitation(self) -> float:
-        """Generate annual winter precipitation (mm).
-
-        When real CRSS data is loaded, returns the Upper Basin average
-        (WY, UT1-3, CO1-3) for the current simulation year.  Falls back
-        to synthetic drying trend when no real data is available.
+    def _generate_precipitation(self) -> Dict[str, float]:
+        """Winter precipitation (mm) for each of the 9 Upper Basin
+        sub-basin state-groups (WY, UT1-3, NM, CO1-3, AZ; spec 1.6,
+        L1-03): AZ_UB agents read the "AZ" column. When real CRSS data is
+        loaded, returns the current simulation year's row in full.  Falls
+        back to the synthetic drying trend, replicated across all 9
+        groups, when no real data is available -- this keeps a mock run's
+        agent-facing numbers identical across groups (as they always
+        were) while giving every consumer the same dict shape either way.
+        No longer used to compute natural flow (see
+        _natural_flow_for_year); the legacy 7-column mean survives only
+        as the drought_index input (advance_year).
         """
+        groups = ("WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ")
         if self._crss_precip is not None:
-            ub_cols = ["WY", "UT1", "UT2", "UT3", "CO1", "CO2", "CO3"]
             if self._current_year in self._crss_precip.index:
-                precip = float(self._crss_precip.loc[self._current_year, ub_cols].mean())
+                row = self._crss_precip.loc[self._current_year]
+                precip = {g: float(row[g]) for g in groups}
                 self._precip_history.append(precip)
                 return precip
             # Review P2: real data was loaded but does not reach this year, so
@@ -1180,37 +1556,96 @@ class IrrigationEnvironment:
                     max(index) if len(index) else "?",
                 )
 
-        # Synthetic fallback: drying trend matching CRSS winter precip range
+        # Synthetic fallback: drying trend matching CRSS winter precip range,
+        # the SAME value in every group (a mock run has no per-sub-basin
+        # signal to differ by; this reproduces the old single-number
+        # behaviour exactly for anything that reads the legacy mean).
         base = self.config.precip_baseline_mm
         trend = -0.2 * self._year_index  # Gradual drying
         noise = self.rng.normal(0, 12)
-        precip = max(20.0, base + trend + noise)
+        value = max(20.0, base + trend + noise)
+        precip = {g: value for g in groups}
         self._precip_history.append(precip)
         return precip
 
     def _storage_to_elevation(self, storage_maf: float) -> float:
-        """Convert Lake Mead storage (MAF) to elevation (ft) via USBR curve."""
+        """Convert Lake Mead storage (MAF) to elevation (ft) via the USBR
+        2009 area-capacity curve."""
         return float(np.interp(storage_maf, self._STORAGE_MAF, self._ELEVATION_FT))
 
     def _elevation_to_storage(self, elevation_ft: float) -> float:
-        """Convert Lake Mead elevation (ft) to storage (MAF) via USBR curve."""
+        """Convert Lake Mead elevation (ft) to storage (MAF) via the USBR
+        2009 area-capacity curve."""
         return float(np.interp(elevation_ft, self._ELEVATION_FT, self._STORAGE_MAF))
 
-    def _natural_flow_maf(self, precip: float) -> float:
-        """Natural flow at Lees Ferry (MAF/yr) from Upper Basin winter
-        precipitation, clamped to the [6, 17] MAF operational range.
-        Winter precipitation is known before the irrigation season, so the
-        year's own value is used at decision time."""
-        cfg = self.config
-        natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
-        return max(6.0, min(17.0, natural_flow))
+    def _natural_flow_for_year(self, year: int) -> float:
+        """USBR calendar-year naturalized flow at Lees Ferry (MAF/yr) for
+        the historical year this simulation year is mapped to (spec 1.1;
+        Hung and Yang 2021, p. 15 of 21: 2019-2046 <- 1988-2015, 2047-2060
+        <- 1934-1947). No clamp -- replaces the precipitation-to-flow
+        proxy and its [6, 17] MAF clamp (L2 H1, D5). Raises if ``year`` is
+        outside the committed 42-row table: there is no meaningful
+        fallback for a year the source data does not cover."""
+        table = _load_hydrology_table()
+        if year not in table:
+            raise ValueError(
+                f"No USBR natural-flow row for simulation year {year} in "
+                f"{HYDROLOGY_V3_PATH} (covers {min(table)}-{max(table)}); "
+                "the irrigation v3 hydrology table has no fallback for a "
+                "year outside its 42-year range."
+            )
+        return table[year]["lees_ferry_cy_natural_flow_af"] / 1e6
+
+    def _lb_tributary_for_year(self, year: int) -> float:
+        """Lower Basin tributary inflow (MAF/yr), Lees Ferry to below
+        Hoover Dam, for this simulation year (spec 1.3, sign-off S1).
+        ``config.lb_tributary_source == "usbr_intervening"`` (default)
+        reads the hydrology table's own intervening-flow column for the
+        mapped historical year (natural, not depleted, intervening flow);
+        ``"constant"`` returns ``config.lb_tributary_maf`` unconditionally
+        (the CPU sensitivity)."""
+        if self.config.lb_tributary_source == "constant":
+            return float(self.config.lb_tributary_maf)
+        table = _load_hydrology_table()
+        if year not in table:
+            raise ValueError(
+                f"No USBR intervening-flow row for simulation year {year} in "
+                f"{HYDROLOGY_V3_PATH} (covers {min(table)}-{max(table)})."
+            )
+        return table[year]["lees_ferry_to_below_hoover_cy_intervening_af"] / 1e6
+
+    def _calendar_year_for(self, year: int) -> Optional[int]:
+        """The historical calendar year ``year`` is mapped to (spec 1.1),
+        for log columns (spec 1.7). ``None`` outside the table's range."""
+        row = _load_hydrology_table().get(year)
+        return row["source_calendar_year"] if row else None
 
     def _mexico_delivery_maf(self, mead_level: float) -> float:
-        """Treaty delivery to Mexico after the Minute 323 reductions keyed
-        to the 1 January Lake Mead level."""
+        """Treaty delivery to Mexico after the Minute 323 / Binational
+        Water Scarcity Contingency Plan (BWSCP) reductions keyed to the
+        1 January Lake Mead level (PI decision 6, 2026-09-28: adds the
+        four 5-ft bands between 1,045 and 1,025 ft the pre-v3 code
+        collapsed into one, L2 N2). Review 2026-09-28 (fix 3): each band's
+        reduction is the 70 kaf Minute 323 base reduction below 1,045 ft
+        (DOI 2022: the 104 kaf total reduction at 1,050-1,045 ft minus its
+        34 kaf BWSCP saving = 70 kaf Minute 323 base) plus that band's own
+        BWSCP saving (IBWC 2019 Joint Report, Binational Water Scarcity
+        Contingency Plan: 76 / 84 / 92 / 101 kaf for 1,045-1,040 /
+        1,040-1,035 / 1,035-1,030 / 1,030-1,025 ft), giving 146 / 154 /
+        162 / 171 kaf -- replacing the earlier single 158.5 kaf midpoint
+        (which was a stand-in pending this derivation, not a quoted
+        figure)."""
         cfg = self.config
         if mead_level < 1025:
             return cfg.mexico_treaty_maf - 0.275
+        if mead_level < 1030:
+            return cfg.mexico_treaty_maf - 0.171
+        if mead_level < 1035:
+            return cfg.mexico_treaty_maf - 0.162
+        if mead_level < 1040:
+            return cfg.mexico_treaty_maf - 0.154
+        if mead_level < 1045:
+            return cfg.mexico_treaty_maf - 0.146
         if mead_level < 1050:
             return cfg.mexico_treaty_maf - 0.104
         if mead_level < 1075:
@@ -1220,13 +1655,39 @@ class IrrigationEnvironment:
         return cfg.mexico_treaty_maf
 
     def _mead_evaporation_maf(self, storage_maf: float) -> float:
-        """Lake Mead evaporation, scaling with storage (surface-area proxy):
-        0.8 MAF at the 13 MAF reference storage (about 1,100 ft), floored at
-        evap_min_frac of that and capped at 1.5 times it (unchanged from the
-        pre-redesign mass balance)."""
+        """Lake Mead evaporation, scaling with SURFACE AREA (review
+        2026-09-28, fix 10 -- a lake evaporates from its surface, not its
+        volume, and the two are not proportional for a natural basin):
+        ``evaporation_maf`` (0.541 MAF) x A(h) / A(h_2018), where h is the
+        elevation for ``storage_maf`` and h_2018 = 1,081.46 ft (the
+        ``mead_evap_ref_storage_maf`` reference storage, the WY2018 Mead
+        condition), floored at evap_min_frac of that. A(h) is a
+        surface-area PROXY: the USBR 2009 curve has no area column, so the
+        local slope dStorage/dElevation on its 1-ft grid
+        (``_mead_area_proxy_table``) stands in for it -- proportional to
+        true surface area for a reasonably smooth basin, and exact where
+        it matters most: A(h_2018) / A(h_2018) = 1, so this function still
+        returns exactly 0.541 MAF at the calibration point (PI decision 5,
+        2026-09-28), the February 2019 24-Month Study's reported WY2018
+        Mead evaporation. Replaces the WP1 volume-ratio version
+        (storage_maf / mead_evap_ref_storage_maf), which scaled
+        evaporation with volume instead of area.
+
+        Re-review 2026-09-29 (LOW 8): the earlier ``min(1.5, frac)`` upper
+        cap on the area ratio is dropped -- no source was ever cited for
+        1.5x specifically, and near Mead's full pool the real area ratio
+        can legitimately exceed it (a wide, shallow reservoir's surface
+        area grows faster than its storage near the top); only the floor,
+        which exists to keep evaporation from vanishing entirely near the
+        dead pool, is sourced (the same shape as the Powell term)."""
         cfg = self.config
-        frac = storage_maf / 13.0
-        return cfg.evaporation_maf * max(cfg.evap_min_frac, min(1.5, frac))
+        elevation_ft = self._storage_to_elevation(storage_maf)
+        elevation_ref_ft = self._storage_to_elevation(cfg.mead_evap_ref_storage_maf)
+        area_elev, area_vals = _mead_area_proxy_table()
+        area_h = float(np.interp(elevation_ft, area_elev, area_vals))
+        area_ref = float(np.interp(elevation_ref_ft, area_elev, area_vals))
+        frac = (area_h / area_ref) if area_ref > 0 else 0.0
+        return cfg.evaporation_maf * max(cfg.evap_min_frac, frac)
 
     def _powell_evaporation_maf(self, storage_maf: float) -> float:
         """Lake Powell evaporation: powell_evaporation_maf at full pool,
@@ -1235,6 +1696,108 @@ class IrrigationEnvironment:
         cfg = self.config
         frac = storage_maf / cfg.powell_capacity_maf
         return cfg.powell_evaporation_maf * max(cfg.evap_min_frac, min(1.0, frac))
+
+    def _basin_request_projected_maf(self, is_upper_basin: bool) -> float:
+        """One basin's PROJECTED (carried, pre-decision, water-right-capped)
+        request total, in MAF -- the SAME formula ``advance_year`` freezes
+        into ``ub_request_projected_maf`` / ``lb_request_projected_maf``
+        every year, factored out here (re-review 2026-09-29 round 4, LOW
+        1) so nothing else -- test helpers included -- has to re-derive
+        it. Two call sites re-deriving this independently, even
+        approximately (the earlier test helpers summed plain
+        ``request`` with no water-right cap at all), is exactly the kind
+        of drift a shared method exists to close off."""
+        return sum(
+            max(0.0, min(float(a["request"]), float(a["water_right"])))
+            for a in self._agents.values()
+            if (a["basin"] == "upper_basin") == is_upper_basin
+        ) / 1e6
+
+    def _ub_delivery_for_planning(self, ub_requested_maf: float, nf_net: float) -> float:
+        """Upper Basin PROJECTED delivery, for Powell release planning
+        ONLY (re-review 2026-09-29, HIGH A round 3): min(requested, the
+        5.0 MAF delivery capacity, non-farm-net natural flow) -- the same
+        bound :meth:`_settle` applies to the ACTUAL delivery, evaluated
+        here at frozen planning-time inputs instead of whatever an agent's
+        live request happens to be when a particular ``_settle`` call
+        runs.
+
+        Deliberately its own helper, not inlined into
+        :meth:`_plan_powell_release`: the next commit (WP1b, per-sub-basin
+        Upper Basin supply, spec item 20) replaces this single 5.0 MAF
+        capacity formula with the sum over sub-basins of ``min(that
+        sub-basin's projected requests, its own availability A_s)`` --
+        this is the one seam that change touches; nothing else in the
+        planning method needs to know the Upper Basin has sub-basins."""
+        cfg = self.config
+        return min(ub_requested_maf, cfg.ub_infrastructure_cap_maf, nf_net)
+
+    def _plan_powell_release(
+        self,
+        nf: float,
+        s_p: float,
+        s_m: float,
+        trib: float,
+        shortage_volume: float,
+        mexico: float,
+        ub_requested_maf: float,
+        lb_requested_maf: float,
+    ) -> float:
+        """Plan the year's Powell release ONCE (re-review 2026-09-29, HIGH
+        A round 3), from PROJECTED inputs only -- never a live agent
+        request. The previous version of the storage-balancing rule
+        recomputed the release target inside :meth:`_settle` itself from
+        THAT CALL's own actual Upper Basin requests, so a mid-year Upper
+        Basin request change moved the release (the reviewer's probe: a
+        15 percent Upper Basin raise after ``advance_year`` moved the
+        release in 16 of 42 years, by up to 0.237 MAF -- the Lower Basin
+        half of this same bug was fixed in the previous round,
+        ``lb_request_projected_maf``; this closes the Upper Basin half
+        with the matching ``ub_requested_maf``).
+
+        ``nf``, ``s_p``, ``s_m``, ``trib``, ``shortage_volume`` and
+        ``mexico`` are already fixed at the 1 January snapshot regardless
+        (natural flow for the year, the two storages, the tributary
+        series, the declared tier's volume, and the Mexico schedule from
+        last year's end-of-year Mead elevation); ``ub_requested_maf`` and
+        ``lb_requested_maf`` are the carried, pre-decision request totals
+        ``advance_year`` freezes before this year's decisions run.
+
+        Returns the planned release, bounded to
+        [``min_powell_release_maf``, ``max_powell_release_maf``] and to
+        what the PROJECTED inflow and storage can physically support.
+        :meth:`_settle` applies a SECOND, independent physical cap from
+        the ACTUAL inflow and storage it is settling (which may
+        legitimately differ from the plan -- review fix HIGH A), so a
+        planned release the year turns out unable to support never
+        creates water; that physical cap is the only thing allowed to
+        move the release actually applied."""
+        cfg = self.config
+        ub_non_farm = min(nf, cfg.ub_non_farm_depletion_maf)
+        nf_net = max(0.0, nf - ub_non_farm)
+        d_u_plan = self._ub_delivery_for_planning(ub_requested_maf, nf_net)
+        inflow_plan = nf_net - d_u_plan
+        p_usable = max(0.0, s_p - cfg.powell_dead_pool_maf)
+        e_p_plan = min(self._powell_evaporation_maf(s_p), p_usable + inflow_plan)
+        available_p_plan = max(0.0, inflow_plan + p_usable - e_p_plan)
+
+        non_ag_plan = max(0.0, cfg.lb_non_ag_total_maf - shortage_volume)
+        powell_live_cap = cfg.powell_capacity_maf - cfg.powell_dead_pool_maf
+        mead_live_cap = cfg.mead_conservation_pool_maf - cfg.mead_dead_pool_maf
+        e_m_estimate = self._mead_evaporation_maf(s_m)
+        o_projected = lb_requested_maf + non_ag_plan + mexico
+        powell_live_position = s_p + inflow_plan - e_p_plan - cfg.powell_dead_pool_maf
+        mead_live_position = s_m + trib - e_m_estimate - o_projected - cfg.mead_dead_pool_maf
+        if (powell_live_cap + mead_live_cap) > 0:
+            balancing_release = (
+                mead_live_cap * powell_live_position
+                - powell_live_cap * mead_live_position
+            ) / (powell_live_cap + mead_live_cap)
+        else:
+            balancing_release = cfg.min_powell_release_maf
+        release_plan = min(max(balancing_release, cfg.min_powell_release_maf),
+                            cfg.max_powell_release_maf)
+        return min(release_plan, available_p_plan)
 
     def _settle(
         self,
@@ -1247,44 +1810,117 @@ class IrrigationEnvironment:
 
         ``snapshot`` is the frozen 1 January state (see advance_year):
         ``powell_storage``, ``mead_storage`` (total storage, MAF),
-        ``natural_flow`` (MAF), ``lb_cut`` (declared Lower Basin shortage
-        ratio, on [0, 1]) and ``mexico`` (MAF). ``requests`` maps agent id
-        to request (AF); default = every agent's current request.
+        ``natural_flow`` (MAF), ``lb_shortage_volume_maf`` (V, the
+        declared tier's 2007 ROD shortage volume, MAF), ``mexico`` (MAF),
+        ``lb_tributary`` (MAF -- REQUIRED when config.lb_tributary_source
+        is "usbr_intervening"; only the "constant" source may omit it,
+        review 2026-09-28 fix 8), ``lb_request_projected_maf`` (re-review
+        2026-09-29, HIGH 1: the Lower Basin CARRIED request total, frozen
+        by advance_year at each agent's then-current, pre-decision request
+        -- MEDIUM B: this is the carried request, not last year's actual
+        receipt; WP2 resets a carried request to last year's receipt
+        before this sum runs, so the two coincide there, but WP1 has no
+        such reset -- REQUIRED, always set by advance_year, used only in
+        :meth:`_plan_powell_release`, never the actual delivery),
+        ``powell_release_planned_maf`` (re-review 2026-09-29, HIGH A round
+        3: the Powell release, ALREADY DECIDED by
+        :meth:`_plan_powell_release` inside advance_year, from that same
+        projected Lower Basin total AND a projected Upper Basin total --
+        REQUIRED, always set by advance_year; ``_settle`` itself no longer
+        derives any release target, see step P) and ``calendar_year``
+        (passed through to the return dict for logging only). ``requests``
+        maps agent id to request (AF); default = every agent's current
+        request.
 
         Steps (MAF/yr):
 
-        U  Upper Basin. Requests r_U. Deliverable
-           D_U = min(r_U, C_UB, max(0, NF + (S_P - S_P,dead) - E_P - R_min)):
-           the 5.0 MAF delivery capacity, and what leaves Powell able to keep
-           a 7.0 MAF release from inflow plus usable storage. So a year with
-           NF below 7 does NOT zero the Upper Basin; it is cut only when
-           Powell storage cannot cover the release. Shared pro-rata.
-        P  Powell (decision 2026-09-26, option e). Inflow I = NF - D_U is
-           the pass-through. Wet year (I > R_max = 9.0): R = max(R_max,
-           min(I, S_P + I - E_P - S_target)), so the excess is kept only up to
-           the target fill (S_target = dead pool + powell_target_fill x live
-           capacity) and a Powell at or above it passes I through.
-           Normal year (R_min <= I <= R_max): R = I
-           (storage only loses evaporation). Dry year (I < R_min = 7.0):
-           R = min(R_min, I + usable storage - E_P). R never takes Powell
-           below its dead pool; storage above full pool spills into R.
-           New storage = S_P + I - E_P - R.
-        L  Lake Mead. Withdrawals O = (r_LB + N) (1 - g) + X: the declared
-           shortage cut g applies to the WHOLE Lower Basin consumptive use
-           (agricultural agents and the 5.0 MAF non-agricultural bucket N);
-           X is the Mexico delivery. Available A = (S_M - S_M,dead) + R + T
-           - E_M. When O > A every withdrawal is scaled by phi = A / O
-           (pro-rata). New storage = S_M + R + T - E_M - phi O; storage
-           above full pool spills below Hoover (logged).
+        NF_net  Upper Basin non-farm consumptive use is taken first and
+           never curtailed (spec 1.2, PI a): ub_non_farm = min(NF,
+           ub_non_farm_depletion_maf) -- the ACTUAL amount consumed,
+           never more than NF itself even in an extremely dry year
+           (review fix 12); NF_net = NF - ub_non_farm.
+        U  Upper Basin. Requests r_U. Deliverable D_U = min(r_U, C_UB,
+           NF_net): the 5.0 MAF delivery capacity and the (non-farm-net)
+           natural flow itself. PI decision 4 (2026-09-28): the Upper
+           Basin has PRIORITY and is NEVER cut to protect Powell's
+           release -- Hung and Yang's CRSS gives the Upper Basin
+           "priority access to the water until its consumption reaches
+           the sub-basin allowance" (Hung, Son and Yang 2022, p. 11).
+           ``gap_reason`` distinguishes which bound actually bound
+           (review fix 9): ``ub_natural_flow`` when NF_net < C_UB (flow
+           is the tighter constraint; the 5.0 MAF capacity never
+           mattered), ``ub_capacity`` otherwise.
+        P  Lake Powell. Inflow I = NF_net - D_U (D_U is THIS call's ACTUAL
+           Upper Basin delivery, from step U above). Evaporation E_P is
+           capped at usable storage PLUS THIS INFLOW (review fix 1: not
+           the pre-Upper-Basin NF_net -- the old cap let Powell "evaporate"
+           water the Upper Basin had already taken, which could push
+           storage below the dead pool). Release R = min(planned, I plus
+           usable storage minus E_P) -- pass-through at dead pool (review
+           fix HIGH A, 2026-09-29 round 3): the release TARGET itself is
+           no longer decided here. It was PLANNED ONCE in
+           :meth:`_plan_powell_release`, called from advance_year before
+           this year's decisions ran, from PROJECTED Upper and Lower Basin
+           request totals (not this call's own D_U/r_LB), a
+           storage-BALANCING rule (a simplification of the 2007 Interim
+           Guidelines' balancing tiers, ROD Section 6) that chooses R so
+           Powell's and Mead's end-of-year LIVE-storage fractions are as
+           close as possible AFTER that year's projected Lower Basin
+           withdrawals, bounded to [min_powell_release_maf,
+           max_powell_release_maf] = [7.0, 9.5] MAF (the Lower Elevation
+           Balancing Tier's own band, ROD p. 52) and to what the
+           PROJECTED inflow/storage can support. The FIRST re-review
+           (HIGH 1) froze only the Lower Basin projection and still let
+           this call's own ACTUAL Upper Basin delivery move the release
+           via inflow_p, so a mid-year Upper Basin request change still
+           moved it (the reviewer's probe: 16 of 42 years, up to 0.237
+           MAF) -- this round freezes the Upper Basin total too, and
+           ``_settle`` now applies ONLY a physical cap here (this call's
+           own ACTUAL inflow_p/E_P, which may legitimately differ from the
+           plan's projected values), never re-derives the target. If the
+           capped release still leaves Powell above its own capacity, the
+           excess spills into the release (reaches Mead) -- computed from
+           the ACTUAL end storage, so that physical cap may legitimately
+           move even though the plan itself does not.
+        L  Lake Mead (PI decision 2026-09-28, replacing the pro-rata-
+           across-all-Lower-Basin-use rule: the declared shortage volume
+           V (2007 ROD Section 2.D.1: 0 / 0.333 / 0.417 / 0.500 MAF by
+           tier) is borne ENTIRELY by the 5.0 MAF non-agricultural bucket
+           N -- the model's stand-in for CAP and Southern Nevada, the
+           Guidelines' actual juniors (ROD Section 2.D, p. 36-37: shortage
+           reduces Arizona and Nevada, California stays at 4.4 MAF;
+           Colorado River Compact Decree Art. II(B)(3) priority order):
+           non_ag = max(0, N - V). The 22 Lower Basin agricultural agents
+           are treated as senior mainstem or California entitlement
+           holders and are NOT reduced by the declared tier -- a
+           simplification disclosed in the docs (a few Arizona fourth-
+           priority mainstem contracts in reality share shortages with
+           CAP; all 22 are modelled as senior here). They are reduced
+           only when Lake Mead cannot physically supply all Lower Basin
+           withdrawals, same as everyone else: available A = (S_M -
+           S_M,dead) + R + T - E_M; when (r_LB + non_ag + X) > A every
+           withdrawal is scaled by phi = A / (r_LB + non_ag + X). New
+           storage = S_M + R + T - E_M - phi (r_LB + non_ag + X); storage
+           above the conservation pool (review fix 11 -- not the curve's
+           full 1,229 ft flood-control endpoint) spills below Hoover
+           (logged).
 
         Evaporation is taken on the 1 January storage and can never draw a
         reservoir below its dead pool. Conservation, checked by the tests:
-        dS_P + dS_M = NF + T - D_U - E_P - E_M - phi O - spill_M.
+        dS_P + dS_M = NF - ub_non_farm + T - D_U - E_P - E_M
+        - phi (r_LB + non_ag + X) - spill_M.
 
-        Each agent's ``gap_reason`` names the binding limit, as a code the
-        prompt and memory text turn into a sentence: ``none``, ``ub_capacity``, ``ub_powell_release``,
-        ``lb_shortage_tier``, ``lb_mead_availability`` or
-        ``lb_shortage_tier+lb_mead_availability``.
+        Each agent's ``gap_reason`` names the binding limit: Upper Basin
+        ``none``, ``ub_natural_flow`` or ``ub_capacity``; Lower Basin
+        (agricultural) ``none`` or ``lb_mead_availability`` only --
+        ``lb_shortage_tier`` no longer occurs for an agricultural agent
+        (PI decision 2026-09-28: the declared tier no longer reduces
+        their own delivery), and ``ub_powell_release`` no longer occurs
+        either (PI decision 4). The declared tier stays visible as
+        INFORMATION via ``curtailment_ratio`` (written by
+        ``_apply_curtailment`` from this method's ``lb_cut`` output, V/N,
+        the share of the non-agricultural bucket the tier removed -- NOT
+        a ratio applied to agricultural deliveries).
         """
         cfg = self.config
         if requests is None:
@@ -1303,81 +1939,114 @@ class IrrigationEnvironment:
         nf = snapshot["natural_flow"]
         s_p = snapshot["powell_storage"]
         s_m = snapshot["mead_storage"]
-        g = snapshot["lb_cut"]
+        # Re-review 2026-09-29 (LOW 6): direct index, not .get(..., 0.0) --
+        # a missing shortage volume is a real defect in the caller's
+        # snapshot, not a legitimate "no shortage" case to guess at.
+        shortage_volume = snapshot["lb_shortage_volume_maf"]
         mexico = snapshot["mexico"]
+        # Review 2026-09-28 (fix 8): no silent fallback -- the constant is
+        # a legitimate substitute only when the config itself says
+        # "constant"; a real (usbr_intervening) run's snapshot must carry
+        # its own value (advance_year always sets it).
+        if "lb_tributary" in snapshot:
+            trib = snapshot["lb_tributary"]
+        elif cfg.lb_tributary_source == "constant":
+            trib = cfg.lb_tributary_maf
+        else:
+            raise ValueError(
+                "_settle: snapshot has no 'lb_tributary' and "
+                "config.lb_tributary_source is 'usbr_intervening' -- "
+                "refusing to silently substitute the constant fallback "
+                "for a real run's missing tributary value. Pass "
+                "lb_tributary explicitly (advance_year always does), or "
+                "set lb_tributary_source='constant' if a constant is "
+                "intended."
+            )
 
-        # --- U + P: Upper Basin and Lake Powell ---
-        p_usable = max(0.0, s_p - cfg.powell_dead_pool_maf)
-        e_p = min(self._powell_evaporation_maf(s_p), p_usable + nf)
-        ub_room = max(0.0, nf + p_usable - e_p - cfg.min_powell_release_maf)
-        # Upper Basin use is upstream of Powell, so it can never exceed the
-        # natural flow itself (never binding with the defaults: NF >= 6.0 >
-        # the 5.0 MAF delivery capacity).
-        d_u = min(r_ub, cfg.ub_infrastructure_cap_maf, ub_room, nf)
+        # Upper Basin non-farm consumptive use, taken first (spec 1.2);
+        # review fix 12: the ACTUAL amount, never more than NF itself.
+        ub_non_farm = min(nf, cfg.ub_non_farm_depletion_maf)
+        nf_net = max(0.0, nf - ub_non_farm)
+
+        # --- U: Upper Basin (priority, PI decision 4) ---
+        d_u = min(r_ub, cfg.ub_infrastructure_cap_maf, nf_net)
         if d_u >= r_ub:
             ub_reason = "none"
-        elif ub_room < min(cfg.ub_infrastructure_cap_maf, nf):
-            ub_reason = "ub_powell_release"
+        elif nf_net < cfg.ub_infrastructure_cap_maf:
+            # Review fix 9: natural flow (net of non-farm use), not the
+            # 5.0 MAF capacity, is the tighter constraint -- the capacity
+            # never bound.
+            ub_reason = "ub_natural_flow"
         else:
-            # Delivery capacity, or (never with the defaults) the natural
-            # flow itself: either way, no more can be diverted upstream.
             ub_reason = "ub_capacity"
-        inflow_p = nf - d_u
-        # Pass-through release clamped to [7.0, 9.0] MAF subject to storage
-        # (decision 2026-09-26, options d and e): a normal year passes its inflow
-        # straight to Mead, as the pre-redesign physics did; a dry year is
-        # topped up from storage to 7.0 (or what is available); a wet year
-        # releases 9.0 and keeps the excess up to the target fill (option e).
-        # Evaporation comes out of storage, so storage declines by it in a
-        # pass-through year; the release is also capped by what can leave
-        # without taking Powell below its dead pool.
-        pass_through = inflow_p
-        available_p = max(0.0, pass_through + p_usable - e_p)
-        if pass_through > cfg.max_powell_release_maf:
-            # Wet year (option e): keep the excess over the 9.0 MAF ceiling
-            # only up to the target fill (total storage at that live
-            # fraction); a Powell already at or above the target after
-            # evaporation passes the whole inflow through.
-            target_p = cfg.powell_dead_pool_maf + cfg.powell_target_fill * (
-                cfg.powell_capacity_maf - cfg.powell_dead_pool_maf)
-            release = max(cfg.max_powell_release_maf,
-                          min(pass_through, s_p + pass_through - e_p - target_p))
-            release = min(release, available_p)
-        elif pass_through >= cfg.min_powell_release_maf:
-            release = min(pass_through, available_p)
-        else:
-            release = min(cfg.min_powell_release_maf, available_p)
+        inflow_p = nf_net - d_u
+
+        # PI decision 2026-09-28: the declared shortage volume V is borne
+        # entirely by the non-agricultural bucket; computed here (needs
+        # only the ALREADY-frozen shortage_volume, not any per-call
+        # request) so the actual Lake Mead settlement further down has it.
+        non_ag = max(0.0, cfg.lb_non_ag_total_maf - shortage_volume)
+
+        # --- P: Lake Powell (apply the PRE-PLANNED release) ---
+        # Re-review 2026-09-29 (HIGH A round 3): the release target itself
+        # is no longer computed here at all -- it was PLANNED ONCE in
+        # advance_year (_plan_powell_release), from projected inputs,
+        # before this year's decisions ran. The first HIGH-1 fix froze
+        # only the Lower Basin side of the projection and left the Upper
+        # Basin's actual (live) delivery (d_u, above) feeding into
+        # inflow_p, so the release still moved whenever a decision changed
+        # an Upper Basin request mid-year (the reviewer's probe: 16 of 42
+        # years, up to 0.237 MAF). _settle now applies ONLY the physical
+        # cap, from THIS call's own actual inflow_p/e_p (which may
+        # legitimately differ from the plan's projected values) -- that
+        # physical cap, not the release target, is the only thing allowed
+        # to move the release actually delivered.
+        p_usable = max(0.0, s_p - cfg.powell_dead_pool_maf)
+        # Review fix 1: capped at usable storage plus THIS YEAR'S INFLOW
+        # (post-Upper-Basin), not the pre-Upper-Basin nf_net.
+        e_p = min(self._powell_evaporation_maf(s_p), p_usable + inflow_p)
+        available_p = max(0.0, inflow_p + p_usable - e_p)
+        release = min(snapshot["powell_release_planned_maf"], available_p)
+
         s_p_end = s_p + inflow_p - e_p - release
-        # Storage above capacity (a wet year's retained excess, or a year that
-        # starts above capacity) spills into the release.
+        # If the bounded release still leaves Powell above its own
+        # capacity (a very wet year, or a snapshot already above
+        # capacity), the excess spills into the release, reaching Mead.
         powell_spill = max(0.0, s_p_end - cfg.powell_capacity_maf)
         release += powell_spill
         s_p_end -= powell_spill
 
         # --- L: Lake Mead ---
-        trib = cfg.lb_tributary_maf
         m_usable = max(0.0, s_m - cfg.mead_dead_pool_maf)
         e_m = min(self._mead_evaporation_maf(s_m), m_usable + release + trib)
-        lb_ag = r_lb * (1.0 - g)
-        non_ag = cfg.lb_non_ag_total_maf * (1.0 - g)
-        outflow = lb_ag + non_ag + mexico
+        # non_ag (the 22 agricultural agents are senior and cut only by
+        # physical availability) was already computed above, from the
+        # ALREADY-frozen shortage_volume -- reused here unchanged, and
+        # combined with the REAL (not projected) r_lb, since this is the
+        # actual delivery this settlement call is computing, not the
+        # release-planning projection.
+        outflow = r_lb + non_ag + mexico
         available = max(0.0, m_usable + release + trib - e_m)
         phi = 1.0 if (outflow <= 0 or outflow <= available) else available / outflow
         s_m_end = s_m + release + trib - e_m - phi * outflow
-        mead_spill = max(0.0, s_m_end - cfg.mead_capacity_maf)
+        mead_spill = max(0.0, s_m_end - cfg.mead_conservation_pool_maf)
         s_m_end -= mead_spill
 
-        if g > 0 and phi < 1.0:
-            lb_reason = "lb_shortage_tier+lb_mead_availability"
-        elif phi < 1.0:
-            lb_reason = "lb_mead_availability"
-        elif g > 0:
-            lb_reason = "lb_shortage_tier"
-        else:
-            lb_reason = "none"
+        lb_reason = "lb_mead_availability" if phi < 1.0 else "none"
+        # Informational only (the declared tier stays visible without
+        # implying it was applied to agricultural deliveries): the share
+        # of the non-agricultural bucket the tier removed. Feeds
+        # curtailment_ratio (_apply_curtailment) and the
+        # supply_gap_block_increase / curtailment_awareness_check
+        # governance skip condition (unchanged: nonzero exactly when a
+        # tier > 0 is declared).
+        g_informational = (
+            shortage_volume / cfg.lb_non_ag_total_maf
+            if cfg.lb_non_ag_total_maf > 0 else 0.0
+        )
 
         ub_ratio = (d_u / r_ub) if r_ub > 0 else 1.0
-        lb_ratio = (1.0 - g) * phi
+        lb_ratio = phi
         agents: Dict[str, Dict[str, Any]] = {}
         for aid in ub_ids:
             agents[aid] = {
@@ -1394,16 +2063,18 @@ class IrrigationEnvironment:
                 "gap_reason": lb_reason,
             }
 
-        return {
+        result = {
             "agents": agents,
             "natural_flow_maf": nf,
+            "ub_non_farm_maf": ub_non_farm,
             "ub_request_maf": r_ub,
             "ub_delivered_maf": d_u,
             "lb_request_maf": r_lb,
-            "lb_delivered_maf": lb_ag * phi,
+            "lb_delivered_maf": r_lb * phi,
             "lb_non_ag_delivered_maf": non_ag * phi,
             "mexico_delivered_maf": mexico * phi,
-            "lb_cut": g,
+            "lb_cut": g_informational,
+            "lb_shortage_volume_maf": shortage_volume,
             "lb_phys_ratio": phi,
             "powell_storage_maf": s_p,
             "powell_storage_end_maf": s_p_end,
@@ -1416,6 +2087,9 @@ class IrrigationEnvironment:
             "mead_spill_maf": mead_spill,
             "lb_tributary_maf": trib,
         }
+        if snapshot.get("calendar_year") is not None:
+            result["calendar_year"] = snapshot["calendar_year"]
+        return result
 
     def _write_agent_deliveries(self, settlement: Dict[str, Any]) -> None:
         """Write a settlement's per-agent delivery onto the agent dicts
@@ -1450,6 +2124,11 @@ class IrrigationEnvironment:
         settlement = self._settle(self._snapshot)
         settlement["year"] = self._current_year
         self._write_agent_deliveries(settlement)
+        # spec 1.5: curtailment_ratio is written from each settlement,
+        # provisional (advance_year) then final (here) -- g itself never
+        # changes within a year (frozen at the 1 January snapshot), so
+        # this re-asserts the same value rather than changing it.
+        self._apply_curtailment(settlement["lb_cut"])
         self._pending_settlement = settlement
         return settlement
 
@@ -1458,8 +2137,20 @@ class IrrigationEnvironment:
         older call sites and tests keep working)."""
         self.settle_year()
 
-    def _commit_settlement(self, settlement: Dict[str, Any]) -> None:
-        """End-of-year storages become the next 1 January storages."""
+    def _commit_settlement(self, settlement: Dict[str, Any], year: Optional[int] = None) -> None:
+        """End-of-year storages become the next 1 January storages.
+
+        ``year`` (L2 N4, 2026-09-28) labels the committed record with the
+        loop year it actually settles. Without it, ``advance_year`` used
+        to call this with ``self._current_year`` already bumped to the
+        NEXT loop year, so the committed settlement for year t carried the
+        label t+1 -- harmless (no consumer read the mislabeled field) but
+        wrong. Left ``None`` (any external caller) keeps that historical,
+        mislabeled behaviour rather than guessing a year that may not be
+        the caller's intent."""
+        if year is not None:
+            settlement = dict(settlement)
+            settlement["year"] = year
         self._powell_storage = float(settlement["powell_storage_end_maf"])
         self._mead_storage.append(float(settlement["mead_storage_end_maf"]))
         self._settlement_history.append(settlement)
@@ -1473,16 +2164,38 @@ class IrrigationEnvironment:
             return self._pending_settlement
         return self._settlement_history[-1] if self._settlement_history else None
 
-    def _update_preceding_factors(self, precip: float, mead_level: float) -> None:
+    def _update_preceding_factors(self, precip: Dict[str, float], mead_level: float) -> None:
         """Compute binary preceding factors from signal changes.
 
-        UB preceding factor: 1 if precipitation increased, 0 otherwise
-        LB preceding factor: 1 if Lake Mead level increased, 0 otherwise
+        Upper Basin (spec 1.6, L1-03): a PER-STATE-GROUP flag,
+        ``self._precip_group_flags[g] = int(P_g(t) > P_g(t-1))`` -- H&Y's
+        strict ">" (Hung and Yang 2021, code: ``d_f > 0``) -- read by
+        ``get_agent_context`` for any agent whose ``precip_group`` is set.
+        ``self._basins["upper_basin"]["preceding_factor"]`` keeps the
+        LEGACY 7-column-mean, ">=" comparison this field used before v3:
+        it is the fallback for an agent with no ``precip_group``
+        (synthetic/mock profiles) and what the coupling contract's
+        presence check reads (``irrigation_coupling.py``, not touched by
+        WP1); nothing else reads it once every real profile carries a
+        ``precip_group``. ``precip`` (this year's per-group dict) is not
+        itself used below -- as before this change, the comparison reads
+        ``self._precip_history``, which ``_generate_precipitation``
+        already appended ``precip`` onto.
+
+        Lower Basin: unchanged, 1 January Lake Mead level, ">=".
         """
-        # Upper Basin: precipitation change
         if len(self._precip_history) >= 2:
-            ub_pf = int(self._precip_history[-1] >= self._precip_history[-2])
+            prev, curr = self._precip_history[-2], self._precip_history[-1]
+            self._precip_group_flags = {
+                g: int(curr.get(g, 0.0) > prev.get(g, 0.0)) for g in curr
+            }
+            legacy_cols = ("WY", "UT1", "UT2", "UT3", "CO1", "CO2", "CO3")
+            legacy_prev = float(np.mean([prev.get(c, 0.0) for c in legacy_cols]))
+            legacy_curr = float(np.mean([curr.get(c, 0.0) for c in legacy_cols]))
+            ub_pf = int(legacy_curr >= legacy_prev)
         else:
+            curr = self._precip_history[-1] if self._precip_history else {}
+            self._precip_group_flags = {g: 0 for g in curr}
             ub_pf = 0
         self._basins["upper_basin"]["preceding_factor"] = ub_pf
 
@@ -1540,17 +2253,46 @@ class IrrigationEnvironment:
             return 3
 
     @staticmethod
-    def _tier_curtailment_ratio(tier: int) -> float:
-        """Lower Basin reduction by declared shortage tier (Colorado River
-        Interim Guidelines, simplified): 0 / 5 / 10 / 20 percent."""
-        return {0: 0.0, 1: 0.05, 2: 0.10, 3: 0.20}.get(tier, 0.0)
+    def _tier_shortage_volume_maf(tier: int) -> float:
+        """Lower Basin shortage volume by declared tier (2007 Interim
+        Guidelines Record of Decision, Section 2.D.1, p. 36): 0 / 0.333 /
+        0.417 / 0.500 MAF for tiers 0-3 (PI decision (f), 2026-09-28;
+        replaces the earlier flat 0/5/10/20 percent cuts,
+        ``_tier_curtailment_ratio``). PI decision 2026-09-28: borne
+        entirely by the 5.0 MAF non-agricultural bucket N (not shared
+        pro rata across agricultural use), in ``_settle``: non_ag =
+        max(0, N - V).
 
-    def _apply_curtailment(self) -> None:
-        """Record the declared shortage on each agent: the tier's ratio for
-        Lower Basin agents, 0 for Upper Basin agents (the Interim Guidelines
-        and DCP shortage tiers bind Lower Basin users only). The deliveries
-        themselves are computed by :meth:`_settle`."""
-        ratio = self._tier_curtailment_ratio(self._compute_shortage_tier())
+        Re-review 2026-09-29 (LOW 6): direct index, not ``.get(tier, 0.0)``
+        -- ``_compute_shortage_tier`` only ever returns 0-3, so any other
+        value reaching here is a real caller defect, not a legitimate
+        "no shortage" case to guess at."""
+        return {0: 0.0, 1: 0.333, 2: 0.417, 3: 0.500}[tier]
+
+    def _apply_curtailment(self, ratio: Optional[float] = None) -> None:
+        """Record the declared shortage's INFORMATIONAL ratio on each
+        Lower Basin agent (0 for Upper Basin -- the 2007 Interim
+        Guidelines shortage volumes bind Lower Basin users only). PI
+        decision 2026-09-28: this ratio is V / N (the share of the 5.0
+        MAF non-agricultural bucket the declared tier removed), NOT a
+        ratio applied to agricultural deliveries -- agricultural agents
+        are reduced only by physical Mead availability (:meth:`_settle`'s
+        ``phi``). Kept as an agent-visible signal (e.g. the
+        ``supply_gap_block_increase`` / ``curtailment_awareness_check``
+        governance skip condition reads it to know a tier is declared)
+        without implying it was multiplied into their own delivery.
+
+        ``ratio`` is normally :meth:`_settle`'s own ``lb_cut`` output;
+        ``advance_year`` and ``settle_year`` always pass it explicitly.
+        Left as ``None`` (a caller with no snapshot -- e.g. a test that
+        pokes the 1 January Mead level directly) it is recomputed here
+        from the CURRENT declared tier, reproducing the pre-v3
+        zero-argument convenience call."""
+        if ratio is None:
+            tier = self._compute_shortage_tier()
+            volume = self._tier_shortage_volume_maf(tier)
+            n = self.config.lb_non_ag_total_maf
+            ratio = volume / n if n > 0 else 0.0
         for agent in self._agents.values():
             agent["curtailment_ratio"] = (
                 0.0 if agent["basin"] == "upper_basin" else ratio
@@ -1597,6 +2339,14 @@ class IrrigationEnvironment:
         though all fifteen were range-guarded (review P1-c).
         ``coupling_guard_calls`` separates intent from evidence - flag true
         with zero calls is a run the guard never touched.
+
+        Review 2026-09-28 (fix 12, "record lb_tributary_source and both
+        data sha256 values in the manifest"): ``water_system_*`` keys ride
+        along on this SAME hook because it is the one
+        ``_collect_reproducibility_metadata`` already reads unconditionally
+        (unlike ``get_provenance``, only populated when ``--coupling`` is
+        enabled) -- they are general water-system provenance, not part of
+        the coupling-retrofit guard this method is otherwise about.
         """
         from examples.irrigation_abm.irrigation_coupling import (
             IRRIGATION_CONTEXT_UNCOVERED_KEYS,
@@ -1607,6 +2357,9 @@ class IrrigationEnvironment:
             "coupling_contract_fields": irrigation_contract_field_checks(),
             "coupling_contract_uncovered_keys": list(IRRIGATION_CONTEXT_UNCOVERED_KEYS),
             "coupling_guard_calls": self._coupling_guard_calls,
+            "water_system_lb_tributary_source": self.config.lb_tributary_source,
+            "water_system_hydrology_v3_sha256": HYDROLOGY_V3_SHA256,
+            "water_system_mead_capacity_sha256": MEAD_CAPACITY_SHA256,
         }
 
     @property

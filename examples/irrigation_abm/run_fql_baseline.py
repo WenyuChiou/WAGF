@@ -569,6 +569,14 @@ def run_simulation(
                     "basin": ctx.get("basin", "unknown"),
                     "total_basin_demand": ctx.get("total_basin_demand", 0),
                     "loop_year": year_idx,
+                    # Re-review 2026-09-29 round 4 (LOW 2 follow-on): without
+                    # this, curtailment_awareness_check's now-direct-indexed
+                    # lb_shortage_volume_maf read raises KeyError the first
+                    # time a governed FQL run declares any shortage tier.
+                    # get_agent_context always supplies the key, so index it
+                    # directly: a missing key must raise, not log a 0 acre-ft
+                    # cut (same rule as run_experiment.py pre_year).
+                    "lb_shortage_volume_maf": ctx["lb_shortage_volume_maf"],
                 }
                 was_valid, final_skill = validate_skill(raw_skill, val_context)
                 was_blocked = (final_skill != raw_skill)
@@ -630,6 +638,10 @@ def run_simulation(
         # ── Logging (same schema as the LLM run; see build_simulation_log_row) ──
         for aid, dec in year_decisions.items():
             agent_state = env.get_agent_state(aid)
+            # Review 2026-09-28 (fix 5): same as run_experiment.py's
+            # post_year -- the agent's own precipitation/flag for the
+            # year, frozen since advance_year(), for the log columns.
+            agent_context = env.get_agent_context(aid)
             row = build_simulation_log_row(
                 agent_id=aid,
                 year=year_idx,
@@ -652,6 +664,8 @@ def run_simulation(
                 magnitude_fallback=False,
                 is_exploration=dec["is_exploration"],
                 memory="FQL_BASELINE",
+                precipitation_mm=agent_context.get("precipitation"),
+                precipitation_flag=agent_context.get("precipitation_flag"),
             )
             # FQL-only columns, appended after the full LLM column set.
             row["fql_raw_skill"] = dec["raw_skill"]
@@ -966,6 +980,14 @@ def main():
     # Save simulation log
     if logs:
         df = pd.DataFrame(logs)
+        if "precipitation_flag" in df.columns:
+            # Re-review 2026-09-29 (NIT): a mix of int 0/1 (Upper Basin)
+            # and None (Lower Basin, MEDIUM 4) upcasts a plain int column
+            # to float64, rendering "1.0"/"0.0" in the CSV instead of
+            # "1"/"0". pandas' nullable Int64 dtype keeps real values as
+            # ints and a missing one blank, matching precipitation_mm's
+            # own blank-for-missing behavior.
+            df["precipitation_flag"] = df["precipitation_flag"].astype("Int64")
         csv_path = output_dir / "simulation_log.csv"
         df.to_csv(csv_path, index=False, encoding="utf-8")
         print(f"\n[Output] Saved {len(logs)} rows to {csv_path}")

@@ -18,7 +18,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from examples.irrigation_abm.irrigation_env import CRSS_DEMAND_TARGET_AF
+from examples.irrigation_abm.irrigation_env import (
+    CRSS_DEMAND_TARGET_AF,
+    SYNTHETIC_HY_MU,
+    SYNTHETIC_HY_SIGMA,
+    hy_threshold_af,
+)
 
 
 @dataclass
@@ -91,6 +96,17 @@ class IrrigationAgentProfile:
     # go through create_profiles_from_data (grid_top_af is also None
     # for those; --fql-init calibrated is not meaningful without both).
     div_states_grid: Optional[np.ndarray] = None
+
+    # Upper Basin agents' own sub-basin winter precipitation column in
+    # PrismWinterPrecip_ST_NOAA_Future.csv (v3, spec 1.6, L1-03): one of
+    # WY, UT1, UT2, UT3, NM, CO1, CO2, CO3, AZ (AZ_UB agents read "AZ" --
+    # see _UB_HIST_COLUMN_BY_GROUP, the same mapping
+    # actual_2018_diversion's historical column already uses). None for
+    # Lower Basin agents (their own information is Lake Mead's elevation,
+    # unaffected) and for profiles built outside create_profiles_from_data
+    # (synthetic/mock), which fall back to the basin-level legacy mean in
+    # IrrigationEnvironment.get_agent_context.
+    precip_group: Optional[str] = None
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -222,15 +238,20 @@ def build_narrative_persona(
 # settlement's gap_reason code into the phrase every message uses (situation
 # text, the supply-gap and shortage rule messages, the yearly memory line),
 # so the stated reason cannot drift between texts.
-_TIER_BY_CUT = {0.05: 1, 0.10: 2, 0.20: 3}
 
 
 def _tier_from_state(state: Dict[str, Any]) -> int:
+    """The declared tier, from ``shortage_tier`` only. Review 2026-09-28
+    (fix 12): the earlier ``curtailment_ratio``-based fallback
+    (``_TIER_BY_CUT``, keyed on the pre-v3 flat 0.05/0.10/0.20 cuts) is
+    deleted -- ``curtailment_ratio`` is now V / N (PI decision
+    2026-09-28), a different number that never matched those keys anyway
+    once V stopped being a flat percentage. No silent fallback: a caller
+    with no ``shortage_tier`` gets 0 (unknown), not a guess."""
     tier = state.get("shortage_tier")
     if isinstance(tier, (int, float)) and tier > 0:
         return int(tier)
-    cut = round(float(state.get("curtailment_ratio", 0) or 0), 2)
-    return _TIER_BY_CUT.get(cut, 0)
+    return 0
 
 
 def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
@@ -247,23 +268,34 @@ def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
         return ""
     parts = []
     for c in code.split("+"):
-        if c == "ub_capacity":
+        if c == "ub_natural_flow":
+            # Review 2026-09-28 (fix 9): this year's (non-farm-net)
+            # natural flow, not the 5.0 MAF delivery capacity, was the
+            # binding constraint -- never name a limit that did not bind.
+            parts.append("Upper Basin deliveries are limited by this year's natural flow "
+                         "(net of Upper Basin non-farm use), shared pro-rata")
+        elif c == "ub_capacity":
             cap = float(agent_state.get("ub_capacity_maf", 5.0) or 5.0)
             parts.append(f"Upper Basin deliveries are limited to the {cap:.1f} million "
                          f"acre-ft delivery capacity, shared pro-rata")
         elif c == "ub_powell_release":
+            # No longer produced by IrrigationEnvironment._settle (PI
+            # decision 4, 2026-09-28); kept so a state dict built before
+            # that change still renders something rather than nothing.
             parts.append("Upper Basin deliveries were reduced pro-rata so Lake Powell can "
                          "make its minimum release to Lake Mead")
-        elif c == "lb_shortage_tier":
-            cut = float(agent_state.get("curtailment_ratio", 0) or 0)
-            tier = _tier_from_state(agent_state)
-            tier_text = f"Tier {tier} " if tier else ""
-            parts.append(f"the {tier_text}Lower Basin shortage reduces Lower Basin "
-                         f"deliveries by {cut:.0%}")
         elif c == "lb_mead_availability":
             parts.append("Lake Mead cannot meet all Lower Basin withdrawals this year "
                          "without falling below its minimum pool, so all Lower Basin "
                          "deliveries are reduced pro-rata")
+        # "lb_shortage_tier" is intentionally NOT handled: PI decision
+        # 2026-09-28 has the declared shortage volume borne entirely by
+        # the Lower Basin non-agricultural bucket, never by an
+        # agricultural agent's own delivery, so IrrigationEnvironment.
+        # _settle no longer produces this code for any agent. The
+        # declared tier stays visible as information (shortage_tier,
+        # curtailment_ratio = V / N) without implying it reduced this
+        # agent's own delivery.
     if not parts:
         return ""
     return "because " + " and ".join(parts)
@@ -296,8 +328,14 @@ def build_water_situation_text(
     drought = env_context.get("drought_index", 0)
     precip = env_context.get("precipitation", 0)
     mead = env_context.get("lake_mead_level", 0)
-    curtailment = env_context.get("curtailment_ratio", 0)
     shortage_tier = env_context.get("shortage_tier", 0)
+    # Re-review 2026-09-29 (LOW D): no eager default here -- a Lower Basin
+    # context with a declared tier and no lb_shortage_volume_maf is a real
+    # data-shape defect (checked, and raised, at the actual point of use
+    # below); an Upper Basin context never reads this value at all
+    # (the sentence it feeds is Lower-Basin-only), so it must not raise
+    # for a missing key that basin was never going to use.
+    shortage_volume_maf = env_context.get("lb_shortage_volume_maf")
     current_req = env_context.get("current_request", 0)
     expected = env_context.get("current_diversion", 0)
     ratio = env_context.get("delivery_ratio", 1.0)
@@ -397,9 +435,32 @@ def build_water_situation_text(
             f"({'rising' if env_context.get('preceding_factor', 0) else 'declining'} from last year)."
         )
         if shortage_tier > 0:
+            # Re-review 2026-09-29 (LOW D): a declared tier with no
+            # lb_shortage_volume_maf reaching this point is a real
+            # data-shape defect (get_agent_context should always set it
+            # once a tier is declared) -- raise here, at the actual point
+            # of use, rather than silently reporting a fabricated 0
+            # acre-ft cut for a real declared shortage.
+            if shortage_volume_maf is None:
+                raise ValueError(
+                    f"build_water_situation_text: shortage_tier={shortage_tier} "
+                    "is declared but 'lb_shortage_volume_maf' is missing "
+                    "from env_context; refusing to silently report a "
+                    "fabricated 0 acre-ft cut."
+                )
+            # Re-review 2026-09-29 (HIGH 2): the declared tier's volume is
+            # borne entirely by the non-agricultural bucket (Arizona and
+            # Nevada's stand-in), never by this (agricultural) agent's own
+            # delivery -- the old wording claimed a flat reduction that no
+            # longer happens under the PI decision. curtailment_ratio (V/N)
+            # is informational only; the real acre-feet cut is
+            # lb_shortage_volume_maf x 1e6.
             lines.append(
                 f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
-                f"shortage: Lower Basin deliveries are reduced by {curtailment:.0%}."
+                f"shortage: this cuts non-agricultural Lower Basin deliveries "
+                f"(Arizona and Nevada) by {shortage_volume_maf * 1e6:,.0f} acre-ft. "
+                f"Your own delivery is reduced only if Lake Mead cannot physically "
+                f"supply all Lower Basin withdrawals this year."
             )
         else:
             lines.append("No Lower Basin shortage has been declared for this year.")
@@ -647,6 +708,9 @@ def build_simulation_log_row(
     magnitude_fallback: bool = False,
     is_exploration: bool = False,
     memory: str = "",
+    base_af: Optional[float] = None,
+    precipitation_mm: Optional[float] = None,
+    precipitation_flag: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Build one per-agent-year ``simulation_log.csv`` row.
 
@@ -676,6 +740,29 @@ def build_simulation_log_row(
       * 1e6``), not the provisional total ``advance_year()`` published to
       the prompts/FQL state at the start of the year.
 
+    v3 (spec 1.7, WP1) log columns. ``ub_non_farm_maf``, ``lb_tributary_maf``,
+    ``powell_evap_maf``, ``mead_evap_maf``, ``powell_spill_maf``,
+    ``mead_spill_maf``, ``lb_delivered_maf``, ``lb_non_ag_delivered_maf``,
+    ``mexico_delivered_maf`` and ``lb_shortage_volume_maf`` all come
+    straight from ``settlement`` (``IrrigationEnvironment._settle``
+    already returns them); ``calendar_year`` likewise, when the snapshot
+    that produced ``settlement`` carried one (real ``advance_year()`` runs
+    always do; a hand-built settlement in an older test may not, and gets
+    ``None``). ``step_bin_af`` / ``typical_step_af`` are computed here from
+    ``agent_state``'s own ``bin_size_af`` / ``mu`` / ``sigma`` (already
+    stored per agent; ``hy_threshold_af`` is the exact WP2 spec 2.5
+    formula, ``(max(0, mu) + 0.6745 sigma) x bin_size_af`` -- WP1 only
+    logs it, WP2 renders it to the agent). ``base_af`` (the WP2 "step
+    base": the agent's request as of the last COMMITTED settlement, before
+    this year's decision) has no tracked value yet -- ``None`` until WP2's
+    ``_reset_requests_to_base`` exists; callers may pass it explicitly
+    once it does. ``precipitation_mm`` / ``precipitation_flag`` are the
+    agent's own value and flag for the year (``IrrigationEnvironment.
+    get_agent_context(agent_id)["precipitation"]`` /
+    ``["precipitation_flag"]``, spec 1.6) -- ``None`` unless the caller
+    passes them, since this function receives ``agent_state`` (the
+    environment's persistent per-agent dict), not the per-decision context.
+
     Returns a dict whose key order IS the canonical LLM simulation-log
     column order (callers needing that order/set, e.g. a header-superset
     test, should read ``list(row.keys())`` from a row built here rather
@@ -684,6 +771,16 @@ def build_simulation_log_row(
     request = agent_state.get("request", 0)
     diversion = agent_state.get("diversion", 0)
     water_right = agent_state.get("water_right", 0)
+    bin_size_af = agent_state.get("bin_size_af")
+    typical_step_af = (
+        hy_threshold_af(
+            agent_state.get("mu", SYNTHETIC_HY_MU),
+            agent_state.get("sigma", SYNTHETIC_HY_SIGMA),
+            bin_size_af,
+        )
+        if bin_size_af
+        else None
+    )
 
     return {
         "agent_id": agent_id,
@@ -734,6 +831,23 @@ def build_simulation_log_row(
         "magnitude_fallback": magnitude_fallback,
         "is_exploration": is_exploration,
         "memory": memory,
+        # v3 (spec 1.7, WP1)
+        "calendar_year": settlement.get("calendar_year"),
+        "base_af": base_af,
+        "ub_non_farm_maf": settlement.get("ub_non_farm_maf"),
+        "lb_tributary_maf": settlement.get("lb_tributary_maf"),
+        "powell_evap_maf": settlement.get("powell_evap_maf"),
+        "mead_evap_maf": settlement.get("mead_evap_maf"),
+        "powell_spill_maf": settlement.get("powell_spill_maf"),
+        "mead_spill_maf": settlement.get("mead_spill_maf"),
+        "lb_delivered_maf": settlement.get("lb_delivered_maf"),
+        "lb_non_ag_delivered_maf": settlement.get("lb_non_ag_delivered_maf"),
+        "mexico_delivered_maf": settlement.get("mexico_delivered_maf"),
+        "lb_shortage_volume_maf": settlement.get("lb_shortage_volume_maf"),
+        "precipitation_mm": precipitation_mm,
+        "precipitation_flag": precipitation_flag,
+        "step_bin_af": bin_size_af,
+        "typical_step_af": typical_step_af,
     }
 
 
@@ -1588,6 +1702,10 @@ def create_profiles_from_data(
             div_states_grid=np.asarray(col, dtype=float),
             crop_type=_assign_crop_type("upper_basin", rng),
             years_farming=int(rng.integers(5, 40)),
+            # v3 (spec 1.6): the PRISM precipitation CSV's column naming
+            # matches _UB_STATE_GROUPS one-to-one except AZ_UB -> "AZ",
+            # the exact mismatch _UB_HIST_COLUMN_BY_GROUP already maps.
+            precip_group=_UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group),
         )
         if ub_2018 is not None:
             hist_col = _UB_HIST_COLUMN_BY_GROUP.get(state_group, state_group)
