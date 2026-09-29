@@ -812,6 +812,16 @@ def _append_launch_command_line(output_dir: Path, text: str) -> None:
 def main():
     run_started_at = datetime.now()
     args = parse_args()
+    if args.rebalance_clusters and args.cluster_method == "hy2021":
+        raise SystemExit(
+            "--rebalance-clusters cannot be combined with --cluster-method "
+            "hy2021: rebalancing reassigns clusters toward a target "
+            "distribution by FQL-parameter distance, which would overwrite "
+            "Hung & Yang (2021) Figure 7's own published per-entity "
+            "assignment (HY2021_CLUSTER_LABELS) that --cluster-method "
+            "hy2021 exists to preserve. Pass --cluster-method "
+            "legacy_centroid if you want the rebalanced distribution."
+        )
     base = Path(__file__).parent
     ref_dir = PROJECT_ROOT / "ref"
 
@@ -838,10 +848,12 @@ def main():
             crss_db_dir=crss_db,
             rng=np.random.default_rng(seed),
             paper_water_margin=args.paper_water_margin,
+            cluster_method=args.cluster_method,
         )
         print(
             f"[Data] Loaded {len(profiles)} real CRSS agents from paper data "
-            f"(paper_water_margin={args.paper_water_margin})"
+            f"(paper_water_margin={args.paper_water_margin}, "
+            f"cluster_method={args.cluster_method})"
         )
     else:
         profiles = _create_synthetic_profiles(args.agents, seed)
@@ -997,6 +1009,8 @@ def main():
             "no_governance": bool(args.no_governance),
             "paper_water_margin": args.paper_water_margin,
             "paper_water_margin_applied": bool(args.real and not args.from_logs),
+            "cluster_method": args.cluster_method,
+            "cluster_method_applied": bool(args.real and not args.from_logs),
             "fql_init": args.fql_init,
             "fql_init_dir": args.fql_init_dir if args.fql_init == "calibrated" else None,
             # Cheap reproducibility provenance (2026-09-27 review): numpy's
@@ -1073,6 +1087,29 @@ def parse_args():
                         "water_right = min(grid_top_af, (1 + paper_water_margin) * "
                         "peak_obs_af). Only affects --real profiles. Recorded in "
                         "reproducibility_manifest.json.")
+    p.add_argument("--cluster-method", type=str, default="hy2021",
+                   choices=["hy2021", "legacy_centroid"],
+                   help="How each real CRSS agent's cluster (aggressive / "
+                        "forward_looking_conservative / myopic_conservative) is "
+                        "assigned, same meaning and default as run_experiment.py "
+                        "--cluster-method. Only affects the --real path "
+                        "(create_profiles_from_data): on --real, this baseline's "
+                        "FQL Q-learning dynamics use each agent's own calibrated "
+                        "mu/sigma/alpha/gamma/epsilon/regret directly and ignore "
+                        "cluster, but 'cluster' and 'aca_label' (derived from "
+                        "cluster) are still written to simulation_log.csv, so "
+                        "--cluster-method=legacy_centroid is needed to reproduce "
+                        "those two columns byte-identically against a corpus "
+                        "generated before --cluster-method existed (e.g. the "
+                        "431adb5e corpus). This flag has NO effect on --from-logs: "
+                        "that path reconstructs each profile's cluster from the "
+                        "loaded simulation_log.csv's own 'cluster' column (whatever "
+                        "cluster_method the ORIGINAL run used), and, unlike --real, "
+                        "it has no per-agent calibrated params to read from a log "
+                        "file, so it takes its FQL mu/sigma/alpha/gamma/epsilon/"
+                        "regret FROM CLUSTER_CONFIGS[cluster] instead -- cluster "
+                        "genuinely drives FQL dynamics on that path, just not via "
+                        "this flag. Recorded in reproducibility_manifest.json.")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output", type=str, default=None)
     p.add_argument("--rebalance-clusters", action="store_true",
