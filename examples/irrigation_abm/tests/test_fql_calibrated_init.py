@@ -541,7 +541,12 @@ class TestZeroInitRealDataRegressionAgainstPrimaryClone:
         res = subprocess.run(
             [sys.executable, str(script),
              "--real", "--no-governance", "--fql-init", "zero",
-             "--seed", "42", "--years", "42", "--output", str(out_dir)],
+             "--seed", "42", "--years", "42", "--output", str(out_dir),
+             # legacy_centroid: the frozen reference predates cluster_method
+             # (2026-09-28); its "cluster"/"aca_label" columns were written
+             # by the old _infer_cluster heuristic, not the new hy2021
+             # default (see irrigation_personas.HY2021_CLUSTER_LABELS).
+             "--cluster-method", "legacy_centroid"],
             cwd=str(PROJECT_ROOT), capture_output=True, text=True,
         )
         assert res.returncode == 0, res.stderr

@@ -167,11 +167,16 @@ class TestSyntheticCeilingFormula:
     def test_grid_top_and_peak_scaled_branches(self, tmp_path):
         params_path, crss_db_dir = _write_synthetic_ref(tmp_path)
 
+        # cluster_method="legacy_centroid": this fixture's synthetic agent
+        # names (LB_Below/LB_Above) are not in HY2021_CLUSTER_LABELS (a
+        # fixed table of the 31 real calibrated entities), and this test is
+        # about the water-right ceiling formula, not clustering.
         profiles = create_profiles_from_data(
             params_csv_path=str(params_path),
             crss_db_dir=str(crss_db_dir),
             rng=np.random.default_rng(0),
             paper_water_margin=0.4,
+            cluster_method="legacy_centroid",
         )
         by_id = {p.agent_id: p for p in profiles}
         assert set(by_id) == {"LB_Below", "LB_Above"}
@@ -226,11 +231,14 @@ class TestSyntheticCeilingFormula:
         )
         extended.to_csv(lb_hist_path)
 
+        # cluster_method="legacy_centroid": see the same note in
+        # test_grid_top_and_peak_scaled_branches above.
         profiles = create_profiles_from_data(
             params_csv_path=str(params_path),
             crss_db_dir=str(crss_db_dir),
             rng=np.random.default_rng(0),
             paper_water_margin=0.4,
+            cluster_method="legacy_centroid",
         )
         by_id = {p.agent_id: p for p in profiles}
         # Peak stays 900 (the pre-2019 max), not 999999 (the 2019 spike).

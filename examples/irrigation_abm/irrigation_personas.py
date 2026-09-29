@@ -809,7 +809,29 @@ def create_profiles_from_csv(
 
 
 def _infer_cluster(mu: float, sigma: float, alpha: float, regret: float) -> str:
-    """Cluster inference by Euclidean distance to three 4-D centroids (mu, sigma, alpha, regret). PROVENANCE NOTE (2026-09-16): the centroid values below are not traced to a specific table of Hung & Yang (2021) in this repository; treat them as WAGF-side constants until a citation is added.
+    """Cluster inference by Euclidean distance to three 4-D centroids (mu, sigma, alpha, regret).
+
+    PROVENANCE NOTE (corrected 2026-09-28, fix/irrigation-persona-clusters-hy2021):
+    the four values per cluster below are exactly
+    Hung & Yang (2021, WRR) Table 1 (p.13)'s "Mean: mu", "Standard deviation:
+    sigma", "Learning rate: alpha" and "regret" columns (Table 1 has two more
+    columns, "Discount rate: gamma" and "Epsilon: epsilon", which this 4-D
+    nearest-centroid method does not use). What this function does NOT
+    reproduce is the paper's actual clustering *procedure* (PCA on all six
+    calibrated parameters to 2 components, then k=3 K-means on those
+    components, Sec. 4.2 p.12) -- it is a nearest-centroid shortcut on a
+    4-parameter subset instead, and it disagrees with the paper's own
+    published per-entity assignment (Figure 7, p.13) for 15 of the 31
+    calibrated entities (verified 2026-09-28 by recomputing this function
+    against ``ALL_colorado_ABM_params_cal_1108.csv`` and diffing against a
+    Figure 7 transcription; see ``HY2021_CLUSTER_LABELS`` below for that
+    transcription and the full reproduction notes). This function is kept,
+    unchanged, as the ``cluster_method="legacy_centroid"`` path of
+    ``create_profiles_from_data`` for byte-identical reproduction of runs
+    generated before ``cluster_method`` existed (e.g. the 431adb5e corpus);
+    new runs should use the default ``cluster_method="hy2021"`` instead,
+    which reads ``HY2021_CLUSTER_LABELS`` (the paper's published assignment)
+    rather than approximating it.
     """
     centroids = {
         "aggressive": np.array([0.36, 1.22, 0.62, 0.78]),
@@ -827,6 +849,152 @@ def _infer_cluster(mu: float, sigma: float, alpha: float, regret: float) -> str:
             best_cluster = name
 
     return best_cluster
+
+
+# Hung & Yang (2021, WRR) Figure 7 (p.13): "The clusters of agents in the
+# principal component space" -- a per-entity scatter of all 31 calibrated
+# entities (22 Lower Basin agents + 9 Upper Basin state groups) in the 2-D
+# PCA space described in Sec. 4.2 (p.12): PCA on all six calibrated
+# parameters (mu, sigma, alpha, gamma, epsilon, regret), then k=3 K-means on
+# the first two components. This dict is a direct transcription of that
+# figure (blue diamond = Aggressive, orange square = Forward-looking
+# Conservative, gray triangle = Myopic Conservative), read from the PDF at
+# 6x render zoom with per-marker RGB sampling to disambiguate crowded
+# points, cross-checked against the paper's text (p.13-14) and Table 1
+# (p.13) wherever the text names a specific fact. It is the paper's
+# published assignment and is treated as the source of truth for
+# ``cluster_method="hy2021"`` in ``create_profiles_from_data`` -- NOT the
+# output of our own from-scratch reproduction of the PCA+K-means procedure
+# (see below).
+#
+# Reproduction attempt (2026-09-28): re-running Sec. 4.2's procedure
+# from scratch (numpy PCA via SVD to 2 components, then an EXHAUSTIVE
+# deterministic k=3 K-means -- every one of C(31,3)=4,495 combinations of
+# 3 distinct entities as initial centroids, Lloyd's algorithm to
+# convergence, lowest inertia kept; inertia cross-checked against
+# sklearn.cluster.KMeans(n_init=200) and found identical, confirming the
+# global optimum was found) does NOT exactly recover this table, in either
+# of the two standardization choices tried (the paper does not say whether
+# it standardized the six parameters before PCA):
+#   - raw (unstandardized) 6-D input before PCA: 14 of 31 entities differ
+#     from the table below; the fitted clusters do not put all 9 UB groups
+#     in one cluster (UT2 lands with the aggressive-poor group) and do not
+#     reproduce "LB agents all conservative except the named tribal
+#     agents" either.
+#   - standardized (z-scored) 6-D input before PCA: 19 of 31 entities
+#     differ when clusters are named by nearest standardized Table-1 mean
+#     (the paper's stated naming method, tried across all 3! = 6
+#     cluster-to-label pairings, lowest total distance kept -- the same
+#     bijective assignment used for the unstandardized case above). Taking
+#     instead the best of those same 6 pairings by minimum disagreement
+#     against Figure 7 directly (a post-hoc best case that Table 1 alone
+#     cannot tell you to pick, since it does not look at Figure 7) drops
+#     this to 15 of 31; still worse than the unstandardized attempt either
+#     way, and still short of an exact reproduction.
+# Neither run reproduces the paper's own stated facts (Sec. 4.2, p.13-14):
+# "[all 9] UB agents ... are mostly Aggressive" and "the LB agents are all
+# classified as conservative except three tribal water users". Because the
+# reproduction does not agree, this table is transcribed from the figure
+# directly rather than computed -- per this function's own module
+# docstring and the file's anti-hallucination posture, an unreproduced
+# procedure must not silently stand in for the paper's actual published
+# result.
+#
+# One more disagreement worth recording here because it affects the table
+# below directly: the paper's own text (p.13) says "the LB agents are all
+# classified as conservative except three tribal water users (Fort Mohave
+# Ind Res AZ, FtYumaReservation, and Chemehuevi Ind Res)" -- naming three
+# exceptions. Figure 7 itself, however, plots a FOURTH Lower Basin agent,
+# CocopahIndRes (also a tribal reservation, the Cocopah Indian
+# Reservation), as a blue diamond (Aggressive) at approximately
+# (x=-0.15, y=0.0), confirmed by direct RGB sampling of that marker: RGB
+# (91, 155, 212), the exact fill color of every other Aggressive diamond
+# in the figure (sampled directly, not assumed), and not the gray of the
+# adjacent CRIR CA triangle. The text's "three" therefore
+# undercounts its own figure by one. This table follows the figure (the
+# actual per-entity assignment WAGF acts on) over the text's summary
+# count, so CocopahIndRes is Aggressive here.
+HY2021_CLUSTER_LABELS: Dict[str, str] = {
+    # --- Lower Basin (22 agents; direct 1:1 match with the parameters CSV) ---
+    "MohaveValleyIDD": "myopic_conservative",
+    "Fort Mohave Ind Res AZ": "aggressive",
+    "Fort Mohave Ind Res CA": "myopic_conservative",
+    "CRIR AZ": "myopic_conservative",
+    "CRIR CA": "myopic_conservative",
+    "NorthGilaValleyIDD": "forward_looking_conservative",
+    "YumaCountyWUA": "myopic_conservative",
+    "UnitBIDD": "forward_looking_conservative",
+    "CocopahIndRes": "aggressive",  # see note above: a 4th tribal exception the text does not name
+    "GilaMonsterFarms": "forward_looking_conservative",
+    "Powers": "forward_looking_conservative",
+    "FtYumaReservation": "aggressive",
+    "YumaIrrDist": "myopic_conservative",
+    "YumaMesaIDD": "forward_looking_conservative",
+    "WelltonMohawkIDD": "myopic_conservative",
+    "CibolaValleyIDD": "myopic_conservative",
+    "HopiTribe": "forward_looking_conservative",
+    "NorthBajaLLC": "myopic_conservative",  # text's named exception: MC but plotted below the x-axis
+    "PVIDDiversionAG": "forward_looking_conservative",
+    "Bard Unit": "myopic_conservative",
+    "Quechan Res Unit": "myopic_conservative",
+    "Chemehuevi Ind Res": "aggressive",
+    # --- Upper Basin (9 state groups; each group's ~58 individual CRSS
+    # agents inherit the group's label, exactly as they inherit the
+    # group's FQL parameters -- see create_profiles_from_data). All 9 are
+    # Aggressive, matching Figure 7 and the text ("UB agents ... are
+    # mostly Aggressive"). ---
+    "WY": "aggressive",
+    "UT1": "aggressive",
+    "UT2": "aggressive",
+    "UT3": "aggressive",
+    "NM": "aggressive",
+    "CO1": "aggressive",
+    "CO2": "aggressive",
+    "CO3": "aggressive",
+    "AZ_UB": "aggressive",
+}
+
+
+def _resolve_cluster(
+    entity_name: str,
+    mu: float,
+    sigma: float,
+    alpha: float,
+    regret: float,
+    cluster_method: str,
+) -> str:
+    """Resolve one entity's (or UB state-group's) cluster label.
+
+    ``cluster_method="hy2021"`` (default): look up ``entity_name`` in
+    ``HY2021_CLUSTER_LABELS``, the paper's own published Figure 7
+    assignment. Raises ``ValueError`` if ``entity_name`` is not one of the
+    31 calibrated entities -- a parameters CSV with a new entity needs a
+    new table entry (with its own Figure 7 provenance), not a silent guess.
+
+    ``cluster_method="legacy_centroid"``: ``_infer_cluster(mu, sigma,
+    alpha, regret)``, the pre-existing 4-D nearest-centroid method,
+    byte-identical to behaviour before ``cluster_method`` existed.
+
+    Any other value raises ``ValueError`` (callers should already have
+    validated this; this is a defensive second check for direct callers of
+    this function).
+    """
+    if cluster_method == "hy2021":
+        if entity_name not in HY2021_CLUSTER_LABELS:
+            raise ValueError(
+                f"HY2021_CLUSTER_LABELS has no entry for {entity_name!r}. "
+                "This table is a fixed transcription of Hung & Yang (2021) "
+                "Figure 7 for the 31 calibrated entities; add an entry "
+                "(with its Figure 7 provenance noted) before using "
+                "cluster_method='hy2021' with a parameters CSV that adds a "
+                "new entity, or pass cluster_method='legacy_centroid'."
+            )
+        return HY2021_CLUSTER_LABELS[entity_name]
+    if cluster_method == "legacy_centroid":
+        return _infer_cluster(mu, sigma, alpha, regret)
+    raise ValueError(
+        f"cluster_method must be 'hy2021' or 'legacy_centroid', got {cluster_method!r}"
+    )
 
 
 def rebalance_clusters(
@@ -1037,6 +1205,7 @@ def create_profiles_from_data(
     crss_db_dir: str,
     rng: Optional[np.random.Generator] = None,
     paper_water_margin: float = 0.4,
+    cluster_method: str = "hy2021",
 ) -> List[IrrigationAgentProfile]:
     """Create 78 individual agent profiles from paper data.
 
@@ -1130,6 +1299,28 @@ def create_profiles_from_data(
             peak_obs_af)``. Default 0.4 (see derivation above). Exposed
             end-to-end via ``--paper-water-margin`` on
             ``run_experiment.py`` and ``run_fql_baseline.py``.
+        cluster_method: How each entity's persona cluster ("aggressive" /
+            "forward_looking_conservative" / "myopic_conservative") is
+            assigned (enforced -- raises ``ValueError`` for any other
+            value). ``"hy2021"`` (default, added 2026-09-28,
+            fix/irrigation-persona-clusters-hy2021): look up
+            ``HY2021_CLUSTER_LABELS``, a fixed transcription of Hung &
+            Yang (2021) Figure 7's own published per-entity assignment
+            (see the comment block above that dict for the full provenance
+            and the disagreements found while verifying it).
+            ``"legacy_centroid"``: ``_infer_cluster``'s 4-D nearest-centroid
+            heuristic, today's pre-2026-09-28 behaviour, byte-identical --
+            use this to reproduce a corpus generated before
+            ``cluster_method`` existed (e.g. the 431adb5e corpus). The two
+            methods disagree on 16 of the 78 real CRSS agents' cluster (10
+            Lower Basin agents go aggressive->conservative, all 10 in that
+            one direction; 3 more Lower Basin agents keep "conservative"
+            but swap forward_looking_conservative<->myopic_conservative;
+            and 3 Upper Basin agents in state groups UT2/UT3 go
+            conservative->aggressive); only those agents'
+            narrative persona and ACA-hint prompt text change between the
+            two methods. Exposed end-to-end via ``--cluster-method`` on
+            ``run_experiment.py`` and ``run_fql_baseline.py``.
 
     Returns:
         List of ~78 IrrigationAgentProfile with real water_right values.
@@ -1140,6 +1331,10 @@ def create_profiles_from_data(
     if not (0.0 <= paper_water_margin <= 1.0):
         raise ValueError(
             f"paper_water_margin must be in [0, 1], got {paper_water_margin!r}"
+        )
+    if cluster_method not in ("hy2021", "legacy_centroid"):
+        raise ValueError(
+            f"cluster_method must be 'hy2021' or 'legacy_centroid', got {cluster_method!r}"
         )
 
     rng = rng or np.random.default_rng()
@@ -1306,7 +1501,7 @@ def create_profiles_from_data(
         gamma_p = float(p["gamma"])
         epsilon = float(p["epsilon"])
         regret_val = float(p["regret"])
-        cluster = _infer_cluster(mu, sigma, alpha, regret_val)
+        cluster = _resolve_cluster(agent_name, mu, sigma, alpha, regret_val, cluster_method)
 
         bin_size_af = float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(
@@ -1370,7 +1565,7 @@ def create_profiles_from_data(
         gamma_p = float(p["gamma"])
         epsilon = float(p["epsilon"])
         regret_val = float(p["regret"])
-        cluster = _infer_cluster(mu, sigma, alpha, regret_val)
+        cluster = _resolve_cluster(state_group, mu, sigma, alpha, regret_val, cluster_method)
 
         bin_size_af = float(col.iloc[2] - col.iloc[1])
         profile = IrrigationAgentProfile(

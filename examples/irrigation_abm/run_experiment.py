@@ -948,11 +948,65 @@ def _record_paper_water_margin_provenance(
               f"config_snapshot.yaml: {e}")
 
 
+def _record_cluster_method_provenance(
+    output_dir: Path, cluster_method: str, is_real: bool
+) -> None:
+    """Additively record ``--cluster-method`` in this run's two provenance files.
+
+    Same pattern and rationale as ``_record_paper_water_margin_provenance``
+    above (which it is called alongside, not instead of): patches the two
+    files ``ExperimentRunner._finalize_experiment`` already wrote, rather
+    than teaching the generic broker manifest about an irrigation-only CLI
+    parameter. Recorded even for a synthetic (non ``--real``) run, since it
+    is a resolved CLI value either way (a synthetic run never calls
+    ``create_profiles_from_data``, the only place ``cluster_method`` is
+    read). Wrapped so a provenance-write problem can never fail the
+    experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["cluster_method"] = cluster_method
+            manifest["cluster_method_applied"] = bool(is_real)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record cluster_method in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["cluster_method"] = cluster_method
+            snapshot["metadata"]["cluster_method_applied"] = bool(is_real)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record cluster_method in "
+              f"config_snapshot.yaml: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
     args = parse_args()
+    if args.rebalance_clusters and args.cluster_method == "hy2021":
+        raise SystemExit(
+            "--rebalance-clusters cannot be combined with --cluster-method "
+            "hy2021: rebalancing reassigns clusters toward a target "
+            "distribution by FQL-parameter distance, which would overwrite "
+            "Hung & Yang (2021) Figure 7's own published per-entity "
+            "assignment (HY2021_CLUSTER_LABELS) that --cluster-method "
+            "hy2021 exists to preserve. Pass --cluster-method "
+            "legacy_centroid if you want the rebalanced distribution."
+        )
     base = Path(__file__).parent
 
     # --- Output (moved early: a --coupling derived config file, below, is
@@ -1082,10 +1136,12 @@ def main():
             crss_db_dir=crss_db,
             rng=np.random.default_rng(seed),
             paper_water_margin=args.paper_water_margin,
+            cluster_method=args.cluster_method,
         )
         print(
             f"[Data] Loaded {len(profiles)} real CRSS agents from paper data "
-            f"(paper_water_margin={args.paper_water_margin})"
+            f"(paper_water_margin={args.paper_water_margin}, "
+            f"cluster_method={args.cluster_method})"
         )
     else:
         profiles = _create_synthetic_profiles(args.agents, seed)
@@ -1351,6 +1407,7 @@ def main():
     # home. Never fails the run over a provenance write (same posture as
     # broker's own manifest-enrichment try/except, F3 fix).
     _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
+    _record_cluster_method_provenance(output_dir, args.cluster_method, args.real)
 
     # Finalize audit
     if runner.broker.audit_writer:
@@ -1388,6 +1445,19 @@ def parse_args():
                         "profiles (create_profiles_from_data). Default 0.4 (see "
                         "irrigation_personas.create_profiles_from_data docstring and "
                         "docs/irrigation_physics.md for the derivation). Recorded in "
+                        "reproducibility_manifest.json and config_snapshot.yaml.")
+    p.add_argument("--cluster-method", type=str, default="hy2021",
+                   choices=["hy2021", "legacy_centroid"],
+                   help="How each real CRSS agent's persona cluster (aggressive / "
+                        "forward_looking_conservative / myopic_conservative) is "
+                        "assigned. 'hy2021' (default): Hung & Yang (2021) Figure 7's "
+                        "own published per-entity assignment (HY2021_CLUSTER_LABELS "
+                        "in irrigation_personas.py). 'legacy_centroid': the prior "
+                        "4-D nearest-centroid heuristic (_infer_cluster), "
+                        "byte-identical to pre-2026-09-28 behaviour -- use this to "
+                        "reproduce a corpus generated before --cluster-method "
+                        "existed (e.g. the 431adb5e corpus). Only affects --real "
+                        "profiles (create_profiles_from_data). Recorded in "
                         "reproducibility_manifest.json and config_snapshot.yaml.")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--seed", type=int, default=42)
