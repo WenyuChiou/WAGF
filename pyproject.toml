@@ -62,5 +62,7 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "benchmark: marks performance benchmarks",
+    "real_llm: test intentionally talks to a live Ollama daemon (exempt from the port-11434 test guard in conftest.py)",
+    "expected_ollama_guard_block: this test deliberately trips the ollama-guard audit hook to prove it is active; exempt from the auto-fail-on-block fixture in conftest.py",
 ]
 addopts = "--strict-markers --tb=short -q"

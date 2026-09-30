@@ -978,21 +978,50 @@ class ExperimentRunner:
         """Collect model digest, git state, and config hashes for reproducibility."""
         metadata = {}
 
-        # 1. Query Ollama for model digest
+        # 1. Query Ollama for model digest.
+        #
+        # Skipped entirely for a mock or cloud-provider model: this used to
+        # fire unconditionally, on every mock run and every test that
+        # reached finalize, regardless of what model (if any) the run
+        # actually used. A mock run has no Ollama model at all, so it still
+        # sent `POST /api/show` for model "mock" to whatever real Ollama
+        # daemon happened to be reachable on the machine -- a live request a
+        # mock run has no business making. The mock-prefix / cloud-provider
+        # checks mirror the SAME gate block 3d below already uses for the
+        # modelfile-defaults call (single source of truth, not a second,
+        # possibly-drifting copy), and `get_ollama_base_url` is the same
+        # OLLAMA_HOST-aware helper `_invoke_ollama_direct` uses for the run's
+        # real requests, so this manifest query targets the SAME daemon the
+        # run's own LLM calls went to, never a hardcoded localhost.
+        #
+        # A non-string model (no model identity at all -- e.g. a partially
+        # built test double) is a DIFFERENT case from "known to be mock": it
+        # records "unavailable", the same catch-all this field already uses
+        # when a real query fails, rather than claiming "not_applicable_mock"
+        # about a model this code never actually identified as mock.
         try:
-            import requests
-            r = requests.post(
-                "http://localhost:11434/api/show",
-                json={"name": self.config.model},
-                timeout=5,
-            )
-            if r.status_code == 200:
-                info = r.json()
-                metadata["model_digest"] = info.get("digest") or info.get("modified_at", "unknown")
-                details = info.get("details", {})
-                metadata["model_family"] = details.get("family", "unknown")
-                metadata["model_parameter_size"] = details.get("parameter_size", "unknown")
-                metadata["model_quantization"] = details.get("quantization_level", "unknown")
+            from broker.utils.llm_utils import is_mock_model, is_cloud_provider_model, get_ollama_base_url
+            model = getattr(self.config, "model", None)
+            if not isinstance(model, str):
+                metadata["model_digest"] = "unavailable"
+            elif is_mock_model(model):
+                metadata["model_digest"] = "not_applicable_mock"
+            elif is_cloud_provider_model(model):
+                metadata["model_digest"] = "not_applicable_cloud_provider"
+            else:
+                import requests
+                r = requests.post(
+                    f"{get_ollama_base_url()}/api/show",
+                    json={"name": model},
+                    timeout=5,
+                )
+                if r.status_code == 200:
+                    info = r.json()
+                    metadata["model_digest"] = info.get("digest") or info.get("modified_at", "unknown")
+                    details = info.get("details", {})
+                    metadata["model_family"] = details.get("family", "unknown")
+                    metadata["model_parameter_size"] = details.get("parameter_size", "unknown")
+                    metadata["model_quantization"] = details.get("quantization_level", "unknown")
         except Exception:
             metadata["model_digest"] = "unavailable"
 
@@ -1154,17 +1183,17 @@ class ExperimentRunner:
         #     (10s timeout inside the capture call, per model).
         try:
             from broker.utils.llm_utils import (
-                capture_ollama_modelfile_defaults, is_cloud_provider_model,
+                capture_ollama_modelfile_defaults, is_cloud_provider_model, is_mock_model,
             )
             resolved_for_models = dict(getattr(self, "_llm_resolved_params", {}) or {})
             distinct_models = sorted({
                 v["model"] for v in resolved_for_models.values()
                 if isinstance(v, dict) and isinstance(v.get("model"), str)
-                and not v["model"].lower().startswith("mock")
+                and not is_mock_model(v["model"])
             })
             if not distinct_models:
                 fallback_model = getattr(self.config, "model", None)
-                if isinstance(fallback_model, str) and not fallback_model.lower().startswith("mock"):
+                if isinstance(fallback_model, str) and not is_mock_model(fallback_model):
                     distinct_models = [fallback_model]
 
             if not distinct_models:
@@ -1213,13 +1242,13 @@ class ExperimentRunner:
         #     reproducibility field whose whole purpose is not overclaiming.
         try:
             from broker.utils.llm_utils import (
-                ollama_sampling_is_seeded, is_cloud_provider_model,
+                ollama_sampling_is_seeded, is_cloud_provider_model, is_mock_model,
             )
             resolved_for_models = dict(getattr(self, "_llm_resolved_params", {}) or {})
             distinct_models = {
                 v["model"] for v in resolved_for_models.values()
                 if isinstance(v, dict) and isinstance(v.get("model"), str)
-                and not v["model"].lower().startswith("mock")
+                and not is_mock_model(v["model"])
             }
             non_cloud_models = {m for m in distinct_models if not is_cloud_provider_model(m)}
             if distinct_models and not non_cloud_models:
