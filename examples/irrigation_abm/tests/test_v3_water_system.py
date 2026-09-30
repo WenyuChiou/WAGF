@@ -121,6 +121,7 @@ def _planned(env, snap, ub_requested_maf=None):
         shortage_volume=snap["lb_shortage_volume_maf"], mexico=snap["mexico"],
         ub_requested_maf=ub_requested_maf,
         lb_requested_maf=snap["lb_request_projected_maf"],
+        year=env._current_year,
         ub_requested_by_subbasin_maf=ub_by_subbasin,
         ub_available_by_subbasin_maf=_UB_SUBBASIN_PLACEHOLDER_MAF,
     )
@@ -477,8 +478,10 @@ class TestShortageVolumesAndMexico:
     def test_declared_shortage_volume_reduces_non_ag_bucket_only(self):
         """PI decision 2026-09-28 (supersedes review fix 4 and the spec's
         original pro-rata-across-all-LB-use rule): the declared tier's
-        shortage volume V comes ENTIRELY out of the 5.0 MAF
-        non-agricultural bucket. The 22 LB agricultural agents are senior
+        shortage volume V comes ENTIRELY out of the non-agricultural
+        bucket (5.2 MAF, item 25; 5.0 MAF before it -- the assertions
+        below read `cfg.lb_non_ag_total_maf`, not a literal, so they hold
+        either way). The 22 LB agricultural agents are senior
         and unaffected by the declared tier itself -- only by physical
         Mead availability (phi, = 1.0 here since Mead has ample storage).
         ADOPT 12: assert on the actual 'lb_cut' the environment produces
@@ -641,10 +644,22 @@ class TestMassBalanceClosureV3:
         shortfall permanently lowers its request". The OTHER real
         scenario -- every agent always chooses keep, so the reset DOES
         apply every year -- is a different experiment, pinned separately
-        by ``TestKeepEveryYear42Years`` below (29/7/4/2, 7.4989 MAF)."""
+        by ``TestKeepEveryYear42Years`` below.
+
+        Spec items 25/26/27 (2026-09-29): moved AGAIN, from
+        {0: 21, 1: 11, 2: 7, 3: 3} / 7.4665 MAF, by the same two default
+        changes as every other pin in this module -- ``lb_non_ag_total_maf``
+        5.0 -> 5.2 MAF (item 25) and ``powell_release_mode``
+        "storage_balancing" -> "ig2007_tiers" (item 26/27, the 2007 Interim
+        Guidelines Lake Powell operating tiers). Cross-checked against the
+        design memo's own replay table (design memo
+        .research/design_specs/irrigation_v3_powell_tiers_2026-09-29.md
+        section 4, "A, 2018 use held (subbasin)": proposed 10/10/14/8, Mead
+        minimum 7.0652 MAF, ~1,000.8 ft in 2024) and reproduced exactly
+        here (7.065235... MAF)."""
         tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("subbasin")
-        assert tier_counts == {0: 21, 1: 11, 2: 7, 3: 3}
-        assert mead_min_maf == pytest.approx(7.4665, abs=1e-3)  # ~1,007.7 ft
+        assert tier_counts == {0: 10, 1: 10, 2: 14, 3: 8}
+        assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)  # ~1,000.8 ft (2024)
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
     def test_real_2018_fixed_demand_42_years_pool_mode(self):
@@ -657,10 +672,17 @@ class TestMassBalanceClosureV3:
         Held fixed the same way (``hold_requests_fixed=True``, the
         helper's default) -- though in this mode the single pool delivers
         every agent's full 2018 request every year regardless (delivered
-        always equals requested), so the reset was always a no-op here."""
+        always equals requested), so the reset was always a no-op here.
+
+        Spec items 25/26/27 (2026-09-29): moved AGAIN, from
+        {0: 20, 1: 11, 2: 8, 3: 3} / 7.3516 MAF, for the SAME reason as
+        the subbasin pin above (5.2 MAF non-ag bucket + ig2007_tiers).
+        The design memo (section 4, "A, lees_ferry_pool") gives 10/8/17/7
+        and states the Mead minimum is the SAME 7.0652 MAF "in both UB
+        modes" -- reproduced exactly here."""
         tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("lees_ferry_pool")
-        assert tier_counts == {0: 20, 1: 11, 2: 8, 3: 3}
-        assert mead_min_maf == pytest.approx(7.3516, abs=1e-3)  # ~1,005.8 ft
+        assert tier_counts == {0: 10, 1: 8, 2: 17, 3: 7}
+        assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)  # ~1,000.8 ft (2024)
 
 
 class TestKeepEveryYear42Years:
@@ -713,14 +735,22 @@ class TestKeepEveryYear42Years:
         its 50,000 AF water_right; the published figure is 5,940 AF, its
         actual Priority 1 entitlement) -- the Tier counts did not move
         again. Read directly off ``_run_real_2018_fixed_demand_42_years``
-        (this test's own callee), not re-derived by hand."""
+        (this test's own callee), not re-derived by hand.
+
+        Spec items 25/26/27 (2026-09-29): moved AGAIN, from
+        {0: 29, 1: 8, 2: 3, 3: 2} / 7.5184 MAF, by the same lb_non_ag
+        5.0->5.2 MAF (item 25) and powell_release_mode
+        storage_balancing->ig2007_tiers (item 26/27) default changes as
+        every other pin in this module. The design memo's own replay
+        table (section 4, "Keep every year") gives 17/11/8/6 and Mead
+        minimum 7.1028 MAF -- reproduced exactly here."""
         tier_counts, mead_min_maf = (
             TestMassBalanceClosureV3._run_real_2018_fixed_demand_42_years(
                 "subbasin", hold_requests_fixed=False,
             )
         )
-        assert tier_counts == {0: 29, 1: 8, 2: 3, 3: 2}
-        assert mead_min_maf == pytest.approx(7.5184, abs=1e-3)  # ~1,008.6 ft
+        assert tier_counts == {0: 17, 1: 11, 2: 8, 3: 6}
+        assert mead_min_maf == pytest.approx(7.1028, abs=1e-3)
 
 
 # ===========================================================================

@@ -265,7 +265,14 @@ def test_release_plan_recomputes_from_frozen_projected_sums():
     ``request`` (a deliberately different, stale carried value) exercise
     the exact same ordering a second-or-later year's call does, without
     needing a real settlement to produce the storage/shortfall."""
-    config = WaterSystemConfig(seed=3, ub_supply_mode="lees_ferry_pool")
+    # Spec items 26/27: pinned to storage_balancing explicitly -- this
+    # test's docstring numbers (~9.36 / ~8.84 MAF, "strictly inside the
+    # balancing band") are that rule's own algebra; the v3-default
+    # ig2007_tiers rule would classify this scenario into one of its
+    # named tiers instead, a different (and not necessarily "clearly
+    # different between a fresh and a stale Upper Basin sum") release.
+    config = WaterSystemConfig(seed=3, ub_supply_mode="lees_ferry_pool",
+                                powell_release_mode="storage_balancing")
     env = IrrigationEnvironment(config)
     env._powell_storage = 15.0
     env._mead_storage = [10.0]
@@ -304,6 +311,7 @@ def test_release_plan_recomputes_from_frozen_projected_sums():
         shortage_volume=env._snapshot["lb_shortage_volume_maf"],
         mexico=env._snapshot["mexico"],
         lb_requested_maf=env._snapshot["lb_request_projected_maf"],
+        year=env._current_year,
     )
     recomputed_from_frozen = env._plan_powell_release(
         ub_requested_maf=env._snapshot["ub_request_projected_maf"], **common_kwargs

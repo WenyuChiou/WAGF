@@ -55,8 +55,9 @@ def _agent(basin: str, request: float, water_right: float = 4_000_000.0,
     }
 
 
-def _env(ub=(1_500_000.0, 1_500_000.0), lb=(1_300_000.0, 1_300_000.0)) -> IrrigationEnvironment:
-    env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+def _env(ub=(1_500_000.0, 1_500_000.0), lb=(1_300_000.0, 1_300_000.0),
+         **config_kwargs) -> IrrigationEnvironment:
+    env = IrrigationEnvironment(WaterSystemConfig(seed=42, **config_kwargs))
     for i, r in enumerate(ub):
         env._agents[f"UB{i}"] = _agent("upper_basin", r)
     for i, r in enumerate(lb):
@@ -142,6 +143,7 @@ def _planned(env, snap):
         shortage_volume=snap["lb_shortage_volume_maf"], mexico=snap["mexico"],
         ub_requested_maf=ub_requested,
         lb_requested_maf=snap["lb_request_projected_maf"],
+        year=env._current_year,
         # WP1b (item 20): this file's agents never set supply_group, so the
         # whole (possibly overridden, possibly random) Upper Basin total
         # goes into the unconstrained "no sub-basin" bucket -- see
@@ -312,7 +314,9 @@ class TestProRata:
     def test_lb_tier_cut_reduces_non_ag_only_not_agricultural(self):
         """PI decision 2026-09-28 (replaces the pro-rata-across-all-LB-use
         rule tested here until this review round): the declared shortage
-        volume V reduces ONLY the 5.0 MAF non-agricultural bucket
+        volume V reduces ONLY the non-agricultural bucket (5.2 MAF, item
+        25; 5.0 MAF before it -- the assertion below reads
+        `cfg.lb_non_ag_total_maf`, not a literal)
         (non_ag = max(0, N - V)); the 22 agricultural agents are senior
         and are NOT reduced by the declared tier -- only by physical Mead
         availability (phi, here == 1.0, Mead has ample storage). Upper
@@ -343,8 +347,15 @@ class TestUpperBasinNotZeroed:
     def test_low_natural_flow_does_not_zero_ub_when_powell_has_storage(self):
         """The old model set UB = max(0, NF - 7.0) = 0 in a 6.0 MAF year
         (2022). With Powell storage covering the minimum release, UB keeps
-        its full request."""
-        env = _env()
+        its full request.
+
+        Spec items 26/27: pinned to the storage_balancing release floor
+        (7.0 MAF) explicitly -- under the v3-default ig2007_tiers rule
+        this exact scenario's 1 January state falls in the Mid-Elevation
+        Release tier (Mead >= 1,025 ft), which releases 7.48 MAF instead;
+        that is a different, equally-real number, not a regression, and is
+        covered by the ig2007_tiers tier tests instead."""
+        env = _env(powell_release_mode="storage_balancing")
         snap = {"powell_storage": 9.62, "mead_storage": 9.0, "natural_flow": 6.0,
                 "lb_shortage_volume_maf": 0.5, "mexico": 1.225, "lb_tributary": 0.8,
                 "lb_request_projected_maf": 2.6}
@@ -408,7 +419,11 @@ class TestUpperBasinNotZeroed:
         1, so the actual withdrawal matches the projected O), Powell's
         and Mead's end-of-year LIVE fractions -- AFTER withdrawals, not
         before -- come out equal."""
-        env = _env()
+        # Spec items 26/27: this test exercises the storage_balancing
+        # rule's own equal-live-FRACTION algebra directly; the v3-default
+        # ig2007_tiers rule uses a different balance (equal ACTIVE
+        # storage) and tier structure entirely, covered by its own tests.
+        env = _env(powell_release_mode="storage_balancing")
         cfg = env.config
         r_lb_projected = 2.6  # _env()'s default two 1.3 MAF Lower Basin agents
         snap = {"powell_storage": 16.0, "mead_storage": 16.0,
@@ -436,8 +451,13 @@ class TestUpperBasinNotZeroed:
     def test_balancing_bounds_respected_when_equalizing_release_is_extreme(self):
         """When Powell is nearly full and Mead nearly empty, the pure
         equalizing release would exceed 9.5 MAF; the rule clips to the
-        Guidelines' own Lower Elevation Balancing Tier ceiling instead."""
-        env = _env()
+        Guidelines' own Lower Elevation Balancing Tier ceiling instead.
+
+        Spec items 26/27: pinned to storage_balancing -- under this
+        scenario's 1 January state (Powell near capacity) the v3-default
+        ig2007_tiers rule is in its Equalization tier instead, a different
+        clip entirely."""
+        env = _env(powell_release_mode="storage_balancing")
         cfg = env.config
         # Full enough to want much more than 9.5 MAF release, but not so
         # full that even a 9.5 MAF release leaves it above capacity
@@ -456,8 +476,15 @@ class TestUpperBasinNotZeroed:
     def test_balancing_release_never_below_floor_when_physically_available(self):
         """Symmetric case: Mead nearly full and Powell nearly empty (but
         not at dead pool) -- pure equalizing wants near-zero release, but
-        the rule floors it at 7.0 MAF since that much is available."""
-        env = _env()
+        the rule floors it at 7.0 MAF since that much is available.
+
+        Spec items 26/27: pinned to storage_balancing (the "pure
+        equalizing" algebra this docstring describes); under ig2007_tiers
+        this state also floors at 7.0 MAF (its LEB tier clamps to the same
+        [7.0, 9.5] band), so this scenario happens not to discriminate the
+        two rules -- pinned explicitly anyway so the test keeps exercising
+        the rule its own docstring names."""
+        env = _env(powell_release_mode="storage_balancing")
         cfg = env.config
         snap = {"powell_storage": cfg.powell_dead_pool_maf + 3.0,
                 "mead_storage": cfg.mead_conservation_pool_maf - 0.5,
@@ -476,8 +503,13 @@ class TestUpperBasinNotZeroed:
         and a large natural flow keep the balancing release wanting far
         more than the [7.0, 9.5] MAF band even with Mead this full, so the
         clipped release plus spill together drain Powell back to exactly
-        its capacity."""
-        env = _env()
+        its capacity.
+
+        Spec items 26/27: pinned to storage_balancing -- the 13.3 MAF
+        release / 3.8 MAF spill this test asserts are that rule's own
+        equal-live-fraction numbers; ig2007_tiers gives a different
+        Equalization-tier release for the same snapshot."""
+        env = _env(powell_release_mode="storage_balancing")
         cfg = env.config
         snap = {"powell_storage": cfg.powell_capacity_maf + 2.0,
                 "mead_storage": cfg.mead_conservation_pool_maf - 1.0,
@@ -578,7 +610,8 @@ class TestTimingAndInitialState:
         # the elevation in [1025, 1050) ft -> Tier 2.
         env._mead_storage = [9.0]
         # PI decision 2026-09-28: curtailment_ratio is V / N (the declared
-        # volume over the 5.0 MAF non-agricultural bucket alone), not
+        # volume over the non-agricultural bucket alone -- 5.2 MAF, item
+        # 25; 5.0 MAF before it), not
         # dependent on Lower Basin requests at all (superseding the WP1
         # V / (r_LB + N) version reviewed the same day).
         expected_ratio = env._tier_shortage_volume_maf(2) / cfg.lb_non_ag_total_maf

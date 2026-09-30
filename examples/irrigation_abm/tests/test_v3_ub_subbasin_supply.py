@@ -792,6 +792,7 @@ class TestReleasePlanUsesSubbasinProjection:
                 trib=snap["lb_tributary"], shortage_volume=snap["lb_shortage_volume_maf"],
                 mexico=snap["mexico"], ub_requested_maf=ub_aggregate_maf,
                 lb_requested_maf=snap["lb_request_projected_maf"],
+                year=env._current_year,
             )
 
             recomputed_with_subbasin = env._plan_powell_release(

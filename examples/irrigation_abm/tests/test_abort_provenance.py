@@ -139,6 +139,22 @@ class TestAbortPreservesProvenanceAndSimulationLog:
         ):
             assert key in manifest, f"{key} missing from manifest on an aborted run"
 
+    def test_manifest_carries_water_system_config_provenance_on_abort(
+        self, tmp_path, monkeypatch, fast_tripping_safeguard,
+    ):
+        """Re-review 2026-09-29 round 4 (MEDIUM 4; spec items 25-27):
+        ``_record_water_system_config_provenance`` is called in the SAME
+        try/finally block as ``_record_hold_requests_fixed_provenance``
+        (added alongside it, same call site) -- fails on the pre-fix code,
+        where this function does not exist at all, on EITHER a normal or
+        an aborted run, not only on abort."""
+        _run_main_expecting_abort(tmp_path, monkeypatch)
+        manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text())
+        assert manifest["run_status"] == "aborted_llm_failure_rate"
+        assert manifest["powell_release_mode"] == "ig2007_tiers"
+        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
+
     def test_simulation_log_csv_written_on_abort_after_a_complete_year(
         self, tmp_path, monkeypatch,
     ):

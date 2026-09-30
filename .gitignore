@@ -110,6 +110,11 @@ temp_*.json
 # irrigation_v3_spec_2026-09-28.md item 22).
 !examples/irrigation_abm/data/lb_priority_split_v3.csv
 
+# ...and the WP1d observed hindcast record + its sources file (same
+# rationale, irrigation_v3_spec_2026-09-28.md item 25).
+!examples/irrigation_abm/data/hindcast_observed_v3.csv
+!examples/irrigation_abm/data/hindcast_observed_v3_sources.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/

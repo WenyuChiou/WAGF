@@ -84,6 +84,13 @@ _REAL_REF_AVAILABLE = CRSS_PARAMS_CSV.is_file() and CRSS_DB_DIR.is_dir()
 # Review round 2 (MEDIUM 3): the exact commit this review requires
 # lb_priority_mode="senior_all" to stay bit-identical to.
 _HEAD_COMMIT = "38e5c34b"
+# Re-review 2026-09-29 round 4 (LOW 7): the branch tip immediately before
+# items 25-27 (LB non-ag 5.2, the 2007 Interim Guidelines Powell tiers)
+# landed -- the exact commit the v3-DEFAULT ("split") settlement must stay
+# bit-identical to when both new defaults are pinned back to what they
+# were there (lb_non_ag_total_maf=5.0, powell_release_mode=
+# "storage_balancing"; see TestSplitDefaultBitIdenticalTo58a1d0ea below).
+_PRE_ITEMS_25_27_COMMIT = "58a1d0ea"
 
 
 def _agent(basin: str, request: float, water_right: float = 4_000_000.0) -> dict:
@@ -133,6 +140,7 @@ def _planned_snapshot(env: IrrigationEnvironment, snap: dict) -> dict:
         shortage_volume=snap["lb_shortage_volume_maf"], mexico=snap["mexico"],
         ub_requested_maf=ub_requested_maf,
         lb_requested_maf=snap["lb_request_projected_maf"],
+        year=env._current_year,
         ub_requested_by_subbasin_maf=ub_by_subbasin,
         ub_available_by_subbasin_maf=_UB_SUBBASIN_PLACEHOLDER_MAF,
     )
@@ -528,22 +536,24 @@ class TestMassBalanceBothModes:
 # Bit-identity of senior_all against HEAD 38e5c34b (review round 2, MEDIUM 3)
 # ===========================================================================
 
-def _load_head_irrigation_env(tmp_path: Path):
-    """Extract irrigation_env.py exactly as committed at _HEAD_COMMIT and
-    load it as an isolated module (registered in sys.modules first -- the
-    @dataclass decorator needs cls.__module__ resolvable). __file__ is
-    pointed at a sibling of the REAL irrigation_abm package so its own
-    _DATA_DIR / *_PATH constants resolve to the real, checksum-matching
-    committed CSVs (hydrology_v3.csv etc. have not changed since HEAD)."""
+def _load_head_irrigation_env(tmp_path: Path, commit: str = _HEAD_COMMIT):
+    """Extract irrigation_env.py exactly as committed at ``commit``
+    (default ``_HEAD_COMMIT``, 38e5c34b) and load it as an isolated module
+    (registered in sys.modules first -- the @dataclass decorator needs
+    cls.__module__ resolvable). __file__ is pointed at a sibling of the
+    REAL irrigation_abm package so its own _DATA_DIR / *_PATH constants
+    resolve to the real, checksum-matching committed CSVs (hydrology_v3.csv
+    etc. have not changed since either commit this file uses)."""
     result = subprocess.run(
-        ["git", "show", f"{_HEAD_COMMIT}:examples/irrigation_abm/irrigation_env.py"],
+        ["git", "show", f"{commit}:examples/irrigation_abm/irrigation_env.py"],
         capture_output=True, text=True, check=True, cwd=Path(__file__).resolve().parents[3],
     )
-    shadow_path = tmp_path / "irrigation_env_head.py"
+    shadow_path = tmp_path / f"irrigation_env_{commit}.py"
     shadow_path.write_text(result.stdout, encoding="utf-8")
-    spec = importlib.util.spec_from_file_location("irrigation_env_head_38e5c34b", shadow_path)
+    module_name = f"irrigation_env_head_{commit}"
+    spec = importlib.util.spec_from_file_location(module_name, shadow_path)
     head_mod = importlib.util.module_from_spec(spec)
-    sys.modules["irrigation_env_head_38e5c34b"] = head_mod
+    sys.modules[module_name] = head_mod
     head_mod.__file__ = str(
         Path(__file__).resolve().parents[1] / "irrigation_env_HEAD_SHADOW_not_a_real_file.py"
     )
@@ -576,20 +586,32 @@ def _dump_replay(env_cls, cfg_cls, target: str, *, extra_cfg=None, seed=7, years
 
 
 def _assert_dumps_bit_identical(dump_head, dump_new, label):
+    """Compares EVERY settlement field HEAD's own record has (not only
+    float-typed ones -- re-review 2026-09-29 round 4, LOW 7: the previous
+    version's ``isinstance(rh[k], float)`` guard silently skipped any
+    int/str/None field entirely, ``calendar_year`` among them) and EVERY
+    per-agent field HEAD's own record has (not only the four hardcoded
+    ``delivered`` / ``delivery_ratio`` / ``request`` / ``gap_reason``).
+    Iterates HEAD's own keys, never NEW's, so a key the NEW side adds
+    (``powell_tier`` / ``powell_tier_rule``, absent entirely from HEAD's
+    pre-item-26/27 settlement dict; WP1c's per-agent junior-split fields,
+    absent from a pre-WP1c HEAD) is correctly never expected to match
+    something HEAD never had an opinion on -- exactly like a caller
+    reading a dict with ``.get`` would."""
     assert len(dump_head) == len(dump_new)
     mismatches = []
     for yi, (rh, rn) in enumerate(zip(dump_head, dump_new), start=1):
         for k in rh:
             if k == "agents":
                 continue
-            if isinstance(rh[k], float) and rh[k] != rn[k]:
-                mismatches.append(f"{label} year {yi} field {k}: HEAD={rh[k]!r} NEW={rn[k]!r}")
+            if rh[k] != rn.get(k):
+                mismatches.append(f"{label} year {yi} field {k}: HEAD={rh[k]!r} NEW={rn.get(k)!r}")
         for aid in rh["agents"]:
-            for k in ("delivered", "delivery_ratio", "request", "gap_reason"):
-                if rh["agents"][aid].get(k) != rn["agents"][aid].get(k):
+            for k in rh["agents"][aid]:
+                if rh["agents"][aid][k] != rn["agents"][aid].get(k):
                     mismatches.append(
                         f"{label} year {yi} agent {aid} field {k}: "
-                        f"HEAD={rh['agents'][aid].get(k)!r} NEW={rn['agents'][aid].get(k)!r}"
+                        f"HEAD={rh['agents'][aid][k]!r} NEW={rn['agents'][aid].get(k)!r}"
                     )
     assert not mismatches, "\n".join(mismatches[:20])
 
@@ -601,27 +623,45 @@ class TestSeniorAllBitIdenticalToHead:
     field, every year, for replay A (2018 fixed demand), replay B (0.99W
     fixed demand), keep-every-year, and an in-year perturbation. Fails on
     round 1's code (epsilon phi threshold and multiply-then-divide
-    delivery_ratio each move a bit relative to HEAD)."""
+    delivery_ratio each move a bit relative to HEAD).
+
+    Spec items 25/26/27 (2026-09-29, corrected re-review round 4, LOW 7 --
+    the previous docstring here overclaimed this AS the "storage_balancing
+    stays bit-identical to 58a1d0ea" check; it is not, precisely, because
+    it compares against 38e5c34b under lb_priority_mode="senior_all", not
+    58a1d0ea under the v3-DEFAULT "split" mode): HEAD 38e5c34b's
+    WaterSystemConfig defaults are lb_non_ag_total_maf=5.0 and the
+    storage-balancing Powell rule (the only one that existed then --
+    powell_release_mode did not exist), UNCHANGED all the way to 58a1d0ea
+    (WP1c and the item-24 safeguard, the commits between them, touch
+    neither field). The v3 defaults moved to 5.2 and "ig2007_tiers", so
+    the "NEW" side must pin BOTH back to the pre-items-25-27 values to
+    keep isolating what this class actually tests (lb_priority_mode=
+    "senior_all" alone). The EXACT, literal 58a1d0ea check, under the
+    v3-default "split" mode this class does NOT exercise, is
+    TestSplitDefaultBitIdenticalTo58a1d0ea below."""
+
+    _OLD_DEFAULTS = {"lb_non_ag_total_maf": 5.0, "powell_release_mode": "storage_balancing"}
 
     def test_replay_a_2018_fixed_demand(self, tmp_path):
         head_mod = _load_head_irrigation_env(tmp_path)
         dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "2018")
         dump_new = _dump_replay(IrrigationEnvironment, WaterSystemConfig, "2018",
-                                 extra_cfg={"lb_priority_mode": "senior_all"})
+                                 extra_cfg={"lb_priority_mode": "senior_all", **self._OLD_DEFAULTS})
         _assert_dumps_bit_identical(dump_head, dump_new, "replay-A")
 
     def test_replay_b_099w_fixed_demand(self, tmp_path):
         head_mod = _load_head_irrigation_env(tmp_path)
         dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "0.99W")
         dump_new = _dump_replay(IrrigationEnvironment, WaterSystemConfig, "0.99W",
-                                 extra_cfg={"lb_priority_mode": "senior_all"})
+                                 extra_cfg={"lb_priority_mode": "senior_all", **self._OLD_DEFAULTS})
         _assert_dumps_bit_identical(dump_head, dump_new, "replay-B")
 
     def test_keep_every_year(self, tmp_path):
         head_mod = _load_head_irrigation_env(tmp_path)
         dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "keep")
         dump_new = _dump_replay(IrrigationEnvironment, WaterSystemConfig, "keep",
-                                 extra_cfg={"lb_priority_mode": "senior_all"})
+                                 extra_cfg={"lb_priority_mode": "senior_all", **self._OLD_DEFAULTS})
         _assert_dumps_bit_identical(dump_head, dump_new, "keep-every-year")
 
     def test_in_year_perturbation(self, tmp_path):
@@ -641,7 +681,8 @@ class TestSeniorAllBitIdenticalToHead:
         )
         rng_n = np.random.default_rng(11)
         env_n = IrrigationEnvironment(
-            WaterSystemConfig(seed=11, ub_supply_mode="subbasin", lb_priority_mode="senior_all")
+            WaterSystemConfig(seed=11, ub_supply_mode="subbasin", lb_priority_mode="senior_all",
+                               **self._OLD_DEFAULTS)
         )
         env_n.initialize_from_profiles(
             create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng_n)
@@ -669,6 +710,42 @@ class TestSeniorAllBitIdenticalToHead:
         assert not mismatches, "\n".join(mismatches[:20])
 
 
+@pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+class TestSplitDefaultBitIdenticalTo58a1d0ea:
+    """Re-review 2026-09-29 round 4 (LOW 7): the EXACT check named in the
+    items-25-27 review -- the v3-DEFAULT settlement (``lb_priority_mode=
+    "split"``, unlike TestSeniorAllBitIdenticalToHead above, which
+    exercises "senior_all") stays bit-identical to a LIVE git extraction
+    of irrigation_env.py at 58a1d0ea (the commit immediately before items
+    25-27 landed) once BOTH new defaults are pinned back
+    (lb_non_ag_total_maf=5.0, powell_release_mode="storage_balancing" --
+    58a1d0ea has no ``powell_release_mode`` field at all, so the HEAD side
+    is built with no override, relying on its own only rule).
+    ``_assert_dumps_bit_identical`` compares EVERY settlement field and
+    EVERY per-agent field 58a1d0ea's own record has, not a hand-picked
+    subset -- so a drift in, say, ``lb_senior_af`` or
+    ``ub_subbasin_ratio`` (WP1c/WP1b fields that already existed at
+    58a1d0ea) would be caught, not silently skipped."""
+
+    def test_replay_a_2018_fixed_demand(self, tmp_path):
+        head_mod = _load_head_irrigation_env(tmp_path, commit=_PRE_ITEMS_25_27_COMMIT)
+        dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "2018")
+        dump_new = _dump_replay(
+            IrrigationEnvironment, WaterSystemConfig, "2018",
+            extra_cfg={"lb_non_ag_total_maf": 5.0, "powell_release_mode": "storage_balancing"},
+        )
+        _assert_dumps_bit_identical(dump_head, dump_new, "split-vs-58a1d0ea-replay-A")
+
+    def test_keep_every_year(self, tmp_path):
+        head_mod = _load_head_irrigation_env(tmp_path, commit=_PRE_ITEMS_25_27_COMMIT)
+        dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "keep")
+        dump_new = _dump_replay(
+            IrrigationEnvironment, WaterSystemConfig, "keep",
+            extra_cfg={"lb_non_ag_total_maf": 5.0, "powell_release_mode": "storage_balancing"},
+        )
+        _assert_dumps_bit_identical(dump_head, dump_new, "split-vs-58a1d0ea-keep-every-year")
+
+
 class TestSplitMatchesSeniorAllAggregate:
     """Lighter-weight companions to TestSeniorAllBitIdenticalToHead: these
     do not need git or a fresh module load, only the two REGRESSION pins
@@ -687,7 +764,17 @@ class TestSplitMatchesSeniorAllAggregate:
         2018 use, 7,882 AF, now exceeds its PUBLISHED 7,065 AF senior
         entitlement, unlike round 1's larger, water_right-scaled one);
         CocopahIndRes never draws a junior cut in this replay (2018 use,
-        550 AF, sits well inside its 8,821 AF senior entitlement)."""
+        550 AF, sits well inside its 8,821 AF senior entitlement).
+
+        Spec items 25/26/27 (2026-09-29): the tier-count and Mead-minimum
+        pins moved from {0: 21, 1: 11, 2: 7, 3: 3} / 7.4665 MAF to the
+        values below, restating test_v3_water_system.py::
+        TestMassBalanceClosureV3.test_real_2018_fixed_demand_42_years
+        exactly (lb_non_ag_total_maf 5.0->5.2, powell_release_mode
+        storage_balancing->ig2007_tiers); junior_cut_years moves from 21
+        (11+7+3) to 32 (10+14+8), since a declared tier -- not the specific
+        tier number -- is what triggers a junior cut every year for these
+        five agents."""
         from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
 
         def run(mode):
@@ -714,21 +801,30 @@ class TestSplitMatchesSeniorAllAggregate:
 
         split_tc, split_min, split_cut_years = run("split")
         senior_tc, senior_min, senior_cut_years = run("senior_all")
-        assert split_tc == senior_tc == {0: 21, 1: 11, 2: 7, 3: 3}
+        assert split_tc == senior_tc == {0: 10, 1: 10, 2: 14, 3: 8}
         assert split_min == pytest.approx(senior_min, abs=1e-9)
-        assert split_min == pytest.approx(7.4665, abs=1e-3)
+        assert split_min == pytest.approx(7.0652, abs=1e-3)
         assert senior_cut_years == 0
-        assert split_cut_years == 21  # every declared-tier year (11 + 7 + 3)
+        assert split_cut_years == 32  # every declared-tier year (10 + 14 + 8)
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
     def test_keep_every_year_diverges_from_senior_all_with_feedback(self):
         """With request FEEDBACK (each year's "keep" tracks the agent's
         own prior delivery), split and senior_all legitimately diverge --
         the pinned numbers in test_v3_water_system.py::TestKeepEveryYear42Years
-        (29/8/3/2 split vs the 29/7/4/2 senior_all/HEAD pin) are the
-        authoritative regression; this test only confirms senior_all
-        itself still matches that pin exactly under THIS file's own
-        harness, as an independent cross-check."""
+        (the v3-default "split" mode) are the authoritative regression for
+        that mode; this test pins "senior_all" under the SAME scenario as
+        its own independent number, standing in for the pre-item-22 (WP1c)
+        behaviour.
+
+        Spec items 25/26/27 (2026-09-29): moved from {0: 29, 1: 7, 2: 4,
+        3: 2} / 7.4989 MAF (the pre-item-25/26/27 senior_all/HEAD pin,
+        5.0 MAF non-ag bucket + storage_balancing) to the values below
+        (5.2 MAF + ig2007_tiers, this file's own recipe) -- diverging from
+        "split"'s new {0: 17, 1: 11, 2: 8, 3: 6} / 7.1028 MAF pin exactly
+        as the docstring above describes (split lowers the six junior
+        agents' own subsequent requests further than senior_all does, once
+        a tier actually cuts them)."""
         from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
 
         rng = np.random.default_rng(7)
@@ -747,8 +843,8 @@ class TestSplitMatchesSeniorAllAggregate:
             if mead_min_maf is None or mead_1jan < mead_min_maf:
                 mead_min_maf = mead_1jan
             env.settle_year()
-        assert tier_counts == {0: 29, 1: 7, 2: 4, 3: 2}
-        assert mead_min_maf == pytest.approx(7.4989, abs=1e-3)
+        assert tier_counts == {0: 16, 1: 11, 2: 9, 3: 6}
+        assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)
 
 
 # ===========================================================================
@@ -767,7 +863,18 @@ class TestHoldRequestsFixedReplay:
         7,065 AF senior entitlement -- round 1's larger, water_right-scaled
         13,426.28 AF senior figure had hidden this). Dead pool is never
         reached in this replay, so "before dead pool" spans the full 42
-        years."""
+        years.
+
+        Spec items 25/26/27 (2026-09-29): tier counts and Mead minimum
+        move to {0: 10, 1: 10, 2: 14, 3: 8} / 7.0652 MAF, the SAME pin as
+        TestSplitMatchesSeniorAllAggregate above (5.2 MAF non-ag bucket,
+        item 25 + ig2007_tiers, item 26/27); dead pool is still never
+        reached. junior_short_years_total moves from 105 to 160 (32 years
+        each for the five agents a declared tier always cuts, since 32 is
+        now the total declared-tier-year count, 10 + 14 + 8) -- the same
+        move test_split_matches_senior_all_under_hold_requests_fixed's
+        junior_cut_years makes (21 -> 32), read per-agent here instead of
+        aggregated."""
         from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
 
         rng = np.random.default_rng(7)
@@ -796,14 +903,14 @@ class TestHoldRequestsFixedReplay:
                     junior_short_years_total += 1
                     junior_short_years_by_agent[aid] += 1
 
-        assert tier_counts == {0: 21, 1: 11, 2: 7, 3: 3}
-        assert mead_min_maf == pytest.approx(7.4665, abs=1e-3)
+        assert tier_counts == {0: 10, 1: 10, 2: 14, 3: 8}
+        assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)
         assert not dead_pool_reached
 
-        assert junior_short_years_total == 105
+        assert junior_short_years_total == 160
         assert junior_short_years_by_agent == {
-            "MohaveValleyIDD": 21, "CibolaValleyIDD": 21, "GilaMonsterFarms": 21,
-            "HopiTribe": 21, "NorthBajaLLC": 21, "CocopahIndRes": 0,
+            "MohaveValleyIDD": 32, "CibolaValleyIDD": 32, "GilaMonsterFarms": 32,
+            "HopiTribe": 32, "NorthBajaLLC": 32, "CocopahIndRes": 0,
         }
 
 
