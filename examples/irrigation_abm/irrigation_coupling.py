@@ -243,6 +243,12 @@ def build_irrigation_agent_context_contract() -> CouplingContract:
 #                          a Lower Basin agent at tier 0 or in
 #                          ``lb_priority_mode="senior_all"`` -- legitimate,
 #                          not a guess.
+#   shortage_tier_threshold_ft -- WP4 (spec 4.3): the 1 January Lake Mead
+#                          level the declared tier is below, read from the
+#                          config's own tier edges for ``shortage_tier``
+#                          above (same derived-value reasoning as
+#                          ``lb_shortage_volume_maf``). ``None`` at tier 0,
+#                          when no tier sentence is shown -- legitimate.
 IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     "agent_id", "shortage_tier", "year", "powell_dead_pool_maf",
     "precipitation_flag", "lb_shortage_volume_maf",
@@ -250,6 +256,8 @@ IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     # WP1c (item 22, 2026-09-29)
     "lb_senior_entitlement_af", "lb_junior_entitlement_af",
     "lb_junior_request_af", "lb_junior_tier_cut_fraction",
+    # WP4 (spec 4.3)
+    "shortage_tier_threshold_ft",
 )
 
 

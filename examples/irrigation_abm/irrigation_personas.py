@@ -5,10 +5,13 @@ Generates narrative personas and context strings for LLM prompt injection,
 analogous to the flood experiment's memory_templates.py.  Personas are
 derived from the three FQL behavioral clusters (Hung & Yang 2021).
 
-Each agent receives:
-- A narrative persona describing their water management style
-- Water situation text describing current conditions
-- Conservation status
+Each agent receives (v3, WP4, irrigation_v3_spec_2026-09-28.md 4.1-4.5):
+- one fixed persona text per cluster (build_narrative_persona);
+- the water situation text for the year (build_water_situation_text);
+- the option texts (build_option_texts, WP2);
+- one memory line per past year (build_action_outcome_feedback).
+Every sentence states a model quantity or a Hung and Yang parameter; the
+conservation-status line and the adaptive-capacity hint are gone.
 """
 
 from __future__ import annotations
@@ -169,100 +172,75 @@ class IrrigationAgentProfile:
 
 
 # ============================================================================
-# Cluster-based persona templates
+# Cluster personas (v3, WP4, spec 4.1; provenance A5, A7, A8)
 # ============================================================================
 
+# Opening, all 78 agents. Hung and Yang (2021, p. 2): an agent "can be a
+# single farm, an irrigation ditch, an irrigation district, American tribal
+# water users, or a group of farming entities"; Eq. 5 (p. 4): the reward is
+# production from the water received.
 _PERSONA_OPENING = (
-    "You are {agent_id}, an agriculture water user (an irrigation district "
-    "or a group of water users) in the {basin_name} of the Colorado River "
-    "Basin, holding a water right of {water_right:,.0f} acre-ft/year. "
+    "You are {agent_id}, an agricultural water user (an irrigation district, "
+    "a tribal water user, or a group of water users) in the {basin_name} of "
+    "the Colorado River, holding a water right of {water_right:,.0f} "
+    "acre-ft/year. The more water you receive, the more you can produce."
 )
 
-_CLUSTER_PERSONAS = {
-    "aggressive": [
-        (
-            _PERSONA_OPENING
-            + "You are known for making bold, quick adjustments to your "
-            "water orders. When water conditions change, you act "
-            "immediately, sometimes requesting significantly more water "
-            "when you sense an opportunity, and cutting back sharply when "
-            "you detect shortages ahead. You would rather overshoot your "
-            "water request and face a small penalty than be too cautious "
-            "and miss a productive season. "
-            "With your established water right, you feel confident in "
-            "your ability to adapt your water use when needed."
-        ),
-        (
-            _PERSONA_OPENING
-            + "You have learned that waiting too long to adjust water "
-            "demand can be costly. You respond swiftly to changes in "
-            "precipitation patterns and river conditions. Your approach: "
-            "it's better to request too much water and have some returned "
-            "than to request too little and come up short. You aren't "
-            "particularly worried about unmet demand penalties; you focus "
-            "on maximising your water use. "
-            "Your water allocation and operational flexibility give you "
-            "strong capacity to adapt to changing conditions."
-        ),
-    ],
-    "forward_looking_conservative": [
-        (
-            _PERSONA_OPENING
-            + "You believe in steady, measured adjustments to water "
-            "demand, never making dramatic changes. You learn quickly "
-            "from each season's outcomes and always think about the long "
-            "term. The thought of facing a water shortage deeply concerns "
-            "you; you would rather use a little less water than risk a "
-            "curtailment penalty. "
-            "Your careful planning and willingness to invest in efficient "
-            "systems give you moderate-to-good ability to adapt your "
-            "water use."
-        ),
-        (
-            _PERSONA_OPENING
-            + "You are known as a careful planner. You adjust your water "
-            "request only after thoroughly considering the evidence: "
-            "precipitation data, Lake Mead levels, and your own past "
-            "experience. You are willing to experiment with new "
-            "approaches but always in small, measured steps. Running "
-            "short of water is your worst-case scenario; you hate the "
-            "idea of demand going unmet. You keep detailed records and "
-            "plan ahead. "
-            "Your proactive planning and openness to efficiency "
-            "improvements provide you reasonable capacity to adapt when "
-            "conditions change."
-        ),
-    ],
-    "myopic_conservative": [
-        (
-            _PERSONA_OPENING
-            + "You believe strongly in following the practices that have "
-            "worked before. Why change what isn't broken? You make only "
-            "minor adjustments to your water demand from year to year. "
-            "You are sceptical of forecasts and new technologies. You "
-            "rarely try completely new strategies, preferring to rely on "
-            "your own accumulated knowledge and the patterns you've "
-            "observed over decades of water management. "
-            "Your limited technology investment constrains your options "
-            "for adapting water use if conditions deteriorate."
-        ),
-        (
-            _PERSONA_OPENING
-            + "You trust your own experience above all else. You see "
-            "other water users making dramatic changes to their water "
-            "orders and think they're overreacting. You adjust your "
-            "demand only slightly each year, steady as she goes. You're "
-            "moderately concerned about water shortages but believe that "
-            "staying the course has served you well so far. New ideas "
-            "need to prove themselves elsewhere before you'll try them "
-            "here. "
-            "Your reliance on traditional methods and limited resources "
-            "make it harder for you to adapt your water practices under "
-            "pressure."
-        ),
-    ],
+# Upper Basin volumes are depletions (Hung and Yang 2021, p. 9).
+_UB_VOLUME_SENTENCE = "All volumes shown to you are consumptive use."
+
+_PERSONA_BASIN_NAME = {
+    "upper_basin": "Upper Basin",
+    "lower_basin": "Lower Basin",
 }
 
+# One fixed text per cluster (A8: no random wording variant). Spec item 29d
+# (2026-09-30): each sentence is a statement about the agent's GROUP ("Users
+# in your group tend to ...", the framing the PI approved), never about the
+# agent itself, because an agent's own parameter can sit on the other side of
+# a comparison its cluster's mean satisfies (63 of the 78 agents have at
+# least one such parameter). It states a cluster tendency of Hung and Yang
+# (2021) Table 1 (p. 13) and Fig. 7, as a comparison with the other
+# clusters and without superlatives, for the three parameters whose cluster
+# ordering holds in the calibrated parameter file
+# (ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv), whether the cluster
+# mean is taken over its 31 calibrated entities or over its agents:
+# regret (concern about a shortfall) aggressive < myopic < forward-looking;
+# alpha (how quickly expectations are revised) forward-looking above both
+# others (aggressive against myopic flips between the two means, so it is
+# not compared); gamma (weight on future years) myopic < aggressive <
+# forward-looking. Exploration (epsilon) is not mentioned: its ordering does
+# not hold. "More cautious users" are H&Y's two conservative clusters. Every
+# comparison names its group: aggressive users give future years less weight
+# than forward-looking users only, not than myopic users (WP4 re-review).
+# test_v3_prompt.py (test_persona_claims_hold_for_cluster_means) checks every
+# comparison against both means. Nothing about step size, finances,
+# technology, tenure or neighbours (L3 M2, M3).
+_CLUSTER_PERSONAS = {
+    "aggressive": (
+        "Users in your group tend to be less concerned by a shortfall between "
+        "what they request and what they receive than more cautious users are. "
+        "They tend to revise their expectations more slowly than "
+        "forward-looking users do and to give future years less weight than "
+        "forward-looking users do."
+    ),
+    "forward_looking_conservative": (
+        "Users in your group tend to be more concerned by a shortfall between "
+        "what they request and what they receive than other users are. They "
+        "tend to revise their expectations more quickly than other users do "
+        "and to give future years more weight than other users do."
+    ),
+    "myopic_conservative": (
+        "Users in your group tend to be more concerned by a shortfall between "
+        "what they request and what they receive than aggressive users are, "
+        "but less than forward-looking users are. They tend to revise their "
+        "expectations more slowly than forward-looking users do and to give "
+        "future years less weight than other users do."
+    ),
+}
+
+# The basin names of the situation text's first line ("You use water in the
+# Upper Colorado River Basin.").
 _BASIN_DISPLAY = {
     "upper_basin": "Upper Colorado River Basin",
     "lower_basin": "Lower Colorado River Basin",
@@ -273,20 +251,35 @@ def build_narrative_persona(
     profile: IrrigationAgentProfile,
     rng: Optional[np.random.Generator] = None,
 ) -> str:
-    """Generate a narrative persona string from an agent profile.
+    """The agent's fixed persona text (spec 4.1): the opening, the Upper
+    Basin volume sentence for Upper Basin agents, and its cluster's text.
 
-    Randomly selects from cluster-specific templates and fills in
-    agent-specific details.
+    ``rng``: the persona no longer depends on it (one text per cluster), but
+    the one draw the retired two-variant pick made is still taken, so every
+    caller's later draws (crop type and years farming of later profiles, the
+    parameters of later synthetic profiles) stay the same numbers.
     """
-    rng = rng or np.random.default_rng()
-    templates = _CLUSTER_PERSONAS.get(profile.cluster, _CLUSTER_PERSONAS["myopic_conservative"])
-    template = templates[rng.integers(0, len(templates))]
-
-    return template.format(
+    if rng is not None:
+        rng.integers(0, 2)
+    if profile.cluster not in _CLUSTER_PERSONAS:
+        raise ValueError(
+            f"{profile.agent_id}: cluster {profile.cluster!r} has no persona text "
+            f"({sorted(_CLUSTER_PERSONAS)})."
+        )
+    if profile.basin not in _PERSONA_BASIN_NAME:
+        raise ValueError(
+            f"{profile.agent_id}: basin {profile.basin!r} is neither "
+            "'upper_basin' nor 'lower_basin'."
+        )
+    parts = [_PERSONA_OPENING.format(
         agent_id=profile.agent_id,
-        basin_name=_BASIN_DISPLAY.get(profile.basin, profile.basin),
+        basin_name=_PERSONA_BASIN_NAME[profile.basin],
         water_right=profile.water_right,
-    )
+    )]
+    if profile.basin == "upper_basin":
+        parts.append(_UB_VOLUME_SENTENCE)
+    parts.append(_CLUSTER_PERSONAS[profile.cluster])
+    return " ".join(parts)
 
 
 # v3 (WP3, spec 3.3): the ONE "full supply" edge. A share of a request at or
@@ -311,95 +304,123 @@ def supply_ratio(expected_af: float, request_af: float) -> float:
     return round(float(expected_af) / float(request_af), 6)
 
 
-# Supply-side redesign (2026-09-25, spec S1 to S6): ONE helper turns the
-# settlement's gap_reason code into the phrase every message uses (situation
-# text, the supply-gap and shortage rule messages, the yearly memory line),
-# so the stated reason cannot drift between texts.
+def format_share(share: float) -> str:
+    """Spec 4.3 share format, for every agent-facing share of a request (the
+    situation text, the memory line's delivered share and the supply rule's
+    message): a share at or above FULL_SUPPLY_RATIO counts as a full delivery
+    and prints as "100%"; a share below it prints with one decimal, e.g.
+    "99.7%". A share in [0.995, 0.999) therefore never prints as "100%" next
+    to a shortfall, as ``f"{share:.0%}"`` would. Pass the share rounded as
+    ``supply_ratio`` rounds it, so the comparison and the printed number
+    agree."""
+    if share >= FULL_SUPPLY_RATIO:
+        return "100%"
+    return f"{share:.1%}"
 
 
-def _tier_from_state(state: Dict[str, Any]) -> int:
-    """The declared tier, from ``shortage_tier`` only. Review 2026-09-28
-    (fix 12): the earlier ``curtailment_ratio``-based fallback
-    (``_TIER_BY_CUT``, keyed on the pre-v3 flat 0.05/0.10/0.20 cuts) is
-    deleted -- ``curtailment_ratio`` is now V / N (PI decision
-    2026-09-28), a different number that never matched those keys anyway
-    once V stopped being a flat percentage. No silent fallback: a caller
-    with no ``shortage_tier`` gets 0 (unknown), not a guess."""
-    tier = state.get("shortage_tier")
-    if isinstance(tier, (int, float)) and tier > 0:
-        return int(tier)
-    return 0
+# ONE helper turns a settlement's gap_reason code into the phrase every text
+# uses (situation text, supply-rule message, memory line), so the stated
+# reason cannot drift between them (spec 4.4). Each code has a present form
+# (this year's expected delivery) and a past form (last year's outcome).
+_REASON_TEXT = {
+    # WP1b (item 20): the agent's own sub-basin is short. Spec item 29b: what
+    # falls short is the water the sub-basin can draw, A_s = c_s x Q_s, a
+    # fixed share of the natural flow at its gauges (spec 1b.2), not the
+    # natural flow itself, which is always larger than the requests.
+    "ub_subbasin_supply": {
+        "present": ("the water your sub-basin can draw this year, a fixed share of "
+                    "the natural flow of its rivers, is below the combined requests "
+                    "of its users, and the shortfall is shared in proportion to "
+                    "requests"),
+        "past": ("the water your sub-basin could draw that year, a fixed share of "
+                 "the natural flow of its rivers, was below the combined requests "
+                 "of its users, and the shortfall was shared in proportion to "
+                 "requests"),
+    },
+    # The same code for the only member of its sub-basin (UT2): no other user
+    # shares the shortfall, so neither "combined requests of its users" nor
+    # "shared in proportion to requests" is true.
+    "ub_subbasin_supply_alone": {
+        "present": ("the water your sub-basin can draw this year, a fixed share of "
+                    "the natural flow of its rivers, is below your own request"),
+        "past": ("the water your sub-basin could draw that year, a fixed share of "
+                 "the natural flow of its rivers, was below your own request"),
+    },
+    # The basin-wide backstop (and ub_supply_mode="lees_ferry_pool").
+    "ub_natural_flow": {
+        "present": ("Upper Basin deliveries are limited by this year's natural flow at "
+                    "Lees Ferry, after Upper Basin non-farm use, and shared in "
+                    "proportion to requests"),
+        "past": ("Upper Basin deliveries were limited by that year's natural flow at "
+                 "Lees Ferry, after Upper Basin non-farm use, and shared in "
+                 "proportion to requests"),
+    },
+    "ub_capacity": {
+        "present": ("Upper Basin deliveries are limited to the {cap:.1f} million acre-ft "
+                    "delivery capacity and shared in proportion to requests"),
+        "past": ("Upper Basin deliveries were limited to the {cap:.1f} million acre-ft "
+                 "delivery capacity and shared in proportion to requests"),
+    },
+    # Item 14: Lake Mead cannot physically supply every withdrawal.
+    "lb_mead_availability": {
+        "present": ("Lake Mead cannot meet all Lower Basin withdrawals without falling "
+                    "below its minimum pool, so all Lower Basin deliveries are reduced "
+                    "in proportion to requests"),
+        "past": ("Lake Mead could not meet all Lower Basin withdrawals without falling "
+                 "below its minimum pool, so all Lower Basin deliveries were reduced "
+                 "in proportion to requests"),
+    },
+    # Item 22 (WP1c): the declared tier cuts this agent's junior-priority part.
+    "lb_junior_tier_cut": {
+        "present": "the declared Lower Basin shortage tier cuts your junior-priority water by about {frac:.0%}",
+        "past": "the declared Lower Basin shortage tier cut your junior-priority water by about {frac:.0%}",
+    },
+}
 
 
-def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
-    """Phrase for why this agent's delivery is below its request.
+def describe_gap_reason(agent_state: Dict[str, Any], tense: str) -> str:
+    """Phrase for why this agent's delivery is (present) or was (past) below
+    its request, starting with "because", ready to follow a comma; "" for
+    the code ``none`` or a missing code.
 
-    ``agent_state`` needs ``gap_reason`` (a settlement code from
-    ``IrrigationEnvironment._settle``) and, for the Lower Basin shortage
-    code, ``curtailment_ratio`` (and ``shortage_tier`` when available).
-    Returns "" for ``none`` or a missing code; otherwise a phrase starting
-    with "because", ready to follow a comma.
+    ``agent_state`` carries ``gap_reason`` (a code from
+    ``IrrigationEnvironment._settle``; two codes join with "+"), plus
+    ``ub_subbasin_member_count`` for ``ub_subbasin_supply`` and
+    ``lb_junior_tier_cut_fraction`` for ``lb_junior_tier_cut``. ``tense``
+    is "present" (this year's expected delivery, the supply rule) or
+    "past" (last year's outcome, the memory line).
+
+    The retired codes ``ub_powell_release`` (item 4: the Upper Basin is never
+    cut for a Powell release) and ``lb_shortage_tier`` (item 14: the declared
+    tier falls on the non-agricultural aggregate) are no longer produced; an
+    unknown code raises instead of being dropped from the sentence.
     """
+    if tense not in ("present", "past"):
+        raise ValueError(f"describe_gap_reason: tense must be 'present' or 'past', got {tense!r}.")
     code = str(agent_state.get("gap_reason") or "none")
     if code == "none":
         return ""
     parts = []
     for c in code.split("+"):
         if c == "ub_subbasin_supply":
-            # WP1b (item 20, memo section 9): this agent's OWN sub-basin
-            # is short, not the basin-wide backstop (ub_natural_flow /
-            # ub_capacity below) -- true only in ub_supply_mode="subbasin"
-            # (IrrigationEnvironment._settle never produces this code in
-            # "lees_ferry_pool" mode). A real agent with this code always
-            # has a known ub_subbasin_member_count (see _sharing_sentence's
-            # docstring for why); a missing one is the same wiring defect
-            # HIGH 1 found, not a legitimate state.
+            # A real agent with this code always has a member count (WP1b
+            # re-review HIGH 1 / MEDIUM 5); a missing one is a wiring defect.
             member_count = agent_state.get("ub_subbasin_member_count")
             if member_count is None:
                 raise ValueError(
                     "describe_gap_reason: gap_reason names ub_subbasin_supply "
                     "but ub_subbasin_member_count is missing from agent_state; "
                     "refusing to silently guess whether this sub-basin has "
-                    "other members (MEDIUM 5, 2026-09-29 re-review)."
+                    "other members."
                 )
-            if member_count <= 1:
-                # MEDIUM 5: the sole member of its sub-basin (UT2) shares
-                # with no one -- "combined requests of its users" and
-                # "shared in proportion to requests" would both be false.
-                parts.append(
-                    "the natural flow of the rivers your sub-basin draws on is "
-                    "below your own request"
-                )
-            else:
-                parts.append(
-                    "the natural flow of the rivers your sub-basin draws on is below "
-                    "the combined requests of its users, and the shortfall is shared "
-                    "in proportion to requests"
-                )
-        elif c == "ub_natural_flow":
-            # Review 2026-09-28 (fix 9): this year's (non-farm-net)
-            # natural flow, not the 5.0 MAF delivery capacity, was the
-            # binding constraint -- never name a limit that did not bind.
-            parts.append("Upper Basin deliveries are limited by this year's natural flow "
-                         "(net of Upper Basin non-farm use), shared pro-rata")
+            key = "ub_subbasin_supply_alone" if member_count <= 1 else "ub_subbasin_supply"
+            parts.append(_REASON_TEXT[key][tense])
         elif c == "ub_capacity":
             cap = float(agent_state.get("ub_capacity_maf", 5.0) or 5.0)
-            parts.append(f"Upper Basin deliveries are limited to the {cap:.1f} million "
-                         f"acre-ft delivery capacity, shared pro-rata")
-        elif c == "ub_powell_release":
-            # No longer produced by IrrigationEnvironment._settle (PI
-            # decision 4, 2026-09-28); kept so a state dict built before
-            # that change still renders something rather than nothing.
-            parts.append("Upper Basin deliveries were reduced pro-rata so Lake Powell can "
-                         "make its minimum release to Lake Mead")
+            parts.append(_REASON_TEXT[c][tense].format(cap=cap))
         elif c == "lb_junior_tier_cut":
-            # WP1c (item 22): only one of the six Arizona 4th/5th/6th-
-            # priority agents can carry this code, and only in
-            # lb_priority_mode="split" (IrrigationEnvironment._settle never
-            # produces it in "senior_all" mode or for the other 16 senior-
-            # only agents). The percentage is the state's OWN
-            # lb_junior_tier_cut_fraction (f_g), never hand-copied, so this
-            # phrase and _settle's actual cut can never disagree.
+            # The percentage is the state's OWN f_g, never hand-copied, so
+            # the phrase and _settle's actual cut cannot disagree.
             frac = agent_state.get("lb_junior_tier_cut_fraction")
             if not frac:
                 raise ValueError(
@@ -407,24 +428,14 @@ def describe_gap_reason(agent_state: Dict[str, Any]) -> str:
                     "lb_junior_tier_cut_fraction is missing or 0 in agent_state; "
                     "refusing to silently guess the cut percentage."
                 )
-            parts.append(
-                "the declared Lower Basin shortage tier cuts your junior-priority "
-                f"water by about {frac:.0%}"
+            parts.append(_REASON_TEXT[c][tense].format(frac=frac))
+        elif c in _REASON_TEXT:
+            parts.append(_REASON_TEXT[c][tense])
+        else:
+            raise ValueError(
+                f"describe_gap_reason: unknown gap_reason code {c!r} in {code!r}; "
+                "refusing to drop it from the stated reason."
             )
-        elif c == "lb_mead_availability":
-            parts.append("Lake Mead cannot meet all Lower Basin withdrawals this year "
-                         "without falling below its minimum pool, so all Lower Basin "
-                         "deliveries are reduced pro-rata")
-        # "lb_shortage_tier" is intentionally NOT handled: PI decision
-        # 2026-09-28 has the declared shortage volume borne entirely by
-        # the Lower Basin non-agricultural bucket, never by an
-        # agricultural agent's own delivery, so IrrigationEnvironment.
-        # _settle no longer produces this code for any agent. The
-        # declared tier stays visible as information (shortage_tier,
-        # curtailment_ratio = V / N) without implying it reduced this
-        # agent's own delivery.
-    if not parts:
-        return ""
     return "because " + " and ".join(parts)
 
 
@@ -432,148 +443,106 @@ def _with_reason(text: str, reason: str) -> str:
     return f"{text}, {reason}" if reason else text
 
 
+def _shortfall_reason(state: Dict[str, Any], tense: str, where: str) -> str:
+    """describe_gap_reason for a share below FULL_SUPPLY_RATIO, which must
+    carry a reason (``_settle`` sets a code whenever a delivery ratio is
+    below 1); an empty one is a wiring defect, not a sentence to shorten."""
+    reason = describe_gap_reason(state, tense)
+    if not reason:
+        raise ValueError(
+            f"{where}: a share below FULL_SUPPLY_RATIO has gap_reason "
+            f"{state.get('gap_reason')!r} and so no stated reason."
+        )
+    return reason
+
+
 def build_water_situation_text(
     env_context: Dict[str, Any],
     last_year: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Generate water situation text from environment context.
+    """The situation text of the prompt, ``{water_situation_text}`` (spec 4.3).
 
-    This is injected into the prompt as ``{water_situation_text}``.
+    In order: the year and basin; a headline on r, the expected delivery at
+    the keep request as a share of it (five bands, "sufficient" only at r >=
+    FULL_SUPPLY_RATIO, the edge below which the supply rule blocks an
+    increase); the basin's water information (Upper Basin: the agent's own
+    sub-basin winter precipitation, the sub-basin's natural flow as a share
+    of its 1971-2018 average, Lake Powell storage; Lower Basin: Lake Mead's
+    1 January level and trend, and the declared tier); last year's request,
+    delivery and reason (in the first year, the 2018 use); the expected
+    delivery at the keep request with its reason; the water right and last
+    year's delivery as a share of it. No drought index anywhere.
 
-    Supply-side redesign (2026-09-25, spec S1): the Lower Basin shortage
-    line appears only for Lower Basin agents (tiers bind the Lower Basin
-    only); Upper Basin agents see natural flow and Lake Powell storage; every
-    agent sees last year's request and delivery (``last_year``: the F05
-    snapshot, with ``request``, ``diversion`` and ``gap_reason``) and the
-    delivery it can expect at its current request, with the same reason
-    phrase as the rule messages and the memory line (describe_gap_reason).
-    "Full allocation is available" appears only when the expected delivery
-    is the whole request.
+    ``env_context`` is ``IrrigationEnvironment.get_agent_context``;
+    ``current_request`` is the keep request (the base, WP2 spec 2.1) and
+    ``current_diversion`` the provisional delivery at it. ``last_year`` is
+    the snapshot ``IrrigationLifecycleHooks.post_year`` takes after the
+    final settlement (``request``, ``diversion``, ``gap_reason`` and the
+    fields ``describe_gap_reason`` reads); None in the first year.
     """
-    year = env_context.get("year", "unknown")
-    basin = env_context.get("basin", "unknown")
-    drought = env_context.get("drought_index", 0)
-    precip = env_context.get("precipitation", 0)
-    mead = env_context.get("lake_mead_level", 0)
-    shortage_tier = env_context.get("shortage_tier", 0)
-    # Re-review 2026-09-29 (LOW D): no eager default here -- a Lower Basin
-    # context with a declared tier and no lb_shortage_volume_maf is a real
-    # data-shape defect (checked, and raised, at the actual point of use
-    # below); an Upper Basin context never reads this value at all
-    # (the sentence it feeds is Lower-Basin-only), so it must not raise
-    # for a missing key that basin was never going to use.
-    shortage_volume_maf = env_context.get("lb_shortage_volume_maf")
-    current_req = env_context.get("current_request", 0)
-    expected = env_context.get("current_diversion", 0)
-    ratio = env_context.get("delivery_ratio", 1.0)
-    water_right = env_context.get("water_right", 0)
+    year = env_context["year"]
+    basin = env_context["basin"]
+    if basin not in ("upper_basin", "lower_basin"):
+        raise ValueError(f"build_water_situation_text: basin {basin!r} is neither Upper nor Lower Basin.")
+    upper = basin == "upper_basin"
+    base = float(env_context["current_request"])
+    expected = float(env_context["current_diversion"])
+    water_right = float(env_context["water_right"])
     # WP3 (spec 3.3): r, the share the supply rule compares with
-    # FULL_SUPPLY_RATIO, drives both edges below (the headline's shortage
-    # tier and the full-delivery sentence), so a headline or a sentence
-    # never calls supply full where the supply rule blocks an increase.
-    r_share = supply_ratio(expected, current_req)
+    # FULL_SUPPLY_RATIO, drives the headline and the expected-delivery
+    # sentence, so no text calls supply sufficient where the rule blocks.
+    r_share = supply_ratio(expected, base)
 
-    basin_display = _BASIN_DISPLAY.get(basin, basin)
+    lines = [
+        f"It is now the year {year}. You {'use' if upper else 'divert'} water in the "
+        f"{_BASIN_DISPLAY[basin]}."
+    ]
 
-    lines = [f"It is now the year {year}. You divert water in the {basin_display}."]
-
-    # Drought signal: balanced framing (positive when low, negative when high).
-    # Supply-side redesign follow-up (regression audit 2026-09-26, finding
-    # N6): the headline used to be keyed on drought_index alone, so it could
-    # read "favorable" or "adequate" while the expected-delivery sentence a
-    # few lines below says the agent will receive under half its request
-    # (560 strict prompts, 1904 disabled in the seed-42 pilot pair). The
-    # headline now uses the MORE SEVERE of the drought-index tier and a
-    # delivery-ratio tier: a ratio below 0.5 forces the most severe tier;
-    # 0.5 up to (not including) FULL_SUPPLY_RATIO (0.7 before WP3) floors
-    # the headline at the "below normal" tier. When the ratio tier is STRICTLY more severe than the
-    # drought tier, the headline uses a supply-keyed sentence instead of the
-    # drought-keyed one, so a delivery shortfall is never described as
-    # drought; a tie (or drought more severe) keeps the drought-keyed
-    # wording, byte-identical to before this fix.
-    if drought < 0.2:
-        drought_tier = 0
-    elif drought < 0.5:
-        drought_tier = 1
-    elif drought < 0.8:
-        drought_tier = 2
-    else:
-        drought_tier = 3
-
-    # WP3 (spec 3.3): the tier-1 edge moved from 0.70 (the retired supply
-    # rule's threshold) to FULL_SUPPLY_RATIO (the v3 supply rule's edge), so
-    # a blocked agent never reads the "favorable" headline. The five-band
-    # headline of spec 4.3 replaces this block in WP4.
-    if r_share < 0.5:
-        ratio_tier = 3
-    elif r_share < FULL_SUPPLY_RATIO:
-        ratio_tier = 1
-    else:
-        ratio_tier = 0
-
-    if ratio_tier > drought_tier:
-        if ratio_tier == 3:
-            lines.append(
-                "Water supply is critically short this year: expected "
-                "deliveries fall well below requests."
-            )
-        else:
-            lines.append("Water supply is below normal this year.")
-    elif drought_tier == 0:
-        lines.append(
-            "Water supply conditions are favorable this year. "
-            "Precipitation is near or above normal and reservoir levels are healthy."
-        )
-    elif drought_tier == 1:
-        lines.append(
-            "Water supply is adequate but slightly below normal. "
-            "Mild dryness has marginally reduced availability."
-        )
-    elif drought_tier == 2:
-        lines.append(
-            "Water supply is tight this year. "
-            "Below-normal precipitation has significantly reduced available water."
-        )
+    # Headline on r only (spec 4.3; L3 A.1). The top edge is FULL_SUPPLY_RATIO.
+    if r_share >= FULL_SUPPLY_RATIO:
+        lines.append("Water supply is sufficient for your full request this year.")
+    elif r_share >= 0.95:
+        lines.append("Water supply is slightly short of your request this year.")
+    elif r_share >= 0.80:
+        lines.append("Water supply is short of your request this year.")
+    elif r_share >= 0.50:
+        lines.append("Water supply is well short of your request this year.")
     else:
         lines.append(
-            "Water supply is critically short. "
-            "Severe drought has sharply reduced available water."
+            "Water supply is critically short this year: expected deliveries fall "
+            "well below requests."
         )
 
-    # Basin-specific signal
-    if basin == "upper_basin":
+    if upper:
+        # The agent's own sub-basin column and its strict ">" flag (spec 1.6;
+        # H&Y p. 5, 9). A synthetic mock agent has no sub-basin and reads
+        # the basin-level legacy mean, named as such.
+        in_subbasin = env_context.get("supply_group") is not None
+        where = "in your sub-basin" if in_subbasin else "averaged over the Upper Basin"
+        # Direct index (review LOW 10): get_agent_context always sets the
+        # agent's own flag; a missing one is a wiring defect, not "below".
         lines.append(
-            f"Winter precipitation in your region was {precip:.0f} mm "
-            f"({'above' if env_context.get('preceding_factor', 0) else 'below'} last year)."
+            f"Winter precipitation {where} this year was "
+            f"{float(env_context['precipitation']):.0f} mm "
+            f"({'above' if env_context['preceding_factor'] else 'below'} last year)."
         )
-        nf = env_context.get("natural_flow_maf")
-        powell = env_context.get("powell_storage_maf")
-        # Regression audit 2026-09-26, finding N7: a Powell at the dead-pool floor
-        # (all of it dead storage) still read "Lake Powell holds 1.9 million
-        # acre-ft on 1 January" as if that were usable water (1120 prompts in
-        # the seed-42 pilot pair). powell_dead_pool_maf is threaded in from
-        # irrigation_env.py (IrrigationEnvironment.get_agent_context); when
-        # absent (an older context dict) the sentence stays byte-identical.
-        powell_dead_pool = env_context.get("powell_dead_pool_maf")
-        # WP1b (item 20, memo section 9): the sub-basin's own flow as a
-        # share of its 1971-2018 average replaces the absolute Lees Ferry
-        # figure -- it is the sub-basin's own flow, not Lees Ferry's, that
-        # sets this agent's supply (in ub_supply_mode="subbasin"), and an
-        # absolute acre-foot figure invites comparison with a request that
-        # is only a small part of it. True in both supply modes (a
-        # descriptive fact about the sub-basin's own hydrology, not about
-        # which rule governs deliveries this year); falls back to the
-        # pre-WP1b absolute-flow sentence for a context with no sub-basin
-        # flow share (a Lower Basin caller never reaches this branch; a
-        # synthetic/mock Upper Basin context with no supply_group does).
         subbasin_flow_share = env_context.get("ub_subbasin_flow_share")
         if subbasin_flow_share is not None:
+            # WP1b (item 20, memo section 9): the flow that sets this
+            # agent's supply, as a share, so it is not read against the
+            # request in acre-ft.
             lines.append(
                 "The natural flow of the rivers your sub-basin draws on is "
                 f"{subbasin_flow_share:.0%} of its 1971-2018 average this year."
             )
-        elif nf:
-            lines.append(f"Natural flow on the river this year is forecast at {nf:.1f} million acre-ft.")
+        elif env_context.get("natural_flow_maf"):
+            # Synthetic mock agents only (no sub-basin).
+            lines.append(
+                "Natural flow on the river this year is forecast at "
+                f"{env_context['natural_flow_maf']:.1f} million acre-ft."
+            )
+        powell = env_context.get("powell_storage_maf")
+        powell_dead_pool = env_context.get("powell_dead_pool_maf")
         if powell:
             if powell_dead_pool is not None and powell <= powell_dead_pool + 1e-6:
                 lines.append(
@@ -583,132 +552,159 @@ def build_water_situation_text(
             else:
                 lines.append(f"Lake Powell holds {powell:.1f} million acre-ft on 1 January.")
     else:
+        # ",.0f" as every other number in the prompt ("1,034 feet", review
+        # LOW 8); the flag by direct index (LOW 10).
         lines.append(
-            f"Lake Mead was at {mead:.0f} feet above sea level on 1 January "
-            f"({'rising' if env_context.get('preceding_factor', 0) else 'declining'} from last year)."
+            f"Lake Mead was at {env_context['lake_mead_level']:,.0f} feet above sea level "
+            f"on 1 January ({'rising' if env_context['preceding_factor'] else 'declining'} "
+            f"from last year)."
         )
-        if shortage_tier > 0:
-            # Re-review 2026-09-29 (LOW D): a declared tier with no
-            # lb_shortage_volume_maf reaching this point is a real
-            # data-shape defect (get_agent_context should always set it
-            # once a tier is declared) -- raise here, at the actual point
-            # of use, rather than silently reporting a fabricated 0
-            # acre-ft cut for a real declared shortage.
-            if shortage_volume_maf is None:
-                raise ValueError(
-                    f"build_water_situation_text: shortage_tier={shortage_tier} "
-                    "is declared but 'lb_shortage_volume_maf' is missing "
-                    "from env_context; refusing to silently report a "
-                    "fabricated 0 acre-ft cut."
-                )
-            # Re-review 2026-09-29 (HIGH 2): the declared tier's volume is
-            # borne by the non-agricultural bucket (Arizona and Nevada's
-            # stand-in) -- the old wording claimed a flat reduction that no
-            # longer happens under the PI decision. curtailment_ratio (V/N)
-            # is informational only; the real acre-feet cut is
-            # lb_shortage_volume_maf x 1e6.
-            #
-            # WP1c review round 2 (MEDIUM 2): "non-agricultural Lower Basin
-            # deliveries (Arizona and Nevada)" is no longer accurate for the
-            # OPENING sentence either -- part of V now falls on junior farm
-            # water (below), so the true statement is that the DECLARED
-            # VOLUME, split between the non-agricultural bucket and any
-            # junior farms, totals V; naming "Arizona and Nevada" without
-            # "non-agricultural" covers both.
-            #
-            # WP1c (item 22): for the six agents who hold some Arizona
-            # 4th/5th/6th-priority ("junior") water, "your own delivery is
-            # reduced only if Lake Mead cannot physically supply ..." is no
-            # longer true in a year the tier actually cuts their junior
-            # water (lb_junior_request_af > 0 this decision) -- their
-            # junior part is cut by the tier directly, before any physical
-            # shortage. Everyone else's text (the other 16, and these same
-            # six in a year their request has not exceeded their senior
-            # entitlement) is BYTE-IDENTICAL to before item 22.
-            #
-            # WP1c review round 2 (LOW 6): direct index, not
-            # ``.get(key) or 0.0`` -- a Lower Basin context with a declared
-            # tier and no lb_junior_request_af / lb_junior_tier_cut_fraction
-            # is a real wiring defect (get_agent_context always sets both
-            # for a Lower Basin agent), not a legitimate "no junior water"
-            # case to silently paper over with a fabricated 0.
-            if "lb_junior_request_af" not in env_context or "lb_junior_tier_cut_fraction" not in env_context:
-                raise ValueError(
-                    f"build_water_situation_text: shortage_tier={shortage_tier} is "
-                    "declared for a Lower Basin agent but 'lb_junior_request_af' or "
-                    "'lb_junior_tier_cut_fraction' is missing from env_context; "
-                    "refusing to silently treat a real value as 0."
-                )
-            junior_request_af = env_context["lb_junior_request_af"] or 0.0
-            junior_cut_fraction = env_context["lb_junior_tier_cut_fraction"] or 0.0
-            if junior_request_af > 1e-6 and junior_cut_fraction > 0:
-                # WP1c review round 2 (MEDIUM 2): the three 100%-junior
-                # agents (senior entitlement 0 -- Cibola Valley IDD, Hopi
-                # Tribe, North Baja LLC) hold no senior water at all, so
-                # "Part of your water right" is false for them; the other
-                # three (Mohave Valley, Gila Monster Farms, Cocopah) hold
-                # some senior water alongside their junior share.
-                senior_ent = env_context.get("lb_senior_entitlement_af")
-                if senior_ent is None:
-                    raise ValueError(
-                        "build_water_situation_text: this decision has a positive "
-                        "lb_junior_request_af but 'lb_senior_entitlement_af' is "
-                        "missing from env_context; refusing to silently guess "
-                        "whether this agent holds any senior water at all."
-                    )
-                share_word = "All" if senior_ent <= 1e-6 else "Part"
-                lines.append(
-                    f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
-                    f"shortage: this cuts Arizona and Nevada deliveries by "
-                    f"{shortage_volume_maf * 1e6:,.0f} acre-ft in total. "
-                    f"{share_word} of your water right is junior-priority, and this tier cuts "
-                    f"your junior-priority water by about {junior_cut_fraction:.0%}. The rest of "
-                    f"your delivery is reduced only if Lake Mead cannot physically supply "
-                    f"all Lower Basin withdrawals this year."
-                )
-            else:
-                lines.append(
-                    f"The Bureau of Reclamation has declared a Tier {shortage_tier} Lower Basin "
-                    f"shortage: this cuts Arizona and Nevada deliveries by "
-                    f"{shortage_volume_maf * 1e6:,.0f} acre-ft in total. "
-                    f"Your own delivery is reduced only if Lake Mead cannot physically "
-                    f"supply all Lower Basin withdrawals this year."
-                )
-        else:
-            lines.append("No Lower Basin shortage has been declared for this year.")
+        lines.append(_lower_basin_tier_text(env_context))
 
-    # Last year's actual outcome (final settlement)
-    if last_year and last_year.get("request", 0) > 0:
-        lr = last_year.get("request", 0)
-        ld = last_year.get("diversion", 0)
-        lines.append(_with_reason(
-            f"Last year you requested {lr:,.0f} acre-ft and received {ld:,.0f} acre-ft "
-            f"({ld / lr:.0%} delivered)", describe_gap_reason(last_year)) + ".")
+    # Last year's outcome (final settlement); in the first year, the 2018 use.
+    if last_year is not None:
+        requested = float(last_year["request"])
+        received = float(last_year["diversion"])
+        share = supply_ratio(received, requested)
+        sentence = (
+            f"Last year you requested {requested:,.0f} acre-ft and received "
+            f"{received:,.0f} acre-ft ({format_share(share)} delivered)"
+        )
+        if share < FULL_SUPPLY_RATIO:
+            sentence += ", " + _shortfall_reason(last_year, "past", "build_water_situation_text")
+        lines.append(sentence + ".")
+    else:
+        lines.append(f"In {int(year) - 1} you {'used' if upper else 'diverted'} {base:,.0f} acre-ft.")
 
-    # This year's expectation at the current request. WP3 (spec 3.3): "full
-    # delivery" exactly when the supply rule would not block (the same
-    # FULL_SUPPLY_RATIO edge), instead of at 1 - 1e-9.
+    # This year's expectation at the keep request (G9).
     if r_share >= FULL_SUPPLY_RATIO:
         lines.append(
-            f"At your current request of {current_req:,.0f} acre-ft you can expect full "
-            f"delivery this year. Full allocation is available."
+            f"If you request the {base:,.0f} acre-ft you received last year, you can "
+            f"expect full delivery this year."
         )
     else:
-        lines.append(_with_reason(
-            f"At your current request of {current_req:,.0f} acre-ft, expected delivery this "
-            f"year is {expected:,.0f} acre-ft ({ratio:.0%} of your request)",
-            describe_gap_reason(env_context)) + ".")
+        lines.append(
+            f"If you request the {base:,.0f} acre-ft you received last year, you can "
+            f"expect {expected:,.0f} acre-ft ({format_share(r_share)}) this year, "
+            f"{_shortfall_reason(env_context, 'present', 'build_water_situation_text')}."
+        )
 
-    utilisation = (current_req / water_right * 100) if water_right > 0 else 0
+    share_of_right = base / water_right if water_right > 0 else 0.0
     lines.append(
-        f"Your request is {utilisation:.0f}% of your water right of "
-        f"{water_right:,.0f} acre-ft/year."
+        f"Your water right is {water_right:,.0f} acre-ft/year; last year's delivery "
+        f"was {share_of_right:.0%} of it."
     )
-
-    # NOTE: Supply-demand gap feedback is also shown by the generic
-    # FeedbackDashboardProvider via YAML assertions in agent_types.yaml.
-
     return "\n".join(lines)
+
+
+def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
+    """The Lower Basin declared-shortage sentence (spec 4.3, items 14, 22).
+
+    The declared tier's volume V (2007 ROD, 333/417/500 kaf) is borne by the
+    non-agricultural aggregate (item 14) less whatever the tier cuts from
+    junior-priority agricultural water (item 22, ``lb_priority_mode="split"``,
+    the v3 default); the two together remove exactly V. So the sentence names
+    both takers in split mode, and the non-agricultural users alone in
+    ``senior_all`` mode, where no junior cut exists. An agent whose request at
+    the keep request has a junior-priority part is told its own cut; every
+    other agent is told that its delivery is reduced only if Lake Mead cannot
+    supply all withdrawals, which is true for it in both modes (spec 4.3's
+    "Agricultural deliveries, including yours, are reduced only if ..." is
+    false in split mode for the junior-priority water of six agents, so it is
+    stated per agent). No agency is named (L3 D3).
+
+    Spec item 29f: an agent that holds junior-priority water but whose keep
+    request lies within its senior entitlement (no junior part to cut this
+    year) is told that the tier would cut any part of a request above that
+    entitlement, since an increase beyond it would be junior-priority water
+    (``_settle`` fills the senior entitlement first). An agent outside the
+    priority table (``lb_junior_entitlement_af`` None, a synthetic mock
+    agent the environment treats as fully senior) reads the senior sentence.
+    """
+    # Direct index (review LOW 10): get_agent_context always sets the tier.
+    tier = int(env_context["shortage_tier"])
+    if tier <= 0:
+        return "No Lower Basin shortage applies this year."
+    volume_maf = env_context.get("lb_shortage_volume_maf")
+    threshold_ft = env_context.get("shortage_tier_threshold_ft")
+    if volume_maf is None or threshold_ft is None:
+        raise ValueError(
+            f"build_water_situation_text: shortage_tier={tier} is declared but "
+            "'lb_shortage_volume_maf' or 'shortage_tier_threshold_ft' is missing "
+            "from env_context; refusing to state a tier without its volume and level."
+        )
+    missing = [k for k in ("lb_junior_request_af", "lb_junior_tier_cut_fraction",
+                           "lb_junior_entitlement_af") if k not in env_context]
+    if missing:
+        raise ValueError(
+            f"build_water_situation_text: shortage_tier={tier} is declared for a "
+            f"Lower Basin agent but {missing} is missing from env_context; refusing "
+            "to silently treat a real value as 0."
+        )
+    junior_fraction = env_context["lb_junior_tier_cut_fraction"] or 0.0
+    junior_request_af = env_context["lb_junior_request_af"] or 0.0
+    junior_entitlement_af = env_context["lb_junior_entitlement_af"]
+    opening = (
+        f"A Tier {tier} Lower Basin shortage applies this year (Lake Mead was below "
+        f"{threshold_ft:,.0f} feet on 1 January): "
+    )
+    if junior_fraction > 0:
+        opening += (
+            f"it reduces Lower Basin deliveries by {volume_maf * 1e6:,.0f} acre-ft in "
+            "total, taken from non-agricultural users and from junior-priority "
+            "agricultural water."
+        )
+    else:
+        opening += (
+            f"it reduces deliveries to Lower Basin non-agricultural users by "
+            f"{volume_maf * 1e6:,.0f} acre-ft in total."
+        )
+    if junior_request_af > 1e-6 and junior_fraction > 0:
+        # WP1c review round 2 (MEDIUM 2): the three agents with no senior
+        # entitlement (Cibola Valley IDD, Hopi Tribe, North Baja LLC) hold
+        # junior-priority water only.
+        senior_ent = env_context.get("lb_senior_entitlement_af")
+        if senior_ent is None:
+            raise ValueError(
+                "build_water_situation_text: this decision has a positive "
+                "lb_junior_request_af but 'lb_senior_entitlement_af' is missing "
+                "from env_context; refusing to guess whether this agent holds "
+                "any senior water at all."
+            )
+        share_word = "All" if senior_ent <= 1e-6 else "Part"
+        return (
+            f"{opening} {share_word} of your water right is junior-priority, and this "
+            f"tier cuts your junior-priority water by about {junior_fraction:.0%}. The "
+            "rest of your delivery is reduced only if Lake Mead cannot supply all "
+            "Lower Basin withdrawals this year."
+        )
+    if junior_fraction > 0 and junior_entitlement_af is not None and junior_entitlement_af > 1e-6:
+        # Item 29f: junior-priority water held, none requested at the keep
+        # request; an increase beyond the senior entitlement would be cut.
+        senior_ent = env_context.get("lb_senior_entitlement_af")
+        if senior_ent is None:
+            raise ValueError(
+                "build_water_situation_text: this agent holds junior-priority water "
+                "but 'lb_senior_entitlement_af' is missing from env_context; refusing "
+                "to state where its junior-priority part begins."
+            )
+        if senior_ent <= 1e-6:
+            return (
+                f"{opening} All of your water right is junior-priority: this tier would "
+                f"cut any request by about {junior_fraction:.0%}. The rest of your "
+                "delivery is reduced only if Lake Mead cannot supply all Lower Basin "
+                "withdrawals this year."
+            )
+        return (
+            f"{opening} Part of your water right is junior-priority: this tier would cut "
+            f"any part of a request above {senior_ent:,.0f} acre-ft by about "
+            f"{junior_fraction:.0%}. Up to that amount, your delivery is reduced only if "
+            "Lake Mead cannot supply all Lower Basin withdrawals this year."
+        )
+    return (
+        f"{opening} Your delivery is reduced only if Lake Mead cannot supply all "
+        "Lower Basin withdrawals this year."
+    )
 
 
 def build_option_texts(
@@ -801,52 +797,134 @@ def build_option_texts(
     return texts
 
 
-def build_conservation_status(profile: IrrigationAgentProfile) -> str:
-    """Return conservation status string for prompt."""
-    if profile.has_efficient_system:
-        return "already use"
-    return "have not yet adopted"
+# The lines after the options (spec 2.6 and PI item 23), shown only when they
+# apply (spec item 29e, refined by the coordinator on 2026-09-30): the
+# random-step line names only the directions the menu offers, and the item-23
+# sentence appears only when an increase is offered and last year's delivery
+# was below the request.
+OPTION_STEP_NOTE = "The exact size of an increase or a decrease is drawn at random around your typical step."
+INCREASE_STEP_NOTE = "The exact size of an increase is drawn at random around your typical step."
+DECREASE_STEP_NOTE = "The exact size of a decrease is drawn at random around your typical step."
+KEEP_ASKS_RECEIVED_NOTE = (
+    "If you received less than you requested last year, keeping your request asks only "
+    "for the amount you received; an increase is the only option that asks for more."
+)
 
 
-def build_aca_hint(cluster: str) -> str:
-    """Return adaptive-capacity anchoring text per cluster.
+def build_option_notes(increase_offered: bool, decrease_offered: bool,
+                       last_year: Optional[Dict[str, Any]]) -> str:
+    """``{option_notes}``, the text right after ``{options_text}`` (spec 2.6,
+    item 23, item 29e).
 
-    Provides an explicit cue so the LLM's ACA appraisal reflects
-    the cluster's actual implementation capacity, improving construct
-    discrimination across clusters.
-    """
-    _ACA_HINTS = {
-        "aggressive": (
-            "strong — you have the financial resources and operational "
-            "flexibility to adapt your water use quickly when needed"
-        ),
-        "forward_looking_conservative": (
-            "moderate — you plan carefully and can make measured "
-            "adjustments, though large changes require significant effort"
-        ),
-        "myopic_conservative": (
-            "limited — your smaller operation and reliance on traditional "
-            "methods constrain what you can realistically change"
-        ),
-    }
-    return _ACA_HINTS.get(cluster, _ACA_HINTS["myopic_conservative"])
+    The random-step line names only the directions the menu offers: both
+    (OPTION_STEP_NOTE), an increase only (INCREASE_STEP_NOTE, an agent at
+    its minimum-use floor, whose decrease the identity rule hides) or a
+    decrease only (DECREASE_STEP_NOTE, an agent at its water right, whose
+    increase the identity rule hides); no line when neither is offered.
+    KEEP_ASKS_RECEIVED_NOTE follows only when an increase is offered and last
+    year's delivery was below its request (``last_year`` is the snapshot
+    ``IrrigationLifecycleHooks.post_year`` took; None in the first year,
+    which has no last-year request). "Below" uses FULL_SUPPLY_RATIO, the
+    edge at which the memory line says "Demand fully met." Each line starts
+    with a newline, so an empty result leaves the template unchanged."""
+    lines = []
+    if increase_offered and decrease_offered:
+        lines.append(OPTION_STEP_NOTE)
+    elif increase_offered:
+        lines.append(INCREASE_STEP_NOTE)
+    elif decrease_offered:
+        lines.append(DECREASE_STEP_NOTE)
+    if increase_offered and last_year is not None and supply_ratio(
+            float(last_year["diversion"]), float(last_year["request"])) < FULL_SUPPLY_RATIO:
+        lines.append(KEEP_ASKS_RECEIVED_NOTE)
+    return "".join("\n" + line for line in lines)
 
 
-def _build_trend_text(basin: str, preceding_factor: int) -> str:
-    """Basin-appropriate "last year" trend sentence for memory feedback.
+def _build_trend_text(basin: str, preceding_factor: int, subbasin: bool = True) -> str:
+    """The water-information sentence that ends a memory line (spec 4.5).
 
-    F15 (2026-09-25 audit): for the 22 Lower Basin agents, ``preceding_factor``
-    is the Lake Mead rising/declining flag (see
-    ``IrrigationEnvironment._update_preceding_factors``), not a precipitation
-    signal; Upper Basin precipitation is not even observed at a Lower Basin
-    agent's location. ``build_water_situation_text`` already branches this
-    way; the feedback builders below did not, so every Lower Basin memory
-    line claimed a precipitation trend that was actually the reservoir
-    trend.
+    Upper Basin: the agent's own sub-basin winter precipitation flag
+    (H&Y's strict ">", spec 1.6); a synthetic mock agent without a
+    sub-basin (``subbasin=False``) reads the basin-level legacy value,
+    named as such. Lower Basin: Lake Mead's 1 January level against the
+    year before (F15: the Lower Basin has no precipitation signal).
     """
     if basin == "upper_basin":
-        return f"Precipitation was {'above' if preceding_factor else 'below'} last year."
-    return f"Lake Mead level was {'rising' if preceding_factor else 'declining'} last year."
+        where = "in your sub-basin" if subbasin else "in the Upper Basin"
+        return (f"That winter's precipitation {where} was "
+                f"{'above' if preceding_factor else 'below'} the previous winter's.")
+    if basin == "lower_basin":
+        return (f"On 1 January that year Lake Mead was "
+                f"{'higher' if preceding_factor else 'lower'} than a year earlier.")
+    # WP4 dropped build_action_outcome_feedback's drought_index argument; a
+    # caller still passing it by position shifts preceding_factor into basin.
+    raise ValueError(
+        f"_build_trend_text: basin {basin!r} is neither 'upper_basin' nor 'lower_basin'."
+    )
+
+
+def dashboard_sharing_flags(agent_state: Dict[str, Any]) -> Dict[str, float]:
+    """0/1 flags that pick the feedback-dashboard warning naming who shares a
+    shortage (spec 4.6), decided from the settled ``gap_reason`` the way the
+    supply rule's sharing sentence decides it
+    (``validators/irrigation_validators.py (_sharing_sentence)``): the tier's
+    cut of the agent's own junior-priority water; Lake Mead's availability
+    (other Lower Basin users), split by whether the agent holds any
+    junior-priority water (spec item 29f: for such an agent a declared
+    shortage DOES cut the part of a request above its senior entitlement, so
+    its warning cannot say a declared shortage never reduces its delivery);
+    the agent's own sub-basin (other users in it, or nobody for the only
+    member); the basin-wide Upper Basin backstop (other Upper Basin users).
+    At most one flag is 1; all are 0 in a year with no shortfall. Numbers,
+    not strings, because the dashboard's assertion evaluator compares numbers
+    only; ``display: false`` in the YAML keeps them out of the table.
+
+    A Lower Basin ``agent_state`` must carry ``lb_junior_entitlement_af``
+    (``get_agent_context``; None for an agent outside the priority table,
+    which the environment treats as fully senior).
+    """
+    flags = {
+        "shortage_junior": 0.0,
+        "shortage_lower_basin": 0.0,
+        "shortage_lower_basin_junior_holder": 0.0,
+        "shortage_subbasin": 0.0,
+        "shortage_alone": 0.0,
+        "shortage_upper_basin": 0.0,
+    }
+    codes = set(str(agent_state.get("gap_reason") or "none").split("+"))
+    basin = agent_state.get("basin")
+    if basin == "lower_basin":
+        if "lb_junior_entitlement_af" not in agent_state:
+            raise ValueError(
+                "dashboard_sharing_flags: a Lower Basin agent_state lacks "
+                "lb_junior_entitlement_af; refusing to guess whether a declared "
+                "shortage can cut this agent's water."
+            )
+        junior_ent = agent_state["lb_junior_entitlement_af"]
+        if "lb_junior_tier_cut" in codes:
+            flags["shortage_junior"] = 1.0
+        elif "lb_mead_availability" in codes:
+            holds_junior = junior_ent is not None and junior_ent > 1e-6
+            flags["shortage_lower_basin_junior_holder" if holds_junior
+                  else "shortage_lower_basin"] = 1.0
+    elif basin == "upper_basin":
+        if "ub_subbasin_supply" in codes:
+            member_count = agent_state.get("ub_subbasin_member_count")
+            if member_count is None:
+                raise ValueError(
+                    "dashboard_sharing_flags: gap_reason names ub_subbasin_supply "
+                    "but ub_subbasin_member_count is missing; refusing to guess "
+                    "who shares this shortage."
+                )
+            flags["shortage_alone" if member_count <= 1 else "shortage_subbasin"] = 1.0
+        elif codes & {"ub_natural_flow", "ub_capacity"}:
+            flags["shortage_upper_basin"] = 1.0
+    else:
+        raise ValueError(
+            f"dashboard_sharing_flags: basin {basin!r} is neither 'upper_basin' "
+            "nor 'lower_basin'."
+        )
+    return flags
 
 
 # Plain-language label (with its article) for the first blocking rule in the
@@ -891,45 +969,48 @@ def build_action_outcome_feedback(
     year: int,
     request: float,
     diversion: float,
-    drought_index: float,
     preceding_factor: int,
     basin: str = "upper_basin",
     gap_reason: str = "",
     rejection_line_style: str = "explicit",
+    name_rule: bool = True,
+    subbasin: bool = True,
 ) -> str:
-    """Build combined action + outcome feedback for memory.
+    """One memory line for one past year (spec 4.5):
 
-    Prepends the agent's action choice (and magnitude if applicable) to the
-    factual outcome (request/diversion/shortfall/drought index/basin trend)
-    so the agent can form causal links between decisions and outcomes
-    during reflection.
+    "Year {Y}: You chose to {increase demand | maintain demand | decrease
+    demand}{ (by N%)}. You requested R acre-ft and received D acre-ft.
+    {Demand fully met. | Shortfall: x acre-ft (p% unmet), because {past
+    reason}.} {water-information sentence}"
 
-    ``basin`` selects the F15-corrected trend wording via
-    ``_build_trend_text``; it defaults to ``"upper_basin"`` (the original,
-    precipitation-only wording) so callers that predate the basin parameter
-    keep their exact prior text.
+    ``year`` is the calendar year. "Demand fully met." when D / R is at or
+    above FULL_SUPPLY_RATIO (the share format of spec 4.3); otherwise the
+    unmet share with one decimal and ``gap_reason``, the past-tense
+    ``describe_gap_reason`` phrase. N% is the realised change as a share
+    of the base (``action_ctx["magnitude_pct"]``). No drought index.
 
-    ``gap_reason`` is the ``describe_gap_reason`` phrase appended to the
-    shortfall sentence ("" = the pre-redesign sentence).
-    ``rejection_line_style`` (``explicit`` default, the shipped text naming
-    the rejected proposal; ``neutral``: "Year N: <applied action> was
-    applied under the <rule label>.", which does not name the proposal).
+    An overruled year (retries exhausted, the default applied) under
+    ``rejection_line_style="neutral"`` reads "Year {Y}: maintain demand was
+    applied under {label}." with the rule label of spec 3.6 when
+    ``name_rule`` is True (strict, feasibility-only), or "under a governance
+    rule" when False (placebo and silent, whose retries name no rule; L3
+    M13). ``explicit`` is the pre-redesign ablation wording.
+    ``subbasin``: an Upper Basin agent with a real sub-basin (False only for
+    a synthetic mock agent).
     """
-    gap = max(0.0, request - diversion)
-    gap_pct = (gap / request * 100.0) if request > 0 else 0.0
-
-    if gap > 0:
-        # gap_reason: the describe_gap_reason phrase (supply-side redesign,
-        # spec S6); "" keeps the pre-redesign sentence byte-for-byte.
-        shortfall = _with_reason(
-            f"Shortfall: {gap:,.0f} acre-ft ({gap_pct:.0f}% unmet)", gap_reason) + "."
-    else:
+    share = supply_ratio(diversion, request)
+    if share >= FULL_SUPPLY_RATIO:
         shortfall = "Demand fully met."
+    else:
+        gap = max(0.0, request - diversion)
+        shortfall = _with_reason(
+            f"Shortfall: {gap:,.0f} acre-ft ({(1.0 - share) * 100.0:.1f}% unmet)",
+            gap_reason) + "."
 
     outcome = (
         f"You requested {request:,.0f} acre-ft and received "
         f"{diversion:,.0f} acre-ft. {shortfall} "
-        f"Drought index: {drought_index:.2f}. {_build_trend_text(basin, preceding_factor)}"
+        f"{_build_trend_text(basin, preceding_factor, subbasin)}"
     )
 
     # Action portion (from _last_action_context stored by framework)
@@ -940,10 +1021,10 @@ def build_action_outcome_feedback(
             # the action that was applied, not the rejected proposal.
             rules = action_ctx.get("blocking_rules") or []
             proposed_skill_for_label = action_ctx.get("proposed_skill")
-            if proposed_skill_for_label and rules:
+            if proposed_skill_for_label and rules and name_rule:
                 label = _precondition_violation_label(rules[0], proposed_skill_for_label)
                 lead = f"Year {year}: {skill} was applied under {label}"
-            elif action_ctx.get("proposed_skill"):
+            elif proposed_skill_for_label:
                 lead = f"Year {year}: {skill} was applied under a governance rule"
             else:
                 lead = f"Year {year}: no valid decision was read; {skill} was applied"

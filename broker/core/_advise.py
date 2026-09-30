@@ -146,6 +146,7 @@ def render_intervention_prompt(
     framing: str = "legacy",
     include_reports: bool = True,
     feasible_line: Optional[str] = None,
+    closer: Optional[str] = None,
 ) -> "tuple[str, int]":
     """Render a retry/advisory prompt, tolerating adapters that predate P0-1c.
 
@@ -165,20 +166,29 @@ def render_intervention_prompt(
     only when set, so adapters and test doubles without that keyword keep
     working on every run that does not ask for it. An adapter exposing only
     ``format_retry_prompt`` gets it as one extra report after truncation.
+
+    ``closer`` (default None: the adapter's own closing sentence) is passed
+    on only when set, like ``feasible_line``; it is the
+    ``global_config.governance.placebo_closer`` of a placebo retry. An
+    adapter exposing only ``format_retry_prompt`` cannot render it and
+    raises.
     """
     fn = getattr(adapter, "format_intervention_prompt", None)
     if callable(fn):
         extra = {} if feasible_line is None else {"feasible_line": feasible_line}
+        if closer is not None:
+            extra["closer"] = closer
         res = fn(original_prompt, reports, max_reports=max_reports,
                  framing=framing, include_reports=include_reports, **extra)
         if isinstance(res, tuple) and len(res) == 2:
             return res
         return res, len(reports)
-    if framing != "legacy" or not include_reports:
+    if framing != "legacy" or not include_reports or closer is not None:
         raise ValueError(
             f"model adapter {type(adapter).__name__} does not implement "
             "format_intervention_prompt, so it cannot render "
-            f"framing={framing!r}/include_reports={include_reports}. Upgrade the "
+            f"framing={framing!r}/include_reports={include_reports}"
+            f"{'' if closer is None else '/closer'}. Upgrade the "
             "adapter before running a non-legacy experiment arm."
         )
     if feasible_line is not None:

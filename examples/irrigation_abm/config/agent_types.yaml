@@ -29,13 +29,20 @@ global_config:
 
   reflection:
     interval: 1
-    batch_size: 10
+    # v3 (WP4, spec 4.7): one agent per reflection call. Batched calls let a
+    # reflection copy another agent's figures (L3 M8: 201 prompts showed an
+    # acre-ft figure that never belonged to the agent).
+    batch_size: 1
     importance_boost: 0.9
     persona_instruction: "Summarize each agent's memories into a 2-sentence 'Lesson Learned'. Speak in the FIRST PERSON (e.g., 'I realized...') and maintain the agent's role."
     questions:
-      - "Was your water demand strategy effective given the supply conditions?"
-      - "Did the magnitude of your demand change match the outcome?"
-      - "What patterns do you notice between your actions and supply shortfalls?"
+      - "Was your water request strategy effective given the supply conditions?"
+      - "Did the direction you chose (increase, keep or decrease) match the outcome?"
+      - "What patterns do you notice between your requests and the water you received?"
+    # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's
+    # latest reflection in memory (framework option, default false:
+    # broker/components/cognitive/reflection.py, store_reflection_memory).
+    keep_latest_only: true
     # reflection fires every year via reflection.interval (IrrigationLifecycleHooks.post_year
     # -> ReflectionEngine.should_reflect); the trigger-based system this block once
     # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
@@ -130,6 +137,13 @@ global_config:
     # field names. Kept in the audit, left out of the retry text (framework
     # default false).
     hide_registry_backstop_reports: true
+    # v3 (WP4, spec 3.7, items 11 and 15): a retry report names the blocked
+    # action in plain words ("increase demand"), never its skill id
+    # (framework default false).
+    plain_action_names: true
+    # v3 (WP4, spec 4.8, L3 M12): the closer of a placebo retry, which shows
+    # no rule text; the framework default points at "the violations above".
+    placebo_closer: "Please reconsider your decision."
 
   # First-attempt proposal columns (initial_skill, initial_labels,
   # attempt_skills) and the appraisal-drift columns (final_labels,
@@ -196,8 +210,9 @@ shared:
   template_vars:
     - water_situation_text
     - feedback_dashboard
-    - conservation_status
-    - aca_hint
+    # Spec item 29e: the lines after the options, present only when they
+    # apply (irrigation_personas.build_option_notes, set in pre_year).
+    - option_notes
 
   rating_scale: |
     ### RATING SCALE (You MUST use EXACTLY one of these codes):
@@ -218,7 +233,7 @@ shared:
           type: "appraisal",
           required: true,
           construct: "WSA_LABEL",
-          reason_hint: "One sentence on whether your water supply feels abundant, adequate, or tight.",
+          reason_hint: "One sentence on whether your water supply is abundant, adequate, tight, scarce, or very scarce.",
         }
       - {
           key: "adaptive_capacity_assessment",
@@ -347,8 +362,8 @@ irrigation_farmer:
 
     emotion_keywords:
       # "drought" was deliberately dropped from this list: build_action_outcome_feedback
-      # / build_regret_feedback (irrigation_personas.py) unconditionally append
-      # "Drought index: N.NN." to every yearly outcome line regardless of severity,
+      # / build_regret_feedback (irrigation_personas.py) unconditionally appended
+      # "Drought index: N.NN." to every yearly outcome line (until WP4 removed it),
       # so keeping "drought" here made water_crisis match every single outcome line
       # (including "Demand fully met" ones), masking the shortfall/unmet signal below.
       water_crisis:
@@ -421,6 +436,13 @@ irrigation_farmer:
   feedback:
     trend_window: 5
     dashboard_format: "table"       # table | summary | none
+    # v3 (WP4, spec 4.6, L3 M15): no TREND line (framework default true); it
+    # compared the mean of the first rows with the last ones and contradicted
+    # the table above it in 22 percent of prompts.
+    show_trend: false
+    # The rows are recorded in post_year from the year's FINAL settlement,
+    # labelled with the calendar year (spec 4.6, L3 M14), so the latest row is
+    # last year's actual request and delivery.
     tracked_metrics:
       - name: "request"
         source: "current_request"   # key in env_context dict
@@ -430,100 +452,94 @@ irrigation_farmer:
         source: "current_diversion"
         unit: "AF"
         format: ",.0f"
-      # WP1b (item 20, 2026-09-29): a per-agent 0/1 flag -- IrrigationEnvironment
-      # writes it onto agent_state after each settlement (_write_agent_deliveries),
-      # 1.0 only when this agent is the SOLE member of a sub-basin whose OWN
-      # supply (not the basin-wide backstop) is what bound this year, 0.0 for
-      # every other agent and in every other year (including every Lower Basin
-      # agent, and any Upper Basin agent under ub_supply_mode="lees_ferry_pool",
-      # where the flag is never set). Named as its own tracked metric (the
-      # per-agent variable the sub-basin memo section 9 calls for) so the
-      # two assertions below can select the wording that is actually true --
-      # SafeExpressionEvaluator (broker/components/analytics/feedback.py) only
-      # evaluates numeric comparisons, never a string branch.
-      - name: "ub_subbasin_solo_bound"
-        source: "ub_subbasin_sole_bound"
-        unit: ""
-        format: ".0f"
-      # WP1c review round 2 (HIGH 1, 2026-09-29): a per-agent 0/1 flag,
-      # same pattern as ub_subbasin_solo_bound above -- IrrigationEnvironment
-      # writes it onto agent_state after each settlement
-      # (_write_agent_deliveries), 1.0 only when the declared tier actually
-      # cut THIS agent's own junior-priority water this year (item 22,
-      # lb_priority_mode="split"; always 0.0 in "senior_all" mode, at tier
-      # 0, or for any of the 16 agents with no junior entitlement).
-      - name: "lb_junior_cut_active"
-        source: "lb_junior_cut_active"
-        unit: ""
-        format: ".0f"
+      # v3 (WP4, spec 4.6): 0/1 flags that pick the warning below naming WHO
+      # shares a shortage, decided from last year's settled gap_reason the
+      # way the supply rule's sharing sentence decides it
+      # (irrigation_personas.dashboard_sharing_flags, set in post_year;
+      # validators/irrigation_validators.py _sharing_sentence). At most one
+      # is 1. display: false keeps them out of the table (framework option):
+      # they are selectors, not information for the agent.
+      - { name: "shortage_junior", source: "shortage_junior", unit: "", format: ".0f", display: false }
+      - { name: "shortage_lower_basin", source: "shortage_lower_basin", unit: "", format: ".0f", display: false }
+      - { name: "shortage_lower_basin_junior_holder", source: "shortage_lower_basin_junior_holder", unit: "", format: ".0f", display: false }
+      - { name: "shortage_subbasin", source: "shortage_subbasin", unit: "", format: ".0f", display: false }
+      - { name: "shortage_alone", source: "shortage_alone", unit: "", format: ".0f", display: false }
+      - { name: "shortage_upper_basin", source: "shortage_upper_basin", unit: "", format: ".0f", display: false }
     assertions:
-      # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
-      # whose delivery formula no longer holds). The tracked metrics are
-      # recorded in post_year from the year's FINAL settlement, so this row is
-      # last year's actual request and delivery. PI decision 2026-09-28
-      # (supersedes the "(1 - tier cut) x (Mead physical ratio)" formula this
-      # comment used to state): delivery / request for a Lower Basin
-      # agricultural agent is the Mead physical ratio (phi) ALONE -- the
-      # declared tier's shortage volume is borne entirely by the
-      # non-agricultural bucket, never by this agent's own delivery. For an
-      # Upper Basin agent it is still the pro-rata natural-flow-or-capacity
-      # ratio. 0.85 is now a genuine physical-scarcity threshold (there is no
-      # tier-only path below it any more: a declared tier with no physical
-      # Mead or Powell shortfall leaves this ratio at 1.0). "supply >= 1"
-      # stays as a unit guard: SafeExpressionEvaluator replaces 0 with
-      # 1e-10, and a real delivery is thousands of acre-feet. Re-review
-      # 2026-09-29 (LOW 9): this one message is shared by BOTH basins, so it
-      # must not name Lake Mead specifically -- "only Lake Mead's physical
-      # availability does" is false for an Upper Basin agent, whose delivery
-      # is bounded by natural flow or the 5.0 MAF capacity, never by Mead.
-      # WP1c review round 2 (HIGH 1, 2026-09-29): a junior-cut agent (item
-      # 22) is checked FIRST -- "a declared shortage does not by itself
-      # reduce your delivery" is false for it this year, since the tier
-      # cuts its junior-priority water directly, before any physical
-      # limit is even checked. Lower Basin only (lb_junior_cut_active is
-      # always 0 for an Upper Basin agent), so this message never needs to
-      # branch on which basin's physical limit applies.
-      - when: "supply / request < 0.85 and supply >= 1 and lb_junior_cut_active >= 1"
+      # A warning when last year's delivery was below 85 percent of the
+      # request (provenance G12; "supply >= 1" is a unit guard:
+      # SafeExpressionEvaluator replaces 0 with 1e-10, and a real delivery is
+      # thousands of acre-feet). Each variant names who shares the shortage
+      # in the words of the supply rule's message (spec 3.7, item 29c: a
+      # larger request raises the agent's share only by lowering other
+      # users' deliveries and adds no water to the pool). The unmet share has
+      # one decimal, as in the memory line (review LOW 8). A declared Lower
+      # Basin tier cuts only junior-priority water (item 22) and the
+      # non-agricultural aggregate (item 14): a fully senior Lower Basin
+      # agent's shortfall is always Lake Mead's physical availability, and an
+      # agent holding junior-priority water is told that a declared shortage
+      # can cut the part of a request above its senior entitlement (item 29f).
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_junior >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
-          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
           situation above. Part or all of your water right is junior-priority,
           and the declared shortage tier cuts that part directly. A larger
           request would have its junior-priority part cut by the same tier.
-          If Lake Mead is also physically short, the rest is shared pro-rata
-          with other Lower Basin users.
-      # WP1b (item 20): "ub_subbasin_solo_bound < 1" excludes the one agent
-      # (H&Y's UT2) for whom "lowering other users' deliveries" would be
-      # false this year -- see the second assertion below for that case.
-      # WP1c review round 2: "lb_junior_cut_active < 1" excludes a Lower
-      # Basin agent already covered by the assertion above.
-      - when: "supply / request < 0.85 and supply >= 1 and lb_junior_cut_active < 1 and ub_subbasin_solo_bound < 1"
+          If Lake Mead is also physically short, the rest is shared in
+          proportion to requests, and a larger request would raise your share
+          only by lowering the deliveries of other users in the Lower Basin;
+          it would not add water to the Lower Basin.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_lower_basin >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
-          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
           situation above. A declared shortage does not by itself reduce your
-          delivery; only a physical supply limit does (Lake Mead's
-          availability for the Lower Basin, natural flow or delivery
-          capacity for the Upper Basin). When a physical limit binds, supply
-          is shared pro-rata, so a larger request raises your share only by
-          lowering other users' deliveries.
-      # WP1b (item 20): the sole member of its sub-basin (UT2) has no other
-      # user in it to share with, so a larger request cannot raise its share
-      # by lowering anyone else's -- it would simply not add water.
-      # (lb_junior_cut_active is always 0 for an Upper Basin agent, so no
-      # extra guard is needed here.)
-      - when: "supply / request < 0.85 and supply >= 1 and ub_subbasin_solo_bound >= 1"
+          delivery; only Lake Mead's physical availability does. When water is
+          short it is shared in proportion to requests, so a larger request
+          would raise your share only by lowering the deliveries of other
+          users in the Lower Basin; it would not add water to the Lower Basin.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_lower_basin_junior_holder >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
-          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
-          situation above. A declared shortage does not by itself reduce your
-          delivery; only a physical supply limit does (natural flow or
-          delivery capacity for the Upper Basin). You are the only user in
-          your sub-basin, so when a physical limit binds, a larger request
-          would not add water.
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. A declared shortage can cut only the
+          junior-priority part of a request, the part above your
+          senior-priority entitlement; the rest of your delivery is reduced
+          only by Lake Mead's physical availability. When water is short it is
+          shared in proportion to requests, so a larger request would raise
+          your share only by lowering the deliveries of other users in the
+          Lower Basin; it would not add water to the Lower Basin.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_subbasin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short it is shared in proportion to
+          requests, so a larger request would raise your share only by
+          lowering the deliveries of other users in your sub-basin; it would
+          not add water to your sub-basin.
+      # The only member of its sub-basin (H&Y's UT2) has no one to share with.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_alone >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short, a larger request would not
+          add water.
+      # The basin-wide Upper Basin backstop (or ub_supply_mode lees_ferry_pool).
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_upper_basin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short it is shared in proportion to
+          requests, so a larger request would raise your share only by
+          lowering the deliveries of other users in the Upper Basin; it would
+          not add water to the Upper Basin.
 
   # ---------------------------------------------------------------------------
   # Available Actions
@@ -690,6 +706,9 @@ irrigation_farmer:
 #   regret (penalty sensitivity) → aversion to unmet demand
 # =============================================================================
 
+# Not read when a prompt is built: the v3 persona texts are
+# irrigation_personas._CLUSTER_PERSONAS (spec 4.1). Kept for the FQL
+# reference values only.
 personas:
   aggressive:
     description: >

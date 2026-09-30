@@ -821,6 +821,37 @@ class AgentTypeConfig:
         """
         return self._governance_bool("hide_registry_backstop_reports", False)
 
+    def get_governance_plain_action_names(self) -> bool:
+        """``global_config.governance.plain_action_names`` (default False).
+
+        When True, a governance retry prompt names the blocked action in
+        plain words, the skill id with its underscores replaced by spaces
+        (the form the feasible-action line already uses), instead of the
+        raw skill id. Retry text only; the audit keeps the skill id. False
+        reproduces the shipped retry prompt byte-for-byte.
+        """
+        return self._governance_bool("plain_action_names", False)
+
+    def get_governance_placebo_closer(self) -> Optional[str]:
+        """``global_config.governance.placebo_closer`` (default None).
+
+        The closing sentence of a ``retry_feedback_mode: placebo`` retry
+        prompt, the only mode that renders the wrapper without the rules
+        block. None keeps the adapter's own closer byte-for-byte; the
+        shipped legacy closer refers to "the violations above", which a
+        placebo prompt does not show. Must be a non-empty string when set.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict) or gov.get("placebo_closer") is None:
+            return None
+        value = gov["placebo_closer"]
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(
+                "global_config.governance.placebo_closer must be a non-empty "
+                f"string, got {type(value).__name__} {value!r}."
+            )
+        return value
+
     def has_world_grounded_rules(self) -> bool:
         """PR-6: True iff the ACTIVE governance profile declares a world-grounded rule.
 
@@ -1413,6 +1444,10 @@ class AgentTypeConfig:
           reflection-prompt knobs; for reflection questions prefer
           :meth:`get_reflection_questions` (per-agent-type +
           DomainPack fallback).
+        - ``keep_latest_only`` (default False, not added to the returned
+          defaults so the dict stays as shipped): keep only an agent's
+          latest reflection in memory; read it with
+          :meth:`get_reflection_keep_latest_only`, which validates it.
 
         The merge copies the WHOLE ``reflection`` YAML block, so any
         documented or future key passes through automatically. Cognitive
@@ -1450,6 +1485,26 @@ class AgentTypeConfig:
         merged.update(global_refl) # Apply new global
 
         return merged
+
+    def get_reflection_keep_latest_only(self) -> bool:
+        """``reflection.keep_latest_only`` (default False).
+
+        When True, storing a new reflection first removes the agent's
+        earlier reflections (``broker.components.cognitive.reflection.
+        store_reflection_memory``, through the memory engine's
+        ``remove_by_type``), so an agent's memory holds only its latest
+        reflection. False keeps every stored reflection, as shipped. Read
+        through :meth:`get_reflection_config` (global over shared). Must be
+        a YAML bool: a quoted ``"false"`` is truthy in Python and would
+        switch the option on while the YAML reads as off.
+        """
+        value = self.get_reflection_config().get("keep_latest_only", False)
+        if not isinstance(value, bool):
+            raise ValueError(
+                "reflection.keep_latest_only must be true or false (a YAML "
+                f"bool), got {type(value).__name__} {value!r}."
+            )
+        return value
 
     def get_retrieval_config(self) -> dict:
         """Get skill-retrieval tuning (Global YAML > Shared YAML > DomainPack > Default).

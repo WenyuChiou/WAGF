@@ -42,6 +42,7 @@ from broker.governance.rule_types import GovernanceRule
 from examples.irrigation_abm.irrigation_personas import (
     FULL_SUPPLY_RATIO,
     describe_gap_reason,
+    format_share,
     supply_ratio,
 )
 
@@ -113,10 +114,11 @@ def _sharing_sentence(context: Dict[str, Any]) -> str:
                 "When water is short it is shared in proportion to requests: "
                 "any increase would be junior-priority water, about "
                 f"{fraction:.0%} of which the declared shortage tier cuts, and "
-                "the rest would lower the deliveries of other Lower Basin users "
-                "and would not add water."
+                "the rest would raise your share only by lowering the "
+                "deliveries of other users in the Lower Basin; it would not "
+                "add water to the Lower Basin."
             )
-        others = "other Lower Basin users"
+        pool = "the Lower Basin"
     else:
         gap_codes = str(context.get("gap_reason") or "").split("+")
         member_count = context.get("ub_subbasin_member_count")
@@ -132,17 +134,21 @@ def _sharing_sentence(context: Dict[str, Any]) -> str:
                 )
             if member_count <= 1:
                 return "When water is short, a larger request would not add water."
-            others = "other users in your sub-basin"
+            pool = "your sub-basin"
         else:
             # The basin-wide backstop bound (ub_natural_flow / ub_capacity),
             # lees_ferry_pool mode, or no shortfall at all: the whole Upper
             # Basin shares here regardless of member_count, so a missing
             # count is not a defect in this branch.
-            others = "other Upper Basin users"
+            pool = "the Upper Basin"
+    # Spec item 29c: under sharing in proportion to requests a larger request
+    # DOES raise this agent's share, by lowering the others' deliveries; it
+    # adds no water to the pool they share.
     return (
         "When water is short it is shared in proportion to requests, so a "
-        f"larger request would lower the deliveries of {others} and would "
-        "not add water."
+        "larger request would raise your share only by lowering the "
+        f"deliveries of other users in {pool}; it would not add water to "
+        f"{pool}."
     )
 
 
@@ -861,7 +867,7 @@ def supply_gap_block_increase(
     keep_af = context["supply_keep_request_af"]
     expected_af = context["supply_expected_at_keep_af"]
     ratio = context["supply_ratio"]
-    reason = describe_gap_reason(context)
+    reason = describe_gap_reason(context, "present")
     if not reason:
         # A physical ratio below FULL_SUPPLY_RATIO always comes with a
         # settlement gap code (IrrigationEnvironment._settle sets one
@@ -886,7 +892,7 @@ def supply_gap_block_increase(
     message = (
         "Demand increase blocked under the shortage-sharing rule: if you "
         f"request the {keep_af:,.0f} acre-ft you received last year, you can "
-        f"expect {expected_af:,.0f} acre-ft this year ({ratio:.1%}), "
+        f"expect {expected_af:,.0f} acre-ft this year ({format_share(ratio)}), "
         f"{reason}. {sharing}"
     )
     return [

@@ -416,8 +416,11 @@ def test_supply_rule_tolerance():
         })
     full, short = text(0.999), text(0.998999)
     assert "you can expect full delivery this year" in full
-    assert "below normal" not in full
-    assert "Water supply is below normal this year." in short
+    assert "Water supply is sufficient for your full request this year." in full
+    # WP4 (spec 4.3): the band just below the edge, and the share printed
+    # with one decimal, never as 100%.
+    assert "Water supply is slightly short of your request this year." in short
+    assert "(99.9%) this year" in short
     assert "you can expect full delivery" not in short
 
 
@@ -569,10 +572,11 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
         f"the 880,000 acre-ft you received last year, you can expect "
         f"{880_000.0 * crir['supply_ratio']:,.0f} acre-ft this year "
         f"({crir['supply_ratio']:.1%}), because Lake Mead cannot meet all Lower "
-        "Basin withdrawals this year without falling below its minimum pool, so "
-        "all Lower Basin deliveries are reduced pro-rata. When water is short it "
-        "is shared in proportion to requests, so a larger request would lower "
-        "the deliveries of other Lower Basin users and would not add water."
+        "Basin withdrawals without falling below its minimum pool, so all Lower "
+        "Basin deliveries are reduced in proportion to requests. When water is short it "
+        "is shared in proportion to requests, so a larger request would raise your "
+        "share only by lowering the deliveries of other users in the Lower Basin; it "
+        "would not add water to the Lower Basin."
     )
     f_1 = _lb_junior_tier_fraction(1)
     assert hopi_msg == (
@@ -581,12 +585,13 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
         f"{hopi['supply_expected_at_keep_af']:,.0f} acre-ft this year "
         f"({hopi['supply_ratio']:.1%}), because the declared Lower Basin shortage "
         f"tier cuts your junior-priority water by about {f_1:.0%} and Lake Mead "
-        "cannot meet all Lower Basin withdrawals this year without falling below "
-        "its minimum pool, so all Lower Basin deliveries are reduced pro-rata. "
+        "cannot meet all Lower Basin withdrawals without falling below "
+        "its minimum pool, so all Lower Basin deliveries are reduced in proportion to requests. "
         "When water is short it is shared in proportion to requests: any increase "
         f"would be junior-priority water, about {f_1:.0%} of which the declared "
-        "shortage tier cuts, and the rest would lower the deliveries of other "
-        "Lower Basin users and would not add water."
+        "shortage tier cuts, and the rest would raise your share only by lowering "
+        "the deliveries of other users in the Lower Basin; it would not add water "
+        "to the Lower Basin."
     )
 
 
@@ -603,8 +608,9 @@ def test_sharing_sentence_golden_junior_priority():
     assert iv._sharing_sentence(ctx) == (
         "When water is short it is shared in proportion to requests: any increase "
         "would be junior-priority water, about 25% of which the declared shortage "
-        "tier cuts, and the rest would lower the deliveries of other Lower Basin "
-        "users and would not add water."
+        "tier cuts, and the rest would raise your share only by lowering the "
+        "deliveries of other users in the Lower Basin; it would not add water to "
+        "the Lower Basin."
     )
     for bad in (0.0, None):
         with pytest.raises(ValueError, match="lb_junior_tier_cut_fraction"):
@@ -616,22 +622,25 @@ def test_retry_texts_golden_upper_basin_variants():
     assert sub.errors[0] == (
         "Demand increase blocked under the shortage-sharing rule: if you request "
         "the 20,000 acre-ft you received last year, you can expect 13,480 acre-ft "
-        "this year (67.4%), because the natural flow of the rivers your sub-basin "
-        "draws on is below the combined requests of its users, and the shortfall "
-        "is shared in proportion to requests. When water is short it is shared in "
-        "proportion to requests, so a larger request would lower the deliveries of "
-        "other users in your sub-basin and would not add water."
+        "this year (67.4%), because the water your sub-basin can draw this year, a "
+        "fixed share of the natural flow of its rivers, is below the combined "
+        "requests of its users, and the shortfall is shared in proportion to "
+        "requests. When water is short it is shared in proportion to requests, so a "
+        "larger request would raise your share only by lowering the deliveries of "
+        "other users in your sub-basin; it would not add water to your sub-basin."
     )
     solo = supply_gap_block_increase(
         "increase_demand", [], _supply_ctx(**base, member_count=1))[0]
     assert solo.errors[0].endswith(
-        "because the natural flow of the rivers your sub-basin draws on is below "
-        "your own request. When water is short, a larger request would not add water.")
+        "because the water your sub-basin can draw this year, a fixed share of the "
+        "natural flow of its rivers, is below your own request. When water is short, "
+        "a larger request would not add water.")
     backstop = supply_gap_block_increase(
         "increase_demand", [], _supply_ctx(**base, gap_reason="ub_natural_flow"))[0]
     assert backstop.errors[0].endswith(
-        "so a larger request would lower the deliveries of other Upper Basin "
-        "users and would not add water.")
+        "so a larger request would raise your share only by lowering the "
+        "deliveries of other users in the Upper Basin; it would not add water to "
+        "the Upper Basin.")
 
 
 def test_retry_text_golden_zero_delivery():
@@ -644,9 +653,9 @@ def test_retry_text_golden_zero_delivery():
     assert msg == (
         "Demand increase blocked under the shortage-sharing rule: if you request "
         "the 100,000 acre-ft you received last year, you can expect 0 acre-ft this "
-        "year (0.0%), because Lake Mead cannot meet all Lower Basin withdrawals this "
-        "year without falling below its minimum pool, so all Lower Basin deliveries "
-        "are reduced pro-rata. When water is short, a larger request would not add water."
+        "year (0.0%), because Lake Mead cannot meet all Lower Basin withdrawals "
+        "without falling below its minimum pool, so all Lower Basin deliveries "
+        "are reduced in proportion to requests. When water is short, a larger request would not add water."
     )
 
 

@@ -594,6 +594,70 @@ like `llm_safeguard`). Tested in `broker/tests/test_appraisal_freeze.py`
 
 ---
 
+## Retry-text, dashboard and reflection options
+
+Four more generic, opt-in options, added for the irrigation v3 prompt (WP4 of
+`.research/design_specs/irrigation_v3_spec_2026-09-28.md`). Each default
+reproduces the shipped behaviour; on flood mock runs the audit CSVs compare
+IDENTICAL and the raw traces, prompts included, are unchanged:
+
+```yaml
+global_config:
+  governance:
+    plain_action_names: true                          # default false
+    placebo_closer: "Please reconsider your decision."  # default: the adapter's closer
+  reflection:
+    keep_latest_only: true                            # default false
+<agent_type>:
+  feedback:
+    show_trend: false                                 # default true
+    tracked_metrics:
+      - { name: flag, source: flag, display: false }  # default true
+```
+
+1. **`plain_action_names`** (`RetryMixin._governance_retry_loop`). A retry
+   report names the blocked action as the feasible-action line does, the
+   skill id with spaces ("increase demand"), not the raw id. Retry text only.
+2. **`placebo_closer`** (`render_intervention_prompt`). The closing sentence
+   of a `retry_feedback_mode: placebo` retry; the shipped closer refers to
+   "the violations above", which a placebo prompt does not show.
+3. **`keep_latest_only`** (`broker/components/cognitive/reflection.py
+   (store_reflection_memory)`, `HumanCentricMemoryEngine.remove_by_type`).
+   Storing a reflection first removes the agent's earlier memories of the
+   same `type`, from working and long-term memory. Later memories keep the
+   timestamps they would have had without the removal, so decay ages do not
+   shift. An engine without `remove_by_type` raises. A domain runner that
+   skips storing a new reflection (the irrigation runner drops empty
+   summaries, summaries with a figure foreign to the agent's memory, and
+   unreadable or failed replies) calls `remove_by_type` itself, so the
+   agent keeps no reflection older than the latest round.
+4. **`show_trend`** and a metric's **`display`** (`FeedbackDashboardProvider`).
+   `show_trend: false` drops the TREND line; `display: false` keeps a tracked
+   metric out of the table and the trend line but usable in assertions (for
+   example a 0/1 flag that selects a warning's wording).
+
+Two text changes have no switch; each changes a prompt only in a run that
+reaches it, and neither was reached by the flood mock runs checked above:
+
+- The empty feasible-set line (`RetryMixin._format_feasible_line`) names the
+  cause when the attempt failed the response-format check (a required field
+  left out): that check fails for every action the probe tries, so "No action
+  passes every rule this step" would otherwise read as if the rules ruled out
+  every action. Other empty sets render as before. A run whose model leaves
+  out a required field sees the new wording, in any domain.
+- `generate_batch_reflection_prompt` says "1 agent" for a one-agent batch,
+  where it said "1 agents". `examples/governed_flood` reaches it whenever a
+  year's reflection candidates leave one agent in the last batch (a candidate
+  count one more than a multiple of its `batch_size`, 10 in its config), so such a
+  flood run's reflection prompt differs by that one letter.
+
+A placebo retry through an adapter without `format_intervention_prompt`
+raises when `placebo_closer` is set, since that adapter cannot render a
+closer. Tested in `broker/tests/test_wp4_framework_options.py` (generic) and
+`examples/irrigation_abm/tests/test_v3_prompt.py` (irrigation, end to end).
+
+---
+
 ## Migration Guide
 
 For release-to-release migration notes see `CHANGELOG.md`. Notable

@@ -23,6 +23,7 @@ Configuration example (``agent_types.yaml``)::
     feedback:
       trend_window: 5
       dashboard_format: "table"       # table | summary | none
+      show_trend: true                # false drops the TREND line
       tracked_metrics:
         - name: "request"
           source: "current_request"   # key in env_context
@@ -32,6 +33,9 @@ Configuration example (``agent_types.yaml``)::
           source: "current_diversion"
           unit: "AF"
           format: ",.0f"
+        - name: "flag"                # display: false -> assertions only,
+          source: "some_flag"         # never a table column
+          display: false
       assertions:
         - when: "supply / request < 0.95"
           severity: "warning"
@@ -225,6 +229,26 @@ class FeedbackDashboardProvider(ContextProvider):
         self._metrics_cfg: List[Dict[str, Any]] = config.get("tracked_metrics", [])
         self._assertions: List[Dict[str, Any]] = config.get("assertions", [])
         self._format = config.get("dashboard_format", "table")
+        # ``show_trend`` (default True): False drops the one-line TREND
+        # summary. A tracked metric with ``display: false`` is recorded and
+        # usable in assertions but shown in neither the table nor the trend
+        # line (e.g. a 0/1 flag an assertion selects its wording on). Both
+        # must be YAML bools; the defaults render exactly as shipped.
+        self._show_trend = config.get("show_trend", True)
+        if not isinstance(self._show_trend, bool):
+            raise ValueError(
+                "feedback.show_trend must be true or false (a YAML bool), got "
+                f"{type(self._show_trend).__name__} {self._show_trend!r}."
+            )
+        for cfg in self._metrics_cfg:
+            if not isinstance(cfg.get("display", True), bool):
+                raise ValueError(
+                    f"feedback.tracked_metrics[{cfg.get('name')!r}].display must be "
+                    f"true or false (a YAML bool), got {cfg.get('display')!r}."
+                )
+        self._shown_cfg: List[Dict[str, Any]] = [
+            cfg for cfg in self._metrics_cfg if cfg.get("display", True)
+        ]
 
     # -- ContextProvider interface ----------------------------------------
 
@@ -253,9 +277,10 @@ class FeedbackDashboardProvider(ContextProvider):
                 sections.append(table)
 
         # 2. Trend summary
-        trends = self.tracker.compute_trends(agent_id)
-        if any(v != "insufficient_data" for v in trends.values()):
-            sections.append(self._render_trends(trends))
+        if self._show_trend:
+            trends = self.tracker.compute_trends(agent_id)
+            if any(v != "insufficient_data" for v in trends.values()):
+                sections.append(self._render_trends(trends))
 
         # 3. Assertion alerts
         alerts = self._evaluate_assertions(current_raw, current_fmt)
@@ -330,16 +355,16 @@ class FeedbackDashboardProvider(ContextProvider):
         if not history and not current:
             return ""
 
-        # Column headers from config
+        # Column headers from config (``display: false`` metrics hidden)
         headers = ["Year"] + [
-            f"{cfg['name']} ({cfg.get('unit', '')})" for cfg in self._metrics_cfg
+            f"{cfg['name']} ({cfg.get('unit', '')})" for cfg in self._shown_cfg
         ]
 
         # Build rows from history
         rows: List[List[str]] = []
         for entry in history:
             row = [str(entry.get("year", "?"))]
-            for cfg in self._metrics_cfg:
+            for cfg in self._shown_cfg:
                 val = entry.get(cfg["name"], 0)
                 fmt_spec = cfg.get("format", "")
                 try:
@@ -374,7 +399,7 @@ class FeedbackDashboardProvider(ContextProvider):
     def _render_trends(self, trends: Dict[str, str]) -> str:
         """Render a one-line trend summary."""
         parts = []
-        for cfg in self._metrics_cfg:
+        for cfg in self._shown_cfg:
             name = cfg["name"]
             direction = trends.get(name, "N/A")
             arrow = _TREND_ARROWS.get(direction, direction)

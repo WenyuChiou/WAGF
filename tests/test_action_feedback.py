@@ -65,7 +65,7 @@ class TestBuildActionOutcomeFeedback:
         result = build_action_outcome_feedback(
             action_ctx=ctx, year=3,
             request=120_000, diversion=100_000,
-            drought_index=0.45, preceding_factor=0,
+            preceding_factor=0,
         )
         assert "You chose to increase demand (by 15%)" in result
         assert "120,000 acre-ft" in result
@@ -77,7 +77,7 @@ class TestBuildActionOutcomeFeedback:
         result = build_action_outcome_feedback(
             action_ctx=ctx, year=5,
             request=80_000, diversion=80_000,
-            drought_index=0.30, preceding_factor=1,
+            preceding_factor=1,
         )
         assert "You chose to adopt efficiency" in result
         assert "by" not in result.split("efficiency")[1].split(".")[0]  # no "(by X%)"
@@ -88,7 +88,7 @@ class TestBuildActionOutcomeFeedback:
         result = build_action_outcome_feedback(
             action_ctx=ctx, year=2,
             request=90_000, diversion=90_000,
-            drought_index=0.20, preceding_factor=1,
+            preceding_factor=1,
         )
         # magnitude_pct=0 is not None, so it should appear
         assert "(by 0%)" in result
@@ -98,7 +98,7 @@ class TestBuildActionOutcomeFeedback:
         result = build_action_outcome_feedback(
             action_ctx=None, year=1,
             request=100_000, diversion=95_000,
-            drought_index=0.50, preceding_factor=0,
+            preceding_factor=0,
         )
         assert result.startswith("Year 1:")
         assert "You chose" not in result
@@ -108,7 +108,7 @@ class TestBuildActionOutcomeFeedback:
         result = build_action_outcome_feedback(
             action_ctx={}, year=2,
             request=50_000, diversion=50_000,
-            drought_index=0.10, preceding_factor=1,
+            preceding_factor=1,
         )
         assert "You chose" not in result
         assert "Demand fully met." in result
@@ -118,7 +118,7 @@ class TestBuildActionOutcomeFeedback:
         result = build_action_outcome_feedback(
             action_ctx=ctx, year=4,
             request=70_000, diversion=70_000,
-            drought_index=0.25, preceding_factor=1,
+            preceding_factor=1,
         )
         assert "You chose to maintain demand" in result
         assert "Demand fully met." in result
@@ -131,24 +131,27 @@ class TestBuildActionOutcomeFeedback:
         upper = build_action_outcome_feedback(
             action_ctx=ctx, year=1,
             request=80_000, diversion=80_000,
-            drought_index=0.2, preceding_factor=1, basin="upper_basin",
+            preceding_factor=1, basin="upper_basin",
         )
         lower = build_action_outcome_feedback(
             action_ctx=ctx, year=1,
             request=80_000, diversion=80_000,
-            drought_index=0.2, preceding_factor=1, basin="lower_basin",
+            preceding_factor=1, basin="lower_basin",
         )
-        assert "Precipitation was above" in upper
-        assert "Lake Mead level was rising" in lower
-        assert "Precipitation" not in lower
+        # WP4 (spec 4.5): the agent's own sub-basin precipitation, and Lake
+        # Mead on 1 January against a year earlier.
+        assert "That winter's precipitation in your sub-basin was above the previous winter's." in upper
+        assert "On 1 January that year Lake Mead was higher than a year earlier." in lower
+        assert "precipitation" not in lower.lower()
         assert "Lake Mead" not in upper
 
     def test_basin_defaults_to_upper_basin_wording(self):
-        """Callers that predate the F15 basin parameter keep the exact
-        original precipitation-only wording."""
+        """Callers that predate the F15 basin parameter get the Upper Basin
+        wording (WP4, spec 4.5)."""
         result = build_action_outcome_feedback(
             action_ctx=None, year=1,
             request=100_000, diversion=95_000,
-            drought_index=0.50, preceding_factor=0,
+            preceding_factor=0,
         )
-        assert "Precipitation was below last year." in result
+        assert "That winter's precipitation in your sub-basin was below the previous winter's." in result
+        assert "Drought index" not in result

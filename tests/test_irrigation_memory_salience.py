@@ -88,10 +88,17 @@ def _hooks_with_snapshot(tmp_path, action_ctx, request, diversion):
                                   objectives=[], constraints=[], skills=[]))
     agent.custom_attributes = {}
     agent._last_action_context = action_ctx
-    agent._last_year_outcome = {"year": 1, "request": request, "diversion": diversion,
-                                "gap_reason": "none", "curtailment_ratio": 0.0,
-                                "drought_index": 0.1, "preceding_factor": 1}
-    runner = SimpleNamespace(memory_engine=MagicMock(), _current_year=2)
+    # The snapshot post_year(1) takes (WP4: with the calendar year and the
+    # fields the past-tense reason reads; a shortfall always carries its
+    # settlement code, here Lake Mead's availability for a Lower Basin agent).
+    agent._last_year_outcome = {"year": 1, "calendar_year": 2019,
+                                "request": request, "diversion": diversion,
+                                "gap_reason": "lb_mead_availability" if diversion < request else "none",
+                                "curtailment_ratio": 0.0, "drought_index": 0.1,
+                                "preceding_factor": 1, "ub_subbasin_member_count": None,
+                                "lb_junior_tier_cut_fraction": None, "supply_group": None}
+    runner = SimpleNamespace(memory_engine=MagicMock(), _current_year=2,
+        broker=SimpleNamespace(_retry_feedback_mode="full"))
     hooks = IrrigationLifecycleHooks(env, runner, [profile], reflection_engine=None,
                                      output_dir=tmp_path)
     env.advance_year()
