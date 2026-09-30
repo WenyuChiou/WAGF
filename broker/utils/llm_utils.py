@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, Set, Tuple, Union, Optional, Any
 from dataclasses import dataclass, field
+from urllib.parse import urlparse, urlunparse
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -572,6 +573,21 @@ LLMInvokeFunc = Callable[[str], Tuple[str, LLMStats]]
 KNOWN_CLOUD_PROVIDERS = ("gemini", "openai", "azure", "anthropic", "claude")
 
 
+def is_mock_model(model: Any) -> bool:
+    """Whether ``model`` names the domain-agnostic test mock, not a real model.
+
+    Single source of truth for the ``mock``-prefix convention
+    ``create_llm_invoke`` uses to route to its own inline ``mock_invoke``
+    (case-insensitive). A non-string (``None``, a bare ``MagicMock`` off a
+    partially-built test double, ...) is never a mock model -- it answers
+    ``False`` here rather than raising, since "is this the mock" and "do we
+    even know what model this is" are different questions and callers
+    (the reproducibility manifest's model-digest field in particular) must
+    tell them apart.
+    """
+    return isinstance(model, str) and model.lower().startswith("mock")
+
+
 def is_cloud_provider_model(model: str) -> bool:
     """Whether ``model`` routes through the cloud-provider factory, not Ollama.
 
@@ -582,7 +598,7 @@ def is_cloud_provider_model(model: str) -> bool:
     concept applies to a request Ollama never receives) without a second,
     independently-maintained copy of the same rule.
     """
-    if not isinstance(model, str) or model.lower().startswith("mock"):
+    if not isinstance(model, str) or is_mock_model(model):
         return False
     if ":" not in model:
         return False
@@ -724,6 +740,143 @@ def capture_ollama_modelfile_defaults(
         return None, f"{type(e).__name__}: {e}"
 
 
+# Base URL / port used only when OLLAMA_HOST is unset, blank, or (for the
+# port) not given. Documented in docs/guides/troubleshooting_guide.md as the
+# default Ollama endpoint.
+DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+DEFAULT_OLLAMA_PORT = "11434"
+
+# Ollama's own OLLAMA_HOST parsing maps these two "listen on every interface"
+# wildcard addresses to loopback for a CLIENT connection: a server bound to
+# 0.0.0.0 (or :: for IPv6) is reachable from the same machine via loopback,
+# and 0.0.0.0 / :: are not themselves valid connect targets on every
+# platform. Mirrored here so a value copied from an OLLAMA_HOST used to
+# start the server (e.g. ``ollama serve`` with ``OLLAMA_HOST=0.0.0.0``) also
+# works unmodified as the value this codebase connects to.
+_OLLAMA_ANY_INTERFACE_TO_LOOPBACK = {
+    "0.0.0.0": "127.0.0.1",
+    "::": "::1",
+}
+
+
+def _split_bare_ollama_host_port(raw: str) -> Tuple[str, str]:
+    """Split a schemeless ``OLLAMA_HOST`` value into ``(host, port)``.
+
+    Mirrors Ollama's own (scheme-less) ``OLLAMA_HOST`` parsing:
+
+    - a bracketed literal (``[::1]:11434`` or bare ``[::1]``) has its
+      brackets removed and its port read after the closing bracket;
+    - the bare wildcard ``::`` (no brackets -- the one unbracketed
+      multi-colon form this needs to recognize on its own) is host-only;
+    - exactly one colon means ``host:port``;
+    - anything else (a plain hostname, an IPv4 address, or a bare colon-free
+      value) is host-only.
+
+    A missing port defaults to :data:`DEFAULT_OLLAMA_PORT`.
+    """
+    if raw.startswith("["):
+        end = raw.find("]")
+        if end != -1:
+            host = raw[1:end]
+            rest = raw[end + 1:]
+            port = rest[1:] if rest.startswith(":") and len(rest) > 1 else DEFAULT_OLLAMA_PORT
+            return host, port
+    if raw == "::":
+        return raw, DEFAULT_OLLAMA_PORT
+    if raw.count(":") == 1:
+        host, _, port = raw.partition(":")
+        return (host or "localhost"), (port or DEFAULT_OLLAMA_PORT)
+    return raw, DEFAULT_OLLAMA_PORT
+
+
+def _rewrite_any_interface_host_in_full_url(url: str) -> str:
+    """Map an "every interface" wildcard host (``0.0.0.0`` / ``::``) to its
+    loopback equivalent even inside a full, scheme-prefixed URL (e.g.
+    ``http://0.0.0.0:11434`` or ``http://[::]:11434``), leaving the scheme,
+    port, any ``user:pw@`` userinfo, and any path/query untouched. A URL
+    whose host is not one of the two wildcards is returned unchanged
+    (identity, not a reformat -- this must not silently normalize a URL
+    review round 3 W1 did not ask it to touch).
+
+    Round 4, should-fix 6: rebuilding ``netloc`` from ``new_host``/``port``
+    alone (the round-3 shape) silently DROPPED any ``user:pw@`` prefix --
+    ``parsed.username``/``parsed.password`` are read separately from
+    ``parsed.hostname`` and must be spliced back in by hand.
+    """
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if hostname not in _OLLAMA_ANY_INTERFACE_TO_LOOPBACK:
+        return url
+    new_host = _OLLAMA_ANY_INTERFACE_TO_LOOPBACK[hostname]
+    if ":" in new_host:
+        new_host = f"[{new_host}]"
+    userinfo = ""
+    if parsed.username is not None:
+        userinfo = parsed.username
+        if parsed.password is not None:
+            userinfo += f":{parsed.password}"
+        userinfo += "@"
+    netloc = f"{userinfo}{new_host}:{parsed.port}" if parsed.port is not None else f"{userinfo}{new_host}"
+    return urlunparse(parsed._replace(netloc=netloc))
+
+
+def get_ollama_base_url() -> str:
+    """Ollama HTTP API base URL, honoring ``OLLAMA_HOST`` like ``ollama serve`` does.
+
+    Single source of truth for every Ollama HTTP call this codebase makes
+    (``_invoke_ollama_direct`` below, and
+    ``ExperimentRunner._collect_reproducibility_metadata``'s model-digest
+    query, and the root ``conftest.py`` test guard's own stub). Before this
+    helper existed both hardcoded ``http://localhost:11434`` directly and
+    ignored ``OLLAMA_HOST`` entirely, so a run pointed at a non-default host
+    or port kept silently talking to localhost, and the digest query kept
+    doing that even for a run using a mock model that never talks to Ollama
+    at all -- sending an unwanted request to whatever real Ollama daemon
+    happened to be on the machine.
+
+    A leading and trailing matching quote pair (``"..."`` or ``'...'``,
+    e.g. from a copy-pasted ``OLLAMA_HOST='http://host:1234'``-style shell
+    assignment) is stripped before anything else. Blank or unset then falls
+    back to ``DEFAULT_OLLAMA_BASE_URL`` verbatim, never a silent alternate
+    host.
+
+    A value that carries a scheme (``http://`` / ``https://``, lowercase
+    only -- see UNSUPPORTED below) is a full URL and is kept exactly as
+    given (trailing slash stripped), EXCEPT that an "every interface"
+    wildcard host (``0.0.0.0`` / ``::``) is still mapped to its loopback
+    equivalent -- see ``_rewrite_any_interface_host_in_full_url`` -- since a
+    value copied straight from an ``ollama serve`` invocation may contain
+    one, and connecting to the literal wildcard address is not guaranteed
+    to work.
+
+    A schemeless value is read the way Ollama's own ``OLLAMA_HOST`` is:
+    ``host``, ``host:port``, or a bracketed IPv6 literal with an optional
+    port. A missing port defaults to 11434, and the same two wildcard hosts
+    map to loopback, matching Ollama's own parsing (see
+    ``_split_bare_ollama_host_port`` / ``_OLLAMA_ANY_INTERFACE_TO_LOOPBACK``).
+
+    UNSUPPORTED, documented rather than guessed at: a trailing ``/`` (or any
+    path/query) on a SCHEMELESS value (e.g. ``127.0.0.1:11434/``) is not
+    stripped and becomes part of the port string; an uppercase or
+    mixed-case scheme (``HTTP://...``) is not recognized as a scheme and is
+    parsed as a schemeless host instead; a non-numeric or out-of-range port
+    is passed through verbatim, unvalidated.
+    """
+    raw = os.environ.get("OLLAMA_HOST", "").strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
+        raw = raw[1:-1].strip()
+    if not raw:
+        return DEFAULT_OLLAMA_BASE_URL
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return _rewrite_any_interface_host_in_full_url(raw.rstrip("/"))
+
+    host, port = _split_bare_ollama_host_port(raw)
+    host = _OLLAMA_ANY_INTERFACE_TO_LOOPBACK.get(host, host)
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"  # a literal IPv6 host must be bracketed in a URL
+    return f"http://{host}:{port}"
+
+
 def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbose: bool) -> Tuple[str, LLMStats]:
     """
     Phase 46: Invoke Ollama direct via API to avoid LangChain/Python 3.14 issues
@@ -732,7 +885,7 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     import requests
     import json
 
-    url = "http://localhost:11434/api/generate"
+    url = f"{get_ollama_base_url()}/api/generate"
 
     # Phase 47: Global Disable of Strict JSON Mode
     # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.

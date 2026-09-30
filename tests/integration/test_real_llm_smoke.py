@@ -21,26 +21,67 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 httpx = pytest.importorskip("httpx", reason="httpx required for Ollama provider tests")
 
+from broker.utils.llm_utils import get_ollama_base_url
 from providers.llm_provider import LLMConfig
 from providers.ollama import OllamaProvider
 from broker.utils.model_adapter import UnifiedAdapter
+
+# Set to "1" to opt in to running this module for real (see conftest.py at
+# the repo root: without this, real_llm-marked access is not allowed even
+# during collection).
+_ALLOW_ENV_VAR = "WAGF_ALLOW_OLLAMA_IN_TESTS"
 
 
 def is_ollama_available():
     """Check if Ollama is running and llama3.2:3b is available."""
     try:
         config = LLMConfig(model="llama3.2:3b", timeout=10.0)
-        provider = OllamaProvider(config, base_url="http://localhost:11434")
+        provider = OllamaProvider(config, base_url=get_ollama_base_url())
         return provider.validate_connection()
     except Exception:
         return False
 
 
-# Skip all tests if Ollama is not available
-pytestmark = pytest.mark.skipif(
-    not is_ollama_available(),
-    reason="Ollama not available or llama3.2:3b not installed"
-)
+# This module intentionally talks to a live Ollama daemon, so every test in
+# it is marked real_llm for the repo-wide port-11434 guard (top-level
+# conftest.py). Without WAGF_ALLOW_OLLAMA_IN_TESTS=1, skip immediately and
+# do NOT probe Ollama at all -- a normal test run (the guard's default,
+# opt-in-only posture) must never attempt this connection, not even a
+# read-only availability check.
+#
+# With the flag set, the availability probe must NOT run here at
+# collection time (round 5, MUST B): collection happens before any test's
+# setup phase, and the root conftest.py only restores the ORIGINAL
+# OLLAMA_HOST for the duration of one real_llm test's own
+# setup+call+teardown (see its pytest_runtest_setup/pytest_runtest_teardown
+# hookwrappers) -- at collection time OLLAMA_HOST is still the forced dead
+# port, so a collection-time probe would always fail and these tests could
+# never run at all, even with the flag set. See the
+# _skip_if_ollama_unavailable fixture below, which probes at setup time
+# instead, after that restore has already happened.
+if os.environ.get(_ALLOW_ENV_VAR) != "1":
+    pytestmark = [
+        pytest.mark.real_llm,
+        pytest.mark.skip(
+            reason=(
+                f"{_ALLOW_ENV_VAR} not set; skipping real-LLM smoke tests "
+                "without probing a live Ollama daemon"
+            )
+        ),
+    ]
+else:
+    pytestmark = [pytest.mark.real_llm]
+
+
+@pytest.fixture(autouse=True)
+def _skip_if_ollama_unavailable():
+    """Round 5, MUST B: probe at SETUP time, not at collection time (see the
+    module-level comment above for why collection time cannot work here).
+    A no-op when the flag is not set: the whole module is already skipped
+    via ``pytestmark`` above, before any fixture -- autouse or not -- runs.
+    """
+    if os.environ.get(_ALLOW_ENV_VAR) == "1" and not is_ollama_available():
+        pytest.skip("Ollama not available or llama3.2:3b not installed")
 
 
 @pytest.fixture
@@ -52,7 +93,7 @@ def ollama_provider():
         max_tokens=512,
         timeout=60.0
     )
-    return OllamaProvider(config, base_url="http://localhost:11434")
+    return OllamaProvider(config, base_url=get_ollama_base_url())
 
 
 @pytest.fixture
