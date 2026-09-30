@@ -232,11 +232,20 @@ produce it.
 | | `strict` | `elevation_threat_low` | `TP_LABEL in [VL, L]` | self-report |
 | | `grounded_v1` | *all four of the above, verbatim* | | self-report |
 | | `grounded_v1` | `observed_flood_low_threat_inaction` | `flood_event is true` **and** `TP_LABEL in [VL, L]` | **world** |
-| irrigation (`examples/irrigation_abm`) | `strict` | `high_threat_no_maintain` (WARNING) | `WSA_LABEL == VH` | self-report |
-| | `strict` | `low_threat_no_increase` | `WSA_LABEL == VL` | self-report |
-| | `strict` | `high_threat_high_cope_no_increase` | `WSA_LABEL` **and** `ACA_LABEL` | self-report |
-| | `grounded_v1` | *all three of the above, verbatim* | | self-report |
-| | `grounded_v1` | `observed_scarcity_low_wsa_increase` | `drought_index > 0.08` **and** `WSA_LABEL in [VL, L]` | **world** |
+| irrigation v3 (`examples/irrigation_abm`) | `strict` | `high_scarcity_no_increase` (TR1) | first-stated `WSA_LABEL in [H, VH]` | self-report |
+| | `strict` | `low_scarcity_no_decrease` (TR3) | first-stated `WSA_LABEL in [VL, L]` | self-report |
+| | every profile | identity rules `water_right_cap`, `minimum_utilisation_floor` | `precondition:` (the base at the cap or the floor) | **world** |
+| | all but `disabled` | `supply_gap_block_increase` (Python check) | expected delivery at the keep request below 0.999 of it, for a physical reason | **world** |
+
+Irrigation's `grounded_v1` profile (the pre-v3 rules plus
+`observed_scarcity_low_wsa_increase`, `drought_index > 0.08` **and**
+`WSA_LABEL in [VL, L]`) was deleted with the pre-v3 rule set in the v3
+governance rewrite (WP3 of `irrigation_v3_spec_2026-09-28.md`, 2026-09-29):
+irrigation's world-grounded rules are now its feasibility rules, and its
+thinking rules read the appraisal as first stated in the decision
+(`global_config.governance.appraisal_freeze`). The threshold discussion below
+describes that retired rule; it is kept as the worked example of choosing a
+world threshold.
 
 `grounded_v1` is **additive**. It repeats the `strict` rules unchanged and adds
 one world-grounded rule, so a `strict`-versus-`grounded_v1` comparison is a
@@ -469,9 +478,10 @@ not let a total of "rules triggered" carry both.
 python examples/single_agent/run_flood.py --model mock --agents 3 --years 3 \
     --seed 42 --memory-engine humancentric --governance-mode grounded_v1
 
-# irrigation, grounded profile
+# irrigation: its grounded_v1 profile is retired (v3, WP3); the v3 arms are
+# strict | feasibility_only | disabled, plus --retry-feedback-mode placebo|silent
 python examples/irrigation_abm/run_experiment.py --model mock --agents 3 \
-    --years 3 --seed 42 --governance-mode grounded_v1
+    --years 3 --seed 42 --governance-mode strict
 ```
 
 The shipped `--model mock` emits `{"decision": N}` and no construct labels, so

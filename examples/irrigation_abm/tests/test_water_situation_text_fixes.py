@@ -86,8 +86,14 @@ def test_ratio_in_transition_band_uses_supply_keyed_below_normal_sentence():
 
 
 def test_high_ratio_leaves_favorable_headline_unaffected():
-    text = build_water_situation_text(_lb_context(drought_index=0.05, delivery_ratio=0.9))
+    """WP3 (spec 3.3): only a FULL supply (ratio >= FULL_SUPPLY_RATIO) keeps
+    the drought-keyed headline; 0.9 now reads short (it did not before WP3,
+    when the edge was the retired supply rule's 0.70)."""
+    text = build_water_situation_text(_lb_context(drought_index=0.05, delivery_ratio=0.999))
     assert "Water supply conditions are favorable this year." in text
+    short = build_water_situation_text(_lb_context(drought_index=0.05, delivery_ratio=0.9))
+    assert "Water supply is below normal this year." in short
+    assert "favorable" not in short
 
 
 def test_drought_tier_still_wins_when_more_severe_than_ratio_tier():
@@ -104,19 +110,31 @@ def test_tie_between_drought_tier_3_and_ratio_tier_3_keeps_drought_wording():
 
 
 def test_ratio_exactly_at_half_is_tier_one_not_tier_three():
-    """ratio < 0.5 is tier 3; ratio == 0.5 falls into the 0.5-to-0.7 (tier 1)
-    band, not the most-severe tier."""
+    """ratio < 0.5 is tier 3; ratio == 0.5 falls into the tier-1 band (0.5 up
+    to FULL_SUPPLY_RATIO since WP3), not the most-severe tier."""
     text = build_water_situation_text(_lb_context(drought_index=0.05, delivery_ratio=0.5))
     assert "Water supply is below normal this year." in text
     assert "critically short" not in text
 
 
-def test_ratio_exactly_at_seventy_percent_is_tier_zero():
-    """ratio < 0.7 is tier 1; ratio == 0.7 falls into the unaffected (tier 0)
-    band, so a benign drought index keeps the favorable headline."""
-    text = build_water_situation_text(_lb_context(drought_index=0.05, delivery_ratio=0.7))
+def test_ratio_exactly_at_full_supply_ratio_is_tier_zero():
+    """WP3 (spec 3.3): the tier-1 edge is FULL_SUPPLY_RATIO, the supply
+    rule's own edge (it was 0.70, the retired rule's cutoff). A ratio of
+    exactly FULL_SUPPLY_RATIO is full -- a benign drought index keeps the
+    favorable headline -- and the step just below it reads short, so an
+    agent the supply rule blocks never reads "favorable"."""
+    from examples.irrigation_abm.irrigation_personas import FULL_SUPPLY_RATIO
+
+    text = build_water_situation_text(
+        _lb_context(drought_index=0.05, delivery_ratio=FULL_SUPPLY_RATIO))
     assert "Water supply conditions are favorable this year." in text
     assert "below normal" not in text
+    below = build_water_situation_text(_lb_context(drought_index=0.05, delivery_ratio=0.998999))
+    assert "Water supply is below normal this year." in below
+    assert "favorable" not in below
+    # 0.7, the old edge, is now inside the short band
+    assert "below normal" in build_water_situation_text(
+        _lb_context(drought_index=0.05, delivery_ratio=0.7))
 
 
 # --------------------------------------------------------------------------

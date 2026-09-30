@@ -31,6 +31,16 @@ def _ub_powell_state():
             "curtailment_ratio": 0.0, "shortage_tier": 3}
 
 
+def _with_supply_inputs(state):
+    """WP3: the v3 supply rule reads its inputs from supply_rule_fields (as
+    IrrigationLifecycleHooks.pre_year writes them); an Upper Basin state's
+    physical share is its own delivery ratio."""
+    from examples.irrigation_abm.validators.irrigation_validators import (
+        supply_rule_fields,
+    )
+    return {**state, **supply_rule_fields(state, {"lb_phys_ratio": None})}
+
+
 def _lb_tier2_state():
     # WP1c review round 2 (LOW 6): a senior-only agent's context (this
     # helper is about OTHER gap reasons, not the junior-priority cut --
@@ -80,9 +90,12 @@ def test_ub_powell_consistent_across_situation_rule_and_memory():
     assert "requested 100,000 acre-ft and received 60,000 acre-ft" in text
     assert text.count(reason) == 2
     # The Lower Basin is at Tier 3 in this state; the Upper Basin agent is not
-    # tier-curtailed, so the supply-gap rule must still cover it.
-    msg = supply_gap_block_increase("increase_small", [], st)[0].errors[0]
-    assert "60%" in msg and "40,000 AF short" in msg and reason in msg
+    # tier-curtailed, so the supply-gap rule must still cover it. WP3 (spec
+    # 3.7): the v3 wording states the keep request, the expected delivery
+    # and its share, then the same reason phrase.
+    msg = supply_gap_block_increase("increase_small", [], _with_supply_inputs(st))[0].errors[0]
+    assert ("if you request the 100,000 acre-ft you received last year, you can "
+            "expect 60,000 acre-ft this year (60.0%)") in msg and reason in msg
     assert "cannot deliver more" not in msg
     mem = build_action_outcome_feedback({"skill_name": "maintain_demand"}, 2021, 100_000, 60_000,
                                         0.5, 0, basin="upper_basin", gap_reason=reason)
@@ -364,7 +377,7 @@ def test_new_message_text_has_no_em_dash():
     st = _ub_powell_state()
     texts = [build_water_situation_text(st, last_year={"request": 1.0, "diversion": 0.5,
                                                        "gap_reason": "ub_powell_release"}),
-             supply_gap_block_increase("increase_small", [], st)[0].errors[0],
+             supply_gap_block_increase("increase_small", [], _with_supply_inputs(st))[0].errors[0],
              curtailment_awareness_check("increase_small", [], _lb_tier2_state())[0].errors[0]]
     for code in ("ub_capacity", "ub_powell_release", "lb_shortage_tier", "lb_mead_availability"):
         texts.append(describe_gap_reason({"gap_reason": code, "curtailment_ratio": 0.1}))
@@ -384,9 +397,15 @@ def test_smoke_check_j_checks_step_class():
 
 
 def test_zero_delivery_message_does_not_claim_sharing():
+    """WP3: the separate zero-delivery trigger is gone (r = 0 is simply
+    below FULL_SUPPLY_RATIO), but the wording stays true: with nothing
+    delivered to anyone in the pool, a larger request lowers no one's
+    delivery, so the message says only that it would not add water."""
     st = dict(_ub_powell_state(), current_diversion=0.0, delivery_ratio=0.0)
-    msg = supply_gap_block_increase("increase_small", [], st)[0].errors[0]
-    assert "no delivery is expected" in msg and "other users" not in msg
+    msg = supply_gap_block_increase("increase_small", [], _with_supply_inputs(st))[0].errors[0]
+    assert "you can expect 0 acre-ft this year (0.0%)" in msg
+    assert msg.endswith("When water is short, a larger request would not add water.")
+    assert "other users" not in msg and "other Upper Basin users" not in msg
 
 
 @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")

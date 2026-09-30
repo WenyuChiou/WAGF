@@ -516,12 +516,24 @@ FROZEN_STRICT_RULE_SHAPES = {
          ("relocation_threat_low", "ERROR", "self_report"),
          ("elevation_threat_low", "ERROR", "self_report")],
     ),
+    # Irrigation v3 (WP3, 2026-09-29, irrigation_v3_spec_2026-09-28.md
+    # section 3.1): the strict profile is TR1 and TR3 (the old R1, R2 and R4
+    # are removed, PI item 9) and the irrigation grounded_v1 profile is
+    # deleted, so irrigation takes part only in the strict-shape and
+    # rule-shape checks below, not in the grounded-profile ones.
     "examples/irrigation_abm/config/agent_types.yaml": (
         "irrigation_farmer",
-        [("high_threat_no_maintain", "WARNING", "self_report"),
-         ("low_threat_no_increase", "ERROR", "self_report"),
-         ("high_threat_high_cope_no_increase", "ERROR", "self_report")],
+        [("high_scarcity_no_increase", "ERROR", "self_report"),
+         ("low_scarcity_no_decrease", "ERROR", "self_report")],
     ),
+}
+
+# The shipped configs that still declare the grounded_v1 profile, and the
+# profiles each shipped config must declare for its runner's arms.
+GROUNDED_PROFILE_CONFIGS = ("examples/single_agent/agent_types.yaml",)
+SHIPPED_PROFILES = {
+    "examples/single_agent/agent_types.yaml": {"strict", "grounded_v1", "disabled"},
+    "examples/irrigation_abm/config/agent_types.yaml": {"strict", "feasibility_only", "disabled"},
 }
 
 
@@ -539,7 +551,7 @@ def test_strict_profile_rule_set_is_unchanged_by_the_grounded_addition(path, mon
     assert [(r.id, r.level, r.grounding) for r in rules] == expected
 
 
-@pytest.mark.parametrize("path", sorted(FROZEN_STRICT_RULE_SHAPES))
+@pytest.mark.parametrize("path", GROUNDED_PROFILE_CONFIGS)
 def test_grounded_profile_adds_exactly_one_world_grounded_rule(path, monkeypatch):
     from pathlib import Path
     agent_type, strict_expected = FROZEN_STRICT_RULE_SHAPES[path]
@@ -556,10 +568,11 @@ def test_grounded_profile_adds_exactly_one_world_grounded_rule(path, monkeypatch
     assert config.get_audit_grounding_columns() is True
 
 
-@pytest.mark.parametrize("path", sorted(FROZEN_STRICT_RULE_SHAPES))
+@pytest.mark.parametrize("path", GROUNDED_PROFILE_CONFIGS)
 def test_strict_profile_gains_no_grounding_columns(path, monkeypatch):
     """The auto-on rule must stay off for a self-report-only profile — that is
-    what keeps the frozen CSVs byte-identical without a second flag."""
+    what keeps the frozen CSVs byte-identical without a second flag.
+    (Irrigation v3 forces the columns on in its own config, WP3 spec 3.9.)"""
     from pathlib import Path
     repo_root = Path(__file__).resolve().parents[2]
     monkeypatch.setenv("GOVERNANCE_PROFILE", "strict")
@@ -1480,7 +1493,7 @@ def test_the_shipped_configs_declare_the_profiles_their_runners_offer(path):
     repo_root = Path(__file__).resolve().parents[2]
     cfg = yaml.safe_load((repo_root / path).read_text(encoding="utf-8"))
     declared = declared_governance_profiles(cfg, agent_type)
-    assert {"strict", "grounded_v1", "disabled"} <= declared
+    assert SHIPPED_PROFILES[path] <= declared
 
 
 # ---------------------------------------------------------------------------

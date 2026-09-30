@@ -1,23 +1,34 @@
 """
 Irrigation domain governance validators.
 
-Provides BuiltinCheck functions for the irrigation domain that enforce
-water allocation rules, compact constraints, and physical feasibility.
-These are injected into the existing validator framework via the
-``builtin_checks`` constructor parameter.
+Provides BuiltinCheck functions for the irrigation domain. These are
+injected into the existing validator framework via the ``builtin_checks``
+constructor parameter, and run in the LLM arms through the
+``irrigation_governance_validator`` bridge at the bottom of this module
+(``custom_validators``).
 
 Design follows the same pattern as flood-domain built-in checks
 (FLOOD_PERSONAL_CHECKS, FLOOD_PHYSICAL_CHECKS, etc.) established
 in the Phase 1 validator refactoring (commit fd861cf).
 
-Architecture note:
-    The standard ThinkingValidator, PersonalValidator, and SemanticValidator
-    are intentionally left empty (no builtin_checks) for the irrigation
-    domain. All irrigation governance is routed through ``custom_validators``
-    via the ``irrigation_governance_validator`` bridge at the bottom of this
-    module. This is by design — the irrigation domain uses numeric-decision
-    output (1-3) validated by output_schema and custom checks, rather than
-    PMT-based construct validation used by the flood domain.
+v3 governance (WP3, ``irrigation_v3_spec_2026-09-28.md`` section 3) has
+two rule families:
+
+- Feasibility rules. The supply rule, ``supply_gap_block_increase``, is the
+  ONLY check this module dispatches (``ALL_IRRIGATION_CHECKS``). The
+  water-right cap and the minimum-use floor are YAML identity rules
+  (``config/agent_types.yaml``, every profile): they hide their option from
+  the menu and block an off-menu answer, with the skill registry's
+  preconditions as a second backstop.
+- Thinking rules. TR1 ``high_scarcity_no_increase`` and TR3
+  ``low_scarcity_no_decrease`` are YAML thinking rules (``strict`` only),
+  evaluated by the broker's ``AgentValidator`` on the water-scarcity
+  appraisal as FIRST STATED in the decision (the first parsed attempt's,
+  unless that attempt gave none; ``global_config.governance.
+  appraisal_freeze``).
+
+Every other check below is kept only because tests or replays of older
+corpora call it directly; each says "not dispatched in v3".
 
 References:
     Hung, F., & Yang, Y. C. E. (2021). WRR, 57, e2020WR029262.
@@ -28,7 +39,11 @@ from typing import Any, Dict, List
 
 from broker.interfaces.skill_types import ValidationResult
 from broker.governance.rule_types import GovernanceRule
-from examples.irrigation_abm.irrigation_personas import describe_gap_reason
+from examples.irrigation_abm.irrigation_personas import (
+    FULL_SUPPLY_RATIO,
+    describe_gap_reason,
+    supply_ratio,
+)
 
 # Supply-side redesign (2026-09-25, spec S3): the sharing sentence every
 # supply-gap message ends with. Under pro-rata sharing a larger request DOES
@@ -49,8 +64,8 @@ from examples.irrigation_abm.irrigation_personas import describe_gap_reason
 # in its sub-basin, so a larger UT2 request when UT2's own supply is short
 # has no one else's delivery to lower (memo section 9).
 def _sharing_sentence(context: Dict[str, Any]) -> str:
-    """The pro-rata sharing sentence appended to the supply-gap block
-    message (see module docstring above for the full rationale).
+    """The sharing sentence that ends the supply rule's block message
+    (spec 3.7; see the comment above for who shares with whom).
 
     WP1b re-review (HIGH 1, 2026-09-29): a real UB agent with gap_reason
     ``ub_subbasin_supply`` ALWAYS has a known ``ub_subbasin_member_count``
@@ -60,8 +75,47 @@ def _sharing_sentence(context: Dict[str, Any]) -> str:
     here is a wiring defect (the found bug: IrrigationLifecycleHooks.
     pre_year not copying it into validator_fields), never a legitimate
     state. Raise rather than silently falling back to "other Upper Basin
-    users", which names the wrong users."""
-    if context.get("basin") != "upper_basin":
+    users", which names the wrong users.
+
+    WP3 (spec 3.7): the spec wording ("shared in proportion to requests",
+    "would not add water"), plus a junior-priority variant for a Lower Basin
+    agent whose OWN junior water the declared tier cuts this year (gap code
+    ``lb_junior_tier_cut``, item 22, the same fact the WP1c dashboard warning
+    states): its keep request already exceeds its senior entitlement, so any
+    increase would be junior water, cut by the tier before the rest is
+    shared. The supply rule only reaches this sentence when a PHYSICAL limit
+    binds (Lake Mead's phi below 1 for the Lower Basin), so "shared in
+    proportion to requests" is true for that agent too.
+    """
+    basin = context.get("basin")
+    if basin not in ("upper_basin", "lower_basin"):
+        raise ValueError(
+            f"_sharing_sentence: basin={basin!r} is neither 'upper_basin' nor "
+            "'lower_basin'; refusing to guess which users share this shortage."
+        )
+    if basin == "lower_basin":
+        gap_codes = str(context.get("gap_reason") or "").split("+")
+        if "lb_junior_tier_cut" in gap_codes:
+            # The tier cuts a SHARE f of the junior part, not all of it: the
+            # increase adds (1 - f) of itself to the shared pool (orchestrator
+            # sign-off of the reviewer's wording, WP3 review round 1).
+            # Direct index: pre_year always copies the fraction, and a code
+            # of lb_junior_tier_cut with no positive fraction is a wiring
+            # defect, never a state to phrase around.
+            fraction = context["lb_junior_tier_cut_fraction"]
+            if not fraction or fraction <= 0:
+                raise ValueError(
+                    "_sharing_sentence: gap_reason names lb_junior_tier_cut but "
+                    f"lb_junior_tier_cut_fraction is {fraction!r}; refusing to "
+                    "state a junior-priority cut without its share."
+                )
+            return (
+                "When water is short it is shared in proportion to requests: "
+                "any increase would be junior-priority water, about "
+                f"{fraction:.0%} of which the declared shortage tier cuts, and "
+                "the rest would lower the deliveries of other Lower Basin users "
+                "and would not add water."
+            )
         others = "other Lower Basin users"
     else:
         gap_codes = str(context.get("gap_reason") or "").split("+")
@@ -86,8 +140,9 @@ def _sharing_sentence(context: Dict[str, Any]) -> str:
             # count is not a defect in this branch.
             others = "other Upper Basin users"
     return (
-        "When supply is short it is shared pro-rata: a larger request would "
-        f"lower the deliveries of {others}, not add water."
+        "When water is short it is shared in proportion to requests, so a "
+        f"larger request would lower the deliveries of {others} and would "
+        "not add water."
     )
 
 
@@ -103,6 +158,9 @@ def _tier_reason(context: Dict[str, Any]) -> str:
     names the tier as institutional context for the increase-block rule
     below (DCP mandatory conservation policy), and does not claim the
     tier reduced the requesting agent's own delivery.
+
+    Used only by ``curtailment_awareness_check``, which is not dispatched
+    in v3 (WP3, spec 3.2): no v3 rule blocks on a declared tier.
     """
     tier = int(context.get("shortage_tier", 0) or 0)
     if tier <= 0:
@@ -132,6 +190,12 @@ def water_right_cap_check(
     when the agent's request reaches their water right.
 
     Tier A suggestion: None (physical impossibility — reason is self-evident).
+
+    NOT DISPATCHED IN v3 (WP3, spec 3.2): a duplicate of the YAML identity
+    rule ``water_right_cap``, which every profile carries (it hides the
+    increase option at the cap and blocks an off-menu increase, with the
+    registry precondition ``not at_allocation_cap`` as a second backstop).
+    Kept only because tests call it directly.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -173,6 +237,10 @@ def non_negative_diversion_check(
     retry loops that create double-bind traps.
 
     Tier A suggestion: None (physical impossibility).
+
+    NOT DISPATCHED IN v3 (WP3, spec 3.2): it never fires (audit L4 2.1) --
+    a zero base is at the minimum-use floor, whose identity rule already
+    hides and blocks a decrease. Kept only because tests call it directly.
     """
     if skill_name not in DECREASE_SKILLS:
         return []
@@ -235,6 +303,15 @@ def curtailment_awareness_check(
         Tier 2+:  BLOCK all increases (DCP mandatory conservation)
 
     Tier B suggestion: neutral enumeration of remaining feasible skills.
+
+    NOT DISPATCHED IN v3 (WP3, spec 3.2, PI item 2): the declared-tier
+    increase block, its Tier 1 differential and its years 1-3 cold-start
+    grace are retired together. Item 2 merged this rule and the 0.70
+    supply-gap rule into the one supply rule (``supply_gap_block_increase``),
+    which responds only to a physical supply limit; under item 14 a declared
+    tier alone reduces no agricultural agent's delivery except a junior-
+    priority part (item 22), which the supply rule deliberately ignores.
+    Kept only because tests and replays of pre-v3 corpora call it directly.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
@@ -315,8 +392,8 @@ def curtailment_awareness_check(
     # is what a real increase_demand proposal actually reaches; the WARN
     # branch stays dead code for a caller that still passes the legacy
     # "increase_small" string directly (a replay of a pre-WP2 corpus), and
-    # is left as-is (this rule, and its dead branch, are retired
-    # unchanged when WP3 removes curtailment_awareness_check from
+    # is left as-is (this rule, and its dead branch, were retired
+    # unchanged when WP3 removed curtailment_awareness_check from
     # dispatch, spec 3.2).
     if shortage_tier == 1:
         if skill_name in ("increase_large", "increase_demand"):
@@ -555,6 +632,12 @@ def minimum_utilisation_check(
     demand when utilisation is already at or below 10% of water right.
 
     Tier A suggestion: None (physical impossibility).
+
+    NOT DISPATCHED IN v3 (WP3, spec 3.2): a duplicate of the YAML identity
+    rule ``minimum_utilisation_floor``, which every profile carries (menu
+    filter + block, with the registry precondition ``not
+    below_minimum_utilisation`` as a second backstop). Kept only because
+    tests call it directly.
     """
     if skill_name not in DECREASE_SKILLS:
         return []
@@ -656,119 +739,175 @@ def magnitude_cap_check(
     return []
 
 
-def _join_reason(text: str, reason: str) -> str:
-    return f"{text}, {reason}" if reason else text
+# =============================================================================
+# The v3 supply rule (WP3, spec 3.3; PI items 1 and 2)
+# =============================================================================
+
+# The per-decision inputs of the supply rule, in the order the audit writes
+# them (config/agent_types.yaml, global_config.audit.state_columns ->
+# state_<key> columns of the governance audit CSV). The WP6 post hoc
+# evaluator re-applies the rule from exactly these logged values and
+# FULL_SUPPLY_RATIO, in every arm (the disabled arm runs no supply rule).
+SUPPLY_RULE_FIELDS = (
+    "supply_keep_request_af",
+    "supply_expected_at_keep_af",
+    "supply_ratio",
+    "supply_physical_ratio",
+    "full_supply_ratio",
+)
 
 
-# WP1c review round 2 (WP3 note, 2026-09-29, not for this round): when
-# WP3 merges this rule into the spec item 2 form (block when the expected
-# delivery at the keep request is below FULL_SUPPLY_RATIO of it, no other
-# threshold), it must NOT let a declared tier's PROPORTIONAL junior cut
-# (item 22, f_g typically 20-30%) alone satisfy that condition for one of
-# the six junior-holding agents. Increasing the request still adds
-# (1 - f_g) of the increase to the agent's own delivery -- a real,
-# positive marginal return, unlike a genuine physical shortfall -- so
-# blocking on the junior cut alone would create an ARTIFICIAL RATCHET
-# under WP2's request-tracks-last-delivery base (spec 2.1): a blocked
-# increase keeps the agent at its (junior-cut-reduced) base forever, even
-# though a real increase would have been partly honoured. The post hoc
-# executed-violation check (WP6) needs the same carve-out.
+def supply_rule_fields(
+    agent_context: Dict[str, Any],
+    agent_state: Dict[str, Any],
+) -> Dict[str, float]:
+    """The supply rule's inputs for one agent-year, computed ONCE, before any
+    decision (``IrrigationLifecycleHooks.pre_year``; the FQL runner uses the
+    same helper), from the provisional settlement at every agent's keep
+    request (``IrrigationEnvironment.advance_year``, provenance G9).
+
+    - ``supply_keep_request_af``: the keep request, i.e. last year's receipt
+      (WP2 spec 2.1 resets every request to it before the provisional
+      settlement; ``agent_context["current_request"]``).
+    - ``supply_expected_at_keep_af``: this year's expected delivery at that
+      request (``agent_context["current_diversion"]``), including any
+      declared junior-priority cut (item 22).
+    - ``supply_ratio``: r = expected / keep, 6 places, 1.0 at a zero keep
+      request (``irrigation_personas.supply_ratio``) -- the share the
+      situation text and the block message show.
+    - ``supply_physical_ratio``: the same share with the declared
+      junior-priority cut taken out, i.e. only the PHYSICAL limits: for a
+      Lower Basin agent Lake Mead's phi (the one physical limit on its
+      delivery, ``IrrigationEnvironment._write_agent_deliveries``); for an
+      Upper Basin agent r itself (its sub-basin supply and the basin-wide
+      backstop are both physical; no declared cut exists there). 1.0 at a
+      zero keep request, like r. This is what the rule compares with
+      FULL_SUPPLY_RATIO. r <= physical ratio always, so an agent the rule
+      blocks always reads a shortfall in r too.
+    - ``full_supply_ratio``: the constant itself, logged beside the inputs.
+
+    Raises on a Lower Basin agent without ``lb_phys_ratio`` (a wiring defect,
+    never a legitimate "no physical limit" case) and on an unknown basin.
+    """
+    keep_af = float(agent_context["current_request"])
+    expected_af = float(agent_context["current_diversion"])
+    basin = agent_context["basin"]
+    ratio = supply_ratio(expected_af, keep_af)
+    if basin == "upper_basin":
+        physical_ratio = ratio
+    elif basin == "lower_basin":
+        phi = agent_state["lb_phys_ratio"]
+        if phi is None:
+            raise ValueError(
+                f"supply_rule_fields: Lower Basin agent "
+                f"{agent_context.get('agent_id')!r} has lb_phys_ratio=None; "
+                "IrrigationEnvironment._write_agent_deliveries sets it for "
+                "every Lower Basin agent on every settlement."
+            )
+        physical_ratio = 1.0 if keep_af <= 0 else round(float(phi), 6)
+    else:
+        raise ValueError(
+            f"supply_rule_fields: basin={basin!r} is neither 'upper_basin' "
+            "nor 'lower_basin'."
+        )
+    return {
+        "supply_keep_request_af": keep_af,
+        "supply_expected_at_keep_af": expected_af,
+        "supply_ratio": ratio,
+        "supply_physical_ratio": physical_ratio,
+        "full_supply_ratio": FULL_SUPPLY_RATIO,
+    }
+
+
 def supply_gap_block_increase(
     skill_name: str,
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Block demand increase when agent already has large unmet demand.
+    """The supply rule (spec 3.3, PI items 1 and 2): block an increase when
+    the water system cannot deliver even last year's receipt this year.
 
-    P3: Physical rationale — requesting more water than the system can
-    deliver cannot increase actual water received.
+    Blocks ``increase_demand`` when the expected delivery at the keep request
+    (last year's receipt), net of any declared junior-priority cut, is below
+    ``FULL_SUPPLY_RATIO`` of that request -- ``supply_physical_ratio <
+    FULL_SUPPLY_RATIO`` (see ``supply_rule_fields``). No other numeric
+    threshold (item 2): the 0.70 supply-gap cutoff, the skip for Lower Basin
+    rows under a declared Tier 2 or 3 and the separate zero-delivery branch
+    are gone. The rule id is unchanged for audit continuity.
 
-    Blocks when fulfilment ratio (diversion / request) < 70%.
-    ``current_diversion`` is this year's expected delivery at the current
-    request (the provisional settlement), and the message states the reason
-    with describe_gap_reason (supply-side redesign, 2026-09-25).
+    It responds ONLY to physical supply limits: an Upper Basin sub-basin's
+    own supply, the basin-wide Upper Basin backstop, and Lake Mead's physical
+    availability (phi). A declared tier's proportional cut of a junior-
+    priority part (item 22) is NOT one: a larger request still adds
+    (1 - f) of the increase to the agent's own delivery, so blocking on the
+    cut alone would ratchet the agent down under the WP2 base
+    (request = last delivery). A declared tier alone never triggers it.
 
-    Tier B suggestion: neutral enumeration of remaining feasible skills.
-
-    WP1c review round 2 (2026-09-29): this v3-committed version reads a
-    70% flat threshold, not yet the WP3 FULL_SUPPLY_RATIO form, and the
-    early Tier-2+ skip above (curtailment_awareness_check handles those
-    instead) means this function's own fulfilment check is only ever
-    reached at Tier 0 or Tier 1. At Tier 1, f_g is about 20.3% -- even a
-    100%-junior agent's worst case (no physical shortage at all) is about
-    1 - 0.203 = 79.7%, comfortably above 70% -- so item 22's junior cut
-    cannot yet, by itself, trigger this rule; the module comment's WP3
-    warning is about the FUTURE FULL_SUPPLY_RATIO threshold (0.999), which
-    a Tier 1 junior cut alone WOULD cross, once curtailment_awareness_check
-    (and its Tier-2+ carve-out) is retired the same work package.
+    The message states the numbers and the reason in plain words (spec
+    3.7): the keep request, the expected delivery and r as a share, the
+    present reason (``describe_gap_reason``) and who shares the shortage
+    (``_sharing_sentence``: the sub-basin, the UT2-alone and the
+    junior-priority variants). No rule id, law or agency, label code or
+    appraisal field is named. ``metadata["grounding"] = "world"``: the
+    rule reads only water-system state, which the model cannot write.
     """
     if skill_name not in INCREASE_SKILLS:
         return []
 
-    # Skip if Tier 2+ shortage already handled by curtailment_awareness_check.
-    # Supply-side redesign (2026-09-25): that check fires only for agents that
-    # carry the tier cut (Lower Basin, curtailment_ratio > 0), so an Upper
-    # Basin agent in a Tier 2+ year is still covered here.
-    shortage_tier = context.get("shortage_tier", 0)
-    if shortage_tier >= 2 and context.get("curtailment_ratio", 0) > 0:
-        return []  # P4 handles this case with DCP block
-
-    request = context.get("current_request", 0)
-    diversion = context.get("current_diversion", 0)
-
-    # Both zero → new agent expanding from zero baseline (Y1), allow
-    if request <= 0 and diversion <= 0:
+    physical_ratio = context["supply_physical_ratio"]
+    if physical_ratio >= FULL_SUPPLY_RATIO:
         return []
 
-    # Positive request but zero delivery → complete supply failure, block
-    if request > 0 and diversion <= 0:
-        return [
-            ValidationResult(
-                valid=False,
-                validator_name="IrrigationSupplyGapValidator",
-                errors=[
-                    _join_reason(
-                        f"Demand increase blocked: no delivery is expected this year "
-                        f"at your current request of {request:,.0f} AF",
-                        describe_gap_reason(context),
-                    ) + ". A larger request would not add water."
-                ],
-                warnings=[],
-                metadata={
-                    "rule_id": "supply_gap_block_increase",
-                    "category": "physical",
-                    "blocked_skill": skill_name,
-                    "level": "ERROR",
-                    "suggestion": "The supply gap blocks increases this year.",
-                },
-            )
-        ]
-
-    fulfilment = diversion / request
-    if fulfilment >= 0.70:
-        return []
-
-    unmet = request - diversion
+    keep_af = context["supply_keep_request_af"]
+    expected_af = context["supply_expected_at_keep_af"]
+    ratio = context["supply_ratio"]
+    reason = describe_gap_reason(context)
+    if not reason:
+        # A physical ratio below FULL_SUPPLY_RATIO always comes with a
+        # settlement gap code (IrrigationEnvironment._settle sets one
+        # whenever a delivery ratio is below 1); none here means the gap
+        # code never reached the validation context.
+        raise ValueError(
+            "supply_gap_block_increase: supply_physical_ratio="
+            f"{physical_ratio} < FULL_SUPPLY_RATIO but gap_reason "
+            f"{context.get('gap_reason')!r} gives no reason; refusing to "
+            "state a block without its cause."
+        )
+    # Every share is the same within a sharing pool (a sub-basin's ratio,
+    # the backstop factor, Lake Mead's phi), so a zero expected delivery
+    # means nobody in the pool receives anything: a larger request would
+    # then lower no one's delivery, and only "would not add water" is true.
+    # A wording case only -- the trigger is the one condition above (the
+    # pre-v3 separate zero-delivery TRIGGER branch is gone, spec 3.3).
+    sharing = (
+        "When water is short, a larger request would not add water."
+        if expected_af <= 0 else _sharing_sentence(context)
+    )
+    message = (
+        "Demand increase blocked under the shortage-sharing rule: if you "
+        f"request the {keep_af:,.0f} acre-ft you received last year, you can "
+        f"expect {expected_af:,.0f} acre-ft this year ({ratio:.1%}), "
+        f"{reason}. {sharing}"
+    )
     return [
         ValidationResult(
             valid=False,
             validator_name="IrrigationSupplyGapValidator",
-            errors=[
-                _join_reason(
-                    f"Demand increase blocked: at your current request, expected "
-                    f"delivery this year is {fulfilment:.0%} ({unmet:,.0f} AF short)",
-                    describe_gap_reason(context),
-                ) + ". " + _sharing_sentence(context)
-            ],
+            errors=[message],
             warnings=[],
             metadata={
                 "rule_id": "supply_gap_block_increase",
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
-                "suggestion": (
-                    f"The supply gap ({fulfilment:.0%} expected) blocks increases this year."
-                ),
+                "suggestion": "The shortage-sharing rule blocks increases this year.",
+                # Spec 3.9: a feasibility rule reads the world, not a label
+                # the model wrote, so the audit grounding columns file its
+                # blocks under rules_world_grounded.
+                "grounding": "world",
+                "supply_ratio": ratio,
+                "supply_physical_ratio": physical_ratio,
+                "full_supply_ratio": FULL_SUPPLY_RATIO,
             },
         )
     ]
@@ -778,7 +917,10 @@ def supply_gap_block_increase(
 # Phase C/D Pilot Validators — gated by module-level flags
 # =============================================================================
 
-# Feature flags — set by run_experiment.py based on --pilot-phase / --ablation-mode
+# Feature flags. They gated the pilot-phase C/D checks below, which v3 no
+# longer dispatches (WP3, spec 3.2); run_experiment.py now refuses
+# --pilot-phase and --ablation-mode instead of setting them. They still gate
+# a direct call (tests).
 ENABLE_CONSECUTIVE_CAP = False
 ENABLE_ZERO_ESCAPE = False
 ENABLE_DEMAND_CEILING = True  # Gates demand_ceiling_stabilizer when called directly; the check is retired from dispatch
@@ -821,6 +963,10 @@ def consecutive_increase_cap_check(
 
     Exempt during genuinely wet periods (drought_index < 0.3) where
     increased demand is physically justified.
+
+    NOT DISPATCHED IN v3 (WP3, spec 3.2): the pilot phases C and D that
+    switched it on are refused by ``run_experiment.py`` (``--pilot-phase``).
+    Kept only because tests call it directly.
     """
     if not ENABLE_CONSECUTIVE_CAP:
         return []
@@ -1009,6 +1155,10 @@ def zero_escape_check(
     a corridor that forces agents to either increase or adopt efficiency.
 
     Threshold: 15% of water_right (above the 10% decrease floor).
+
+    NOT DISPATCHED IN v3 (WP3, spec 3.2): switched off with the pilot phase
+    D that enabled it (``--pilot-phase`` is refused); no v3 rule blocks
+    keep. Kept only because tests call it directly.
     """
     if not ENABLE_ZERO_ESCAPE:
         return []
@@ -1070,24 +1220,24 @@ def zero_escape_check(
 # D1's supply-side basin limit; see
 # their docstrings). The functions stay defined above and are tested
 # directly.
+# v3 (WP3, spec 3.2): the supply rule is the ONLY dispatched check.
+# Removed from dispatch, each with a "not dispatched in v3" docstring:
+# curtailment_awareness_check (merged into the supply rule, PI item 2),
+# water_right_cap_check and minimum_utilisation_check (duplicates of the
+# YAML identity rules every profile carries), non_negative_diversion_check
+# (never fires), consecutive_increase_cap_check and zero_escape_check
+# (switched off with the pilot phases). The empty lists stay so the
+# ValidatorRegistry registration in validators/__init__.py and the
+# importers of these names keep working.
 IRRIGATION_PHYSICAL_CHECKS = [
-    water_right_cap_check,
-    non_negative_diversion_check,
-    minimum_utilisation_check,
     supply_gap_block_increase,
 ]
 
-IRRIGATION_SOCIAL_CHECKS = [
-    curtailment_awareness_check,
-]
+IRRIGATION_SOCIAL_CHECKS: List = []
 
-IRRIGATION_TEMPORAL_CHECKS = [
-    consecutive_increase_cap_check,
-]
+IRRIGATION_TEMPORAL_CHECKS: List = []
 
-IRRIGATION_BEHAVIORAL_CHECKS = [
-    zero_escape_check,
-]
+IRRIGATION_BEHAVIORAL_CHECKS: List = []
 
 # Combined list for convenience
 ALL_IRRIGATION_CHECKS = (
@@ -1136,6 +1286,13 @@ IRRIGATION_CONTEXT_PRODUCERS = frozenset({
     # honest record of every key the pipeline actually produces for a
     # governance-reachable message, not just what the scanner can see).
     "supply_group", "ub_subbasin_member_count",
+    # v3 (WP3, spec 3.3): the supply rule's own inputs (supply_rule_fields,
+    # copied into validator_fields by pre_year), and the junior-priority cut
+    # fraction describe_gap_reason reads for the block message's reason
+    # (gap code lb_junior_tier_cut).
+    "supply_keep_request_af", "supply_expected_at_keep_af", "supply_ratio",
+    "supply_physical_ratio", "full_supply_ratio",
+    "lb_junior_tier_cut_fraction",
     # auto-injected from env_context by the broker's env merge
     "drought_index", "total_available_water", "total_basin_demand", "year",
 })
@@ -1211,9 +1368,11 @@ def irrigation_governance_validator(proposal, context, skill_registry=None):
     SkillBrokerEngine.custom_validators expects:
         (proposal, context, skill_registry) -> List[ValidationResult]
 
-    This adapter extracts skill_name from the proposal and runs all
-    irrigation builtin checks against the flattened context (which
-    includes env_context keys like drought_index, curtailment_ratio, etc.).
+    This adapter extracts skill_name from the proposal and runs the
+    dispatched irrigation checks (``ALL_IRRIGATION_CHECKS``: in v3, the
+    supply rule only) against the flattened context (the agent's validator
+    fields from ``IrrigationLifecycleHooks.pre_year`` plus env_context keys).
+    Wired in every profile but ``disabled`` (run_experiment.py).
 
     Usage in ExperimentBuilder::
 

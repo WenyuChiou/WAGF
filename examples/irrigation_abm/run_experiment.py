@@ -62,11 +62,10 @@ from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 from examples.irrigation_abm.validators.irrigation_validators import (
+    ALL_IRRIGATION_CHECKS,
     irrigation_governance_validator,
-    reset_consecutive_tracker,
-    update_consecutive_tracker,
+    supply_rule_fields,
 )
-import examples.irrigation_abm.validators.irrigation_validators as irr_validators
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -534,7 +533,32 @@ class IrrigationLifecycleHooks:
                     water_right=ctx["water_right"],
                     floor=ctx["water_right"] * MIN_UTIL,
                 ),
+                # WP3 (spec 3.3): read by describe_gap_reason in the supply
+                # rule's block message when this agent's own junior-priority
+                # water is cut (gap code lb_junior_tier_cut, item 22); None
+                # for an Upper Basin agent. Direct index: get_agent_context
+                # always sets it.
+                "lb_junior_tier_cut_fraction": ctx["lb_junior_tier_cut_fraction"],
+                # WP3 (spec 3.3): the supply rule's inputs, computed once from
+                # this year's provisional settlement at every agent's keep
+                # request (irrigation_validators.supply_rule_fields). The
+                # rule reads them from here, and the audit writes them as
+                # state_<key> columns (global_config.audit.state_columns) in
+                # EVERY arm, so the disabled arm can be scored post hoc on
+                # the same numbers.
+                **supply_rule_fields(ctx, agent_state),
             }
+            # The supply rule's text says "the {keep} acre-ft you received
+            # last year": WP2 (spec 2.1) resets every request to last year's
+            # receipt before the provisional settlement, so the keep request
+            # IS the base. A mismatch means that reset did not run (a
+            # hold_requests_fixed replay, which this runner refuses above).
+            if abs(validator_fields["supply_keep_request_af"] - agent_state["base_af"]) > 1e-6:
+                raise ValueError(
+                    f"{aid}: keep request {validator_fields['supply_keep_request_af']} "
+                    f"differs from last year's receipt base_af={agent_state['base_af']}; "
+                    "the WP2 reset to the base did not run before this decision."
+                )
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
@@ -661,10 +685,6 @@ class IrrigationLifecycleHooks:
             "skill": skill_name,
             "appraisals": appraisals,
         }
-
-        # Update consecutive increase tracker for Phase C/D validators
-        if skill_name:
-            update_consecutive_tracker(agent.id, skill_name)
 
     # -- post_year: logging, reflection --
     def post_year(self, year: int, agents: Dict):
@@ -1125,6 +1145,47 @@ def _record_hold_requests_fixed_provenance(
               f"config_snapshot.yaml: {e}")
 
 
+def _record_governance_dispatch_provenance(
+    output_dir: Path, dispatched_checks: List[str]
+) -> None:
+    """Additively record the irrigation checks this run dispatched (WP3,
+    spec 3.1 acceptance: every manifest shows the dispatched checks beside
+    the resolved thinking and identity rules and ``appraisal_freeze``, which
+    the generic manifest already carries).
+
+    ``dispatched_checks`` is the names of ``ALL_IRRIGATION_CHECKS`` when the
+    runner wires ``irrigation_governance_validator`` (every profile but
+    ``disabled``), and ``[]`` when it wires no custom validator. Same
+    pattern as ``_record_hold_requests_fixed_provenance``; wrapped so a
+    provenance-write problem can never fail the experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["irrigation_dispatched_checks"] = list(dispatched_checks)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record irrigation_dispatched_checks in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["irrigation_dispatched_checks"] = list(dispatched_checks)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record irrigation_dispatched_checks in "
+              f"config_snapshot.yaml: {e}")
+
+
 def _record_water_system_config_provenance(
     output_dir: Path, config
 ) -> None:
@@ -1225,6 +1286,19 @@ def _record_cluster_method_provenance(
 # ---------------------------------------------------------------------------
 def main():
     args = parse_args()
+    # v3 (WP3, spec 3.2): the pilot phases and the ablation mode switched
+    # checks that v3 no longer dispatches (consecutive_increase_cap_check,
+    # zero_escape_check, demand_ceiling_stabilizer), so either flag would now
+    # silently do nothing. Refused before anything is written.
+    if args.pilot_phase is not None or args.ablation_mode is not None:
+        raise SystemExit(
+            "--pilot-phase and --ablation-mode are retired in the v3 "
+            "governance (irrigation_v3_spec_2026-09-28.md section 3.2): the "
+            "checks they switched are no longer dispatched, so the flag would "
+            "change nothing. Choose an arm with --governance-mode (strict, "
+            "feasibility_only, disabled) and --retry-feedback-mode (full, "
+            "placebo, silent) instead."
+        )
     if args.rebalance_clusters and args.cluster_method == "hy2021":
         raise SystemExit(
             "--rebalance-clusters cannot be combined with --cluster-method "
@@ -1275,38 +1349,8 @@ def main():
     if args.num_predict:
         LLM_CONFIG.num_predict = args.num_predict
 
-    # --- Load config YAML (pilot phase selects config file) ---
-    pilot_phase = args.pilot_phase
-
-    # Reset module-level flags (safe for multi-run in same process)
-    irr_validators.ENABLE_CONSECUTIVE_CAP = False
-    irr_validators.ENABLE_ZERO_ESCAPE = False
-    irr_validators.ENABLE_DEMAND_CEILING = True  # only gates a direct call; retired from dispatch
-
-    # Ablation mode. Supply-side redesign (2026-09-25): demand_ceiling_stabilizer
-    # and demand_floor_stabilizer are no longer dispatched (the basin limit is
-    # physical availability in the water balance), so "no_demand_ceiling" is
-    # now the default behaviour; the choice is kept so existing launchers
-    # still parse.
-    if getattr(args, "ablation_mode", None) == "no_demand_ceiling":
-        irr_validators.ENABLE_DEMAND_CEILING = False
-        print("[Ablation] no_demand_ceiling: already the default (the ceiling is retired from dispatch)")
-
-    # Always use main config (pilot config merged into agent_types.yaml)
+    # --- Load config YAML ---
     agent_config_path = config_dir / "agent_types.yaml"
-    if pilot_phase:
-        print(f"[Pilot] Phase {pilot_phase}: using main config (governance levels set in agent_types.yaml)")
-
-    # Enable Phase C/D validators via module-level flags
-    if pilot_phase in ("C", "D"):
-        if args.workers > 1:
-            print("[Pilot] WARNING: Phase C/D consecutive tracker is not thread-safe, forcing --workers 1")
-            args.workers = 1
-        irr_validators.ENABLE_CONSECUTIVE_CAP = True
-        print("[Pilot] Phase C validator enabled: consecutive_increase_cap")
-    if pilot_phase == "D":
-        irr_validators.ENABLE_ZERO_ESCAPE = True
-        print("[Pilot] Phase D validator enabled: zero_escape")
 
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
@@ -1542,6 +1586,12 @@ def main():
     custom_validators = (
         [] if args.governance_mode == "disabled" else [irrigation_governance_validator]
     )
+    # v3 (WP3, spec 3.1): strict, placebo, silent and feasibility_only run
+    # the supply rule (ALL_IRRIGATION_CHECKS); disabled runs none. Recorded
+    # in the manifest after the run (_record_governance_dispatch_provenance).
+    dispatched_checks = (
+        [check.__name__ for check in ALL_IRRIGATION_CHECKS] if custom_validators else []
+    )
     builder = (
         ExperimentBuilder()
         .with_model(args.model)
@@ -1626,15 +1676,11 @@ def main():
         "post_year": hooks.post_year,
     })
 
-    # --- Reset pilot state ---
-    reset_consecutive_tracker()
-
     # --- Run ---
     n_real = "real" if args.real else "synthetic"
-    phase_str = f" | pilot={pilot_phase}" if pilot_phase else ""
     print(
         f"--- Irrigation ABM | {args.model} | {len(profiles)} agents ({n_real}) "
-        f"| {args.years} years | seed={seed}{phase_str} ---"
+        f"| {args.years} years | seed={seed} ---"
     )
     # Spec item 24 fix round: runner.run() can now raise LLMFailureRateAborted
     # (the LLM safeguard, on by default for this domain). Pre-fix, the four
@@ -1663,6 +1709,7 @@ def main():
         _record_step_bin_source_provenance(output_dir, profiles, args.real)
         _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
         _record_water_system_config_provenance(output_dir, env.config)
+        _record_governance_dispatch_provenance(output_dir, dispatched_checks)
 
         # Finalize audit. Also already called from inside
         # ExperimentRunner._finalize_experiment's own finally (run() wraps
@@ -1742,11 +1789,13 @@ def parse_args():
                    help="Disable magnitude_pct output (reduces context size)")
     p.add_argument("--pilot-phase", type=str, default=None,
                    choices=["A", "B", "C", "D"],
-                   help="Pilot phase: A=baseline, B=BLOCK+retry, C=+consecutive_cap, D=+zero_escape")
+                   help="RETIRED in v3 (WP3): refused at startup. The checks the "
+                        "phases switched (consecutive_cap, zero_escape) are no "
+                        "longer dispatched.")
     p.add_argument("--ablation-mode", type=str, default=None,
                    choices=["no_demand_ceiling"],
-                   help="Kept for older launchers: no_demand_ceiling is now the default "
-                        "(demand_ceiling_stabilizer is retired from dispatch).")
+                   help="RETIRED in v3 (WP3): refused at startup. "
+                        "demand_ceiling_stabilizer is not dispatched.")
     # P0-1d: the governance profile was hardcoded to "strict" at the builder
     # call below, so the published irrigation corpus has only strict + disabled
     # arms and no enforcement-gradient condition could be run at all. Named
@@ -1758,10 +1807,10 @@ def parse_args():
                         "run new arms without editing the frozen paper configs. Default: in-tree.")
     p.add_argument("--governance-mode", type=str, default="strict",
                    help="Governance profile name from agent_types.yaml "
-                        "(strict | relaxed | grounded_v1 | disabled | any custom "
-                        "profile defined there). A name the config does not "
-                        "declare is REFUSED at startup rather than falling back "
-                        "to 'default' silently.")
+                        "(v3: strict | feasibility_only | disabled; the placebo "
+                        "and silent arms are strict with --retry-feedback-mode). "
+                        "A name the config does not declare is REFUSED at "
+                        "startup rather than falling back to 'default' silently.")
     p.add_argument("--coupling", action="store_true",
                    help="Enable the v0.6 coupling layer: wraps IrrigationEnvironment "
                         "in broker.coupling.EnvironmentCouplingAdapter using the "

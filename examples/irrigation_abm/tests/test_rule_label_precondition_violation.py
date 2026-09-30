@@ -21,7 +21,15 @@ _CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 
 
 def test_precondition_violation_has_a_label():
-    assert _RULE_LABELS["precondition_violation"] == "the water-right cap"
+    """WP3 (spec 3.6): ``_RULE_LABELS`` keeps exactly the five v3 rules; the
+    registry backstop ``precondition_violation`` is named by the direction
+    of the blocked skill (the cap for an increase, the floor for a
+    decrease), never by a fixed entry of its own."""
+    assert "precondition_violation" not in _RULE_LABELS
+    assert _precondition_violation_label(
+        "precondition_violation", "increase_demand") == _RULE_LABELS["water_right_cap"]
+    assert _precondition_violation_label(
+        "precondition_violation", "decrease_demand") == _RULE_LABELS["minimum_utilisation_floor"]
 
 
 def test_neutral_feedback_names_water_right_cap_for_precondition_violation():

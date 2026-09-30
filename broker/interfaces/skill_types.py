@@ -94,6 +94,14 @@ class SkillDefinition:
     depends_on: List[str] = field(default_factory=list)            # Prerequisite skills (for composite)
 
 
+# ``metadata["tier"]`` of an identity-rule result. Written by
+# ``AgentValidator.validate_identity`` and read by
+# ``RetryMixin._retry_report_results``
+# (``global_config.governance.hide_registry_backstop_reports``): defined
+# once here, so the writer and the reader cannot drift apart.
+IDENTITY_TIER = "Tier 1: Identity/Status"
+
+
 @dataclass
 class ValidationResult:
     """Result from a skill validator."""

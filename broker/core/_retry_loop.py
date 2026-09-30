@@ -32,11 +32,12 @@ import dataclasses
 from typing import Callable, Dict, List, Optional
 
 from ..interfaces.skill_types import (
-    SkillProposal, InterventionReport, ValidationResult,
+    IDENTITY_TIER, SkillProposal, InterventionReport, ValidationResult,
 )
 from ..utils.llm_utils import accumulate_llm_stats
 from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
+from ._appraisal_freeze import construct_label_dict
 
 # Red-team objection 3 (retry-feedback ablation, `global_config.governance.
 # retry_feedback_mode: placebo`): review round 2 (opus W1) settled the design
@@ -73,6 +74,13 @@ RETRY_FEEDBACK_PLACEBO_TEXT = (
     "Your previous decision was not accepted. Please reconsider and answer "
     "again in the required format."
 )
+
+# The registry-level backstop checks of SkillBrokerEngine._run_validators
+# (the rule ids it stamps on a failed precondition / output-schema check).
+# Used by RetryMixin._retry_report_results together with IDENTITY_TIER
+# (skill_types, the one definition AgentValidator.validate_identity also
+# uses) (global_config.governance.hide_registry_backstop_reports).
+REGISTRY_BACKSTOP_RULE_IDS = frozenset({"precondition_violation", "output_schema_violation"})
 
 
 class RetryMixin:
@@ -299,6 +307,52 @@ class RetryMixin:
         return frozenset(rule_ids)
 
     @staticmethod
+    def _failed_rule_ids(validation_results: List) -> List[str]:
+        """Sorted, de-duplicated ids of the results that returned an ERROR
+        (``valid=False``) in ONE validation pass, named exactly as the audit
+        CSV's ``failed_rules`` column names them (``GenericAuditWriter.
+        write_trace``): ``metadata["rule_id"]``, else ``"Unknown"`` -- no
+        fallback to ``rules_hit``. So an attempt that failed on an unnamed
+        check (for example the response-format check) never reads as an
+        attempt that passed. Feeds the ``attempt_failed_rules`` audit column
+        (audit.attempt_columns)."""
+        ids = set()
+        for v in validation_results:
+            if v is None or getattr(v, "valid", True):
+                continue
+            meta = getattr(v, "metadata", None) or {}
+            rid = meta.get("rule_id")
+            ids.add(str(rid) if rid else "Unknown")
+        return sorted(ids)
+
+    def _retry_report_results(self, validation_results: List) -> List:
+        """The validation results a governance retry prompt reports.
+
+        All of them, unless ``global_config.governance.
+        hide_registry_backstop_reports`` is on AND an identity rule already
+        blocked this attempt: then the registry backstop results
+        (``REGISTRY_BACKSTOP_RULE_IDS``: the skill's preconditions and its
+        output schema, re-checking what the identity rule has already
+        refused, in internal field names) are left out of the retry text.
+        They stay in the audit trail (``failed_rules``, ``error_messages``,
+        ``attempt_failed_rules``), which reads the unfiltered results.
+        """
+        if getattr(self, "_hide_registry_backstop_reports", False) is not True:
+            return validation_results
+        identity_blocked = any(
+            v is not None and not getattr(v, "valid", True)
+            and (getattr(v, "metadata", None) or {}).get("tier") == IDENTITY_TIER
+            for v in validation_results
+        )
+        if not identity_blocked:
+            return validation_results
+        return [
+            v for v in validation_results
+            if v is None
+            or (getattr(v, "metadata", None) or {}).get("rule_id") not in REGISTRY_BACKSTOP_RULE_IDS
+        ]
+
+    @staticmethod
     def _all_blocking_deterministic(validation_results: List) -> bool:
         """Check if ALL blocking rules are deterministic (e.g. affordability).
 
@@ -359,7 +413,14 @@ class RetryMixin:
         own reasoning labels and parameters; a skill is feasible when no
         result is an ERROR (valid=False). Probe runs are hypothetical: they
         are not added to the validation history and do not count as rule
-        hits (GovernanceAuditor.muted)."""
+        hits (GovernanceAuditor.muted).
+
+        Under the appraisal freeze (global_config.governance.appraisal_freeze)
+        the "reasoning labels" are the decision's labels as FIRST STATED, not
+        this attempt's restatement: the probe passes a copy of the decision's
+        validation context, which carries the frozen labels, and
+        _run_validators applies them. The line lists the actions that pass
+        every rule, and every rule reads those labels."""
         from ..utils.governance_auditor import GovernanceAuditor
 
         feasible: List[str] = []
@@ -412,6 +473,8 @@ class RetryMixin:
         raw_output: str, total_llm_stats: Dict,
         attempt_skills: Optional[List] = None,
         feasible_by_attempt: Optional[List] = None,
+        attempt_labels: Optional[List] = None,
+        attempt_failed_rules: Optional[List] = None,
     ):
         """Run governance validation retry loop.
 
@@ -443,6 +506,13 @@ class RetryMixin:
         ``feasible_by_attempt``, when supplied, receives one list per such
         attempt. Not rendered under ``retry_feedback_mode: placebo`` (that
         arm carries no rule content).
+
+        Per-attempt audit records (``global_config.audit.attempt_columns``,
+        default off): when ``attempt_labels`` / ``attempt_failed_rules`` are
+        supplied, each receives exactly one entry per retry attempt, in step
+        with ``attempt_skills`` -- the attempt's construct labels (a dict) and
+        the sorted ids of the rules that returned an ERROR on it; ``None``
+        for an attempt that produced no parsable proposal.
         """
         # The five cost keys are seeded by _invoke_llm_with_retries, which in
         # production always runs first — but this method is also entered
@@ -464,8 +534,13 @@ class RetryMixin:
             # P0-1c: extracted verbatim into _advise.build_intervention_reports so
             # the enforce and advisory paths share ONE builder -- a wording or shape
             # drift between them would land inside the (C-B) contrast.
+            # global_config.governance.hide_registry_backstop_reports (default
+            # OFF): the registry backstop of an attempt an identity rule
+            # already blocked is left out of the retry TEXT only; the audit
+            # reads validation_results / all_validation_history, unfiltered.
+            report_results = self._retry_report_results(validation_results)
             intervention_reports = build_intervention_reports(
-                validation_results, skill_proposal, source="errors",
+                report_results, skill_proposal, source="errors",
             )
 
             if not skill_proposal:
@@ -478,7 +553,7 @@ class RetryMixin:
                 )]
             else:
                 errors_to_send = intervention_reports if intervention_reports else [
-                    e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors
+                    e for v in report_results if v and hasattr(v, 'errors') for e in v.errors
                 ]
 
             # Red-team objection 3: retry-feedback ablation (opus W1 design: the
@@ -609,6 +684,10 @@ class RetryMixin:
                     # length invariant (len(attempt_skills) == retry_count + 1).
                     if attempt_skills is not None:
                         attempt_skills.append(None)
+                    if attempt_labels is not None:
+                        attempt_labels.append(None)
+                    if attempt_failed_rules is not None:
+                        attempt_failed_rules.append(None)
                     break
             else:
                 raw_output = res
@@ -643,6 +722,12 @@ class RetryMixin:
                 attempt_skills.append(
                     skill_proposal.skill_name if skill_proposal else None
                 )
+            # Per-attempt labels: what THIS attempt wrote (not the frozen
+            # labels the validators read under the appraisal freeze).
+            if attempt_labels is not None:
+                attempt_labels.append(
+                    construct_label_dict(skill_proposal) if skill_proposal else None
+                )
 
             if skill_proposal:
                 # F5 (2026-06-10 review): re-inject the CURRENT attempt's
@@ -665,6 +750,10 @@ class RetryMixin:
                 validation_results = self._run_validators(skill_proposal, validation_context)
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
+                if attempt_failed_rules is not None:
+                    attempt_failed_rules.append(
+                        self._failed_rule_ids(validation_results)
+                    )
                 if not all_valid:
                     errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
                     logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
@@ -684,6 +773,8 @@ class RetryMixin:
                         break
                     prev_blocking_rules = current_blocking
             else:
+                if attempt_failed_rules is not None:
+                    attempt_failed_rules.append(None)
                 self.auditor.log_parse_error()
                 logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
 

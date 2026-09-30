@@ -758,6 +758,69 @@ class AgentTypeConfig:
             return False
         return bool(gov.get("feasible_set_feedback", False))
 
+    def _governance_bool(self, key: str, default: bool) -> bool:
+        """A ``global_config.governance`` flag that must be a real YAML bool.
+
+        Absent means ``default``. Any other type raises: a quoted ``"false"``
+        is truthy in Python, so reading it with ``bool(...)`` would switch the
+        feature ON while the YAML reads as OFF.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not isinstance(gov, dict) or key not in gov:
+            return default
+        value = gov[key]
+        if not isinstance(value, bool):
+            raise ValueError(
+                f"global_config.governance.{key} must be true or false "
+                f"(a YAML bool), got {type(value).__name__} {value!r}."
+            )
+        return value
+
+    def get_governance_appraisal_freeze(self) -> bool:
+        """``global_config.governance.appraisal_freeze`` (default False).
+
+        When True, every validation pass inside one decision reads each
+        construct label (a reasoning key containing ``_LABEL``) as the agent
+        FIRST STATED it in that decision: the labels of the first parsed
+        attempt, plus any label a later attempt states for the first time. A
+        label once stated is never replaced, so a retry cannot pass a
+        label-conditioned rule by rewriting it; a label the first attempt
+        omitted is still taken from the first attempt that states it. A
+        rewritten label is logged (``final_labels`` / ``appraisal_drift``;
+        ``attempt_labels`` under ``audit.attempt_columns``) and read by no
+        rule. The feasible-set line of a retry prompt uses the same labels,
+        because it lists the actions that pass every rule. See
+        ``broker/core/_appraisal_freeze.py``. False (the default) reproduces
+        the shipped behaviour byte-for-byte.
+        """
+        return self._governance_bool("appraisal_freeze", False)
+
+    def get_governance_rule_id_prefix(self) -> bool:
+        """``global_config.governance.rule_id_prefix`` (default True).
+
+        True renders the ``[Rule: <id>] `` prefix in front of every YAML
+        identity- and thinking-rule message (``AgentValidator``), exactly as
+        shipped. False drops it, so a retry prompt states the rule in the
+        words of its ``message`` only and never shows an internal rule id.
+        """
+        return self._governance_bool("rule_id_prefix", True)
+
+    def get_governance_hide_registry_backstop_reports(self) -> bool:
+        """``global_config.governance.hide_registry_backstop_reports``
+        (default False).
+
+        When True, a governance retry prompt leaves out the registry
+        backstop results -- ``precondition_violation`` and
+        ``output_schema_violation``, the skill registry's own re-check of a
+        skill's preconditions and output schema -- of an attempt that a YAML
+        identity rule has ALREADY blocked. The identity rule's message states
+        the reason in the domain's words; the backstop repeats it in internal
+        field names ("Precondition failed: 'not <flag>'", "Required field
+        'decision' missing ..."). The results stay in the audit trail. False
+        reproduces the shipped retry prompt byte-for-byte.
+        """
+        return self._governance_bool("hide_registry_backstop_reports", False)
+
     def has_world_grounded_rules(self) -> bool:
         """PR-6: True iff the ACTIVE governance profile declares a world-grounded rule.
 
@@ -811,6 +874,70 @@ class AgentTypeConfig:
         if isinstance(block, dict) and bool(block.get("grounding_columns", False)):
             return True
         return self.has_world_grounded_rules()
+
+    def get_audit_attempt_columns(self) -> bool:
+        """Opt-in PER-ATTEMPT audit columns (default-OFF).
+
+        When ``global_config.audit.attempt_columns: true``, every decision row
+        carries, aligned attempt by attempt with ``attempt_skills``:
+
+        - ``attempt_labels``       -- each attempt's construct labels
+          (``KEY=VALUE`` pairs joined by ``,``; attempts joined by ``|``;
+          ``""`` for an unparsable attempt);
+        - ``attempt_failed_rules`` -- the ids of the rules that returned an
+          ERROR on each attempt (joined by ``,``; attempts joined by ``|``;
+          ``""`` for an attempt that passed or did not parse);
+        - ``appraisal_relabeled``  -- True when some attempt states a
+          construct label with a value other than the one that label was
+          first stated with in the decision (a first statement or an
+          omission is not a relabel).
+
+        ``failed_rules`` pools every attempt, and ``final_labels`` shows only
+        the last one; these columns keep each attempt apart, which is what a
+        per-rule census on first attempts and a relabel rate need. Key-gated
+        like every other opt-in column: flag-OFF emits no key, so frozen
+        baselines stay byte-identical. ``SkillBrokerEngine`` refuses this flag
+        together with an advisory channel (``governance.advise`` /
+        ``governance.advise_mode``), whose extra attempts it does not record.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict) or "attempt_columns" not in block:
+            return False
+        value = block["attempt_columns"]
+        if not isinstance(value, bool):
+            raise ValueError(
+                "global_config.audit.attempt_columns must be true or false "
+                f"(a YAML bool), got {type(value).__name__} {value!r}."
+            )
+        return value
+
+    def get_audit_state_columns(self) -> List[str]:
+        """Opt-in AGENT-STATE audit columns (default: none).
+
+        ``global_config.audit.state_columns`` is a list of keys of the
+        decision's agent state (``context["state"]``, the state every
+        validator saw). Each listed key becomes a ``state_<key>`` column
+        holding that decision's value, so a post hoc check can re-evaluate a
+        rule on exactly the inputs the live rule read. A key the state does
+        not carry is written as ``unobserved``, never as a fabricated value.
+        Absent or empty adds no column, so frozen baselines stay
+        byte-identical. Raises on anything but a list of non-empty strings.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict) or block.get("state_columns") is None:
+            return []
+        value = block["state_columns"]
+        if not isinstance(value, list) or not all(
+                isinstance(k, str) and k.strip() for k in value):
+            raise ValueError(
+                "global_config.audit.state_columns must be a list of non-empty "
+                f"strings (agent-state keys), got {value!r}."
+            )
+        if len(set(value)) != len(value):
+            raise ValueError(
+                f"global_config.audit.state_columns lists a key twice: {value!r}."
+            )
+        return list(value)
 
     def get_audit_decider_columns(self) -> bool:
         """PR-8: opt-in DECIDER audit columns (``decider`` / ``decider_path``).
@@ -1929,6 +2056,15 @@ class AgentTypeConfig:
                     blocked_skills=rule.get("blocked_skills"),
                     level=level,
                     message=rule.get("message", ""),
+                    # Optional `suggestion:` -- rendered as the retry prompt's
+                    # "Suggestion:" line (legacy framing), the same slot a
+                    # custom validator fills through metadata["suggestion"].
+                    # A rule without the key gets exactly the {} it always
+                    # had, so its results carry no new metadata key.
+                    metadata=(
+                        {"suggestion": str(rule["suggestion"])}
+                        if rule.get("suggestion") else {}
+                    ),
                     grounding=resolve_rule_grounding(rule),
                 )
             )

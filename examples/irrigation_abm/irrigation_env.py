@@ -3692,10 +3692,10 @@ class IrrigationEnvironment:
         # Informational only (the declared tier stays visible without
         # implying it was applied to agricultural deliveries): the share
         # of the non-agricultural bucket the tier removed. Feeds
-        # curtailment_ratio (_apply_curtailment) and the
-        # supply_gap_block_increase / curtailment_awareness_check
-        # governance skip condition (unchanged: nonzero exactly when a
-        # tier > 0 is declared).
+        # curtailment_ratio (_apply_curtailment; nonzero exactly when a
+        # tier > 0 is declared). Since WP3 (spec 3.2/3.3) no dispatched
+        # governance rule reads it: the supply rule responds to physical
+        # limits only, and curtailment_awareness_check is not dispatched.
         g_informational = (
             shortage_volume / cfg.lb_non_ag_total_maf
             if cfg.lb_non_ag_total_maf > 0 else 0.0
@@ -3835,11 +3835,25 @@ class IrrigationEnvironment:
         fields (not settlement fields) because ``run_experiment.py``'s
         feedback-dashboard tracked-metrics loop reads a NAMED field off
         ``env.get_agent_state(aid)``, not off the settlement dict."""
+        # WP3 (spec 3.3): the settlement's Lake Mead physical-availability
+        # factor phi, the ONE physical limit on a Lower Basin agricultural
+        # delivery. Read here so the supply rule can tell it apart from a
+        # declared junior-priority cut (item 22), which it must not respond
+        # to; see irrigation_validators.supply_rule_fields. Direct index:
+        # every _settle result carries it.
+        lb_phys_ratio = settlement["lb_phys_ratio"]
         for aid, rec in settlement["agents"].items():
             agent = self._agents[aid]
             agent["diversion"] = rec["delivered"]
             agent["delivery_ratio"] = rec["delivery_ratio"]
             agent["gap_reason"] = rec["gap_reason"]
+            # phi for a Lower Basin agent, None for an Upper Basin one (its
+            # delivery ratio is already purely physical: sub-basin supply
+            # and the basin-wide backstop, no declared cut). Same basin
+            # split as _settle's own ub_ids / lb_ids.
+            agent["lb_phys_ratio"] = (
+                None if agent["basin"] == "upper_basin" else lb_phys_ratio
+            )
             # WP1c (item 22): this decision's Lower Basin senior/junior
             # split and the declared tier's junior fraction -- None for an
             # Upper Basin agent (_settle never sets these keys there).
@@ -4060,10 +4074,9 @@ class IrrigationEnvironment:
         MAF non-agricultural bucket the declared tier removed), NOT a
         ratio applied to agricultural deliveries -- agricultural agents
         are reduced only by physical Mead availability (:meth:`_settle`'s
-        ``phi``). Kept as an agent-visible signal (e.g. the
-        ``supply_gap_block_increase`` / ``curtailment_awareness_check``
-        governance skip condition reads it to know a tier is declared)
-        without implying it was multiplied into their own delivery.
+        ``phi``). Kept as an agent-visible signal (a tier is declared)
+        without implying it was multiplied into their own delivery; since
+        WP3 (spec 3.2/3.3) no dispatched governance rule reads it.
 
         ``ratio`` is normally :meth:`_settle`'s own ``lb_cut`` output;
         ``advance_year`` and ``settle_year`` always pass it explicitly.

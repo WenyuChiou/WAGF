@@ -191,6 +191,18 @@ class ExperimentRunner:
         # retrieve() mutates EMA state per call and frozen baselines were
         # produced with two builds per step (see the loop-site note).
         if config.enable_cognitive_cache:
+            # A cache hit replays a proposal from an EARLIER decision and
+            # re-validates it outside process_step, where the appraisal
+            # freeze (global_config.governance.appraisal_freeze) has no
+            # first-stated labels to read; refused rather than letting a hit
+            # silently bypass the freeze.
+            if getattr(broker, "_appraisal_freeze", False) is True:
+                raise ValueError(
+                    "ExperimentConfig.enable_cognitive_cache cannot be combined "
+                    "with global_config.governance.appraisal_freeze: a cache hit "
+                    "re-validates a proposal outside the decision whose first "
+                    "stated labels the freeze reads. Turn one of them off."
+                )
             persistence_path = config.output_dir / "cognitive_cache.json"
             self.efficiency = CognitiveCache(persistence_path=persistence_path)
         else:
@@ -1319,6 +1331,22 @@ class ExperimentRunner:
                         t: len(agent_cfg.get_thinking_rules(t))
                         for t in active_types
                     }
+                    # Which rules, not only how many: two arms with the same
+                    # count and different rules are different arms.
+                    metadata["thinking_rules_resolved"] = {
+                        t: [str(r.id) for r in agent_cfg.get_thinking_rules(t)]
+                        for t in active_types
+                    }
+                if hasattr(agent_cfg, "get_identity_rules"):
+                    metadata["identity_rules_resolved"] = {
+                        t: [str(r.id) for r in agent_cfg.get_identity_rules(t)]
+                        for t in active_types
+                    }
+                _get_prefix = getattr(agent_cfg, "get_governance_rule_id_prefix", None)
+                if callable(_get_prefix):
+                    _prefix = _get_prefix()
+                    metadata["rule_id_prefix_resolved"] = (
+                        _prefix if isinstance(_prefix, bool) else None)
             # P0-1c: pin the ARM identity, not just the profile name. Three fields,
             # each recording something a reader cannot recover from the YAML alone.
             #
@@ -1351,6 +1379,17 @@ class ExperimentRunner:
             metadata["max_retries_resolved"] = (
                 retries if isinstance(retries, int) and not isinstance(retries, bool)
                 else None)
+            # Appraisal freeze (global_config.governance.appraisal_freeze) as
+            # the ENGINE resolved it, and the custom validator callables the
+            # engine actually runs (by name) -- an arm that dropped a domain
+            # validator bridge is visible here, not only in the runner code.
+            _freeze = getattr(self.broker, "_appraisal_freeze", None)
+            metadata["appraisal_freeze_resolved"] = (
+                _freeze if isinstance(_freeze, bool) else None)
+            _custom = getattr(self.broker, "custom_validators", None)
+            metadata["custom_validators_resolved"] = (
+                [str(getattr(f, "__name__", type(f).__name__)) for f in _custom]
+                if isinstance(_custom, (list, tuple)) else None)
         except Exception as exc:
             logger.debug(f"[Integrity] governance-resolution provenance skipped: {exc}")
 

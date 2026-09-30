@@ -406,24 +406,15 @@ class TestSupplyRuleBySubbasin:
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
     def test_supply_rule_by_subbasin(self):
         """At 2018 keep requests through sim year 2033 (loop year 15),
-        UT1's own sub-basin is short enough (0.674 of its 2018 use, memo
-        section 6) to cross supply_gap_block_increase's existing 70%
-        threshold and block a UT1 agent's increase, while NM (never short
-        at 2018 use, memo section 6) is unaffected -- the supply rule's
-        Upper Basin side is no longer idle (item 17's finding: under the
-        single pool it never fires at 2018 use because the aggregate
-        never drops below 70%).
-
-        Not literally the memo's own "a CO2 increase blocked, an NM
-        increase allowed" example: that assumed WP3's stricter
-        FULL_SUPPLY_RATIO = 0.999 rule (any shortfall blocks), which is
-        WP3 scope, not WP1b's. CO2's 2033 ratio is 0.876 (comfortably
-        above supply_gap_block_increase's CURRENT, still-0.70 threshold,
-        unchanged by WP1b) and does not block under today's rule; UT1's
-        2033 ratio, 0.674, does -- the same underlying fact (WP1b's
-        formula reproduces H&Y's CRSS cutting Upper Basin delivery in
-        2033) demonstrated with the sub-basin that actually crosses the
-        rule as it stands today.
+        UT1's own sub-basin is short (0.674 of its 2018 use, memo section
+        6) and so is CO2's (0.876), so the supply rule blocks an increase
+        in both, while NM (never short at 2018 use, memo section 6) is
+        unaffected -- the supply rule's Upper Basin side is no longer idle
+        (item 17's finding: under the single pool it never fires at 2018
+        use). This is the memo's own "a CO2 increase blocked, an NM
+        increase allowed" example, which needed WP3's FULL_SUPPLY_RATIO
+        rule (any physical shortfall blocks); under the pre-WP3 0.70
+        cutoff only UT1 crossed.
         """
         import numpy as np
 
@@ -458,9 +449,25 @@ class TestSupplyRuleBySubbasin:
         assert ut1_context["gap_reason"] == "ub_subbasin_supply"
         assert nm_context["gap_reason"] == "none"
 
-        ut1_result = supply_gap_block_increase("increase_demand", [], ut1_context)
-        nm_result = supply_gap_block_increase("increase_demand", [], nm_context)
+        # WP3 (2026-09-29, spec 3.3): the v3 rule reads its inputs from
+        # supply_rule_fields (as IrrigationLifecycleHooks.pre_year writes
+        # them) and blocks below FULL_SUPPLY_RATIO -- so the memo's own
+        # example now holds as written: CO2 (2033 ratio 0.876) is blocked
+        # as well as UT1 (0.674), and NM is allowed.
+        from examples.irrigation_abm.validators.irrigation_validators import (
+            supply_rule_fields,
+        )
+
+        def rule_ctx(aid):
+            ctx = env.get_agent_context(aid)
+            return {**ctx, **supply_rule_fields(ctx, env.get_agent_state(aid))}
+
+        co2_agent = next(p.agent_id for p in profiles if p.precip_group == "CO2")
+        ut1_result = supply_gap_block_increase("increase_demand", [], rule_ctx(ut1_agent))
+        co2_result = supply_gap_block_increase("increase_demand", [], rule_ctx(co2_agent))
+        nm_result = supply_gap_block_increase("increase_demand", [], rule_ctx(nm_agent))
         assert ut1_result, "UT1 agent's increase should be blocked in 2033"
+        assert co2_result, "CO2 agent's increase should be blocked in 2033"
         assert not nm_result, "NM agent's increase should be allowed in 2033"
 
 
