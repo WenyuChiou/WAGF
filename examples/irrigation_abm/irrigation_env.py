@@ -20,11 +20,18 @@ docs/irrigation_physics.md)::
 
 Upper Basin deliveries have PRIORITY: they are limited only by the 5.0 MAF
 delivery capacity and by (non-farm-net) natural flow itself, never by what
-Powell needs for its own release. Lake Powell releases R to keep its and
-Lake Mead's end-of-year live-storage fractions as equal as possible
-(a simplification of the 2007 Interim Guidelines' balancing tiers),
-bounded to [7.0, 9.5] MAF. The declared Lower Basin shortage tier's volume
-is borne by the 5.0 MAF non-agricultural bucket, MINUS a small senior/
+Powell needs for its own release. Lake Powell releases R under one of two
+rules (WaterSystemConfig.powell_release_mode): the actual 2007 Interim
+Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation
+Release / Lower Elevation Balancing tiers, chosen from the 1 January
+storages ("ig2007_tiers", the v3 default -- items 26-27; the Equalization
+tier's own release has NO upper bound, so R can exceed 9.5 MAF, e.g. 14.63
+MAF in the 2011 hindcast year), or a one-rule simplification equalizing
+Powell's and Mead's end-of-year live-storage fractions, bounded to
+[7.0, 9.5] MAF ("storage_balancing", the SI mode). Either way R is never
+more than physically available (pass-through at dead pool). The declared
+Lower Basin shortage tier's volume is borne by the 5.2 MAF non-agricultural
+bucket, MINUS a small senior/
 junior refinement (item 22, WaterSystemConfig.lb_priority_mode="split",
 the v3 default): six of the 22 Lower Basin agricultural agents hold some
 Arizona 4th/5th/6th-priority ("junior") water and have that junior part
@@ -48,6 +55,7 @@ from __future__ import annotations
 import csv
 import functools
 import hashlib
+import math
 import os
 import zlib
 from dataclasses import dataclass, field
@@ -69,6 +77,100 @@ MIN_UTIL = 0.10
 # (5.86 MAF/yr; see initialize_synthetic's calibration note). Used only as
 # the denominator of the logged basin_request_over_target ratio.
 CRSS_DEMAND_TARGET_AF = 5_860_000.0
+
+# ---------------------------------------------------------------------
+# v3 (spec items 26/27, 2007 Interim Guidelines Lake Powell operational
+# tiers; design memo .research/design_specs/irrigation_v3_powell_tiers_2026-09-29.md
+# section 3, "Design specification", accepted by the orchestrator 2026-09-29
+# after ROD Section 6 verification against the primary PDF). Used only by
+# IrrigationEnvironment._plan_powell_release_ig2007 (the "ig2007_tiers"
+# WaterSystemConfig.powell_release_mode, the v3 default) -- the
+# "storage_balancing" mode (kept for the SI) reads none of these.
+# ---------------------------------------------------------------------
+
+# Equalization elevation by water year (2007 ROD, p. 51, Section 6.A.1).
+# 2026 is the last published value; WaterSystemConfig.powell_post2026_equalization
+# decides how the elevation is extended past it (_powell_equalization_elevation_ft).
+POWELL_EQ_ELEVATION_FT_BY_YEAR: Dict[int, float] = {
+    2008: 3636.0, 2009: 3639.0, 2010: 3642.0, 2011: 3643.0, 2012: 3645.0,
+    2013: 3646.0, 2014: 3648.0, 2015: 3649.0, 2016: 3651.0, 2017: 3652.0,
+    2018: 3654.0, 2019: 3655.0, 2020: 3657.0, 2021: 3659.0, 2022: 3660.0,
+    2023: 3662.0, 2024: 3663.0, 2025: 3664.0, 2026: 3666.0,
+}
+# Six points of the 2007 ROD p. 50 tier diagram: Powell elevation (ft) to
+# ACTIVE (live) storage (MAF). Straight lines through these anchors are the
+# accepted design (design memo section 3, "Powell curve"; checked there
+# against a 1-ft empirical curve built from 1990-2019 USBR RISE daily
+# elevation/live-storage pairs: at most 0.012 MAF difference at these six
+# anchors and 0.25 MAF between them, with no change to the tier sequence
+# or the hindcast gates).
+POWELL_CURVE_ELEVATION_FT: Tuple[float, ...] = (
+    3370.0, 3525.0, 3575.0, 3636.0, 3666.0, 3700.0,
+)
+POWELL_CURVE_ACTIVE_STORAGE_MAF: Tuple[float, ...] = (
+    0.0, 5.93, 9.52, 15.54, 19.29, 24.32,
+)
+# Tier floor elevations (ROD p. 50 diagram) and the Mead/Powell release
+# constants the four 2007 Interim Guidelines Lake Powell tiers use (ROD
+# Section 6, pp. 51-53; page citations corrected 2026-09-29 -- the 7.0-9.5
+# MAF Lower Elevation Balancing band is p. 53, the tier diagram is p. 50,
+# not the "p. 52" / "p. 49" this module cited before item 26/27).
+POWELL_UEB_FLOOR_FT = 3575.0        # Upper Elevation Balancing / Mid-Elevation Release boundary
+POWELL_MER_FLOOR_FT = 3525.0        # Mid-Elevation Release / Lower Elevation Balancing boundary
+MEAD_UEB_CHECK_FT = 1075.0          # 6.B.1 (>=) vs 6.B.2 (<)
+MEAD_MER_CHECK_FT = 1025.0          # 6.C.1: 7.48 MAF (>=) vs 8.23 MAF (<)
+MEAD_EQ_PROVISO_FT = 1105.0         # 6.A.1 proviso trigger
+EQ_PROVISO_DROP_FT = 20.0           # 6.A.1 proviso: EQ elevation minus 20 ft
+POWELL_MIN_OBJECTIVE_RELEASE_MAF = 8.23   # ROD p. 15; 6.A.1 floor, 6.B.1, 6.C.1 (Mead >= 1,025 ft)
+POWELL_MER_RELEASE_MAF = 7.48             # 6.C.1, Mead >= 1,025 ft
+POWELL_UEB_BALANCING_BAND = (7.0, 9.0)    # 6.B.2
+POWELL_UEB_APRIL_BAND = (8.23, 9.0)       # 6.B.4
+# The Lower Elevation Balancing Tier's own band (6.D.1, ROD p. 53) equals
+# WaterSystemConfig.min_powell_release_maf / max_powell_release_maf
+# (7.0 / 9.5 MAF) -- the same band the storage-balancing rule already
+# clamps to -- so no separate module constant duplicates it.
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return min(max(value, lo), hi)
+
+
+@dataclass
+class PowellReleasePlan:
+    """Return type of ``IrrigationEnvironment._plan_powell_release_ig2007``
+    (spec item 26/27): the release ALONE is what
+    ``IrrigationEnvironment._plan_powell_release`` (the dispatcher) returns,
+    matching the "storage_balancing" mode's plain-float contract every
+    existing caller relies on; the richer fields are stashed on
+    ``IrrigationEnvironment._powell_plan_detail`` for ``advance_year`` to
+    log (``powell_tier`` / ``powell_tier_rule``) and for ``institutions()``
+    to report."""
+
+    release_maf: float
+    tier: str
+    rule: str
+    powell_jan1_ft: float
+    eq_elevation_ft: float
+
+
+@dataclass
+class _PowellPlanningPieces:
+    """Return type of ``IrrigationEnvironment._plan_powell_release_projected_pieces``
+    (re-review 2026-09-29 round 4, MEDIUM 11): the projected-flow pieces
+    ``_plan_powell_release_storage_balancing`` and ``_plan_powell_release_ig2007``
+    both need before their release rules diverge -- Upper Basin priority
+    over Powell, evaporation capped at usable-storage-plus-inflow, and the
+    non-agricultural bucket net of the declared tier's volume. Factored
+    into one place so the two modes cannot silently drift apart on this
+    shared arithmetic; every value is unchanged from what each caller
+    computed inline before this refactor (bit-identical)."""
+
+    inflow_plan: float
+    e_p_plan: float
+    available_p_plan: float
+    non_ag_plan: float
+    e_m_estimate: float
+    o_projected: float
 
 
 @dataclass
@@ -127,13 +229,34 @@ class WaterSystemConfig:
     # figure, restated throughout the 2007 ROD and the 24-Month Study
     # letters; not independently re-derived from a primary treaty PDF in
     # this pass, given how uncontested it is. 2026-09-26 verification pass)
-    lb_non_ag_total_maf: float = 5.0           # LB non-ag: M&I + tribal + CAP + system losses (MAF/yr)
-    # Calibrated aggregate, not a single quoted figure -- no primary document
-    # names a "5.0 MAF" bucket. Partial USBR Feb 2019 24-Month Study
-    # components (CAP 1.559 + Nevada 0.291 + MWD 0.886 = ~2.7 MAF) are
-    # consistent with 5.0 MAF once tribal deliveries and lower-river system
-    # losses are added, but this stays a modelling aggregate without a
-    # single primary table (2026-09-26 verification pass).
+    lb_non_ag_total_maf: float = 5.2           # LB non-ag: M&I + tribal + CAP + system losses (MAF/yr)
+    # v3 (PI decision 25, 2026-09-29, replacing the earlier 5.0 MAF, which
+    # had no primary table): 5.2 MAF is the 2003-2018 record-implied value
+    # (5.19 MAF), the regime closest to the 2007 Interim Guidelines rules
+    # this model applies (post-QSA). Record-implied = the Lower Basin
+    # non-farm withdrawal that makes the model's OWN Lake Mead water
+    # balance match the observed change in storage over 2003-2018 (no
+    # tier cut subtracted -- none was declared before 2022); see
+    # `examples/irrigation_abm/analysis/hindcast_v3.py
+    # (record_implied_non_ag)`. A split-sample check derives the constant
+    # on each half of 2003-2018 and scores it on the other: 5.167 MAF
+    # (2003-2010) and 5.214 MAF (2011-2018), both within 0.035 of 5.2 and
+    # each passing the pre-registered M1/M3-bias gate on the OTHER half
+    # (`.research/design_specs/irrigation_v3_hindcast_2026-09-29.md`
+    # sections 11-12; `examples/irrigation_abm/tests/test_v3_hindcast.py`).
+    # Under the v3 default release rule (ig2007_tiers, items 26-27): at
+    # 5.0 MAF the pre-registered 2000-2018 hindcast fails only the
+    # combined-storage bias gate (+2.71 MAF, bound 2.5; pinned in
+    # test_hindcast_fails_only_m3_bias_at_5p0); at 5.2 MAF every gate
+    # passes (Mead MAE 10.3 ft, combined bias +1.04 MAF, KGE 0.92) --
+    # see caveat 17/18 in docs/irrigation_model_caveats.md for the
+    # storage_balancing-mode numbers (13.0 ft / +1.09 MAF at 5.2), which
+    # this constant's own level does not depend on. 5.0 and
+    # 5.32 MAF remain CPU sensitivities for the SI. Partial USBR Feb 2019
+    # 24-Month Study components (CAP 1.559 + Nevada 0.291 + MWD 0.886 =
+    # ~2.7 MAF) are consistent with either value once tribal deliveries
+    # and lower-river system losses are added; no primary document names
+    # a single bucket figure directly (2026-09-26 verification pass).
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr) -- the "constant" fallback
     # Calibrated aggregate: a plausible order of magnitude for the ungauged
     # Lower Basin inflow between Powell and Mead (Virgin River, Muddy River,
@@ -165,23 +288,28 @@ class WaterSystemConfig:
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm); still used by the
     # synthetic (mock, no --real data) precipitation fallback and by
     # _compute_drought_index's legacy proxy -- NOT by natural flow (v3).
-    # Powell release rule (PI decision 2026-09-28, replaces the pass-through-
-    # with-target-fill rule, option e, 2026-09-26): a storage-BALANCING rule,
-    # a simplification of the 2007 Interim Guidelines' balancing tiers (ROD
-    # Section 6: "the Secretary shall determine the operation of Lake Powell
-    # and Lake Mead ... to, to the extent practicable ... balance the
-    # contents of Lake Powell and Lake Mead"). Each year Powell releases R
-    # bounded to [min_powell_release_maf, max_powell_release_maf] and never
-    # more than its own inflow plus usable storage (pass-through at dead
-    # pool), chosen so the two reservoirs' end-of-year LIVE-storage
-    # fractions (storage above dead pool / live capacity; Mead's live
-    # capacity runs to the conservation-pool top, mead_conservation_pool_maf,
-    # not mead_capacity_maf) are as equal as possible -- see _settle. The
-    # four named tiers (equalization, Upper Elevation Balancing, Mid-
-    # Elevation Release, Lower Elevation Balancing) collapse into this one
-    # rule; the release band itself IS the Lower Elevation Balancing Tier's
-    # own bound (ROD p. 52: "not more than 9.5 maf and not less than 7.0
-    # maf"), re-verified 2026-09-26
+    # Powell release rule: TWO modes (spec items 13, 26, 27).
+    # "storage_balancing" (PI decision 2026-09-28, replaces the pass-
+    # through-with-target-fill rule, option e, 2026-09-26; kept for the SI
+    # by item 26): a storage-BALANCING rule, a SIMPLIFICATION of the 2007
+    # Interim Guidelines' balancing tiers (ROD Section 6: "the Secretary
+    # shall determine the operation of Lake Powell and Lake Mead ... to,
+    # to the extent practicable ... balance the contents of Lake Powell
+    # and Lake Mead"). Each year Powell releases R bounded to
+    # [min_powell_release_maf, max_powell_release_maf] and never more than
+    # its own inflow plus usable storage (pass-through at dead pool),
+    # chosen so the two reservoirs' end-of-year LIVE-storage fractions
+    # (storage above dead pool / live capacity; Mead's live capacity runs
+    # to the conservation-pool top, mead_conservation_pool_maf, not
+    # mead_capacity_maf) are as equal as possible -- see
+    # _plan_powell_release_storage_balancing. The four named tiers
+    # (equalization, Upper Elevation Balancing, Mid-Elevation Release,
+    # Lower Elevation Balancing) collapse into this one rule; the release
+    # band itself IS the Lower Elevation Balancing Tier's own bound (ROD
+    # p. 53: "not more than 9.5 maf and not less than 7.0 maf" -- corrected
+    # 2026-09-29, item 27: this and the codebase previously cited "p. 52"
+    # for this band and "p. 49" for the tier diagram (now p. 50); both were
+    # off by one page in the verification pass), re-verified 2026-09-26
     # (.research/powell_constants_verification_2026-09-26.md):
     #   * 7.0 MAF is also quotable as the FLOOR of that same tier, not the
     #     "minimum objective release" (that name belongs to a different,
@@ -193,12 +321,50 @@ class WaterSystemConfig:
     #     Release Tier releases 7.48 MAF/yr below a Mead-elevation threshold
     #     in the Guidelines' own tier table (8.23 MAF above it).
     #   * 9.5 MAF is the Lower Elevation Balancing Tier's own ceiling (ROD
-    #     p. 52, quoted above); the model's earlier 9.0 MAF ceiling (option
+    #     p. 53, quoted above); the model's earlier 9.0 MAF ceiling (option
     #     d/e, 2026-09-26) was a narrower modelling choice, replaced here by
     #     the Guidelines' own number now that a balancing rule is in use.
-    min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr)
-    max_powell_release_maf: float = 9.5       # Powell release ceiling (MAF/yr); Lower Elevation
-    # Balancing Tier bound (ROD p. 52), not a modelling choice.
+    # "ig2007_tiers" (v3 DEFAULT, PI decision 26/27, 2026-09-29, replacing
+    # storage_balancing): the actual 2007 Interim Guidelines Lake Powell
+    # operating tiers -- Equalization, Upper Elevation Balancing,
+    # Mid-Elevation Release, Lower Elevation Balancing (ROD Section 6,
+    # pp. 51-53) -- chosen from the 1 January snapshot storages (the date
+    # the Guidelines' own August 24-Month Study projects, ROD p. 29) with
+    # a simplified "April adjustment" folded into the same 1 January plan.
+    # Adopted because the split-sample hindcast showed storage_balancing
+    # gets the year-to-year timing wrong (held-out Mead KGE -0.38 and
+    # -0.14) while ig2007_tiers does not (0.76 and 0.68), matches the
+    # declared 1 January tier in 12 of 12 years (2008-2019) and reproduces
+    # the 2011 equalization event (14.63 vs 13.85 MAF observed); design
+    # memo .research/design_specs/irrigation_v3_powell_tiers_2026-09-29.md
+    # section 4. See IrrigationEnvironment._plan_powell_release_ig2007.
+    powell_release_mode: str = "ig2007_tiers"
+    # "ig2007_tiers" mode only (item 27): how the Equalization elevation
+    # (ROD p. 51, last published value 3,666 ft for water year 2026) is
+    # extended past 2026. H&Y's own CRSS basis (ver. 2.7.1, 2019) is
+    # SILENT on this. The Guidelines themselves are NOT silent: ROD p. 58,
+    # Section 8.C, states the Guidelines terminate 31 December 2025
+    # (through the 2026 AOP), after which operations "are assumed to
+    # revert to the operating criteria used to model baseline conditions"
+    # of the 2000 Interim Surplus Guidelines Final EIS -- a DIFFERENT,
+    # unmodelled operating regime, not an Equalization-elevation schedule
+    # at all. "hold_2026" (v3 default, a stated ASSUMPTION that DEPARTS
+    # from the ROD's own reversion clause, design memo section 5 #9):
+    # holds the elevation at the last published value, 3,666 ft, for
+    # every year after 2026, so the model keeps operating under
+    # ig2007_tiers logic rather than switching regimes. "extend_slope"
+    # (SI sensitivity): extends the 2012-2026 slope (about 1.5 ft/yr) per
+    # the USBR 2012 Colorado River Basin Study (Technical Report G,
+    # Appendix G2, pp. G2-3 to G2-4, "Alternative 1a") -- also a
+    # continuation of ig2007_tiers logic, not the ROD's own reversion.
+    powell_post2026_equalization: str = "hold_2026"
+    min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr): storage_balancing's
+    # own floor always, and ig2007_tiers's Lower Elevation Balancing tier floor (ROD p. 53).
+    max_powell_release_maf: float = 9.5       # Powell release ceiling (MAF/yr) for storage_balancing
+    # (always) and for ig2007_tiers's Lower Elevation Balancing tier ONLY (re-review 2026-09-29
+    # round 5, nit: the Equalization tier's own release has no upper bound and can exceed this --
+    # see WaterSystemConfig.powell_release_mode); Lower Elevation Balancing Tier bound (ROD p. 53),
+    # not a modelling choice.
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
     # WP1b (item 20): "subbasin" (v3 default) gives each of the nine H&Y
     # Upper Basin sub-basins its own available water A_s(t) = c_s x
@@ -287,11 +453,15 @@ class WaterSystemConfig:
     # whenever it bound).
 
     # Lake Powell storage buffer (total storage, MAF): the release itself
-    # is the storage-BALANCING rule described above min_powell_release_maf
-    # (bounded to [7.0, 9.5] MAF, not [7.0, 9.0] and not a plain
-    # pass-through -- PI decision 2026-09-28 superseded that); a
-    # simplification of the four named 2007 Interim Guidelines tiers, not
-    # the full operating rules. RE-VERIFIED 2026-09-26 against primary
+    # is decided by config.powell_release_mode, described above
+    # min_powell_release_maf -- the ig2007_tiers rule (v3 default, items
+    # 26-27) actually implements the four named 2007 Interim Guidelines
+    # tiers, and the storage_balancing rule (SI mode) collapses them into
+    # one, both bounded to [7.0, 9.5] MAF ONLY in storage_balancing mode
+    # and in ig2007_tiers's own Lower Elevation Balancing tier (its
+    # Equalization tier release is unbounded above), never a plain
+    # pass-through -- PI decision 2026-09-28 superseded the pass-through
+    # rule this replaced. RE-VERIFIED 2026-09-26 against primary
     # USBR/USGS sources (.research/powell_constants_verification_2026-09-26.md).
     # powell_capacity_maf is VERIFIED outright; the RAW inputs behind
     # powell_initial_storage_maf (live storage) and powell_evaporation_maf
@@ -398,6 +568,16 @@ class WaterSystemConfig:
             raise ValueError(
                 "lb_priority_mode must be 'split' or 'senior_all', "
                 f"got {self.lb_priority_mode!r}"
+            )
+        if self.powell_release_mode not in ("ig2007_tiers", "storage_balancing"):
+            raise ValueError(
+                "powell_release_mode must be 'ig2007_tiers' or "
+                f"'storage_balancing', got {self.powell_release_mode!r}"
+            )
+        if self.powell_post2026_equalization not in ("hold_2026", "extend_slope"):
+            raise ValueError(
+                "powell_post2026_equalization must be 'hold_2026' or "
+                f"'extend_slope', got {self.powell_post2026_equalization!r}"
             )
         if not isinstance(self.hold_requests_fixed, bool):
             raise ValueError(
@@ -882,23 +1062,27 @@ class IrrigationEnvironment:
     2026-09-28/29): natural flow is the committed USBR hydrology table's
     value for the year (no clamp). Lake Powell releases R, planned once at
     the 1 January snapshot from PROJECTED end-of-year contents (before
-    agents decide), to keep its and Lake Mead's end-of-year live-storage
-    fractions (storage above dead pool / live capacity) as close as
-    possible after that year's projected Lower Basin withdrawals -- a
-    simplification of the 2007 Interim Guidelines' balancing tiers (ROD
-    Section 6), bounded to the Guidelines' own Lower Elevation Balancing
-    Tier band [7.0, 9.5] MAF and never more than physically available
-    (pass-through at dead pool); excess above Powell's own capacity spills
-    into the release. Lake Mead's withdrawals cannot exceed the water above
-    its dead pool plus the year's inflow; the declared Lower Basin shortage
-    tier's volume (2007 ROD Section 2.D.1) is borne entirely by the 5.0 MAF
-    non-agricultural bucket, never by the 22 Lower Basin agricultural
-    agents' own requests. Not the full operating rules: the four named
-    2007 Interim Guidelines tiers (equalization, Upper Elevation
-    Balancing, Mid-Elevation Release, Lower Elevation Balancing) collapse
-    into this one balancing rule, and the Lake Mead protection levels are
-    deliberately not modelled. See ``_settle`` for the full derivation and
-    docs/irrigation_physics.md for the equations.
+    agents decide), by ONE of two rules (``config.powell_release_mode``,
+    items 26-27): the ACTUAL 2007 Interim Guidelines operating tiers --
+    Equalization, Upper Elevation Balancing, Mid-Elevation Release, Lower
+    Elevation Balancing (ROD Section 6, pp. 51-53) -- chosen from the 1
+    January storages (``"ig2007_tiers"``, the v3 default; the Equalization
+    tier's own release has NO upper bound, so R can exceed 9.5 MAF, e.g.
+    14.63 MAF in the 2011 hindcast year), or a SIMPLIFICATION that
+    collapses the four tiers into one rule keeping Powell's and Mead's
+    end-of-year live-storage FRACTIONS as close as possible after that
+    year's projected Lower Basin withdrawals, bounded to the Guidelines'
+    own Lower Elevation Balancing Tier band [7.0, 9.5] MAF
+    (``"storage_balancing"``, the SI mode). Either way R is never more
+    than physically available (pass-through at dead pool); excess above
+    Powell's own capacity spills into the release. Lake Mead's withdrawals
+    cannot exceed the water above its dead pool plus the year's inflow;
+    the declared Lower Basin shortage tier's volume (2007 ROD Section
+    2.D.1) is borne entirely by the 5.2 MAF non-agricultural bucket, never
+    by the 22 Lower Basin agricultural agents' own requests. Lake Mead
+    protection levels are deliberately not modelled either way. See
+    ``_settle`` for the full derivation and docs/irrigation_physics.md for
+    the equations.
 
     Timing (one loop year, decisions at the start of the year)::
 
@@ -913,9 +1097,11 @@ class IrrigationEnvironment:
                         from the frozen snapshot (idempotent); storage is
                         committed only by the next advance_year().
 
-    Constraints: Powell release band [7.0, 9.5] MAF, UB delivery capacity
-    5.0 MAF, natural flow uncapped (no clamp, v3), dead pools and full
-    pools at both reservoirs. Evaporation scales with surface area
+    Constraints: Powell release band [7.0, 9.5] MAF in storage_balancing
+    mode and in the Lower Elevation Balancing tier of ig2007_tiers mode
+    (the Equalization tier's release is unbounded above), UB delivery
+    capacity 5.0 MAF, natural flow uncapped (no clamp, v3), dead pools and
+    full pools at both reservoirs. Evaporation scales with surface area
     (a storage-elevation-curve proxy); Mexico follows Minute 323 / the
     Binational Water Scarcity Contingency Plan.
 
@@ -1004,6 +1190,16 @@ class IrrigationEnvironment:
             ),
             "drought_index": 0.0,
         }
+
+        # v3 (spec items 26/27): the last Powell release plan's rich detail
+        # (tier / rule / elevations), stashed by _plan_powell_release so
+        # advance_year can log powell_tier / powell_tier_rule and
+        # institutions() can report them, without changing
+        # _plan_powell_release's own return type (a plain float release,
+        # the contract every existing caller -- tests included -- relies
+        # on). Empty until the first _plan_powell_release call; always
+        # populated by the time advance_year finishes its first year.
+        self._powell_plan_detail: Dict[str, Any] = {}
 
         # Basin-level state
         self._basins: Dict[str, Dict[str, Any]] = {
@@ -1499,6 +1695,13 @@ class IrrigationEnvironment:
                 "powell_capacity_maf": self.config.powell_capacity_maf,
                 "powell_dead_pool_maf": self.config.powell_dead_pool_maf,
                 "min_powell_release_maf": self.config.min_powell_release_maf,
+                # v3 (spec items 26/27): the release rule in effect and the
+                # most recently PLANNED year's declared tier (None until
+                # the first advance_year() call; None always in
+                # "storage_balancing" mode, which has no tiers).
+                "powell_release_mode": self.config.powell_release_mode,
+                "powell_tier": self._global.get("powell_tier"),
+                "powell_tier_rule": self._global.get("powell_tier_rule"),
             },
         }
 
@@ -1686,9 +1889,16 @@ class IrrigationEnvironment:
             mexico=mexico,
             ub_requested_maf=ub_request_projected_maf,
             lb_requested_maf=lb_request_projected_maf,
+            year=self._current_year,
             ub_requested_by_subbasin_maf=ub_request_projected_by_subbasin_maf,
             ub_available_by_subbasin_maf=ub_subbasin_available_maf,
         )
+        # v3 (spec items 26/27): the tier/rule detail _plan_powell_release
+        # just stashed for THIS call (None/"storage_balancing" in that
+        # mode) -- read immediately, before any other _plan_powell_release
+        # call (a test, get_agent_context) could overwrite it.
+        powell_tier = self._powell_plan_detail.get("tier")
+        powell_tier_rule = self._powell_plan_detail.get("rule")
 
         # 4. Freeze this year's 1 January snapshot, then the PROVISIONAL
         #    settlement at the carried requests: what each agent can expect
@@ -1719,6 +1929,12 @@ class IrrigationEnvironment:
             # final call) reads it from here and stays pure.
             "ub_subbasin_available_af": {s: v * 1e6 for s, v in ub_subbasin_available_maf.items()},
             "calendar_year": self._calendar_year_for(self._current_year),
+            # v3 (spec items 26/27): None/"storage_balancing" in that mode;
+            # the declared EQ/UEB/MER/LEB tier and the governing ROD
+            # sub-rule (e.g. "6.B.1", "6.B.3 -> 6.A.1") in "ig2007_tiers"
+            # mode. _settle copies both straight through, like calendar_year.
+            "powell_tier": powell_tier,
+            "powell_tier_rule": powell_tier_rule,
         }
         self._pending_settlement = None
         provisional = self._settle(self._snapshot)
@@ -1730,6 +1946,8 @@ class IrrigationEnvironment:
         self._global["natural_flow_maf"] = float(natural_flow)
         self._global["powell_storage_maf"] = float(self._powell_storage)
         self._global["mead_storage_maf"] = float(self._mead_storage[-1])
+        self._global["powell_tier"] = powell_tier
+        self._global["powell_tier_rule"] = powell_tier_rule
 
         # Basin-level aggregate request: a logged metric (the retired
         # demand ceiling used to block on it); basin_request_over_target is
@@ -2534,6 +2752,7 @@ class IrrigationEnvironment:
         ub_requested_maf: float,
         lb_requested_maf: float,
         *,
+        year: int,
         ub_requested_by_subbasin_maf: Optional[Dict[Optional[str], float]] = None,
         ub_available_by_subbasin_maf: Optional[Dict[str, float]] = None,
     ) -> float:
@@ -2564,6 +2783,19 @@ class IrrigationEnvironment:
         ``ub_supply_mode == "subbasin"``; unused in ``lees_ferry_pool``
         mode, where ``ub_requested_maf`` alone still drives the plan).
 
+        v3 (spec items 26/27): DISPATCHER on ``config.powell_release_mode``.
+        ``year`` is a REQUIRED keyword (re-review 2026-09-29 round 4, MEDIUM
+        4/LOW 10c: no silent fallback to ``self._current_year`` -- a caller
+        that means "this year" must say so explicitly, exactly like
+        ``advance_year`` itself does; a wrong or stale year is a real bug
+        this refuses to paper over): the calendar/simulation year the tier
+        and the Equalization elevation are read for (``ig2007_tiers`` mode
+        only; ignored by ``storage_balancing``, which is not year-aware).
+        Returns ONLY the planned release (a plain float) either way -- the
+        contract every existing caller relies on; :attr:`_powell_plan_detail`
+        carries the tier / rule detail ``ig2007_tiers`` mode also computes,
+        for ``advance_year`` to log and ``institutions()`` to report.
+
         Returns the planned release, bounded to
         [``min_powell_release_maf``, ``max_powell_release_maf``] and to
         what the PROJECTED inflow and storage can physically support.
@@ -2573,6 +2805,61 @@ class IrrigationEnvironment:
         planned release the year turns out unable to support never
         creates water; that physical cap is the only thing allowed to
         move the release actually applied."""
+        if self.config.powell_release_mode == "storage_balancing":
+            release = self._plan_powell_release_storage_balancing(
+                nf, s_p, s_m, trib, shortage_volume, mexico,
+                ub_requested_maf, lb_requested_maf,
+                ub_requested_by_subbasin_maf=ub_requested_by_subbasin_maf,
+                ub_available_by_subbasin_maf=ub_available_by_subbasin_maf,
+            )
+            self._powell_plan_detail = {
+                "tier": None, "rule": "storage_balancing",
+                "powell_jan1_ft": self._powell_elevation_ft(s_p),
+                "eq_elevation_ft": None,
+            }
+            return release
+        plan = self._plan_powell_release_ig2007(
+            nf, s_p, s_m, trib, shortage_volume, mexico,
+            ub_requested_maf, lb_requested_maf, year=int(year),
+            ub_requested_by_subbasin_maf=ub_requested_by_subbasin_maf,
+            ub_available_by_subbasin_maf=ub_available_by_subbasin_maf,
+        )
+        self._powell_plan_detail = {
+            "tier": plan.tier, "rule": plan.rule,
+            "powell_jan1_ft": plan.powell_jan1_ft, "eq_elevation_ft": plan.eq_elevation_ft,
+        }
+        return plan.release_maf
+
+    def _plan_powell_release_projected_pieces(
+        self,
+        nf: float,
+        s_p: float,
+        s_m: float,
+        shortage_volume: float,
+        mexico: float,
+        *,
+        lb_requested_maf: float,
+        ub_requested_maf: float,
+        ub_requested_by_subbasin_maf: Optional[Dict[Optional[str], float]] = None,
+        ub_available_by_subbasin_maf: Optional[Dict[str, float]] = None,
+    ) -> _PowellPlanningPieces:
+        """Shared prefix of BOTH release-planning modes (re-review
+        2026-09-29 round 4, MEDIUM 11 -- previously duplicated verbatim in
+        ``_plan_powell_release_storage_balancing`` and
+        ``_plan_powell_release_ig2007``, a drift risk this factors away):
+        Upper Basin priority over Powell (``_ub_delivery_for_planning``),
+        Powell evaporation capped at usable-storage-plus-inflow (review
+        fix 1), and the Lower Basin non-agricultural bucket net of the
+        declared tier's volume. Does NOT depend on ``trib`` (the caller
+        adds it directly when it assembles Mead's own projected position/
+        active-storage term) or on ``year`` (neither mode's shared prefix
+        is year-aware; only ``_plan_powell_release_ig2007``'s tier choice
+        is). Every expression here is unchanged from what each caller
+        computed inline before this refactor. ``lb_requested_maf`` /
+        ``ub_requested_maf`` are keyword-only (re-review 2026-09-29 round
+        5, nit): both are basin request totals of the same type, easy to
+        swap by position at a call site with no error until the numbers
+        come out wrong."""
         cfg = self.config
         ub_non_farm = min(nf, cfg.ub_non_farm_depletion_maf)
         nf_net = max(0.0, nf - ub_non_farm)
@@ -2585,14 +2872,47 @@ class IrrigationEnvironment:
         p_usable = max(0.0, s_p - cfg.powell_dead_pool_maf)
         e_p_plan = min(self._powell_evaporation_maf(s_p), p_usable + inflow_plan)
         available_p_plan = max(0.0, inflow_plan + p_usable - e_p_plan)
-
         non_ag_plan = max(0.0, cfg.lb_non_ag_total_maf - shortage_volume)
-        powell_live_cap = cfg.powell_capacity_maf - cfg.powell_dead_pool_maf
-        mead_live_cap = cfg.mead_conservation_pool_maf - cfg.mead_dead_pool_maf
         e_m_estimate = self._mead_evaporation_maf(s_m)
         o_projected = lb_requested_maf + non_ag_plan + mexico
-        powell_live_position = s_p + inflow_plan - e_p_plan - cfg.powell_dead_pool_maf
-        mead_live_position = s_m + trib - e_m_estimate - o_projected - cfg.mead_dead_pool_maf
+        return _PowellPlanningPieces(
+            inflow_plan=inflow_plan, e_p_plan=e_p_plan, available_p_plan=available_p_plan,
+            non_ag_plan=non_ag_plan, e_m_estimate=e_m_estimate, o_projected=o_projected,
+        )
+
+    def _plan_powell_release_storage_balancing(
+        self,
+        nf: float,
+        s_p: float,
+        s_m: float,
+        trib: float,
+        shortage_volume: float,
+        mexico: float,
+        ub_requested_maf: float,
+        lb_requested_maf: float,
+        *,
+        ub_requested_by_subbasin_maf: Optional[Dict[Optional[str], float]] = None,
+        ub_available_by_subbasin_maf: Optional[Dict[str, float]] = None,
+    ) -> float:
+        """``config.powell_release_mode == "storage_balancing"`` (the SI
+        mode, item 26): the body of ``_plan_powell_release`` before item
+        26/27 split it into a dispatcher -- kept bit-identical through the
+        MEDIUM-11 shared-pieces refactor, so every pin taken under this
+        mode (``test_irrigation_supply_side.py``'s ``test_balancing_*``,
+        the 7.0 MAF floor and 13.3 MAF spill cases; ``test_v3_action_model.py``'s
+        frozen-plan sensitivity test) stays bit-identical. See
+        ``WaterSystemConfig.powell_release_mode`` for the rule itself."""
+        cfg = self.config
+        pieces = self._plan_powell_release_projected_pieces(
+            nf, s_p, s_m, shortage_volume, mexico,
+            lb_requested_maf=lb_requested_maf, ub_requested_maf=ub_requested_maf,
+            ub_requested_by_subbasin_maf=ub_requested_by_subbasin_maf,
+            ub_available_by_subbasin_maf=ub_available_by_subbasin_maf,
+        )
+        powell_live_cap = cfg.powell_capacity_maf - cfg.powell_dead_pool_maf
+        mead_live_cap = cfg.mead_conservation_pool_maf - cfg.mead_dead_pool_maf
+        powell_live_position = s_p + pieces.inflow_plan - pieces.e_p_plan - cfg.powell_dead_pool_maf
+        mead_live_position = s_m + trib - pieces.e_m_estimate - pieces.o_projected - cfg.mead_dead_pool_maf
         if (powell_live_cap + mead_live_cap) > 0:
             balancing_release = (
                 mead_live_cap * powell_live_position
@@ -2602,7 +2922,239 @@ class IrrigationEnvironment:
             balancing_release = cfg.min_powell_release_maf
         release_plan = min(max(balancing_release, cfg.min_powell_release_maf),
                             cfg.max_powell_release_maf)
-        return min(release_plan, available_p_plan)
+        return min(release_plan, pieces.available_p_plan)
+
+    def _powell_active_storage_at(self, elevation_ft: float) -> float:
+        """Powell ACTIVE (live) storage (MAF) at ``elevation_ft``, on the
+        six-point 2007 ROD p. 50 curve (``POWELL_CURVE_ELEVATION_FT`` /
+        ``POWELL_CURVE_ACTIVE_STORAGE_MAF``, straight lines between
+        anchors). An elevation above the curve's top (3,700 ft, full pool,
+        24.32 MAF active) returns +inf: Powell can never physically reach
+        it, so an Equalization elevation the post-2026 ``extend_slope``
+        option pushes past full pool (design memo section 3) simply can
+        never be met -- the Equalization tier's own condition,
+        ``a_p >= a_eq``, then correctly never holds, rather than this
+        function silently clamping to a finite value that could."""
+        if elevation_ft > POWELL_CURVE_ELEVATION_FT[-1]:
+            return math.inf
+        return float(np.interp(
+            elevation_ft, POWELL_CURVE_ELEVATION_FT, POWELL_CURVE_ACTIVE_STORAGE_MAF,
+        ))
+
+    def _powell_elevation_ft(self, total_storage_maf: float) -> float:
+        """Powell elevation (ft) for a given TOTAL storage (MAF), via the
+        same six-point ROD p. 50 curve on ACTIVE storage (total storage
+        minus the dead pool). For reporting / tier classification only --
+        the water balance itself stays entirely in total-storage MAF, as
+        it always has (spec 1.8)."""
+        active = max(0.0, total_storage_maf - self.config.powell_dead_pool_maf)
+        return float(np.interp(
+            active, POWELL_CURVE_ACTIVE_STORAGE_MAF, POWELL_CURVE_ELEVATION_FT,
+        ))
+
+    def _powell_equalization_elevation_ft(self, year: int) -> float:
+        """The Equalization elevation for water year ``year`` (ROD p. 51,
+        Section 6.A.1). Raises for a year before 2008, when the 2007
+        Interim Guidelines do not yet apply (spec item 26/27) -- no silent
+        default; a caller needing a pre-2008 stand-in (the hindcast's own
+        LROC override, ``examples/irrigation_abm/analysis/hindcast_v3.py``)
+        must say so explicitly rather than have this table silently answer
+        for a year outside its stated domain. Past 2026 (the last
+        published value, 3,666 ft),
+        ``config.powell_post2026_equalization`` decides the extension:
+        ``"hold_2026"`` (default, a stated ASSUMPTION) holds 3,666 ft;
+        ``"extend_slope"`` (SI sensitivity) extends the 2012-2026 slope
+        per the USBR 2012 Colorado River Basin Study."""
+        if year < 2008:
+            raise ValueError(
+                f"_powell_equalization_elevation_ft: {year} is before water "
+                "year 2008, when the 2007 Interim Guidelines' Equalization "
+                "schedule (ROD p. 51) begins; there is no elevation to look "
+                "up for an earlier year."
+            )
+        if year in POWELL_EQ_ELEVATION_FT_BY_YEAR:
+            return POWELL_EQ_ELEVATION_FT_BY_YEAR[year]
+        last_year = max(POWELL_EQ_ELEVATION_FT_BY_YEAR)
+        last_elevation = POWELL_EQ_ELEVATION_FT_BY_YEAR[last_year]
+        if self.config.powell_post2026_equalization == "hold_2026":
+            return last_elevation
+        # "extend_slope": USBR 2012 Colorado River Basin Study, Technical
+        # Report G Appendix G2 (pp. G2-3 to G2-4), Alternative 1a -- extend
+        # the published 2012-2026 slope.
+        anchor_year = 2012
+        slope_ft_per_year = (last_elevation - POWELL_EQ_ELEVATION_FT_BY_YEAR[anchor_year]) / (
+            last_year - anchor_year
+        )
+        return last_elevation + slope_ft_per_year * (year - last_year)
+
+    def _plan_powell_release_ig2007(
+        self,
+        nf: float,
+        s_p: float,
+        s_m: float,
+        trib: float,
+        shortage_volume: float,
+        mexico: float,
+        ub_requested_maf: float,
+        lb_requested_maf: float,
+        *,
+        year: int,
+        ub_requested_by_subbasin_maf: Optional[Dict[Optional[str], float]] = None,
+        ub_available_by_subbasin_maf: Optional[Dict[str, float]] = None,
+    ) -> "PowellReleasePlan":
+        """``config.powell_release_mode == "ig2007_tiers"`` (v3 default,
+        spec items 26/27): the actual 2007 Interim Guidelines Lake Powell
+        operating tiers (ROD Section 6, pp. 51-53), design memo
+        ``.research/design_specs/irrigation_v3_powell_tiers_2026-09-29.md``
+        section 3. Shares the SAME projected pieces
+        :meth:`_plan_powell_release_projected_pieces` computes (UB
+        priority over Powell, evaporation capped at usable-storage-plus-
+        inflow, the non-agricultural bucket net of the declared tier) --
+        only the RELEASE TARGET differs. The release band here is NOT
+        [7.0, 9.5] MAF in general -- only the Lower Elevation Balancing
+        tier (6.D.1) and, incidentally, the April 6.B.2-then-6.B.3 and
+        6.B.1-then-6.B.3 escalations happen to land inside it; the
+        Equalization tier's own release (6.A.1) has NO upper bound and can
+        exceed 9.5 MAF (e.g. 13.95 MAF in a 2028 replay-A year, 14.63 MAF
+        in the 2011 hindcast year -- 5 of 42 replay-A years exceed 9.5 MAF
+        in total).
+
+        Tier choice uses the 1 January snapshot storages ``s_p`` / ``s_m``
+        directly (design memo: "the value the August 24-Month Study
+        projects", assumed equal to the committed 31 December prior-year
+        state, no forecast error). Balance = equal PROJECTED 31 December
+        ACTIVE storage (ROD p. 49, "the term storage shall mean Active
+        Storage"), not equal live-storage FRACTION as in
+        ``storage_balancing``:
+
+            p0 = s_p + inflow_plan - e_p_plan - dead_pool_P
+            m0 = s_m + trib - e_m_estimate - o_projected - dead_pool_M
+            r_bal = (p0 - m0) / 2
+
+        Tiers, from the 1 January active storage ``a_p = s_p - dead_pool_P``
+        against the Equalization elevation's own active storage ``a_eq``
+        (``_powell_active_storage_at``), and Mead's 1 January elevation
+        ``h_m``:
+
+            EQ  (a_p >= a_eq):                    max(8.23, min(r_bal, p0 - a_eq)),
+                                                   + the 1,105 ft proviso (6.A.1); NO upper bound
+            UEB (3,575 ft <= Powell elev < EQ):    8.23 if h_m >= 1,075 ft (6.B.1),
+                                                   else clamp(r_bal, 7.0, 9.0) (6.B.2)
+            MER (3,525 ft <= Powell elev < 3,575): 7.48 if h_m >= 1,025 ft, else 8.23 (6.C.1)
+            LEB (Powell elev < 3,525 ft):          clamp(r_bal, 7.0, 9.5) (6.D.1)
+
+        The "April adjustment" (6.B.3 / 6.B.4) is folded into this SAME 1
+        January plan (design memo: evaluated on the projected 31 December
+        state under the year's already-known natural flow, since there is
+        no separate April re-forecast here) and is checked from BOTH UEB
+        branches, per the ROD: from 6.B.1 (Mead >= 1,075 ft), if that
+        release would leave Powell above the Equalization elevation on 31
+        December, the Equalization release applies instead (6.B.3); if it
+        would leave Mead below 1,075 ft while Powell stays at or above
+        3,575 ft, the release is raised to ``clamp(r_bal, 8.23, 9.0)``
+        (6.B.4). From 6.B.2 (Mead < 1,075 ft) as well, if THAT release
+        would leave Powell above the Equalization elevation, 6.B.3 applies
+        there too.
+
+        Before water year 2008 the 2007 Interim Guidelines do not yet
+        apply, so :meth:`_powell_equalization_elevation_ft` raises rather
+        than answer for a year outside its domain -- the pre-2008 LROC
+        stand-in (an ASSUMPTION, not ROD content: the ROD's own p. 15
+        pre-2008 description gives only the 8.23 MAF "minimum objective
+        release" concept, no elevation number) lives in
+        ``examples/irrigation_abm/analysis/hindcast_v3.py``'s
+        ``HistoricalIrrigationEnvironment`` (re-review 2026-09-29 round 4,
+        LOW 10a: moved out of this production method, which the real
+        2019-2060 corpus never calls for a year this early), NOT here.
+
+        Returns a :class:`PowellReleasePlan` (release, tier, rule, the 1
+        January Powell elevation, and the Equalization elevation used) --
+        never a bare float; :meth:`_plan_powell_release` (the dispatcher)
+        is what returns a float to every existing caller."""
+        cfg = self.config
+        pieces = self._plan_powell_release_projected_pieces(
+            nf, s_p, s_m, shortage_volume, mexico,
+            lb_requested_maf=lb_requested_maf, ub_requested_maf=ub_requested_maf,
+            ub_requested_by_subbasin_maf=ub_requested_by_subbasin_maf,
+            ub_available_by_subbasin_maf=ub_available_by_subbasin_maf,
+        )
+        p0 = s_p + pieces.inflow_plan - pieces.e_p_plan - cfg.powell_dead_pool_maf
+        m0 = s_m + trib - pieces.e_m_estimate - pieces.o_projected - cfg.mead_dead_pool_maf
+        r_bal = (p0 - m0) / 2.0
+
+        def mead_active(elev_ft: float) -> float:
+            return self._elevation_to_storage(elev_ft) - cfg.mead_dead_pool_maf
+
+        def mead_elev_of_active(active_maf: float) -> float:
+            return self._storage_to_elevation(active_maf + cfg.mead_dead_pool_maf)
+
+        def eq_release(eq_ft: float, a_eq: float, *, proviso: bool) -> Tuple[float, str]:
+            r_floor = p0 - a_eq  # release that keeps Powell exactly at the EQ elevation on 31 Dec
+            release = max(POWELL_MIN_OBJECTIVE_RELEASE_MAF, min(r_bal, r_floor))
+            rule = "6.A.1"
+            if proviso and r_floor < r_bal and (
+                mead_elev_of_active(m0 + max(POWELL_MIN_OBJECTIVE_RELEASE_MAF, r_floor))
+                < MEAD_EQ_PROVISO_FT
+            ):
+                candidate = min(
+                    r_bal,
+                    mead_active(MEAD_EQ_PROVISO_FT) - m0,
+                    p0 - self._powell_active_storage_at(eq_ft - EQ_PROVISO_DROP_FT),
+                )
+                if candidate > release:
+                    release, rule = candidate, "6.A.1 (1,105 ft proviso)"
+            return release, rule
+
+        a_p = max(0.0, s_p - cfg.powell_dead_pool_maf)
+        h_m = self._storage_to_elevation(s_m)
+
+        # Raises for year < 2008 (see this method's own docstring and
+        # _powell_equalization_elevation_ft's): the pre-2008 LROC stand-in
+        # lives in the hindcast subclass, not here.
+        eq_ft = self._powell_equalization_elevation_ft(year)
+        a_eq = self._powell_active_storage_at(eq_ft)
+
+        if a_p >= a_eq:
+            tier = "EQ"
+            release, rule = eq_release(eq_ft, a_eq, proviso=True)
+        elif a_p >= self._powell_active_storage_at(POWELL_UEB_FLOOR_FT):
+            tier = "UEB"
+            if h_m >= MEAD_UEB_CHECK_FT:
+                release, rule = POWELL_MIN_OBJECTIVE_RELEASE_MAF, "6.B.1"
+                # April adjustment (design memo section 3), folded into
+                # this same 1 January plan: the projected 31 December
+                # state under the 6.B.1 release.
+                p_end = p0 - POWELL_MIN_OBJECTIVE_RELEASE_MAF
+                m_end_active = m0 + POWELL_MIN_OBJECTIVE_RELEASE_MAF
+                if p_end > a_eq:
+                    release, sub_rule = eq_release(eq_ft, a_eq, proviso=True)
+                    rule = f"6.B.3 -> {sub_rule}"
+                elif (mead_elev_of_active(m_end_active) < MEAD_UEB_CHECK_FT
+                        and p_end >= self._powell_active_storage_at(POWELL_UEB_FLOOR_FT)):
+                    release = _clamp(r_bal, *POWELL_UEB_APRIL_BAND)
+                    rule = "6.B.4"
+            else:
+                release, rule = _clamp(r_bal, *POWELL_UEB_BALANCING_BAND), "6.B.2"
+                if (p0 - release) > a_eq:
+                    release, sub_rule = eq_release(eq_ft, a_eq, proviso=True)
+                    rule = f"6.B.2 then 6.B.3 -> {sub_rule}"
+        elif a_p >= self._powell_active_storage_at(POWELL_MER_FLOOR_FT):
+            tier = "MER"
+            release, rule = (
+                (POWELL_MER_RELEASE_MAF, "6.C.1 (7.48)") if h_m >= MEAD_MER_CHECK_FT
+                else (POWELL_MIN_OBJECTIVE_RELEASE_MAF, "6.C.1 (8.23)")
+            )
+        else:
+            tier = "LEB"
+            release, rule = (
+                _clamp(r_bal, cfg.min_powell_release_maf, cfg.max_powell_release_maf),
+                "6.D.1",
+            )
+
+        return PowellReleasePlan(
+            release_maf=min(release, pieces.available_p_plan), tier=tier, rule=rule,
+            powell_jan1_ft=self._powell_elevation_ft(s_p), eq_elevation_ft=eq_ft,
+        )
 
     def _settle(
         self,
@@ -2680,14 +3232,21 @@ class IrrigationEnvironment:
            no longer decided here. It was PLANNED ONCE in
            :meth:`_plan_powell_release`, called from advance_year before
            this year's decisions ran, from PROJECTED Upper and Lower Basin
-           request totals (not this call's own D_U/r_LB), a
-           storage-BALANCING rule (a simplification of the 2007 Interim
-           Guidelines' balancing tiers, ROD Section 6) that chooses R so
-           Powell's and Mead's end-of-year LIVE-storage fractions are as
-           close as possible AFTER that year's projected Lower Basin
+           request totals (not this call's own D_U/r_LB), by ONE of two
+           rules (``config.powell_release_mode``, items 26-27): the
+           actual 2007 Interim Guidelines Equalization / Upper Elevation
+           Balancing / Mid-Elevation Release / Lower Elevation Balancing
+           tiers, chosen from the 1 January storages (``"ig2007_tiers"``,
+           the v3 default -- the Equalization tier's own release has NO
+           upper bound, so R can exceed 9.5 MAF, e.g. 14.63 MAF in the
+           2011 hindcast year), or a storage-BALANCING rule (a
+           simplification of the same Guidelines, Section 6, that chooses
+           R so Powell's and Mead's end-of-year LIVE-storage fractions are
+           as close as possible AFTER that year's projected Lower Basin
            withdrawals, bounded to [min_powell_release_maf,
-           max_powell_release_maf] = [7.0, 9.5] MAF (the Lower Elevation
-           Balancing Tier's own band, ROD p. 52) and to what the
+           max_powell_release_maf] = [7.0, 9.5] MAF, the Lower Elevation
+           Balancing Tier's own band, ROD p. 53 -- ``"storage_balancing"``,
+           the SI mode). Either way R is bounded to what the
            PROJECTED inflow/storage can support. The FIRST re-review
            (HIGH 1) froze only the Lower Basin projection and still let
            this call's own ACTUAL Upper Basin delivery move the release
@@ -2704,7 +3263,7 @@ class IrrigationEnvironment:
         L  Lake Mead (PI decision 2026-09-28, replacing the pro-rata-
            across-all-Lower-Basin-use rule, REFINED by item 22, WP1c): the
            declared shortage volume V (2007 ROD Section 2.D.1: 0 / 0.333 /
-           0.417 / 0.500 MAF by tier) is borne by the 5.0 MAF
+           0.417 / 0.500 MAF by tier) is borne by the 5.2 MAF
            non-agricultural bucket N -- the model's stand-in for CAP and
            Southern Nevada, the Guidelines' actual juniors (ROD Section
            2.D, p. 36-37: shortage reduces Arizona and Nevada, California
@@ -3249,6 +3808,14 @@ class IrrigationEnvironment:
         }
         if snapshot.get("calendar_year") is not None:
             result["calendar_year"] = snapshot["calendar_year"]
+        # v3 (spec items 26/27): same optional pass-through as
+        # calendar_year -- absent from a hand-built snapshot (an older or
+        # synthetic test) that predates powell_tier / powell_tier_rule,
+        # always present from a real advance_year() snapshot.
+        if snapshot.get("powell_tier") is not None:
+            result["powell_tier"] = snapshot["powell_tier"]
+        if snapshot.get("powell_tier_rule") is not None:
+            result["powell_tier_rule"] = snapshot["powell_tier_rule"]
         return result
 
     def _write_agent_deliveries(self, settlement: Dict[str, Any]) -> None:
@@ -3475,7 +4042,7 @@ class IrrigationEnvironment:
         0.417 / 0.500 MAF for tiers 0-3 (PI decision (f), 2026-09-28;
         replaces the earlier flat 0/5/10/20 percent cuts,
         ``_tier_curtailment_ratio``). PI decision 2026-09-28: borne
-        entirely by the 5.0 MAF non-agricultural bucket N (not shared
+        entirely by the 5.2 MAF non-agricultural bucket N (not shared
         pro rata across agricultural use), in ``_settle``: non_ag =
         max(0, N - V).
 
@@ -3489,7 +4056,7 @@ class IrrigationEnvironment:
         """Record the declared shortage's INFORMATIONAL ratio on each
         Lower Basin agent (0 for Upper Basin -- the 2007 Interim
         Guidelines shortage volumes bind Lower Basin users only). PI
-        decision 2026-09-28: this ratio is V / N (the share of the 5.0
+        decision 2026-09-28: this ratio is V / N (the share of the 5.2
         MAF non-agricultural bucket the declared tier removed), NOT a
         ratio applied to agricultural deliveries -- agricultural agents
         are reduced only by physical Mead availability (:meth:`_settle`'s

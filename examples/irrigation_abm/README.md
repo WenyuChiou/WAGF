@@ -250,14 +250,14 @@ flowchart TD
 
 ## 4. Water System Model
 
-Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: Lake Powell passes its inflow through to Lake Mead clamped to [7.0, 9.0] MAF (storage tops up a dry year, and keeps a wet year's excess only until Powell is back at its 2019 fill), Upper Basin use is cut pro-rata only when Powell cannot keep the 7.0 MAF floor, and Lake Mead withdrawals are cut by the declared Lower Basin shortage tier and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
+Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: the Upper Basin has PRIORITY and is never cut to protect Powell's release; Lake Powell's release follows `powell_release_mode` -- the actual 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages (`ig2007_tiers`, v3 default; unbounded above in the Equalization tier), or a one-rule simplification equalizing Powell's and Mead's live-storage fractions, always bounded to [7.0, 9.5] MAF (`storage_balancing`, kept for the SI) -- and never more than physically available either way; Lake Mead withdrawals are cut by the declared Lower Basin shortage tier (borne by the non-agricultural bucket, not by agricultural requests) and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
 
 ### Key Parameters
 
 | Parameter | Value | Source |
 | :-------- | :---- | :----- |
 | Natural flow | USBR calendar-year naturalized flow at Lees Ferry, `data/hydrology_v3.csv` (no clamp) | v3 (2026-09-28): the same resampled trace Hung and Yang (2021, p. 15) used; see `docs/irrigation_physics.md`. Replaces the earlier precipitation-scaled proxy (12.0 MAF baseline, clamped [6, 17] MAF) |
-| Powell release band | [7.0, 9.5] MAF/yr | QUOTED: the 2007 Interim Guidelines' Lower Elevation Balancing Tier's own bound (ROD p. 52). Review 2026-09-28: Powell's release is chosen to equalize Powell's and Mead's live-storage fractions within this band (a simplified balancing rule, ROD Section 6), replacing the earlier pass-through-with-target-fill rule and its modelling-choice 9.0 MAF ceiling / `powell_target_fill` (both retired) |
+| Powell release | `ig2007_tiers` (v3 default, items 26-27): the actual 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages -- only the Lower Elevation Balancing tier is bounded to [7.0, 9.5] MAF/yr (ROD p. 53, "not more than 9.5 maf and not less than 7.0 maf"); the Equalization tier's release has no upper bound (e.g. 14.63 MAF in the 2011 hindcast year). `storage_balancing` (SI mode): a simplified balancing rule, ROD Section 6, ALWAYS bounded to that same [7.0, 9.5] MAF band, replacing the earlier pass-through-with-target-fill rule and its modelling-choice 9.0 MAF ceiling / `powell_target_fill` (both retired). See `docs/irrigation_physics.md` step 4. |
 | UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
 | Mexico treaty delivery | 1.5 MAF/yr | VERIFIED (canonical). 1944 Treaty (before DCP reductions) |
 | Initial Mead elevation | 1081.46 ft | VERIFIED. USBR observed December 2018 |
@@ -342,7 +342,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 
 **Agent behavior**: No inter-agent communication; annual decision frequency; homogeneous curtailment (no prior appropriation doctrine); fixed persona assignment throughout simulation.
 
-**Water system**: Two storage stocks (Lake Powell: pass-through release clamped to [7.0, 9.0] MAF/yr subject to storage, wet-year retention only up to the 2019 fill, not the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.0 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
+**Water system**: Two storage stocks (Lake Powell: the actual 2007 Interim Guidelines operating tiers, unbounded above in Equalization (`ig2007_tiers`, v3 default), or a one-rule simplification bounded to [7.0, 9.5] MAF/yr (`storage_balancing`, SI mode), neither the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.2 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
 
 **LLM-specific**: Magnitude-reasoning decoupling (LLM chooses skill direction, not magnitude); results specific to gemma3:4b; ERROR-level governance cannot be overridden.
 

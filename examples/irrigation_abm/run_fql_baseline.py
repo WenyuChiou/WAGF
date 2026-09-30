@@ -1167,6 +1167,13 @@ def main():
             # change ever threads an override through, the manifest
             # reflects reality instead of a stale hard-coded False.
             "hold_requests_fixed": env.config.hold_requests_fixed,
+            # Re-review 2026-09-29 round 4 (MEDIUM 4; spec items 25-27):
+            # same treatment as hold_requests_fixed just above -- read from
+            # the environment's own config, not a literal, so the manifest
+            # reflects whatever WaterSystemConfig actually resolved to.
+            "powell_release_mode": env.config.powell_release_mode,
+            "powell_post2026_equalization": env.config.powell_post2026_equalization,
+            "lb_non_ag_total_maf": env.config.lb_non_ag_total_maf,
             "fql_init": args.fql_init,
             "fql_init_dir": args.fql_init_dir if args.fql_init == "calibrated" else None,
             # Cheap reproducibility provenance (2026-09-27 review): numpy's

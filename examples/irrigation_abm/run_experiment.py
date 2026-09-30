@@ -1125,6 +1125,57 @@ def _record_hold_requests_fixed_provenance(
               f"config_snapshot.yaml: {e}")
 
 
+def _record_water_system_config_provenance(
+    output_dir: Path, config
+) -> None:
+    """Additively record ``WaterSystemConfig.powell_release_mode``,
+    ``powell_post2026_equalization`` and ``lb_non_ag_total_maf`` in this
+    run's two provenance files (re-review 2026-09-29 round 4, MEDIUM 4;
+    spec items 25-27).
+
+    Same pattern as ``_record_hold_requests_fixed_provenance`` above,
+    which it is called alongside in ``main()``'s abort-safe ``finally``
+    block: every real run of this domain resolves these three values
+    regardless of ``--real``/``--model``, and WP7's launch checklist
+    requires every manifest to show ``ub_supply_mode`` / ``appraisal_freeze``
+    / etc. -- these three are the same kind of value, just not yet wired
+    into the generic broker manifest (an irrigation-only WaterSystemConfig
+    concern, no generic-framework home). Wrapped so a provenance-write
+    problem can never fail the experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["powell_release_mode"] = config.powell_release_mode
+            manifest["powell_post2026_equalization"] = config.powell_post2026_equalization
+            manifest["lb_non_ag_total_maf"] = config.lb_non_ag_total_maf
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record powell_release_mode/"
+              f"powell_post2026_equalization/lb_non_ag_total_maf in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["powell_release_mode"] = config.powell_release_mode
+            snapshot["metadata"]["powell_post2026_equalization"] = config.powell_post2026_equalization
+            snapshot["metadata"]["lb_non_ag_total_maf"] = config.lb_non_ag_total_maf
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record powell_release_mode/"
+              f"powell_post2026_equalization/lb_non_ag_total_maf in "
+              f"config_snapshot.yaml: {e}")
+
+
 def _record_cluster_method_provenance(
     output_dir: Path, cluster_method: str, is_real: bool
 ) -> None:
@@ -1611,6 +1662,7 @@ def main():
         _record_cluster_method_provenance(output_dir, args.cluster_method, args.real)
         _record_step_bin_source_provenance(output_dir, profiles, args.real)
         _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
+        _record_water_system_config_provenance(output_dir, env.config)
 
         # Finalize audit. Also already called from inside
         # ExperimentRunner._finalize_experiment's own finally (run() wraps

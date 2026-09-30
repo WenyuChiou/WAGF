@@ -20,3 +20,11 @@ examples/irrigation_abm/data/ub_subbasin_variant_means_v3.csv text eol=lf
 # WP1c (irrigation_v3_spec_2026-09-28.md item 22): Lower Basin priority
 # split, same checksum-at-load / LF-forcing rationale as above.
 examples/irrigation_abm/data/lb_priority_split_v3.csv text eol=lf
+# WP1d (irrigation_v3_spec_2026-09-28.md item 25; hindcast memo
+# irrigation_v3_hindcast_2026-09-29.md): the observed 1999-2018 Lake
+# Mead/Powell/flow record the hindcast scores against, sha256-checked at
+# load by hindcast_v3.py -- same LF-forcing rationale as above. Its
+# sources file is documentation (not read by code) but committed
+# alongside it, so it travels with the same LF convention.
+examples/irrigation_abm/data/hindcast_observed_v3.csv text eol=lf
+examples/irrigation_abm/data/hindcast_observed_v3_sources.csv text eol=lf

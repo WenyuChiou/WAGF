@@ -1129,6 +1129,12 @@ def build_simulation_log_row(
         "powell_storage_maf": settlement["powell_storage_maf"],
         "powell_storage_end_maf": settlement["powell_storage_end_maf"],
         "powell_release_maf": settlement["powell_release_maf"],
+        # v3 (spec items 26/27): the declared Powell tier (EQ/UEB/MER/LEB,
+        # or LROC for a pre-2008 hindcast year) and its governing ROD
+        # sub-rule -- None in "storage_balancing" mode, which has no
+        # tiers, or for a hand-built settlement from an older test.
+        "powell_tier": settlement.get("powell_tier"),
+        "powell_tier_rule": settlement.get("powell_tier_rule"),
         "natural_flow_maf": settlement["natural_flow_maf"],
         "ub_delivered_maf": settlement["ub_delivered_maf"],
         "lb_phys_ratio": settlement["lb_phys_ratio"],

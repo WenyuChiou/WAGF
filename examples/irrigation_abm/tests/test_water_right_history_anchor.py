@@ -602,6 +602,66 @@ class TestManifestRecordsHoldRequestsFixed:
 
 
 # ---------------------------------------------------------------------------
+# (e3) Manifest records powell_release_mode / powell_post2026_equalization /
+# lb_non_ag_total_maf (re-review 2026-09-29 round 4, MEDIUM 4; spec items 25-27)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsWaterSystemConfigProvenance:
+    def test_record_water_system_config_provenance(self, tmp_path):
+        from examples.irrigation_abm.irrigation_env import WaterSystemConfig
+        from examples.irrigation_abm.run_experiment import (
+            _record_water_system_config_provenance,
+        )
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        _record_water_system_config_provenance(tmp_path, WaterSystemConfig())
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["powell_release_mode"] == "ig2007_tiers"
+        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["powell_release_mode"] == "ig2007_tiers"
+        assert snapshot["metadata"]["powell_post2026_equalization"] == "hold_2026"
+        assert snapshot["metadata"]["lb_non_ag_total_maf"] == pytest.approx(5.2)
+
+    def test_non_default_config_recorded(self, tmp_path):
+        """Not a hard-coded literal -- reads whatever the config actually
+        resolved to, exactly like ``_record_hold_requests_fixed_provenance``
+        does for its own field."""
+        from examples.irrigation_abm.irrigation_env import WaterSystemConfig
+        from examples.irrigation_abm.run_experiment import (
+            _record_water_system_config_provenance,
+        )
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+
+        _record_water_system_config_provenance(tmp_path, WaterSystemConfig(
+            powell_release_mode="storage_balancing",
+            powell_post2026_equalization="extend_slope",
+            lb_non_ag_total_maf=5.0,
+        ))
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["powell_release_mode"] == "storage_balancing"
+        assert manifest["powell_post2026_equalization"] == "extend_slope"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.0)
+
+    def test_missing_files_do_not_raise(self, tmp_path):
+        from examples.irrigation_abm.irrigation_env import WaterSystemConfig
+        from examples.irrigation_abm.run_experiment import (
+            _record_water_system_config_provenance,
+        )
+        _record_water_system_config_provenance(tmp_path, WaterSystemConfig())  # no exception
+
+
+# ---------------------------------------------------------------------------
 # (e) FQL parity: the ceiling binds the FQL path exactly as the LLM path
 # ---------------------------------------------------------------------------
 class TestFQLClipParity:

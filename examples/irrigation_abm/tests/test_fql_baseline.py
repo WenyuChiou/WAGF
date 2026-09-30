@@ -9,6 +9,7 @@ Verifies:
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -442,6 +443,34 @@ class TestLaunchCommandTiming:
             "the runner must never claim ExitCode: -- only a launcher knows "
             "the real process exit status"
         )
+
+
+class TestManifestRecordsWaterSystemConfigProvenance:
+    """Re-review 2026-09-29 round 4 (MEDIUM 4; spec items 25-27): FQL's
+    ``reproducibility_manifest.json`` must carry ``powell_release_mode`` /
+    ``powell_post2026_equalization`` / ``lb_non_ag_total_maf``, read from
+    the environment's own config (same treatment as the pre-existing
+    ``hold_requests_fixed`` key right next to them), not a literal. Fails
+    on the pre-fix code, where the manifest dict literal has no such keys
+    at all -- for ANY run, not only a non-default one."""
+
+    def test_default_config_recorded(self, monkeypatch, tmp_path):
+        argv = [
+            "run_fql_baseline.py",
+            "--years", "2",
+            "--agents", "5",
+            "--seed", "42",
+            "--fql-init", "zero",
+            "--output", str(tmp_path),
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+
+        fql_baseline_main()
+
+        manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+        assert manifest["powell_release_mode"] == "ig2007_tiers"
+        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
 
 
 class TestReconstructProfilesFromLogsSubbasin:
