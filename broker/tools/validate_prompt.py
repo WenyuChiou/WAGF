@@ -235,6 +235,8 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     "appraisal_freeze",          # agent_config.get_governance_appraisal_freeze
     "rule_id_prefix",            # agent_config.get_governance_rule_id_prefix
     "hide_registry_backstop_reports",  # agent_config.get_governance_hide_registry_backstop_reports
+    "plain_action_names",        # agent_config.get_governance_plain_action_names
+    "placebo_closer",            # agent_config.get_governance_placebo_closer
 }
 
 KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {

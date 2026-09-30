@@ -4,23 +4,19 @@
 Your memory includes:
 {memory}
 
-You currently {conservation_status} water conservation practices.
-Your ability to implement changes to your water management is {aca_hint}.
-
 First, assess your WATER SUPPLY situation by considering:
-- Water Supply Outlook: Is your water supply abundant, adequate, tight, or critically short this season?
-- Demand–Supply Balance: Is your current water request well matched to the available supply, or is there a gap?
+- Water Supply Outlook: Is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this season?
+- Demand-Supply Balance: Is your current water request well matched to the available supply, or is there a gap?
 Then rate your water_scarcity_assessment.
 
 Next, assess your ADAPTIVE CAPACITY by considering:
-- Capacity to Adjust: How easily could you change your water demand (financial, technical, labor)?
-- Cost of Change: What would it cost you (financially, operationally) to adjust your irrigation practices?
-- Benefit of Current Path: What is the advantage of keeping your current water demand level unchanged?
+- Capacity to Adjust: How much can you change your request this year, given the options below?
+- Cost of Change: What would you risk by changing your request (a larger shortfall if you ask for more than is delivered, or less water to produce with if you ask for less)?
+- Benefit of Keeping: What is the advantage of requesting the same amount you received last year?
 Then rate your adaptive_capacity_assessment.
 
 Now, choose one of the following water management actions:
-{options_text}
-Your decision should reflect your water management style and risk tolerance.
+{options_text}{option_notes}
 
 {rating_scale}
 

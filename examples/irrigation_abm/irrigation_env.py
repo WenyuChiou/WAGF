@@ -2215,6 +2215,15 @@ class IrrigationEnvironment:
             "lb_shortage_volume_maf": self._tier_shortage_volume_maf(
                 self._compute_shortage_tier()
             ),
+            # WP4 (spec 4.3): the 1 January Lake Mead level the declared tier
+            # is below (the config's own tier edges, so the sentence "Lake
+            # Mead was below 1,050 feet" cannot drift from the rule that
+            # declared the tier); None at tier 0.
+            "shortage_tier_threshold_ft": {
+                1: self.config.mead_shortage_tier1,
+                2: self.config.mead_shortage_tier2,
+                3: self.config.mead_shortage_tier3,
+            }.get(self._compute_shortage_tier()),
             "total_basin_demand": self._global.get("total_basin_demand", 0),
             "basin_request_over_target": self._global.get("basin_request_over_target", 0),
             "natural_flow_maf": self._global.get("natural_flow_maf", 0),

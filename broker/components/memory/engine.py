@@ -84,6 +84,21 @@ class MemoryEngine(ABC):
         """Reset memory for an agent."""
         pass
 
+    def remove_by_type(self, agent_id: str, memory_type: str) -> int:
+        """Remove every memory of ``agent_id`` whose ``type`` metadata is
+        ``memory_type``; return how many stored items were removed.
+
+        Used by the opt-in ``reflection.keep_latest_only`` option
+        (``broker.components.cognitive.reflection.store_reflection_memory``).
+        Engines that support it override this; the default raises, so a
+        config asking for the option on an engine without it fails loudly
+        instead of silently keeping every reflection.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support remove_by_type(). "
+            "Use HumanCentricMemoryEngine."
+        )
+
     def retrieve_stratified(
         self,
         agent_id: str,

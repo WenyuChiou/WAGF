@@ -432,10 +432,20 @@ class RetryMixin:
                     feasible.append(name)
         return feasible
 
-    def _format_feasible_line(self, feasible: List[str], agent_type: str, context: Dict) -> str:
+    def _format_feasible_line(
+        self, feasible: List[str], agent_type: str, context: Dict,
+        missing_fields: bool = False,
+    ) -> str:
         """One sentence naming the actions that pass every rule. Numeric ids
         come from the step's skill map (as the prompt shows them); without a
-        map, skill names are used."""
+        map, skill names are used.
+
+        ``missing_fields``: the attempt failed the response-format check
+        (a required field left out). That check fails for every action the
+        probe tries, so an empty set then says nothing about the rules
+        themselves; the sentence names the missing field as the cause
+        instead of implying that every action is ruled out. False renders
+        exactly as shipped."""
         inverse: Dict[str, str] = {}
         for k, v in self._step_skill_map(agent_type, context).items():
             if isinstance(v, str) and v not in inverse and str(k).isdigit():
@@ -450,15 +460,19 @@ class RetryMixin:
                 "Actions that pass every rule this step: "
                 + ", ".join(label(n) for n in feasible) + "."
             )
+        cause = (
+            ", because your response did not include every required field"
+            if missing_fields else ""
+        )
         if getattr(self, "_on_retry_exhausted", "default") == "keep_proposal":
-            return "No action passes every rule this step."
+            return "No action passes every rule this step" + cause + "."
         try:
             default_name = self.skill_registry.get_default_skill()
             tail = "the default action (" + default_name.replace("_", " ") + ") will be applied."
         except ValueError:
             tail = "the default action will be applied."
         return (
-            "No action passes every rule this step; if this "
+            "No action passes every rule this step" + cause + "; if this "
             "continues, " + tail
         )
 
@@ -604,11 +618,18 @@ class RetryMixin:
             elif _retry_feedback_mode == "placebo" and hasattr(
                 self.model_adapter, "format_intervention_prompt"
             ):
+                # global_config.governance.placebo_closer (default None: the
+                # adapter's own closer, byte-for-byte). The shipped legacy
+                # closer points at "the violations above", which this
+                # wrapper-only prompt never shows.
+                _placebo_closer = getattr(self, "_placebo_closer", None)
+                _closer_kw = {} if _placebo_closer is None else {"closer": _placebo_closer}
                 retry_prompt, _reports_shown = render_intervention_prompt(
                     self.model_adapter, prompt, errors_to_send,
                     max_reports=self.max_reports,
                     framing=getattr(self, "_intervention_framing", "legacy"),
                     include_reports=False,
+                    **_closer_kw,
                 )
             elif _retry_feedback_mode == "placebo":
                 # Adapter predates P0-1c (implements only `format_retry_prompt`,
@@ -619,7 +640,18 @@ class RetryMixin:
                 # sentence instead of crashing an old custom adapter's placebo
                 # run. Every adapter shipped in this repo implements
                 # format_intervention_prompt, so this branch is untaken on any
-                # in-repo run; it exists for a third-party adapter only.
+                # in-repo run; it exists for a third-party adapter only. A
+                # configured global_config.governance.placebo_closer cannot be
+                # applied here, so it raises (review LOW 10) instead of
+                # silently sending the fixed sentence without it, as
+                # render_intervention_prompt does for the same adapter.
+                if getattr(self, "_placebo_closer", None) is not None:
+                    raise ValueError(
+                        "global_config.governance.placebo_closer is set, but the "
+                        "model adapter has no format_intervention_prompt and "
+                        "cannot render a closer; refusing to send a placebo "
+                        "retry without the configured closer."
+                    )
                 retry_prompt = f"{RETRY_FEEDBACK_PLACEBO_TEXT}\n\n{prompt}"
                 _reports_shown = 0
             else:
@@ -636,9 +668,24 @@ class RetryMixin:
                     if feasible_by_attempt is not None:
                         feasible_by_attempt.append(list(_feasible))
                     _feasible_kw["feasible_line"] = self._format_feasible_line(
-                        _feasible, agent_type, context)
+                        _feasible, agent_type, context,
+                        missing_fields=any(
+                            v is not None and not getattr(v, "valid", True)
+                            and getattr(v, "validator_name", "") == "AgentValidator:format"
+                            for v in validation_results))
+                # global_config.governance.plain_action_names (default OFF):
+                # the report names the blocked action in plain words (the
+                # feasible line's own form) instead of its skill id. Retry
+                # text only: the audit reads validation_results.
+                _reports_to_render = errors_to_send
+                if getattr(self, "_plain_action_names", False) is True:
+                    _reports_to_render = [
+                        dataclasses.replace(r, blocked_skill=r.blocked_skill.replace("_", " "))
+                        if isinstance(r, InterventionReport) else r
+                        for r in errors_to_send
+                    ]
                 retry_prompt, _reports_shown = render_intervention_prompt(
-                    self.model_adapter, prompt, errors_to_send,
+                    self.model_adapter, prompt, _reports_to_render,
                     max_reports=self.max_reports,
                     framing=getattr(self, "_intervention_framing", "legacy"),
                     **_feasible_kw,

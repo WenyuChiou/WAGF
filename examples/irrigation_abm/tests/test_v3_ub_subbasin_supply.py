@@ -562,16 +562,17 @@ class TestSharingSentenceSingleMember:
         # it is still the lone member of its own sub-basin.
         ut2_backstop = {"basin": "upper_basin", "gap_reason": "ub_natural_flow",
                          "ub_subbasin_member_count": 1}
-        assert "other Upper Basin users" in _sharing_sentence(ut2_backstop)
+        # WP4 review, spec item 29c: "other users in <pool>".
+        assert "other users in the Upper Basin" in _sharing_sentence(ut2_backstop)
 
         # lees_ferry_pool mode (or any context with no member count at
         # all): the whole Upper Basin, exactly as before WP1b.
         pool_mode = {"basin": "upper_basin", "gap_reason": "ub_natural_flow"}
-        assert "other Upper Basin users" in _sharing_sentence(pool_mode)
+        assert "other users in the Upper Basin" in _sharing_sentence(pool_mode)
 
         # Lower Basin is unaffected by any of this.
         lb_context = {"basin": "lower_basin", "gap_reason": "lb_mead_availability"}
-        assert "other Lower Basin users" in _sharing_sentence(lb_context)
+        assert "other users in the Lower Basin" in _sharing_sentence(lb_context)
 
 
 # ===========================================================================

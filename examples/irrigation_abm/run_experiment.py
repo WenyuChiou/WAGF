@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 import yaml
 import pandas as pd
@@ -42,19 +43,19 @@ from examples.irrigation_abm.irrigation_personas import (
     IrrigationAgentProfile,
     build_narrative_persona,
     build_water_situation_text,
-    build_conservation_status,
-    build_aca_hint,
     build_action_outcome_feedback,
+    build_option_notes,
     build_option_texts,
     build_simulation_log_row,
     create_profiles_from_csv,
+    dashboard_sharing_flags,
     describe_gap_reason,
     read_lake_mead_level_for_log,
     rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory.engine import HumanCentricMemoryEngine
-from broker.components.cognitive.reflection import ReflectionEngine
+from broker.components.cognitive.reflection import ReflectionEngine, store_reflection_memory
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 from broker.components.governance.registry import SkillRegistry
 from broker.components.context.builder import TieredContextBuilder
@@ -332,80 +333,97 @@ def _unmet_frac(request: float, delivered: float) -> float:
     return round(min(1.0, max(0.0, 1.0 - float(delivered) / float(request))), 6)
 
 
-_QUOTE_CHARS = "\"'“”‘’"
+# Every stored reflection starts with this; the full line is
+# "Consolidated Reflection (written in {calendar year}): {summary}" (spec 4.7).
+_REFLECTION_MEMORY_PREFIX = "Consolidated Reflection"
 
-# The fixed prefix _batch_reflect stores every consolidated reflection under
-# (see the add_memory call below). Stripped before normalising a RETRIEVED
-# item's content so the quote/whitespace check runs on the model's own text,
-# not on a string where the prefix pushes a real leading quote away from the
-# string's own boundary (where str.strip() can reach it).
-_REFLECTION_MEMORY_PREFIX = "Consolidated Reflection: "
+# Stripped from both ends of a summary before it is stored (spec 4.7): quotes,
+# whitespace and the trailing comma of a JSON-residue copy ('"...",', L3 M8).
+_REFLECTION_STRIP_CHARS = ' \t\n"\'“”‘’,'
+
+# A figure a reflection summary can quote (spec 4.7, review HIGH 1): a number
+# with thousands separators ("20,155"), a plain number, optionally followed by
+# a unit: "%" or "percent" (a share), "million" (million acre-ft), or an
+# acre-ft unit ("acre-ft", "acre-feet", "AF"). Not preceded by a letter,
+# digit, point or comma, so "UT2" or the tail of a longer number never match.
+_FIGURE = re.compile(
+    r"(?<![\w.,])(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+    r"(?P<unit>\s*(?:%|percent\b|million\b|acre[- ]?f(?:ee|oo)?t\b|af\b))?",
+    re.IGNORECASE,
+)
+
+# A summary figure within this relative distance of a figure of the same kind
+# in the agent's own memory text counts as that figure, rounded (review HIGH 1:
+# "about 20,000 acre-ft" for a memory line's 20,155 is the agent's own figure).
+_FIGURE_TOLERANCE = 0.05
 
 
 def _normalize_reflection_text(text: str) -> str:
-    """Strip, collapse internal whitespace, and strip surrounding quotes.
-
-    Used by ``IrrigationLifecycleHooks._batch_reflect`` to detect a reflection
-    that only echoes the agent's previous one (gemma3:4b does this often;
-    see the 2026-09-26 regression audit, N3): a run of whitespace or a
-    quoting difference must not defeat the dedup check, but any real change
-    in wording must still count as a new reflection.
-    """
+    """Collapse internal whitespace and strip quotes, whitespace and commas
+    from both ends (spec 4.7), so a reflection is stored as one clean line."""
     collapsed = " ".join((text or "").split())
-    return collapsed.strip(_QUOTE_CHARS)
+    return collapsed.strip(_REFLECTION_STRIP_CHARS)
 
 
-def _agent_retrieval_content_set(memory_engine, agent) -> set:
-    """Normalised content of every memory item ``agent`` can currently
-    retrieve. Parameters match ``broker/components/context/providers.py
-    (MemoryProvider.provide)`` for LEGACY ranking mode ONLY: ``query``,
-    ``contextual_boosters`` and ``world_state`` are not passed here (this
-    hook runs at year-end, outside prompt construction, so none are
-    available) and would matter only under WEIGHTED ranking, where they
-    feed the relevance/contextual-boost/interference terms of the score;
-    legacy mode ignores all three (composed retrieval is window + decayed
-    long-term importance only), so omitting them changes nothing for the
-    composed path this helper is built for.
+def _is_reflection_memory(item: Any) -> bool:
+    """True for a stored reflection (a retrieved memory payload carries its
+    content but not its ``type``, so the fixed prefix identifies it)."""
+    content = item.get("content", "") if isinstance(item, dict) else str(item)
+    return str(content).startswith(_REFLECTION_MEMORY_PREFIX)
 
-    One deliberate difference from the prompt's own call: when composed
-    retrieval is on, the window is queried at ``window_size - 1`` (minimum
-    1), not the full ``window_size``. The dedup check in ``_batch_reflect``
-    runs at year-end, one memory item EARLIER than the next year's prompt
-    will see -- ``pre_year`` adds one more feedback memory before that
-    prompt is built. Querying the full window here would count a
-    reflection sitting in the LAST slot as still visible, when by the time
-    the agent actually reads its next prompt that slot has been pushed out.
-    Checking one slot short treats "about to age out" the same as "already
-    aged out", so a reflection is restored proactively instead of a year
-    late.
 
-    Returns an empty set on a missing agent or a non-list retrieve()
-    result rather than raising.
-    """
-    if agent is None:
-        return set()
-    mem_cfg = getattr(agent, "memory_config", None)
-    mem_cfg = mem_cfg if isinstance(mem_cfg, dict) else {}
-    extra = {}
-    if (mem_cfg.get("composed_retrieval") is True
-            and getattr(memory_engine, "ranking_mode", None) == "legacy"):
-        for key in ("window_size", "top_k_significant"):
-            if key in mem_cfg:
-                extra[key] = int(mem_cfg[key])
-        if "window_size" in extra:
-            extra["window_size"] = max(1, extra["window_size"] - 1)
-    retrieved = memory_engine.retrieve(
-        agent, top_k=int(mem_cfg.get("retrieval_top_k", 3)), **extra
-    )
-    if not isinstance(retrieved, list):
-        return set()
-    out = set()
-    for item in retrieved:
-        content = item.get("content", "") if isinstance(item, dict) else str(item)
-        if content.startswith(_REFLECTION_MEMORY_PREFIX):
-            content = content[len(_REFLECTION_MEMORY_PREFIX):]
-        out.add(_normalize_reflection_text(content))
-    return out
+def _figures(text: str) -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
+    """(volumes, percentages) quoted in ``text``, each as (as written, value).
+
+    A volume is a number with thousands separators, a plain number of four or
+    more digits that is not a calendar year (1900 to 2100), or any number
+    followed by an acre-ft unit or "million" (scaled to acre-ft). A percentage
+    is a number followed by "%" or "percent". Any other bare number (a count,
+    a tier, a day of the month, a year) is not a figure."""
+    volumes: List[Tuple[str, float]] = []
+    percents: List[Tuple[str, float]] = []
+    for m in _FIGURE.finditer(text):
+        num = m.group("num")
+        unit = (m.group("unit") or "").strip().lower()
+        value = float(num.replace(",", ""))
+        written = m.group(0).strip()
+        if unit in ("%", "percent"):
+            percents.append((written, value))
+        elif unit == "million":
+            volumes.append((written, value * 1e6))
+        elif unit:
+            volumes.append((written, value))
+        elif "," in num:
+            volumes.append((written, value))
+        elif "." not in num and len(num) >= 4 and not (len(num) == 4 and 1900 <= value <= 2100):
+            volumes.append((written, value))
+    return volumes, percents
+
+
+def _near(value: float, pool: List[float]) -> bool:
+    return any(abs(value - ref) <= _FIGURE_TOLERANCE * abs(ref) for ref in pool)
+
+
+def _foreign_figures(summary: str, own_text: str) -> List[str]:
+    """Figures in ``summary`` that match no figure of the same kind in
+    ``own_text`` (the agent's own memory lines the reflection was written
+    from), within ``_FIGURE_TOLERANCE``. A reflection that quotes one is not
+    stored (spec 4.7; L3 M8: 201 prompts showed an acre-ft figure that
+    belonged to another agent).
+
+    Review HIGH 1 (2026-09-30): rounding is tolerated ("about 20,000
+    acre-ft" matches a memory line's 20,155), and figures written without
+    separators ("14420 acre-ft") and percentages are checked too. A
+    percentage also matches the complement of a memory percentage (a
+    delivered share is 100 minus the unmet share the memory line states), and
+    0 and 100 percent always match (a full delivery or none, nobody's own
+    figure)."""
+    own_volumes, own_percents = _figures(own_text)
+    volume_pool = [v for _, v in own_volumes]
+    percent_pool = [p for _, p in own_percents] + [100.0 - p for _, p in own_percents] + [0.0, 100.0]
+    volumes, percents = _figures(summary)
+    return ([w for w, v in volumes if not _near(v, volume_pool)]
+            + [w for w, p in percents if not _near(p, percent_pool)])
 
 
 class IrrigationLifecycleHooks:
@@ -434,10 +452,6 @@ class IrrigationLifecycleHooks:
         # memory.rejection_line_style for the yearly memory line (set by main()
         # from the irrigation_farmer.memory YAML block).
         self.rejection_line_style = "neutral"
-        # Store-time reflection dedup (2026-09-26, N3): agent_id -> the
-        # normalised text of the last reflection actually STORED via
-        # add_memory (not merely seen); see _batch_reflect.
-        self._last_reflection_by_agent: Dict[str, str] = {}
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -449,6 +463,25 @@ class IrrigationLifecycleHooks:
         preserves (Review P1-b).
         """
         return read_lake_mead_level_for_log(self.env)
+
+    def _retries_name_rules(self) -> bool:
+        """False in the placebo and silent arms, whose retry prompts carry no
+        rule text: their memory line of an overruled year then says "under a
+        governance rule" instead of naming the rule (spec 4.5). Read from the
+        broker at each call, so a --retry-feedback-mode override applies. A
+        runner without a broker, or a broker without the mode, raises (review
+        LOW 10): falling back to "full" would name rules in a placebo run."""
+        broker = getattr(self.runner, "broker", None)
+        if broker is None or not hasattr(broker, "_retry_feedback_mode"):
+            raise RuntimeError(
+                "IrrigationLifecycleHooks: the runner's broker has no "
+                "_retry_feedback_mode; refusing to guess whether this arm's "
+                "retries name the rules."
+            )
+        mode = broker._retry_feedback_mode
+        if mode not in ("full", "placebo", "silent"):
+            raise ValueError(f"IrrigationLifecycleHooks: unknown _retry_feedback_mode {mode!r}.")
+        return mode == "full"
 
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
@@ -463,15 +496,12 @@ class IrrigationLifecycleHooks:
 
             # Build dynamic context attributes for prompt template. The F05
             # snapshot (last year's settled request / delivery / reason) feeds
-            # the "Last year you requested ..." sentence (spec S1).
+            # the "Last year you requested ..." sentence (spec 4.3); in the
+            # first year there is none and the sentence states the 2018 use.
             water_situation = build_water_situation_text(
                 ctx, last_year=getattr(agent, "_last_year_outcome", None)
             )
-            conservation = build_conservation_status(profile)
-
             agent.water_situation_text = water_situation
-            agent.conservation_status = conservation
-            agent.aca_hint = build_aca_hint(profile.cluster)
 
             # Sync ALL validator-relevant fields from environment → agent
             # These flow through custom_attributes → context["state"] → validation_context
@@ -563,6 +593,17 @@ class IrrigationLifecycleHooks:
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
                 agent.custom_attributes.update(validator_fields)
+            # Spec item 29e (refined 2026-09-30): the random-step line after
+            # the options names only the directions the menu offers (the
+            # identity rules hide an increase exactly when at_allocation_cap
+            # and a decrease exactly when below_minimum_utilisation, above);
+            # the item-23 sentence appears only when an increase is offered
+            # and last year's delivery was below its request.
+            agent.option_notes = build_option_notes(
+                increase_offered=not validator_fields["at_allocation_cap"],
+                decrease_offered=not validator_fields["below_minimum_utilisation"],
+                last_year=getattr(agent, "_last_year_outcome", None),
+            )
 
             # Feedback dashboard metrics are recorded in post_year from the
             # year's FINAL settlement (supply-side redesign, spec S2), so the
@@ -583,39 +624,37 @@ class IrrigationLifecycleHooks:
                 # the same live values under year t. Use the snapshot
                 # post_year(year-1) captured at the END of year t-1,
                 # before this year's advance_year() touched it.
+                # post_year(year-1) always runs before pre_year(year) in
+                # ExperimentRunner.run; a missing snapshot means that order
+                # broke, and the stale live values are not last year's (WP4:
+                # no fallback to them).
                 snapshot = getattr(agent, "_last_year_outcome", None)
-                if snapshot:
-                    prev_request = snapshot.get("request", 0)
-                    prev_diversion = snapshot.get("diversion", 0)
-                    prev_drought_index = snapshot.get("drought_index", 0)
-                    prev_preceding_factor = snapshot.get("preceding_factor", 0)
-                else:
-                    # Defensive fallback only: post_year(year-1) always runs
-                    # before pre_year(year) in ExperimentRunner.run, so this
-                    # branch means a hook ordering change broke that
-                    # invariant. Keep the run alive with the pre-F05 (stale)
-                    # reading rather than crash a batch.
-                    prev_request = agent_state.get("request", 0)
-                    prev_diversion = agent_state.get("diversion", 0)
-                    prev_drought_index = ctx.get("drought_index", 0)
-                    prev_preceding_factor = ctx.get("preceding_factor", 0)
+                if not snapshot:
+                    raise RuntimeError(
+                        f"{aid}: pre_year({year}) found no last-year snapshot; "
+                        f"post_year({year - 1}) must run first."
+                    )
+                prev_request = snapshot["request"]
+                prev_diversion = snapshot["diversion"]
                 action_ctx = getattr(agent, '_last_action_context', None)
                 feedback = build_action_outcome_feedback(
                     action_ctx=action_ctx,
-                    year=year - 1,
+                    # WP4 (spec 4.5, L3 M14): calendar years, as everywhere
+                    # else in the prompt.
+                    year=snapshot["calendar_year"],
                     request=prev_request,
                     diversion=prev_diversion,
-                    drought_index=prev_drought_index,
-                    preceding_factor=prev_preceding_factor,
-                    # F15 (2026-09-25 audit): Lower Basin agents' preceding_factor
-                    # is the Lake Mead trend, not precipitation; basin selects the
-                    # correct wording (build_water_situation_text already does this).
-                    basin=ctx.get("basin", "upper_basin"),
-                    # Supply-side redesign (spec S6): the same reason phrase as the
-                    # situation text and rule messages; neutral or explicit wording
-                    # of a rejected year (memory.rejection_line_style).
-                    gap_reason=describe_gap_reason(snapshot or {}),
+                    preceding_factor=snapshot["preceding_factor"],
+                    # F15: the Lower Basin signal is Lake Mead, not precipitation.
+                    basin=ctx["basin"],
+                    # The past-tense form of the reason the situation text and
+                    # the rule messages use (spec 4.4).
+                    gap_reason=describe_gap_reason(snapshot, "past"),
                     rejection_line_style=self.rejection_line_style,
+                    # Spec 4.5: placebo and silent retries name no rule, so
+                    # neither does their memory line (L3 M13).
+                    name_rule=self._retries_name_rules(),
+                    subbasin=snapshot.get("supply_group") is not None,
                 )
                 # add_memory_for_agent (not add_memory) so the engine sees this
                 # agent's memory_config (the irrigation_farmer.memory YAML
@@ -716,21 +755,33 @@ class IrrigationLifecycleHooks:
             # year" memory line instead of re-querying live env state. Taken
             # from the SAME agent_state simulation_log.csv logs below, so
             # memory and the CSV always agree.
-            basin_key = agent_state.get("basin", "lower_basin")
             agent._last_year_outcome = {
                 "year": year,
+                # WP4 (spec 4.5): the calendar year the memory line names.
+                "calendar_year": self.env.current_year,
                 "request": agent_state.get("request", 0),
                 "diversion": agent_state.get("diversion", 0),
                 "gap_reason": agent_state.get("gap_reason", "none"),
                 "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
-                "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
+                # WP4: the agent's OWN flag (its sub-basin's for the Upper
+                # Basin, spec 1.6), the one its situation text showed; the
+                # snapshot read the basin-level legacy flag before, so an
+                # Upper Basin memory line could contradict the prompt.
+                "preceding_factor": agent_context["preceding_factor"],
                 # WP1b re-review (MEDIUM 5, 2026-09-29): describe_gap_reason
                 # needs this to pick the single-member (UT2) wording for
                 # both the "Last year ..." situation-text sentence and the
                 # memory line, which both read this same F05 snapshot.
                 "ub_subbasin_member_count": agent_context.get("ub_subbasin_member_count"),
+                # WP4: describe_gap_reason's junior-priority phrase states
+                # the settled cut share (item 22). It was missing here, so a
+                # --real run raised in the year after the first tier year.
+                "lb_junior_tier_cut_fraction": agent_state.get("lb_junior_tier_cut_fraction"),
+                # WP4: whether the Upper Basin memory line may say "your
+                # sub-basin" (None for a synthetic mock agent).
+                "supply_group": agent_context.get("supply_group"),
             }
 
             # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative
@@ -750,16 +801,25 @@ class IrrigationLifecycleHooks:
             # Feedback dashboard: record this year's settled request and
             # delivery (spec S2). Sources are the context keys the YAML names;
             # after settle_year they equal the final request and delivery.
+            # WP4 (spec 4.6): the row is labelled with the calendar year, and
+            # the hidden flags that pick the warning's "who shares" wording
+            # come from this year's settled gap_reason.
             if self.metrics_tracker is not None:
                 settled = {
                     "current_request": agent_state.get("request", 0),
                     "current_diversion": agent_state.get("diversion", 0),
+                    # Spec item 29f: whether a declared shortage can cut this
+                    # agent's water picks the Lower Basin warning's wording.
+                    **dashboard_sharing_flags({
+                        **agent_state,
+                        "lb_junior_entitlement_af": agent_context["lb_junior_entitlement_af"],
+                    }),
                 }
                 fb_metrics = {}
                 for m_cfg in self.feedback_config.get("tracked_metrics", []):
                     src = m_cfg["source"]
                     fb_metrics[m_cfg["name"]] = float(settled.get(src, agent_state.get(src, 0)) or 0)
-                self.metrics_tracker.record(aid, year, fb_metrics)
+                self.metrics_tracker.record(aid, self.env.current_year, fb_metrics)
 
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
@@ -824,61 +884,54 @@ class IrrigationLifecycleHooks:
             self._batch_reflect(year)
 
     def _batch_reflect(self, year: int):
+        """Year-end reflection (spec 4.7; L3 M8, D11; PI item 8).
+
+        One agent per call (``global_config.reflection.batch_size: 1``). The
+        input is what the memory engine retrieves for the agent at the end of
+        the year (legacy mode: the 5 most recent working items plus up to 2
+        long-term items of highest decayed importance; the ``top_k`` passed
+        below is ignored in that mode), with every earlier reflection
+        dropped, so a reflection is written from outcome lines only and
+        cannot restate an old lesson. Those lines run through the previous
+        year: this year's outcome line is added at the start of next year
+        (``pre_year``). The summary is stripped of quotes, whitespace and
+        trailing commas, and is not stored when it is empty or quotes a
+        figure that matches no figure of that input within 5 percent
+        (``_foreign_figures``; each drop is printed with its figures). A
+        stored summary reads "Consolidated Reflection (written in {Y}):
+        {summary}", Y the calendar year just ended, and
+        ``reflection.keep_latest_only`` replaces the agent's earlier
+        reflection (the framework option, ``store_reflection_memory``).
+        Under ``keep_latest_only`` an agent whose new summary is not stored
+        (empty, foreign figure, unreadable reply, failed call) loses its
+        earlier reflection too (review HIGH 1), so a prompt never shows a
+        reflection older than the end of the previous year (S10).
+        """
         cfg = self.runner.broker.config.get_reflection_config()
         batch_size = cfg.get("batch_size", 10)
+        keep_latest_only = self.runner.broker.config.get_reflection_keep_latest_only()
+        written_in = self.env.current_year
         candidates = []
         for aid, agent in self.runner.agents.items():
             if not getattr(agent, "is_active", True):
                 continue
-            mems = self.runner.memory_engine.retrieve(agent, top_k=10)
+            mems = [m for m in self.runner.memory_engine.retrieve(agent, top_k=10)
+                    if not _is_reflection_memory(m)]
             if mems:
-                # F08+F33 (2026-09-25 audit): every input below used to be
-                # missing or in the wrong unit --
-                # ``env.get_supply_ratio()`` does not exist on
-                # IrrigationEnvironment (silent 1.0 fallback via hasattr),
-                # ``last_decision``/``drought_count`` were never written to
-                # custom_attributes (always "" / 0), and ``water_right``
-                # is the raw acre-foot entitlement, not the 0-1 utilisation
-                # fraction IrrigationAdapter.compute_importance expects --
-                # so importance always landed on the adapter's fixed 0.90
-                # and classify_emotion always returned a label outside
-                # emotional_weights. Build the real, current-year values:
-                # water_right_pct and supply_ratio from live env state,
-                # recent_decision from the actual executed skill
-                # (agent._last_action_context, set by
-                # broker/core/experiment_runner.py:_apply_state_changes),
-                # and drought_count from the cumulative counter post_year
-                # maintains above.
+                # F08+F33 (2026-09-25 audit): the adapter's importance and
+                # emotion read real, current-year values -- water_right_pct
+                # and supply_ratio from the settled state, recent_decision
+                # from the executed skill (agent._last_action_context), and
+                # drought_count from the counter post_year maintains. Rounded
+                # to 6 places so float noise cannot move a band edge.
+                # Supply-side redesign (spec M4): the adapter also reads the
+                # PROPOSED skill, the fallback flag and the unmet fraction.
                 attrs = getattr(agent, "custom_attributes", {})
                 agent_state = self.env.get_agent_state(aid)
                 water_right = agent_state.get("water_right", 0) or 0
                 request = agent_state.get("request", 0) or 0
                 diversion = agent_state.get("diversion", 0) or 0
                 action_ctx = getattr(agent, "_last_action_context", None) or {}
-                # F08 code review (2026-09-25), re-review 2026-09-29 (NIT):
-                # diversion / request is the agent's actual delivery ratio
-                # for the year -- phi for a Lower Basin agricultural agent,
-                # the Upper Basin pro-rata ratio otherwise -- a continuous
-                # physical value, NOT the exact tier fraction (1 -
-                # curtailment_ratio, e.g. 0.95/0.90/0.80) this comment used
-                # to describe before PI decision 2026-09-28 (a declared
-                # tier no longer multiplies into an agricultural agent's
-                # own delivery at all). round(..., 6) still removes
-                # float64 noise near a boundary compute_importance's
-                # shortage branches read (0.60/0.80) -- measured 5-6% of
-                # random requests landing on the wrong side purely from
-                # float noise before this fix (the same class of bug F13
-                # fixed in the YAML assertion trigger) -- without
-                # materially changing any real (non-boundary) ratio.
-                #
-                # Supply-side redesign (2026-09-25): agent_state here is read
-                # after post_year's settle_year(), so diversion is the final
-                # settled delivery for every agent (shortage tier, Powell
-                # release limit, Mead availability), a continuous value.
-                # Supply-side redesign (2026-09-25, spec M4): the adapter
-                # reads the PROPOSED skill, the fallback flag and the unmet
-                # fraction of the final settlement; recent_decision (the
-                # executed skill) is kept for older readers.
                 proposed, was_fallback = _proposed_and_fallback(action_ctx)
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
@@ -903,109 +956,102 @@ class IrrigationLifecycleHooks:
 
         llm_call = self.runner.get_llm_invoke("irrigation_farmer")
         print(f"  [Reflection] {len(candidates)} agents in batches of {batch_size}...")
-        reflections_stored = 0
-        reflections_skipped = 0
-        reflections_restored = 0
+        stored = 0
+        skipped_empty = 0
+        skipped_foreign = 0
+        no_reply = 0
+        replaced = 0
+        stored_ids = set()
         for i in range(0, len(candidates), batch_size):
             batch = candidates[i: i + batch_size]
             batch_ids = [c["agent_id"] for c in batch]
             prompt = self.reflection_engine.generate_batch_reflection_prompt(
                 batch,
-                year,
+                written_in,
                 reflection_questions=cfg.get("questions", []),
                 persona_instruction=cfg.get("persona_instruction")
             )
+            # Only the model call and its parsing may fail and be skipped (as
+            # before WP4); storing runs outside the try, so a store error
+            # (e.g. keep_latest_only on an engine without remove_by_type)
+            # stops the run instead of being printed and dropped.
             try:
                 raw = llm_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw
                 insights = self.reflection_engine.parse_batch_reflection_response(
                     text, batch_ids, year
                 )
-                for aid, insight in insights.items():
-                    if insight:
-                        # Use adapter for dynamic importance instead of hardcoded 0.9
-                        ctx_item = next((c for c in batch if c["agent_id"] == aid), None)
-                        if ctx_item and ctx_item.get("context") and self.reflection_engine.adapter:
-                            dynamic_imp = self.reflection_engine.compute_dynamic_importance(
-                                ctx_item["context"]
-                            )
-                            insight.importance = dynamic_imp
-
-                        # store_insight and the reflection_log.jsonl write it
-                        # makes stay UNCONDITIONAL, so the duplicate rate stays
-                        # reportable from that log even when the add_memory
-                        # call below is skipped as a duplicate or an empty
-                        # summary.
-                        self.reflection_engine.store_insight(aid, insight)
-                        emotion = "major"
-                        if self.reflection_engine.adapter and ctx_item and ctx_item.get("context"):
-                            decision = ctx_item["context"].get("recent_decision", "")
-                            emotion = self.reflection_engine.adapter.classify_emotion(
-                                decision, ctx_item["context"]
-                            )
-
-                        # An empty or missing summary must never become the
-                        # literal memory line "Consolidated Reflection: None".
-                        summary = getattr(insight, "summary", None)
-                        if not summary or not str(summary).strip():
-                            reflections_skipped += 1
-                            continue
-
-                        # Store-time dedup (regression audit 2026-09-26,
-                        # finding N3): gemma3:4b often echoes the previous
-                        # year's stored reflection verbatim (70.7 percent of
-                        # stored reflections equal the agent's previous one
-                        # in the seed-42 pilot pair), and the composed 5+2
-                        # retrieval window then shows the same text twice
-                        # inside the 5-item recent slice. Skip the memory add
-                        # ONLY when the normalised new SUMMARY equals the
-                        # agent's most recently STORED summary AND that
-                        # stored reflection is STILL in the agent's current
-                        # retrieval set (the same composed-retrieval call the
-                        # prompt's own provider uses; see
-                        # _agent_retrieval_content_set). Normalising the
-                        # summary alone (not the "Consolidated Reflection: "
-                        # -prefixed content) matters: a quote wrapping the
-                        # model's own text sits at the SUMMARY's boundary,
-                        # where str.strip() can reach it, not at the
-                        # prefixed string's boundary. An echo the agent can
-                        # no longer see in its own context is not a visible
-                        # duplicate, so it is stored again and counted
-                        # separately (reflections_restored) instead of being
-                        # silently dropped.
-                        normalized = _normalize_reflection_text(summary)
-                        last = self._last_reflection_by_agent.get(aid)
-                        if last is not None and normalized == last:
-                            agent_obj = self.runner.agents.get(aid)
-                            retrievable = _agent_retrieval_content_set(
-                                self.runner.memory_engine, agent_obj
-                            )
-                            if normalized in retrievable:
-                                reflections_skipped += 1
-                                continue
-                            reflections_restored += 1
-                        self._last_reflection_by_agent[aid] = normalized
-                        reflections_stored += 1
-                        self.runner.memory_engine.add_memory(
-                            aid,
-                            f"{_REFLECTION_MEMORY_PREFIX}{summary}",
-                            {
-                                # "importance", not "significance": HumanCentricMemoryEngine
-                                # only reads metadata.get("importance", 0.5). See
-                                # examples/irrigation_abm/tests/test_governance_mode_wiring.py::
-                                # TestBatchReflectImportanceKey.
-                                "importance": insight.importance,
-                                "emotion": emotion,
-                                "source": "personal",
-                                "type": "reflection",
-                            },
-                        )
             except Exception as e:
                 print(f"  [Reflection:Error] Batch {i // batch_size + 1}: {e}")
+                no_reply += len(batch_ids)
+                continue
+            no_reply += sum(1 for aid in batch_ids if not insights.get(aid))
+            for aid, insight in insights.items():
+                if not insight:
+                    continue
+                ctx_item = next((c for c in batch if c["agent_id"] == aid), None)
+                if ctx_item and ctx_item.get("context") and self.reflection_engine.adapter:
+                    insight.importance = self.reflection_engine.compute_dynamic_importance(
+                        ctx_item["context"]
+                    )
+                # store_insight and the reflection_log.jsonl line it writes
+                # stay unconditional, so every summary the model wrote is
+                # in the log even when it is not stored below.
+                self.reflection_engine.store_insight(aid, insight)
+                emotion = "major"
+                if self.reflection_engine.adapter and ctx_item and ctx_item.get("context"):
+                    emotion = self.reflection_engine.adapter.classify_emotion(
+                        ctx_item["context"].get("recent_decision", ""), ctx_item["context"]
+                    )
+
+                summary = _normalize_reflection_text(str(getattr(insight, "summary", "") or ""))
+                if not summary:
+                    skipped_empty += 1
+                    continue
+                own_text = " ".join(
+                    (m.get("content", "") if isinstance(m, dict) else str(m))
+                    for m in (ctx_item or {}).get("memories", [])
+                )
+                foreign = _foreign_figures(summary, own_text)
+                if foreign:
+                    skipped_foreign += 1
+                    print(f"  [reflect] {aid}: not stored, {', '.join(foreign)} matches no "
+                          f"figure in its memory within 5 percent: {summary}")
+                    continue
+                replaced += store_reflection_memory(
+                    self.runner.memory_engine,
+                    aid,
+                    f"{_REFLECTION_MEMORY_PREFIX} (written in {written_in}): {summary}",
+                    {
+                        # "importance", not "significance": HumanCentricMemoryEngine
+                        # only reads metadata.get("importance", 0.5). See
+                        # examples/irrigation_abm/tests/test_governance_mode_wiring.py::
+                        # TestBatchReflectImportanceKey.
+                        "importance": insight.importance,
+                        "emotion": emotion,
+                        "source": "personal",
+                        "type": "reflection",
+                    },
+                    keep_latest_only=keep_latest_only,
+                )
+                stored_ids.add(aid)
+                stored += 1
+        # Review HIGH 1: store_reflection_memory removes an earlier
+        # reflection only when it stores a new one. Every other outcome above
+        # (an empty or foreign summary, an unreadable reply, a failed call)
+        # would leave last year's reflection in place, so remove it here.
+        removed_stale = 0
+        if keep_latest_only:
+            for c in candidates:
+                if c["agent_id"] not in stored_ids:
+                    removed_stale += self.runner.memory_engine.remove_by_type(
+                        c["agent_id"], "reflection")
         print(f"  [Reflection] Year {year} complete.")
-        print(f"  [reflect] year {year}: stored {reflections_stored} reflections, "
-              f"skipped {reflections_skipped} duplicates, restored {reflections_restored} "
-              f"aged-out duplicates")
+        print(f"  [reflect] year {year}: stored {stored} reflections, "
+              f"skipped {skipped_empty} empty, not stored {skipped_foreign} with a "
+              f"figure foreign to the agent's memory, {no_reply} with no readable "
+              f"reply, replaced {replaced} earlier reflection items, removed "
+              f"{removed_stale} earlier reflection items of agents with no new one")
 
 
 def _record_paper_water_margin_provenance(

@@ -922,7 +922,10 @@ class TestAgentFacingText:
     def _ctx(self, *, basin="lower_basin", shortage_tier, lb_shortage_volume_maf,
               current_request, current_diversion, delivery_ratio,
               gap_reason, lb_junior_request_af, lb_junior_tier_cut_fraction,
-              lb_senior_entitlement_af, lake_mead_level=1060.0, preceding_factor=1):
+              lb_senior_entitlement_af, lake_mead_level=1060.0, preceding_factor=1,
+              lb_junior_entitlement_af=0.0):
+        # lb_junior_entitlement_af (WP4 review, spec item 29f): the agent's
+        # published junior entitlement, 0 for a senior-only agent.
         return {
             "year": 2030, "basin": basin, "drought_index": 0.3, "precipitation": 0,
             "lake_mead_level": lake_mead_level, "shortage_tier": shortage_tier,
@@ -933,25 +936,37 @@ class TestAgentFacingText:
             "lb_junior_request_af": lb_junior_request_af,
             "lb_junior_tier_cut_fraction": lb_junior_tier_cut_fraction,
             "lb_senior_entitlement_af": lb_senior_entitlement_af,
+            "lb_junior_entitlement_af": lb_junior_entitlement_af,
+            "shortage_tier_threshold_ft": {1: 1075.0, 2: 1050.0, 3: 1025.0}.get(shortage_tier),
         }
 
-    def test_tier_sentence_names_arizona_and_nevada_not_non_agricultural(self):
-        """MEDIUM 2: since part of V can now fall on junior farm water,
-        the opening sentence must not claim the whole cut is
-        "non-agricultural" -- it names Arizona and Nevada deliveries in
-        total instead. Checked on a SENIOR agent (untouched by any junior
-        cut this year), so this is purely about the opening sentence's
-        wording, independent of the six-agent branch below."""
-        ctx = self._ctx(
+    def test_tier_sentence_names_both_takers_of_the_volume(self):
+        """MEDIUM 2, reworded in WP4 (spec 4.3, no agency named): part of V
+        falls on junior farm water in split mode (item 22), so the opening
+        sentence names both takers; in senior_all mode (a zero junior
+        fraction) the whole volume falls on the non-agricultural users.
+        Checked on a SENIOR agent (untouched by any junior cut this year)."""
+        split = self._ctx(
             shortage_tier=2, lb_shortage_volume_maf=0.417,
             current_request=880_000.0, current_diversion=880_000.0,
             delivery_ratio=1.0, gap_reason="none",
-            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=0.0,
+            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=_lb_junior_tier_fraction(2),
             lb_senior_entitlement_af=662_402.0,
         )
-        text = build_water_situation_text(ctx)
-        assert "cuts Arizona and Nevada deliveries by 417,000 acre-ft in total" in text
-        assert "non-agricultural Lower Basin deliveries" not in text
+        assert (
+            "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below "
+            "1,050 feet on 1 January): it reduces Lower Basin deliveries by 417,000 "
+            "acre-ft in total, taken from non-agricultural users and from "
+            "junior-priority agricultural water. Your delivery is reduced only if "
+            "Lake Mead cannot supply all Lower Basin withdrawals this year."
+        ) in build_water_situation_text(split)
+        senior_all = dict(split, lb_junior_tier_cut_fraction=0.0)
+        assert (
+            "it reduces deliveries to Lower Basin non-agricultural users by 417,000 "
+            "acre-ft in total. Your delivery is reduced only if"
+        ) in build_water_situation_text(senior_all)
+        for text in (build_water_situation_text(split), build_water_situation_text(senior_all)):
+            assert "Bureau of Reclamation" not in text and "Arizona and Nevada" not in text
 
     def test_fully_junior_agent_reads_all_not_part(self):
         """MEDIUM 2: HopiTribe (published senior 0 -- 100% junior) must
@@ -965,14 +980,14 @@ class TestAgentFacingText:
             current_request=request, current_diversion=delivered,
             delivery_ratio=delivered / request, gap_reason="lb_junior_tier_cut",
             lb_junior_request_af=request, lb_junior_tier_cut_fraction=f_1,
-            lb_senior_entitlement_af=0.0,
+            lb_senior_entitlement_af=0.0, lb_junior_entitlement_af=_FULLY_JUNIOR["HopiTribe"][1],
         )
         text = build_water_situation_text(ctx)
         assert "All of your water right is junior-priority" in text
         assert "Part of your water right" not in text
         assert f"about {f_1:.0%}" in text
-        assert "Your own delivery is reduced only if Lake Mead" not in text
-        assert describe_gap_reason(ctx) == (
+        assert "Your delivery is reduced only if Lake Mead" not in text
+        assert describe_gap_reason(ctx, "present") == (
             "because the declared Lower Basin shortage tier cuts your "
             f"junior-priority water by about {f_1:.0%}"
         )
@@ -991,18 +1006,16 @@ class TestAgentFacingText:
             delivery_ratio=delivered / request, gap_reason="lb_junior_tier_cut",
             lb_junior_request_af=junior, lb_junior_tier_cut_fraction=f_2,
             lb_senior_entitlement_af=senior,
+            lb_junior_entitlement_af=_PARTLY_JUNIOR["MohaveValleyIDD"][1],
         )
         text = build_water_situation_text(ctx)
         assert "Part of your water right is junior-priority" in text
         assert "All of your water right" not in text
 
-    def test_senior_agent_text_is_byte_identical_to_before_item_22(self):
-        """CRIR AZ (senior-only): the declared-tier sentence's SECOND
-        sentence is EXACTLY the pre-item-22 wording -- no junior mention
-        at all, since it has no junior request this or any year (the
-        FIRST sentence's wording moved under MEDIUM 2, see the dedicated
-        test above -- naming Arizona and Nevada, not "non-agricultural",
-        is now true for every agent, not just an item-22 exception)."""
+    def test_senior_agent_is_told_only_physical_shortage_cuts_it(self):
+        """CRIR AZ (senior-only), senior_all mode (zero junior fraction):
+        the second sentence says only a physical Lake Mead shortage reduces
+        its delivery, with no junior mention at all."""
         ctx = self._ctx(
             shortage_tier=2, lb_shortage_volume_maf=0.417,
             current_request=880_000.0, current_diversion=880_000.0,
@@ -1012,8 +1025,8 @@ class TestAgentFacingText:
         )
         text = build_water_situation_text(ctx)
         assert (
-            "Your own delivery is reduced only if Lake Mead cannot physically "
-            "supply all Lower Basin withdrawals this year."
+            "Your delivery is reduced only if Lake Mead cannot supply all Lower "
+            "Basin withdrawals this year."
         ) in text
         assert "junior" not in text.lower()
 
@@ -1022,35 +1035,42 @@ class TestAgentFacingText:
         truthful sentence when ITS junior water is actually cut this
         year, with the correct All/Part wording for each."""
         f_3 = _lb_junior_tier_fraction(3)
-        for aid, (senior, _junior) in {**_FULLY_JUNIOR, **_PARTLY_JUNIOR}.items():
+        for aid, (senior, junior_ent) in {**_FULLY_JUNIOR, **_PARTLY_JUNIOR}.items():
             ctx = self._ctx(
                 shortage_tier=3, lb_shortage_volume_maf=0.500,
                 current_request=10_000.0, current_diversion=9_000.0,
                 delivery_ratio=0.9, gap_reason="lb_junior_tier_cut",
                 lb_junior_request_af=4_000.0, lb_junior_tier_cut_fraction=f_3,
-                lb_senior_entitlement_af=senior,
+                lb_senior_entitlement_af=senior, lb_junior_entitlement_af=junior_ent,
             )
             text = build_water_situation_text(ctx)
             assert f"about {f_3:.0%}" in text, aid
             expected_word = "All" if senior <= 1e-6 else "Part"
             assert f"{expected_word} of your water right is junior-priority" in text, aid
 
-    def test_junior_agent_with_no_junior_request_this_year_is_unchanged(self):
+    def test_junior_agent_with_no_junior_request_this_year_is_told_about_an_increase(self):
         """One of the six (GilaMonsterFarms) in a declared-tier year where
         its OWN request has not exceeded its senior entitlement this year
-        (lb_junior_request_af == 0): the text is the SAME unchanged
-        sentence as a senior-only agent -- true, because no junior cut
-        applies to it this year."""
+        (lb_junior_request_af == 0): no junior cut applies at the keep
+        request, but an increase beyond the 7,065 AF senior entitlement
+        would be junior-priority water that the tier cuts, and the agent is
+        told so (WP4 review, spec item 29f; before it read the senior-only
+        sentence, which is false for such an increase)."""
+        f_1 = _lb_junior_tier_fraction(1)
         ctx = self._ctx(
             shortage_tier=1, lb_shortage_volume_maf=0.333,
             current_request=6_000.0, current_diversion=6_000.0,
             delivery_ratio=1.0, gap_reason="none",
-            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=_lb_junior_tier_fraction(1),
+            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=f_1,
             lb_senior_entitlement_af=7_065.0,
+            lb_junior_entitlement_af=_PARTLY_JUNIOR["GilaMonsterFarms"][1],
         )
         text = build_water_situation_text(ctx)
-        assert "Your own delivery is reduced only if Lake Mead cannot physically" in text
-        assert "junior-priority" not in text
+        assert (f"Part of your water right is junior-priority: this tier would cut any part "
+                f"of a request above 7,065 acre-ft by about {f_1:.0%}. Up to that amount, "
+                "your delivery is reduced only if Lake Mead cannot supply all Lower Basin "
+                "withdrawals this year.") in text
+        assert "Your delivery is reduced only if Lake Mead cannot supply" not in text
 
     def test_missing_junior_context_keys_raise(self):
         """LOW 6: a Lower Basin context with a declared tier and no

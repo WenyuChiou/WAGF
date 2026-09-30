@@ -121,13 +121,17 @@ def test_year3_memory_block_has_no_generic_runner_lines(monkeypatch, tmp_path):
     # Exactly one domain outcome line per prior year (years 1 and 2), each
     # written by build_action_outcome_feedback (irrigation_personas.py),
     # not the runner's suppressed generic line.
-    year1_lines = [c for c in contents if c.startswith("Year 1:")]
-    year2_lines = [c for c in contents if c.startswith("Year 2:")]
+    # WP4 (spec 4.5): memory lines name calendar years (loop years 1 and 2
+    # are 2019 and 2020).
+    year1_lines = [c for c in contents if c.startswith("Year 2019:")]
+    year2_lines = [c for c in contents if c.startswith("Year 2020:")]
     assert len(year1_lines) == 1, contents
     assert len(year2_lines) == 1, contents
 
-    # Plus the reflection written at the end of year 2.
-    reflection_lines = [c for c in contents if c.startswith("Consolidated Reflection:")]
+    # Plus the reflection written at the end of year 2 (2020); the one
+    # written at the end of 2019 was replaced (reflection.keep_latest_only).
+    reflection_lines = [c for c in contents
+                        if c.startswith("Consolidated Reflection (written in 2020): ")]
     assert len(reflection_lines) == 1, contents
 
     # Exactly these three lines: no duplication, no stray fourth item.

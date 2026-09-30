@@ -105,14 +105,14 @@ def test_build_action_outcome_feedback_formats_shortfall():
         year=2025,
         request=120_000,
         diversion=90_000,
-        drought_index=0.72,
         preceding_factor=0,
     )
     assert "Year 2025" in text
     assert "requested 120000" in text.replace(",", "")
     assert "received 90000" in text.replace(",", "")
     assert "shortfall" in text.lower()
-    assert "drought index" in text.lower()
+    # WP4 (spec 4.5): no drought index in any agent-facing text.
+    assert "drought index" not in text.lower()
 
 
 def test_memory_window_keeps_last_five():

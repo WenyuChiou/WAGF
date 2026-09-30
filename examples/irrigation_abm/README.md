@@ -209,14 +209,14 @@ Note: v20 results are deprecated due to the execute_skill base asymmetry bug. Al
 | :----- | :--- | :----- |
 | 1 | **Strict Governance** | 12 validator functions defined, 7 dispatched (see Section 6), plus the YAML thinking and identity rules |
 | 2 | **Cognitive Memory** | `HumanCentricMemoryEngine`, composed retrieval (SI section 3.8): the 5 most recent memories always, plus the 2 long-term memories with the highest decayed importance (ties: earlier first; decayed importance at or below 0.05 dropped), so up to 7 per prompt (the year-end reflection and the simulation-log memory column read the same up to 7); long-term means consolidated (importance >= 0.6, probability 0.7 x importance); + year-end reflection. Corpora produced before 2026-09-26 served 3 memories per prompt (weighted recency / importance / context scoring), not the SI composition; see caveat 12 |
-| 3 | **Reflection Loop** | Year-end consolidation with domain-specific guidance questions |
+| 3 | **Reflection Loop** | Year-end lesson per agent (one agent per call, written from the agent's own memories without earlier reflections; only the latest is kept, `reflection.keep_latest_only`) |
 
 ```mermaid
 flowchart TD
     A["<b>Initialize</b><br/>78 CRSS agents<br/>Cluster assignment<br/>Water rights & diversions"] --> B
 
     subgraph YEAR ["For each year (1..42)"]
-        B["<b>Pre-Year Hook</b><br/>advance_year() → precip, Lake Mead,<br/>drought index, shortage tier, curtailment<br/>Inject memories + action-outcome feedback"]
+        B["<b>Pre-Year Hook</b><br/>advance_year() → precip, Lake Mead,<br/>shortage tier, expected delivery<br/>Inject memories + action-outcome feedback"]
 
         B --> C["<b>Agent Decision</b><br/>(per agent, parallel)"]
 
@@ -234,7 +234,7 @@ flowchart TD
         end
 
         H --> L["<b>Post-Step Hook</b><br/>Record decision, constructs, magnitude"]
-        L --> M["<b>Post-Year Hook</b><br/>Batch reflection<br/>Memory consolidation"]
+        L --> M["<b>Post-Year Hook</b><br/>Per-agent reflection<br/>Memory consolidation"]
         M --> B
     end
 
@@ -280,13 +280,13 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 
 ### Behavioral Clusters
 
-Three k-means clusters from Hung & Yang (2021), mapped from FQL parameters to LLM personas:
+Three clusters from Hung & Yang (2021, Figure 7; `--cluster-method hy2021`, the default), each with one fixed persona text (v3, WP4, `irrigation_personas.py (_CLUSTER_PERSONAS)`) stating the cluster's tendencies (Table 1, p. 13) about the agent's group ("Users in your group tend to ..."), as comparisons with the other clusters, without superlatives, and only where the cluster ordering holds in the calibrated parameter file (spec item 29d: concern about a shortfall, how quickly expectations are revised, weight on future years; exploration is left out because its ordering does not hold):
 
-| Cluster | N (of 78) | LLM Persona |
-| :------ | --------: | :---------- |
-| **Aggressive** | 67 | Bold, large demand swings |
-| **Forward-Looking Conservative** | 5 | Cautious, future-oriented |
-| **Myopic Conservative** | 6 | Tradition-oriented, slow updates |
+| Cluster | N (of 78) | Persona text says |
+| :------ | --------: | :---------------- |
+| **Aggressive** | 60 | users in the agent's group tend to be less concerned by a shortfall than more cautious users, to revise expectations more slowly than forward-looking users and to give future years less weight than forward-looking users |
+| **Forward-Looking Conservative** | 7 | users in the group tend to be more concerned by a shortfall, to revise expectations more quickly and to give future years more weight than other users |
+| **Myopic Conservative** | 11 | users in the group tend to be more concerned by a shortfall than aggressive users but less than forward-looking users, to revise expectations more slowly than forward-looking users and to give future years less weight than other users |
 
 Since 2026-09-26 the cluster is a persona label only; it no longer scales the step size (the former `persona_scale` 1.15 / 1.00 / 0.80 was removed).
 

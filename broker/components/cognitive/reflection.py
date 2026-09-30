@@ -34,6 +34,37 @@ def _memory_text(m: Any) -> str:
         return str(m.get("content", ""))
     return str(m)
 
+
+def store_reflection_memory(
+    memory_engine: Any,
+    agent_id: str,
+    content: str,
+    metadata: Dict[str, Any],
+    *,
+    keep_latest_only: bool = False,
+) -> int:
+    """Store one reflection as a memory of ``agent_id``.
+
+    ``keep_latest_only`` is the opt-in ``reflection.keep_latest_only``
+    option (default False; ``AgentTypeConfig.get_reflection_keep_latest_only``).
+    When True, the agent's earlier memories of the same type
+    (``metadata["type"]``) are removed first, through the engine's
+    ``remove_by_type``, so memory holds only the latest reflection. When
+    False this is exactly ``memory_engine.add_memory(agent_id, content,
+    metadata)``. Returns how many stored items were removed (0 when off).
+    """
+    removed = 0
+    if keep_latest_only:
+        memory_type = metadata.get("type")
+        if not memory_type:
+            raise ValueError(
+                "store_reflection_memory: keep_latest_only needs metadata['type'] "
+                "to know which earlier memories the new one replaces."
+            )
+        removed = memory_engine.remove_by_type(agent_id, memory_type)
+    memory_engine.add_memory(agent_id, content, metadata)
+    return removed
+
 if TYPE_CHECKING:
     from cognitive_governance.v1_prototype.reflection import (
         ReflectionTemplate,
@@ -602,7 +633,11 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         if not batch_data:
             return ""
 
-        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a simulation ({tick_label} {current_year})."]
+        # "1 agent", not "1 agents": a domain that reflects one agent per
+        # call reads a grammatical header; every other batch size renders
+        # byte-for-byte as before.
+        agents_noun = "agent" if len(batch_data) == 1 else "agents"
+        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} {agents_noun} in a simulation ({tick_label} {current_year})."]
         
         if persona_instruction:
             lines.append(f"Instructions: {persona_instruction}")

@@ -289,6 +289,17 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_hbr = getattr(self.config, "get_governance_hide_registry_backstop_reports", None)
         _hbr = _get_hbr() if callable(_get_hbr) else False
         self._hide_registry_backstop_reports = _hbr if isinstance(_hbr, bool) else False
+        # Retry-text wording (global_config.governance.plain_action_names and
+        # placebo_closer, both default OFF; see their getters in
+        # broker/utils/agent_config.py): the blocked action named in plain
+        # words, and the closer of a placebo retry. Coerced for the same
+        # MagicMock reason as the flags above.
+        _get_pan = getattr(self.config, "get_governance_plain_action_names", None)
+        _pan = _get_pan() if callable(_get_pan) else False
+        self._plain_action_names = _pan if isinstance(_pan, bool) else False
+        _get_pcl = getattr(self.config, "get_governance_placebo_closer", None)
+        _pcl = _get_pcl() if callable(_get_pcl) else None
+        self._placebo_closer = _pcl if isinstance(_pcl, str) else None
         # Per-attempt audit columns (global_config.audit.attempt_columns,
         # default OFF): attempt_labels / attempt_failed_rules /
         # appraisal_relabeled. The advisory channels make extra LLM attempts
