@@ -88,6 +88,7 @@ from examples.irrigation_abm.validators.irrigation_validators import (
     INCREASE_SKILLS,
     DECREASE_SKILLS,
     reset_consecutive_tracker,
+    supply_rule_fields,
     update_consecutive_tracker,
 )
 from broker.interfaces.skill_types import ApprovedSkill
@@ -470,12 +471,11 @@ def validate_skill(
     skill_name: str,
     context: Dict[str, Any],
 ) -> Tuple[bool, str]:
-    """Run the dispatched irrigation validators (ALL_IRRIGATION_CHECKS,
-    7 as of the 2026-09-25 supply-side redesign -- drought_severity_check,
-    magnitude_cap_check and compact_allocation_check were removed by F04, and
-    demand_floor_stabilizer and demand_ceiling_stabilizer were retired from
-    dispatch; see irrigation_validators.py)
-    on a proposed skill.
+    """Run the dispatched irrigation validators (ALL_IRRIGATION_CHECKS: in
+    v3 (WP3, spec 3.2) the supply rule alone -- the cap and the floor are
+    YAML identity rules of the LLM arms and, for FQL, the environment's own
+    clip; see irrigation_validators.py) on a proposed skill. ``context``
+    must carry ``supply_rule_fields``' keys (``run_simulation`` adds them).
 
     NOTE: The LLM path uses broker's RejectionHandler which re-invokes the LLM
     on rejection. Since FQL has no LLM, we use a deterministic 2-tier fallback:
@@ -606,6 +606,16 @@ def run_simulation(
                     # directly: a missing key must raise, not log a 0 acre-ft
                     # cut (same rule as run_experiment.py pre_year).
                     "lb_shortage_volume_maf": ctx["lb_shortage_volume_maf"],
+                    # WP3 (spec 3.2/3.3): ALL_IRRIGATION_CHECKS is now the v3
+                    # supply rule alone, which reads its inputs from the SAME
+                    # helper the LLM runner's pre_year uses, and the gap code
+                    # and sharing fields its block message states. WP5 (spec
+                    # 5.6) settles the rest of the governed-FQL fallback.
+                    "gap_reason": ctx["gap_reason"],
+                    "supply_group": ctx["supply_group"],
+                    "ub_subbasin_member_count": ctx["ub_subbasin_member_count"],
+                    "lb_junior_tier_cut_fraction": ctx["lb_junior_tier_cut_fraction"],
+                    **supply_rule_fields(ctx, agent_state),
                 }
                 was_valid, final_skill = validate_skill(raw_skill, val_context)
                 was_blocked = (final_skill != raw_skill)

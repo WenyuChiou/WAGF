@@ -289,6 +289,28 @@ def build_narrative_persona(
     )
 
 
+# v3 (WP3, spec 3.3): the ONE "full supply" edge. A share of a request at or
+# above it counts as a full delivery; below it, as a shortfall. The supply
+# rule (validators/irrigation_validators.py, supply_gap_block_increase)
+# blocks an increase below it, the situation text's headline and its
+# "expected delivery" sentence switch at it, and the post hoc metrics read it.
+# Every one of them imports this name; none holds a copy of the number, so an
+# agent told that supply is sufficient can never be blocked by the supply
+# rule. 0.999 is a tolerance (0.1 percent of the request), not a threshold
+# with a source: item 2 of the PI decisions allows no other numeric threshold.
+FULL_SUPPLY_RATIO = 0.999
+
+
+def supply_ratio(expected_af: float, request_af: float) -> float:
+    """r (spec conventions): the expected delivery at a request as a share of
+    that request, rounded to 6 places; 1.0 when the request is 0 (nothing
+    requested, nothing short). Shared by the supply rule's inputs and the
+    situation text, so both compare the same number with FULL_SUPPLY_RATIO."""
+    if request_af <= 0:
+        return 1.0
+    return round(float(expected_af) / float(request_af), 6)
+
+
 # Supply-side redesign (2026-09-25, spec S1 to S6): ONE helper turns the
 # settlement's gap_reason code into the phrase every message uses (situation
 # text, the supply-gap and shortage rule messages, the yearly memory line),
@@ -445,6 +467,11 @@ def build_water_situation_text(
     expected = env_context.get("current_diversion", 0)
     ratio = env_context.get("delivery_ratio", 1.0)
     water_right = env_context.get("water_right", 0)
+    # WP3 (spec 3.3): r, the share the supply rule compares with
+    # FULL_SUPPLY_RATIO, drives both edges below (the headline's shortage
+    # tier and the full-delivery sentence), so a headline or a sentence
+    # never calls supply full where the supply rule blocks an increase.
+    r_share = supply_ratio(expected, current_req)
 
     basin_display = _BASIN_DISPLAY.get(basin, basin)
 
@@ -458,8 +485,8 @@ def build_water_situation_text(
     # (560 strict prompts, 1904 disabled in the seed-42 pilot pair). The
     # headline now uses the MORE SEVERE of the drought-index tier and a
     # delivery-ratio tier: a ratio below 0.5 forces the most severe tier;
-    # 0.5 up to (not including) 0.7 floors the headline at the "below
-    # normal" tier. When the ratio tier is STRICTLY more severe than the
+    # 0.5 up to (not including) FULL_SUPPLY_RATIO (0.7 before WP3) floors
+    # the headline at the "below normal" tier. When the ratio tier is STRICTLY more severe than the
     # drought tier, the headline uses a supply-keyed sentence instead of the
     # drought-keyed one, so a delivery shortfall is never described as
     # drought; a tie (or drought more severe) keeps the drought-keyed
@@ -473,9 +500,13 @@ def build_water_situation_text(
     else:
         drought_tier = 3
 
-    if ratio < 0.5:
+    # WP3 (spec 3.3): the tier-1 edge moved from 0.70 (the retired supply
+    # rule's threshold) to FULL_SUPPLY_RATIO (the v3 supply rule's edge), so
+    # a blocked agent never reads the "favorable" headline. The five-band
+    # headline of spec 4.3 replaces this block in WP4.
+    if r_share < 0.5:
         ratio_tier = 3
-    elif ratio < 0.7:
+    elif r_share < FULL_SUPPLY_RATIO:
         ratio_tier = 1
     else:
         ratio_tier = 0
@@ -654,8 +685,10 @@ def build_water_situation_text(
             f"Last year you requested {lr:,.0f} acre-ft and received {ld:,.0f} acre-ft "
             f"({ld / lr:.0%} delivered)", describe_gap_reason(last_year)) + ".")
 
-    # This year's expectation at the current request
-    if ratio >= 1.0 - 1e-9:
+    # This year's expectation at the current request. WP3 (spec 3.3): "full
+    # delivery" exactly when the supply rule would not block (the same
+    # FULL_SUPPLY_RATIO edge), instead of at 1 - 1e-9.
+    if r_share >= FULL_SUPPLY_RATIO:
         lines.append(
             f"At your current request of {current_req:,.0f} acre-ft you can expect full "
             f"delivery this year. Full allocation is available."
@@ -709,11 +742,11 @@ def build_option_texts(
     ``"decrease_demand"`` entirely in that case (the same RAW,
     pre-rounding tolerance ``execute_skill``'s own no-op guard and
     ``below_minimum_utilisation`` use), rather than state a request
-    ``execute_skill`` will never execute. WP3 wires this into the
-    identity-rule menu filter for every profile INCLUDING ``disabled``
-    (spec 3.1, not yet true of ``disabled`` at this commit); until then
-    this omission is this function's own contract, independent of which
-    profile is running. The water-right cap has no matching omission
+    ``execute_skill`` will never execute. WP3 (spec 3.1) puts the same
+    edge (``below_minimum_utilisation``) into the identity-rule menu
+    filter of every profile, ``disabled`` included, so the omission here
+    and the menu filter agree; the omission stays this function's own
+    contract, independent of which profile is running. The water-right cap has no matching omission
     here: an increase at the cap still names a real, if capped, target
     (``water_right`` itself), unlike a decrease at the floor, which the
     old unconditional formula could describe as landing ABOVE base --
@@ -817,30 +850,20 @@ def _build_trend_text(basin: str, preceding_factor: int) -> str:
 
 
 # Plain-language label (with its article) for the first blocking rule in the
-# neutral memory line.
+# neutral memory line of an overruled year. v3 (WP3, spec 3.6): exactly the
+# five v3 rules -- the three feasibility rules (the supply rule and the two
+# identity rules) and the two thinking rules (TR1, TR3). The registry
+# backstop `precondition_violation` is not a sixth rule: it is the cap or the
+# floor enforced a second time, and _precondition_violation_label names it
+# by the direction of the blocked skill. Every entry of the retired rule set
+# (curtailment_awareness, the old R1/R2/R4 and observed-scarcity rules, the
+# zero-escape, consecutive-increase and zero-delivery checks) is gone.
 _RULE_LABELS = {
-    "curtailment_awareness": "the Lower Basin shortage rule",
     "supply_gap_block_increase": "the shortage-sharing rule",
-    "high_threat_high_cope_no_increase": "the scarcity-capacity consistency rule",
-    "low_threat_no_increase": "the low-scarcity rule",
-    "observed_scarcity_low_wsa_increase": "the observed-scarcity rule",
     "water_right_cap": "the water-right cap",
-    # Regression audit 2026-09-26, finding N5: the disabled arm's ONLY blocking
-    # rule is this precondition check (an increase proposed while already
-    # at the water-right cap), and it had no entry here, so every neutral
-    # rejection line in the disabled pilot fell back to "a governance rule"
-    # (910 lines). Same phrase as water_right_cap above: it is the same cap,
-    # enforced as a precondition instead of an identity rule. WP2 (spec
-    # 2.2) adds a SECOND registry precondition (decrease_demand's "not
-    # below_minimum_utilisation"), so this fixed string is no longer
-    # correct for every precondition_violation -- see
-    # _precondition_violation_label below, which this entry is now only
-    # the FALLBACK for (no proposed_skill to disambiguate by direction).
-    "precondition_violation": "the water-right cap",
     "minimum_utilisation_floor": "the minimum-use floor",
-    "zero_escape_floor": "the minimum-use rule for maintaining",
-    "consecutive_increase_cap": "the consecutive-increase limit",
-    "non_negative_diversion": "the zero-delivery rule",
+    "high_scarcity_no_increase": "the rule on increases under scarcity",
+    "low_scarcity_no_decrease": "the rule on decreases without scarcity",
 }
 
 
@@ -851,15 +874,15 @@ def _precondition_violation_label(rule_id: str, proposed_skill: str) -> str:
     2.2): an increase can only have failed ``not at_allocation_cap`` (the
     water-right cap); a decrease can only have failed ``not
     below_minimum_utilisation`` (the minimum-use floor) -- the registry's
-    only two preconditions, one per direction. Any other rule id, or a
-    ``proposed_skill`` that is neither, falls back to ``_RULE_LABELS``
-    (its own "the water-right cap" default, kept for a caller that predates
-    this disambiguation)."""
+    only two preconditions, one per direction. Any other rule id is looked
+    up in ``_RULE_LABELS``; an id that is not there (or a
+    ``precondition_violation`` raised against a skill of neither direction,
+    which the registry cannot produce) reads "a governance rule"."""
     if rule_id == "precondition_violation":
         if proposed_skill.startswith("increase"):
-            return "the water-right cap"
+            return _RULE_LABELS["water_right_cap"]
         if proposed_skill.startswith("decrease"):
-            return "the minimum-use floor"
+            return _RULE_LABELS["minimum_utilisation_floor"]
     return _RULE_LABELS.get(rule_id, "a governance rule")
 
 

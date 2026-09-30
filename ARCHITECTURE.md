@@ -499,6 +499,101 @@ slower to.
 
 ---
 
+## Appraisal freeze and the per-attempt audit options
+
+Five generic, opt-in options, added for the irrigation v3 governance (WP3 of
+`.research/design_specs/irrigation_v3_spec_2026-09-28.md`). Each default
+reproduces the shipped behaviour, so a domain that sets none of them (flood
+included) writes a byte-identical audit CSV (checked with
+`broker.tools.compare_audit_csv` on flood mock runs):
+
+```yaml
+global_config:
+  governance:
+    appraisal_freeze: true                 # default false
+    rule_id_prefix: false                  # default true
+    hide_registry_backstop_reports: true   # default false
+  audit:
+    attempt_columns: true                  # default false
+    state_columns: [key_a, key_b]          # default: none
+```
+
+1. **Appraisal freeze** (`broker/core/_appraisal_freeze.py`). Within one
+   decision, every validation pass checks the proposal against each
+   construct label (a reasoning key containing `_LABEL`, the parser's own
+   test) as the agent FIRST STATED it in that decision, never against a
+   later restatement. Why: a rule conditioned on a label the model writes
+   itself can otherwise be passed on retry by rewriting the label, with no
+   new information about the world. `SkillBrokerEngine.process_step` starts
+   the frozen set with the labels the first PARSED attempt states (format
+   retries carry no rule content) and keeps it in the decision's own
+   validation context (under a private key, so the engine, shared across
+   worker threads, holds no per-decision state).
+   `SkillBrokerEngine._run_validators` -- the one place every validation pass
+   goes through -- first adds any label the attempt states for the first
+   time (a non-blank value; a label already frozen is never replaced), then
+   gives the validators a copy of the proposal carrying the labels as first
+   stated. So a label the first attempt omitted is recovered from the first
+   attempt that states it, and relabelling still cannot pass a rule. The
+   governance retries, the feasible-set probe of a retry prompt
+   (`RetryMixin._probe_feasible_skills`: the "actions that pass every rule"
+   line reads the same labels as the rules) and the advisory re-validations
+   all read them. The attempt's own skill, magnitude, parameters and
+   non-label reasoning are untouched, and the audit trail keeps the labels
+   the model actually wrote (`final_labels`, `appraisal_drift`,
+   `attempt_labels`). The frozen value of a label equals its `initial_labels`
+   value whenever the first parsed attempt carried it non-blank; otherwise
+   it is the first NON-BLANK value of that label in `attempt_labels` (a
+   blank is recorded as `KEY=` and the freeze does not treat it as
+   stated). With the freeze on, the engine
+   refuses to start when a thinking rule reads a reasoning field that is not
+   a construct label (it would silently escape the freeze), when an agent
+   type enables `multi_skill` (a secondary proposal is validated outside the
+   retry sequence), or when its config has no callable `items()` to check;
+   `ExperimentRunner` refuses it together with `enable_cognitive_cache` (a
+   cache hit re-validates a proposal from an earlier decision).
+2. **`rule_id_prefix`** (`AgentValidator`). `false` drops the
+   `[Rule: <id>] ` prefix from YAML identity- and thinking-rule messages, so
+   a retry prompt states a rule in the words of its `message` and never
+   shows an internal rule id. A YAML thinking rule may also carry a
+   `suggestion:`, rendered as the retry report's "Suggestion:" line; a rule
+   without one adds no metadata key.
+3. **`hide_registry_backstop_reports`** (`RetryMixin._retry_report_results`).
+   When an identity rule has already blocked an attempt (an off-menu answer),
+   the registry's backstop results for the same skill --
+   `precondition_violation` and `output_schema_violation`, which repeat the
+   block in internal field names -- are left out of the retry text. They
+   stay in the audit trail (`failed_rules`, `error_messages`,
+   `attempt_failed_rules`).
+4. **`attempt_columns`**. Adds, in step with `attempt_skills`:
+   `attempt_labels` (each attempt's construct labels, `KEY=VALUE` pairs
+   joined by `,`, attempts joined by `|`), `attempt_failed_rules` (the ids of
+   the rules that returned an ERROR on each attempt, named exactly as
+   `failed_rules` names them: the result's `rule_id`, else `Unknown`) and
+   `appraisal_relabeled` (True when an attempt states a label with a value
+   other than the one that label was first stated with in the decision, the
+   value the freeze holds; stating a label for the first time, or leaving
+   one out, is not a relabel). `failed_rules` pools every attempt;
+   these keep them apart. On an `ABORTED` sentinel row all three read
+   `unobserved`. Refused together with an advisory channel
+   (`governance.advise` / `governance.advise_mode`), whose extra attempt the
+   columns do not record.
+5. **`state_columns`**. Each listed key of the decision's agent state (the
+   state every validator saw) becomes a `state_<key>` column, on every row
+   including an `ABORTED` sentinel; a key the state does not carry is written
+   as `unobserved`. Irrigation logs its supply rule's inputs this way, so an
+   arm that does not run the rule can be scored post hoc on exactly the
+   numbers the live rule reads.
+
+Every manifest also gains `appraisal_freeze_resolved`,
+`rule_id_prefix_resolved`, `thinking_rules_resolved`,
+`identity_rules_resolved` and `custom_validators_resolved` (additive keys,
+like `llm_safeguard`). Tested in `broker/tests/test_appraisal_freeze.py`
+(generic) and `examples/irrigation_abm/tests/test_v3_governance.py`
+(irrigation, end to end).
+
+---
+
 ## Migration Guide
 
 For release-to-release migration notes see `CHANGELOG.md`. Notable

@@ -317,24 +317,21 @@ An increase is capped at the water right and a decrease never goes below min(10 
 
 ## 6. Governance System
 
-12 validator functions are defined; 7 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+v3 governance (WP3, `irrigation_v3_spec_2026-09-28.md` section 3; equations and texts in `docs/irrigation_physics.md`, "Governance (v3, WP3)") has two rule families and the same option menu in every arm. ERROR-level blocks re-prompt up to 3 times; when retries run out, keep (`maintain_demand`) is executed and the blocked proposal is recorded.
 
-F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `compact_allocation_check` are excluded from dispatch: each reads a context key nothing in the pipeline produces (`basin_allocation`, `proposed_magnitude`), or a threshold the real CRSS data never reaches (drought index tops out around 0.62-0.69 per run, below the 0.7 floor), and fired zero times across 49,140 audited strict rows. The functions stay defined and are tested directly by `tests/test_irrigation_env.py`, but are NOT run by `assert_validator_inputs_have_producers()` (the startup self-check in `irrigation_validators.py`, which fails fast if a check IN `ALL_IRRIGATION_CHECKS` reads a key with no producer) since that check only scans the dispatched set. `test_assert_validator_inputs_have_producers_catches_dead_key` proves it WOULD raise on these two if they were re-added.
+| Rule (id) | Blocks | Where it acts | Grounding |
+| :-------- | :----- | :------------ | :-------- |
+| supply rule (`supply_gap_block_increase`) | an increase when the expected delivery at the keep request (last year's receipt), net of a declared junior-priority cut, is below `FULL_SUPPLY_RATIO` (0.999) of it | Python check (`ALL_IRRIGATION_CHECKS`), in strict, placebo, silent and feasibility_only; post hoc in disabled | world |
+| water-right cap (`water_right_cap`) | an increase once the base is at 0.99 W | YAML identity rule: menu filter and block, every profile | world |
+| minimum-use floor (`minimum_utilisation_floor`) | a decrease once the base is at 1.01 F (F = 0.10 W) | YAML identity rule: menu filter and block, every profile | world |
+| TR1 (`high_scarcity_no_increase`) | an increase when the first-stated water-scarcity appraisal is High or Very High | YAML thinking rule in strict, placebo and silent; post hoc in feasibility_only and disabled | self-report |
+| TR3 (`low_scarcity_no_decrease`) | a decrease when the first-stated water-scarcity appraisal is Very Low or Low | as TR1 | self-report |
 
-| # | Validator | Blocks | Level | Category |
-| - | :-------- | :----- | :---- | :------- |
-| 1 | `water_right_cap_check` | increase (at cap) | ERROR | Physical |
-| 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARN | Physical |
-| 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
-| 4 | `demand_floor_stabilizer` | decrease (<50%); retired from dispatch 2026-09-25 | ERROR | Economic |
-| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF); retired from dispatch 2026-09-25, the basin limit is now supply-side availability and the ratio is logged as `basin_request_over_target` | ERROR | Economic |
-| 6 | `drought_severity_check` | increase (drought>0.7); excluded from dispatch, real index never reaches 0.7 | ERROR | Physical |
-| 7 | `magnitude_cap_check` | increase (exceeds cap); excluded from dispatch, `proposed_magnitude` never injected | WARNING | Physical |
-| 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
-| 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
-| 10 | `compact_allocation_check` | increase (basin>Compact); excluded from dispatch, `basin_allocation` never injected | WARNING | Social |
-| 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
-| 12 | `zero_escape_check` | maintain (<15% util) | ERROR | Behavioral |
+Profiles (`--governance-mode`): `strict`; `feasibility_only` (strict without TR1 and TR3, one run); `disabled` (the two identity rules only, no custom validators). The placebo and silent arms are strict run with `--retry-feedback-mode placebo|silent`. The appraisal freeze (`global_config.governance.appraisal_freeze`) makes TR1, TR3 and the feasible-action line of a retry read the appraisal as first stated in the decision (the first parsed attempt's, unless that attempt gave none), so relabelling cannot pass a rule. An off-menu answer blocked by an identity rule gets a retry text with that rule's message only (`hide_registry_backstop_reports`); the registry backstop stays in the audit. Retry texts carry no rule id (`rule_id_prefix: false`) and no appraisal label code.
+
+Retired with the pre-v3 rule set (functions kept only where tests or replays of older corpora call them, each marked "not dispatched in v3"): `curtailment_awareness_check` (merged into the supply rule, with its Tier 1 differential and its years 1-3 grace), the 0.70 supply-gap cutoff and its Tier 2+ skip, `water_right_cap_check` and `minimum_utilisation_check` (now the identity rules), `non_negative_diversion_check`, `consecutive_increase_cap_check` and `zero_escape_check` (with `--pilot-phase` and `--ablation-mode`, which the runner now refuses), the old thinking rules R1, R2 and R4, and the `relaxed` and `grounded_v1` profiles. Out of dispatch since 2026-09-25 (F04 and the supply-side redesign): `drought_severity_check`, `compact_allocation_check`, `magnitude_cap_check`, `demand_floor_stabilizer`, `demand_ceiling_stabilizer`.
+
+Audit columns for the metrics (governance audit CSV): `initial_skill`, `initial_labels`, `attempt_skills`, `final_labels`, `appraisal_drift`, `attempt_labels`, `attempt_failed_rules`, `appraisal_relabeled`, `executed_skill`, `execution_path`, `rules_world_grounded` / `rules_self_report`, and the supply rule's inputs as `state_supply_keep_request_af`, `state_supply_expected_at_keep_af`, `state_supply_ratio`, `state_supply_physical_ratio`, `state_full_supply_ratio`.
 
 ---
 

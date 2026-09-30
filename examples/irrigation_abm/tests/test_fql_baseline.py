@@ -132,49 +132,49 @@ class TestValidatorFallback:
         assert valid
         assert skill == "maintain_demand"
 
-    def test_increase_blocked_at_cap(self):
-        """Increase at allocation cap → fallback to maintain_demand."""
+    # WP3 (2026-09-29, spec 3.2): ALL_IRRIGATION_CHECKS is the v3 supply
+    # rule alone. The cap and the floor are YAML identity rules of the LLM
+    # arms; for the FQL reference the environment enforces both itself
+    # (execute_skill clips at W and never cuts below F), so validate_skill
+    # no longer blocks on them. The supply rule reads supply_rule_fields'
+    # inputs, which run_simulation adds to the context.
+
+    @staticmethod
+    def _v3_ctx(**overrides):
+        from examples.irrigation_abm.validators.irrigation_validators import (
+            supply_rule_fields,
+        )
         ctx = {
-            "agent_id": "test",
-            "at_allocation_cap": True,
-            "has_efficient_system": False,
-            "below_minimum_utilisation": False,
-            "water_right": 100_000,
-            "current_diversion": 99_000,
-            "current_request": 100_000,
-            "curtailment_ratio": 0,
-            "shortage_tier": 0,
-            "drought_index": 0.3,
-            "cluster": "aggressive",
-            "basin": "lower_basin",
-            "total_basin_demand": 5_000_000,
-            "loop_year": 5,
+            "agent_id": "test", "at_allocation_cap": False,
+            "has_efficient_system": False, "below_minimum_utilisation": False,
+            "water_right": 100_000, "current_diversion": 100_000,
+            "current_request": 100_000, "curtailment_ratio": 0,
+            "shortage_tier": 0, "drought_index": 0.3, "cluster": "aggressive",
+            "basin": "lower_basin", "total_basin_demand": 5_000_000,
+            "loop_year": 5, "gap_reason": "none", "supply_group": None,
+            "ub_subbasin_member_count": None, "lb_junior_tier_cut_fraction": 0.0,
         }
+        ctx.update(overrides)
+        ctx.update(supply_rule_fields(ctx, {"lb_phys_ratio": overrides.get("phi", 1.0)}))
+        return ctx
+
+    def test_increase_blocked_on_short_physical_supply(self):
+        """Lake Mead physically short (phi < FULL_SUPPLY_RATIO): an increase
+        falls back to maintain_demand."""
+        ctx = self._v3_ctx(current_diversion=90_000, phi=0.9,
+                           gap_reason="lb_mead_availability")
         valid, skill = validate_skill("increase_demand", ctx)
         assert valid
-        assert skill != "increase_demand"
+        assert skill == "maintain_demand"
 
-    def test_decrease_blocked_at_floor(self):
-        """Decrease at minimum utilisation → fallback."""
-        ctx = {
-            "agent_id": "test",
-            "at_allocation_cap": False,
-            "has_efficient_system": False,
-            "below_minimum_utilisation": True,
-            "water_right": 100_000,
-            "current_diversion": 5_000,
-            "current_request": 5_000,
-            "curtailment_ratio": 0,
-            "shortage_tier": 0,
-            "drought_index": 0.3,
-            "cluster": "myopic_conservative",
-            "basin": "lower_basin",
-            "total_basin_demand": 5_000_000,
-            "loop_year": 5,
-        }
-        valid, skill = validate_skill("decrease_demand", ctx)
-        assert valid
-        assert skill != "decrease_demand"
+    def test_at_cap_increase_and_at_floor_decrease_left_to_the_environment(self):
+        """v3 dispatch: validate_skill does not block on the cap or the
+        floor (the environment clips both); a full supply passes either."""
+        at_cap = self._v3_ctx(at_allocation_cap=True)
+        assert validate_skill("increase_demand", at_cap) == (True, "increase_demand")
+        at_floor = self._v3_ctx(below_minimum_utilisation=True,
+                                current_diversion=5_000, current_request=5_000)
+        assert validate_skill("decrease_demand", at_floor) == (True, "decrease_demand")
 
 
 # ── FQL agent creation tests ──

@@ -15,7 +15,7 @@ class ValidationLevel(Enum):
     WARNING = "WARNING"  # Log but allow
 
 
-from broker.interfaces.skill_types import ValidationResult
+from broker.interfaces.skill_types import IDENTITY_TIER, ValidationResult
 from broker.utils.agent_config import (
     load_agent_config,
     ValidationRule,
@@ -192,6 +192,19 @@ class AgentValidator:
         _fa = getattr(self.config, "get_validators_framework_aware_labels", None)
         _fa_value = _fa() if callable(_fa) else False
         self.framework_aware_labels = _fa_value if isinstance(_fa_value, bool) else False
+        # global_config.governance.rule_id_prefix (default True = the shipped
+        # "[Rule: <id>] " prefix on every identity/thinking message). Coerced
+        # the same way as framework_aware_labels: a stand-in config whose
+        # getter returns a mock keeps the shipped prefix.
+        _rp = getattr(self.config, "get_governance_rule_id_prefix", None)
+        _rp_value = _rp() if callable(_rp) else True
+        self.rule_id_prefix = _rp_value if isinstance(_rp_value, bool) else True
+
+    def _rule_message(self, rule_id: str, body: str) -> str:
+        """A rule's message as rendered into results and retry prompts: the
+        ``[Rule: <id>] `` prefix (unless ``rule_id_prefix`` is off) + body."""
+        prefix = f"[Rule: {rule_id}] " if getattr(self, "rule_id_prefix", True) else ""
+        return prefix + body
     
     def validate(self, *args, **kwargs) -> List[ValidationResult]:
         """
@@ -518,7 +531,10 @@ class AgentValidator:
                     else:
                         self.auditor.log_warning(rule.id)
 
-                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'Identity Block: {decision} restricted by {pre}'}"
+                    rule_msg = self._rule_message(
+                        rule.id,
+                        rule.message or f'Identity Block: {decision} restricted by {pre}',
+                    )
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
                         validator_name=f"AgentValidator:identity_{rule.level.lower()}",
@@ -526,7 +542,7 @@ class AgentValidator:
                         warnings=[rule_msg] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
-                            "tier": "Tier 1: Identity/Status",
+                            "tier": IDENTITY_TIER,
                             "rule": f"identity_{rule.level.lower()}",
                             "rule_id": rule.id,
                             "message": rule.message,
@@ -759,7 +775,19 @@ class AgentValidator:
                     else:
                         self.auditor.log_warning(rule.id)
 
-                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'{tier_name.capitalize()} Block: {decision} restricted by {tier_name} rules'}"
+                    rule_msg = self._rule_message(
+                        rule.id,
+                        rule.message or f'{tier_name.capitalize()} Block: {decision} restricted by {tier_name} rules',
+                    )
+                    # Optional YAML `suggestion:` (AgentTypeConfig.
+                    # get_thinking_rules), read by build_intervention_reports
+                    # as the retry prompt's "Suggestion:" line. No key at all
+                    # for a rule without one, so its metadata is unchanged.
+                    _rule_meta = getattr(rule, "metadata", None) or {}
+                    _suggestion_meta = (
+                        {"suggestion": _rule_meta["suggestion"]}
+                        if _rule_meta.get("suggestion") else {}
+                    )
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
                         validator_name=f"AgentValidator:{tier_name}_{rule.level.lower()}",
@@ -787,6 +815,7 @@ class AgentValidator:
                             # existing consumer reads this key, so flag-OFF rows
                             # are unchanged.
                             "grounding": getattr(rule, "grounding", "self_report"),
+                            **_suggestion_meta,
                         }
                     ))
 

@@ -65,6 +65,17 @@ def _make_irrigation_context(*, last_skill: str = "maintain") -> dict:
         "env_state": {"domain": "irrigation", "year": 5},
         "social_context": {"adoption_rate": 0.0, "neighbours": []},
         "domain": "irrigation",
+        # Irrigation v3 (WP3, spec 3.3): the dispatched supply rule reads its
+        # inputs with no silent default (IrrigationLifecycleHooks.pre_year
+        # always writes them, via irrigation_validators.supply_rule_fields);
+        # a full supply here, so the rule adds no result of its own.
+        "basin": "upper_basin",
+        "gap_reason": "none",
+        "supply_keep_request_af": 100000.0,
+        "supply_expected_at_keep_af": 100000.0,
+        "supply_ratio": 1.0,
+        "supply_physical_ratio": 1.0,
+        "full_supply_ratio": 0.999,
     }
 
 

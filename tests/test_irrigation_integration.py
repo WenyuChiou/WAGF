@@ -173,7 +173,12 @@ def test_governance_validate_magnitude_cap_not_dispatched():
     irrigation_validators.py)."""
     from broker.validators.governance import validate_all
 
-    ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative"}
+    # WP3: the dispatched v3 supply rule reads its inputs (a full supply
+    # here, so it adds no result of its own).
+    ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative",
+           "basin": "upper_basin", "gap_reason": "none",
+           "supply_keep_request_af": 50_000, "supply_expected_at_keep_af": 50_000,
+           "supply_ratio": 1.0, "supply_physical_ratio": 1.0, "full_supply_ratio": 0.999}
     results = validate_all("increase_demand", [], ctx, domain="irrigation")
     magnitude_warnings = [
         r for r in results

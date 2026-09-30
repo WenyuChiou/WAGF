@@ -232,6 +232,9 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     # with the wrong knob silently at its default.
     "retry_feedback_mode",       # agent_config.get_governance_retry_feedback_mode
     "feasible_set_feedback",     # agent_config.get_governance_feasible_set_feedback
+    "appraisal_freeze",          # agent_config.get_governance_appraisal_freeze
+    "rule_id_prefix",            # agent_config.get_governance_rule_id_prefix
+    "hide_registry_backstop_reports",  # agent_config.get_governance_hide_registry_backstop_reports
 }
 
 KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
@@ -258,6 +261,8 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "param_columns",             # agent_config.get_audit_param_columns (6W-B6)
     "grounding_columns",         # agent_config.get_audit_grounding_columns (PR-6)
     "decider_columns",           # agent_config.get_audit_decider_columns (PR-8)
+    "attempt_columns",           # agent_config.get_audit_attempt_columns
+    "state_columns",             # agent_config.get_audit_state_columns
 }
 
 # PR-4: the single opt-in parsing-hardening flag, default-OFF, same fail-open

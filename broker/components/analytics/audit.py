@@ -698,6 +698,17 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     # Feasible set per failed attempt (governance.feasible_set_feedback).
     if "feasible_by_attempt" in t:
         row["feasible_by_attempt"] = t.get("feasible_by_attempt", "")
+    # Per-attempt labels and ERROR rule ids, in step with attempt_skills
+    # (audit.attempt_columns). Key-gated like the columns above.
+    if "attempt_labels" in t:
+        row["attempt_labels"] = t.get("attempt_labels", "")
+        row["attempt_failed_rules"] = t.get("attempt_failed_rules", "")
+        row["appraisal_relabeled"] = t.get("appraisal_relabeled", False)
+    # Agent-state columns (audit.state_columns): one state_<key> column per
+    # key the config lists. Key-gated by the trace key itself.
+    if isinstance(t.get("audit_state"), dict):
+        for _sk, _sv in t["audit_state"].items():
+            row[f"state_{_sk}"] = _sv
 
     # 2.7c. P0-1c: ADVISORY columns, key-gated the same way. Present only when
     # global_config.audit.advise_columns is ON. `advisory_llm_calls` and the

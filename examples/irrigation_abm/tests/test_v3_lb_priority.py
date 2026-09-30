@@ -1089,19 +1089,17 @@ class TestAgentFacingText:
 
 class TestSupplyRuleJuniorVsSenior:
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
-    def test_junior_agent_blocked_senior_agent_not(self):
+    def test_junior_and_senior_agents_both_blocked_by_phi(self):
         """HopiTribe (100% junior in BOTH round 1 and round 2 -- published
         senior entitlement 0 either way, so this scenario's numbers are
         UNCHANGED by MEDIUM 4) and CRIR AZ (senior-only) at their own keep
         requests, in a declared Tier 1 year with a modest PHYSICAL Mead
-        shortage (phi ~= 0.872) on top: f_1 (~20.3%) alone can never push
-        ANY agent below the supply rule's 70% threshold (even a
-        100%-junior agent's worst case is 1 - f_1 ~= 79.7%), so this
-        combines the tier's junior cut with a physical shortage too small
-        to block a senior agent by itself (phi ~= 0.872 >= 0.70) but which
-        DOES combine with HopiTribe's own junior cut to push it under 70%
-        (phi * (1 - f_1) ~= 0.695). Storage levels found by direct search
-        of this environment (recorded here, not re-derived by hand)."""
+        shortage (phi ~= 0.872) on top. Before WP3 the supply rule's 70%
+        cutoff blocked only HopiTribe (phi * (1 - f_1) ~= 0.695 < 0.70 <=
+        phi); the v3 rule (WP3, spec 3.3) blocks both on phi and states
+        HopiTribe's junior cut in its message. Storage levels found by
+        direct search of this environment (recorded here, not re-derived
+        by hand)."""
         f_1 = _lb_junior_tier_fraction(1)
         env = _lb_env({"HopiTribe": 5_900.0, _SENIOR_AGENT: 880_000.0})
         tier = 1
@@ -1122,15 +1120,36 @@ class TestSupplyRuleJuniorVsSenior:
         assert hopi["delivered"] / hopi["request"] < 0.70
         assert crir["delivered"] / crir["request"] >= 0.70
 
-        hopi_ctx = {
-            "current_request": hopi["request"], "current_diversion": hopi["delivered"],
-            "shortage_tier": tier, "curtailment_ratio": 0.0664,
-        }
-        crir_ctx = {
-            "current_request": crir["request"], "current_diversion": crir["delivered"],
-            "shortage_tier": tier, "curtailment_ratio": 0.0664,
-        }
-        assert supply_gap_block_increase("increase_demand", [], hopi_ctx) != []
-        assert supply_gap_block_increase("increase_demand", [], crir_ctx) == []
         assert hopi["gap_reason"] == "lb_junior_tier_cut+lb_mead_availability"
         assert crir["gap_reason"] == "lb_mead_availability"
+
+        # WP3 (2026-09-29, spec 3.3, PI item 2): the supply rule no longer
+        # has a 70% cutoff -- it blocks an increase whenever the PHYSICAL
+        # share (Lake Mead's phi for the Lower Basin, the declared junior
+        # cut taken out) is below FULL_SUPPLY_RATIO. phi ~= 0.872 here, so
+        # BOTH agents are blocked; the junior cut changes the message, never
+        # whether the rule fires (the junior-cut-alone exemption, phi = 1,
+        # is test_v3_governance.py::test_supply_rule_ignores_declared_tier_
+        # and_junior_cut).
+        from examples.irrigation_abm.validators.irrigation_validators import (
+            supply_rule_fields,
+        )
+        env._write_agent_deliveries(st)
+
+        def ctx(aid):
+            state = env.get_agent_state(aid)
+            fields = supply_rule_fields(
+                {"basin": "lower_basin", "current_request": state["request"],
+                 "current_diversion": state["diversion"]}, state)
+            return {"basin": "lower_basin", "gap_reason": state["gap_reason"],
+                    "lb_junior_tier_cut_fraction": state["lb_junior_tier_cut_fraction"],
+                    **fields}
+
+        hopi_ctx, crir_ctx = ctx("HopiTribe"), ctx(_SENIOR_AGENT)
+        assert hopi_ctx["supply_physical_ratio"] == crir_ctx["supply_physical_ratio"] == round(phi, 6)
+        assert hopi_ctx["supply_ratio"] < crir_ctx["supply_ratio"]  # the junior cut on top
+        hopi_msg = supply_gap_block_increase("increase_demand", [], hopi_ctx)[0].errors[0]
+        crir_msg = supply_gap_block_increase("increase_demand", [], crir_ctx)[0].errors[0]
+        assert "cuts your junior-priority water by about" in hopi_msg
+        assert "any increase would be junior-priority water" in hopi_msg
+        assert "junior-priority" not in crir_msg

@@ -491,7 +491,16 @@ class TestZeroInitByteIdenticalToPreFix:
 
         out_old = tmp_path / "old"
         out_new = tmp_path / "new"
-        common = ["--years", "2", "--agents", "5", "--seed", "42"]
+        # WP3 (2026-09-29, spec 3.2): --no-governance on BOTH sides. The two
+        # scripts import the CURRENT validators module, whose dispatched set
+        # WP3 deliberately changed to the v3 supply rule alone; it reads its
+        # inputs from supply_rule_fields, which the frozen 00654d14 script
+        # cannot supply (and whose governed-FQL fallback WP5 rewrites again,
+        # spec 5.6). What this test pins -- the --fql-init zero learning
+        # path is byte-identical to the pre-fix script -- runs before and
+        # independently of validate_skill, so the raw FQL arm still tests
+        # all of it.
+        common = ["--years", "2", "--agents", "5", "--seed", "42", "--no-governance"]
 
         res_old = subprocess.run(
             [sys.executable, str(old_script), *common, "--output", str(out_old)],

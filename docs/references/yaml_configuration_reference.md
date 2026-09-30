@@ -191,6 +191,10 @@ per retry prompt.
 | `domain` | string | No | (none) | Domain selector for domain-specific validator injection (e.g., `irrigation`) |
 | `advise_mode` | string | No | `off` | Soft-rule channel: `off` / `record` / `feedback`. See below. |
 | `retry_feedback_mode` | string | No | `full` | Red-team objection 3 ablation on the BLOCKING retry loop: `full` / `placebo` / `silent`. See below. |
+| `feasible_set_feedback` | bool | No | false | Ends every ERROR retry prompt with the actions that pass every rule this step |
+| `appraisal_freeze` | bool | No | false | Within one decision, every rule reads each construct label (a key containing `_LABEL`) as the agent FIRST STATED it (the first parsed attempt's value, or the first later value if that attempt gave none), so a retry cannot pass a label rule by rewriting its label; the feasible-set line uses the same labels. Refused with `multi_skill.enabled` or the runner's cognitive cache. See `ARCHITECTURE.md`, "Appraisal freeze". |
+| `hide_registry_backstop_reports` | bool | No | false | A retry prompt leaves out the registry backstop results (`precondition_violation`, `output_schema_violation`) of an attempt an identity rule already blocked; they stay in the audit |
+| `rule_id_prefix` | bool | No | true | `false` drops the `[Rule: <id>] ` prefix from YAML identity/thinking rule messages (no rule id in retry prompts) |
 
 **Example:**
 
@@ -337,6 +341,8 @@ published corpus byte-identical. Turn them on for all NEW runs.
 | `param_columns` | bool | No | false | Adds one `proposed_param_<name>` column per multi-field setpoint |
 | `grounding_columns` | bool | No | false | Forces `rules_world_grounded` + `rules_self_report` on. Already ON automatically whenever the active profile declares a world-grounded rule, so set this only to get the columns in a self-report-only profile. |
 | `decider_columns` | bool | No | false | Forces `decider` + `decider_path` on. Already ON automatically whenever any agent type declares a `decider:` other than `llm` (see §2.3.5), so set this only to record provenance in an all-`llm` run. |
+| `attempt_columns` | bool | No | false | Adds `attempt_labels`, `attempt_failed_rules` (per attempt, in step with `attempt_skills`) and `appraisal_relabeled`. Refused with an advisory channel on. |
+| `state_columns` | list of strings | No | (none) | One `state_<key>` column per listed key of the decision's agent state; a missing key is written `unobserved` |
 
 **`corrected_status_columns` (v0.7)** is the one to set if you are starting a
 new study. Without it the audit CSV reports the BLOCKED proposal as if it were
@@ -931,10 +937,14 @@ which `ExperimentBuilder.with_governance()` sets from the runner's
 is set — turn it on for any sweep, or a typo'd arm name runs the wrong rule set
 and the run still looks healthy.
 
-**`grounded_v1`** (v0.8, PR-6) ships for both reference domains. It repeats the
-`strict` rules verbatim and adds one world-grounded ERROR rule, so a
+**`grounded_v1`** (v0.8, PR-6) ships for the flood reference domain (the
+irrigation one was retired with its pre-v3 rule set, WP3 2026-09-29). It
+repeats the `strict` rules verbatim and adds one world-grounded ERROR rule, so a
 `strict`-versus-`grounded_v1` comparison isolates that one rule. Select it with
 `--governance-mode grounded_v1`. See `docs/guides/governance_layers.md`.
+
+A thinking rule may carry an optional `suggestion:` string, rendered as the
+retry report's "Suggestion:" line (legacy framing).
 
 #### 2.4.2 thinking_rules
 
