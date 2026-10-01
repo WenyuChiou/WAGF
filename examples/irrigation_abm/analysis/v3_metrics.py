@@ -556,8 +556,17 @@ def check_provenance(infos: Sequence[RunInfo], allow_mixed: bool = False,
         reasons = _dirty_reasons(info, commit)
         if reasons:
             dirty_runs.append(f"{info.label}: {'; '.join(reasons)}; the commit does not identify its code")
-        if info.manifest.get("run_status") == "aborted_llm_failure_rate":
-            problems.append(f"{info.label}: run aborted by the LLM safeguard")
+        # Any aborted run_status refuses pooling, not only the LLM
+        # safeguard's own "aborted_llm_failure_rate": ExperimentRunner also
+        # records "aborted_journal_divergence" / "aborted_journal_write_error"
+        # (broker/core/experiment_runner.py (ExperimentRunner.run)) for the
+        # crash-resume journal's own abort path, and the docs (`v3_metrics.md`
+        # section 10) already describe the refusal generically as "an
+        # aborted run" -- matched by prefix, not a fixed set of known values,
+        # so a future abort reason needs no update here to already be refused.
+        _run_status = info.manifest.get("run_status")
+        if isinstance(_run_status, str) and _run_status.startswith("aborted"):
+            problems.append(f"{info.label}: run aborted (run_status={_run_status!r})")
         # Spec 7.2 values, on every manifest.
         for key, expected in SPEC_72_VALUES.items():
             value = info.manifest.get(key, _MISSING)
@@ -594,6 +603,49 @@ def check_provenance(infos: Sequence[RunInfo], allow_mixed: bool = False,
     record["model"] = models
     if len(models) > 1:
         problems.append(f"model differs across LLM runs: {models}")
+
+    # Worker count (broker/core/experiment_runner.py (ExperimentConfig.workers),
+    # recorded by broker/core/experiment_runner.py
+    # (ExperimentRunner._collect_reproducibility_metadata); F14/F41
+    # parallel-determinism review, F43 crash-resume journal review). A
+    # missing key is NOT defaulted to the dataclass's own workers=1: this
+    # guard has no "a missing key equals its historical default" precedent
+    # for any other late-added field. The one place a late key IS allowed
+    # to be silently absent (git_dirty_at_finalize / git_commit_at_finalize
+    # in _dirty_reasons above) SKIPS that one check entirely rather than
+    # assuming a value, and those are secondary cross-checks, not fields
+    # this guard pools runs on -- cluster_method and step_bin_source just
+    # below are the actual precedent for an identifying field, and they too
+    # read a missing key as the plain `.get()` default (None) with no
+    # override, so a run that never recorded it differs from one that did.
+    # A pool where every run alike lacks `workers` reads as one shared None
+    # (no problem); a pool mixing an explicit value with an absent key is
+    # exactly the ambiguity this guard exists to catch -- workers>1 is
+    # proven to produce the same outputs as workers=1 (broker/core/
+    # experiment_runner.py (ExperimentRunner._run_agents_parallel)'s
+    # submission-order sort), but "this manifest does not say" is not the
+    # same claim as "this run used 1 worker."
+    #
+    # Also checked here, paired with each run's own `workers`: its
+    # `source_workers` (broker/utils/llm_journal.py
+    # (LLMJournalManager.provenance_metadata), present only on a resumed
+    # run) -- the worker count the REPLAYED portion of THIS run's output
+    # actually came from, which can differ from the run's own `workers` by
+    # design (resuming at a different worker count is supported). A run
+    # that crashed under workers=4 and was resumed at workers=1 therefore
+    # carries `workers=1, source_workers=4`: pairing the two catches it as
+    # mixed even when pooled only against OTHER workers=1 runs that were
+    # never resumed at all (plain `workers` alone would read both as 1 and
+    # miss it).
+    workers_values = {
+        json.dumps(_jsonable((i.manifest.get("workers"), i.manifest.get("source_workers"))))
+        for i in llm
+    }
+    if len(workers_values) > 1:
+        problems.append(
+            f"workers (paired with any resumed source_workers) differs across "
+            f"LLM runs: {sorted(workers_values)}"
+        )
 
     # Seed scheme.
     by_arm: Dict[str, List[int]] = defaultdict(list)

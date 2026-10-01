@@ -1677,7 +1677,17 @@ def main():
         try:
             check_identifying_config(
                 source_header, current_identifying,
-                allowed_to_differ=(RESUME_PROVENANCE_KEY,),
+                # "workers" is now a header key (ExperimentRunner.
+                # _build_llm_journal_manager records it generically, for
+                # every run, journalled or not resumed), but
+                # _irrigation_identifying_config deliberately never puts it
+                # in current_identifying -- see that function's own
+                # docstring on why --workers is allowed to differ between a
+                # crashed run and its resume. Without "workers" here too,
+                # source_header's always-present key vs current_identifying's
+                # always-absent one would refuse EVERY resume, at any worker
+                # count, the moment the header started recording it.
+                allowed_to_differ=(RESUME_PROVENANCE_KEY, "workers"),
             )
         except ValueError as exc:
             raise SystemExit(str(exc))

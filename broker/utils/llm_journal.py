@@ -734,7 +734,19 @@ class LLMJournalManager:
     def provenance_metadata(self) -> Optional[Dict[str, Any]]:
         """Manifest-ready provenance dict, or ``None`` for a run that is
         not resuming anything (the manifest must keep exactly its current
-        keys for a normal run)."""
+        keys for a normal run).
+
+        ``source_workers`` is the SOURCE journal's own header ``workers``
+        value (whatever the caller's header dict records under that key,
+        ``None`` if it recorded none) -- the worker count the REPLAYED
+        portion of this run was originally produced under, which can
+        differ from this run's own ``workers`` (resuming at a different
+        worker count is supported: a domain runner lists ``workers`` in
+        its ``allowed_to_differ`` for the resume-time identifying-config
+        check). Nested in this resume-only dict, not a top-level manifest
+        key, for the same reason every other field here is: a normal
+        (never-resumed) run's manifest must keep exactly its current keys.
+        """
         if self.loaded is None:
             return None
         return {
@@ -742,6 +754,7 @@ class LLMJournalManager:
             "source_journal_sha256": self.loaded.sha256,
             "replayed_steps": self.loaded.last_complete_step,
             "replayed_calls": self._replayed_calls,
+            "source_workers": self.loaded.header.get("workers"),
         }
 
     def close(self) -> None:
