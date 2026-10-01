@@ -164,3 +164,104 @@ def test_proposed_param_columns_roundtrip_through_recovery(tmp_path):
     assert float(rows[1]["proposed_param_release_cms"]) == 5.5
     assert float(rows[0]["proposed_param_hydropower_mw"]) == 800.0
     assert float(rows[1]["proposed_param_hydropower_mw"]) == 400.0
+
+
+# ─────────────────────────────────────────────────────────────────────
+# feat/v3-parallel-determinism review fix: crash-proof step_id sort key,
+# and recover_csv's own out-of-order-JSONL case.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_export_csv_sort_key_tolerates_mixed_step_id_types(tmp_path):
+    """GenericAuditWriter._export_csv's step_id sort must never raise on a
+    non-int step_id (a legacy or malformed trace): int step_ids sort
+    numerically first, then every missing/None/str step_id keeps its
+    original (write_trace call) order, stable, at the end."""
+    writer = GenericAuditWriter(
+        AuditConfig(output_dir=str(tmp_path), experiment_name="mixed-step-id")
+    )
+    t_missing = _trace(99, "missing")
+    del t_missing["step_id"]
+    t_none = _trace(99, "none-ish")
+    t_none["step_id"] = None
+    t_str = _trace(99, "str-ish")
+    t_str["step_id"] = "3"  # a string, not an int
+
+    # Scrambled write order; the only int step_ids are 5 and 2, so a
+    # correct sort places them [2, 5], with the three non-int rows after,
+    # in their original write order.
+    writer.write_trace("mixed_agent", _trace(5, "five"))
+    writer.write_trace("mixed_agent", t_missing)
+    writer.write_trace("mixed_agent", _trace(2, "two"))
+    writer.write_trace("mixed_agent", t_none)
+    writer.write_trace("mixed_agent", t_str)
+    writer.finalize()  # must not raise
+
+    csv_path = tmp_path / "mixed_agent_governance_audit.csv"
+    with csv_path.open("r", newline="", encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    assert [r["raw_output"] for r in rows] == [
+        "two", "five", "missing", "none-ish", "str-ish",
+    ]
+
+
+def test_recover_csv_sort_key_tolerates_mixed_step_id_types(tmp_path):
+    """Same crash-proof sort key, exercised through recover_csv's own copy
+    of it in broker/tools/recover_csv_from_jsonl.py."""
+    writer = GenericAuditWriter(
+        AuditConfig(output_dir=str(tmp_path), experiment_name="mixed-step-id-recover")
+    )
+    t_missing = _trace(99, "missing")
+    del t_missing["step_id"]
+    t_str = _trace(99, "str-ish")
+    t_str["step_id"] = "3"
+
+    writer.write_trace("mixed_agent", _trace(5, "five"))
+    writer.write_trace("mixed_agent", t_missing)
+    writer.write_trace("mixed_agent", _trace(2, "two"))
+    writer.write_trace("mixed_agent", t_str)
+    writer.finalize()
+
+    summary = recover_csv(tmp_path)  # must not raise
+    assert summary["mixed_agent"]["rows_recovered"] == 4
+
+    csv_path = tmp_path / "mixed_agent_governance_audit.csv"
+    with csv_path.open("r", newline="", encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    assert [r["raw_output"] for r in rows] == ["two", "five", "missing", "str-ish"]
+
+
+def test_recover_csv_out_of_order_jsonl_matches_live_finalize(tmp_path):
+    """recover_csv must sort an out-of-order (thread-completion-order)
+    JSONL back to the same row order a live finalize() would have
+    produced, not just reproduce whatever order the JSONL happens to be
+    in. Simulates a workers>1 JSONL (written in COMPLETION order) by
+    shuffling the lines of a JSONL that was captured in submission
+    (step_id) order."""
+    writer = GenericAuditWriter(
+        AuditConfig(output_dir=str(tmp_path), experiment_name="recovery-shuffle")
+    )
+    for step_id in (1, 2, 3, 4, 5):
+        writer.write_trace("shuffle_agent", _trace(step_id, f"out-{step_id}"))
+    writer.finalize()
+
+    live_csv = tmp_path / "shuffle_agent_governance_audit.csv"
+    archived_live_csv = tmp_path / "shuffle_agent_governance_audit.live.csv"
+    live_csv.replace(archived_live_csv)
+
+    # Scramble the JSONL to a completion-like order (5, 1, 4, 2, 3),
+    # keeping the leading _metadata header line first (recover_csv's
+    # reader only ever treats the LITERAL first record as a possible
+    # metadata header).
+    jsonl_path = tmp_path / "raw" / "shuffle_agent_traces.jsonl"
+    lines = jsonl_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    header, body = lines[0], lines[1:]
+    assert len(body) == 5
+    scrambled_order = [4, 0, 3, 1, 2]  # body indices -> step_ids 5,1,4,2,3
+    jsonl_path.write_text(
+        header + "".join(body[i] for i in scrambled_order), encoding="utf-8",
+    )
+
+    summary = recover_csv(tmp_path)
+    assert summary["shuffle_agent"]["rows_recovered"] == 5
+    assert live_csv.read_bytes() == archived_live_csv.read_bytes()

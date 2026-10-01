@@ -13,6 +13,7 @@ from ..interfaces.skill_types import (
     ExecutionResult, SkillOutcome, ValidationResult,
 )
 from ..utils.logging import logger
+from ._appraisal_freeze import relabeled_after_first_statement
 
 
 def _classify_decision_source(approved_skill, skill_proposal=None) -> str:
@@ -285,6 +286,60 @@ def _label_drift(initial_labels: str, final_labels: str) -> str:
     )
 
 
+def _attempt_segment(value) -> str:
+    """Make a value safe inside the per-attempt columns, where attempts are
+    split on ``|``, the items of one attempt on ``,`` and a pair on ``=``.
+    Separators are replaced, never dropped (see ``_sanitize_audit_segment``)."""
+    return _sanitize_audit_segment(value).replace(",", ";")
+
+
+def _attempt_audit_columns(
+    attempt_labels: List[Optional[Dict[str, Any]]],
+    attempt_failed_rules: List[Optional[List[str]]],
+) -> Dict[str, Any]:
+    """The ``global_config.audit.attempt_columns`` values of one decision.
+
+    ``attempt_labels`` / ``attempt_failed_rules`` hold one entry per attempt
+    (the engine keeps them in step with ``attempt_skills``); ``None`` marks an
+    attempt that did not parse and renders as ``""``, like ``attempt_skills``.
+    ``appraisal_relabeled`` is True when some attempt states a construct
+    label with a value other than the one that label was first stated with in
+    the decision (``relabeled_after_first_statement``: the value the appraisal
+    freeze holds). Stating a label for the first time is not a relabel, and
+    neither is leaving one out.
+    """
+    labels_col = "|".join(
+        "" if labels is None else ",".join(
+            f"{_attempt_segment(k)}={_attempt_segment(v)}" for k, v in labels.items()
+        )
+        for labels in attempt_labels
+    )
+    rules_col = "|".join(
+        "" if rules is None else ",".join(_attempt_segment(r) for r in rules)
+        for rules in attempt_failed_rules
+    )
+    relabeled = relabeled_after_first_statement(attempt_labels)
+    return {
+        "attempt_labels": labels_col,
+        "attempt_failed_rules": rules_col,
+        "appraisal_relabeled": relabeled,
+    }
+
+
+def _audit_state_extra(state_columns, state) -> Dict[str, Any]:
+    """The ``global_config.audit.state_columns`` trace key of one row:
+    ``{"audit_state": {key: value}}`` for each listed key of ``state`` (the
+    agent state the validators saw), ``unobserved`` for a key the state does
+    not carry -- never a made-up value. ``{}`` when no column is listed."""
+    if not state_columns:
+        return {}
+    if not isinstance(state, dict):
+        state = {}
+    return {"audit_state": {
+        k: (state[k] if k in state else UNOBSERVED) for k in state_columns
+    }}
+
+
 def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
     """Extract structured social-context audit fields from a prompt context.
 
@@ -526,6 +581,7 @@ class AuditMixin:
         prompt: str = "",
         parsing_warnings: Optional[List[str]] = None,
         decider: Optional[str] = None,
+        state: Optional[Dict[str, Any]] = None,
     ) -> None:
         """PR-3: emit one audit row for a step that returned ``ABORTED``.
 
@@ -562,6 +618,12 @@ class AuditMixin:
         ``None`` exactly as before, so the row is byte-identical to PR-3's.
         The dict form repeats ``raw_output`` because ``trace_to_csv_row`` reads
         that column off ``skill_proposal`` first and would otherwise blank it.
+
+        ``state`` is the agent state the validators would have seen. Under
+        ``audit.state_columns`` it fills the row's ``state_<key>`` columns
+        (the state exists before the model is called); under
+        ``audit.attempt_columns`` the three per-attempt columns are written as
+        ``unobserved``, since no attempt parsed.
         """
         try:
             agent_type_final = agent_type or "default"
@@ -620,6 +682,16 @@ class AuditMixin:
                 # decider produced no decision whose path could be
                 # reported, and the census must not count it as one.
                 **self._decider_audit_extra(decider, path="aborted"),
+                # audit.attempt_columns: no attempt parsed, so none of the
+                # three can be observed -- "unobserved", never a blank that
+                # reads like "not applicable" or a False that reads like "did
+                # not relabel". Same key gate as every other row.
+                **({"attempt_labels": UNOBSERVED, "attempt_failed_rules": UNOBSERVED,
+                    "appraisal_relabeled": UNOBSERVED}
+                   if getattr(self, "_attempt_columns", False) is True else {}),
+                # audit.state_columns: the state existed before the model was
+                # called, so it is filled from it like any other row.
+                **_audit_state_extra(getattr(self, "_audit_state_columns", ()), state),
             }, [
                 # Passed, rather than None, for two reasons. ``write_trace``
                 # forces ``validated=True`` when it receives no validation
@@ -674,6 +746,8 @@ class AuditMixin:
         soft_advise_info: Optional[Dict[str, Any]] = None,
         decider: Optional[str] = None,
         feasible_by_attempt: Optional[List] = None,
+        attempt_labels: Optional[List] = None,
+        attempt_failed_rules: Optional[List] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -815,6 +889,22 @@ class AuditMixin:
                 ",".join(_sanitize_audit_segment(x).replace(",", ";") for x in grp)
                 for grp in feasible_by_attempt
             )
+        # Per-attempt columns (global_config.audit.attempt_columns): key-gated
+        # by the lists themselves -- the engine passes them only when the flag
+        # is on, so an off run adds no key and no column.
+        if attempt_labels is not None and attempt_failed_rules is not None:
+            initial_extra.update(
+                _attempt_audit_columns(attempt_labels, attempt_failed_rules)
+            )
+
+        # Agent-state columns (global_config.audit.state_columns): the listed
+        # keys of the state every validator saw for this decision, under one
+        # trace key the CSV row builder expands into state_<key> columns. No
+        # listed key (the default): no trace key.
+        state_extra = _audit_state_extra(
+            getattr(self, "_audit_state_columns", ()),
+            context.get("state", {}) if isinstance(context, dict) else {},
+        )
 
         # P0-1c: ADVISORY columns, OPT-IN via global_config.audit.advise_columns
         # (default OFF). Same key-gated discipline: flag-OFF emits no key -> no row
@@ -954,6 +1044,8 @@ class AuditMixin:
             **grounding_extra,
             # PR-8: decider provenance, spread last (same rationale).
             **decider_extra,
+            # Agent-state columns, spread last (same rationale).
+            **state_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

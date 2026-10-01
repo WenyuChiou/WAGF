@@ -567,3 +567,121 @@ class TestOllamaRequestBodyCharacterization:
         assert post_spy.called
         posted_json = post_spy.call_args.kwargs["json"]
         assert posted_json == expected_data
+
+
+# ─────────────────────────────────────────────────────────────────────
+# model_digest: no live request for a mock or cloud-provider run, and
+# OLLAMA_HOST-aware (not hardcoded localhost) for a real Ollama model.
+#
+# Bug: the digest query used to POST unconditionally to a hardcoded
+# "http://localhost:11434/api/show", even for a mock run -- so every mock
+# run and every test that reached finalize sent a live request for model
+# "mock" to whatever Ollama daemon happened to be reachable, and a run
+# pointed at a non-default OLLAMA_HOST silently queried localhost instead.
+# Fixed in broker/core/experiment_runner.py::_collect_reproducibility_metadata
+# (section 1) by reusing broker.utils.llm_utils.is_cloud_provider_model and
+# the new get_ollama_base_url helper -- the SAME helper
+# _invoke_ollama_direct uses for the run's real LLM calls.
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestModelDigestSkipsMockAndUsesOllamaHost:
+    def test_mock_run_finalize_makes_no_http_request(self, tmp_path):
+        """A mock run has no Ollama model at all; finalize must not send a
+        single HTTP request while collecting the digest field."""
+        runner = _make_finalize_runner(tmp_path, model="mock")
+
+        with patch("requests.post") as post_spy, patch("requests.get") as get_spy:
+            metadata = runner._collect_reproducibility_metadata()
+
+        assert not post_spy.called
+        assert not get_spy.called
+        assert metadata["model_digest"] == "not_applicable_mock"
+
+    def test_cloud_provider_run_finalize_makes_no_http_request(self, tmp_path):
+        """A cloud-provider model (openai/gemini/anthropic/...) never talks
+        to Ollama either; same no-HTTP guarantee as the mock case."""
+        runner = _make_finalize_runner(tmp_path, model="gemini:pro")
+
+        with patch("requests.post") as post_spy, patch("requests.get") as get_spy:
+            metadata = runner._collect_reproducibility_metadata()
+
+        assert not post_spy.called
+        assert not get_spy.called
+        assert metadata["model_digest"] == "not_applicable_cloud_provider"
+
+    def test_non_string_model_finalize_records_unavailable_not_mock(self, tmp_path):
+        """A model that is not even a string (no identity at all) must
+        record "unavailable", never "not_applicable_mock" -- that label is
+        reserved for a model this code POSITIVELY identified as mock."""
+        runner = _make_finalize_runner(tmp_path, model=None)
+
+        with patch("requests.post") as post_spy, patch("requests.get") as get_spy:
+            metadata = runner._collect_reproducibility_metadata()
+
+        assert not post_spy.called
+        assert not get_spy.called
+        assert metadata["model_digest"] == "unavailable"
+
+    def test_real_model_finalize_uses_ollama_host(self, tmp_path, monkeypatch):
+        """A real Ollama model's digest query must build its URL from
+        OLLAMA_HOST (the same helper _invoke_ollama_direct uses), never a
+        hardcoded localhost."""
+        monkeypatch.setenv("OLLAMA_HOST", "http://10.20.30.40:5555")
+        runner = _make_finalize_runner(tmp_path, model="gemma3:4b")
+
+        fake_response = MagicMock(status_code=200)
+        fake_response.json.return_value = {"digest": "sha256:deadbeef", "details": {}}
+
+        with patch("requests.post", return_value=fake_response) as post_spy, \
+             patch(
+                 "broker.utils.llm_utils.capture_ollama_modelfile_defaults",
+                 return_value=(None, "stubbed for this test"),
+             ):
+            metadata = runner._collect_reproducibility_metadata()
+
+        assert post_spy.called
+        called_url = post_spy.call_args.args[0]
+        assert called_url == "http://10.20.30.40:5555/api/show"
+        assert metadata["model_digest"] == "sha256:deadbeef"
+
+    def test_real_model_finalize_falls_back_to_default_host(self, tmp_path, monkeypatch):
+        """Unset OLLAMA_HOST must fall back to the documented default
+        (http://localhost:11434), not some other silent value."""
+        monkeypatch.delenv("OLLAMA_HOST", raising=False)
+        runner = _make_finalize_runner(tmp_path, model="gemma3:4b")
+
+        fake_response = MagicMock(status_code=200)
+        fake_response.json.return_value = {"digest": "sha256:cafef00d", "details": {}}
+
+        with patch("requests.post", return_value=fake_response) as post_spy, \
+             patch(
+                 "broker.utils.llm_utils.capture_ollama_modelfile_defaults",
+                 return_value=(None, "stubbed for this test"),
+             ):
+            metadata = runner._collect_reproducibility_metadata()
+
+        called_url = post_spy.call_args.args[0]
+        assert called_url == "http://localhost:11434/api/show"
+        assert metadata["model_digest"] == "sha256:cafef00d"
+
+
+class TestInvokeOllamaDirectUsesOllamaHost:
+    """_invoke_ollama_direct (the run's real LLM call path) must build its
+    URL the same OLLAMA_HOST-aware way as the digest query above -- the two
+    share broker.utils.llm_utils.get_ollama_base_url so they cannot drift
+    apart again."""
+
+    def test_invoke_ollama_direct_uses_ollama_host(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_HOST", "http://192.168.1.50:11500")
+
+        fake_response = MagicMock(status_code=200)
+        fake_response.json.return_value = {
+            "response": "ok", "prompt_eval_count": 1, "eval_count": 1,
+        }
+
+        with patch("requests.post", return_value=fake_response) as post_spy:
+            llm_utils._invoke_ollama_direct("test-model", "PROMPT", {}, False)
+
+        called_url = post_spy.call_args.args[0]
+        assert called_url == "http://192.168.1.50:11500/api/generate"

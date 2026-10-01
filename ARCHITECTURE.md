@@ -363,6 +363,301 @@ mem = cfg.get_memory_config("household_owner")
 
 ---
 
+## LLM call safeguard (backoff + abort-rate stop)
+
+`broker/utils/llm_safeguard.py` is a generic, opt-in safeguard against LLM
+provider failures, added for spec item 24 of the irrigation v3 case study
+(audit gap F42, "no LLM backoff or abort-rate stop"). It has two independent
+parts, both driven by one `global_config.llm_safeguard` block:
+
+```yaml
+global_config:
+  llm_safeguard:
+    enabled: true
+    backoff_max_retries: 3        # positive integer, capped at 8
+    backoff_initial_seconds: 2    # positive integer; delay doubles each retry
+    backoff_max_seconds: 60       # positive integer; caps EACH delay (not the total)
+    abort_window: 50              # positive integer; rolling count of decisions
+    abort_threshold: 0.5          # fraction in (0, 1] -- 0 is rejected
+```
+
+1. **Backoff on a TRANSPORT failure only.** `wrap_llm_invoke_with_backoff`
+   wraps the callable `ExperimentRunner.get_llm_invoke` returns, so every LLM
+   call in the framework goes through it without any other call site
+   changing. Retried: the call raising `OSError` (this includes `requests.
+   exceptions.ConnectionError`), or it returning normally with
+   `LLMStats.transport_error is True` (the shape `_invoke_ollama_direct` /
+   `create_provider_invoke` already use for a connection failure or an HTTP
+   5xx they caught internally; `create_llm_invoke`'s own closure carries that
+   flag into its final `LLMStats` too, since it -- not
+   `_invoke_ollama_direct` -- is what the wrapper actually wraps on the
+   Ollama path every shipped domain uses). NOT retried, even though each can
+   also carry `success=False`: a timeout (the inner call already waited its
+   own configured timeout; the wrapper does not wait again on top of that),
+   an HTTP 4xx (a persistent client-side problem), empty or thinking-only
+   content (the model's own empty-content retry loop already tried), or any
+   other exception such as `TypeError`. Each delay is capped at
+   `backoff_max_seconds` regardless of `backoff_initial_seconds` or how many
+   retries remain. Every retry is logged; if every retry fails, the wrapper
+   gives up and the decision fails AT ONCE -- the format-retry loop and the
+   governance retry loop (`broker/core/_retry_loop.py`) both recognise a
+   spent, still-transport-failing call and stop re-prompting the same dead
+   endpoint instead of paying the full backoff schedule again on every
+   remaining attempt; a normal (non-transport) failure is retried by those
+   loops exactly as before. Every attempt's calls and tokens are folded into
+   the returned `LLMStats` (`calls`, `prompt_tokens_total`,
+   `response_tokens_total` sum across attempts). The new `backoff_retries`
+   field is `total_calls - stats.calls` (the final attempt's own call count):
+   the calls spent on the OTHER, non-final backoff attempts, not a count of
+   backoff rounds -- one round can itself cost more than one inner call,
+   since `create_llm_invoke`'s own closure has its own short empty-content
+   retry loop. The final attempt's own calls are excluded on purpose: they
+   are already reflected in that attempt's own `retries`, so folding them
+   into `backoff_retries` too would double-count them (fix round 3's
+   `calls - 1` formula did exactly that whenever the final, successful
+   attempt itself cost more than one raw call). `broker/core/_retry_loop.py` reads
+   `backoff_retries` and calls `GovernanceAuditor.log_backoff_retry()` that
+   many times, which folds into `total_extra_llm_calls` in
+   `governance_summary.json` the same way `empty_content_retries` already
+   does. Every domain's `governance_summary.json` gains this
+   `backoff_retries` counter (0 when never triggered, including when the
+   safeguard is disabled), not only a domain that enables the safeguard.
+
+2. **Abort-rate stop, early.** `LLMAbortTracker`, owned by `SkillBrokerEngine`,
+   keeps a rolling window of the last `abort_window` DECISIONS (one entry per
+   `process_step` call). A decision counts as failed when the provider call
+   ultimately did not succeed, or its output never parsed
+   (`skill_proposal is None`, the same condition that already drives
+   `GovernanceAuditor.log_parse_error()`). It aborts as soon as the failure
+   COUNT in the current window reaches `ceil(abort_threshold * abort_window)`
+   -- which can happen well before the window is full, catching a badly
+   broken endpoint sooner than waiting for a full window would. When it fires
+   it raises `LLMFailureRateAborted`, carrying `observed_rate`, `window`,
+   `threshold`, `failed_count`, and `decisions_in_window` (the last of which
+   can be less than `window` for an early-stop abort). `ExperimentRunner.
+   _run_agents_sequential` / `_run_agents_parallel` let this exception
+   through instead of converting it into another ABORTED row (the parallel
+   path also calls `executor.shutdown(wait=True, cancel_futures=True)`
+   first, so no queued agent starts after the abort), so `run()`'s existing
+   `finally` still flushes the audit writers and JSONL traces
+   (`GenericAuditWriter.finalize`) and the reproducibility manifest records
+   `run_status: aborted_llm_failure_rate` with all five of those values,
+   before the process exits non-zero.
+
+Both mechanisms read the identical resolved `LLMSafeguardConfig` (via
+`AgentTypeConfig.get_llm_safeguard_config()`) and are OFF by default
+(`enabled: false`): `wrap_llm_invoke_with_backoff` then returns its input
+UNCHANGED and `LLMAbortTracker.record` is a no-op, so a domain that never
+sets this block has a byte-identical audit CSV and simulation log. Its
+manifest and `governance_summary.json` are NOT untouched, though: EVERY
+domain's manifest gains an `llm_safeguard` key (`enabled: false` and the
+defaults, for a domain that never opts in) and EVERY domain's
+`governance_summary.json` gains the `backoff_retries` counter described
+above (0 when unused) -- these are unconditional, additive fields, not
+something only an opted-in domain sees. `run_status` /
+`llm_safeguard_abort` remain conditional on an actual abort. It is enabled
+in `examples/irrigation_abm/config/agent_types.yaml` for the v3 corpus,
+which also sets `audit.corrected_status_columns: true` so its audit schema
+does not depend on whether any particular run happened to hit a parse
+failure or an abort -- a domain that enables the safeguard without also
+turning that flag on keeps whatever audit-row behavior it already had for
+an unparsable decision (the safeguard does not force it on).
+
+**For any other domain runner's `main()`:** if you enable this safeguard, wrap
+your call to `runner.run(...)` in `try/finally` and move every post-run
+provenance patch, manifest enrichment, and simulation-log save into the
+`finally` block, letting the exception propagate afterward. `ExperimentRunner.
+run()`'s own `finally` already flushes the audit writer and manifest
+regardless of how the run ends, but a domain runner's OWN post-`run()` code
+(anything your `main()` does after the call returns) does not run at all if
+`run()` raises unless you wrap it the same way --
+`examples/irrigation_abm/run_experiment.py`'s `main()` is the reference
+implementation of this pattern. One consequence worth stating plainly: a
+simulation log built by accumulating rows across years (as
+`run_experiment.py`'s does) exists after an abort only if at least one year
+fully completed before the abort fired -- an abort partway through year one
+leaves nothing to save, and the `finally` block's save is a no-op, not a
+bug.
+
+**Known limit: a HUNG endpoint is much slower to abort on than a DEAD one.**
+The backoff wrapper and the format/governance-loop early-break both key off
+`transport_error`, which is only ever set for a connection that was refused
+or reset -- never for a timeout. A HUNG server (one that accepts the
+connection but never answers) times out instead, which the wrapper
+deliberately never retries and which never sets `transport_error`, so the
+early-break added in fix round 3 never triggers for it either; the decision
+falls back to paying the full per-call timeout on every attempt, exactly as
+it did before this safeguard existed. At `examples/irrigation_abm`'s own
+numbers that is 3 format-retry attempts x 2 inner `create_llm_invoke`
+attempts x its 120s model timeout = 12 minutes for ONE decision to give up,
+so reaching that domain's 25-failure early-stop
+(`ceil(abort_threshold * abort_window)` = `ceil(0.5 * 50)`) takes roughly
+5 hours against a persistently HUNG endpoint, versus roughly 26 minutes
+(25 decisions x the ~62s backoff-then-give-up schedule) against a
+persistently DEAD one. Both eventually abort; a hung endpoint is just far
+slower to.
+
+---
+
+## Appraisal freeze and the per-attempt audit options
+
+Five generic, opt-in options, added for the irrigation v3 governance (WP3 of
+`.research/design_specs/irrigation_v3_spec_2026-09-28.md`). Each default
+reproduces the shipped behaviour, so a domain that sets none of them (flood
+included) writes a byte-identical audit CSV (checked with
+`broker.tools.compare_audit_csv` on flood mock runs):
+
+```yaml
+global_config:
+  governance:
+    appraisal_freeze: true                 # default false
+    rule_id_prefix: false                  # default true
+    hide_registry_backstop_reports: true   # default false
+  audit:
+    attempt_columns: true                  # default false
+    state_columns: [key_a, key_b]          # default: none
+```
+
+1. **Appraisal freeze** (`broker/core/_appraisal_freeze.py`). Within one
+   decision, every validation pass checks the proposal against each
+   construct label (a reasoning key containing `_LABEL`, the parser's own
+   test) as the agent FIRST STATED it in that decision, never against a
+   later restatement. Why: a rule conditioned on a label the model writes
+   itself can otherwise be passed on retry by rewriting the label, with no
+   new information about the world. `SkillBrokerEngine.process_step` starts
+   the frozen set with the labels the first PARSED attempt states (format
+   retries carry no rule content) and keeps it in the decision's own
+   validation context (under a private key, so the engine, shared across
+   worker threads, holds no per-decision state).
+   `SkillBrokerEngine._run_validators` -- the one place every validation pass
+   goes through -- first adds any label the attempt states for the first
+   time (a non-blank value; a label already frozen is never replaced), then
+   gives the validators a copy of the proposal carrying the labels as first
+   stated. So a label the first attempt omitted is recovered from the first
+   attempt that states it, and relabelling still cannot pass a rule. The
+   governance retries, the feasible-set probe of a retry prompt
+   (`RetryMixin._probe_feasible_skills`: the "actions that pass every rule"
+   line reads the same labels as the rules) and the advisory re-validations
+   all read them. The attempt's own skill, magnitude, parameters and
+   non-label reasoning are untouched, and the audit trail keeps the labels
+   the model actually wrote (`final_labels`, `appraisal_drift`,
+   `attempt_labels`). The frozen value of a label equals its `initial_labels`
+   value whenever the first parsed attempt carried it non-blank; otherwise
+   it is the first NON-BLANK value of that label in `attempt_labels` (a
+   blank is recorded as `KEY=` and the freeze does not treat it as
+   stated). With the freeze on, the engine
+   refuses to start when a thinking rule reads a reasoning field that is not
+   a construct label (it would silently escape the freeze), when an agent
+   type enables `multi_skill` (a secondary proposal is validated outside the
+   retry sequence), or when its config has no callable `items()` to check;
+   `ExperimentRunner` refuses it together with `enable_cognitive_cache` (a
+   cache hit re-validates a proposal from an earlier decision).
+2. **`rule_id_prefix`** (`AgentValidator`). `false` drops the
+   `[Rule: <id>] ` prefix from YAML identity- and thinking-rule messages, so
+   a retry prompt states a rule in the words of its `message` and never
+   shows an internal rule id. A YAML thinking rule may also carry a
+   `suggestion:`, rendered as the retry report's "Suggestion:" line; a rule
+   without one adds no metadata key.
+3. **`hide_registry_backstop_reports`** (`RetryMixin._retry_report_results`).
+   When an identity rule has already blocked an attempt (an off-menu answer),
+   the registry's backstop results for the same skill --
+   `precondition_violation` and `output_schema_violation`, which repeat the
+   block in internal field names -- are left out of the retry text. They
+   stay in the audit trail (`failed_rules`, `error_messages`,
+   `attempt_failed_rules`).
+4. **`attempt_columns`**. Adds, in step with `attempt_skills`:
+   `attempt_labels` (each attempt's construct labels, `KEY=VALUE` pairs
+   joined by `,`, attempts joined by `|`), `attempt_failed_rules` (the ids of
+   the rules that returned an ERROR on each attempt, named exactly as
+   `failed_rules` names them: the result's `rule_id`, else `Unknown`) and
+   `appraisal_relabeled` (True when an attempt states a label with a value
+   other than the one that label was first stated with in the decision, the
+   value the freeze holds; stating a label for the first time, or leaving
+   one out, is not a relabel). `failed_rules` pools every attempt;
+   these keep them apart. On an `ABORTED` sentinel row all three read
+   `unobserved`. Refused together with an advisory channel
+   (`governance.advise` / `governance.advise_mode`), whose extra attempt the
+   columns do not record.
+5. **`state_columns`**. Each listed key of the decision's agent state (the
+   state every validator saw) becomes a `state_<key>` column, on every row
+   including an `ABORTED` sentinel; a key the state does not carry is written
+   as `unobserved`. Irrigation logs its supply rule's inputs this way, so an
+   arm that does not run the rule can be scored post hoc on exactly the
+   numbers the live rule reads.
+
+Every manifest also gains `appraisal_freeze_resolved`,
+`rule_id_prefix_resolved`, `thinking_rules_resolved`,
+`identity_rules_resolved` and `custom_validators_resolved` (additive keys,
+like `llm_safeguard`). Tested in `broker/tests/test_appraisal_freeze.py`
+(generic) and `examples/irrigation_abm/tests/test_v3_governance.py`
+(irrigation, end to end).
+
+---
+
+## Retry-text, dashboard and reflection options
+
+Four more generic, opt-in options, added for the irrigation v3 prompt (WP4 of
+`.research/design_specs/irrigation_v3_spec_2026-09-28.md`). Each default
+reproduces the shipped behaviour; on flood mock runs the audit CSVs compare
+IDENTICAL and the raw traces, prompts included, are unchanged:
+
+```yaml
+global_config:
+  governance:
+    plain_action_names: true                          # default false
+    placebo_closer: "Please reconsider your decision."  # default: the adapter's closer
+  reflection:
+    keep_latest_only: true                            # default false
+<agent_type>:
+  feedback:
+    show_trend: false                                 # default true
+    tracked_metrics:
+      - { name: flag, source: flag, display: false }  # default true
+```
+
+1. **`plain_action_names`** (`RetryMixin._governance_retry_loop`). A retry
+   report names the blocked action as the feasible-action line does, the
+   skill id with spaces ("increase demand"), not the raw id. Retry text only.
+2. **`placebo_closer`** (`render_intervention_prompt`). The closing sentence
+   of a `retry_feedback_mode: placebo` retry; the shipped closer refers to
+   "the violations above", which a placebo prompt does not show.
+3. **`keep_latest_only`** (`broker/components/cognitive/reflection.py
+   (store_reflection_memory)`, `HumanCentricMemoryEngine.remove_by_type`).
+   Storing a reflection first removes the agent's earlier memories of the
+   same `type`, from working and long-term memory. Later memories keep the
+   timestamps they would have had without the removal, so decay ages do not
+   shift. An engine without `remove_by_type` raises. A domain runner that
+   skips storing a new reflection (the irrigation runner drops empty
+   summaries, summaries with a figure foreign to the agent's memory, and
+   unreadable or failed replies) calls `remove_by_type` itself, so the
+   agent keeps no reflection older than the latest round.
+4. **`show_trend`** and a metric's **`display`** (`FeedbackDashboardProvider`).
+   `show_trend: false` drops the TREND line; `display: false` keeps a tracked
+   metric out of the table and the trend line but usable in assertions (for
+   example a 0/1 flag that selects a warning's wording).
+
+Two text changes have no switch; each changes a prompt only in a run that
+reaches it, and neither was reached by the flood mock runs checked above:
+
+- The empty feasible-set line (`RetryMixin._format_feasible_line`) names the
+  cause when the attempt failed the response-format check (a required field
+  left out): that check fails for every action the probe tries, so "No action
+  passes every rule this step" would otherwise read as if the rules ruled out
+  every action. Other empty sets render as before. A run whose model leaves
+  out a required field sees the new wording, in any domain.
+- `generate_batch_reflection_prompt` says "1 agent" for a one-agent batch,
+  where it said "1 agents". `examples/governed_flood` reaches it whenever a
+  year's reflection candidates leave one agent in the last batch (a candidate
+  count one more than a multiple of its `batch_size`, 10 in its config), so such a
+  flood run's reflection prompt differs by that one letter.
+
+A placebo retry through an adapter without `format_intervention_prompt`
+raises when `placebo_closer` is set, since that adapter cannot render a
+closer. Tested in `broker/tests/test_wp4_framework_options.py` (generic) and
+`examples/irrigation_abm/tests/test_v3_prompt.py` (irrigation, end to end).
+
+---
+
 ## Migration Guide
 
 For release-to-release migration notes see `CHANGELOG.md`. Notable

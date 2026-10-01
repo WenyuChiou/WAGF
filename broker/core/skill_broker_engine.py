@@ -56,10 +56,15 @@ from ..components.analytics.interaction import InteractionHub
 from ..components.analytics.audit import AuditWriter
 from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
+from ..utils.llm_safeguard import LLMSafeguardConfig, LLMAbortTracker
 
 from ._retry_loop import RetryMixin
 from ._audit_helpers import (
     AuditMixin, _extract_construct_labels, _corrected_status_flag,
+)
+from ._appraisal_freeze import (
+    FROZEN_LABELS_CONTEXT_KEY, construct_label_dict, freeze_first_stated_labels,
+    frozen_label_view, is_construct_label_key, stated_construct_labels,
 )
 from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
 from ._advise_pass import AdviseMixin
@@ -267,6 +272,61 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         self.set_retry_feedback_mode(
             _rfm if _rfm in ("full", "placebo", "silent") else "full"
         )
+        # Appraisal freeze (global_config.governance.appraisal_freeze, default
+        # OFF; broker/core/_appraisal_freeze.py). Coerced to a real bool for
+        # the same MagicMock reason as the flags above. When on, the decision's
+        # construct labels as FIRST STATED are kept in its validation context
+        # and _run_validators checks every attempt against them.
+        _get_frz = getattr(self.config, "get_governance_appraisal_freeze", None)
+        _frz = _get_frz() if callable(_get_frz) else False
+        self._appraisal_freeze = _frz if isinstance(_frz, bool) else False
+        if self._appraisal_freeze:
+            self._assert_freeze_covers_thinking_rules()
+        # Registry backstop in retry text (global_config.governance.
+        # hide_registry_backstop_reports, default OFF): when on, a retry
+        # prompt leaves out the registry backstop results of an attempt that
+        # an identity rule already blocked (RetryMixin._retry_report_results).
+        _get_hbr = getattr(self.config, "get_governance_hide_registry_backstop_reports", None)
+        _hbr = _get_hbr() if callable(_get_hbr) else False
+        self._hide_registry_backstop_reports = _hbr if isinstance(_hbr, bool) else False
+        # Retry-text wording (global_config.governance.plain_action_names and
+        # placebo_closer, both default OFF; see their getters in
+        # broker/utils/agent_config.py): the blocked action named in plain
+        # words, and the closer of a placebo retry. Coerced for the same
+        # MagicMock reason as the flags above.
+        _get_pan = getattr(self.config, "get_governance_plain_action_names", None)
+        _pan = _get_pan() if callable(_get_pan) else False
+        self._plain_action_names = _pan if isinstance(_pan, bool) else False
+        _get_pcl = getattr(self.config, "get_governance_placebo_closer", None)
+        _pcl = _get_pcl() if callable(_get_pcl) else None
+        self._placebo_closer = _pcl if isinstance(_pcl, str) else None
+        # Per-attempt audit columns (global_config.audit.attempt_columns,
+        # default OFF): attempt_labels / attempt_failed_rules /
+        # appraisal_relabeled. The advisory channels make extra LLM attempts
+        # of their own (they append to attempt_skills in _advise_pass.py)
+        # that these columns do not record, so the combination is refused
+        # rather than written out of step with attempt_skills.
+        _get_acol = getattr(self.config, "get_audit_attempt_columns", None)
+        _acol = _get_acol() if callable(_get_acol) else False
+        self._attempt_columns = _acol if isinstance(_acol, bool) else False
+        if self._attempt_columns and (
+                self._advise_mode != "off" or self._soft_advise_mode != "off"):
+            raise ValueError(
+                "global_config.audit.attempt_columns cannot be combined with "
+                f"governance.advise (mode {self._advise_mode!r}) or "
+                f"governance.advise_mode ({self._soft_advise_mode!r}): the "
+                "advisory call is an extra attempt the per-attempt columns do "
+                "not record, so they would fall out of step with "
+                "attempt_skills. Turn one of them off."
+            )
+        # Agent-state audit columns (global_config.audit.state_columns,
+        # default none): each listed state key is written as state_<key>.
+        _get_scol = getattr(self.config, "get_audit_state_columns", None)
+        _scol = _get_scol() if callable(_get_scol) else []
+        self._audit_state_columns = (
+            tuple(_scol) if isinstance(_scol, (list, tuple))
+            and all(isinstance(k, str) for k in _scol) else ()
+        )
         # PR-6 review P1-b: FRAMEWORK-AWARE LABELS parity. Two evaluators read
         # this flag from two places — AgentValidator from the config object it
         # was constructed with, the ThinkingValidator from whatever the
@@ -292,6 +352,28 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # run_integrity.json — a failed sentinel write is a missing row, which
         # is the same denominator hole the sentinel exists to close.
         self._audit_sentinel_write_failures = 0
+        # Spec item 24 (audit gap F42, PI approved 2026-09-29): the LLM-failure
+        # abort-rate safeguard. Backoff is wired separately, into
+        # ExperimentRunner.get_llm_invoke (broker/utils/llm_safeguard.py) --
+        # this engine owns the per-DECISION rolling window instead, since
+        # process_step is the one place that sees both failure signals for a
+        # decision (the provider call's final success flag, and whether the
+        # output ever parsed) for ANY llm_invoke it is given, not only the
+        # framework's own get_llm_invoke path. Coerced the same defensive way
+        # as every other config-resolved flag above: a MagicMock config (most
+        # of this file's own tests) returns a Mock, not a dict, from a bare
+        # getattr call, and must resolve to the disabled default rather than
+        # raise out of __init__. A FRESH tracker per engine instance, never a
+        # module-level singleton like GovernanceAuditor -- two engines in one
+        # process (two tests, two arms of one script) must never share a
+        # window.
+        _get_safeguard = getattr(self.config, "get_llm_safeguard_config", None)
+        _safeguard_raw = _get_safeguard() if callable(_get_safeguard) else None
+        self._llm_safeguard = (
+            LLMSafeguardConfig.from_dict(_safeguard_raw)
+            if isinstance(_safeguard_raw, dict) else LLMSafeguardConfig()
+        )
+        self._llm_abort_tracker = LLMAbortTracker(self._llm_safeguard)
         # C1: the uncategorised-rule tally is a module global, so a second run
         # in the same interpreter (a seed sweep driven from one script) would
         # otherwise report the FIRST run's rule ids as well as its own. Cleared
@@ -433,6 +515,74 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     "middle value)")
         except Exception as exc:  # noqa: BLE001 — a log must not break construction
             logger.debug(f"[Validators] framework-aware parity check skipped: {exc}")
+
+    def _assert_freeze_covers_thinking_rules(self) -> None:
+        """Refuse an appraisal freeze that some proposal would escape.
+
+        Checked once, for every agent type of the active profile, at engine
+        construction:
+
+        - A thinking rule whose condition reads a reasoning field that is not
+          a construct label (a numeric construct, a label named without
+          ``_LABEL``) would keep reading each retry's own value, so
+          relabelling could still pass it while the run reports the freeze
+          as on. World-state conditions read no reasoning field and are
+          skipped.
+        - A multi-skill agent type (``multi_skill.enabled``) validates a
+          secondary proposal outside the primary proposal's retry sequence,
+          which the freeze does not define; refused rather than given a
+          silent meaning. (The ExperimentRunner cognitive cache is refused
+          the same way at runner construction, where it is configured.)
+        - A config without a callable ``items()`` cannot be checked at all,
+          so it is refused rather than passed unchecked.
+        """
+        from ..utils.agent_config import NON_AGENT_TOP_LEVEL_KEYS, world_condition_target
+
+        escaping: List[str] = []
+        items = getattr(self.config, "items", None)
+        if not callable(items):
+            raise ValueError(
+                "global_config.governance.appraisal_freeze is on, but the engine "
+                f"config ({type(self.config).__name__}) has no callable items(), "
+                "so its thinking rules cannot be checked against the freeze; "
+                "refusing to run the freeze unchecked."
+            )
+        get_multi_skill = getattr(self.config, "get_multi_skill_config", None)
+        for agent_type, block in items():
+            if agent_type in NON_AGENT_TOP_LEVEL_KEYS or not isinstance(block, dict):
+                continue
+            if callable(get_multi_skill) and get_multi_skill(agent_type):
+                raise ValueError(
+                    "global_config.governance.appraisal_freeze cannot be combined "
+                    f"with multi_skill.enabled (agent type {agent_type!r}): a "
+                    "secondary proposal is validated outside the primary "
+                    "proposal's retry sequence, which the freeze does not "
+                    "define. Turn one of them off."
+                )
+            for rule in self.config.get_thinking_rules(agent_type):
+                names: List[str] = []
+                if isinstance(rule.conditions, list):
+                    for cond in rule.conditions:
+                        if not isinstance(cond, dict):
+                            continue
+                        if world_condition_target(cond)[0]:
+                            continue
+                        name = cond.get("construct") or cond.get("field")
+                        if name:
+                            names.append(str(name))
+                elif rule.construct and rule.expected_levels:
+                    names.append(str(rule.construct))
+                for name in names:
+                    if not is_construct_label_key(name):
+                        escaping.append(f"{agent_type}:{rule.id} reads {name!r}")
+        if escaping:
+            raise ValueError(
+                "global_config.governance.appraisal_freeze is on, but these "
+                "thinking rules read a reasoning field that is not a construct "
+                f"label (no '_LABEL' in its name), which the freeze does not "
+                f"cover: {escaping}. Name the construct with '_LABEL' or turn "
+                "the freeze off."
+            )
 
     def process_step(
         self,
@@ -595,6 +745,16 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             # the JSONL or the CSV — the arm with more parse failures silently
             # ran a smaller denominator. Under corrected_status_columns a
             # sentinel row conserves the agent x year count instead.
+            #
+            # Fix round 3 (CRITICAL 2, PI decision): a safeguard-specific
+            # special case here (writing the sentinel whenever the safeguard
+            # was enabled, regardless of this flag) was tried and reverted --
+            # it made the audit schema depend on a runtime event (did THIS
+            # run happen to hit a parse failure), which is exactly the
+            # inconsistency the PI ruled against. A domain that wants the
+            # abort-triggering decision's own row preserved turns
+            # corrected_status_columns on itself in its own config; the
+            # safeguard no longer reaches into this gate at all.
             if self.audit_writer and self._corrected_status_columns:
                 self._write_aborted_sentinel_trace(
                     agent_type=agent_type, run_id=run_id, step_id=step_id,
@@ -620,7 +780,17 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     # every other row, so a mixed-population CSV has one
                     # column set rather than two.
                     decider=decider,
+                    # The state the validators would have seen: it fills the
+                    # audit.state_columns of the ABORTED row (the per-attempt
+                    # columns are marked unobserved there).
+                    state=context.get("state") if isinstance(context, dict) else None,
                 )
+            # Spec item 24: this decision never produced a usable proposal --
+            # an unconditional failure for the abort-rate window. After the
+            # sentinel trace above, so the row this decision writes to the
+            # audit trail exists before a possible raise. A no-op unless the
+            # safeguard is enabled (LLMAbortTracker.record short-circuits).
+            self._llm_abort_tracker.record(failed=True)
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
 
         if format_retry_count > 0:
@@ -661,6 +831,18 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # added -> validation_context byte-identical; proposed_magnitude path unchanged.
         if skill_proposal and skill_proposal.parameters:
             validation_context["proposed_parameters"] = dict(skill_proposal.parameters)
+
+        # Appraisal freeze (global_config.governance.appraisal_freeze, default
+        # OFF): start THIS decision's frozen labels with the labels its first
+        # parsed attempt states. Every later validation pass of the decision
+        # (governance retries, the feasible-set probe, the advisory
+        # re-validations) reaches _run_validators with this same dict, which
+        # adds any label an attempt states for the first time and checks the
+        # attempt against the labels as first stated. Format retries carry no
+        # rule content, so the first PARSED attempt is where it starts. Flag
+        # OFF: the key is never set.
+        if self._appraisal_freeze:
+            validation_context[FROZEN_LABELS_CONTEXT_KEY] = stated_construct_labels(skill_proposal)
 
         validation_results = self._run_validators(skill_proposal, validation_context)
         all_validation_history = list(validation_results)
@@ -719,6 +901,18 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         feasible_by_attempt: Optional[List[List[str]]] = (
             [] if self._feasible_set_feedback else None
         )
+        # Per-attempt records (global_config.audit.attempt_columns, default
+        # OFF), kept in step with attempt_skills: each attempt's construct
+        # labels and the ids of the rules that returned an ERROR on it.
+        # Seeded here with attempt 0; the governance retry loop appends one
+        # entry per retry. None (flag OFF) adds no audit key.
+        attempt_labels: Optional[List[Optional[Dict[str, Any]]]] = (
+            [construct_label_dict(skill_proposal)] if self._attempt_columns else None
+        )
+        attempt_failed_rules: Optional[List[Optional[List[str]]]] = (
+            [self._failed_rule_ids(validation_results)]
+            if self._attempt_columns else None
+        )
 
         # P0-1c: the single-shot advisory pass. No-op (returns its inputs, zero LLM
         # calls) unless an arm config declares global_config.governance.advise. Runs
@@ -771,6 +965,8 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 total_llm_stats=total_llm_stats,
                 attempt_skills=attempt_skills,
                 feasible_by_attempt=feasible_by_attempt,
+                attempt_labels=attempt_labels,
+                attempt_failed_rules=attempt_failed_rules,
             )
         )
 
@@ -963,7 +1159,25 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 soft_advise_info=soft_advise_info,
                 decider=decider,
                 feasible_by_attempt=feasible_by_attempt,
+                attempt_labels=attempt_labels,
+                attempt_failed_rules=attempt_failed_rules,
             )
+
+        # Spec item 24: this decision's outcome for the abort-rate window --
+        # failed when the LAST provider call this decision made ultimately
+        # did not succeed, OR the final output never parsed. skill_proposal
+        # can still be None here even after the early-return branch above:
+        # RetryMixin._governance_retry_loop can exhaust its retries on an
+        # unparsed final attempt too (see its own "self.auditor.log_parse_error()"
+        # branch). A governance-rejected but well-formed proposal is NOT a
+        # failure here: that is the existing, unrelated rule-violation path.
+        # After the trace write, before the row is handed back, so a raise
+        # here still leaves this decision's own row on disk. A no-op unless
+        # the safeguard is enabled.
+        self._llm_abort_tracker.record(
+            failed=(skill_proposal is None)
+            or (not bool(total_llm_stats.get("llm_success", True)))
+        )
 
         result = SkillBrokerResult(
             outcome=outcome,
@@ -1144,6 +1358,20 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         """Run all validators on the skill proposal."""
         if context is None:
             context = {}
+
+        # Appraisal freeze (global_config.governance.appraisal_freeze): when
+        # process_step put this decision's frozen labels into the context,
+        # first add any label THIS attempt states for the first time (a label
+        # already frozen is never replaced), then give every validator a copy
+        # of the proposal carrying the labels as first stated
+        # (broker/core/_appraisal_freeze.py). The skill, magnitude,
+        # parameters and non-label reasoning are the attempt's own. Key
+        # absent (the default): the proposal is checked exactly as given.
+        if proposal is not None and isinstance(context, dict):
+            _frozen_labels = context.get(FROZEN_LABELS_CONTEXT_KEY)
+            if _frozen_labels is not None:
+                freeze_first_stated_labels(_frozen_labels, proposal)
+                proposal = frozen_label_view(proposal, _frozen_labels)
 
         proposal_agent_type = getattr(proposal, "agent_type", None)
         agent_type = context.get("agent_type")

@@ -62,6 +62,47 @@ results/<run_name>/
   reflection_log.jsonl                   # Memory consolidation events
 ```
 
+### Running with `--workers`
+
+`--workers N` (default 1) processes each year's agents through a
+`ThreadPoolExecutor` instead of one at a time
+(`broker/core/experiment_runner.py (ExperimentRunner._run_agents_parallel)`).
+
+**Guaranteed**: with `--model mock`, a run at any `--workers` value
+produces an identical `simulation_log.csv`, an identical
+`governance_summary.json` and an identical `run_integrity.json` to the
+same run at `--workers 1`, byte for byte, regardless of thread-completion
+order. The stock `--model mock` invoke
+(`broker/utils/llm_utils.py (create_llm_invoke)`) is itself a pure
+function of the prompt text, so this guarantee covers an ordinary
+`--model mock` run, not only a custom test double.
+`irrigation_farmer_governance_audit.csv` is identical row for row too,
+but only AFTER `broker.tools.compare_audit_csv`'s timestamp
+normalisation: every row carries a wall-clock `timestamp` column that
+differs between any two separate process runs regardless of code, so a
+raw byte or `diff` comparison of two runs' audit CSVs always shows a
+difference even with zero change. The apply loop (`_apply_state_changes`
+plus the `post_step` hook, including the memory engine's consolidation
+draw from its one shared `random.Random`) runs in submission order, not
+completion order; the audit CSV is sorted by `step_id` at export for the
+same reason. See
+`examples/irrigation_abm/tests/test_v3_workers_determinism.py`.
+
+**Not guaranteed**:
+
+- Real-LLM concurrency needs the Ollama server's own `OLLAMA_NUM_PARALLEL`
+  set to at least `--workers`, or requests queue server-side and the
+  wall-clock benefit disappears. Batched inference also changes the
+  model's numerics, and Ollama's own output is not reproducible run to
+  run at a fixed seed even at `--workers 1` (this runner sends no Ollama
+  seed). Run every arm of one corpus at the same `--workers` value so
+  this is never a hidden confound between arms.
+- The streamed JSONL (`raw/irrigation_farmer_traces.jsonl`) stays in
+  thread-completion order; it is not re-sorted at write time.
+  `broker.tools.recover_csv_from_jsonl` sorts by `step_id` when it
+  rebuilds a CSV from that JSONL, so a crash-recovered CSV's row order
+  matches a normal `finalize()` run's.
+
 ### v0.6 Coupling Layer (optional, default OFF)
 
 Pass `--coupling` to wrap `IrrigationEnvironment` in
@@ -174,6 +215,60 @@ CHANGELOG `[Unreleased]`.
 
 ---
 
+### Resuming a crashed run
+
+A long `--real` run (42 years, about 2.4 GPU hours) has no checkpoint by
+default: a crash or a reboot partway through throws away every completed
+year's GPU work. `--llm-journal` and `--resume-from` add a checkpoint by
+journaling every LLM call (`broker/utils/llm_journal.py`) and replaying it
+on resume, instead of serialising runtime state.
+
+```bash
+# Start a run that journals every LLM call to llm_journal.jsonl:
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --real \
+    --years 42 --governance-mode strict --output results/my_run --llm-journal
+
+# If it crashes (power loss, a reboot, Ctrl-C), resume into a NEW directory:
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --real \
+    --years 42 --governance-mode strict --output results/my_run_resumed \
+    --resume-from results/my_run
+```
+
+What is replayed: years already fully completed in the source run (up to
+the last one with a recorded end-of-year marker) are re-executed from year
+1 on the CPU, with every LLM call answered from the journal instead of
+re-sent to the model, so the environment, memory, governance state, and
+hooks are rebuilt by running the same code rather than by deserialising a
+snapshot. The first incomplete year, and every year after it, run live
+against the model as normal. `--resume-from` accepts either the crashed
+run's `--output` directory or its `llm_journal.jsonl` file directly.
+
+What the divergence error means: if the rebuilt run asks the model
+something the source journal has no matching record for (a different
+prompt, or more or fewer calls than the source made that year), resuming
+raises `JournalReplayDivergence` instead of silently falling back to a
+live call. That means the resume can no longer be proven to reproduce the
+original run's state; do not re-run with a different model, seed, or
+config and call it a resume, start a fresh run instead.
+
+Resuming is refused up front (`SystemExit`, before any data loads) for any
+of: `--output` resolving to the SAME directory as the source run;
+`--model` / `--seed` / `--memory-seed` / `--governance-mode` / `--years` /
+`--real` or any other prompt-affecting CLI flag differing from the source
+run (`--workers` may differ freely); the current git commit differing
+from the source run's; the current uncommitted diff (`git diff HEAD`,
+hashed) differing from the source run's, even at the same commit (an
+untracked file appearing since the crash, such as the crashed run's own
+output, never counts as a difference); or the agent-config YAML, the
+prompt template, or the skill registry YAML having been edited since the
+source run loaded them (each is content-hashed, so an in-place edit is
+caught even when `--config-dir` itself is unchanged).
+
+A resumed run always writes to a new `--output` directory and never
+modifies the source run's files; its own `llm_journal.jsonl` holds both
+the replayed history and everything new, so it can be resumed again if it
+also crashes.
+
 ## 2. Production Results (v21)
 
 **Experiment**: 78 agents × 42 years, gemma3:4b, strict governance, seed 42.
@@ -209,14 +304,14 @@ Note: v20 results are deprecated due to the execute_skill base asymmetry bug. Al
 | :----- | :--- | :----- |
 | 1 | **Strict Governance** | 12 validator functions defined, 7 dispatched (see Section 6), plus the YAML thinking and identity rules |
 | 2 | **Cognitive Memory** | `HumanCentricMemoryEngine`, composed retrieval (SI section 3.8): the 5 most recent memories always, plus the 2 long-term memories with the highest decayed importance (ties: earlier first; decayed importance at or below 0.05 dropped), so up to 7 per prompt (the year-end reflection and the simulation-log memory column read the same up to 7); long-term means consolidated (importance >= 0.6, probability 0.7 x importance); + year-end reflection. Corpora produced before 2026-09-26 served 3 memories per prompt (weighted recency / importance / context scoring), not the SI composition; see caveat 12 |
-| 3 | **Reflection Loop** | Year-end consolidation with domain-specific guidance questions |
+| 3 | **Reflection Loop** | Year-end lesson per agent (one agent per call, written from the agent's own memories without earlier reflections; only the latest is kept, `reflection.keep_latest_only`) |
 
 ```mermaid
 flowchart TD
     A["<b>Initialize</b><br/>78 CRSS agents<br/>Cluster assignment<br/>Water rights & diversions"] --> B
 
     subgraph YEAR ["For each year (1..42)"]
-        B["<b>Pre-Year Hook</b><br/>advance_year() → precip, Lake Mead,<br/>drought index, shortage tier, curtailment<br/>Inject memories + action-outcome feedback"]
+        B["<b>Pre-Year Hook</b><br/>advance_year() → precip, Lake Mead,<br/>shortage tier, expected delivery<br/>Inject memories + action-outcome feedback"]
 
         B --> C["<b>Agent Decision</b><br/>(per agent, parallel)"]
 
@@ -234,7 +329,7 @@ flowchart TD
         end
 
         H --> L["<b>Post-Step Hook</b><br/>Record decision, constructs, magnitude"]
-        L --> M["<b>Post-Year Hook</b><br/>Batch reflection<br/>Memory consolidation"]
+        L --> M["<b>Post-Year Hook</b><br/>Per-agent reflection<br/>Memory consolidation"]
         M --> B
     end
 
@@ -250,16 +345,14 @@ flowchart TD
 
 ## 4. Water System Model
 
-Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: Lake Powell passes its inflow through to Lake Mead clamped to [7.0, 9.0] MAF (storage tops up a dry year, and keeps a wet year's excess only until Powell is back at its 2019 fill), Upper Basin use is cut pro-rata only when Powell cannot keep the 7.0 MAF floor, and Lake Mead withdrawals are cut by the declared Lower Basin shortage tier and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
+Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: the Upper Basin has PRIORITY and is never cut to protect Powell's release; Lake Powell's release follows `powell_release_mode` -- the actual 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages (`ig2007_tiers`, v3 default; unbounded above in the Equalization tier), or a one-rule simplification equalizing Powell's and Mead's live-storage fractions, always bounded to [7.0, 9.5] MAF (`storage_balancing`, kept for the SI) -- and never more than physically available either way; Lake Mead withdrawals are cut by the declared Lower Basin shortage tier (borne by the non-agricultural bucket, not by agricultural requests) and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
 
 ### Key Parameters
 
 | Parameter | Value | Source |
 | :-------- | :---- | :----- |
-| Natural flow baseline | 12.0 MAF/yr | Lees Ferry post-2000 (drought-era) average, not the long-term average (~14.6 MAF/yr for 1906-2018) |
-| Powell release floor | 7.0 MAF/yr | Modelling choice: floor of the 2007 Interim Guidelines' Lower Elevation Balancing Tier (7.0-9.5 MAF), not the "minimum objective release" (8.23 MAF/yr, also the *initial* WY2019 release volume -- the actual WY2019 release was 8.91 MAF; the Mid-Elevation Release Tier releases 7.48 MAF/yr below a Mead-elevation threshold, 8.23 above it) |
-| Powell release ceiling (wet year) | 9.0 MAF/yr | Modelling choice motivated by the Guidelines' balancing-tier cap; the real tiered structure runs 7.48/8.23 up to 9.0, with the SAME Lower Elevation Balancing Tier reaching up to 9.5 MAF |
-| Powell target fill (`powell_target_fill`, on [0, 1]) | 0.42 of live capacity | Modelling choice, not a Guidelines figure: 1 January 2019 live fill (10.10 / 24.32 MAF = 0.415, rounded) -- Powell holds wet-year surplus only until it is back at its 2019 level |
+| Natural flow | USBR calendar-year naturalized flow at Lees Ferry, `data/hydrology_v3.csv` (no clamp) | v3 (2026-09-28): the same resampled trace Hung and Yang (2021, p. 15) used; see `docs/irrigation_physics.md`. Replaces the earlier precipitation-scaled proxy (12.0 MAF baseline, clamped [6, 17] MAF) |
+| Powell release | `ig2007_tiers` (v3 default, items 26-27): the actual 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages -- only the Lower Elevation Balancing tier is bounded to [7.0, 9.5] MAF/yr (ROD p. 53, "not more than 9.5 maf and not less than 7.0 maf"); the Equalization tier's release has no upper bound (e.g. 14.63 MAF in the 2011 hindcast year). `storage_balancing` (SI mode): a simplified balancing rule, ROD Section 6, ALWAYS bounded to that same [7.0, 9.5] MAF band, replacing the earlier pass-through-with-target-fill rule and its modelling-choice 9.0 MAF ceiling / `powell_target_fill` (both retired). See `docs/irrigation_physics.md` step 4. |
 | UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
 | Mexico treaty delivery | 1.5 MAF/yr | VERIFIED (canonical). 1944 Treaty (before DCP reductions) |
 | Initial Mead elevation | 1081.46 ft | VERIFIED. USBR observed December 2018 |
@@ -282,29 +375,29 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 
 ### Behavioral Clusters
 
-Three k-means clusters from Hung & Yang (2021), mapped from FQL parameters to LLM personas:
+Three clusters from Hung & Yang (2021, Figure 7; `--cluster-method hy2021`, the default), each with one fixed persona text (v3, WP4, `irrigation_personas.py (_CLUSTER_PERSONAS)`) stating the cluster's tendencies (Table 1, p. 13) about the agent's group ("Users in your group tend to ..."), as comparisons with the other clusters, without superlatives, and only where the cluster ordering holds in the calibrated parameter file (spec item 29d: concern about a shortfall, how quickly expectations are revised, weight on future years; exploration is left out because its ordering does not hold):
 
-| Cluster | N (of 78) | LLM Persona |
-| :------ | --------: | :---------- |
-| **Aggressive** | 67 | Bold, large demand swings |
-| **Forward-Looking Conservative** | 5 | Cautious, future-oriented |
-| **Myopic Conservative** | 6 | Tradition-oriented, slow updates |
+| Cluster | N (of 78) | Persona text says |
+| :------ | --------: | :---------------- |
+| **Aggressive** | 60 | users in the agent's group tend to be less concerned by a shortfall than more cautious users, to revise expectations more slowly than forward-looking users and to give future years less weight than forward-looking users |
+| **Forward-Looking Conservative** | 7 | users in the group tend to be more concerned by a shortfall, to revise expectations more quickly and to give future years more weight than other users |
+| **Myopic Conservative** | 11 | users in the group tend to be more concerned by a shortfall than aggressive users but less than forward-looking users, to revise expectations more slowly than forward-looking users and to give future years less weight than other users |
 
 Since 2026-09-26 the cluster is a persona label only; it no longer scales the step size (the former `persona_scale` 1.15 / 1.00 / 0.80 was removed).
 
 The LLM arms use these realized clusters; `--rebalance-clusters` (target 50/30/20) is opt-in and was OFF in every LLM run. The FQL baseline exists in both variants (`fql_raw_faf1bb12` rebalanced, `fql_raw_norebalance_faf1bb12` matched).
 
-### Action Space (5 Skills)
+### Action Space (3 Skills)
+
+v3 (WP2, 2026-09-29): the LLM chooses the DIRECTION only; the environment draws the whole Hung and Yang step magnitude, with no small/large split.
 
 | Skill | Real-World Analog |
 | :---- | :---------------- |
-| `increase_large` | Major acreage expansion |
-| `increase_small` | Marginal crop intensity increase |
+| `increase_demand` | Expanding acreage or crop intensity |
 | `maintain_demand` | Status quo under long-term contracts |
-| `decrease_small` | Minor conservation adjustments |
-| `decrease_large` | Fallowing fields, crop switching |
+| `decrease_demand` | Conservation, fallowing fields, crop switching |
 
-The LLM chooses the skill (direction and small or large step); the step size follows the Hung & Yang (2021) action model (`ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)`): step = (mu + |N(0, sigma)|) x bin_size acre-ft, drawn at execution time (`irrigation_env.py (hy_step_af)`).
+The LLM chooses the direction; the step size follows the Hung & Yang (2021) action model (`ref/RL-ABM-CRSS/ABM_CRSS_coupling.py (Q_learning)`): step = (mu + |N(0, sigma)|) x step_bin_af acre-ft, drawn at execution time (`irrigation_env.py (hy_step_af)`) against the agent's BASE (last year's committed delivery, `IrrigationEnvironment._reset_requests_to_base`), not its carried request.
 
 | Quantity | Value | Kind |
 | :------- | :---- | :--- |
@@ -319,24 +412,21 @@ An increase is capped at the water right and a decrease never goes below min(10 
 
 ## 6. Governance System
 
-12 validator functions are defined; 7 are wired into `ALL_IRRIGATION_CHECKS` and actually dispatch at runtime, in a priority-ordered rule chain. ERROR-level violations reject the action and re-prompt (up to 3 retries). WARNING-level rules log but allow.
+v3 governance (WP3, `irrigation_v3_spec_2026-09-28.md` section 3; equations and texts in `docs/irrigation_physics.md`, "Governance (v3, WP3)") has two rule families and the same option menu in every arm. ERROR-level blocks re-prompt up to 3 times; when retries run out, keep (`maintain_demand`) is executed and the blocked proposal is recorded.
 
-F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `compact_allocation_check` are excluded from dispatch: each reads a context key nothing in the pipeline produces (`basin_allocation`, `proposed_magnitude`), or a threshold the real CRSS data never reaches (drought index tops out around 0.62-0.69 per run, below the 0.7 floor), and fired zero times across 49,140 audited strict rows. The functions stay defined and are tested directly by `tests/test_irrigation_env.py`, but are NOT run by `assert_validator_inputs_have_producers()` (the startup self-check in `irrigation_validators.py`, which fails fast if a check IN `ALL_IRRIGATION_CHECKS` reads a key with no producer) since that check only scans the dispatched set. `test_assert_validator_inputs_have_producers_catches_dead_key` proves it WOULD raise on these two if they were re-added.
+| Rule (id) | Blocks | Where it acts | Grounding |
+| :-------- | :----- | :------------ | :-------- |
+| supply rule (`supply_gap_block_increase`) | an increase when the expected delivery at the keep request (last year's receipt), net of a declared junior-priority cut, is below `FULL_SUPPLY_RATIO` (0.999) of it | Python check (`ALL_IRRIGATION_CHECKS`), in strict, placebo, silent and feasibility_only; post hoc in disabled | world |
+| water-right cap (`water_right_cap`) | an increase once the base is at 0.99 W | YAML identity rule: menu filter and block, every profile | world |
+| minimum-use floor (`minimum_utilisation_floor`) | a decrease once the base is at 1.01 F (F = 0.10 W) | YAML identity rule: menu filter and block, every profile | world |
+| TR1 (`high_scarcity_no_increase`) | an increase when the first-stated water-scarcity appraisal is High or Very High | YAML thinking rule in strict, placebo and silent; post hoc in feasibility_only and disabled | self-report |
+| TR3 (`low_scarcity_no_decrease`) | a decrease when the first-stated water-scarcity appraisal is Very Low or Low | as TR1 | self-report |
 
-| # | Validator | Blocks | Level | Category |
-| - | :-------- | :----- | :---- | :------- |
-| 1 | `water_right_cap_check` | increase (at cap) | ERROR | Physical |
-| 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARN | Physical |
-| 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
-| 4 | `demand_floor_stabilizer` | decrease (<50%); retired from dispatch 2026-09-25 | ERROR | Economic |
-| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF); retired from dispatch 2026-09-25, the basin limit is now supply-side availability and the ratio is logged as `basin_request_over_target` | ERROR | Economic |
-| 6 | `drought_severity_check` | increase (drought>0.7); excluded from dispatch, real index never reaches 0.7 | ERROR | Physical |
-| 7 | `magnitude_cap_check` | increase (exceeds cap); excluded from dispatch, `proposed_magnitude` never injected | WARNING | Physical |
-| 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
-| 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
-| 10 | `compact_allocation_check` | increase (basin>Compact); excluded from dispatch, `basin_allocation` never injected | WARNING | Social |
-| 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
-| 12 | `zero_escape_check` | maintain (<15% util) | ERROR | Behavioral |
+Profiles (`--governance-mode`): `strict`; `feasibility_only` (strict without TR1 and TR3, one run); `disabled` (the two identity rules only, no custom validators). The placebo and silent arms are strict run with `--retry-feedback-mode placebo|silent`. The appraisal freeze (`global_config.governance.appraisal_freeze`) makes TR1, TR3 and the feasible-action line of a retry read the appraisal as first stated in the decision (the first parsed attempt's, unless that attempt gave none), so relabelling cannot pass a rule. An off-menu answer blocked by an identity rule gets a retry text with that rule's message only (`hide_registry_backstop_reports`); the registry backstop stays in the audit. Retry texts carry no rule id (`rule_id_prefix: false`) and no appraisal label code.
+
+Retired with the pre-v3 rule set (functions kept only where tests or replays of older corpora call them, each marked "not dispatched in v3"): `curtailment_awareness_check` (merged into the supply rule, with its Tier 1 differential and its years 1-3 grace), the 0.70 supply-gap cutoff and its Tier 2+ skip, `water_right_cap_check` and `minimum_utilisation_check` (now the identity rules), `non_negative_diversion_check`, `consecutive_increase_cap_check` and `zero_escape_check` (with `--pilot-phase` and `--ablation-mode`, which the runner now refuses), the old thinking rules R1, R2 and R4, and the `relaxed` and `grounded_v1` profiles. Out of dispatch since 2026-09-25 (F04 and the supply-side redesign): `drought_severity_check`, `compact_allocation_check`, `magnitude_cap_check`, `demand_floor_stabilizer`, `demand_ceiling_stabilizer`.
+
+Audit columns for the metrics (governance audit CSV): `initial_skill`, `initial_labels`, `attempt_skills`, `final_labels`, `appraisal_drift`, `attempt_labels`, `attempt_failed_rules`, `appraisal_relabeled`, `executed_skill`, `execution_path`, `rules_world_grounded` / `rules_self_report`, and the supply rule's inputs as `state_supply_keep_request_af`, `state_supply_expected_at_keep_af`, `state_supply_ratio`, `state_supply_physical_ratio`, `state_full_supply_ratio`.
 
 ---
 
@@ -344,7 +434,7 @@ F04 (2026-09-25 audit): `drought_severity_check`, `magnitude_cap_check` and `com
 
 **Agent behavior**: No inter-agent communication; annual decision frequency; homogeneous curtailment (no prior appropriation doctrine); fixed persona assignment throughout simulation.
 
-**Water system**: Two storage stocks (Lake Powell: pass-through release clamped to [7.0, 9.0] MAF/yr subject to storage, wet-year retention only up to the 2019 fill, not the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.0 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
+**Water system**: Two storage stocks (Lake Powell: the actual 2007 Interim Guidelines operating tiers, unbounded above in Equalization (`ig2007_tiers`, v3 default), or a one-rule simplification bounded to [7.0, 9.5] MAF/yr (`storage_balancing`, SI mode), neither the full operating rules; Lake Mead with Lower-Basin-only shortage tiers); annual resolution; static non-agricultural demand (5.2 MAF/yr for CAP, MWD, and other M&I uses); no groundwater.
 
 **LLM-specific**: Magnitude-reasoning decoupling (LLM chooses skill direction, not magnitude); results specific to gemma3:4b; ERROR-level governance cannot be overridden.
 

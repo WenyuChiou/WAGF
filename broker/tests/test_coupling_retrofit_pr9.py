@@ -236,6 +236,10 @@ class TestContractFieldEnumeration:
             # supply-side redesign (2026-09-25)
             "delivery_ratio", "gap_reason", "basin_request_over_target",
             "natural_flow_maf", "powell_storage_maf",
+            # WP1b re-review (LOW 9, 2026-09-29): special-cased like
+            # precipitation (checked only when precip_group is set), not a
+            # plain _BASIN_SCOPED_FIELDS entry.
+            "supply_group", "ub_subbasin_member_count",
         }
         assert set(IRRIGATION_CONTEXT_FIELD_SOURCES.keys()) == expected
         contract = build_irrigation_agent_context_contract()
@@ -259,24 +263,46 @@ class TestCouplingRetrofitMetadata:
 
     def test_fields_report_per_field_check_kind(self):
         """Review P1-c: a flat list read as though all fifteen fields were
-        range-guarded; five are bool/str and have no range."""
+        range-guarded; five are bool/str and have no range. WP1b re-review
+        (LOW 9, 2026-09-29) adds a sixth, supply_group (str)."""
         meta = _minimal_synthetic_env(coupling_contract_active=True).get_coupling_retrofit_metadata()
         checks = meta["coupling_contract_fields"]
         assert isinstance(checks, dict)
         assert checks == irrigation_contract_field_checks()
         assert set(checks.values()) == {"presence+range", "presence+type"}
-        # The five non-numeric fields, named so a rename cannot silently
+        # The non-numeric fields, named so a rename cannot silently
         # reclassify one into the range bucket.
         type_only = {k for k, v in checks.items() if v == "presence+type"}
         assert type_only == {
             "at_allocation_cap", "has_efficient_system",
             "below_minimum_utilisation", "cluster", "basin", "gap_reason",
+            "supply_group",
         }
         assert checks["lake_mead_level"] == "presence+range"
+        assert checks["ub_subbasin_member_count"] == "presence+range"
 
     def test_metadata_names_the_uncovered_context_keys(self):
         """Review P2: 'the contract covers 15 of 18 context keys' is only
-        checkable if the other three are in the artifact."""
+        checkable if the other three are in the artifact. v3 (spec 1.6,
+        2026-09-28) adds one more uncovered key, precipitation_flag; the
+        2026-09-29 re-review (HIGH 2) adds a second, lb_shortage_volume_maf;
+        WP1b (item 20, 2026-09-29) adds two -- ub_subbasin_ratio,
+        ub_subbasin_flow_share (see IRRIGATION_CONTEXT_UNCOVERED_KEYS's
+        comment for why each carries none of the F1 risk the contract
+        guards against). supply_group and ub_subbasin_member_count landed
+        there too but moved to COVERED in the same-day re-review (LOW 9):
+        special-cased in guard_agent_context_sources like "precipitation",
+        checked only for an agent that claims a sub-basin at all.
+
+        WP1c (item 22, 2026-09-29) adds four more uncovered keys --
+        lb_senior_entitlement_af, lb_junior_entitlement_af,
+        lb_junior_request_af, lb_junior_tier_cut_fraction (same
+        IRRIGATION_CONTEXT_UNCOVERED_KEYS comment covers why each is safe:
+        a checksum-verified table read or a derived value, never a bare
+        source-dict read, and None/0 only in legitimate "not applicable"
+        cases) -- moving this pin's uncovered count from 8 to 12; covered
+        stays 22, since none of the four new keys is added to the coupling
+        contract itself."""
         env = _minimal_synthetic_env(coupling_contract_active=True)
         env.advance_year()
         meta = env.get_coupling_retrofit_metadata()
@@ -287,7 +313,9 @@ class TestCouplingRetrofitMetadata:
         # The two sets together account for EVERY key the context returns.
         assert covered | uncovered == ctx_keys
         assert not (covered & uncovered)
-        assert len(covered) == 20 and len(uncovered) == 4
+        # WP4 (spec 4.3) adds shortage_tier_threshold_ft, uncovered for the
+        # reason IRRIGATION_CONTEXT_UNCOVERED_KEYS's comment gives: 12 -> 13.
+        assert len(covered) == 22 and len(uncovered) == 13
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never
@@ -1112,6 +1140,10 @@ class TestUnknownBasinIsAViolation:
                 basin={"preceding_factor": 0},
                 global_state={"drought_index": 0.5, "total_available_water": 1.0,
                               "total_basin_demand": 1.0},
+                # Re-review 2026-09-29 (LOW E): agent has no precip_group,
+                # so this falls through to the generic basin-level check
+                # below (unaffected by this empty dict).
+                precip_by_group={},
             )
         message = str(exc.value)
         assert "basin='middle_basin'" in message
@@ -1194,22 +1226,29 @@ class TestCrssPrecipitationNaNRefusedAtLoad:
         assert not math.isnan(holed_mean)      # no NaN, no error
         assert holed_mean == pytest.approx(clean_mean)  # and here, not even a visible change
 
-    def test_a_blank_row_becomes_max_inflow_and_max_drought_if_allowed_through(self, tmp_path):
+    def test_a_blank_row_becomes_max_drought_if_allowed_through(self, tmp_path):
         """Falsification, case 2 -- the shape the reviewer named: the mean of
         an all-blank row IS NaN, and because every comparison with NaN is
-        False the clamps return their extreme ends rather than raising."""
+        False the drought clamp returns its extreme end rather than raising.
+
+        Re-review 2026-09-29 (LOW 7): this test used to ALSO re-derive a
+        natural-flow clamp via ``cfg.natural_flow_base_maf * (laundered /
+        cfg.precip_baseline_mm)`` -- a RETIRED v3 formula that
+        ``_natural_flow_for_year`` no longer uses at all (natural flow now
+        comes from the committed USBR hydrology table, independent of
+        precipitation); that half tested only its own re-derived arithmetic,
+        never any current code path, so it is dropped along with the
+        retired ``WaterSystemConfig.natural_flow_base_maf`` field itself.
+        The drought clamp below still exercises live code
+        (``_compute_drought_index`` is still called every year, even though
+        its output is disclosed as unread by any prompt, rule or metric)."""
         import pandas as pd
 
         raw = pd.read_csv(_crss_csv(tmp_path, blank_row=2019), index_col=0) * 25.4
         laundered = float(raw.loc[2019, _UB_COLS].mean())
         assert math.isnan(laundered)
 
-        cfg = WaterSystemConfig(seed=42)
-        env = IrrigationEnvironment(cfg)
-        # The natural-flow clamp: max(6.0, min(17.0, NaN)) -> the 17 MAF ceiling.
-        natural_flow = cfg.natural_flow_base_maf * (laundered / cfg.precip_baseline_mm)
-        assert math.isnan(natural_flow)
-        assert max(6.0, min(17.0, natural_flow)) == 17.0
+        env = IrrigationEnvironment(WaterSystemConfig(seed=42))
         # The drought clamp: max(0.0, min(1.0, 1.0 - NaN/baseline)) -> 1.0, MAX
         # drought -- indistinguishable from a year with ZERO precipitation.
         drought_from_nan = env._compute_drought_index(laundered, 1000.0)
@@ -1224,7 +1263,13 @@ class TestCrssPrecipitationNaNRefusedAtLoad:
         env.initialize_synthetic(n_agents=2, basin_split=(1, 1))
         assert env._crss_precip is None
         env.advance_year()
-        assert env._precip_history and math.isfinite(env._precip_history[-1])
+        # v3 (spec 1.6, 2026-09-28): each entry is now a per-sub-basin-group
+        # dict, not a bare float (the synthetic fallback replicates one
+        # drying-trend value across all 9 groups -- see
+        # _generate_precipitation).
+        assert env._precip_history
+        last = env._precip_history[-1]
+        assert last and all(math.isfinite(v) for v in last.values())
 
 
 class TestNumpyBoolScalars:

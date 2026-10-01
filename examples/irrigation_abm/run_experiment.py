@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 import yaml
 import pandas as pd
@@ -34,6 +35,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
+    MIN_UTIL,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -41,18 +43,19 @@ from examples.irrigation_abm.irrigation_personas import (
     IrrigationAgentProfile,
     build_narrative_persona,
     build_water_situation_text,
-    build_conservation_status,
-    build_aca_hint,
     build_action_outcome_feedback,
+    build_option_notes,
+    build_option_texts,
     build_simulation_log_row,
     create_profiles_from_csv,
+    dashboard_sharing_flags,
     describe_gap_reason,
     read_lake_mead_level_for_log,
     rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory.engine import HumanCentricMemoryEngine
-from broker.components.cognitive.reflection import ReflectionEngine
+from broker.components.cognitive.reflection import ReflectionEngine, store_reflection_memory
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 from broker.components.governance.registry import SkillRegistry
 from broker.components.context.builder import TieredContextBuilder
@@ -60,18 +63,20 @@ from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 from examples.irrigation_abm.validators.irrigation_validators import (
+    ALL_IRRIGATION_CHECKS,
     irrigation_governance_validator,
-    reset_consecutive_tracker,
-    update_consecutive_tracker,
+    supply_rule_fields,
 )
-import examples.irrigation_abm.validators.irrigation_validators as irr_validators
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+# v3 (WP2 spec 2.2, 2026-09-29): three skills -- the LLM chooses the
+# direction only, the environment draws the whole Hung and Yang
+# magnitude (replaces the five-skill "increase_large"/"increase_small"/
+# "decrease_small"/"decrease_large" set).
 IRRIGATION_SKILLS = [
-    "increase_large", "increase_small", "maintain_demand",
-    "decrease_small", "decrease_large",
+    "increase_demand", "maintain_demand", "decrease_demand",
 ]
 
 
@@ -276,6 +281,26 @@ def _create_synthetic_profiles(
             water_right=rng.uniform(50_000, 200_000),
             crop_type=str(rng.choice(["alfalfa", "cotton", "vegetables", "corn"])),
             years_farming=int(rng.integers(5, 40)),
+            # WP1b re-review (MEDIUM 2, 2026-09-29): a mock-smoke-only
+            # profile must NOT be assigned a real sub-basin (precip_group
+            # stays None) -- an earlier version of this fix round-robinned
+            # the nine real ones, which put a synthetic agent inside a REAL
+            # sub-basin's request cap (Agent_002 landing in UT2 and getting
+            # 29 percent of its request, a number that describes UT2's real
+            # farms, not this mock agent). synthetic_no_subbasin=True
+            # instead routes it to IrrigationEnvironment.
+            # initialize_from_profiles's unconstrained pool bucket
+            # (logged once there), the correct "this agent has no real
+            # location" treatment.
+            precip_group=None,
+            synthetic_no_subbasin=(basin == "upper_basin"),
+            # WP1c review round 2 (LOW 6): this mock agent's id ("Agent_NNN")
+            # is never one of the 22 real Lower Basin names in
+            # lb_priority_split_v3.csv either, regardless of basin -- same
+            # "this agent has no real location/entitlement" treatment as
+            # synthetic_no_subbasin above, unconditional on basin since it
+            # is harmless (unused) for an Upper Basin profile.
+            synthetic_no_priority_split=True,
         )
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
@@ -308,80 +333,97 @@ def _unmet_frac(request: float, delivered: float) -> float:
     return round(min(1.0, max(0.0, 1.0 - float(delivered) / float(request))), 6)
 
 
-_QUOTE_CHARS = "\"'“”‘’"
+# Every stored reflection starts with this; the full line is
+# "Consolidated Reflection (written in {calendar year}): {summary}" (spec 4.7).
+_REFLECTION_MEMORY_PREFIX = "Consolidated Reflection"
 
-# The fixed prefix _batch_reflect stores every consolidated reflection under
-# (see the add_memory call below). Stripped before normalising a RETRIEVED
-# item's content so the quote/whitespace check runs on the model's own text,
-# not on a string where the prefix pushes a real leading quote away from the
-# string's own boundary (where str.strip() can reach it).
-_REFLECTION_MEMORY_PREFIX = "Consolidated Reflection: "
+# Stripped from both ends of a summary before it is stored (spec 4.7): quotes,
+# whitespace and the trailing comma of a JSON-residue copy ('"...",', L3 M8).
+_REFLECTION_STRIP_CHARS = ' \t\n"\'“”‘’,'
+
+# A figure a reflection summary can quote (spec 4.7, review HIGH 1): a number
+# with thousands separators ("20,155"), a plain number, optionally followed by
+# a unit: "%" or "percent" (a share), "million" (million acre-ft), or an
+# acre-ft unit ("acre-ft", "acre-feet", "AF"). Not preceded by a letter,
+# digit, point or comma, so "UT2" or the tail of a longer number never match.
+_FIGURE = re.compile(
+    r"(?<![\w.,])(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+    r"(?P<unit>\s*(?:%|percent\b|million\b|acre[- ]?f(?:ee|oo)?t\b|af\b))?",
+    re.IGNORECASE,
+)
+
+# A summary figure within this relative distance of a figure of the same kind
+# in the agent's own memory text counts as that figure, rounded (review HIGH 1:
+# "about 20,000 acre-ft" for a memory line's 20,155 is the agent's own figure).
+_FIGURE_TOLERANCE = 0.05
 
 
 def _normalize_reflection_text(text: str) -> str:
-    """Strip, collapse internal whitespace, and strip surrounding quotes.
-
-    Used by ``IrrigationLifecycleHooks._batch_reflect`` to detect a reflection
-    that only echoes the agent's previous one (gemma3:4b does this often;
-    see the 2026-09-26 regression audit, N3): a run of whitespace or a
-    quoting difference must not defeat the dedup check, but any real change
-    in wording must still count as a new reflection.
-    """
+    """Collapse internal whitespace and strip quotes, whitespace and commas
+    from both ends (spec 4.7), so a reflection is stored as one clean line."""
     collapsed = " ".join((text or "").split())
-    return collapsed.strip(_QUOTE_CHARS)
+    return collapsed.strip(_REFLECTION_STRIP_CHARS)
 
 
-def _agent_retrieval_content_set(memory_engine, agent) -> set:
-    """Normalised content of every memory item ``agent`` can currently
-    retrieve. Parameters match ``broker/components/context/providers.py
-    (MemoryProvider.provide)`` for LEGACY ranking mode ONLY: ``query``,
-    ``contextual_boosters`` and ``world_state`` are not passed here (this
-    hook runs at year-end, outside prompt construction, so none are
-    available) and would matter only under WEIGHTED ranking, where they
-    feed the relevance/contextual-boost/interference terms of the score;
-    legacy mode ignores all three (composed retrieval is window + decayed
-    long-term importance only), so omitting them changes nothing for the
-    composed path this helper is built for.
+def _is_reflection_memory(item: Any) -> bool:
+    """True for a stored reflection (a retrieved memory payload carries its
+    content but not its ``type``, so the fixed prefix identifies it)."""
+    content = item.get("content", "") if isinstance(item, dict) else str(item)
+    return str(content).startswith(_REFLECTION_MEMORY_PREFIX)
 
-    One deliberate difference from the prompt's own call: when composed
-    retrieval is on, the window is queried at ``window_size - 1`` (minimum
-    1), not the full ``window_size``. The dedup check in ``_batch_reflect``
-    runs at year-end, one memory item EARLIER than the next year's prompt
-    will see -- ``pre_year`` adds one more feedback memory before that
-    prompt is built. Querying the full window here would count a
-    reflection sitting in the LAST slot as still visible, when by the time
-    the agent actually reads its next prompt that slot has been pushed out.
-    Checking one slot short treats "about to age out" the same as "already
-    aged out", so a reflection is restored proactively instead of a year
-    late.
 
-    Returns an empty set on a missing agent or a non-list retrieve()
-    result rather than raising.
-    """
-    if agent is None:
-        return set()
-    mem_cfg = getattr(agent, "memory_config", None)
-    mem_cfg = mem_cfg if isinstance(mem_cfg, dict) else {}
-    extra = {}
-    if (mem_cfg.get("composed_retrieval") is True
-            and getattr(memory_engine, "ranking_mode", None) == "legacy"):
-        for key in ("window_size", "top_k_significant"):
-            if key in mem_cfg:
-                extra[key] = int(mem_cfg[key])
-        if "window_size" in extra:
-            extra["window_size"] = max(1, extra["window_size"] - 1)
-    retrieved = memory_engine.retrieve(
-        agent, top_k=int(mem_cfg.get("retrieval_top_k", 3)), **extra
-    )
-    if not isinstance(retrieved, list):
-        return set()
-    out = set()
-    for item in retrieved:
-        content = item.get("content", "") if isinstance(item, dict) else str(item)
-        if content.startswith(_REFLECTION_MEMORY_PREFIX):
-            content = content[len(_REFLECTION_MEMORY_PREFIX):]
-        out.add(_normalize_reflection_text(content))
-    return out
+def _figures(text: str) -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
+    """(volumes, percentages) quoted in ``text``, each as (as written, value).
+
+    A volume is a number with thousands separators, a plain number of four or
+    more digits that is not a calendar year (1900 to 2100), or any number
+    followed by an acre-ft unit or "million" (scaled to acre-ft). A percentage
+    is a number followed by "%" or "percent". Any other bare number (a count,
+    a tier, a day of the month, a year) is not a figure."""
+    volumes: List[Tuple[str, float]] = []
+    percents: List[Tuple[str, float]] = []
+    for m in _FIGURE.finditer(text):
+        num = m.group("num")
+        unit = (m.group("unit") or "").strip().lower()
+        value = float(num.replace(",", ""))
+        written = m.group(0).strip()
+        if unit in ("%", "percent"):
+            percents.append((written, value))
+        elif unit == "million":
+            volumes.append((written, value * 1e6))
+        elif unit:
+            volumes.append((written, value))
+        elif "," in num:
+            volumes.append((written, value))
+        elif "." not in num and len(num) >= 4 and not (len(num) == 4 and 1900 <= value <= 2100):
+            volumes.append((written, value))
+    return volumes, percents
+
+
+def _near(value: float, pool: List[float]) -> bool:
+    return any(abs(value - ref) <= _FIGURE_TOLERANCE * abs(ref) for ref in pool)
+
+
+def _foreign_figures(summary: str, own_text: str) -> List[str]:
+    """Figures in ``summary`` that match no figure of the same kind in
+    ``own_text`` (the agent's own memory lines the reflection was written
+    from), within ``_FIGURE_TOLERANCE``. A reflection that quotes one is not
+    stored (spec 4.7; L3 M8: 201 prompts showed an acre-ft figure that
+    belonged to another agent).
+
+    Review HIGH 1 (2026-09-30): rounding is tolerated ("about 20,000
+    acre-ft" matches a memory line's 20,155), and figures written without
+    separators ("14420 acre-ft") and percentages are checked too. A
+    percentage also matches the complement of a memory percentage (a
+    delivered share is 100 minus the unmet share the memory line states), and
+    0 and 100 percent always match (a full delivery or none, nobody's own
+    figure)."""
+    own_volumes, own_percents = _figures(own_text)
+    volume_pool = [v for _, v in own_volumes]
+    percent_pool = [p for _, p in own_percents] + [100.0 - p for _, p in own_percents] + [0.0, 100.0]
+    volumes, percents = _figures(summary)
+    return ([w for w, v in volumes if not _near(v, volume_pool)]
+            + [w for w, p in percents if not _near(p, percent_pool)])
 
 
 class IrrigationLifecycleHooks:
@@ -410,10 +452,6 @@ class IrrigationLifecycleHooks:
         # memory.rejection_line_style for the yearly memory line (set by main()
         # from the irrigation_farmer.memory YAML block).
         self.rejection_line_style = "neutral"
-        # Store-time reflection dedup (2026-09-26, N3): agent_id -> the
-        # normalised text of the last reflection actually STORED via
-        # add_memory (not merely seen); see _batch_reflect.
-        self._last_reflection_by_agent: Dict[str, str] = {}
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -425,6 +463,25 @@ class IrrigationLifecycleHooks:
         preserves (Review P1-b).
         """
         return read_lake_mead_level_for_log(self.env)
+
+    def _retries_name_rules(self) -> bool:
+        """False in the placebo and silent arms, whose retry prompts carry no
+        rule text: their memory line of an overruled year then says "under a
+        governance rule" instead of naming the rule (spec 4.5). Read from the
+        broker at each call, so a --retry-feedback-mode override applies. A
+        runner without a broker, or a broker without the mode, raises (review
+        LOW 10): falling back to "full" would name rules in a placebo run."""
+        broker = getattr(self.runner, "broker", None)
+        if broker is None or not hasattr(broker, "_retry_feedback_mode"):
+            raise RuntimeError(
+                "IrrigationLifecycleHooks: the runner's broker has no "
+                "_retry_feedback_mode; refusing to guess whether this arm's "
+                "retries name the rules."
+            )
+        mode = broker._retry_feedback_mode
+        if mode not in ("full", "placebo", "silent"):
+            raise ValueError(f"IrrigationLifecycleHooks: unknown _retry_feedback_mode {mode!r}.")
+        return mode == "full"
 
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
@@ -439,15 +496,12 @@ class IrrigationLifecycleHooks:
 
             # Build dynamic context attributes for prompt template. The F05
             # snapshot (last year's settled request / delivery / reason) feeds
-            # the "Last year you requested ..." sentence (spec S1).
+            # the "Last year you requested ..." sentence (spec 4.3); in the
+            # first year there is none and the sentence states the 2018 use.
             water_situation = build_water_situation_text(
                 ctx, last_year=getattr(agent, "_last_year_outcome", None)
             )
-            conservation = build_conservation_status(profile)
-
             agent.water_situation_text = water_situation
-            agent.conservation_status = conservation
-            agent.aca_hint = build_aca_hint(profile.cluster)
 
             # Sync ALL validator-relevant fields from environment → agent
             # These flow through custom_attributes → context["state"] → validation_context
@@ -472,11 +526,84 @@ class IrrigationLifecycleHooks:
                 "gap_reason": ctx.get("gap_reason", "none"),
                 "delivery_ratio": ctx.get("delivery_ratio", 1.0),
                 "lake_mead_level": ctx.get("lake_mead_level", 0),
+                # Re-review 2026-09-29 (NIT, then round 4 LOW 2): read by
+                # curtailment_awareness_check's acre-feet wording (the
+                # F04 startup check caught this key having no producer).
+                # Direct index, not .get(..., 0): get_agent_context sets
+                # this unconditionally (HIGH 2), so a missing value here
+                # is a real wiring defect, not a legitimate "no shortage"
+                # case to silently paper over with a fabricated 0.
+                "lb_shortage_volume_maf": ctx["lb_shortage_volume_maf"],
+                # WP1b re-review (HIGH 1, 2026-09-29): read by
+                # _sharing_sentence (irrigation_validators.py) to name WHO
+                # shares a shortage with this agent. Without these two,
+                # _sharing_sentence could not tell a sub-basin-scoped
+                # shortfall from a basin-wide one and fell back to naming
+                # "other Upper Basin users" for every Upper Basin agent,
+                # even one (e.g. a UT1 agent) whose real sharing group is
+                # its own ten-or-so-member sub-basin.
+                "supply_group": ctx.get("supply_group"),
+                "ub_subbasin_member_count": ctx.get("ub_subbasin_member_count"),
+                # WP2 (spec 2.6): {skill_id: option text} computed from
+                # THIS year's base (last year's committed delivery,
+                # agent_state["base_af"] -- spec 2.1) and this agent's own
+                # water right / floor. SkillFilterMixin._inject_options_text
+                # (broker/core/_skill_filtering.py) reads this ahead of the
+                # skill registry's static description once it reaches
+                # context["state"] via custom_attributes (AttributeProvider).
+                # WP2 review round 1 (LOW 8): direct indexing, not
+                # .get(key, default) -- IrrigationEnvironment._reset_requests_to_base
+                # sets base_af for every agent every year, and
+                # get_agent_context always sets water_right, so a missing
+                # key here is a real wiring defect, not a legitimate
+                # "agent has none yet" case to silently paper over with 0.
+                "option_text_overrides": build_option_texts(
+                    profile,
+                    base=agent_state["base_af"],
+                    water_right=ctx["water_right"],
+                    floor=ctx["water_right"] * MIN_UTIL,
+                ),
+                # WP3 (spec 3.3): read by describe_gap_reason in the supply
+                # rule's block message when this agent's own junior-priority
+                # water is cut (gap code lb_junior_tier_cut, item 22); None
+                # for an Upper Basin agent. Direct index: get_agent_context
+                # always sets it.
+                "lb_junior_tier_cut_fraction": ctx["lb_junior_tier_cut_fraction"],
+                # WP3 (spec 3.3): the supply rule's inputs, computed once from
+                # this year's provisional settlement at every agent's keep
+                # request (irrigation_validators.supply_rule_fields). The
+                # rule reads them from here, and the audit writes them as
+                # state_<key> columns (global_config.audit.state_columns) in
+                # EVERY arm, so the disabled arm can be scored post hoc on
+                # the same numbers.
+                **supply_rule_fields(ctx, agent_state),
             }
+            # The supply rule's text says "the {keep} acre-ft you received
+            # last year": WP2 (spec 2.1) resets every request to last year's
+            # receipt before the provisional settlement, so the keep request
+            # IS the base. A mismatch means that reset did not run (a
+            # hold_requests_fixed replay, which this runner refuses above).
+            if abs(validator_fields["supply_keep_request_af"] - agent_state["base_af"]) > 1e-6:
+                raise ValueError(
+                    f"{aid}: keep request {validator_fields['supply_keep_request_af']} "
+                    f"differs from last year's receipt base_af={agent_state['base_af']}; "
+                    "the WP2 reset to the base did not run before this decision."
+                )
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
                 agent.custom_attributes.update(validator_fields)
+            # Spec item 29e (refined 2026-09-30): the random-step line after
+            # the options names only the directions the menu offers (the
+            # identity rules hide an increase exactly when at_allocation_cap
+            # and a decrease exactly when below_minimum_utilisation, above);
+            # the item-23 sentence appears only when an increase is offered
+            # and last year's delivery was below its request.
+            agent.option_notes = build_option_notes(
+                increase_offered=not validator_fields["at_allocation_cap"],
+                decrease_offered=not validator_fields["below_minimum_utilisation"],
+                last_year=getattr(agent, "_last_year_outcome", None),
+            )
 
             # Feedback dashboard metrics are recorded in post_year from the
             # year's FINAL settlement (supply-side redesign, spec S2), so the
@@ -497,39 +624,47 @@ class IrrigationLifecycleHooks:
                 # the same live values under year t. Use the snapshot
                 # post_year(year-1) captured at the END of year t-1,
                 # before this year's advance_year() touched it.
+                # post_year(year-1) always runs before pre_year(year) in
+                # ExperimentRunner.run; a missing snapshot means that order
+                # broke, and the stale live values are not last year's (WP4:
+                # no fallback to them).
                 snapshot = getattr(agent, "_last_year_outcome", None)
-                if snapshot:
-                    prev_request = snapshot.get("request", 0)
-                    prev_diversion = snapshot.get("diversion", 0)
-                    prev_drought_index = snapshot.get("drought_index", 0)
-                    prev_preceding_factor = snapshot.get("preceding_factor", 0)
-                else:
-                    # Defensive fallback only: post_year(year-1) always runs
-                    # before pre_year(year) in ExperimentRunner.run, so this
-                    # branch means a hook ordering change broke that
-                    # invariant. Keep the run alive with the pre-F05 (stale)
-                    # reading rather than crash a batch.
-                    prev_request = agent_state.get("request", 0)
-                    prev_diversion = agent_state.get("diversion", 0)
-                    prev_drought_index = ctx.get("drought_index", 0)
-                    prev_preceding_factor = ctx.get("preceding_factor", 0)
+                if not snapshot:
+                    raise RuntimeError(
+                        f"{aid}: pre_year({year}) found no last-year snapshot; "
+                        f"post_year({year - 1}) must run first."
+                    )
+                prev_request = snapshot["request"]
+                prev_diversion = snapshot["diversion"]
                 action_ctx = getattr(agent, '_last_action_context', None)
+                # ExperimentRunner._apply_state_changes stamps the context
+                # with the loop year of a decision that EXECUTED; a year in
+                # which nothing executed (an ABORTED decision) leaves an older
+                # context behind, which must not be reported as last year's
+                # action (WP6 P5(b) finding). The request then stayed at the
+                # base the environment reset it to.
+                decision_read = bool(action_ctx) and action_ctx.get("year") == snapshot["year"]
+                if not decision_read:
+                    action_ctx = None
                 feedback = build_action_outcome_feedback(
                     action_ctx=action_ctx,
-                    year=year - 1,
+                    # WP4 (spec 4.5, L3 M14): calendar years, as everywhere
+                    # else in the prompt.
+                    year=snapshot["calendar_year"],
                     request=prev_request,
                     diversion=prev_diversion,
-                    drought_index=prev_drought_index,
-                    preceding_factor=prev_preceding_factor,
-                    # F15 (2026-09-25 audit): Lower Basin agents' preceding_factor
-                    # is the Lake Mead trend, not precipitation; basin selects the
-                    # correct wording (build_water_situation_text already does this).
-                    basin=ctx.get("basin", "upper_basin"),
-                    # Supply-side redesign (spec S6): the same reason phrase as the
-                    # situation text and rule messages; neutral or explicit wording
-                    # of a rejected year (memory.rejection_line_style).
-                    gap_reason=describe_gap_reason(snapshot or {}),
+                    preceding_factor=snapshot["preceding_factor"],
+                    # F15: the Lower Basin signal is Lake Mead, not precipitation.
+                    basin=ctx["basin"],
+                    # The past-tense form of the reason the situation text and
+                    # the rule messages use (spec 4.4).
+                    gap_reason=describe_gap_reason(snapshot, "past"),
                     rejection_line_style=self.rejection_line_style,
+                    # Spec 4.5: placebo and silent retries name no rule, so
+                    # neither does their memory line (L3 M13).
+                    name_rule=self._retries_name_rules(),
+                    subbasin=snapshot.get("supply_group") is not None,
+                    decision_read=decision_read,
                 )
                 # add_memory_for_agent (not add_memory) so the engine sees this
                 # agent's memory_config (the irrigation_farmer.memory YAML
@@ -600,10 +735,6 @@ class IrrigationLifecycleHooks:
             "appraisals": appraisals,
         }
 
-        # Update consecutive increase tracker for Phase C/D validators
-        if skill_name:
-            update_consecutive_tracker(agent.id, skill_name)
-
     # -- post_year: logging, reflection --
     def post_year(self, year: int, agents: Dict):
         # Final settlement of the year (supply-side redesign, 2026-09-25;
@@ -619,6 +750,12 @@ class IrrigationLifecycleHooks:
 
         for aid, agent in agents.items():
             agent_state = self.env.get_agent_state(aid)
+            # Review 2026-09-28 (fix 5): the agent's own precipitation and
+            # flag for the year (spec 1.6), for the simulation_log.csv
+            # columns -- frozen for the whole year (advance_year sets
+            # them once), so this is the same value the agent's own
+            # decision saw, not a re-roll.
+            agent_context = self.env.get_agent_context(aid)
 
             # F05 (2026-09-25 audit): snapshot THIS year's own outcome now.
             # request/diversion/drought_index/preceding_factor are all
@@ -628,16 +765,33 @@ class IrrigationLifecycleHooks:
             # year" memory line instead of re-querying live env state. Taken
             # from the SAME agent_state simulation_log.csv logs below, so
             # memory and the CSV always agree.
-            basin_key = agent_state.get("basin", "lower_basin")
             agent._last_year_outcome = {
                 "year": year,
+                # WP4 (spec 4.5): the calendar year the memory line names.
+                "calendar_year": self.env.current_year,
                 "request": agent_state.get("request", 0),
                 "diversion": agent_state.get("diversion", 0),
                 "gap_reason": agent_state.get("gap_reason", "none"),
                 "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
-                "preceding_factor": self.env.get_local(basin_key, "preceding_factor", 0),
+                # WP4: the agent's OWN flag (its sub-basin's for the Upper
+                # Basin, spec 1.6), the one its situation text showed; the
+                # snapshot read the basin-level legacy flag before, so an
+                # Upper Basin memory line could contradict the prompt.
+                "preceding_factor": agent_context["preceding_factor"],
+                # WP1b re-review (MEDIUM 5, 2026-09-29): describe_gap_reason
+                # needs this to pick the single-member (UT2) wording for
+                # both the "Last year ..." situation-text sentence and the
+                # memory line, which both read this same F05 snapshot.
+                "ub_subbasin_member_count": agent_context.get("ub_subbasin_member_count"),
+                # WP4: describe_gap_reason's junior-priority phrase states
+                # the settled cut share (item 22). It was missing here, so a
+                # --real run raised in the year after the first tier year.
+                "lb_junior_tier_cut_fraction": agent_state.get("lb_junior_tier_cut_fraction"),
+                # WP4: whether the Upper Basin memory line may say "your
+                # sub-basin" (None for a synthetic mock agent).
+                "supply_group": agent_context.get("supply_group"),
             }
 
             # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative
@@ -657,16 +811,25 @@ class IrrigationLifecycleHooks:
             # Feedback dashboard: record this year's settled request and
             # delivery (spec S2). Sources are the context keys the YAML names;
             # after settle_year they equal the final request and delivery.
+            # WP4 (spec 4.6): the row is labelled with the calendar year, and
+            # the hidden flags that pick the warning's "who shares" wording
+            # come from this year's settled gap_reason.
             if self.metrics_tracker is not None:
                 settled = {
                     "current_request": agent_state.get("request", 0),
                     "current_diversion": agent_state.get("diversion", 0),
+                    # Spec item 29f: whether a declared shortage can cut this
+                    # agent's water picks the Lower Basin warning's wording.
+                    **dashboard_sharing_flags({
+                        **agent_state,
+                        "lb_junior_entitlement_af": agent_context["lb_junior_entitlement_af"],
+                    }),
                 }
                 fb_metrics = {}
                 for m_cfg in self.feedback_config.get("tracked_metrics", []):
                     src = m_cfg["source"]
                     fb_metrics[m_cfg["name"]] = float(settled.get(src, agent_state.get(src, 0)) or 0)
-                self.metrics_tracker.record(aid, year, fb_metrics)
+                self.metrics_tracker.record(aid, self.env.current_year, fb_metrics)
 
             dec = self.yearly_decisions.get((aid, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
@@ -706,6 +869,12 @@ class IrrigationLifecycleHooks:
                 magnitude_fallback=appr.get("magnitude_fallback", False),
                 is_exploration=appr.get("is_exploration", False),  # v12: Track ε-exploration
                 memory=mem_str,
+                # WP2 (spec 2.1): the keep request this year started from --
+                # last year's committed delivery, set once a year by
+                # IrrigationEnvironment._reset_requests_to_base.
+                base_af=agent_state.get("base_af"),
+                precipitation_mm=agent_context.get("precipitation"),
+                precipitation_flag=agent_context.get("precipitation_flag"),
             ))
 
         # Print yearly summary
@@ -725,55 +894,59 @@ class IrrigationLifecycleHooks:
             self._batch_reflect(year)
 
     def _batch_reflect(self, year: int):
+        """Year-end reflection (spec 4.7; L3 M8, D11; PI item 8).
+
+        One agent per call (``global_config.reflection.batch_size: 1``). The
+        input is what the memory engine retrieves for the agent at the end of
+        the year (legacy mode: the 5 most recent working items plus up to 2
+        long-term items of highest decayed importance; the ``top_k`` passed
+        below is ignored in that mode), with every earlier reflection
+        dropped, so a reflection is written from outcome lines only and
+        cannot restate an old lesson. Those lines run through the previous
+        year: this year's outcome line is added at the start of next year
+        (``pre_year``). The summary is stripped of quotes, whitespace and
+        trailing commas, and is not stored when it is empty or quotes a
+        figure that matches no figure of that input within 5 percent
+        (``_foreign_figures``; each drop is printed with its figures). A
+        stored summary reads "Consolidated Reflection (written in {Y}):
+        {summary}", Y the calendar year just ended, and
+        ``reflection.keep_latest_only`` replaces the agent's earlier
+        reflection (the framework option, ``store_reflection_memory``).
+        Under ``keep_latest_only`` an agent whose new summary is not stored
+        (empty, foreign figure, unreadable reply, failed call) loses its
+        earlier reflection too (review HIGH 1), so a prompt never shows a
+        reflection older than the end of the previous year (S10).
+        """
         cfg = self.runner.broker.config.get_reflection_config()
         batch_size = cfg.get("batch_size", 10)
+        keep_latest_only = self.runner.broker.config.get_reflection_keep_latest_only()
+        written_in = self.env.current_year
         candidates = []
         for aid, agent in self.runner.agents.items():
             if not getattr(agent, "is_active", True):
                 continue
-            mems = self.runner.memory_engine.retrieve(agent, top_k=10)
+            mems = [m for m in self.runner.memory_engine.retrieve(agent, top_k=10)
+                    if not _is_reflection_memory(m)]
             if mems:
-                # F08+F33 (2026-09-25 audit): every input below used to be
-                # missing or in the wrong unit --
-                # ``env.get_supply_ratio()`` does not exist on
-                # IrrigationEnvironment (silent 1.0 fallback via hasattr),
-                # ``last_decision``/``drought_count`` were never written to
-                # custom_attributes (always "" / 0), and ``water_right``
-                # is the raw acre-foot entitlement, not the 0-1 utilisation
-                # fraction IrrigationAdapter.compute_importance expects --
-                # so importance always landed on the adapter's fixed 0.90
-                # and classify_emotion always returned a label outside
-                # emotional_weights. Build the real, current-year values:
-                # water_right_pct and supply_ratio from live env state,
-                # recent_decision from the actual executed skill
-                # (agent._last_action_context, set by
-                # broker/core/experiment_runner.py:_apply_state_changes),
-                # and drought_count from the cumulative counter post_year
-                # maintains above.
+                # F08+F33 (2026-09-25 audit): the adapter's importance and
+                # emotion read real, current-year values -- water_right_pct
+                # and supply_ratio from the settled state, recent_decision
+                # from the executed skill (agent._last_action_context), and
+                # drought_count from the counter post_year maintains. Rounded
+                # to 6 places so float noise cannot move a band edge.
+                # Supply-side redesign (spec M4): the adapter also reads the
+                # PROPOSED skill, the fallback flag and the unmet fraction.
                 attrs = getattr(agent, "custom_attributes", {})
                 agent_state = self.env.get_agent_state(aid)
                 water_right = agent_state.get("water_right", 0) or 0
                 request = agent_state.get("request", 0) or 0
                 diversion = agent_state.get("diversion", 0) or 0
                 action_ctx = getattr(agent, "_last_action_context", None) or {}
-                # F08 code review (2026-09-25): diversion = request * (1 -
-                # curtailment_ratio) is mathematically an exact tier ratio
-                # (0.95/0.90/0.80/0.80...), but float64 division does not
-                # always round-trip exactly -- measured 5-6% of random
-                # requests landing on the wrong side of a 0.60/0.80
-                # boundary in compute_importance's shortage branches purely
-                # from float noise (the same class of bug F13 fixed in the
-                # YAML assertion trigger). round(..., 6) removes that noise
-                # without materially changing any real (non-boundary) ratio.
-                #
-                # Supply-side redesign (2026-09-25): agent_state here is read
-                # after post_year's settle_year(), so diversion is the final
-                # settled delivery for every agent (shortage tier, Powell
-                # release limit, Mead availability), a continuous value.
-                # Supply-side redesign (2026-09-25, spec M4): the adapter
-                # reads the PROPOSED skill, the fallback flag and the unmet
-                # fraction of the final settlement; recent_decision (the
-                # executed skill) is kept for older readers.
+                # Same rule as pre_year: a context stamped with an earlier
+                # loop year describes no decision of this year (nothing
+                # executed: an ABORTED decision).
+                if action_ctx.get("year") != year:
+                    action_ctx = {}
                 proposed, was_fallback = _proposed_and_fallback(action_ctx)
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
@@ -798,109 +971,102 @@ class IrrigationLifecycleHooks:
 
         llm_call = self.runner.get_llm_invoke("irrigation_farmer")
         print(f"  [Reflection] {len(candidates)} agents in batches of {batch_size}...")
-        reflections_stored = 0
-        reflections_skipped = 0
-        reflections_restored = 0
+        stored = 0
+        skipped_empty = 0
+        skipped_foreign = 0
+        no_reply = 0
+        replaced = 0
+        stored_ids = set()
         for i in range(0, len(candidates), batch_size):
             batch = candidates[i: i + batch_size]
             batch_ids = [c["agent_id"] for c in batch]
             prompt = self.reflection_engine.generate_batch_reflection_prompt(
                 batch,
-                year,
+                written_in,
                 reflection_questions=cfg.get("questions", []),
                 persona_instruction=cfg.get("persona_instruction")
             )
+            # Only the model call and its parsing may fail and be skipped (as
+            # before WP4); storing runs outside the try, so a store error
+            # (e.g. keep_latest_only on an engine without remove_by_type)
+            # stops the run instead of being printed and dropped.
             try:
                 raw = llm_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw
                 insights = self.reflection_engine.parse_batch_reflection_response(
                     text, batch_ids, year
                 )
-                for aid, insight in insights.items():
-                    if insight:
-                        # Use adapter for dynamic importance instead of hardcoded 0.9
-                        ctx_item = next((c for c in batch if c["agent_id"] == aid), None)
-                        if ctx_item and ctx_item.get("context") and self.reflection_engine.adapter:
-                            dynamic_imp = self.reflection_engine.compute_dynamic_importance(
-                                ctx_item["context"]
-                            )
-                            insight.importance = dynamic_imp
-
-                        # store_insight and the reflection_log.jsonl write it
-                        # makes stay UNCONDITIONAL, so the duplicate rate stays
-                        # reportable from that log even when the add_memory
-                        # call below is skipped as a duplicate or an empty
-                        # summary.
-                        self.reflection_engine.store_insight(aid, insight)
-                        emotion = "major"
-                        if self.reflection_engine.adapter and ctx_item and ctx_item.get("context"):
-                            decision = ctx_item["context"].get("recent_decision", "")
-                            emotion = self.reflection_engine.adapter.classify_emotion(
-                                decision, ctx_item["context"]
-                            )
-
-                        # An empty or missing summary must never become the
-                        # literal memory line "Consolidated Reflection: None".
-                        summary = getattr(insight, "summary", None)
-                        if not summary or not str(summary).strip():
-                            reflections_skipped += 1
-                            continue
-
-                        # Store-time dedup (regression audit 2026-09-26,
-                        # finding N3): gemma3:4b often echoes the previous
-                        # year's stored reflection verbatim (70.7 percent of
-                        # stored reflections equal the agent's previous one
-                        # in the seed-42 pilot pair), and the composed 5+2
-                        # retrieval window then shows the same text twice
-                        # inside the 5-item recent slice. Skip the memory add
-                        # ONLY when the normalised new SUMMARY equals the
-                        # agent's most recently STORED summary AND that
-                        # stored reflection is STILL in the agent's current
-                        # retrieval set (the same composed-retrieval call the
-                        # prompt's own provider uses; see
-                        # _agent_retrieval_content_set). Normalising the
-                        # summary alone (not the "Consolidated Reflection: "
-                        # -prefixed content) matters: a quote wrapping the
-                        # model's own text sits at the SUMMARY's boundary,
-                        # where str.strip() can reach it, not at the
-                        # prefixed string's boundary. An echo the agent can
-                        # no longer see in its own context is not a visible
-                        # duplicate, so it is stored again and counted
-                        # separately (reflections_restored) instead of being
-                        # silently dropped.
-                        normalized = _normalize_reflection_text(summary)
-                        last = self._last_reflection_by_agent.get(aid)
-                        if last is not None and normalized == last:
-                            agent_obj = self.runner.agents.get(aid)
-                            retrievable = _agent_retrieval_content_set(
-                                self.runner.memory_engine, agent_obj
-                            )
-                            if normalized in retrievable:
-                                reflections_skipped += 1
-                                continue
-                            reflections_restored += 1
-                        self._last_reflection_by_agent[aid] = normalized
-                        reflections_stored += 1
-                        self.runner.memory_engine.add_memory(
-                            aid,
-                            f"{_REFLECTION_MEMORY_PREFIX}{summary}",
-                            {
-                                # "importance", not "significance": HumanCentricMemoryEngine
-                                # only reads metadata.get("importance", 0.5). See
-                                # examples/irrigation_abm/tests/test_governance_mode_wiring.py::
-                                # TestBatchReflectImportanceKey.
-                                "importance": insight.importance,
-                                "emotion": emotion,
-                                "source": "personal",
-                                "type": "reflection",
-                            },
-                        )
             except Exception as e:
                 print(f"  [Reflection:Error] Batch {i // batch_size + 1}: {e}")
+                no_reply += len(batch_ids)
+                continue
+            no_reply += sum(1 for aid in batch_ids if not insights.get(aid))
+            for aid, insight in insights.items():
+                if not insight:
+                    continue
+                ctx_item = next((c for c in batch if c["agent_id"] == aid), None)
+                if ctx_item and ctx_item.get("context") and self.reflection_engine.adapter:
+                    insight.importance = self.reflection_engine.compute_dynamic_importance(
+                        ctx_item["context"]
+                    )
+                # store_insight and the reflection_log.jsonl line it writes
+                # stay unconditional, so every summary the model wrote is
+                # in the log even when it is not stored below.
+                self.reflection_engine.store_insight(aid, insight)
+                emotion = "major"
+                if self.reflection_engine.adapter and ctx_item and ctx_item.get("context"):
+                    emotion = self.reflection_engine.adapter.classify_emotion(
+                        ctx_item["context"].get("recent_decision", ""), ctx_item["context"]
+                    )
+
+                summary = _normalize_reflection_text(str(getattr(insight, "summary", "") or ""))
+                if not summary:
+                    skipped_empty += 1
+                    continue
+                own_text = " ".join(
+                    (m.get("content", "") if isinstance(m, dict) else str(m))
+                    for m in (ctx_item or {}).get("memories", [])
+                )
+                foreign = _foreign_figures(summary, own_text)
+                if foreign:
+                    skipped_foreign += 1
+                    print(f"  [reflect] {aid}: not stored, {', '.join(foreign)} matches no "
+                          f"figure in its memory within 5 percent: {summary}")
+                    continue
+                replaced += store_reflection_memory(
+                    self.runner.memory_engine,
+                    aid,
+                    f"{_REFLECTION_MEMORY_PREFIX} (written in {written_in}): {summary}",
+                    {
+                        # "importance", not "significance": HumanCentricMemoryEngine
+                        # only reads metadata.get("importance", 0.5). See
+                        # examples/irrigation_abm/tests/test_governance_mode_wiring.py::
+                        # TestBatchReflectImportanceKey.
+                        "importance": insight.importance,
+                        "emotion": emotion,
+                        "source": "personal",
+                        "type": "reflection",
+                    },
+                    keep_latest_only=keep_latest_only,
+                )
+                stored_ids.add(aid)
+                stored += 1
+        # Review HIGH 1: store_reflection_memory removes an earlier
+        # reflection only when it stores a new one. Every other outcome above
+        # (an empty or foreign summary, an unreadable reply, a failed call)
+        # would leave last year's reflection in place, so remove it here.
+        removed_stale = 0
+        if keep_latest_only:
+            for c in candidates:
+                if c["agent_id"] not in stored_ids:
+                    removed_stale += self.runner.memory_engine.remove_by_type(
+                        c["agent_id"], "reflection")
         print(f"  [Reflection] Year {year} complete.")
-        print(f"  [reflect] year {year}: stored {reflections_stored} reflections, "
-              f"skipped {reflections_skipped} duplicates, restored {reflections_restored} "
-              f"aged-out duplicates")
+        print(f"  [reflect] year {year}: stored {stored} reflections, "
+              f"skipped {skipped_empty} empty, not stored {skipped_foreign} with a "
+              f"figure foreign to the agent's memory, {no_reply} with no readable "
+              f"reply, replaced {replaced} earlier reflection items, removed "
+              f"{removed_stale} earlier reflection items of agents with no new one")
 
 
 def _record_paper_water_margin_provenance(
@@ -948,11 +1114,443 @@ def _record_paper_water_margin_provenance(
               f"config_snapshot.yaml: {e}")
 
 
+def _record_step_bin_source_provenance(
+    output_dir: Path, profiles: List[IrrigationAgentProfile], is_real: bool
+) -> None:
+    """Additively record every profile's ``step_bin_source`` (spec 2.4:
+    "grid" or "rescaled") in this run's two provenance files (WP2 review
+    round 1, MEDIUM 2; spec 7.2's "the step_bin_source list").
+
+    Same pattern as ``_record_paper_water_margin_provenance`` above
+    (patches the two files ``ExperimentRunner._finalize_experiment``
+    already wrote), but PER-AGENT rather than a single scalar: a dict
+    ``{agent_id: step_bin_source}`` for every profile, ``None`` for a
+    synthetic profile (non ``--real``, or any profile builder other than
+    ``create_profiles_from_data``) that never computed one. Recorded
+    unconditionally like the other two -- a run with no real step bins at
+    all still gets a manifest key showing that, rather than a silently
+    absent one indistinguishable from "the write failed". Wrapped so a
+    provenance-write problem can never fail the experiment itself.
+    """
+    step_bin_source = {p.agent_id: p.step_bin_source for p in profiles}
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["step_bin_source"] = step_bin_source
+            manifest["step_bin_source_applied"] = bool(is_real)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record step_bin_source in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["step_bin_source"] = step_bin_source
+            snapshot["metadata"]["step_bin_source_applied"] = bool(is_real)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record step_bin_source in "
+              f"config_snapshot.yaml: {e}")
+
+
+def _record_hold_requests_fixed_provenance(
+    output_dir: Path, hold_requests_fixed: bool
+) -> None:
+    """Additively record ``WaterSystemConfig.hold_requests_fixed`` in this
+    run's two provenance files (WP2 review round 2, LOW 3).
+
+    Same pattern as ``_record_paper_water_margin_provenance`` above.
+    Always recorded (not conditioned on ``--real``, unlike the other two
+    provenance functions here): the switch is meaningful for BOTH real
+    and synthetic runs alike, and its value is resolved regardless. This
+    runner's own ``main()`` asserts ``hold_requests_fixed is False`` right
+    after constructing ``WaterSystemConfig`` -- this function records
+    THAT already-verified value, so the manifest can only ever show
+    ``False`` for a run that reached this point, never a value the
+    assertion would have already refused to let through. Wrapped so a
+    provenance-write problem can never fail the experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["hold_requests_fixed"] = hold_requests_fixed
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record hold_requests_fixed in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["hold_requests_fixed"] = hold_requests_fixed
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record hold_requests_fixed in "
+              f"config_snapshot.yaml: {e}")
+
+
+def _record_governance_dispatch_provenance(
+    output_dir: Path, dispatched_checks: List[str]
+) -> None:
+    """Additively record the irrigation checks this run dispatched (WP3,
+    spec 3.1 acceptance: every manifest shows the dispatched checks beside
+    the resolved thinking and identity rules and ``appraisal_freeze``, which
+    the generic manifest already carries).
+
+    ``dispatched_checks`` is the names of ``ALL_IRRIGATION_CHECKS`` when the
+    runner wires ``irrigation_governance_validator`` (every profile but
+    ``disabled``), and ``[]`` when it wires no custom validator. Same
+    pattern as ``_record_hold_requests_fixed_provenance``; wrapped so a
+    provenance-write problem can never fail the experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["irrigation_dispatched_checks"] = list(dispatched_checks)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record irrigation_dispatched_checks in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["irrigation_dispatched_checks"] = list(dispatched_checks)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record irrigation_dispatched_checks in "
+              f"config_snapshot.yaml: {e}")
+
+
+def _record_water_system_config_provenance(
+    output_dir: Path, config
+) -> None:
+    """Additively record ``WaterSystemConfig.powell_release_mode``,
+    ``powell_post2026_equalization`` and ``lb_non_ag_total_maf`` in this
+    run's two provenance files (re-review 2026-09-29 round 4, MEDIUM 4;
+    spec items 25-27).
+
+    Same pattern as ``_record_hold_requests_fixed_provenance`` above,
+    which it is called alongside in ``main()``'s abort-safe ``finally``
+    block: every real run of this domain resolves these three values
+    regardless of ``--real``/``--model``, and WP7's launch checklist
+    requires every manifest to show ``ub_supply_mode`` / ``appraisal_freeze``
+    / etc. -- these three are the same kind of value, just not yet wired
+    into the generic broker manifest (an irrigation-only WaterSystemConfig
+    concern, no generic-framework home). Wrapped so a provenance-write
+    problem can never fail the experiment itself.
+
+    WP6 (spec 7.2): also ``ub_supply_mode``, ``ub_subbasin_supply_variant``
+    and the pinned sha256 that the environment checks each of the Upper
+    Basin sub-basin tables against whenever it loads them -- the supply
+    table of the variant in use (``ub_subbasin_supply_v3_sha256``), the
+    envelope table (``ub_subbasin_envelope_v3_sha256``) and the per-variant
+    mean-flow table the flow-share sentence divides by
+    (``ub_subbasin_variant_means_v3_sha256``) -- the same module constants
+    ``run_fql_baseline._pinned_v3_data_checksums`` records, so the WP6
+    provenance guard compares them across the LLM runs and the FQL
+    reference. A failed checksum lookup leaves only those keys out (the
+    guard then refuses the run); the other keys are still recorded.
+    """
+    try:
+        water_system = {
+            "powell_release_mode": config.powell_release_mode,
+            "powell_post2026_equalization": config.powell_post2026_equalization,
+            "lb_non_ag_total_maf": config.lb_non_ag_total_maf,
+            "ub_supply_mode": config.ub_supply_mode,
+            "ub_subbasin_supply_variant": config.ub_subbasin_supply_variant,
+        }
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not resolve the water-system keys for "
+              f"reproducibility_manifest.json and config_snapshot.yaml: {e}")
+        return
+    try:
+        from examples.irrigation_abm.irrigation_env import (
+            UB_SUBBASIN_ENVELOPE_SHA256,
+            UB_SUBBASIN_VARIANT_MEANS_SHA256,
+            _UB_SUBBASIN_SUPPLY_VARIANT_FILES,
+        )
+        water_system["ub_subbasin_supply_v3_sha256"] = _UB_SUBBASIN_SUPPLY_VARIANT_FILES[
+            config.ub_subbasin_supply_variant][1]
+        water_system["ub_subbasin_envelope_v3_sha256"] = UB_SUBBASIN_ENVELOPE_SHA256
+        water_system["ub_subbasin_variant_means_v3_sha256"] = UB_SUBBASIN_VARIANT_MEANS_SHA256
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not resolve the Upper Basin sub-basin "
+              f"table checksums; the manifest records the other water-system keys "
+              f"without them: {e}")
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest.update(water_system)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record the water-system keys "
+              f"{sorted(water_system)} in reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"].update(water_system)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record the water-system keys "
+              f"{sorted(water_system)} in config_snapshot.yaml: {e}")
+
+
+def _record_cluster_method_provenance(
+    output_dir: Path, cluster_method: str, is_real: bool
+) -> None:
+    """Additively record ``--cluster-method`` in this run's two provenance files.
+
+    Same pattern and rationale as ``_record_paper_water_margin_provenance``
+    above (which it is called alongside, not instead of): patches the two
+    files ``ExperimentRunner._finalize_experiment`` already wrote, rather
+    than teaching the generic broker manifest about an irrigation-only CLI
+    parameter. Recorded even for a synthetic (non ``--real``) run, since it
+    is a resolved CLI value either way (a synthetic run never calls
+    ``create_profiles_from_data``, the only place ``cluster_method`` is
+    read). Wrapped so a provenance-write problem can never fail the
+    experiment itself.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["cluster_method"] = cluster_method
+            manifest["cluster_method_applied"] = bool(is_real)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record cluster_method in "
+              f"reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"]["cluster_method"] = cluster_method
+            snapshot["metadata"]["cluster_method_applied"] = bool(is_real)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record cluster_method in "
+              f"config_snapshot.yaml: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def _resolve_resume_source(raw: str) -> Path:
+    """``--resume-from`` accepts either a crashed run's ``llm_journal.jsonl``
+    directly, or that run's ``--output`` directory (the file is assumed to
+    be named ``llm_journal.jsonl`` inside it -- the one name this runner
+    ever writes it under, both for a fresh ``--llm-journal`` run and for a
+    resumed run's own new journal).
+    """
+    path = Path(raw)
+    if path.is_dir():
+        path = path / "llm_journal.jsonl"
+    if not path.exists():
+        raise SystemExit(f"--resume-from {raw}: no journal file found at {path}")
+    return path
+
+
+def _irrigation_identifying_config(
+    args: argparse.Namespace, *,
+    agent_config_path=None, prompt_template_path=None, skill_registry_path=None,
+) -> dict:
+    """The CLI-level "identifying config" for the LLM-call journal header
+    and resume check (broker.utils.llm_journal.check_identifying_config).
+
+    Mirrors, under the SAME keys, the generic fields
+    ``ExperimentRunner._build_llm_journal_manager`` already derives on its
+    own from the built experiment (model / seed / memory_seed /
+    governance_profile / num_years / num_steps) -- harmless duplication,
+    not drift, since both are derived from this same CLI's own ``args`` --
+    plus every other CLI flag with no generic home that can change what an
+    agent is asked or how (the "prompt-affecting flags" a resume must not
+    silently change). Excludes ``--workers`` (explicitly allowed to differ
+    between a crashed run and its resume), ``--output`` / ``--llm-journal``
+    / ``--resume-from`` (not identifying -- they say where/whether to
+    journal, not what the experiment is), and ``--pilot-phase`` /
+    ``--ablation-mode`` (refused at startup, before this is ever called).
+
+    ``agent_config_path`` / ``prompt_template_path`` / ``skill_registry_path``,
+    when given (once ``main()`` has resolved them -- the agent-types YAML
+    post any ``--coupling`` derivation, the prompt template file, and the
+    skill registry YAML, all read from ``--config-dir``): their sha256 is
+    added too. Sampling params, the prompt text, and the skill menu live
+    in these files, not in any CLI flag, and only affect the LIVE years of
+    a resumed run (the replayed years already have their recorded
+    answers) -- but a silent change there underneath an unchanged
+    ``--config-dir`` is still exactly the kind of "different experiment" a
+    resume must refuse, and a path string alone cannot catch an in-place
+    edit.
+
+    Git identity (commit, dirty, and a hash of the uncommitted diff) is
+    folded in unconditionally via :func:`_git_state_at_launch`, computed
+    independently of ``ExperimentRunner.__init__``'s own capture
+    (broker/core/experiment_runner.py) because this runs during the
+    resume preflight, before any runner exists.
+    """
+    config = {
+        "model": args.model,
+        "seed": args.seed,
+        "memory_seed": args.memory_seed,
+        "governance_profile": args.governance_mode,
+        "num_years": args.years,
+        "num_steps": None,
+        "real": args.real,
+        "agents": args.agents,
+        "paper_water_margin": args.paper_water_margin,
+        "cluster_method": args.cluster_method,
+        "window_size": args.window_size,
+        "num_ctx": args.num_ctx,
+        "num_predict": args.num_predict,
+        "rebalance_clusters": args.rebalance_clusters,
+        "no_magnitude": args.no_magnitude,
+        "config_dir": args.config_dir,
+        "coupling": args.coupling,
+        "retry_feedback_mode": args.retry_feedback_mode,
+    }
+    if agent_config_path is not None:
+        import hashlib
+        config["agent_config_sha256"] = hashlib.sha256(
+            Path(agent_config_path).read_bytes()
+        ).hexdigest()
+    if prompt_template_path is not None:
+        import hashlib
+        config["prompt_template_sha256"] = hashlib.sha256(
+            Path(prompt_template_path).read_bytes()
+        ).hexdigest()
+    if skill_registry_path is not None:
+        import hashlib
+        config["skill_registry_sha256"] = hashlib.sha256(
+            Path(skill_registry_path).read_bytes()
+        ).hexdigest()
+    git_commit, git_dirty, git_diff_sha256 = _git_state_at_launch()
+    config["git_commit"] = git_commit
+    config["git_dirty"] = git_dirty
+    config["git_diff_sha256"] = git_diff_sha256
+    return config
+
+
+def _git_state_at_launch():
+    """``(commit, dirty, diff_sha256)`` for the CURRENT process's git state.
+
+    ``dirty`` uses ``git status --porcelain --untracked-files=no``: an
+    UNTRACKED file (e.g. the crashed run's own output, when ``--output``
+    sits inside the repo tree) must never flip this -- otherwise a
+    clean-tree run could never be resumed once its own crash artifacts
+    exist as untracked files, and would fail with a misleading "the code
+    has changed" message. ``diff_sha256`` is the sha256 of ``git diff
+    HEAD`` (tracked, uncommitted changes only; the empty string's hash
+    when the tree is clean) -- ``dirty`` alone cannot tell two DIFFERENT
+    sets of uncommitted edits apart (both compare True/True), so a
+    resume's refusal check compares ``diff_sha256``, not ``dirty``;
+    ``dirty`` is kept for a human reading the header.
+
+    Returns ``("unavailable", None, None)`` when git itself is unavailable
+    (not a repo, no git binary): never raises, since manifest/header
+    enrichment must not fail a run over this.
+    """
+    try:
+        import hashlib
+        import subprocess
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        dirty = len(subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()) > 0
+        diff_bytes = subprocess.check_output(
+            ["git", "diff", "HEAD"], stderr=subprocess.DEVNULL,
+        )
+        diff_sha256 = hashlib.sha256(diff_bytes).hexdigest()
+        return commit, dirty, diff_sha256
+    except Exception:
+        return "unavailable", None, None
+
+
 def main():
     args = parse_args()
+    # v3 (WP3, spec 3.2): the pilot phases and the ablation mode switched
+    # checks that v3 no longer dispatches (consecutive_increase_cap_check,
+    # zero_escape_check, demand_ceiling_stabilizer), so either flag would now
+    # silently do nothing. Refused before anything is written.
+    if args.pilot_phase is not None or args.ablation_mode is not None:
+        raise SystemExit(
+            "--pilot-phase and --ablation-mode are retired in the v3 "
+            "governance (irrigation_v3_spec_2026-09-28.md section 3.2): the "
+            "checks they switched are no longer dispatched, so the flag would "
+            "change nothing. Choose an arm with --governance-mode (strict, "
+            "feasibility_only, disabled) and --retry-feedback-mode (full, "
+            "placebo, silent) instead."
+        )
+    if args.rebalance_clusters and args.cluster_method == "hy2021":
+        raise SystemExit(
+            "--rebalance-clusters cannot be combined with --cluster-method "
+            "hy2021: rebalancing reassigns clusters toward a target "
+            "distribution by FQL-parameter distance, which would overwrite "
+            "Hung & Yang (2021) Figure 7's own published per-entity "
+            "assignment (HY2021_CLUSTER_LABELS) that --cluster-method "
+            "hy2021 exists to preserve. Pass --cluster-method "
+            "legacy_centroid if you want the rebalanced distribution."
+        )
+
+    # --- Crash-resume: resolve the source journal and read its header
+    # early (cheap: one small file read). The actual checks run below,
+    # once output_dir (directory-collision) and then agent_config_path /
+    # prompt_template_path (content/git identity) are resolved -- still
+    # all well before any heavy setup (--real's CRSS data load). ---
+    resume_source_path = None
+    source_header = None
+    if args.resume_from:
+        from broker.utils.llm_journal import read_journal_header
+        resume_source_path = _resolve_resume_source(args.resume_from)
+        try:
+            source_header = read_journal_header(resume_source_path)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"--resume-from {args.resume_from}: {exc}")
+
     base = Path(__file__).parent
 
     # --- Output (moved early: a --coupling derived config file, below, is
@@ -960,6 +1558,26 @@ def main():
     # artifacts instead of living in a temp dir) ---
     output_dir = Path(args.output) if args.output else base / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Crash-resume: refuse at the DIRECTORY level before anything else
+    # is written into output_dir. LLMJournalManager also refuses at the
+    # FILE level (output_path == resume_from, broker/utils/llm_journal.py),
+    # but that only fires once the journal is opened for writing, deep
+    # inside build()/run() -- by then a --coupling derived config copy may
+    # already have been written under output_dir, and opening the SAME
+    # journal file with "w" would destroy the very journal being replayed
+    # before it could even be read. Checking the directory here, before
+    # output_dir receives anything, fails before any of that -- and also
+    # prevents reflection_log.jsonl (appended, never truncated) from
+    # picking up a second, duplicate copy of the replayed years' entries.
+    if resume_source_path is not None:
+        if resume_source_path.parent.resolve() == output_dir.resolve():
+            raise SystemExit(
+                f"--output {output_dir} is the SAME directory as the "
+                f"source run being resumed from "
+                f"({resume_source_path.parent}). A resumed run must write "
+                f"to a NEW directory; pass a different --output."
+            )
 
     # --config-dir lets a campaign point at an ISOLATED copy of the config tree so new
     # experiment arms never edit the frozen paper configs in examples/. Default is the
@@ -979,6 +1597,7 @@ def main():
                 "partial overlay."
             )
         print(f"[Config] ISOLATED config dir: {config_dir}")
+    skill_registry_path = config_dir / "skill_registry.yaml"
     ref_dir = PROJECT_ROOT / "ref"
 
     # --- Random seed ---
@@ -993,38 +1612,8 @@ def main():
     if args.num_predict:
         LLM_CONFIG.num_predict = args.num_predict
 
-    # --- Load config YAML (pilot phase selects config file) ---
-    pilot_phase = args.pilot_phase
-
-    # Reset module-level flags (safe for multi-run in same process)
-    irr_validators.ENABLE_CONSECUTIVE_CAP = False
-    irr_validators.ENABLE_ZERO_ESCAPE = False
-    irr_validators.ENABLE_DEMAND_CEILING = True  # only gates a direct call; retired from dispatch
-
-    # Ablation mode. Supply-side redesign (2026-09-25): demand_ceiling_stabilizer
-    # and demand_floor_stabilizer are no longer dispatched (the basin limit is
-    # physical availability in the water balance), so "no_demand_ceiling" is
-    # now the default behaviour; the choice is kept so existing launchers
-    # still parse.
-    if getattr(args, "ablation_mode", None) == "no_demand_ceiling":
-        irr_validators.ENABLE_DEMAND_CEILING = False
-        print("[Ablation] no_demand_ceiling: already the default (the ceiling is retired from dispatch)")
-
-    # Always use main config (pilot config merged into agent_types.yaml)
+    # --- Load config YAML ---
     agent_config_path = config_dir / "agent_types.yaml"
-    if pilot_phase:
-        print(f"[Pilot] Phase {pilot_phase}: using main config (governance levels set in agent_types.yaml)")
-
-    # Enable Phase C/D validators via module-level flags
-    if pilot_phase in ("C", "D"):
-        if args.workers > 1:
-            print("[Pilot] WARNING: Phase C/D consecutive tracker is not thread-safe, forcing --workers 1")
-            args.workers = 1
-        irr_validators.ENABLE_CONSECUTIVE_CAP = True
-        print("[Pilot] Phase C validator enabled: consecutive_increase_cap")
-    if pilot_phase == "D":
-        irr_validators.ENABLE_ZERO_ESCAPE = True
-        print("[Pilot] Phase D validator enabled: zero_escape")
 
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
@@ -1065,9 +1654,47 @@ def main():
     prompt_template_path = config_dir / "prompts" / "irrigation_farmer.txt"
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
 
+    # --- Crash-resume: the full identifying-config check, now that
+    # agent_config_path (post --coupling resolution), prompt_template_path
+    # and skill_registry_path are all resolved -- still well before
+    # --real's CRSS data load, the actually heavy step. See
+    # _irrigation_identifying_config's docstring for why the config/
+    # prompt/registry hashes and git identity matter even though
+    # --config-dir alone already compares equal in the CLI-args check this
+    # folds in. ONE comparison, ONE error message: git_commit / git_dirty /
+    # git_diff_sha256 are now first-class entries in both dicts (source
+    # from the header, current from _irrigation_identifying_config's own
+    # call to _git_state_at_launch), so check_identifying_config refuses
+    # on a commit OR a diff-hash mismatch exactly like any other
+    # identifying field, with no separate bespoke check needed.
+    if resume_source_path is not None:
+        from broker.utils.llm_journal import RESUME_PROVENANCE_KEY, check_identifying_config
+        current_identifying = _irrigation_identifying_config(
+            args, agent_config_path=agent_config_path,
+            prompt_template_path=prompt_template_path,
+            skill_registry_path=skill_registry_path,
+        )
+        try:
+            check_identifying_config(
+                source_header, current_identifying,
+                # "workers" is now a header key (ExperimentRunner.
+                # _build_llm_journal_manager records it generically, for
+                # every run, journalled or not resumed), but
+                # _irrigation_identifying_config deliberately never puts it
+                # in current_identifying -- see that function's own
+                # docstring on why --workers is allowed to differ between a
+                # crashed run and its resume. Without "workers" here too,
+                # source_header's always-present key vs current_identifying's
+                # always-absent one would refuse EVERY resume, at any worker
+                # count, the moment the header started recording it.
+                allowed_to_differ=(RESUME_PROVENANCE_KEY, "workers"),
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc))
+
     # --- Load skill registry ---
     registry = SkillRegistry()
-    registry.register_from_yaml(str(config_dir / "skill_registry.yaml"))
+    registry.register_from_yaml(str(skill_registry_path))
 
     # --- Create agent profiles ---
     if args.real:
@@ -1082,10 +1709,12 @@ def main():
             crss_db_dir=crss_db,
             rng=np.random.default_rng(seed),
             paper_water_margin=args.paper_water_margin,
+            cluster_method=args.cluster_method,
         )
         print(
             f"[Data] Loaded {len(profiles)} real CRSS agents from paper data "
-            f"(paper_water_margin={args.paper_water_margin})"
+            f"(paper_water_margin={args.paper_water_margin}, "
+            f"cluster_method={args.cluster_method})"
         )
     else:
         profiles = _create_synthetic_profiles(args.agents, seed)
@@ -1140,6 +1769,17 @@ def main():
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config = WaterSystemConfig(seed=seed)
+    # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
+    # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
+    # runner never exposes a flag for it (test_hold_requests_fixed_
+    # never_set_by_a_runner asserts that), so a True value here could only
+    # come from a change to THIS line; fail loud rather than let a real
+    # LLM run silently skip the WP2 keep-tracks-delivery reset.
+    assert config.hold_requests_fixed is False, (
+        "run_experiment.py must never construct WaterSystemConfig with "
+        "hold_requests_fixed=True -- that switch is for replays and CPU "
+        "diagnostics only"
+    )
     env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
@@ -1247,6 +1887,12 @@ def main():
     custom_validators = (
         [] if args.governance_mode == "disabled" else [irrigation_governance_validator]
     )
+    # v3 (WP3, spec 3.1): strict, placebo, silent and feasibility_only run
+    # the supply rule (ALL_IRRIGATION_CHECKS); disabled runs none. Recorded
+    # in the manifest after the run (_record_governance_dispatch_provenance).
+    dispatched_checks = (
+        [check.__name__ for check in ALL_IRRIGATION_CHECKS] if custom_validators else []
+    )
     builder = (
         ExperimentBuilder()
         .with_model(args.model)
@@ -1269,7 +1915,25 @@ def main():
         )
         builder = builder.with_coupling(
             build_irrigation_coupling_contract(env), IrrigationBundle(env), domain="irrigation")
+    # Crash-resume journal (broker/utils/llm_journal.py): --resume-from
+    # implies journaling continues (so the resumed run can itself be
+    # resumed again), even if --llm-journal was not also passed.
+    if args.llm_journal or args.resume_from:
+        builder = builder.with_llm_journal(str(output_dir / "llm_journal.jsonl"))
+    if resume_source_path is not None:
+        builder = builder.with_resume_journal(str(resume_source_path))
     runner = builder.build()
+    if args.llm_journal or args.resume_from:
+        # Same `runner.broker._xxx = ...` idiom as _derived_from_config /
+        # _retry_feedback_mode below: set directly on the already-built
+        # runner, read by ExperimentRunner._build_llm_journal_manager
+        # (called at the top of runner.run(), before this attribute would
+        # otherwise be needed).
+        runner._llm_journal_identifying_extra = _irrigation_identifying_config(
+            args, agent_config_path=agent_config_path,
+            prompt_template_path=prompt_template_path,
+            skill_registry_path=skill_registry_path,
+        )
     if agent_config_path != original_agent_config_path:
         # Same hook run_flood.py uses for --retry-feedback-mode
         # (runner.broker._retry_feedback_mode, read generically by
@@ -1331,42 +1995,71 @@ def main():
         "post_year": hooks.post_year,
     })
 
-    # --- Reset pilot state ---
-    reset_consecutive_tracker()
-
     # --- Run ---
     n_real = "real" if args.real else "synthetic"
-    phase_str = f" | pilot={pilot_phase}" if pilot_phase else ""
     print(
         f"--- Irrigation ABM | {args.model} | {len(profiles)} agents ({n_real}) "
-        f"| {args.years} years | seed={seed}{phase_str} ---"
+        f"| {args.years} years | seed={seed} ---"
     )
-    runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
+    # Spec item 24 fix round: runner.run() can now raise LLMFailureRateAborted
+    # (the LLM safeguard, on by default for this domain). Pre-fix, the four
+    # _record_*_provenance patches, the explicit audit finalize, and the
+    # simulation_log.csv save all ran only AFTER runner.run() returned, so an
+    # abort skipped every one of them -- including
+    # _record_hold_requests_fixed_provenance, whose value every manifest must
+    # carry (see main()'s own `assert config.hold_requests_fixed is False`
+    # above). try/finally: these run whether the call above returned or
+    # raised, and the exception (if any) still propagates afterward so the
+    # process still exits non-zero with the safeguard's one-line reason.
+    try:
+        runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
+    finally:
+        # Water-right history-anchor provenance (Change 1): additive patch of
+        # the two files ExperimentRunner._finalize_experiment already wrote,
+        # done here rather than inside broker/ since paper_water_margin is an
+        # irrigation-domain-only CLI parameter (irrigation_farmer's
+        # create_profiles_from_data, --real only) with no generic-framework
+        # home. Never fails the run over a provenance write (same posture as
+        # broker's own manifest-enrichment try/except, F3 fix) -- each of the
+        # four functions below already guards its own body and only prints a
+        # WARNING on failure, so none of them can mask an in-flight abort.
+        _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
+        _record_cluster_method_provenance(output_dir, args.cluster_method, args.real)
+        _record_step_bin_source_provenance(output_dir, profiles, args.real)
+        _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
+        _record_water_system_config_provenance(output_dir, env.config)
+        _record_governance_dispatch_provenance(output_dir, dispatched_checks)
 
-    # Water-right history-anchor provenance (Change 1): additive patch of the
-    # two files ExperimentRunner._finalize_experiment already wrote, done
-    # here rather than inside broker/ since paper_water_margin is an
-    # irrigation-domain-only CLI parameter (irrigation_farmer's
-    # create_profiles_from_data, --real only) with no generic-framework
-    # home. Never fails the run over a provenance write (same posture as
-    # broker's own manifest-enrichment try/except, F3 fix).
-    _record_paper_water_margin_provenance(output_dir, args.paper_water_margin, args.real)
+        # Finalize audit. Also already called from inside
+        # ExperimentRunner._finalize_experiment's own finally (run() wraps
+        # its whole loop in try/finally too), so this is belt-and-braces
+        # rather than the only path -- kept for the pre-existing explicit
+        # call sequence here.
+        if runner.broker.audit_writer:
+            runner.broker.audit_writer.finalize()
 
-    # Finalize audit
-    if runner.broker.audit_writer:
-        runner.broker.audit_writer.finalize()
-
-    # Save simulation log
-    if hooks.logs:
-        # Sanitize text for CSV compatibility
-        sanitized_logs = []
-        for log in hooks.logs:
-            sanitized_log = {
-                k: (v.replace('\n', ' ').replace('\r', ' ').strip() if isinstance(v, str) else v)
-                for k, v in log.items()
-            }
-            sanitized_logs.append(sanitized_log)
-        pd.DataFrame(sanitized_logs).to_csv(output_dir / "simulation_log.csv", index=False)
+        # Save simulation log. hooks.logs accumulates per-year as the run
+        # progresses, so an aborted run still has every year it completed
+        # before the abort in it, and the CSV below carries exactly those.
+        if hooks.logs:
+            # Sanitize text for CSV compatibility
+            sanitized_logs = []
+            for log in hooks.logs:
+                sanitized_log = {
+                    k: (v.replace('\n', ' ').replace('\r', ' ').strip() if isinstance(v, str) else v)
+                    for k, v in log.items()
+                }
+                sanitized_logs.append(sanitized_log)
+            log_df = pd.DataFrame(sanitized_logs)
+            if "precipitation_flag" in log_df.columns:
+                # Re-review 2026-09-29 (NIT): a mix of int 0/1 (Upper Basin)
+                # and None (Lower Basin, MEDIUM 4) upcasts a plain int column
+                # to float64, rendering "1.0"/"0.0" in the CSV instead of
+                # "1"/"0". pandas' nullable Int64 dtype keeps real values as
+                # ints and a missing one blank, matching precipitation_mm's
+                # own blank-for-missing behavior.
+                log_df["precipitation_flag"] = log_df["precipitation_flag"].astype("Int64")
+            log_df.to_csv(output_dir / "simulation_log.csv", index=False)
 
     GovernanceAuditor().print_summary()
     print(f"--- Complete! Results in {output_dir} ---")
@@ -1389,6 +2082,19 @@ def parse_args():
                         "irrigation_personas.create_profiles_from_data docstring and "
                         "docs/irrigation_physics.md for the derivation). Recorded in "
                         "reproducibility_manifest.json and config_snapshot.yaml.")
+    p.add_argument("--cluster-method", type=str, default="hy2021",
+                   choices=["hy2021", "legacy_centroid"],
+                   help="How each real CRSS agent's persona cluster (aggressive / "
+                        "forward_looking_conservative / myopic_conservative) is "
+                        "assigned. 'hy2021' (default): Hung & Yang (2021) Figure 7's "
+                        "own published per-entity assignment (HY2021_CLUSTER_LABELS "
+                        "in irrigation_personas.py). 'legacy_centroid': the prior "
+                        "4-D nearest-centroid heuristic (_infer_cluster), "
+                        "byte-identical to pre-2026-09-28 behaviour -- use this to "
+                        "reproduce a corpus generated before --cluster-method "
+                        "existed (e.g. the 431adb5e corpus). Only affects --real "
+                        "profiles (create_profiles_from_data). Recorded in "
+                        "reproducibility_manifest.json and config_snapshot.yaml.")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--memory-seed", type=int, default=42)
@@ -1402,11 +2108,13 @@ def parse_args():
                    help="Disable magnitude_pct output (reduces context size)")
     p.add_argument("--pilot-phase", type=str, default=None,
                    choices=["A", "B", "C", "D"],
-                   help="Pilot phase: A=baseline, B=BLOCK+retry, C=+consecutive_cap, D=+zero_escape")
+                   help="RETIRED in v3 (WP3): refused at startup. The checks the "
+                        "phases switched (consecutive_cap, zero_escape) are no "
+                        "longer dispatched.")
     p.add_argument("--ablation-mode", type=str, default=None,
                    choices=["no_demand_ceiling"],
-                   help="Kept for older launchers: no_demand_ceiling is now the default "
-                        "(demand_ceiling_stabilizer is retired from dispatch).")
+                   help="RETIRED in v3 (WP3): refused at startup. "
+                        "demand_ceiling_stabilizer is not dispatched.")
     # P0-1d: the governance profile was hardcoded to "strict" at the builder
     # call below, so the published irrigation corpus has only strict + disabled
     # arms and no enforcement-gradient condition could be run at all. Named
@@ -1418,10 +2126,10 @@ def parse_args():
                         "run new arms without editing the frozen paper configs. Default: in-tree.")
     p.add_argument("--governance-mode", type=str, default="strict",
                    help="Governance profile name from agent_types.yaml "
-                        "(strict | relaxed | grounded_v1 | disabled | any custom "
-                        "profile defined there). A name the config does not "
-                        "declare is REFUSED at startup rather than falling back "
-                        "to 'default' silently.")
+                        "(v3: strict | feasibility_only | disabled; the placebo "
+                        "and silent arms are strict with --retry-feedback-mode). "
+                        "A name the config does not declare is REFUSED at "
+                        "startup rather than falling back to 'default' silently.")
     p.add_argument("--coupling", action="store_true",
                    help="Enable the v0.6 coupling layer: wraps IrrigationEnvironment "
                         "in broker.coupling.EnvironmentCouplingAdapter using the "
@@ -1434,6 +2142,29 @@ def parse_args():
                         "contract-off run at the same seed/years/agents, and the governance "
                         "audit CSV is identical under broker.tools.compare_audit_csv apart "
                         "from two added world_request / world_contention_rule columns.")
+    p.add_argument("--llm-journal", action="store_true",
+                   help="Record every LLM call this run makes to "
+                        "llm_journal.jsonl in --output, so the run can be "
+                        "resumed with --resume-from if it crashes. Implied "
+                        "(always on) when --resume-from is given, so a "
+                        "resumed run can itself be resumed again. See "
+                        "'Resuming a crashed run' in examples/irrigation_abm/"
+                        "README.md.")
+    p.add_argument("--resume-from", type=str, default=None,
+                   help="Resume a crashed run from its llm_journal.jsonl -- "
+                        "pass either that file directly or the crashed run's "
+                        "--output directory. Years already completed are "
+                        "replayed from the journal (answered from the "
+                        "recorded calls, never re-sent to the model); the "
+                        "first incomplete year onward runs live. Refuses to "
+                        "resume (SystemExit) if an identifying setting -- "
+                        "model, seed, memory seed, governance mode, years, "
+                        "real/synthetic, or any other prompt-affecting flag "
+                        "-- differs from the source run (--workers may "
+                        "differ). Output always goes to a NEW --output "
+                        "directory; the source run's files are never "
+                        "modified. See 'Resuming a crashed run' in "
+                        "examples/irrigation_abm/README.md.")
     p.add_argument("--retry-feedback-mode", type=str, default=None,
                    choices=["full", "placebo", "silent"],
                    help="Red-team objection 3 ablation, same three arms as "

@@ -129,6 +129,19 @@ class FQLState:
     # property below is used instead).
     hy_bin_size: Optional[float] = None
 
+    # WP5 spec 5.4 (irrigation_v3_spec_2026-09-28.md): the v3 action-
+    # magnitude bin, step_bin_af / demand_per_grid_unit (k) -- SEPARATE
+    # from hy_bin_size above. hy_bin_size still drives the STATE grid
+    # (_hy_div_to_state) on H&Y's own unconverted diversion-unit grid;
+    # action_bin_size drives only _sample_actions' magnitude draw, on the
+    # v3 environment's own (possibly WP2 2.4-rescaled) step_bin_af, so an
+    # Upper Basin FQL agent's request-size distribution matches the
+    # language-model arms' typical step for the same 8 rescaled agents.
+    # None (the default) preserves every pre-WP5 caller byte-for-byte:
+    # _sample_actions then falls back to hy_bin_size (hy_exact mode) or
+    # bin_size (linspace mode), exactly as before this field existed.
+    action_bin_size: Optional[float] = None
+
     # Q-table: (n_preceding, n_states, n_actions)
     q_table: Optional[np.ndarray] = None
 
@@ -530,18 +543,27 @@ class FQLAgent:
     def _sample_actions(self, state: FQLState) -> np.ndarray:
         """Sample action magnitudes from N(mu, sigma) * bin_size.
 
-        Under state_grid_mode == "hy_exact" the bin size is
-        state.hy_bin_size (H&Y's agt_states[2] - agt_states[1], the same
-        number _hy_div_to_state uses -- P1-a fix), not
-        state.bin_size (= state_bounds[1] - state_bounds[0], which for a
-        non-uniform real grid is a different, wrong value). Under
-        "linspace" (default) this is state.bin_size, unchanged from
-        pre-2026-09-27 behavior.
+        WP5 spec 5.4: state.action_bin_size, when set, takes priority over
+        both other sources -- it is the v3 request-formula's own bin
+        (step_bin_af / k), independent of the state grid. When it is None
+        (every pre-WP5 caller, and every "zero"-init/synthetic FQLState),
+        this falls back to the pre-WP5 rule: under state_grid_mode ==
+        "hy_exact" the bin size is state.hy_bin_size (H&Y's
+        agt_states[2] - agt_states[1], the same number _hy_div_to_state
+        uses -- P1-a fix), not state.bin_size (= state_bounds[1] -
+        state_bounds[0], which for a non-uniform real grid is a different,
+        wrong value). Under "linspace" (default) this is state.bin_size,
+        unchanged from pre-2026-09-27 behavior.
 
         Returns array of length 2: [decrease_magnitude, increase_magnitude].
         """
         cfg = self.config
-        bs = state.hy_bin_size if state.state_grid_mode == "hy_exact" else state.bin_size
+        if state.action_bin_size is not None:
+            bs = state.action_bin_size
+        elif state.state_grid_mode == "hy_exact":
+            bs = state.hy_bin_size
+        else:
+            bs = state.bin_size
         raw = np.abs(self.rng.normal(0, cfg.sigma, size=2))
         magnitudes = (cfg.mu + raw) * bs
         return np.array([-magnitudes[0], magnitudes[1]])

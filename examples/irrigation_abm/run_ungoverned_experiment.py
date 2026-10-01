@@ -63,6 +63,13 @@ def _parse_legacy_args(argv):
     p.add_argument("--years", type=int, default=42)
     p.add_argument("--agents", type=int, default=5, help="Synthetic agents (ignored with --real)")
     p.add_argument("--real", action="store_true", help="Use real 78-agent CRSS data")
+    p.add_argument("--paper-water-margin", type=float, default=0.4,
+                   help="Forwarded to run_experiment.py --paper-water-margin "
+                        "(see there for the full description). Only affects --real.")
+    p.add_argument("--cluster-method", type=str, default="hy2021",
+                   choices=["hy2021", "legacy_centroid"],
+                   help="Forwarded to run_experiment.py --cluster-method "
+                        "(see there for the full description). Only affects --real.")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--memory-seed", type=int, default=42)
@@ -94,6 +101,11 @@ def _build_forwarding_argv(args) -> list:
         "--memory-seed", str(args.memory_seed),
         "--window-size", str(args.window_size),
         "--output", output,
+        # New flags (2026-09-28), forwarded unconditionally with the same
+        # defaults run_experiment.py itself uses -- a historical invocation
+        # that never mentioned either flag behaves exactly as before.
+        "--paper-water-margin", str(args.paper_water_margin),
+        "--cluster-method", args.cluster_method,
         # The one behavioral pin: ungoverned means governance_mode=disabled,
         # which run_experiment.py's builder now maps to BOTH empty YAML
         # rules AND custom_validators=[] (see module docstring above).
