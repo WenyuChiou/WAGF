@@ -123,6 +123,14 @@ class ExperimentConfig:
     # counts (3276/3276) prove zero hits ever fired in frozen runs, so the
     # OFF default is byte-identical for them.
     enable_cognitive_cache: bool = False
+    # Crash-resume journal (broker/utils/llm_journal.py), both default None
+    # so no existing run changes a single byte. llm_journal_path: when set,
+    # every LLM call this run makes is appended to that JSONL file.
+    # resume_journal_path: when set, a prior run's journal to replay from --
+    # see ExperimentRunner._build_llm_journal_manager and
+    # broker.utils.llm_journal.LLMJournalManager for the mechanism.
+    llm_journal_path: Optional[Path] = None
+    resume_journal_path: Optional[Path] = None
 
 # Substrings that identify the runner's own immediate decision memories
 # (written by ExperimentRunner._apply_state_changes). Domains that filter
@@ -170,6 +178,17 @@ class ExperimentRunner:
 
         # Cache for llm_invoke functions per agent type
         self._llm_cache = {}
+
+        # Crash-resume journal (broker/utils/llm_journal.py), built lazily by
+        # run() -- see _build_llm_journal_manager -- so a caller that sets an
+        # identifying-config attribute on the runner between build() and
+        # run() (the same `runner.broker._xxx = ...` idiom already used for
+        # _derived_from_config / _retry_feedback_mode) is picked up before
+        # the header is written. None for every run that never sets
+        # ExperimentConfig.llm_journal_path / resume_journal_path, which
+        # keeps get_llm_invoke's wrapping chain byte-identical to before
+        # this feature existed.
+        self._llm_journal = None
 
         # r19 G7/G8: the merged Ollama sampling/context params actually
         # resolved for each agent type this run creates an invoke for (see
@@ -311,8 +330,21 @@ class ExperimentRunner:
             # unchanged) unless global_config.llm_safeguard.enabled is true,
             # which is what keeps every domain that has not opted in
             # byte-identical.
-            self._llm_cache[agent_type] = wrap_llm_invoke_with_backoff(
+            backoff_wrapped = wrap_llm_invoke_with_backoff(
                 raw_invoke, self._resolve_llm_safeguard_config(),
+            )
+            # Crash-resume journal (broker/utils/llm_journal.py), wired
+            # OUTSIDE (on top of) the backoff wrapper so a replayed call
+            # skips backoff sleeps entirely -- it is answered from the
+            # journal and never reaches backoff_wrapped or raw_invoke at
+            # all. None for every run that never sets
+            # ExperimentConfig.llm_journal_path / resume_journal_path (see
+            # _build_llm_journal_manager), which keeps this cache entry
+            # exactly backoff_wrapped, unchanged, for every existing run.
+            journal = getattr(self, "_llm_journal", None)
+            self._llm_cache[agent_type] = (
+                journal.wrap(agent_type, backoff_wrapped) if journal is not None
+                else backoff_wrapped
             )
         return self._llm_cache[agent_type]
 
@@ -341,6 +373,67 @@ class ExperimentRunner:
         )
         self._llm_safeguard_cfg = resolved
         return resolved
+
+    def _build_llm_journal_manager(self):
+        """The run's :class:`~broker.utils.llm_journal.LLMJournalManager`,
+        or ``None`` when neither journal config field is set.
+
+        Called once, as the first statement of :meth:`run`, so it runs
+        before ``self.llm_invoke`` (hence ``get_llm_invoke("default")``) is
+        touched by anything else in ``run`` -- see that method's own first
+        lines. Building it any later would let an earlier ``get_llm_invoke``
+        call cache an agent type's invoke WITHOUT journal wrapping forever
+        (the cache never re-wraps an already-cached entry).
+
+        The header's identifying config is built from whatever this
+        generic layer already knows (model, seed, the memory engine's own
+        seed, governance profile, step/year count, git commit + dirty
+        flag at launch) PLUS ``self._llm_journal_identifying_extra`` when
+        a caller set that attribute directly on the runner between
+        ``build()`` and ``run()`` -- the same idiom this codebase already
+        uses for ``runner.broker._derived_from_config`` and
+        ``runner.broker._retry_feedback_mode``. A domain CLI flag with no
+        generic home has no place in this generic dict; it belongs in
+        that extra mapping, set by the domain's own runner script, which
+        is also where the actual "refuse to resume on a changed
+        identifying setting" check belongs
+        (broker.utils.llm_journal.check_identifying_config).
+        """
+        journal_path = getattr(self.config, "llm_journal_path", None)
+        resume_path = getattr(self.config, "resume_journal_path", None)
+        if not journal_path and not resume_path:
+            return None
+        from broker.utils.llm_journal import LLMJournalManager
+
+        header: Dict[str, Any] = {
+            "model": self.config.model,
+            "seed": self.config.seed,
+            "memory_seed": (
+                _ms if isinstance(_ms := getattr(self.memory_engine, "seed", None), int)
+                else None
+            ),
+            "governance_profile": self.config.governance_profile,
+            "num_years": self.config.num_years,
+            "num_steps": self.config.num_steps,
+            # Reuses the SAME capture __init__ already made (see its own
+            # comment on why construction time, not finalize time, is the
+            # right moment) -- no extra git subprocess call. Sampling
+            # params and prompt templates live in files a domain's own
+            # preflight check hashes separately (its own
+            # _llm_journal_identifying_extra); code identity itself is
+            # generic and belongs here.
+            "git_commit": getattr(self, "_git_commit_at_launch", "unavailable"),
+            "git_dirty": getattr(self, "_git_dirty_at_launch", None),
+        }
+        extra = getattr(self, "_llm_journal_identifying_extra", None)
+        if isinstance(extra, dict):
+            header.update(extra)
+
+        return LLMJournalManager(
+            header=header,
+            output_path=Path(journal_path) if journal_path else None,
+            resume_from=Path(resume_path) if resume_path else None,
+        )
 
     # ------------------------------------------------------------------
     # PR-8: deciders — get_llm_invoke generalised to "whatever decides"
@@ -609,6 +702,16 @@ class ExperimentRunner:
         misrouted to the config default — warn instead of pretending
         (2026-06-09 architecture review P1-10).
         """
+        # Crash-resume journal: built HERE, as the first statement of run(),
+        # before anything below touches self.llm_invoke (hence
+        # get_llm_invoke) -- see _build_llm_journal_manager's own docstring
+        # for why the ordering matters. getattr-guarded: a runner built via
+        # __new__ in a test, bypassing __init__, has no _llm_journal
+        # attribute at all, and that must not turn into an AttributeError
+        # here.
+        from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
+        if getattr(self, "_llm_journal", None) is None:
+            self._llm_journal = self._build_llm_journal_manager()
         if llm_invoke is not None and llm_invoke is not self.llm_invoke:
             # self.llm_invoke is the cached get_llm_invoke("default") — passing
             # it back in (as run_unified_experiment does) is harmless, so only
@@ -626,6 +729,10 @@ class ExperimentRunner:
         # carry the FIRST run's abort and stamp a clean corpus's manifest
         # with run_status: aborted_llm_failure_rate.
         self._llm_safeguard_abort = None
+        # Crash-resume journal: same reset-at-the-top discipline as the
+        # safeguard abort above, for the SAME reason (a reused runner's
+        # second run() must not inherit the first run's abort stamp).
+        self._llm_journal_abort = None
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
@@ -729,6 +836,19 @@ class ExperimentRunner:
                     self._call_hook("post_year", step, self.agents)
 
                 self._finalize_step(step)
+                # Crash-resume journal: the step-end marker. Written AFTER
+                # _finalize_step so a crash mid-step (before this line runs)
+                # leaves the journal with no marker for this step, and a
+                # resume correctly treats the whole step as partial (see
+                # broker.utils.llm_journal.load_journal_for_resume). For a
+                # step still being replayed this also raises
+                # JournalReplayDivergence if any of that step's recorded
+                # calls were never consumed -- deliberately NOT caught here,
+                # same as LLMFailureRateAborted below: this must stop the
+                # run, not become another ABORTED row.
+                journal = getattr(self, "_llm_journal", None)
+                if journal is not None:
+                    journal.step_end(step)
         except LLMFailureRateAborted as exc:
             # Spec item 24: stash the exception BEFORE `finally` runs, so
             # `_finalize_experiment`'s manifest build (unconditional, below)
@@ -738,6 +858,13 @@ class ExperimentRunner:
             # directly. Re-raised unchanged: the run still exits non-zero
             # with a one-line reason (this exception's own message).
             self._llm_safeguard_abort = exc
+            raise
+        except (JournalReplayDivergence, JournalWriteError) as exc:
+            # Crash-resume journal: same stash-before-finally treatment as
+            # LLMFailureRateAborted above, for the same reason -- the
+            # manifest build in _finalize_experiment's unconditional
+            # finally must be able to see this and record run_status.
+            self._llm_journal_abort = exc
             raise
         finally:
             self._finalize_experiment(iterations)
@@ -859,6 +986,22 @@ class ExperimentRunner:
                 "failed_count": _llm_abort.failed_count,
                 "decisions_in_window": _llm_abort.decisions_in_window,
             }
+        # Crash-resume journal abort (same posture as the safeguard abort
+        # just above): a divergence or a journal-write failure stopped the
+        # run, so the manifest says so instead of looking like a clean
+        # finish that merely happened to cover fewer years than configured.
+        _journal_abort = getattr(self, "_llm_journal_abort", None)
+        if _journal_abort is not None:
+            from broker.utils.llm_journal import JournalReplayDivergence
+            manifest["run_status"] = (
+                "aborted_journal_divergence"
+                if isinstance(_journal_abort, JournalReplayDivergence)
+                else "aborted_journal_write_error"
+            )
+            manifest["llm_journal_abort"] = {
+                "type": type(_journal_abort).__name__,
+                "message": str(_journal_abort),
+            }
         # Memory write policy snapshot (populated if the engine is wrapped by
         # PolicyFilteredMemoryEngine). This captures the policy and dropped-count
         # summary so the audit trace explains any "missing" memories unambiguously.
@@ -952,6 +1095,16 @@ class ExperimentRunner:
                 f"summary from those if needed.",
                 exc_info=True,
             )
+
+        # Crash-resume journal: close the output file handle. Every record
+        # was already flushed + fsync'd at write time (see
+        # broker.utils.llm_journal.LLMJournalWriter), so this is cleanup,
+        # not a durability requirement -- it runs whether the loop above
+        # finished cleanly, aborted, or raised, same as every other
+        # finalize step in this method.
+        journal = getattr(self, "_llm_journal", None)
+        if journal is not None:
+            journal.close()
 
     def _configured_grid_expectation(self, iterations: int) -> dict:
         """This runner's configured agent x year grid.
@@ -1543,6 +1696,21 @@ class ExperimentRunner:
             # a module/import error here is a real bug worth surfacing in debug logs.
             logger.debug(f"[Integrity] run_integrity enrichment skipped: {exc}")
 
+        # 7. Crash-resume journal provenance (broker/utils/llm_journal.py).
+        #    Present ONLY for a run that resumed from a source journal:
+        #    provenance_metadata() returns None for every normal run (never
+        #    resumed), so a run that never touches
+        #    ExperimentConfig.resume_journal_path keeps exactly its current
+        #    manifest key set -- no new key, not even a null one.
+        try:
+            journal = getattr(self, "_llm_journal", None)
+            if journal is not None:
+                journal_provenance = journal.provenance_metadata()
+                if journal_provenance is not None:
+                    metadata.update(journal_provenance)
+        except Exception as exc:
+            logger.debug(f"[Integrity] llm_journal provenance skipped: {exc}")
+
         return metadata
 
     @staticmethod
@@ -1764,6 +1932,11 @@ class ExperimentRunner:
 
     def _run_agents_sequential(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
         """Execute agent steps sequentially. Default mode."""
+        # Crash-resume journal: same re-raise-before-the-broad-handler
+        # treatment as LLMFailureRateAborted below -- see that except
+        # clause's own comment. Imported here (not module level) so a run
+        # that never touches the journal feature pays no import cost.
+        from broker.utils.llm_journal import JournalReplayDivergence
         results = []
         for agent in agents:
             # PR-8 review P1-c: a DECLARED decider is bound OUTSIDE the try.
@@ -1890,6 +2063,16 @@ class ExperimentRunner:
                 # this exception exists to prevent. Re-raise past run()'s
                 # loop, whose except/finally records it in the manifest and
                 # flushes the audit writers before the run actually stops.
+                raise
+            except JournalReplayDivergence:
+                # Crash-resume journal: a replayed call found no matching
+                # recorded answer. Same reasoning as LLMFailureRateAborted
+                # just above -- the broad handler below would turn this into
+                # one more ABORTED row and let the run continue serving
+                # OTHER agents from a journal already proven to not match
+                # the rebuilt state, which is exactly the silent-divergence
+                # outcome this exception exists to prevent. Re-raise past
+                # run()'s loop.
                 raise
             except Exception as e:
                 # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):

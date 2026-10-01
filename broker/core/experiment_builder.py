@@ -41,6 +41,11 @@ class ExperimentBuilder:
         self._coupling = None  # Phase 6V: declared coupling intent (with_coupling)
         self.reflection_engine = None  # Wave 3 (3-5): runner reflection seat
         self._enable_cognitive_cache = False  # F4: cache opt-in, default OFF
+        # Crash-resume journal (broker/utils/llm_journal.py); both None by
+        # default, so a builder that never calls with_llm_journal /
+        # with_resume_journal produces a byte-identical run.
+        self._llm_journal_path = None
+        self._resume_journal_path = None
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -331,6 +336,24 @@ class ExperimentBuilder:
         self._enable_cognitive_cache = bool(enabled)
         return self
 
+    def with_llm_journal(self, path) -> "ExperimentBuilder":
+        """Record every LLM call this run makes to ``path`` (JSONL),
+        enabling a crash to be resumed later via
+        :meth:`with_resume_journal`. See ``broker/utils/llm_journal.py``.
+        """
+        self._llm_journal_path = path
+        return self
+
+    def with_resume_journal(self, path) -> "ExperimentBuilder":
+        """Resume a prior run from its (possibly crash-truncated) LLM-call
+        journal at ``path``. Steps already recorded are replayed from the
+        journal instead of making live calls; the first step with no
+        recorded ``step_end`` marker, and everything after it, runs live.
+        See ``broker/utils/llm_journal.py``.
+        """
+        self._resume_journal_path = path
+        return self
+
     def with_reflection_engine(self, reflection_engine: Any):
         """Attach a ReflectionEngine to the runner (Wave 3 / 3-5).
 
@@ -579,6 +602,10 @@ class ExperimentBuilder:
             # F4 (2026-06-10): cognitive cache opt-in; default OFF (audit-row +
             # coupled-execution holes on hits; see ExperimentConfig docstring).
             enable_cognitive_cache=getattr(self, '_enable_cognitive_cache', False),
+            # Crash-resume journal; both None unless with_llm_journal /
+            # with_resume_journal was called (see ExperimentConfig docstring).
+            llm_journal_path=getattr(self, '_llm_journal_path', None),
+            resume_journal_path=getattr(self, '_resume_journal_path', None),
         )
 
         # AR-3 (broker/INVARIANTS.md Accepted risks): workers>1 with a coupled

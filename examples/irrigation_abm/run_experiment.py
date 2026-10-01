@@ -1377,6 +1377,139 @@ def _record_cluster_method_provenance(
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def _resolve_resume_source(raw: str) -> Path:
+    """``--resume-from`` accepts either a crashed run's ``llm_journal.jsonl``
+    directly, or that run's ``--output`` directory (the file is assumed to
+    be named ``llm_journal.jsonl`` inside it -- the one name this runner
+    ever writes it under, both for a fresh ``--llm-journal`` run and for a
+    resumed run's own new journal).
+    """
+    path = Path(raw)
+    if path.is_dir():
+        path = path / "llm_journal.jsonl"
+    if not path.exists():
+        raise SystemExit(f"--resume-from {raw}: no journal file found at {path}")
+    return path
+
+
+def _irrigation_identifying_config(
+    args: argparse.Namespace, *,
+    agent_config_path=None, prompt_template_path=None, skill_registry_path=None,
+) -> dict:
+    """The CLI-level "identifying config" for the LLM-call journal header
+    and resume check (broker.utils.llm_journal.check_identifying_config).
+
+    Mirrors, under the SAME keys, the generic fields
+    ``ExperimentRunner._build_llm_journal_manager`` already derives on its
+    own from the built experiment (model / seed / memory_seed /
+    governance_profile / num_years / num_steps) -- harmless duplication,
+    not drift, since both are derived from this same CLI's own ``args`` --
+    plus every other CLI flag with no generic home that can change what an
+    agent is asked or how (the "prompt-affecting flags" a resume must not
+    silently change). Excludes ``--workers`` (explicitly allowed to differ
+    between a crashed run and its resume), ``--output`` / ``--llm-journal``
+    / ``--resume-from`` (not identifying -- they say where/whether to
+    journal, not what the experiment is), and ``--pilot-phase`` /
+    ``--ablation-mode`` (refused at startup, before this is ever called).
+
+    ``agent_config_path`` / ``prompt_template_path`` / ``skill_registry_path``,
+    when given (once ``main()`` has resolved them -- the agent-types YAML
+    post any ``--coupling`` derivation, the prompt template file, and the
+    skill registry YAML, all read from ``--config-dir``): their sha256 is
+    added too. Sampling params, the prompt text, and the skill menu live
+    in these files, not in any CLI flag, and only affect the LIVE years of
+    a resumed run (the replayed years already have their recorded
+    answers) -- but a silent change there underneath an unchanged
+    ``--config-dir`` is still exactly the kind of "different experiment" a
+    resume must refuse, and a path string alone cannot catch an in-place
+    edit.
+
+    Git identity (commit, dirty, and a hash of the uncommitted diff) is
+    folded in unconditionally via :func:`_git_state_at_launch`, computed
+    independently of ``ExperimentRunner.__init__``'s own capture
+    (broker/core/experiment_runner.py) because this runs during the
+    resume preflight, before any runner exists.
+    """
+    config = {
+        "model": args.model,
+        "seed": args.seed,
+        "memory_seed": args.memory_seed,
+        "governance_profile": args.governance_mode,
+        "num_years": args.years,
+        "num_steps": None,
+        "real": args.real,
+        "agents": args.agents,
+        "paper_water_margin": args.paper_water_margin,
+        "cluster_method": args.cluster_method,
+        "window_size": args.window_size,
+        "num_ctx": args.num_ctx,
+        "num_predict": args.num_predict,
+        "rebalance_clusters": args.rebalance_clusters,
+        "no_magnitude": args.no_magnitude,
+        "config_dir": args.config_dir,
+        "coupling": args.coupling,
+        "retry_feedback_mode": args.retry_feedback_mode,
+    }
+    if agent_config_path is not None:
+        import hashlib
+        config["agent_config_sha256"] = hashlib.sha256(
+            Path(agent_config_path).read_bytes()
+        ).hexdigest()
+    if prompt_template_path is not None:
+        import hashlib
+        config["prompt_template_sha256"] = hashlib.sha256(
+            Path(prompt_template_path).read_bytes()
+        ).hexdigest()
+    if skill_registry_path is not None:
+        import hashlib
+        config["skill_registry_sha256"] = hashlib.sha256(
+            Path(skill_registry_path).read_bytes()
+        ).hexdigest()
+    git_commit, git_dirty, git_diff_sha256 = _git_state_at_launch()
+    config["git_commit"] = git_commit
+    config["git_dirty"] = git_dirty
+    config["git_diff_sha256"] = git_diff_sha256
+    return config
+
+
+def _git_state_at_launch():
+    """``(commit, dirty, diff_sha256)`` for the CURRENT process's git state.
+
+    ``dirty`` uses ``git status --porcelain --untracked-files=no``: an
+    UNTRACKED file (e.g. the crashed run's own output, when ``--output``
+    sits inside the repo tree) must never flip this -- otherwise a
+    clean-tree run could never be resumed once its own crash artifacts
+    exist as untracked files, and would fail with a misleading "the code
+    has changed" message. ``diff_sha256`` is the sha256 of ``git diff
+    HEAD`` (tracked, uncommitted changes only; the empty string's hash
+    when the tree is clean) -- ``dirty`` alone cannot tell two DIFFERENT
+    sets of uncommitted edits apart (both compare True/True), so a
+    resume's refusal check compares ``diff_sha256``, not ``dirty``;
+    ``dirty`` is kept for a human reading the header.
+
+    Returns ``("unavailable", None, None)`` when git itself is unavailable
+    (not a repo, no git binary): never raises, since manifest/header
+    enrichment must not fail a run over this.
+    """
+    try:
+        import hashlib
+        import subprocess
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        dirty = len(subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()) > 0
+        diff_bytes = subprocess.check_output(
+            ["git", "diff", "HEAD"], stderr=subprocess.DEVNULL,
+        )
+        diff_sha256 = hashlib.sha256(diff_bytes).hexdigest()
+        return commit, dirty, diff_sha256
+    except Exception:
+        return "unavailable", None, None
+
+
 def main():
     args = parse_args()
     # v3 (WP3, spec 3.2): the pilot phases and the ablation mode switched
@@ -1402,6 +1535,22 @@ def main():
             "hy2021 exists to preserve. Pass --cluster-method "
             "legacy_centroid if you want the rebalanced distribution."
         )
+
+    # --- Crash-resume: resolve the source journal and read its header
+    # early (cheap: one small file read). The actual checks run below,
+    # once output_dir (directory-collision) and then agent_config_path /
+    # prompt_template_path (content/git identity) are resolved -- still
+    # all well before any heavy setup (--real's CRSS data load). ---
+    resume_source_path = None
+    source_header = None
+    if args.resume_from:
+        from broker.utils.llm_journal import read_journal_header
+        resume_source_path = _resolve_resume_source(args.resume_from)
+        try:
+            source_header = read_journal_header(resume_source_path)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"--resume-from {args.resume_from}: {exc}")
+
     base = Path(__file__).parent
 
     # --- Output (moved early: a --coupling derived config file, below, is
@@ -1409,6 +1558,26 @@ def main():
     # artifacts instead of living in a temp dir) ---
     output_dir = Path(args.output) if args.output else base / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Crash-resume: refuse at the DIRECTORY level before anything else
+    # is written into output_dir. LLMJournalManager also refuses at the
+    # FILE level (output_path == resume_from, broker/utils/llm_journal.py),
+    # but that only fires once the journal is opened for writing, deep
+    # inside build()/run() -- by then a --coupling derived config copy may
+    # already have been written under output_dir, and opening the SAME
+    # journal file with "w" would destroy the very journal being replayed
+    # before it could even be read. Checking the directory here, before
+    # output_dir receives anything, fails before any of that -- and also
+    # prevents reflection_log.jsonl (appended, never truncated) from
+    # picking up a second, duplicate copy of the replayed years' entries.
+    if resume_source_path is not None:
+        if resume_source_path.parent.resolve() == output_dir.resolve():
+            raise SystemExit(
+                f"--output {output_dir} is the SAME directory as the "
+                f"source run being resumed from "
+                f"({resume_source_path.parent}). A resumed run must write "
+                f"to a NEW directory; pass a different --output."
+            )
 
     # --config-dir lets a campaign point at an ISOLATED copy of the config tree so new
     # experiment arms never edit the frozen paper configs in examples/. Default is the
@@ -1428,6 +1597,7 @@ def main():
                 "partial overlay."
             )
         print(f"[Config] ISOLATED config dir: {config_dir}")
+    skill_registry_path = config_dir / "skill_registry.yaml"
     ref_dir = PROJECT_ROOT / "ref"
 
     # --- Random seed ---
@@ -1484,9 +1654,37 @@ def main():
     prompt_template_path = config_dir / "prompts" / "irrigation_farmer.txt"
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
 
+    # --- Crash-resume: the full identifying-config check, now that
+    # agent_config_path (post --coupling resolution), prompt_template_path
+    # and skill_registry_path are all resolved -- still well before
+    # --real's CRSS data load, the actually heavy step. See
+    # _irrigation_identifying_config's docstring for why the config/
+    # prompt/registry hashes and git identity matter even though
+    # --config-dir alone already compares equal in the CLI-args check this
+    # folds in. ONE comparison, ONE error message: git_commit / git_dirty /
+    # git_diff_sha256 are now first-class entries in both dicts (source
+    # from the header, current from _irrigation_identifying_config's own
+    # call to _git_state_at_launch), so check_identifying_config refuses
+    # on a commit OR a diff-hash mismatch exactly like any other
+    # identifying field, with no separate bespoke check needed.
+    if resume_source_path is not None:
+        from broker.utils.llm_journal import RESUME_PROVENANCE_KEY, check_identifying_config
+        current_identifying = _irrigation_identifying_config(
+            args, agent_config_path=agent_config_path,
+            prompt_template_path=prompt_template_path,
+            skill_registry_path=skill_registry_path,
+        )
+        try:
+            check_identifying_config(
+                source_header, current_identifying,
+                allowed_to_differ=(RESUME_PROVENANCE_KEY,),
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc))
+
     # --- Load skill registry ---
     registry = SkillRegistry()
-    registry.register_from_yaml(str(config_dir / "skill_registry.yaml"))
+    registry.register_from_yaml(str(skill_registry_path))
 
     # --- Create agent profiles ---
     if args.real:
@@ -1707,7 +1905,25 @@ def main():
         )
         builder = builder.with_coupling(
             build_irrigation_coupling_contract(env), IrrigationBundle(env), domain="irrigation")
+    # Crash-resume journal (broker/utils/llm_journal.py): --resume-from
+    # implies journaling continues (so the resumed run can itself be
+    # resumed again), even if --llm-journal was not also passed.
+    if args.llm_journal or args.resume_from:
+        builder = builder.with_llm_journal(str(output_dir / "llm_journal.jsonl"))
+    if resume_source_path is not None:
+        builder = builder.with_resume_journal(str(resume_source_path))
     runner = builder.build()
+    if args.llm_journal or args.resume_from:
+        # Same `runner.broker._xxx = ...` idiom as _derived_from_config /
+        # _retry_feedback_mode below: set directly on the already-built
+        # runner, read by ExperimentRunner._build_llm_journal_manager
+        # (called at the top of runner.run(), before this attribute would
+        # otherwise be needed).
+        runner._llm_journal_identifying_extra = _irrigation_identifying_config(
+            args, agent_config_path=agent_config_path,
+            prompt_template_path=prompt_template_path,
+            skill_registry_path=skill_registry_path,
+        )
     if agent_config_path != original_agent_config_path:
         # Same hook run_flood.py uses for --retry-feedback-mode
         # (runner.broker._retry_feedback_mode, read generically by
@@ -1916,6 +2132,29 @@ def parse_args():
                         "contract-off run at the same seed/years/agents, and the governance "
                         "audit CSV is identical under broker.tools.compare_audit_csv apart "
                         "from two added world_request / world_contention_rule columns.")
+    p.add_argument("--llm-journal", action="store_true",
+                   help="Record every LLM call this run makes to "
+                        "llm_journal.jsonl in --output, so the run can be "
+                        "resumed with --resume-from if it crashes. Implied "
+                        "(always on) when --resume-from is given, so a "
+                        "resumed run can itself be resumed again. See "
+                        "'Resuming a crashed run' in examples/irrigation_abm/"
+                        "README.md.")
+    p.add_argument("--resume-from", type=str, default=None,
+                   help="Resume a crashed run from its llm_journal.jsonl -- "
+                        "pass either that file directly or the crashed run's "
+                        "--output directory. Years already completed are "
+                        "replayed from the journal (answered from the "
+                        "recorded calls, never re-sent to the model); the "
+                        "first incomplete year onward runs live. Refuses to "
+                        "resume (SystemExit) if an identifying setting -- "
+                        "model, seed, memory seed, governance mode, years, "
+                        "real/synthetic, or any other prompt-affecting flag "
+                        "-- differs from the source run (--workers may "
+                        "differ). Output always goes to a NEW --output "
+                        "directory; the source run's files are never "
+                        "modified. See 'Resuming a crashed run' in "
+                        "examples/irrigation_abm/README.md.")
     p.add_argument("--retry-feedback-mode", type=str, default=None,
                    choices=["full", "placebo", "silent"],
                    help="Red-team objection 3 ablation, same three arms as "
