@@ -135,7 +135,13 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.working: Dict[str, List[Dict[str, Any]]] = {}
         # Long-term memory (consolidated)
         self.longterm: Dict[str, List[Dict[str, Any]]] = {}
-        
+        # Stored items remove_by_type has taken out, per agent. A new
+        # memory's timestamp is the count of stored items plus this, so the
+        # sequence continues as if nothing had been removed (decay reads
+        # ages from timestamps). Empty unless remove_by_type runs, so every
+        # other run keeps its exact timestamps.
+        self._removed_count: Dict[str, int] = {}
+
         # Emotional encoding weights (Generic)
         self.emotional_weights = emotional_weights or {
             "critical": 1.0,     # Negative impact, failure, damage
@@ -267,7 +273,8 @@ class HumanCentricMemoryEngine(MemoryEngine):
             "importance": importance,
             "emotion": emotion,
             "source": source,
-            "timestamp": len(self.working[agent_id]) + len(self.longterm[agent_id]),
+            "timestamp": (len(self.working[agent_id]) + len(self.longterm[agent_id])
+                          + self._removed_count.get(agent_id, 0)),
             "consolidated": False,
             **final_metadata
         }
@@ -781,10 +788,33 @@ class HumanCentricMemoryEngine(MemoryEngine):
         new_count = len(self.working[agent_id]) + len(self.longterm.get(agent_id, []))
         return original_count - new_count
     
+    def remove_by_type(self, agent_id: str, memory_type: str) -> int:
+        """Remove every memory of ``agent_id`` whose ``type`` metadata is
+        ``memory_type``, from working and long-term memory alike.
+
+        Returns the number of stored items removed (an item consolidated
+        into long-term memory is stored twice and counts twice). Memories
+        added later keep the timestamps they would have had without the
+        removal (``_removed_count``), so decay and recency of the items
+        that remain are unchanged.
+        """
+        removed = 0
+        for store in (self.working, self.longterm):
+            items = store.get(agent_id)
+            if not items:
+                continue
+            kept = [m for m in items if m.get("type") != memory_type]
+            removed += len(items) - len(kept)
+            store[agent_id] = kept
+        if removed:
+            self._removed_count[agent_id] = self._removed_count.get(agent_id, 0) + removed
+        return removed
+
     def clear(self, agent_id: str):
         """Clear all memories for agent."""
         self.working[agent_id] = []
         self.longterm[agent_id] = []
+        self._removed_count.pop(agent_id, None)
 
     # ── P1: Optional Surprise Plugin Interface ─────────────────────
 

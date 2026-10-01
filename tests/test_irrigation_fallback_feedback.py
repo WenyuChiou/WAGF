@@ -12,7 +12,7 @@ from examples.irrigation_abm.irrigation_personas import build_action_outcome_fee
 def _fb(ctx, year=2):
     return build_action_outcome_feedback(
         action_ctx=ctx, year=year, request=100_000, diversion=90_000,
-        drought_index=0.40, preceding_factor=0,
+        preceding_factor=0,
     )
 
 
@@ -38,10 +38,13 @@ def test_uncertain_year_without_proposal():
 
 def test_approved_year_text_is_byte_identical():
     ctx = {"skill_name": "decrease_large", "magnitude_pct": 20.0}
+    # WP4 (spec 4.5): the unmet share with one decimal, no drought index,
+    # the agent's own sub-basin precipitation sentence.
     assert _fb(ctx) == (
         "Year 2: You chose to decrease large (by 20%). You requested 100,000 "
-        "acre-ft and received 90,000 acre-ft. Shortfall: 10,000 acre-ft (10% "
-        "unmet). Drought index: 0.40. Precipitation was below last year."
+        "acre-ft and received 90,000 acre-ft. Shortfall: 10,000 acre-ft (10.0% "
+        "unmet). That winter's precipitation in your sub-basin was below the "
+        "previous winter's."
     )
 
 

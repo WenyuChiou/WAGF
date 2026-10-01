@@ -1,0 +1,10 @@
+{
+  "numpy_version": "2.4.2",
+  "seed": 42,
+  "years": 5,
+  "fql_init": "calibrated",
+  "no_governance": true,
+  "command": "python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated --years 5 --seed 42",
+  "captured": "2026-09-30",
+  "note": "Regenerated for WP5 review round 3 (SeedSequence(seed).spawn(n) replaces default_rng([seed, i]) for per-agent RNG streams -- item 5). ULP-level differences are possible under a different numpy version; the test FAILS (does not skip) on a numpy_version mismatch -- regenerate this fixture instead."
+}

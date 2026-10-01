@@ -6,11 +6,23 @@ skill model used by the execution layer.
 
 FQL (Hung & Yang 2021) natively has only 2 actions: increase or decrease.
 There is NO maintain, NO large/small distinction in the original algorithm.
-The sign of the action determines direction; magnitude is handled by
-execute_skill() using persona-level Gaussian parameters.
+The sign of the action determines direction; the magnitude is the FQL
+agent's own sampled step (WP5, irrigation_v3_spec_2026-09-28.md section 5:
+run_fql_baseline.py writes the request directly, with no execute_skill()
+redraw -- see _fql_agent_decision).
 
-The only case where maintain_demand is produced is action == 0.0 exactly,
-which is extremely rare since FQL samples from N(mu, sigma) with mu > 0.
+``fql_action_to_skill`` itself only maps a signed float to increase/
+decrease/maintain by sign; whether maintain_demand is common or rare
+depends entirely on WHAT the caller passes it. WP5's run_simulation
+passes the EXECUTED change (spec 5.7: req_final - Div_t, after the
+water-right cap, the minimum-use floor, and any governance reversion),
+not the raw sampled action, so maintain_demand is produced whenever that
+executed change is exactly zero -- at the cap with an increase drawn, at
+the floor with a decrease drawn, or whenever governance reverts a blocked
+increase to keep -- not only the a == 0.0 exactly edge case. Measured
+across a 5-seed, 42-year, 78-agent real calibrated corpus (seeds 42-46,
+--no-governance, 2026-09-30): 5.7 percent of rows (927 of 16,380) are
+maintain_demand, not "extremely rare".
 
 Also provides WSA/ACA label helpers for logging parity with LLM output.
 

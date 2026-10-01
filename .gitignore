@@ -89,6 +89,43 @@ temp_*.json
 # scoped to data, and silently swallowed these when they were first added.
 !reproduction/**/*.csv
 
+# ...and the irrigation v3 water-system reference data (small, committed,
+# checksum-pinned at load -- irrigation_v3_spec_2026-09-28.md WP1), not a
+# results/audit CSV the blanket rule above is meant to catch.
+!examples/irrigation_abm/data/hydrology_v3.csv
+!examples/irrigation_abm/data/mead_capacity_usbr2009_1ft.csv
+
+# ...and the WP1b Upper Basin per-sub-basin supply tables (same rationale,
+# irrigation_v3_spec_2026-09-28.md item 20).
+!examples/irrigation_abm/data/ub_subbasin_supply_v3.csv
+!examples/irrigation_abm/data/ub_subbasin_envelope_v3.csv
+
+# ...and the WP1b CPU-sensitivity variant supply tables (MEDIUM 4, spec 1b.6).
+!examples/irrigation_abm/data/ub_subbasin_supply_v3_rho02.csv
+!examples/irrigation_abm/data/ub_subbasin_supply_v3_lees_ferry_all.csv
+!examples/irrigation_abm/data/ub_subbasin_supply_v3_tributary.csv
+!examples/irrigation_abm/data/ub_subbasin_variant_means_v3.csv
+
+# ...and the WP1c Lower Basin priority-split table (same rationale,
+# irrigation_v3_spec_2026-09-28.md item 22).
+!examples/irrigation_abm/data/lb_priority_split_v3.csv
+
+# ...and the WP1d observed hindcast record + its sources file (same
+# rationale, irrigation_v3_spec_2026-09-28.md item 25).
+!examples/irrigation_abm/data/hindcast_observed_v3.csv
+!examples/irrigation_abm/data/hindcast_observed_v3_sources.csv
+
+# ...and the WP5 FQL reference trajectory goldens (test fixtures, not
+# results/audit CSVs: test_fql_v3.py compares a fresh run against these to
+# 1e-9; the blanket *.csv rule above would otherwise silently drop them,
+# making the golden tests fail on any fresh clone). WP5 final review
+# (2026-09-30): narrowed from the whole fixtures/ directory to files
+# actually named *_golden.csv, so a future non-golden CSV dropped into
+# this directory (a results/audit CSV copied in by mistake, a scratch
+# fixture) is still caught by the blanket rule above instead of being
+# silently tracked by a too-broad negation.
+!examples/irrigation_abm/tests/fixtures/*_golden.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/

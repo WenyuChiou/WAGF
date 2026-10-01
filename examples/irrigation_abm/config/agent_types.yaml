@@ -29,13 +29,20 @@ global_config:
 
   reflection:
     interval: 1
-    batch_size: 10
+    # v3 (WP4, spec 4.7): one agent per reflection call. Batched calls let a
+    # reflection copy another agent's figures (L3 M8: 201 prompts showed an
+    # acre-ft figure that never belonged to the agent).
+    batch_size: 1
     importance_boost: 0.9
     persona_instruction: "Summarize each agent's memories into a 2-sentence 'Lesson Learned'. Speak in the FIRST PERSON (e.g., 'I realized...') and maintain the agent's role."
     questions:
-      - "Was your water demand strategy effective given the supply conditions?"
-      - "Did the magnitude of your demand change match the outcome?"
-      - "What patterns do you notice between your actions and supply shortfalls?"
+      - "Was your water request strategy effective given the supply conditions?"
+      - "Did the direction you chose (increase, keep or decrease) match the outcome?"
+      - "What patterns do you notice between your requests and the water you received?"
+    # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's
+    # latest reflection in memory (framework option, default false:
+    # broker/components/cognitive/reflection.py, store_reflection_memory).
+    keep_latest_only: true
     # reflection fires every year via reflection.interval (IrrigationLifecycleHooks.post_year
     # -> ReflectionEngine.should_reflect); the trigger-based system this block once
     # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
@@ -48,6 +55,59 @@ global_config:
     num_predict: 4096
     max_retries: 2
 
+  # Extra insurance before the v3 corpus launch (spec item 24, audit gap F42,
+  # PI approved 2026-09-29). Generic framework feature
+  # (broker/utils/llm_safeguard.py); OFF by default for every other domain.
+  # Values chosen for a 78-agent x 42-year real-LLM run where each Ollama
+  # call already takes tens of seconds. Fix round (post-review): retries are
+  # now TRANSPORT-failures only (a refused/reset connection, or an HTTP 5xx)
+  # -- a timeout is never retried here (the inner call already waited its
+  # own configured timeout), nor is an HTTP 4xx, empty content, or any other
+  # exception.
+  llm_safeguard:
+    enabled: true
+    # 5 retries (6 attempts total), delay doubling from 2s: 2, 4, 8, 16, 32s
+    # (62s of backoff delay total, not counting the calls' own durations).
+    # Long enough to ride out an Ollama restart or a slow GPU-driver
+    # recovery; backoff_max_seconds=60 is a defensive per-delay ceiling that
+    # does not bind for this sequence (its largest single delay is 32s) but
+    # protects a future edit to these numbers from producing an unbounded
+    # wait. Fix round 3 (TIME TO ABORT): once backoff gives up on a
+    # transport failure, the format-retry and governance-retry loops treat
+    # the decision as failed at once instead of re-prompting the same dead
+    # endpoint, so one decision's worst-case time to give up is this ~62s
+    # backoff schedule ONCE, not multiplied by however many retry-loop
+    # attempts a decision can otherwise take.
+    backoff_max_retries: 5
+    backoff_initial_seconds: 2
+    backoff_max_seconds: 60
+    # abort_window (a count, integer) and abort_threshold (a continuous
+    # share, fraction in (0, 1]) per the PI's framework-parameter rule
+    # (2026-09-25). The abort check is EARLY: it fires as soon as
+    # ceil(abort_threshold * abort_window) = ceil(0.5 * 50) = 25 failures
+    # have occurred in the current window, not only once the window is full
+    # -- so a genuinely broken endpoint (every call failing) trips at
+    # decision 25, not 50. One year of this domain is 78 agent-decisions,
+    # larger than the 50-decision window, so a badly-broken run is caught
+    # before it even finishes its first year -- well before a multi-day,
+    # multi-seed batch has burned meaningful GPU time on a run that could
+    # never have produced usable data.
+    abort_window: 50
+    abort_threshold: 0.5
+    # KNOWN LIMIT (fix round 4): the ~62s-once time-to-abort above is the
+    # DEAD-endpoint case (connection refused/reset) -- a HUNG endpoint
+    # (one that accepts the connection but never answers, so every call
+    # times out) is not sped up by any of this. A timeout is deliberately
+    # never retried by the backoff wrapper and never sets transport_error,
+    # so the early-break added this round never fires for it either; it
+    # falls back to the pre-safeguard behaviour of paying the full
+    # timeout on every attempt. At this domain's own numbers that is 3
+    # format-retry attempts x 2 inner create_llm_invoke attempts x the
+    # model's 120s timeout = 12 minutes for ONE decision to give up, so
+    # reaching the 25-failure early-stop above (still the same
+    # ceil(0.5 * 50) = 25) takes about 5 hours on a persistently hung
+    # endpoint, not the ~26 minutes a persistently DEAD one takes.
+
   governance:
     max_retries: 3
     max_reports_per_retry: 3
@@ -56,6 +116,34 @@ global_config:
     # an ERROR ends with the list of actions that pass every rule this step
     # (framework default off).
     feasible_set_feedback: true
+    # v3 (WP3, spec 3.8, PI item 11): within one decision, TR1 and TR3 read
+    # the water-scarcity appraisal as FIRST STATED -- the first parsed
+    # attempt's, or, if that attempt gave none, the first attempt that does
+    # -- so a retry cannot pass them by rewriting the label; the
+    # feasible-action line uses the same appraisal. It equals initial_labels
+    # whenever the first parsed attempt carried a non-blank WSA, otherwise
+    # the first NON-BLANK WSA in attempt_labels (a blank, WSA_LABEL=, is not
+    # a statement). A rewritten label is
+    # logged (final_labels, appraisal_drift, attempt_labels) and read by no
+    # rule. Generic framework option, default off
+    # (broker/core/_appraisal_freeze.py).
+    appraisal_freeze: true
+    # v3 (WP3, spec 3.5): no "[Rule: <id>] " prefix in rule messages, so no
+    # retry prompt shows an internal rule id (framework default true).
+    rule_id_prefix: false
+    # v3 (WP3 review round 1, MEDIUM 2): an off-menu answer at the cap or the
+    # floor is blocked by its identity rule; the skill registry's backstop
+    # (precondition and output-schema checks) repeats that block in internal
+    # field names. Kept in the audit, left out of the retry text (framework
+    # default false).
+    hide_registry_backstop_reports: true
+    # v3 (WP4, spec 3.7, items 11 and 15): a retry report names the blocked
+    # action in plain words ("increase demand"), never its skill id
+    # (framework default false).
+    plain_action_names: true
+    # v3 (WP4, spec 4.8, L3 M12): the closer of a placebo retry, which shows
+    # no rule text; the framework default points at "the violations above".
+    placebo_closer: "Please reconsider your decision."
 
   # First-attempt proposal columns (initial_skill, initial_labels,
   # attempt_skills) and the appraisal-drift columns (final_labels,
@@ -63,6 +151,41 @@ global_config:
   # (framework default off).
   audit:
     initial_proposal_columns: true
+    # Spec item 24 fix round 3 (CRITICAL 2, PI decision): the audit schema
+    # must not depend on whether a given run happened to hit a parse
+    # failure. This is a new corpus, so paying for one consistent column
+    # set from the start is free, and the governance metrics need
+    # execution_path and executed_skill regardless. Also closes a gap the
+    # LLM safeguard exposed: without this, a run that aborts on an
+    # unparsable decision could write zero rows to the audit CSV for the
+    # very decision that stopped it.
+    corrected_status_columns: true
+    # v3 (WP3, spec 3.9): file every block by grounding --
+    # rules_world_grounded (the supply rule and the two identity rules, which
+    # read water-system state) vs rules_self_report (TR1 and TR3, which read
+    # the agent's own appraisal; on an off-menu answer also the registry
+    # backstops precondition_violation and output_schema_violation, which
+    # carry no grounding stamp) -- in every profile, not only those with a
+    # world-grounded thinking rule (framework default off). A column can
+    # mix rule families: metrics count rule families by rule id.
+    grounding_columns: true
+    # v3 (WP3, WP6 metrics, PI item 19): per attempt, the appraisal labels
+    # and the ids of the rules that blocked it (attempt_labels,
+    # attempt_failed_rules, in step with attempt_skills), and
+    # appraisal_relabeled -- the relabel rate and the per-rule census read
+    # these (framework default off).
+    attempt_columns: true
+    # v3 (WP3, spec 3.3): the supply rule's inputs for every decision, as
+    # state_<key> columns, so the disabled and feasibility-only arms can be
+    # scored post hoc on exactly what the live rule reads (framework default
+    # none). The keys are validators/irrigation_validators.py
+    # (SUPPLY_RULE_FIELDS), set by IrrigationLifecycleHooks.pre_year.
+    state_columns:
+      - supply_keep_request_af
+      - supply_expected_at_keep_af
+      - supply_ratio
+      - supply_physical_ratio
+      - full_supply_ratio
 
   coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
 
@@ -87,8 +210,9 @@ shared:
   template_vars:
     - water_situation_text
     - feedback_dashboard
-    - conservation_status
-    - aca_hint
+    # Spec item 29e: the lines after the options, present only when they
+    # apply (irrigation_personas.build_option_notes, set in pre_year).
+    - option_notes
 
   rating_scale: |
     ### RATING SCALE (You MUST use EXACTLY one of these codes):
@@ -109,7 +233,7 @@ shared:
           type: "appraisal",
           required: true,
           construct: "WSA_LABEL",
-          reason_hint: "One sentence on whether your water supply feels abundant, adequate, or tight.",
+          reason_hint: "One sentence on whether your water supply is abundant, adequate, tight, scarce, or very scarce.",
         }
       - {
           key: "adaptive_capacity_assessment",
@@ -194,12 +318,13 @@ irrigation_farmer:
           "conservation_capacity",
         ]
 
+    # v3 (WP2 spec 2.2, 2026-09-29): three skills -- the LLM chooses the
+    # direction only, the environment draws the whole Hung and Yang
+    # magnitude (replaces the five-entry small/large map).
     skill_map:
-      "1": "increase_large"
-      "2": "increase_small"
-      "3": "maintain_demand"
-      "4": "decrease_small"
-      "5": "decrease_large"
+      "1": "increase_demand"
+      "2": "maintain_demand"
+      "3": "decrease_demand"
 
     constructs:
       WSA_LABEL:
@@ -237,8 +362,8 @@ irrigation_farmer:
 
     emotion_keywords:
       # "drought" was deliberately dropped from this list: build_action_outcome_feedback
-      # / build_regret_feedback (irrigation_personas.py) unconditionally append
-      # "Drought index: N.NN." to every yearly outcome line regardless of severity,
+      # / build_regret_feedback (irrigation_personas.py) unconditionally appended
+      # "Drought index: N.NN." to every yearly outcome line (until WP4 removed it),
       # so keeping "drought" here made water_crisis match every single outcome line
       # (including "Demand fully met" ones), masking the shortfall/unmet signal below.
       water_crisis:
@@ -311,6 +436,13 @@ irrigation_farmer:
   feedback:
     trend_window: 5
     dashboard_format: "table"       # table | summary | none
+    # v3 (WP4, spec 4.6, L3 M15): no TREND line (framework default true); it
+    # compared the mean of the first rows with the last ones and contradicted
+    # the table above it in 22 percent of prompts.
+    show_trend: false
+    # The rows are recorded in post_year from the year's FINAL settlement,
+    # labelled with the calendar year (spec 4.6, L3 M14), so the latest row is
+    # last year's actual request and delivery.
     tracked_metrics:
       - name: "request"
         source: "current_request"   # key in env_context dict
@@ -320,46 +452,112 @@ irrigation_farmer:
         source: "current_diversion"
         unit: "AF"
         format: ",.0f"
+      # v3 (WP4, spec 4.6): 0/1 flags that pick the warning below naming WHO
+      # shares a shortage, decided from last year's settled gap_reason the
+      # way the supply rule's sharing sentence decides it
+      # (irrigation_personas.dashboard_sharing_flags, set in post_year;
+      # validators/irrigation_validators.py _sharing_sentence). At most one
+      # is 1. display: false keeps them out of the table (framework option):
+      # they are selectors, not information for the agent.
+      - { name: "shortage_junior", source: "shortage_junior", unit: "", format: ".0f", display: false }
+      - { name: "shortage_lower_basin", source: "shortage_lower_basin", unit: "", format: ".0f", display: false }
+      - { name: "shortage_lower_basin_junior_holder", source: "shortage_lower_basin_junior_holder", unit: "", format: ".0f", display: false }
+      - { name: "shortage_subbasin", source: "shortage_subbasin", unit: "", format: ".0f", display: false }
+      - { name: "shortage_alone", source: "shortage_alone", unit: "", format: ".0f", display: false }
+      - { name: "shortage_upper_basin", source: "shortage_upper_basin", unit: "", format: ".0f", display: false }
     assertions:
-      # Supply-side redesign (2026-09-25, spec S2; replaces the F13 comment,
-      # whose delivery formula no longer holds). The tracked metrics are
-      # recorded in post_year from the year's FINAL settlement, so this row is
-      # last year's actual request and delivery. Delivery / request is
-      # (1 - tier cut) x (Mead physical ratio) for a Lower Basin agent and the
-      # pro-rata Upper Basin ratio for an Upper Basin agent. 0.85 is below
-      # Tier 1 and Tier 2 (0.95, 0.90), so it fires for Tier 3, for a Mead
-      # or Powell physical limit, or for a combination. "supply >= 1" stays
-      # as a unit guard: SafeExpressionEvaluator replaces 0 with 1e-10, and a
-      # real delivery is thousands of acre-feet.
-      - when: "supply / request < 0.85 and supply >= 1"
+      # A warning when last year's delivery was below 85 percent of the
+      # request (provenance G12; "supply >= 1" is a unit guard:
+      # SafeExpressionEvaluator replaces 0 with 1e-10, and a real delivery is
+      # thousands of acre-feet). Each variant names who shares the shortage
+      # in the words of the supply rule's message (spec 3.7, item 29c: a
+      # larger request raises the agent's share only by lowering other
+      # users' deliveries and adds no water to the pool). The unmet share has
+      # one decimal, as in the memory line (review LOW 8). A declared Lower
+      # Basin tier cuts only junior-priority water (item 22) and the
+      # non-agricultural aggregate (item 14): a fully senior Lower Basin
+      # agent's shortfall is always Lake Mead's physical availability, and an
+      # agent holding junior-priority water is told that a declared shortage
+      # can cut the part of a request above its senior entitlement (item 29f).
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_junior >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
-          ({unmet_pct:.0f}% not delivered). The reason is stated in your water
-          situation above. A declared shortage reduces any larger request by
-          the same share; when a physical limit binds, supply is shared
-          pro-rata, so a larger request raises your share only by lowering
-          other users' deliveries.
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. Part or all of your water right is junior-priority,
+          and the declared shortage tier cuts that part directly. A larger
+          request would have its junior-priority part cut by the same tier.
+          If Lake Mead is also physically short, the rest is shared in
+          proportion to requests, and a larger request would raise your share
+          only by lowering the deliveries of other users in the Lower Basin;
+          it would not add water to the Lower Basin.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_lower_basin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. A declared shortage does not by itself reduce your
+          delivery; only Lake Mead's physical availability does. When water is
+          short it is shared in proportion to requests, so a larger request
+          would raise your share only by lowering the deliveries of other
+          users in the Lower Basin; it would not add water to the Lower Basin.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_lower_basin_junior_holder >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. A declared shortage can cut only the
+          junior-priority part of a request, the part above your
+          senior-priority entitlement; the rest of your delivery is reduced
+          only by Lake Mead's physical availability. When water is short it is
+          shared in proportion to requests, so a larger request would raise
+          your share only by lowering the deliveries of other users in the
+          Lower Basin; it would not add water to the Lower Basin.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_subbasin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short it is shared in proportion to
+          requests, so a larger request would raise your share only by
+          lowering the deliveries of other users in your sub-basin; it would
+          not add water to your sub-basin.
+      # The only member of its sub-basin (H&Y's UT2) has no one to share with.
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_alone >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short, a larger request would not
+          add water.
+      # The basin-wide Upper Basin backstop (or ub_supply_mode lees_ferry_pool).
+      - when: "supply / request < 0.85 and supply >= 1 and shortage_upper_basin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short it is shared in proportion to
+          requests, so a larger request would raise your share only by
+          lowering the deliveries of other users in the Upper Basin; it would
+          not add water to the Upper Basin.
 
   # ---------------------------------------------------------------------------
   # Available Actions
   # ---------------------------------------------------------------------------
   actions:
-    # Hung and Yang (2021) action model (2026-09-26): the agent picks a
-    # direction and a small or large step; the size is drawn by the
-    # environment from the agent's own (mu + |N(0, sigma)|) x bin_size
-    # distribution. H&Y agents see no percentages, so none are stated here.
-    - id: increase_large
-      aliases: ["IL", "increase_large", "large increase", "aggressive increase",
-                "[IL]", "[increase_large]"]
+    # v3 (WP2 spec 2.2, 2026-09-29): the agent picks a DIRECTION only
+    # (increase / maintain / decrease); the size is drawn by the
+    # environment from the agent's own (mu + |N(0, sigma)|) x step_bin_af
+    # distribution, the whole Hung and Yang half-normal (no small/large
+    # split -- replaces the five-skill menu). H&Y agents see no
+    # percentages, so none are stated here; the per-agent option text
+    # (irrigation_personas.build_option_texts) states the resulting
+    # request in acre-ft instead, via option_text_overrides.
+    - id: increase_demand
+      aliases: ["ID", "increase_demand", "increase", "increase request",
+                "[ID]", "[increase_demand]", "[increase]"]
       description: >
-        Increase your diversion request by a large step.
-
-    - id: increase_small
-      aliases: ["IS", "increase_small", "small increase", "cautious increase",
-                "modest increase", "[IS]", "[increase_small]"]
-      description: >
-        Increase your diversion request by a small step.
+        Increase your diversion request.
 
     - id: maintain_demand
       aliases: ["MD", "maintain", "maintain_demand", "status quo",
@@ -368,17 +566,11 @@ irrigation_farmer:
       description: >
         Keep your request unchanged.
 
-    - id: decrease_small
-      aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
-                "cautious decrease", "[DS]", "[decrease_small]"]
+    - id: decrease_demand
+      aliases: ["DD", "decrease_demand", "decrease", "decrease request",
+                "[DD]", "[decrease_demand]", "[decrease]"]
       description: >
-        Reduce your diversion request by a small step.
-
-    - id: decrease_large
-      aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
-                "[DL]", "[decrease_large]"]
-      description: >
-        Reduce your diversion request by a large step.
+        Reduce your diversion request.
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration
@@ -391,183 +583,112 @@ irrigation_farmer:
     secondary_magnitude_field: "secondary_magnitude_pct"
 
   # ---------------------------------------------------------------------------
-  # Governance Profiles — derived from FQL parameter constraints
+  # Governance Profiles (v3, WP3; irrigation_v3_spec_2026-09-28.md section 3)
   # ---------------------------------------------------------------------------
+  # Two rule families (spec 3.1; PI items 1, 9, 12 and 16):
+  #   - Feasibility rules, each the pre-execution counterpart of a constraint
+  #     the source model's water system enforces after the fact, plus the
+  #     legal use floor: the supply rule (validators/irrigation_validators.py,
+  #     supply_gap_block_increase; dispatched through custom_validators in
+  #     every profile but disabled) and the two identity rules below. The
+  #     identity rules are MENU FILTERS in every profile, disabled included:
+  #     the option is not offered (broker/core/_skill_filtering.py), an
+  #     off-menu answer is blocked, and the skill registry preconditions are
+  #     a second backstop.
+  #   - Thinking rules TR1 and TR3, derived from the dual-appraisal framework
+  #     (WSA = threat or primary appraisal, ACA = coping or secondary
+  #     appraisal), enforced in strict only and read on the WSA as FIRST
+  #     STATED in the decision: the first parsed attempt's, unless that
+  #     attempt gave none (global_config.governance.appraisal_freeze).
+  #     The theory is literature; mapping it onto this menu is our
+  #     assumption (item 12). TR2 (WSA H or VH, ACA H or VH, keep) is
+  #     enforced in no profile (item 9); the old R1, R2 and R4 are removed.
+  # Arms: strict; placebo and silent are strict run with
+  # --retry-feedback-mode placebo|silent; feasibility_only (item 16, one run)
+  # is strict without TR1 and TR3; disabled keeps the menu filters only.
+  # TR1 and TR3 are scored post hoc on the first-stated WSA in disabled and
+  # feasibility_only, and the supply rule post hoc in disabled (WP6, from
+  # the state_supply_* audit columns). Retired with the old rule set: the
+  # relaxed and grounded_v1 profiles.
   governance:
-    # Strict governance: enforces water allocation rules + behavioral
-    # consistency checks for the WSA/ACA appraisal structure.
     strict:
       thinking_rules:
-        # R1: High water threat → cannot maintain status quo
-        # NOTE: WARNING (not ERROR) to avoid double-bind when all other actions also blocked
-        - {
-            id: high_threat_no_maintain,
-            construct: WSA_LABEL,
-            when_above: ["VH"],
-            blocked_skills: ["maintain_demand"],
-            level: WARNING,
-            message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
-          }
-        # R2: Very low threat → cannot justify demand increase
-        # NOTE: Changed from ["VL", "L"] to ["VL"] only to allow moderate increase
-        # when WSA=L (farmers naturally expand when water is available)
-        - {
-            id: low_threat_no_increase,
-            conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
-            blocked_skills: ["increase_large", "increase_small"],
-            level: ERROR,
-            message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
-          }
-        # R4: High threat + high coping → should not increase demand (BLOCK + retry)
-        - {
-            id: high_threat_high_cope_no_increase,
-            conditions:
-              [
-                { construct: WSA_LABEL, values: ["H", "VH"] },
-                { construct: ACA_LABEL, values: ["H", "VH"] },
-              ],
-            blocked_skills: ["increase_large", "increase_small"],
-            level: ERROR,
-            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
-          }
-
-      identity_rules:
-        # Physical constraint: cannot increase beyond water right
-        - {
-            id: water_right_cap,
-            precondition: at_allocation_cap,
-            blocked_skills: ["increase_large", "increase_small"],
-            level: ERROR,
-            message: "Cannot increase demand — already at maximum water right allocation.",
-          }
-        # Economic hallucination guard: prevent demand reduction below 10% utilisation
-        - {
-            id: minimum_utilisation_floor,
-            precondition: below_minimum_utilisation,
-            blocked_skills: ["decrease_large", "decrease_small"],
-            level: ERROR,
-            message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
-          }
-
-    relaxed:
-      thinking_rules:
-        - {
-            id: high_threat_warn_maintain,
-            construct: WSA_LABEL,
-            when_above: ["H"],
-            blocked_skills: ["maintain_demand"],
-            level: WARNING,
-            message: "Water threat is High — consider adapting demand.",
-          }
-      identity_rules:
-        - {
-            id: water_right_cap,
-            precondition: at_allocation_cap,
-            blocked_skills: ["increase_large", "increase_small"],
-            level: WARNING,
-          }
-
-    # PR-6: strict, PLUS world-grounded ERROR rules.
-    #
-    # `strict` conditions only on WSA_LABEL / ACA_LABEL — labels the model wrote
-    # in the same generation — so a farmer who reports low water scarcity is
-    # never contradicted, however dry the basin actually is. `grounded_v1` keeps
-    # those rules verbatim and adds one whose antecedent is the simulator's own
-    # drought index.
-    #
-    # Select with `--governance-mode grounded_v1`.
-    grounded_v1:
-      thinking_rules:
-        - {
-            id: high_threat_no_maintain,
-            construct: WSA_LABEL,
-            when_above: ["VH"],
-            blocked_skills: ["maintain_demand"],
-            level: WARNING,
-            message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
-          }
-        - {
-            id: low_threat_no_increase,
-            conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
-            blocked_skills: ["increase_large", "increase_small"],
-            level: ERROR,
-            message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
-          }
-        - {
-            id: high_threat_high_cope_no_increase,
-            conditions:
-              [
-                { construct: WSA_LABEL, values: ["H", "VH"] },
-                { construct: ACA_LABEL, values: ["H", "VH"] },
-              ],
-            blocked_skills: ["increase_large", "increase_small"],
-            level: ERROR,
-            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
-          }
-        # WORLD-GROUNDED. `drought_index` is computed by the environment from
-        # precipitation and reservoir elevation and published in the environment
-        # context; no agent can write it. The rule fires when the basin is
-        # measurably short of water AND the farmer rated scarcity low AND asked
-        # for more — the world contradicting the self-report, which no rule
-        # conditioned on WSA_LABEL alone can detect.
-        #
-        # THRESHOLD 0.08 is the ~85th percentile of this synthetic basin's own
-        # drought index (126 basin-years, seeds 42/43/44: median 0.017, p85
-        # 0.083, max 0.160) — roughly the driest one year in six. It is derived
-        # from the environment's distribution, NOT chosen to make a rule fire:
-        # a "sounds severe" 0.4 would never be reached in 42 years here, and a
-        # rule that cannot fire is the exact defect this profile exists to
-        # remove. RECALIBRATE for a real basin, where the index has a different
-        # scale — copy the number and you have copied this testbed's climate.
-        #
-        # TWO OTHER THRESHOLDS READ THIS SAME VARIABLE, at very different
-        # values, and NONE of the three are cross-referenced in code — moving
-        # one does not move the others and nothing checks they stay coherent:
-        #   * learning/fql_skill_mapper.py::compute_wsa_label — `< 0.2 -> VL`,
-        #     `< 0.4 -> L`, ... Used ONLY by run_fql_baseline.py (the
-        #     reinforcement-learning baseline arm), which runs the twelve
-        #     hand-written irrigation validators directly and never reaches
-        #     these YAML thinking_rules. So this rule is NOT tautological for
-        #     the LLM arm: there, WSA_LABEL comes from the model's own reasoning
-        #     block (run_experiment.py reads it out of the parsed response), so
-        #     the two conditions below are genuinely independent. It WOULD be
-        #     near-tautological if the FQL arm were ever routed through this
-        #     path, because there wsa_label is a pure function of drought_index.
-        #   * adapters/irrigation_pack.py::appraisal_grounding_map —
-        #     `drought_index_bump_threshold: 0.6`, used by the post-hoc
-        #     appraisal-grounding audit tool, not by governance.
-        # Caveat worth stating in any write-up: the LLM arm's prompt DOES quote
-        # the drought index (irrigation_personas.build_water_situation_text), so
-        # this rule asks whether the model used what it was shown — a weaker
-        # claim than a hidden-variable contradiction.
-        # Full table: docs/guides/governance_layers.md, "Picking a threshold".
-        - id: observed_scarcity_low_wsa_increase
-          grounding: world
-          conditions:
-            - { variable: drought_index, scope: env, operator: ">", value: 0.08 }
-            - { construct: WSA_LABEL, values: ["VL", "L"] }
-          blocked_skills: ["increase_large", "increase_small"]
+        # TR1: a larger request when the agent itself judges water to be
+        # scarce (WSA H or VH) -- flagged as a documented maladaptive
+        # response on a shared supply (item 15; rule basis 6.2, support
+        # moderate).
+        - id: high_scarcity_no_increase
+          conditions: [{ construct: WSA_LABEL, values: ["H", "VH"] }]
+          blocked_skills: ["increase_demand"]
           level: ERROR
-          message: "Demand increase blocked: the basin drought index is high this year, which your own low scarcity rating does not account for. Re-appraise scarcity against the water actually available, then choose."
+          grounding: self_report
+          message: "Demand increase blocked under the rule on increases under scarcity: at the start of this decision you judged water to be scarce this year, and a larger request when water is scarce draws more from a supply you share with other users."
+          suggestion: "Under this rule an increase is not available in this decision."
+        # TR3: a cut when the agent itself judges water not to be scarce
+        # (WSA VL or L) -- a protective response the threat appraisal does
+        # not motivate, kept for symmetry with the flood over-reaction rules
+        # (item 15; rule basis 6.3, support weak to moderate).
+        - id: low_scarcity_no_decrease
+          conditions: [{ construct: WSA_LABEL, values: ["VL", "L"] }]
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: self_report
+          message: "Demand decrease blocked under the rule on decreases without scarcity: at the start of this decision you judged that water is not scarce this year, and cutting your request when water is not scarce gives up water you could use for production."
+          suggestion: "Under this rule a decrease is not available in this decision."
       identity_rules:
-        - {
-            id: water_right_cap,
-            precondition: at_allocation_cap,
-            blocked_skills: ["increase_large", "increase_small"],
-            level: ERROR,
-            message: "Cannot increase demand — already at maximum water right allocation.",
-          }
-        - {
-            id: minimum_utilisation_floor,
-            precondition: below_minimum_utilisation,
-            blocked_skills: ["decrease_large", "decrease_small"],
-            level: ERROR,
-            message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
-          }
+        # Water-right cap: no increase once the base is at or above 0.99 W.
+        - id: water_right_cap
+          precondition: at_allocation_cap
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at your water right."
+        # Minimum-use floor: no decrease once the base is at or below
+        # 1.01 F, F = 0.10 W.
+        - id: minimum_utilisation_floor
+          precondition: below_minimum_utilisation
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: world
+          message: "Decrease not available: your request is already at the minimum-use floor (10% of your water right)."
 
+    # Item 16: strict without TR1 and TR3 (one run, seed 42). Keeps the
+    # supply rule (run_experiment.py wires irrigation_governance_validator in
+    # every profile but disabled), full retry feedback, the same identity
+    # rules and the same prompt.
+    feasibility_only:
+      thinking_rules: []
+      identity_rules:
+        - id: water_right_cap
+          precondition: at_allocation_cap
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at your water right."
+        - id: minimum_utilisation_floor
+          precondition: below_minimum_utilisation
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: world
+          message: "Decrease not available: your request is already at the minimum-use floor (10% of your water right)."
+
+    # The identity rules only (menu parity, PI e); no thinking rules; the
+    # runner passes no custom validators, so the supply rule does not run.
     disabled:
       thinking_rules: []
-      identity_rules: []
+      identity_rules:
+        - id: water_right_cap
+          precondition: at_allocation_cap
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at your water right."
+        - id: minimum_utilisation_floor
+          precondition: below_minimum_utilisation
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: world
+          message: "Decrease not available: your request is already at the minimum-use floor (10% of your water right)."
 
 
 # =============================================================================
@@ -585,6 +706,9 @@ irrigation_farmer:
 #   regret (penalty sensitivity) → aversion to unmet demand
 # =============================================================================
 
+# Not read when a prompt is built: the v3 persona texts are
+# irrigation_personas._CLUSTER_PERSONAS (spec 4.1). Kept for the FQL
+# reference values only.
 personas:
   aggressive:
     description: >

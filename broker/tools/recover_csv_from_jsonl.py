@@ -24,6 +24,13 @@ live finalize() CSV in ALL columns; for pre-2026-06-10 JSONL the top-level
 raw_output may be truncated, but recovery still prefers the untruncated
 skill_proposal.raw_output when present.
 
+Row order (feat/v3-parallel-determinism, 2026-09-30): rows are sorted by
+step_id before export, matching GenericAuditWriter._export_csv's live
+finalize() order. The source JSONL itself is NOT reordered; it stays in
+the writer's append order (thread-completion order under workers > 1);
+only the CSV this script emits is. For a workers == 1 run, or any JSONL
+already in step order, this sort is a no-op.
+
 Exit status:
     0 — recovery succeeded for at least one file
     1 — no JSONL inputs found
@@ -130,6 +137,20 @@ def recover_csv(output_dir: Path) -> Dict[str, Any]:
             }
             continue
 
+        # feat/v3-parallel-determinism: match GenericAuditWriter._export_csv's
+        # row order (see this module's docstring, "Row order") and its
+        # crash-proof sort key: a row whose step_id is missing, None, or
+        # not an int (a legacy or malformed trace) sorts after every
+        # numbered row instead of raising TypeError. A no-op for a
+        # workers == 1 run or a legacy JSONL whose rows are already in
+        # step order.
+        traces = sorted(
+            traces,
+            key=lambda t: (
+                (0, t["step_id"]) if isinstance(t.get("step_id"), int)
+                else (1, 0)
+            ),
+        )
         flat_rows = [trace_to_csv_row(t) for t in traces]
         audit_priority = None
         if "_audit_priority" in traces[0] and isinstance(traces[0]["_audit_priority"], list):

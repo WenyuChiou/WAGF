@@ -167,11 +167,16 @@ class TestSyntheticCeilingFormula:
     def test_grid_top_and_peak_scaled_branches(self, tmp_path):
         params_path, crss_db_dir = _write_synthetic_ref(tmp_path)
 
+        # cluster_method="legacy_centroid": this fixture's synthetic agent
+        # names (LB_Below/LB_Above) are not in HY2021_CLUSTER_LABELS (a
+        # fixed table of the 31 real calibrated entities), and this test is
+        # about the water-right ceiling formula, not clustering.
         profiles = create_profiles_from_data(
             params_csv_path=str(params_path),
             crss_db_dir=str(crss_db_dir),
             rng=np.random.default_rng(0),
             paper_water_margin=0.4,
+            cluster_method="legacy_centroid",
         )
         by_id = {p.agent_id: p for p in profiles}
         assert set(by_id) == {"LB_Below", "LB_Above"}
@@ -226,11 +231,14 @@ class TestSyntheticCeilingFormula:
         )
         extended.to_csv(lb_hist_path)
 
+        # cluster_method="legacy_centroid": see the same note in
+        # test_grid_top_and_peak_scaled_branches above.
         profiles = create_profiles_from_data(
             params_csv_path=str(params_path),
             crss_db_dir=str(crss_db_dir),
             rng=np.random.default_rng(0),
             paper_water_margin=0.4,
+            cluster_method="legacy_centroid",
         )
         by_id = {p.agent_id: p for p in profiles}
         # Peak stays 900 (the pre-2019 max), not 999999 (the 2019 spike).
@@ -494,6 +502,166 @@ class TestManifestRecordsMargin:
 
 
 # ---------------------------------------------------------------------------
+# (e) Manifest records step_bin_source (WP2 review round 1, MEDIUM 2)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsStepBinSource:
+    def test_record_step_bin_source_provenance(self, tmp_path):
+        from examples.irrigation_abm.irrigation_personas import IrrigationAgentProfile
+        from examples.irrigation_abm.run_experiment import _record_step_bin_source_provenance
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        profiles = [
+            IrrigationAgentProfile(
+                agent_id="A", basin="upper_basin", cluster="aggressive",
+                step_bin_source="grid",
+            ),
+            IrrigationAgentProfile(
+                agent_id="B", basin="lower_basin", cluster="aggressive",
+                step_bin_source="rescaled",
+            ),
+        ]
+        _record_step_bin_source_provenance(tmp_path, profiles, True)
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["step_bin_source"] == {"A": "grid", "B": "rescaled"}
+        assert manifest["step_bin_source_applied"] is True
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["step_bin_source"] == {"A": "grid", "B": "rescaled"}
+
+    @requires_real_ref
+    def test_mock_real_run_manifest_has_step_bin_source_for_all_78_agents(self, tmp_path):
+        """WP2 review round 1 (MEDIUM 2): a full --real --model mock run
+        (the only path that ever calls create_profiles_from_data, the
+        only step_bin_source producer) must land the per-agent
+        step_bin_source dict in reproducibility_manifest.json -- exactly
+        70 "grid" and 8 "rescaled" (spec 2.4's own acceptance count)."""
+        import examples.irrigation_abm.run_experiment as run_experiment
+
+        argv = [
+            "run_experiment.py",
+            "--real",
+            "--model", "mock",
+            "--years", "1",
+            "--seed", "1",
+            "--output", str(tmp_path),
+            "--governance-mode", "disabled",
+        ]
+        old_argv = sys.argv
+        sys.argv = argv
+        try:
+            run_experiment.main()
+        finally:
+            sys.argv = old_argv
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["step_bin_source_applied"] is True
+        step_bin_source = manifest["step_bin_source"]
+        assert len(step_bin_source) == 78
+        assert set(step_bin_source.values()) == {"grid", "rescaled"}
+        counts = {v: list(step_bin_source.values()).count(v) for v in ("grid", "rescaled")}
+        assert counts == {"grid": 70, "rescaled": 8}
+        assert step_bin_source["CocopahIndRes"] == "rescaled"
+
+
+# ---------------------------------------------------------------------------
+# (e2) Manifest records hold_requests_fixed (WP2 review round 2, LOW 3)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsHoldRequestsFixed:
+    def test_record_hold_requests_fixed_provenance(self, tmp_path):
+        from examples.irrigation_abm.run_experiment import (
+            _record_hold_requests_fixed_provenance,
+        )
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        _record_hold_requests_fixed_provenance(tmp_path, False)
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["hold_requests_fixed"] is False
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["hold_requests_fixed"] is False
+
+    def test_missing_files_do_not_raise(self, tmp_path):
+        from examples.irrigation_abm.run_experiment import (
+            _record_hold_requests_fixed_provenance,
+        )
+        _record_hold_requests_fixed_provenance(tmp_path, False)  # no exception
+
+
+# ---------------------------------------------------------------------------
+# (e3) Manifest records powell_release_mode / powell_post2026_equalization /
+# lb_non_ag_total_maf (re-review 2026-09-29 round 4, MEDIUM 4; spec items 25-27)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsWaterSystemConfigProvenance:
+    def test_record_water_system_config_provenance(self, tmp_path):
+        from examples.irrigation_abm.irrigation_env import WaterSystemConfig
+        from examples.irrigation_abm.run_experiment import (
+            _record_water_system_config_provenance,
+        )
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        _record_water_system_config_provenance(tmp_path, WaterSystemConfig())
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["powell_release_mode"] == "ig2007_tiers"
+        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["powell_release_mode"] == "ig2007_tiers"
+        assert snapshot["metadata"]["powell_post2026_equalization"] == "hold_2026"
+        assert snapshot["metadata"]["lb_non_ag_total_maf"] == pytest.approx(5.2)
+
+    def test_non_default_config_recorded(self, tmp_path):
+        """Not a hard-coded literal -- reads whatever the config actually
+        resolved to, exactly like ``_record_hold_requests_fixed_provenance``
+        does for its own field."""
+        from examples.irrigation_abm.irrigation_env import WaterSystemConfig
+        from examples.irrigation_abm.run_experiment import (
+            _record_water_system_config_provenance,
+        )
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+
+        _record_water_system_config_provenance(tmp_path, WaterSystemConfig(
+            powell_release_mode="storage_balancing",
+            powell_post2026_equalization="extend_slope",
+            lb_non_ag_total_maf=5.0,
+        ))
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["powell_release_mode"] == "storage_balancing"
+        assert manifest["powell_post2026_equalization"] == "extend_slope"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.0)
+
+    def test_missing_files_do_not_raise(self, tmp_path):
+        from examples.irrigation_abm.irrigation_env import WaterSystemConfig
+        from examples.irrigation_abm.run_experiment import (
+            _record_water_system_config_provenance,
+        )
+        _record_water_system_config_provenance(tmp_path, WaterSystemConfig())  # no exception
+
+
+# ---------------------------------------------------------------------------
 # (e) FQL parity: the ceiling binds the FQL path exactly as the LLM path
 # ---------------------------------------------------------------------------
 class TestFQLClipParity:
@@ -523,6 +691,17 @@ class TestFQLClipParity:
             water_right=water_right,
             grid_top_af=grid_top_af,
             bin_size_af=1_000_000.0,  # so the increase clip is guaranteed
+            # WP1b (item 20): initialize_from_profiles now requires every
+            # Upper Basin profile to carry a sub-basin -- this test is
+            # about the Q-grid/water-right clip, unrelated to which one.
+            precip_group="WY",
+            # WP5 review (item 8a, 2026-09-30): create_fql_agents's zero-init
+            # branch now requires k explicitly (no silent "or 1.0" for an
+            # Upper Basin profile -- see run_fql_baseline._resolve_
+            # demand_per_grid_unit); unrelated to what this test checks
+            # (the Q-grid/water-right clip), so set to the model's own
+            # Upper Basin value rather than changed behavior.
+            demand_per_grid_unit=0.5,
         )                             # to engage regardless of the RNG draw.
 
     def test_q_grid_stays_on_grid_top_not_capped_water_right(self):

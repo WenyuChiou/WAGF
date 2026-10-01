@@ -19,6 +19,9 @@ from ..components.context.builder import BaseAgentContextBuilder
 from ..components.memory.engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
 from ..utils.logging import logger
+from ..utils.llm_safeguard import (
+    LLMSafeguardConfig, LLMFailureRateAborted, wrap_llm_invoke_with_backoff,
+)
 from .efficiency import CognitiveCache
 
 
@@ -120,6 +123,14 @@ class ExperimentConfig:
     # counts (3276/3276) prove zero hits ever fired in frozen runs, so the
     # OFF default is byte-identical for them.
     enable_cognitive_cache: bool = False
+    # Crash-resume journal (broker/utils/llm_journal.py), both default None
+    # so no existing run changes a single byte. llm_journal_path: when set,
+    # every LLM call this run makes is appended to that JSONL file.
+    # resume_journal_path: when set, a prior run's journal to replay from --
+    # see ExperimentRunner._build_llm_journal_manager and
+    # broker.utils.llm_journal.LLMJournalManager for the mechanism.
+    llm_journal_path: Optional[Path] = None
+    resume_journal_path: Optional[Path] = None
 
 # Substrings that identify the runner's own immediate decision memories
 # (written by ExperimentRunner._apply_state_changes). Domains that filter
@@ -168,6 +179,17 @@ class ExperimentRunner:
         # Cache for llm_invoke functions per agent type
         self._llm_cache = {}
 
+        # Crash-resume journal (broker/utils/llm_journal.py), built lazily by
+        # run() -- see _build_llm_journal_manager -- so a caller that sets an
+        # identifying-config attribute on the runner between build() and
+        # run() (the same `runner.broker._xxx = ...` idiom already used for
+        # _derived_from_config / _retry_feedback_mode) is picked up before
+        # the header is written. None for every run that never sets
+        # ExperimentConfig.llm_journal_path / resume_journal_path, which
+        # keeps get_llm_invoke's wrapping chain byte-identical to before
+        # this feature existed.
+        self._llm_journal = None
+
         # r19 G7/G8: the merged Ollama sampling/context params actually
         # resolved for each agent type this run creates an invoke for (see
         # get_llm_invoke and _collect_reproducibility_metadata's
@@ -188,6 +210,18 @@ class ExperimentRunner:
         # retrieve() mutates EMA state per call and frozen baselines were
         # produced with two builds per step (see the loop-site note).
         if config.enable_cognitive_cache:
+            # A cache hit replays a proposal from an EARLIER decision and
+            # re-validates it outside process_step, where the appraisal
+            # freeze (global_config.governance.appraisal_freeze) has no
+            # first-stated labels to read; refused rather than letting a hit
+            # silently bypass the freeze.
+            if getattr(broker, "_appraisal_freeze", False) is True:
+                raise ValueError(
+                    "ExperimentConfig.enable_cognitive_cache cannot be combined "
+                    "with global_config.governance.appraisal_freeze: a cache hit "
+                    "re-validates a proposal outside the decision whose first "
+                    "stated labels the freeze reads. Turn one of them off."
+                )
             persistence_path = config.output_dir / "cognitive_cache.json"
             self.efficiency = CognitiveCache(persistence_path=persistence_path)
         else:
@@ -282,12 +316,133 @@ class ExperimentRunner:
                 self._llm_resolved_params = resolved_cache
             resolved_cache[agent_type] = resolved_params
 
-            self._llm_cache[agent_type] = create_llm_invoke(
+            raw_invoke = create_llm_invoke(
                 model_name,
                 verbose=self.config.verbose,
                 overrides=overrides
             )
+            # Spec item 24 (audit gap F42): backoff on a transient provider
+            # failure, wired HERE because this is the one choke point every
+            # LLM call in the framework passes through (the format-retry
+            # loop, the governance retry loop, the advisory pass, the
+            # hybrid decider all call get_llm_invoke(agent_type) or reuse
+            # this cache entry). A no-op wrapper (returns raw_invoke
+            # unchanged) unless global_config.llm_safeguard.enabled is true,
+            # which is what keeps every domain that has not opted in
+            # byte-identical.
+            backoff_wrapped = wrap_llm_invoke_with_backoff(
+                raw_invoke, self._resolve_llm_safeguard_config(),
+            )
+            # Crash-resume journal (broker/utils/llm_journal.py), wired
+            # OUTSIDE (on top of) the backoff wrapper so a replayed call
+            # skips backoff sleeps entirely -- it is answered from the
+            # journal and never reaches backoff_wrapped or raw_invoke at
+            # all. None for every run that never sets
+            # ExperimentConfig.llm_journal_path / resume_journal_path (see
+            # _build_llm_journal_manager), which keeps this cache entry
+            # exactly backoff_wrapped, unchanged, for every existing run.
+            journal = getattr(self, "_llm_journal", None)
+            self._llm_cache[agent_type] = (
+                journal.wrap(agent_type, backoff_wrapped) if journal is not None
+                else backoff_wrapped
+            )
         return self._llm_cache[agent_type]
+
+    def _resolve_llm_safeguard_config(self) -> LLMSafeguardConfig:
+        """Resolved ``global_config.llm_safeguard`` (spec item 24), cached
+        after the first call.
+
+        Read off ``self.broker.config`` -- the SAME ``AgentTypeConfig``
+        ``SkillBrokerEngine.__init__`` reads for its own copy (the abort-rate
+        tracker) -- so the backoff wrapper here and the abort tracker there
+        can never resolve to different settings for one run. Defensive the
+        same way ``overrides`` just above is: a broker/config predating this
+        feature, or a MagicMock test double, degrades to the disabled
+        default rather than raising.
+        """
+        cached = getattr(self, "_llm_safeguard_cfg", None)
+        if cached is not None:
+            return cached
+        get_cfg = None
+        if hasattr(self.broker, 'config') and self.broker.config:
+            get_cfg = getattr(self.broker.config, "get_llm_safeguard_config", None)
+        raw = get_cfg() if callable(get_cfg) else None
+        resolved = (
+            LLMSafeguardConfig.from_dict(raw) if isinstance(raw, dict)
+            else LLMSafeguardConfig()
+        )
+        self._llm_safeguard_cfg = resolved
+        return resolved
+
+    def _build_llm_journal_manager(self):
+        """The run's :class:`~broker.utils.llm_journal.LLMJournalManager`,
+        or ``None`` when neither journal config field is set.
+
+        Called once, as the first statement of :meth:`run`, so it runs
+        before ``self.llm_invoke`` (hence ``get_llm_invoke("default")``) is
+        touched by anything else in ``run`` -- see that method's own first
+        lines. Building it any later would let an earlier ``get_llm_invoke``
+        call cache an agent type's invoke WITHOUT journal wrapping forever
+        (the cache never re-wraps an already-cached entry).
+
+        The header's identifying config is built from whatever this
+        generic layer already knows (model, seed, the memory engine's own
+        seed, governance profile, step/year count, git commit + dirty
+        flag at launch) PLUS ``self._llm_journal_identifying_extra`` when
+        a caller set that attribute directly on the runner between
+        ``build()`` and ``run()`` -- the same idiom this codebase already
+        uses for ``runner.broker._derived_from_config`` and
+        ``runner.broker._retry_feedback_mode``. A domain CLI flag with no
+        generic home has no place in this generic dict; it belongs in
+        that extra mapping, set by the domain's own runner script, which
+        is also where the actual "refuse to resume on a changed
+        identifying setting" check belongs
+        (broker.utils.llm_journal.check_identifying_config).
+        """
+        journal_path = getattr(self.config, "llm_journal_path", None)
+        resume_path = getattr(self.config, "resume_journal_path", None)
+        if not journal_path and not resume_path:
+            return None
+        from broker.utils.llm_journal import LLMJournalManager
+
+        header: Dict[str, Any] = {
+            "model": self.config.model,
+            "seed": self.config.seed,
+            "memory_seed": (
+                _ms if isinstance(_ms := getattr(self.memory_engine, "seed", None), int)
+                else None
+            ),
+            "governance_profile": self.config.governance_profile,
+            "num_years": self.config.num_years,
+            "num_steps": self.config.num_steps,
+            # NOT an identifying field for resume (a domain's own
+            # allowed_to_differ must list it, and a domain runner's own
+            # identifying-config dict deliberately leaves --workers out
+            # for exactly this reason): recorded here so a LATER provenance guard reading
+            # this run's own header as a resume SOURCE (see
+            # broker.utils.llm_journal.LLMJournalManager.provenance_metadata's
+            # source_workers) can tell what worker count the replayed
+            # portion of a resumed run actually came from.
+            "workers": self.config.workers,
+            # Reuses the SAME capture __init__ already made (see its own
+            # comment on why construction time, not finalize time, is the
+            # right moment) -- no extra git subprocess call. Sampling
+            # params and prompt templates live in files a domain's own
+            # preflight check hashes separately (its own
+            # _llm_journal_identifying_extra); code identity itself is
+            # generic and belongs here.
+            "git_commit": getattr(self, "_git_commit_at_launch", "unavailable"),
+            "git_dirty": getattr(self, "_git_dirty_at_launch", None),
+        }
+        extra = getattr(self, "_llm_journal_identifying_extra", None)
+        if isinstance(extra, dict):
+            header.update(extra)
+
+        return LLMJournalManager(
+            header=header,
+            output_path=Path(journal_path) if journal_path else None,
+            resume_from=Path(resume_path) if resume_path else None,
+        )
 
     # ------------------------------------------------------------------
     # PR-8: deciders — get_llm_invoke generalised to "whatever decides"
@@ -556,6 +711,16 @@ class ExperimentRunner:
         misrouted to the config default — warn instead of pretending
         (2026-06-09 architecture review P1-10).
         """
+        # Crash-resume journal: built HERE, as the first statement of run(),
+        # before anything below touches self.llm_invoke (hence
+        # get_llm_invoke) -- see _build_llm_journal_manager's own docstring
+        # for why the ordering matters. getattr-guarded: a runner built via
+        # __new__ in a test, bypassing __init__, has no _llm_journal
+        # attribute at all, and that must not turn into an AttributeError
+        # here.
+        from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
+        if getattr(self, "_llm_journal", None) is None:
+            self._llm_journal = self._build_llm_journal_manager()
         if llm_invoke is not None and llm_invoke is not self.llm_invoke:
             # self.llm_invoke is the cached get_llm_invoke("default") — passing
             # it back in (as run_unified_experiment does) is harmless, so only
@@ -567,6 +732,16 @@ class ExperimentRunner:
                 "Configure model/verbosity via ExperimentConfig instead."
             )
         llm_invoke = llm_invoke or self.llm_invoke
+        # Spec item 24 fix round: reset at the TOP of every run(), not only
+        # set on abort. Without this, a SECOND run() on the same instance
+        # (a reused runner, a test harness) that finishes cleanly would still
+        # carry the FIRST run's abort and stamp a clean corpus's manifest
+        # with run_status: aborted_llm_failure_rate.
+        self._llm_safeguard_abort = None
+        # Crash-resume journal: same reset-at-the-top discipline as the
+        # safeguard abort above, for the SAME reason (a reused runner's
+        # second run() must not inherit the first run's abort stamp).
+        self._llm_journal_abort = None
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
@@ -670,6 +845,36 @@ class ExperimentRunner:
                     self._call_hook("post_year", step, self.agents)
 
                 self._finalize_step(step)
+                # Crash-resume journal: the step-end marker. Written AFTER
+                # _finalize_step so a crash mid-step (before this line runs)
+                # leaves the journal with no marker for this step, and a
+                # resume correctly treats the whole step as partial (see
+                # broker.utils.llm_journal.load_journal_for_resume). For a
+                # step still being replayed this also raises
+                # JournalReplayDivergence if any of that step's recorded
+                # calls were never consumed -- deliberately NOT caught here,
+                # same as LLMFailureRateAborted below: this must stop the
+                # run, not become another ABORTED row.
+                journal = getattr(self, "_llm_journal", None)
+                if journal is not None:
+                    journal.step_end(step)
+        except LLMFailureRateAborted as exc:
+            # Spec item 24: stash the exception BEFORE `finally` runs, so
+            # `_finalize_experiment`'s manifest build (unconditional, below)
+            # can see it and record `run_status` -- reading it off `self`
+            # rather than threading it through `_finalize_experiment`'s
+            # signature, since `finally` cannot see the exception object
+            # directly. Re-raised unchanged: the run still exits non-zero
+            # with a one-line reason (this exception's own message).
+            self._llm_safeguard_abort = exc
+            raise
+        except (JournalReplayDivergence, JournalWriteError) as exc:
+            # Crash-resume journal: same stash-before-finally treatment as
+            # LLMFailureRateAborted above, for the same reason -- the
+            # manifest build in _finalize_experiment's unconditional
+            # finally must be able to see this and record run_status.
+            self._llm_journal_abort = exc
+            raise
         finally:
             self._finalize_experiment(iterations)
 
@@ -767,6 +972,45 @@ class ExperimentRunner:
             ),
         }
         manifest.update(self._collect_reproducibility_metadata())
+        # Spec item 24 (audit gap F42): when the LLM-failure abort-rate
+        # safeguard stopped this run, say so IN THE MANIFEST, not only in the
+        # exception that already ended the process. `run()`'s own
+        # except-before-finally clause sets `self._llm_safeguard_abort`
+        # before this method runs (it is called from that `finally`), so the
+        # value is available here regardless of how deep inside the step the
+        # raise happened. Absent (no key at all, not `null`) on every run the
+        # safeguard did not abort -- including every run where it was never
+        # enabled -- so an unrelated corpus's manifest never grows this key.
+        _llm_abort = getattr(self, "_llm_safeguard_abort", None)
+        if _llm_abort is not None:
+            manifest["run_status"] = "aborted_llm_failure_rate"
+            manifest["llm_safeguard_abort"] = {
+                "observed_rate": _llm_abort.observed_rate,
+                "window": _llm_abort.window,
+                "threshold": _llm_abort.threshold,
+                # Fix round 3, WARNING 3: the raw counts behind
+                # observed_rate. decisions_in_window can be LESS than
+                # window -- the early-stop rule can fire before the window
+                # ever fills (broker/utils/llm_safeguard.py:LLMAbortTracker).
+                "failed_count": _llm_abort.failed_count,
+                "decisions_in_window": _llm_abort.decisions_in_window,
+            }
+        # Crash-resume journal abort (same posture as the safeguard abort
+        # just above): a divergence or a journal-write failure stopped the
+        # run, so the manifest says so instead of looking like a clean
+        # finish that merely happened to cover fewer years than configured.
+        _journal_abort = getattr(self, "_llm_journal_abort", None)
+        if _journal_abort is not None:
+            from broker.utils.llm_journal import JournalReplayDivergence
+            manifest["run_status"] = (
+                "aborted_journal_divergence"
+                if isinstance(_journal_abort, JournalReplayDivergence)
+                else "aborted_journal_write_error"
+            )
+            manifest["llm_journal_abort"] = {
+                "type": type(_journal_abort).__name__,
+                "message": str(_journal_abort),
+            }
         # Memory write policy snapshot (populated if the engine is wrapped by
         # PolicyFilteredMemoryEngine). This captures the policy and dropped-count
         # summary so the audit trace explains any "missing" memories unambiguously.
@@ -861,6 +1105,16 @@ class ExperimentRunner:
                 exc_info=True,
             )
 
+        # Crash-resume journal: close the output file handle. Every record
+        # was already flushed + fsync'd at write time (see
+        # broker.utils.llm_journal.LLMJournalWriter), so this is cleanup,
+        # not a durability requirement -- it runs whether the loop above
+        # finished cleanly, aborted, or raised, same as every other
+        # finalize step in this method.
+        journal = getattr(self, "_llm_journal", None)
+        if journal is not None:
+            journal.close()
+
     def _configured_grid_expectation(self, iterations: int) -> dict:
         """This runner's configured agent x year grid.
 
@@ -886,21 +1140,50 @@ class ExperimentRunner:
         """Collect model digest, git state, and config hashes for reproducibility."""
         metadata = {}
 
-        # 1. Query Ollama for model digest
+        # 1. Query Ollama for model digest.
+        #
+        # Skipped entirely for a mock or cloud-provider model: this used to
+        # fire unconditionally, on every mock run and every test that
+        # reached finalize, regardless of what model (if any) the run
+        # actually used. A mock run has no Ollama model at all, so it still
+        # sent `POST /api/show` for model "mock" to whatever real Ollama
+        # daemon happened to be reachable on the machine -- a live request a
+        # mock run has no business making. The mock-prefix / cloud-provider
+        # checks mirror the SAME gate block 3d below already uses for the
+        # modelfile-defaults call (single source of truth, not a second,
+        # possibly-drifting copy), and `get_ollama_base_url` is the same
+        # OLLAMA_HOST-aware helper `_invoke_ollama_direct` uses for the run's
+        # real requests, so this manifest query targets the SAME daemon the
+        # run's own LLM calls went to, never a hardcoded localhost.
+        #
+        # A non-string model (no model identity at all -- e.g. a partially
+        # built test double) is a DIFFERENT case from "known to be mock": it
+        # records "unavailable", the same catch-all this field already uses
+        # when a real query fails, rather than claiming "not_applicable_mock"
+        # about a model this code never actually identified as mock.
         try:
-            import requests
-            r = requests.post(
-                "http://localhost:11434/api/show",
-                json={"name": self.config.model},
-                timeout=5,
-            )
-            if r.status_code == 200:
-                info = r.json()
-                metadata["model_digest"] = info.get("digest") or info.get("modified_at", "unknown")
-                details = info.get("details", {})
-                metadata["model_family"] = details.get("family", "unknown")
-                metadata["model_parameter_size"] = details.get("parameter_size", "unknown")
-                metadata["model_quantization"] = details.get("quantization_level", "unknown")
+            from broker.utils.llm_utils import is_mock_model, is_cloud_provider_model, get_ollama_base_url
+            model = getattr(self.config, "model", None)
+            if not isinstance(model, str):
+                metadata["model_digest"] = "unavailable"
+            elif is_mock_model(model):
+                metadata["model_digest"] = "not_applicable_mock"
+            elif is_cloud_provider_model(model):
+                metadata["model_digest"] = "not_applicable_cloud_provider"
+            else:
+                import requests
+                r = requests.post(
+                    f"{get_ollama_base_url()}/api/show",
+                    json={"name": model},
+                    timeout=5,
+                )
+                if r.status_code == 200:
+                    info = r.json()
+                    metadata["model_digest"] = info.get("digest") or info.get("modified_at", "unknown")
+                    details = info.get("details", {})
+                    metadata["model_family"] = details.get("family", "unknown")
+                    metadata["model_parameter_size"] = details.get("parameter_size", "unknown")
+                    metadata["model_quantization"] = details.get("quantization_level", "unknown")
         except Exception:
             metadata["model_digest"] = "unavailable"
 
@@ -1062,17 +1345,17 @@ class ExperimentRunner:
         #     (10s timeout inside the capture call, per model).
         try:
             from broker.utils.llm_utils import (
-                capture_ollama_modelfile_defaults, is_cloud_provider_model,
+                capture_ollama_modelfile_defaults, is_cloud_provider_model, is_mock_model,
             )
             resolved_for_models = dict(getattr(self, "_llm_resolved_params", {}) or {})
             distinct_models = sorted({
                 v["model"] for v in resolved_for_models.values()
                 if isinstance(v, dict) and isinstance(v.get("model"), str)
-                and not v["model"].lower().startswith("mock")
+                and not is_mock_model(v["model"])
             })
             if not distinct_models:
                 fallback_model = getattr(self.config, "model", None)
-                if isinstance(fallback_model, str) and not fallback_model.lower().startswith("mock"):
+                if isinstance(fallback_model, str) and not is_mock_model(fallback_model):
                     distinct_models = [fallback_model]
 
             if not distinct_models:
@@ -1121,13 +1404,13 @@ class ExperimentRunner:
         #     reproducibility field whose whole purpose is not overclaiming.
         try:
             from broker.utils.llm_utils import (
-                ollama_sampling_is_seeded, is_cloud_provider_model,
+                ollama_sampling_is_seeded, is_cloud_provider_model, is_mock_model,
             )
             resolved_for_models = dict(getattr(self, "_llm_resolved_params", {}) or {})
             distinct_models = {
                 v["model"] for v in resolved_for_models.values()
                 if isinstance(v, dict) and isinstance(v.get("model"), str)
-                and not v["model"].lower().startswith("mock")
+                and not is_mock_model(v["model"])
             }
             non_cloud_models = {m for m in distinct_models if not is_cloud_provider_model(m)}
             if distinct_models and not non_cloud_models:
@@ -1137,6 +1420,23 @@ class ExperimentRunner:
         except Exception as exc:
             metadata["llm_sampling_seeded"] = False
             logger.debug(f"[Integrity] llm_sampling_seeded skipped: {exc}")
+
+        # 3f. LLM-failure safeguard (spec item 24, audit gap F42): backoff +
+        #     abort-rate stop, resolved once by `_resolve_llm_safeguard_config`
+        #     (the same values `SkillBrokerEngine.__init__` independently
+        #     resolves for its abort tracker -- both read
+        #     AgentTypeConfig.get_llm_safeguard_config(), so they cannot
+        #     disagree for one run). Recorded regardless of whether this run
+        #     aborted: an operator comparing two corpora needs the settings
+        #     on a run that finished cleanly too. `None` only when resolution
+        #     itself failed (never for "not configured" -- that reads as the
+        #     disabled defaults, same as every other domain).
+        try:
+            from dataclasses import asdict
+            metadata["llm_safeguard"] = asdict(self._resolve_llm_safeguard_config())
+        except Exception as exc:
+            metadata["llm_safeguard"] = None
+            logger.debug(f"[Integrity] llm_safeguard skipped: {exc}")
 
         # 4. Hash config files
         try:
@@ -1186,6 +1486,28 @@ class ExperimentRunner:
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
 
+        # 5.05. Parallel worker count (ExperimentConfig.workers; F14/F41
+        #     parallel-determinism review, F43 crash-resume journal review).
+        #     Recorded so a provenance guard pooling runs after the fact
+        #     (e.g. a domain's analysis script) can tell whether every run
+        #     in a pool used the same worker count, even
+        #     though workers>1 is proven to produce the SAME outputs as
+        #     workers=1 (_run_agents_parallel's submission-order sort) --
+        #     this field is provenance, not a correctness signal.
+        #     isinstance-guarded like max_retries_resolved below (same
+        #     reason: several tests build this runner with `self.config` as
+        #     a bare MagicMock(), which answers ANY attribute access with
+        #     another Mock rather than raising -- that would otherwise
+        #     write a non-JSON-serialisable value into this dict and break
+        #     manifest serialisation for a test that never touched this
+        #     field at all). bool excluded the same way, though no known
+        #     caller could set workers to a bool.
+        _workers = getattr(self.config, "workers", None)
+        metadata["workers"] = (
+            _workers if isinstance(_workers, int) and not isinstance(_workers, bool)
+            else None
+        )
+
         # 5.4. Governance-resolution provenance (F9 + F10, 2026-06-10 review).
         #     F10: the manifest recorded only the INTENDED profile
         #     (config.governance_profile); rule loading keys on the
@@ -1222,6 +1544,22 @@ class ExperimentRunner:
                         t: len(agent_cfg.get_thinking_rules(t))
                         for t in active_types
                     }
+                    # Which rules, not only how many: two arms with the same
+                    # count and different rules are different arms.
+                    metadata["thinking_rules_resolved"] = {
+                        t: [str(r.id) for r in agent_cfg.get_thinking_rules(t)]
+                        for t in active_types
+                    }
+                if hasattr(agent_cfg, "get_identity_rules"):
+                    metadata["identity_rules_resolved"] = {
+                        t: [str(r.id) for r in agent_cfg.get_identity_rules(t)]
+                        for t in active_types
+                    }
+                _get_prefix = getattr(agent_cfg, "get_governance_rule_id_prefix", None)
+                if callable(_get_prefix):
+                    _prefix = _get_prefix()
+                    metadata["rule_id_prefix_resolved"] = (
+                        _prefix if isinstance(_prefix, bool) else None)
             # P0-1c: pin the ARM identity, not just the profile name. Three fields,
             # each recording something a reader cannot recover from the YAML alone.
             #
@@ -1254,6 +1592,17 @@ class ExperimentRunner:
             metadata["max_retries_resolved"] = (
                 retries if isinstance(retries, int) and not isinstance(retries, bool)
                 else None)
+            # Appraisal freeze (global_config.governance.appraisal_freeze) as
+            # the ENGINE resolved it, and the custom validator callables the
+            # engine actually runs (by name) -- an arm that dropped a domain
+            # validator bridge is visible here, not only in the runner code.
+            _freeze = getattr(self.broker, "_appraisal_freeze", None)
+            metadata["appraisal_freeze_resolved"] = (
+                _freeze if isinstance(_freeze, bool) else None)
+            _custom = getattr(self.broker, "custom_validators", None)
+            metadata["custom_validators_resolved"] = (
+                [str(getattr(f, "__name__", type(f).__name__)) for f in _custom]
+                if isinstance(_custom, (list, tuple)) else None)
         except Exception as exc:
             logger.debug(f"[Integrity] governance-resolution provenance skipped: {exc}")
 
@@ -1377,6 +1726,21 @@ class ExperimentRunner:
             # Manifest enrichment must never fail the run, but don't swallow silently —
             # a module/import error here is a real bug worth surfacing in debug logs.
             logger.debug(f"[Integrity] run_integrity enrichment skipped: {exc}")
+
+        # 7. Crash-resume journal provenance (broker/utils/llm_journal.py).
+        #    Present ONLY for a run that resumed from a source journal:
+        #    provenance_metadata() returns None for every normal run (never
+        #    resumed), so a run that never touches
+        #    ExperimentConfig.resume_journal_path keeps exactly its current
+        #    manifest key set -- no new key, not even a null one.
+        try:
+            journal = getattr(self, "_llm_journal", None)
+            if journal is not None:
+                journal_provenance = journal.provenance_metadata()
+                if journal_provenance is not None:
+                    metadata.update(journal_provenance)
+        except Exception as exc:
+            logger.debug(f"[Integrity] llm_journal provenance skipped: {exc}")
 
         return metadata
 
@@ -1599,6 +1963,11 @@ class ExperimentRunner:
 
     def _run_agents_sequential(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
         """Execute agent steps sequentially. Default mode."""
+        # Crash-resume journal: same re-raise-before-the-broad-handler
+        # treatment as LLMFailureRateAborted below -- see that except
+        # clause's own comment. Imported here (not module level) so a run
+        # that never touches the journal feature pays no import cost.
+        from broker.utils.llm_journal import JournalReplayDivergence
         results = []
         for agent in agents:
             # PR-8 review P1-c: a DECLARED decider is bound OUTSIDE the try.
@@ -1717,6 +2086,25 @@ class ExperimentRunner:
                     self.efficiency.put(context_hash, result.to_dict())
 
                 results.append((agent, result))
+            except LLMFailureRateAborted:
+                # Spec item 24: the abort-rate safeguard tripped inside this
+                # agent's process_step. This must NOT fall into the broad
+                # handler below -- that one turns a raising step into another
+                # ABORTED row and keeps the run going, which is exactly what
+                # this exception exists to prevent. Re-raise past run()'s
+                # loop, whose except/finally records it in the manifest and
+                # flushes the audit writers before the run actually stops.
+                raise
+            except JournalReplayDivergence:
+                # Crash-resume journal: a replayed call found no matching
+                # recorded answer. Same reasoning as LLMFailureRateAborted
+                # just above -- the broad handler below would turn this into
+                # one more ABORTED row and let the run continue serving
+                # OTHER agents from a journal already proven to not match
+                # the rebuilt state, which is exactly the silent-divergence
+                # outcome this exception exists to prevent. Re-raise past
+                # run()'s loop.
+                raise
             except Exception as e:
                 # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):
                 # pre-fix path logged + dropped the agent from `results`,
@@ -1860,7 +2248,27 @@ class ExperimentRunner:
             )
 
     def _run_agents_parallel(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
-        """Execute agent steps in parallel using ThreadPoolExecutor."""
+        """Execute agent steps in parallel using ThreadPoolExecutor.
+
+        Returns results in SUBMISSION order (the same order
+        ``_run_agents_sequential`` would produce), never thread-completion
+        order. ``run()``'s apply loop reads this return value to drive
+        ``_apply_state_changes`` and the ``post_step`` hook per agent, in
+        order; anything those two read or write that is SHARED across
+        agents (a shared ``random.Random`` some memory engines draw from on
+        consolidation, e.g. ``HumanCentricMemoryEngine._add_memory_internal``)
+        only becomes deterministic across worker counts if that loop sees a
+        fixed order. See the sort right before the final ``return`` below.
+        """
+        # Crash-resume journal: same re-raise-before-the-broad-handler
+        # treatment as LLMFailureRateAborted below -- see that except
+        # clause's own comment (JournalWriteError is caught there too,
+        # alongside JournalReplayDivergence, though only the latter can
+        # actually be raised from in here -- see that comment for why).
+        # _run_agents_sequential has the analogous clause for
+        # JournalReplayDivergence only. Imported here (not module level) so
+        # a run that never touches the journal feature pays no import cost.
+        from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
         results = []
 
         def process_agent(agent, step_id, declared_decider=None):
@@ -1978,9 +2386,83 @@ class ExperimentRunner:
                 )] = (agent, self.step_counter)
 
             for future in as_completed(futures):
+                _, submitted_step_id = futures[future]
                 try:
                     agent, result = future.result()
-                    results.append((agent, result))
+                    results.append((submitted_step_id, agent, result))
+                except LLMFailureRateAborted:
+                    # Spec item 24: same reasoning as the sequential path's
+                    # identical clause -- must escape this handler, not
+                    # become another ABORTED row. `future.result()` re-raises
+                    # whatever the worker thread raised, so this is reached
+                    # exactly when some agent's process_step tripped the
+                    # abort-rate window.
+                    #
+                    # Fix round: cancel_futures=True drops every QUEUED-but-
+                    # not-yet-started submission so those agents never even
+                    # begin (a future already running cannot be interrupted
+                    # mid-call in Python threading, but one that has not
+                    # started yet now never will). wait=True blocks until the
+                    # in-flight ones finish, which the `with` block's own
+                    # __exit__ would do anyway -- doing it here explicitly,
+                    # before `raise`, means the executor is already fully
+                    # drained by the time this exception reaches run()'s
+                    # finally, instead of racing it.
+                    executor.shutdown(wait=True, cancel_futures=True)
+                    raise
+                except (JournalReplayDivergence, JournalWriteError):
+                    # Crash-resume journal: same reasoning as the
+                    # LLMFailureRateAborted clause just above -- a
+                    # divergence raised inside THIS worker's process_step
+                    # must escape this handler, not become another ABORTED
+                    # row. Without this clause the broad `except Exception`
+                    # below would catch it, the run would keep submitting
+                    # agents, and every OTHER worker would go on being
+                    # served from a journal already proven to not match the
+                    # rebuilt state -- exactly the silent-divergence outcome
+                    # this exception exists to prevent. `future.result()`
+                    # re-raises whatever the worker thread raised, so this
+                    # is reached exactly when some agent's process_step hit
+                    # one of these.
+                    #
+                    # _run_agents_sequential's own clause catches only
+                    # JournalReplayDivergence, not JournalWriteError: a
+                    # write failure is never raised synchronously from
+                    # inside a call this loop makes (LLMJournalManager.
+                    # _record_call_safely stores it as a STICKY error
+                    # instead of raising), it only ever surfaces later, from
+                    # LLMJournalManager.step_end -- which both execution
+                    # paths call from run()'s own loop, never from in here.
+                    # JournalWriteError is caught here too, alongside
+                    # JournalReplayDivergence, purely for symmetry with
+                    # run()'s own top-level `except (JournalReplayDivergence,
+                    # JournalWriteError)`: harmless (this arm of the except
+                    # tuple can never actually match on this path today) in
+                    # exchange for not having to revisit this clause if a
+                    # future change ever makes a write failure raise
+                    # synchronously instead.
+                    #
+                    # cancel_futures=True, same as the abort clause: every
+                    # agent is already SUBMITTED by this point (the
+                    # executor.submit() loop above runs to completion before
+                    # this result loop ever starts), so the real gain here
+                    # is not "fewer agents run" -- it is that this method
+                    # never returns a `results` list for this step at all:
+                    # the exception propagates straight out, before run()'s
+                    # apply loop (_apply_state_changes + post_step, per
+                    # agent) ever sees a step built on an unproven rebuild,
+                    # and without one more agent's failure being misfiled as
+                    # a spurious ABORTED_EXCEPTION row for what is actually
+                    # a whole-run integrity problem. cancel_futures=True
+                    # additionally drops whichever QUEUED-but-not-yet-
+                    # started agents the executor had not gotten to yet (a
+                    # real savings whenever workers < len(agents)); an
+                    # already-running future cannot be interrupted mid-call,
+                    # but wait=True blocks until those finish, so the
+                    # executor is fully drained before this reaches run()'s
+                    # own except/finally instead of racing it.
+                    executor.shutdown(wait=True, cancel_futures=True)
+                    raise
                 except Exception as e:
                     # F4 fix (post-Phase-6T silent-failure audit,
                     # 2026-05-27): parallel mirror of F1. The
@@ -1992,13 +2474,13 @@ class ExperimentRunner:
                     # ``--workers 4`` for MA flood scale-up) had the
                     # same v0.88.15-class denominator-shrink: failed
                     # agents vanished from the audit CSV.
-                    failed_agent, failed_step = futures[future]
+                    failed_agent, _ = futures[future]
                     logger.error(
                         f"[Parallel] Agent {failed_agent.id} failed: {e}",
                         exc_info=True,
                     )
                     self._write_aborted_trace(failed_agent, run_id, env, e,
-                                              step_id=failed_step)
+                                              step_id=submitted_step_id)
                     error_result = SkillBrokerResult(
                         outcome=SkillOutcome.ABORTED,
                         skill_proposal=None,
@@ -2009,6 +2491,21 @@ class ExperimentRunner:
                             f"{str(e)[:500]}"
                         ],
                     )
-                    results.append((failed_agent, error_result))
+                    results.append((submitted_step_id, failed_agent, error_result))
 
-        return results
+        # feat/v3-parallel-determinism: reorder to SUBMISSION order. The loop
+        # above builds `results` in as_completed()'s THREAD-COMPLETION order.
+        # Callers (run()'s apply loop: _apply_state_changes and the
+        # post_step hook, per agent, in list order) must see the same order
+        # regardless of worker count or which thread happens to finish
+        # first. That is what keeps a shared-state read/write inside that
+        # loop (e.g. the one `random.Random` draw
+        # HumanCentricMemoryEngine._add_memory_internal makes on
+        # consolidation) deterministic across workers. `step_id` is unique
+        # and strictly increasing in SUBMISSION order within this call (one
+        # `self.step_counter += 1` per agent, in the submit loop above), so
+        # a sort by it exactly reconstructs that order. At workers == 1,
+        # completion order already equals submission order, so this sort is
+        # a no-op there.
+        results.sort(key=lambda item: item[0])
+        return [(agent, result) for _, agent, result in results]

@@ -402,6 +402,11 @@ class TestResolvePrevActionNoSilentFallback:
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found")
     def test_real_agents_never_fall_back_to_zero(self):
+        """WP5 review (2026-09-30, item 5): the Upper Basin follows H&Y's
+        own yi==0 override (ABM_CRSS_coupling.py lines 642-643) -- Div_y0
+        is the 2018 value there, not 2017 -- so resolve_prev_action's
+        second return value is basin-dependent, not uniformly the 2017
+        value."""
         profiles = create_profiles_from_data(
             params_csv_path=str(CRSS_PARAMS_CSV), crss_db_dir=str(CRSS_DB_DIR),
             rng=np.random.default_rng(42), paper_water_margin=0.4,
@@ -409,11 +414,37 @@ class TestResolvePrevActionNoSilentFallback:
         for p in profiles:
             prev_action, prev_div_2017, source = resolve_prev_action(p, CRSS_DB_DIR)
             assert source in {"ql_div_csv", "historical_annual_series"}
-            assert prev_div_2017 == pytest.approx(p.actual_2017_diversion)
+            if p.basin == "upper_basin":
+                assert prev_action == pytest.approx(0.0)
+                assert prev_div_2017 == pytest.approx(p.actual_2018_diversion)
+            else:
+                assert prev_div_2017 == pytest.approx(p.actual_2017_diversion)
 
 
 # ── (c) --fql-init zero byte-identical to pre-fix ──
 
+@pytest.mark.skip(
+    reason="Superseded by WP5 (irrigation_v3_spec_2026-09-28.md section 5, "
+           "2026-09-30): this pin's whole premise -- that run_simulation's "
+           "request-setting mechanism is UNCHANGED since 00654d14 -- is "
+           "exactly what WP5 deliberately breaks. Spec 5.2/L1-04 removes "
+           "the execute_skill() redraw this test's docstring calls out as "
+           "what it verifies stayed identical: run_simulation now writes "
+           "req = Div_t + k*a directly via env.update_agent_request (a's "
+           "own FQLAgent-seeded RNG stream), never resampling a step via "
+           "execute_skill's hy_step_af (the per-(seed, year, agent, skill) "
+           "decision RNG stream) -- two different streams, so every "
+           "request value diverges from the pre-fix script by design, not "
+           "by regression. Same treatment as "
+           "TestZeroInitRealDataRegressionAgainstPrimaryClone below: a new "
+           "byte-identity baseline against WP5's own request formula "
+           "belongs to test_fql_v3.py's trajectory goldens "
+           "(TestRealTrajectoryGolden, TestSyntheticTrajectoryGolden -- "
+           "pinned to 1e-9 against a checked-in fixture, not just "
+           "same-seed determinism) and its determinism test (same seed -> "
+           "same output, different seed -> different output), not this "
+           "pre-WP5 regression guard."
+)
 class TestZeroInitByteIdenticalToPreFix:
     """--fql-init zero must reproduce the pre-fix (commit 00654d14, the
     parent of feat/fql-calibrated-warm-start) run_fql_baseline.py output
@@ -439,7 +470,51 @@ class TestZeroInitByteIdenticalToPreFix:
         )
         assert show.returncode == 0, show.stderr
         assert show.stdout, "git show returned empty content for the pre-fix script"
-        old_script.write_text(show.stdout, encoding="utf-8")
+        # WP1b compatibility shim (2026-09-29, spec item 20; re-review
+        # MEDIUM 2, same date): this 00654d14 snapshot predates
+        # IrrigationEnvironment.initialize_from_profiles requiring every
+        # Upper Basin profile to carry a sub-basin (precip_group), so its
+        # own frozen _create_synthetic_profiles never sets one and would
+        # otherwise raise when run against the CURRENT environment -- a
+        # real invariant this snapshot cannot know about, unrelated to the
+        # --fql-init zero fix this test verifies. Patched here, in this
+        # test-owned copy only (never in production code): mark each Upper
+        # Basin profile ``synthetic_no_subbasin`` (the SAME marker the
+        # current run_fql_baseline.py's own _create_synthetic_profiles now
+        # sets, MEDIUM 2), routing it to the unconstrained pool bucket
+        # instead of raising or (the pre-MEDIUM-2 bug) round-robinning it
+        # into a real sub-basin's request cap -- so both sides of the
+        # comparison see the same, mode-consistent treatment.
+        # WP1c review round 2 (2026-09-29): the SAME shim, extended for the
+        # Lower Basin priority-split table -- this 00654d14 snapshot also
+        # predates initialize_from_profiles requiring every Lower Basin
+        # profile to be one of the 22 real lb_priority_split_v3.csv names
+        # (item 22), so its frozen _create_synthetic_profiles ("Agent_NNN"
+        # ids, never one of the 22) would otherwise raise. Marks
+        # synthetic_no_priority_split=True for any Lower Basin profile not
+        # in the table, the same "this agent has no real entitlement"
+        # treatment run_fql_baseline.py's CURRENT _create_synthetic_profiles
+        # now sets unconditionally.
+        compat_shim = (
+            "import examples.irrigation_abm.irrigation_env as _irr_env\n"
+            "_orig_init_from_profiles = _irr_env.IrrigationEnvironment.initialize_from_profiles\n"
+            "def _patched_init_from_profiles(self, profiles):\n"
+            "    _lb_table = _irr_env._load_lb_priority_split_table()\n"
+            "    for _p in profiles:\n"
+            "        if getattr(_p, 'basin', None) == 'upper_basin' and not getattr(_p, 'precip_group', None):\n"
+            "            _p.synthetic_no_subbasin = True\n"
+            "        if getattr(_p, 'basin', None) == 'lower_basin' and _p.agent_id not in _lb_table:\n"
+            "            _p.synthetic_no_priority_split = True\n"
+            "    return _orig_init_from_profiles(self, profiles)\n"
+            "_irr_env.IrrigationEnvironment.initialize_from_profiles = _patched_init_from_profiles\n"
+        )
+        # "from __future__ import annotations" must stay the first
+        # statement in the file, so the shim is spliced in right after it
+        # rather than prepended.
+        future_line = "from __future__ import annotations\n"
+        assert future_line in show.stdout, "old script has no future-annotations import to splice after"
+        old_text = show.stdout.replace(future_line, future_line + compat_shim, 1)
+        old_script.write_text(old_text, encoding="utf-8")
 
         import os
         env = dict(os.environ)
@@ -447,7 +522,16 @@ class TestZeroInitByteIdenticalToPreFix:
 
         out_old = tmp_path / "old"
         out_new = tmp_path / "new"
-        common = ["--years", "2", "--agents", "5", "--seed", "42"]
+        # WP3 (2026-09-29, spec 3.2): --no-governance on BOTH sides. The two
+        # scripts import the CURRENT validators module, whose dispatched set
+        # WP3 deliberately changed to the v3 supply rule alone; it reads its
+        # inputs from supply_rule_fields, which the frozen 00654d14 script
+        # cannot supply (and whose governed-FQL fallback WP5 rewrites again,
+        # spec 5.6). What this test pins -- the --fql-init zero learning
+        # path is byte-identical to the pre-fix script -- runs before and
+        # independently of validate_skill, so the raw FQL arm still tests
+        # all of it.
+        common = ["--years", "2", "--agents", "5", "--seed", "42", "--no-governance"]
 
         res_old = subprocess.run(
             [sys.executable, str(old_script), *common, "--output", str(out_old)],
@@ -463,13 +547,93 @@ class TestZeroInitByteIdenticalToPreFix:
         )
         assert res_new.returncode == 0, res_new.stderr
 
-        old_bytes = (out_old / "simulation_log.csv").read_bytes()
-        new_bytes = (out_new / "simulation_log.csv").read_bytes()
-        assert old_bytes == new_bytes, (
-            "--fql-init zero diverged from the pre-fix (00654d14) "
-            "simulation_log.csv -- 'zero' must be byte-identical to "
-            "today's default behavior"
+        # Review fix 5 (2026-09-28, after 00654d14): run_fql_baseline.py
+        # now wires precipitation_mm / precipitation_flag into the log
+        # row from get_agent_context; the pre-fix (00654d14) script never
+        # passed those kwargs to build_simulation_log_row at all, so they
+        # were always blank there. That is the ONLY deliberate difference
+        # this comparison allows -- everything else, including the
+        # --fql-init zero path itself, must still be byte-for-byte
+        # identical. Re-review 2026-09-29 (NIT): compare RAW CSV text via
+        # the csv module, not a pandas round-trip -- to_csv on a
+        # freshly-parsed DataFrame can reformat a cell (float precision,
+        # quoting) differently from what the two scripts actually wrote on
+        # disk, which could mask a real difference or manufacture a fake
+        # one.
+        import csv as csv_module
+
+        def _read_csv_rows(path):
+            with open(path, newline="", encoding="utf-8") as f:
+                reader = csv_module.DictReader(f)
+                return reader.fieldnames, list(reader)
+
+        old_fields, old_rows = _read_csv_rows(out_old / "simulation_log.csv")
+        new_fields, new_rows = _read_csv_rows(out_new / "simulation_log.csv")
+        assert new_fields == old_fields, (
+            "the column set itself changed -- expected only the values of "
+            "precipitation_mm/precipitation_flag to differ, not the schema"
         )
+        assert len(old_rows) == len(new_rows), "row count diverged"
+
+        precip_cols = ["precipitation_mm", "precipitation_flag"]
+        # WP2 (2026-09-29, spec 2.1): run_fql_baseline.py now also passes
+        # base_af=agent_state.get("base_af") to build_simulation_log_row --
+        # populated by IrrigationEnvironment._reset_requests_to_base, which
+        # did not exist at 00654d14 (nor anywhere before this WP2 commit),
+        # so the pre-fix script always left it blank. A SECOND deliberate
+        # difference this comparison allows, on top of review fix 5's
+        # precipitation columns.
+        base_af_cols = ["base_af"]
+        other_cols = [c for c in old_fields if c not in precip_cols and c not in base_af_cols]
+
+        for i, (old_row, new_row) in enumerate(zip(old_rows, new_rows)):
+            for col in other_cols:
+                assert old_row[col] == new_row[col], (
+                    f"row {i} column {col!r} diverged from the pre-fix "
+                    f"(00654d14) simulation_log.csv: {old_row[col]!r} != "
+                    f"{new_row[col]!r} -- 'zero' must be byte-identical to "
+                    "today's default behavior everywhere except the "
+                    "deliberately added precipitation columns"
+                )
+            # The pre-fix script never populated these for ANY agent.
+            for col in precip_cols:
+                assert old_row[col] == "", (
+                    f"row {i} column {col!r}: the pre-fix (00654d14) script "
+                    "is expected to never populate this field"
+                )
+            # base_af (WP2): blank pre-fix, populated for EVERY agent
+            # (unlike precipitation, not basin-restricted) in the new run.
+            for col in base_af_cols:
+                assert old_row[col] == "", (
+                    f"row {i} column {col!r}: the pre-fix (00654d14) script "
+                    "predates _reset_requests_to_base and is expected to "
+                    "never populate this field"
+                )
+                assert new_row[col] != "", (
+                    f"row {i} ({new_row['agent_id']}): WP2's "
+                    "_reset_requests_to_base must populate base_af for "
+                    "every agent, every year"
+                )
+            # Re-review 2026-09-29 (MEDIUM 4): get_agent_context now returns
+            # None (a blank CSV cell) for a Lower Basin agent's
+            # precipitation / precipitation_flag -- this basin has no
+            # precipitation signal in this model at all -- so review fix 5
+            # is only required to POPULATE these for an Upper Basin agent;
+            # a Lower Basin row stays blank in the new script too.
+            if new_row["basin"] == "upper_basin":
+                for col in precip_cols:
+                    assert new_row[col] != "", (
+                        f"row {i} ({new_row['agent_id']}, upper_basin): "
+                        f"review fix 5 must populate {col!r}, not just "
+                        "avoid crashing"
+                    )
+            else:
+                for col in precip_cols:
+                    assert new_row[col] == "", (
+                        f"row {i} ({new_row['agent_id']}, {new_row['basin']}): "
+                        f"{col!r} should stay blank -- this basin has no "
+                        "precipitation signal"
+                    )
 
 
 def _primary_results_dir() -> Path:
@@ -492,6 +656,21 @@ def _primary_results_dir() -> Path:
 _OLD_REF = _primary_results_dir() / "fql_nogov_431adb5e" / "seed42" / "simulation_log.csv"
 
 
+@pytest.mark.skip(
+    reason="Superseded by the irrigation v3 water-system rewrite (WP1, "
+           "2026-09-28, irrigation_v3_spec_2026-09-28.md): the "
+           "fql_nogov_431adb5e/seed42 reference was captured under the "
+           "pre-v3 hydrology, Mead curve, shortage-tier and Upper Basin "
+           "priority rules. mead_storage_maf and lake_mead_level now "
+           "differ from year 1 (new Mead area-capacity curve, L2 H4); "
+           "curtailment_ratio and shortage_tier differ from the declared-"
+           "shortage volume mechanism (spec 1.5) onward; and this is a "
+           "'--fql-init zero' FQL run, so those water-system differences "
+           "feed back into the Q-learning state and cascade into every "
+           "later request/decision column too. A new byte-identity "
+           "baseline against the v3 water system belongs to WP5 (the FQL "
+           "reference), not this pre-v3 regression guard."
+)
 @pytest.mark.skipif(
     not _REAL_REF_AVAILABLE,
     reason="CRSS reference data not found under ref/CRSS_DB/CRSS_DB/",
@@ -541,7 +720,12 @@ class TestZeroInitRealDataRegressionAgainstPrimaryClone:
         res = subprocess.run(
             [sys.executable, str(script),
              "--real", "--no-governance", "--fql-init", "zero",
-             "--seed", "42", "--years", "42", "--output", str(out_dir)],
+             "--seed", "42", "--years", "42", "--output", str(out_dir),
+             # legacy_centroid: the frozen reference predates cluster_method
+             # (2026-09-28); its "cluster"/"aca_label" columns were written
+             # by the old _infer_cluster heuristic, not the new hy2021
+             # default (see irrigation_personas.HY2021_CLUSTER_LABELS).
+             "--cluster-method", "legacy_centroid"],
             cwd=str(PROJECT_ROOT), capture_output=True, text=True,
         )
         assert res.returncode == 0, res.stderr

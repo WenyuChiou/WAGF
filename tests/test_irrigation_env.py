@@ -89,7 +89,13 @@ class TestIrrigationEnvironment:
         assert "total_available_water" in state
 
     def test_drought_index_bounded(self, env):
-        for _ in range(50):
+        # v3 (spec 1.1, 2026-09-28): natural flow (and, via it, nothing
+        # here directly, but the simulation horizon it defines) comes from
+        # the committed 42-row USBR hydrology table (sim years 2019-2060),
+        # which raises for a year outside that range rather than falling
+        # back to a synthetic extrapolation -- so this loop no longer runs
+        # past the table's 42 years.
+        for _ in range(42):
             env.advance_year()
             di = env.global_state["drought_index"]
             assert 0.0 <= di <= 1.0
@@ -279,6 +285,11 @@ class TestIrrigationValidators:
             "basin": "lower_basin",
             "total_basin_demand": 5_000_000,
             "basin_allocation": 7_500_000,
+            # Re-review 2026-09-29 round 4 (LOW 2): curtailment_awareness_check
+            # now direct-indexes this (no silent 0 fallback) whenever
+            # curtailment_ratio > 0, which several tests below set via
+            # overrides.
+            "lb_shortage_volume_maf": 0.417,
         }
         base.update(overrides)
         return base
@@ -428,52 +439,56 @@ class TestIrrigationValidators:
         assert results[0].valid  # WARNING, not ERROR
         assert len(results[0].warnings) == 1
 
-    def test_supply_gap_blocks_low_fulfilment(self):
-        """P3: Block increase when fulfilment < 70%."""
-        ctx = self._make_context(current_request=100_000, current_diversion=50_000)
+    # WP3 (2026-09-29, spec 3.3, PI item 2): the v3 supply rule blocks an
+    # increase exactly when the PHYSICAL expected share at the keep request
+    # (supply_physical_ratio, from supply_rule_fields) is below
+    # FULL_SUPPLY_RATIO. The 0.70 cutoff, the Tier 2+ skip and the separate
+    # zero-delivery branch are gone (test_v3_governance.py has the full
+    # truth table and the real-environment cases).
+    def _supply_context(self, *, keep, expected, phi=1.0, gap_reason=None, **overrides):
+        from examples.irrigation_abm.validators.irrigation_validators import (
+            supply_rule_fields,
+        )
+        ctx = self._make_context(current_request=keep, current_diversion=expected, **overrides)
+        ctx.update(supply_rule_fields(ctx, {"lb_phys_ratio": phi}))
+        ctx["gap_reason"] = gap_reason or (
+            "lb_mead_availability" if ctx["supply_physical_ratio"] < 1.0 else "none")
+        return ctx
+
+    def test_supply_gap_blocks_short_physical_supply(self):
+        ctx = self._supply_context(keep=100_000, expected=50_000, phi=0.5)
         results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
 
-    def test_supply_gap_allows_high_fulfilment(self):
-        """P3: Allow increase when fulfilment >= 70%."""
-        ctx = self._make_context(current_request=100_000, current_diversion=80_000)
-        results = supply_gap_block_increase("increase_large", [], ctx)
-        assert len(results) == 0
+    def test_supply_gap_allows_full_supply(self):
+        ctx = self._supply_context(keep=100_000, expected=99_900, phi=0.999)
+        assert supply_gap_block_increase("increase_large", [], ctx) == []
 
     def test_supply_gap_allows_zero_baseline(self):
-        """P3: Allow increase from zero baseline (Y1 new agent)."""
-        ctx = self._make_context(current_request=0, current_diversion=0)
-        results = supply_gap_block_increase("increase_small", [], ctx)
-        assert len(results) == 0
+        """A zero keep request is never short (r = 1), even under phi < 1."""
+        ctx = self._supply_context(keep=0, expected=0, phi=0.5)
+        assert supply_gap_block_increase("increase_small", [], ctx) == []
 
     def test_supply_gap_blocks_zero_delivery(self):
-        """P3: Block increase when request > 0 but delivery = 0."""
-        ctx = self._make_context(current_request=100_000, current_diversion=0)
-        results = supply_gap_block_increase("increase_large", [], ctx)
-        assert len(results) == 1
-        assert not results[0].valid
-
-    def test_supply_gap_skips_tier2(self):
-        """P3: Skip when Tier 2+ for a tier-curtailed (Lower Basin) agent
-        (P4 handles it)."""
-        ctx = self._make_context(
-            current_request=100_000, current_diversion=30_000, shortage_tier=2,
-            curtailment_ratio=0.10,
-        )
-        results = supply_gap_block_increase("increase_large", [], ctx)
-        assert len(results) == 0  # Deferred to P4
-
-    def test_supply_gap_still_covers_upper_basin_in_tier2_year(self):
-        """Supply-side redesign: Upper Basin agents carry no tier cut, so
-        curtailment_awareness never fires for them and the supply-gap rule
-        must not defer to it."""
-        ctx = self._make_context(
-            current_request=100_000, current_diversion=30_000, shortage_tier=2,
-            curtailment_ratio=0.0,
-        )
+        """No separate zero-delivery branch: r_phys = 0 < FULL_SUPPLY_RATIO."""
+        ctx = self._supply_context(keep=100_000, expected=0, phi=0.0)
         results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 1 and not results[0].valid
+
+    def test_supply_gap_no_longer_skips_tier2(self):
+        """The Tier 2+ skip is gone: a Lower Basin agent under a declared
+        Tier 2 AND a physical shortage is blocked by the supply rule."""
+        ctx = self._supply_context(keep=100_000, expected=30_000, phi=0.3,
+                                   shortage_tier=2, curtailment_ratio=0.10)
+        results = supply_gap_block_increase("increase_large", [], ctx)
+        assert len(results) == 1 and not results[0].valid
+
+    def test_supply_gap_ignores_a_declared_tier_alone(self):
+        """A declared Tier 2 with Lake Mead physically full never blocks."""
+        ctx = self._supply_context(keep=100_000, expected=100_000, phi=1.0,
+                                   shortage_tier=2, curtailment_ratio=0.10)
+        assert supply_gap_block_increase("increase_large", [], ctx) == []
 
     def test_aggregated_check_list_length(self):
         # F04 (2026-09-25 audit): drought_severity_check, compact_allocation_check
@@ -483,8 +498,12 @@ class TestIrrigationValidators:
         # The functions are still defined and directly testable above.
         # Supply-side redesign (2026-09-25): demand_floor_stabilizer and
         # demand_ceiling_stabilizer are retired from dispatch as well.
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 4
-        assert len(ALL_IRRIGATION_CHECKS) == 7  # 4 physical + 1 social + 1 temporal + 1 behavioral
+        # WP3 (2026-09-29, spec 3.2): the supply rule is the ONLY dispatched
+        # check -- the cap and the floor are YAML identity rules, and
+        # curtailment_awareness / consecutive_cap / zero_escape /
+        # non_negative_diversion are retired.
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 1
+        assert len(ALL_IRRIGATION_CHECKS) == 1
 
     def test_stabilizers_retired_from_dispatch(self, monkeypatch):
         """T15: neither stabilizer is dispatched, so a governed irrigation run
@@ -498,6 +517,10 @@ class TestIrrigationValidators:
             "current_diversion": 20_000, "curtailment_ratio": 0.0,
             "shortage_tier": 0, "loop_year": 5, "agent_id": "A",
             "total_basin_demand": 9_000_000, "drought_index": 0.1,
+            # WP3: the dispatched supply rule's inputs (a full supply).
+            "supply_keep_request_af": 20_000, "supply_expected_at_keep_af": 20_000,
+            "supply_ratio": 1.0, "supply_physical_ratio": 1.0,
+            "full_supply_ratio": 0.999,
         }
         for skill in ("increase_large", "decrease_large"):
             rule_ids = {
@@ -543,6 +566,18 @@ class TestIrrigationValidators:
 # Domain dispatch via validate_all(domain=...)
 # =====================================================================
 
+def _supply_inputs(keep=100_000.0, physical=1.0, basin="lower_basin"):
+    """WP3: the v3 supply rule's inputs (supply_rule_fields' keys) plus the
+    message fields -- a full supply by default."""
+    return {
+        "basin": basin,
+        "gap_reason": "none" if physical >= 1.0 else "lb_mead_availability",
+        "supply_keep_request_af": keep, "supply_expected_at_keep_af": keep * physical,
+        "supply_ratio": physical, "supply_physical_ratio": physical,
+        "full_supply_ratio": 0.999,
+    }
+
+
 class TestDomainDispatch:
     """Verify validate_all() correctly dispatches domain-specific checks."""
 
@@ -550,17 +585,19 @@ class TestDomainDispatch:
         """Return empty rule list (builtin checks don't need YAML rules)."""
         return []
 
-    def test_irrigation_domain_blocks_at_cap(self):
-        """domain='irrigation' activates water_right_cap_check."""
+    def test_irrigation_domain_dispatches_the_supply_rule_only(self):
+        """WP3 (spec 3.2): domain='irrigation' dispatches the v3 supply rule
+        alone. At the cap with a full supply nothing blocks here (the cap is
+        the YAML identity rule, a menu filter); a short physical supply
+        blocks an increase."""
         from broker.validators.governance import validate_all
-        ctx = {
-            "at_allocation_cap": True,
-            "water_right": 100_000,
-        }
-        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
+        at_cap = {"at_allocation_cap": True, "water_right": 100_000, **_supply_inputs()}
+        results = validate_all("increase_large", self._make_rules(), at_cap, domain="irrigation")
+        assert [r for r in results if not r.valid] == []
+        short = _supply_inputs(physical=0.5)
+        results = validate_all("increase_large", self._make_rules(), short, domain="irrigation")
         errors = [r for r in results if not r.valid]
-        assert len(errors) >= 1
-        assert any("water right" in e.errors[0].lower() for e in errors)
+        assert [e.metadata["rule_id"] for e in errors] == ["supply_gap_block_increase"]
 
     def test_irrigation_domain_drought_severity_not_dispatched(self):
         """F04 (2026-09-25 audit): drought_severity_check is intentionally
@@ -569,7 +606,7 @@ class TestDomainDispatch:
         on drought_index alone any more. The function itself still works;
         see the direct drought_severity_check calls in TestIrrigationValidators above."""
         from broker.validators.governance import validate_all
-        ctx = {"drought_index": 0.95}
+        ctx = {"drought_index": 0.95, **_supply_inputs()}
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [
             r for r in results
@@ -620,6 +657,7 @@ class TestDomainDispatch:
         ctx = {
             "total_basin_demand": 8_000_000,
             "basin_allocation": 7_500_000,
+            **_supply_inputs(),
         }
         results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         compact_warnings = [
@@ -628,42 +666,19 @@ class TestDomainDispatch:
         ]
         assert len(compact_warnings) == 0
 
-    def test_irrigation_curtailment_blocks_tier2(self):
-        """P4: domain='irrigation' blocks increase at Tier 2+ shortage."""
+    @pytest.mark.parametrize("tier,volume", [(1, 0.333), (2, 0.417), (3, 0.5)])
+    def test_irrigation_declared_tier_alone_never_blocks(self, tier, volume):
+        """WP3 (spec 3.2, PI item 2): curtailment_awareness_check -- the
+        declared-tier increase block, its Tier 1 differential and its grace
+        years -- is no longer dispatched. A declared tier with Lake Mead
+        physically full blocks nothing and warns nothing; the function
+        itself is still tested directly in TestIrrigationValidators."""
         from broker.validators.governance import validate_all
-        ctx = {
-            "curtailment_ratio": 0.15,
-            "shortage_tier": 2,
-        }
-        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
-        errors = [r for r in results if not r.valid and r.errors]
-        assert len(errors) >= 1
-        # Supply-side redesign (2026-09-25, spec S4): the message names the
-        # declared Lower Basin shortage instead of "curtailment".
-        assert any("tier 2 lower basin shortage" in e.errors[0].lower() for e in errors)
-
-    def test_irrigation_curtailment_tier1_blocks_large(self):
-        """v17: Tier 1 blocks increase_large via domain dispatch."""
-        from broker.validators.governance import validate_all
-        ctx = {
-            "curtailment_ratio": 0.05,
-            "shortage_tier": 1,
-        }
-        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
-        errors = [r for r in results if not r.valid]
-        assert len(errors) >= 1
-
-    def test_irrigation_curtailment_tier1_warns_small(self):
-        """v17: Tier 1 warns increase_small via domain dispatch."""
-        from broker.validators.governance import validate_all
-        ctx = {
-            "curtailment_ratio": 0.05,
-            "shortage_tier": 1,
-        }
-        results = validate_all("increase_small", self._make_rules(), ctx, domain="irrigation")
-        warnings = [r for r in results if r.valid and r.warnings]
-        assert len(warnings) >= 1
-        assert any("tier 1" in w.warnings[0].lower() for w in warnings)
+        ctx = {"curtailment_ratio": 0.1, "shortage_tier": tier,
+               "lb_shortage_volume_maf": volume, **_supply_inputs()}
+        for skill in ("increase_large", "increase_small", "increase_demand"):
+            results = validate_all(skill, self._make_rules(), ctx, domain="irrigation")
+            assert [r for r in results if not r.valid or r.warnings] == []
 
 
 # =====================================================================
@@ -673,14 +688,17 @@ class TestDomainDispatch:
 class TestIrrigationGovernanceAdapter:
     """Test the irrigation_governance_validator adapter function."""
 
-    def test_adapter_blocks_at_allocation_cap(self):
-        """Adapter should block increase_large at allocation cap."""
+    def test_adapter_blocks_increase_on_short_supply(self):
+        """WP3: the adapter runs the v3 supply rule (the cap is a YAML
+        identity rule now): it blocks an increase on a short physical supply
+        and leaves an at-cap increase with a full supply to the menu filter."""
         from types import SimpleNamespace
         proposal = SimpleNamespace(skill_name="increase_large")
-        ctx = {"at_allocation_cap": True, "water_right": 100_000}
-        results = irrigation_governance_validator(proposal, ctx)
-        errors = [r for r in results if not r.valid]
-        assert len(errors) >= 1
+        short = _supply_inputs(physical=0.5)
+        errors = [r for r in irrigation_governance_validator(proposal, short) if not r.valid]
+        assert [e.metadata["rule_id"] for e in errors] == ["supply_gap_block_increase"]
+        at_cap = {"at_allocation_cap": True, "water_right": 100_000, **_supply_inputs()}
+        assert irrigation_governance_validator(proposal, at_cap) == []
 
     def test_adapter_passes_normal_conditions(self):
         """Adapter should return no errors under normal conditions."""
@@ -1022,6 +1040,9 @@ class TestColdStartGracePeriod:
             "curtailment_ratio": 0.10,
             "shortage_tier": 2,
             "loop_year": 1,
+            # Re-review 2026-09-29 round 4 (LOW 2): no silent 0 fallback
+            # any more in curtailment_awareness_check.
+            "lb_shortage_volume_maf": 0.417,
         }
         base.update(overrides)
         return base
@@ -1064,55 +1085,39 @@ class TestValidatorInteraction:
     """Test that no validator combination creates all-skills-blocked traps."""
 
     def _run_all_checks(self, skill_name, context):
-        """Run all 11 validators on a skill and return blocking errors."""
+        """Run the dispatched validators on a skill and return blocking errors."""
         results = []
         for check in ALL_IRRIGATION_CHECKS:
             results.extend(check(skill_name, [], context))
         return [r for r in results if not r.valid]
 
-    def test_low_util_decrease_blocked_but_others_open(self):
-        """Utilisation 8% → decrease blocked, but increase+maintain open."""
+    def test_low_util_decrease_left_to_the_floor_identity_rule(self):
+        """WP3 (spec 3.2): at 8% utilisation the dispatched checks block
+        nothing -- the minimum-use floor is the YAML identity rule, which
+        hides the decrease option in every profile -- and keep stays open."""
         ctx = {
-            "below_minimum_utilisation": True,
-            "water_right": 100_000,
-            "request": 8_000,
-            "current_request": 8_000,
-            "current_diversion": 8_000,
-            "at_allocation_cap": False,
-            "curtailment_ratio": 0.0,
-            "shortage_tier": 0,
-            "drought_index": 0.3,
+            "below_minimum_utilisation": True, "water_right": 100_000,
+            "request": 8_000, "current_request": 8_000, "current_diversion": 8_000,
+            "at_allocation_cap": False, "curtailment_ratio": 0.0,
+            "shortage_tier": 0, "drought_index": 0.3, **_supply_inputs(keep=8_000),
         }
-        decrease_errors = self._run_all_checks("decrease_large", ctx)
-        assert len(decrease_errors) >= 1  # blocked by minimum_utilisation + demand_floor
+        for skill in ("decrease_large", "increase_large", "maintain_demand"):
+            assert self._run_all_checks(skill, ctx) == []
 
-        increase_errors = self._run_all_checks("increase_large", ctx)
-        assert len(increase_errors) == 0  # open
-
-        maintain_errors = self._run_all_checks("maintain_demand", ctx)
-        assert len(maintain_errors) == 0  # open
-
-    def test_at_cap_drought_increase_blocked_but_others_open(self):
-        """At cap + severe drought → increase blocked, decrease+maintain open."""
+    def test_short_supply_blocks_only_an_increase(self):
+        """At the cap with a short physical supply: the supply rule blocks an
+        increase; decrease and keep stay open (no all-blocked trap)."""
         ctx = {
-            "at_allocation_cap": True,
-            "water_right": 100_000,
-            "request": 100_000,
-            "current_request": 100_000,
-            "current_diversion": 80_000,
-            "below_minimum_utilisation": False,
-            "curtailment_ratio": 0.0,
-            "shortage_tier": 0,
-            "drought_index": 0.9,
+            "at_allocation_cap": True, "water_right": 100_000,
+            "request": 100_000, "current_request": 100_000, "current_diversion": 80_000,
+            "below_minimum_utilisation": False, "curtailment_ratio": 0.0,
+            "shortage_tier": 0, "drought_index": 0.9,
+            **_supply_inputs(keep=100_000, physical=0.8),
         }
         increase_errors = self._run_all_checks("increase_large", ctx)
-        assert len(increase_errors) >= 1  # blocked by water_right_cap + drought
-
-        decrease_errors = self._run_all_checks("decrease_large", ctx)
-        assert len(decrease_errors) == 0  # open
-
-        maintain_errors = self._run_all_checks("maintain_demand", ctx)
-        assert len(maintain_errors) == 0  # open
+        assert [e.metadata["rule_id"] for e in increase_errors] == ["supply_gap_block_increase"]
+        assert self._run_all_checks("decrease_large", ctx) == []
+        assert self._run_all_checks("maintain_demand", ctx) == []
 
     def test_curtailment_zero_diversion_is_warning_not_error(self):
         """Curtailment → diversion=0 but request>0 → WARNING (not ERROR)."""

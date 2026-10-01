@@ -19,6 +19,11 @@ def _make_env_with_agent(agent_id="TestAgent", water_right=100_000.0):
         water_right=water_right,
         has_efficient_system=False,
         cluster="aggressive",
+        # WP1b (item 20): initialize_from_profiles now requires every
+        # Upper Basin profile to carry a sub-basin (supply_group, from
+        # precip_group) -- this test is about execute_skill's action-model
+        # step math, unrelated to which sub-basin, so any valid one works.
+        precip_group="WY",
     )
     env.initialize_from_profiles([profile])
     return env
@@ -100,14 +105,14 @@ def test_build_action_outcome_feedback_formats_shortfall():
         year=2025,
         request=120_000,
         diversion=90_000,
-        drought_index=0.72,
         preceding_factor=0,
     )
     assert "Year 2025" in text
     assert "requested 120000" in text.replace(",", "")
     assert "received 90000" in text.replace(",", "")
     assert "shortfall" in text.lower()
-    assert "drought index" in text.lower()
+    # WP4 (spec 4.5): no drought index in any agent-facing text.
+    assert "drought index" not in text.lower()
 
 
 def test_memory_window_keeps_last_five():
@@ -168,7 +173,12 @@ def test_governance_validate_magnitude_cap_not_dispatched():
     irrigation_validators.py)."""
     from broker.validators.governance import validate_all
 
-    ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative"}
+    # WP3: the dispatched v3 supply rule reads its inputs (a full supply
+    # here, so it adds no result of its own).
+    ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative",
+           "basin": "upper_basin", "gap_reason": "none",
+           "supply_keep_request_af": 50_000, "supply_expected_at_keep_af": 50_000,
+           "supply_ratio": 1.0, "supply_physical_ratio": 1.0, "full_supply_ratio": 0.999}
     results = validate_all("increase_demand", [], ctx, domain="irrigation")
     magnitude_warnings = [
         r for r in results

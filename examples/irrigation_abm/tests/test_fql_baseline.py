@@ -9,6 +9,7 @@ Verifies:
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from examples.irrigation_abm.run_fql_baseline import (
     create_fql_agents,
     validate_skill,
     _create_synthetic_profiles,
+    _reconstruct_profiles_from_logs,
     run_simulation,
     FQL_SKILLS,
     main as fql_baseline_main,
@@ -130,49 +132,49 @@ class TestValidatorFallback:
         assert valid
         assert skill == "maintain_demand"
 
-    def test_increase_blocked_at_cap(self):
-        """Increase at allocation cap → fallback to maintain_demand."""
+    # WP3 (2026-09-29, spec 3.2): ALL_IRRIGATION_CHECKS is the v3 supply
+    # rule alone. The cap and the floor are YAML identity rules of the LLM
+    # arms; for the FQL reference the environment enforces both itself
+    # (execute_skill clips at W and never cuts below F), so validate_skill
+    # no longer blocks on them. The supply rule reads supply_rule_fields'
+    # inputs, which run_simulation adds to the context.
+
+    @staticmethod
+    def _v3_ctx(**overrides):
+        from examples.irrigation_abm.validators.irrigation_validators import (
+            supply_rule_fields,
+        )
         ctx = {
-            "agent_id": "test",
-            "at_allocation_cap": True,
-            "has_efficient_system": False,
-            "below_minimum_utilisation": False,
-            "water_right": 100_000,
-            "current_diversion": 99_000,
-            "current_request": 100_000,
-            "curtailment_ratio": 0,
-            "shortage_tier": 0,
-            "drought_index": 0.3,
-            "cluster": "aggressive",
-            "basin": "lower_basin",
-            "total_basin_demand": 5_000_000,
-            "loop_year": 5,
+            "agent_id": "test", "at_allocation_cap": False,
+            "has_efficient_system": False, "below_minimum_utilisation": False,
+            "water_right": 100_000, "current_diversion": 100_000,
+            "current_request": 100_000, "curtailment_ratio": 0,
+            "shortage_tier": 0, "drought_index": 0.3, "cluster": "aggressive",
+            "basin": "lower_basin", "total_basin_demand": 5_000_000,
+            "loop_year": 5, "gap_reason": "none", "supply_group": None,
+            "ub_subbasin_member_count": None, "lb_junior_tier_cut_fraction": 0.0,
         }
+        ctx.update(overrides)
+        ctx.update(supply_rule_fields(ctx, {"lb_phys_ratio": overrides.get("phi", 1.0)}))
+        return ctx
+
+    def test_increase_blocked_on_short_physical_supply(self):
+        """Lake Mead physically short (phi < FULL_SUPPLY_RATIO): an increase
+        falls back to maintain_demand."""
+        ctx = self._v3_ctx(current_diversion=90_000, phi=0.9,
+                           gap_reason="lb_mead_availability")
         valid, skill = validate_skill("increase_demand", ctx)
         assert valid
-        assert skill != "increase_demand"
+        assert skill == "maintain_demand"
 
-    def test_decrease_blocked_at_floor(self):
-        """Decrease at minimum utilisation → fallback."""
-        ctx = {
-            "agent_id": "test",
-            "at_allocation_cap": False,
-            "has_efficient_system": False,
-            "below_minimum_utilisation": True,
-            "water_right": 100_000,
-            "current_diversion": 5_000,
-            "current_request": 5_000,
-            "curtailment_ratio": 0,
-            "shortage_tier": 0,
-            "drought_index": 0.3,
-            "cluster": "myopic_conservative",
-            "basin": "lower_basin",
-            "total_basin_demand": 5_000_000,
-            "loop_year": 5,
-        }
-        valid, skill = validate_skill("decrease_demand", ctx)
-        assert valid
-        assert skill != "decrease_demand"
+    def test_at_cap_increase_and_at_floor_decrease_left_to_the_environment(self):
+        """v3 dispatch: validate_skill does not block on the cap or the
+        floor (the environment clips both); a full supply passes either."""
+        at_cap = self._v3_ctx(at_allocation_cap=True)
+        assert validate_skill("increase_demand", at_cap) == (True, "increase_demand")
+        at_floor = self._v3_ctx(below_minimum_utilisation=True,
+                                current_diversion=5_000, current_request=5_000)
+        assert validate_skill("decrease_demand", at_floor) == (True, "decrease_demand")
 
 
 # ── FQL agent creation tests ──
@@ -441,6 +443,89 @@ class TestLaunchCommandTiming:
             "the runner must never claim ExitCode: -- only a launcher knows "
             "the real process exit status"
         )
+
+
+class TestManifestRecordsWaterSystemConfigProvenance:
+    """Re-review 2026-09-29 round 4 (MEDIUM 4; spec items 25-27): FQL's
+    ``reproducibility_manifest.json`` must carry ``powell_release_mode`` /
+    ``powell_post2026_equalization`` / ``lb_non_ag_total_maf``, read from
+    the environment's own config (same treatment as the pre-existing
+    ``hold_requests_fixed`` key right next to them), not a literal. Fails
+    on the pre-fix code, where the manifest dict literal has no such keys
+    at all -- for ANY run, not only a non-default one."""
+
+    def test_default_config_recorded(self, monkeypatch, tmp_path):
+        argv = [
+            "run_fql_baseline.py",
+            "--years", "2",
+            "--agents", "5",
+            "--seed", "42",
+            "--fql-init", "zero",
+            "--output", str(tmp_path),
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+
+        fql_baseline_main()
+
+        manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+        assert manifest["powell_release_mode"] == "ig2007_tiers"
+        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
+
+
+class TestReconstructProfilesFromLogsSubbasin:
+    """WP1b re-review (MEDIUM 3, 2026-09-29): --from-logs' sub-basin fill
+    order -- the logged ub_subbasin column (spec 1b.4, a post-WP1b log),
+    then the CRSS Group_Agt mapping (a pre-WP1b log), then raise."""
+
+    @staticmethod
+    def _write_log(tmp_path, rows) -> str:
+        import pandas as pd
+
+        log_dir = tmp_path / "run"
+        log_dir.mkdir()
+        pd.DataFrame(rows).to_csv(log_dir / "simulation_log.csv", index=False)
+        return str(log_dir)
+
+    def test_uses_logged_ub_subbasin_column_when_present(self, tmp_path):
+        log_dir = self._write_log(tmp_path, [
+            {"year": 1, "agent_id": "UB_Agent_000", "basin": "upper_basin",
+             "cluster": "aggressive", "water_right": 100_000.0, "diversion": 80_000.0,
+             "ub_subbasin": "WY"},
+            {"year": 1, "agent_id": "LB_Agent_000", "basin": "lower_basin",
+             "cluster": "aggressive", "water_right": 50_000.0, "diversion": 40_000.0,
+             "ub_subbasin": ""},
+        ])
+        profiles = _reconstruct_profiles_from_logs(log_dir, seed=1, crss_db_dir="does/not/exist")
+        ub = next(p for p in profiles if p.agent_id == "UB_Agent_000")
+        lb = next(p for p in profiles if p.agent_id == "LB_Agent_000")
+        assert ub.precip_group == "WY"
+        assert lb.precip_group is None
+
+    def test_raises_when_no_column_and_no_crss_mapping(self, tmp_path):
+        log_dir = self._write_log(tmp_path, [
+            {"year": 1, "agent_id": "UB_Agent_000", "basin": "upper_basin",
+             "cluster": "aggressive", "water_right": 100_000.0, "diversion": 80_000.0},
+        ])
+        with pytest.raises(ValueError, match="sub-basin"):
+            _reconstruct_profiles_from_logs(log_dir, seed=1, crss_db_dir="does/not/exist")
+
+    @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
+    def test_falls_back_to_crss_group_mapping_when_column_absent(self, tmp_path):
+        """A pre-WP1b log (no ub_subbasin column) still resolves a real
+        agent's sub-basin from the same CRSS Group_Agt file
+        create_profiles_from_data uses."""
+        profiles_real = create_profiles_from_data(
+            str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=np.random.default_rng(7)
+        )
+        real_ub = next(p for p in profiles_real if p.basin == "upper_basin")
+        log_dir = self._write_log(tmp_path, [
+            {"year": 1, "agent_id": real_ub.agent_id, "basin": "upper_basin",
+             "cluster": "aggressive", "water_right": 100_000.0, "diversion": 80_000.0},
+        ])
+        profiles = _reconstruct_profiles_from_logs(log_dir, seed=1, crss_db_dir=str(CRSS_DB_DIR))
+        got = next(p for p in profiles if p.agent_id == real_ub.agent_id)
+        assert got.precip_group == real_ub.precip_group
 
 
 if __name__ == "__main__":

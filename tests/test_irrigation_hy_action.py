@@ -139,9 +139,27 @@ def test_real_profiles_carry_per_agent_hy_parameters():
     params = pd.read_csv(PARAMS, index_col=0)
     for p in profiles:
         col = (lb if p.basin == "lower_basin" else ub)[p.agent_id]
-        assert p.bin_size_af == pytest.approx(float(col.iloc[2] - col.iloc[1]))
+        # WP2 spec 2.3: bin_size_af is the RAW grid step in the Lower
+        # Basin (k=1.0) but HALF the raw grid step in the Upper Basin
+        # (k=0.5 -- the grid is in diversion units, H&Y p. 9 assumes 50
+        # percent of a diversion is depleted); demand_per_grid_unit
+        # carries k so the raw value is always recoverable.
+        k = 0.5 if p.basin == "upper_basin" else 1.0
+        assert p.demand_per_grid_unit == pytest.approx(k)
+        assert p.bin_size_af == pytest.approx(k * float(col.iloc[2] - col.iloc[1]))
         assert p.bin_size_af > 0
         assert p.mu >= 0 and p.sigma >= 0
+        # WP2 spec 2.4: step_bin_af is bin_size_af unless it swamps this
+        # agent's own 2018 use (>20 percent of it), in which case it is
+        # rescaled to 10 percent of that use.
+        assert p.step_bin_af > 0
+        assert p.step_bin_source in ("grid", "rescaled")
+        if p.bin_size_af > 0.20 * p.actual_2018_diversion:
+            assert p.step_bin_source == "rescaled"
+            assert p.step_bin_af == pytest.approx(0.10 * p.actual_2018_diversion)
+        else:
+            assert p.step_bin_source == "grid"
+            assert p.step_bin_af == pytest.approx(p.bin_size_af)
     mohave = next(p for p in profiles if p.agent_id == "MohaveValleyIDD")
     assert mohave.mu == pytest.approx(float(params.loc["mu", "MohaveValleyIDD"]))
     assert mohave.sigma == pytest.approx(float(params.loc["sigma", "MohaveValleyIDD"]))
