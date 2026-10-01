@@ -637,6 +637,15 @@ class IrrigationLifecycleHooks:
                 prev_request = snapshot["request"]
                 prev_diversion = snapshot["diversion"]
                 action_ctx = getattr(agent, '_last_action_context', None)
+                # ExperimentRunner._apply_state_changes stamps the context
+                # with the loop year of a decision that EXECUTED; a year in
+                # which nothing executed (an ABORTED decision) leaves an older
+                # context behind, which must not be reported as last year's
+                # action (WP6 P5(b) finding). The request then stayed at the
+                # base the environment reset it to.
+                decision_read = bool(action_ctx) and action_ctx.get("year") == snapshot["year"]
+                if not decision_read:
+                    action_ctx = None
                 feedback = build_action_outcome_feedback(
                     action_ctx=action_ctx,
                     # WP4 (spec 4.5, L3 M14): calendar years, as everywhere
@@ -655,6 +664,7 @@ class IrrigationLifecycleHooks:
                     # neither does their memory line (L3 M13).
                     name_rule=self._retries_name_rules(),
                     subbasin=snapshot.get("supply_group") is not None,
+                    decision_read=decision_read,
                 )
                 # add_memory_for_agent (not add_memory) so the engine sees this
                 # agent's memory_config (the irrigation_farmer.memory YAML
@@ -932,6 +942,11 @@ class IrrigationLifecycleHooks:
                 request = agent_state.get("request", 0) or 0
                 diversion = agent_state.get("diversion", 0) or 0
                 action_ctx = getattr(agent, "_last_action_context", None) or {}
+                # Same rule as pre_year: a context stamped with an earlier
+                # loop year describes no decision of this year (nothing
+                # executed: an ABORTED decision).
+                if action_ctx.get("year") != year:
+                    action_ctx = {}
                 proposed, was_fallback = _proposed_and_fallback(action_ctx)
                 agent_ctx = {
                     "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
@@ -1249,21 +1264,56 @@ def _record_water_system_config_provenance(
     into the generic broker manifest (an irrigation-only WaterSystemConfig
     concern, no generic-framework home). Wrapped so a provenance-write
     problem can never fail the experiment itself.
+
+    WP6 (spec 7.2): also ``ub_supply_mode``, ``ub_subbasin_supply_variant``
+    and the pinned sha256 that the environment checks each of the Upper
+    Basin sub-basin tables against whenever it loads them -- the supply
+    table of the variant in use (``ub_subbasin_supply_v3_sha256``), the
+    envelope table (``ub_subbasin_envelope_v3_sha256``) and the per-variant
+    mean-flow table the flow-share sentence divides by
+    (``ub_subbasin_variant_means_v3_sha256``) -- the same module constants
+    ``run_fql_baseline._pinned_v3_data_checksums`` records, so the WP6
+    provenance guard compares them across the LLM runs and the FQL
+    reference. A failed checksum lookup leaves only those keys out (the
+    guard then refuses the run); the other keys are still recorded.
     """
+    try:
+        water_system = {
+            "powell_release_mode": config.powell_release_mode,
+            "powell_post2026_equalization": config.powell_post2026_equalization,
+            "lb_non_ag_total_maf": config.lb_non_ag_total_maf,
+            "ub_supply_mode": config.ub_supply_mode,
+            "ub_subbasin_supply_variant": config.ub_subbasin_supply_variant,
+        }
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not resolve the water-system keys for "
+              f"reproducibility_manifest.json and config_snapshot.yaml: {e}")
+        return
+    try:
+        from examples.irrigation_abm.irrigation_env import (
+            UB_SUBBASIN_ENVELOPE_SHA256,
+            UB_SUBBASIN_VARIANT_MEANS_SHA256,
+            _UB_SUBBASIN_SUPPLY_VARIANT_FILES,
+        )
+        water_system["ub_subbasin_supply_v3_sha256"] = _UB_SUBBASIN_SUPPLY_VARIANT_FILES[
+            config.ub_subbasin_supply_variant][1]
+        water_system["ub_subbasin_envelope_v3_sha256"] = UB_SUBBASIN_ENVELOPE_SHA256
+        water_system["ub_subbasin_variant_means_v3_sha256"] = UB_SUBBASIN_VARIANT_MEANS_SHA256
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not resolve the Upper Basin sub-basin "
+              f"table checksums; the manifest records the other water-system keys "
+              f"without them: {e}")
     try:
         manifest_path = output_dir / "reproducibility_manifest.json"
         if manifest_path.exists():
             with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
-            manifest["powell_release_mode"] = config.powell_release_mode
-            manifest["powell_post2026_equalization"] = config.powell_post2026_equalization
-            manifest["lb_non_ag_total_maf"] = config.lb_non_ag_total_maf
+            manifest.update(water_system)
             with open(manifest_path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2)
     except Exception as e:
-        print(f"[Provenance] WARNING: could not record powell_release_mode/"
-              f"powell_post2026_equalization/lb_non_ag_total_maf in "
-              f"reproducibility_manifest.json: {e}")
+        print(f"[Provenance] WARNING: could not record the water-system keys "
+              f"{sorted(water_system)} in reproducibility_manifest.json: {e}")
 
     try:
         snapshot_path = output_dir / "config_snapshot.yaml"
@@ -1272,15 +1322,12 @@ def _record_water_system_config_provenance(
                 snapshot = yaml.safe_load(f)
             snapshot = snapshot or {}
             snapshot.setdefault("metadata", {})
-            snapshot["metadata"]["powell_release_mode"] = config.powell_release_mode
-            snapshot["metadata"]["powell_post2026_equalization"] = config.powell_post2026_equalization
-            snapshot["metadata"]["lb_non_ag_total_maf"] = config.lb_non_ag_total_maf
+            snapshot["metadata"].update(water_system)
             with open(snapshot_path, "w", encoding="utf-8") as f:
                 yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     except Exception as e:
-        print(f"[Provenance] WARNING: could not record powell_release_mode/"
-              f"powell_post2026_equalization/lb_non_ag_total_maf in "
-              f"config_snapshot.yaml: {e}")
+        print(f"[Provenance] WARNING: could not record the water-system keys "
+              f"{sorted(water_system)} in config_snapshot.yaml: {e}")
 
 
 def _record_cluster_method_provenance(

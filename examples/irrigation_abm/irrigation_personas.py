@@ -975,6 +975,7 @@ def build_action_outcome_feedback(
     rejection_line_style: str = "explicit",
     name_rule: bool = True,
     subbasin: bool = True,
+    decision_read: bool = True,
 ) -> str:
     """One memory line for one past year (spec 4.5):
 
@@ -997,6 +998,14 @@ def build_action_outcome_feedback(
     M13). ``explicit`` is the pre-redesign ablation wording.
     ``subbasin``: an Upper Basin agent with a real sub-basin (False only for
     a synthetic mock agent).
+
+    ``decision_read=False``: nothing executed that year (an ABORTED
+    decision: no answer could be read after the format retries). The
+    environment then left the request at the base it had reset it to, last
+    year's receipt (spec 2.1), so the line reads "Year {Y}: no valid decision
+    was read; your request stayed at the amount you received the year
+    before." and names no action (WP6 P5(b) finding: the line used to repeat
+    the action of an earlier year).
     """
     share = supply_ratio(diversion, request)
     if share >= FULL_SUPPLY_RATIO:
@@ -1012,6 +1021,10 @@ def build_action_outcome_feedback(
         f"{diversion:,.0f} acre-ft. {shortfall} "
         f"{_build_trend_text(basin, preceding_factor, subbasin)}"
     )
+
+    if not decision_read:
+        return (f"Year {year}: no valid decision was read; your request stayed at the "
+                f"amount you received the year before. {outcome}")
 
     # Action portion (from _last_action_context stored by framework)
     if action_ctx and action_ctx.get("skill_name"):
