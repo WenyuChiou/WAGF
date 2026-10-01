@@ -215,6 +215,60 @@ CHANGELOG `[Unreleased]`.
 
 ---
 
+### Resuming a crashed run
+
+A long `--real` run (42 years, about 2.4 GPU hours) has no checkpoint by
+default: a crash or a reboot partway through throws away every completed
+year's GPU work. `--llm-journal` and `--resume-from` add a checkpoint by
+journaling every LLM call (`broker/utils/llm_journal.py`) and replaying it
+on resume, instead of serialising runtime state.
+
+```bash
+# Start a run that journals every LLM call to llm_journal.jsonl:
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --real \
+    --years 42 --governance-mode strict --output results/my_run --llm-journal
+
+# If it crashes (power loss, a reboot, Ctrl-C), resume into a NEW directory:
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --real \
+    --years 42 --governance-mode strict --output results/my_run_resumed \
+    --resume-from results/my_run
+```
+
+What is replayed: years already fully completed in the source run (up to
+the last one with a recorded end-of-year marker) are re-executed from year
+1 on the CPU, with every LLM call answered from the journal instead of
+re-sent to the model, so the environment, memory, governance state, and
+hooks are rebuilt by running the same code rather than by deserialising a
+snapshot. The first incomplete year, and every year after it, run live
+against the model as normal. `--resume-from` accepts either the crashed
+run's `--output` directory or its `llm_journal.jsonl` file directly.
+
+What the divergence error means: if the rebuilt run asks the model
+something the source journal has no matching record for (a different
+prompt, or more or fewer calls than the source made that year), resuming
+raises `JournalReplayDivergence` instead of silently falling back to a
+live call. That means the resume can no longer be proven to reproduce the
+original run's state; do not re-run with a different model, seed, or
+config and call it a resume, start a fresh run instead.
+
+Resuming is refused up front (`SystemExit`, before any data loads) for any
+of: `--output` resolving to the SAME directory as the source run;
+`--model` / `--seed` / `--memory-seed` / `--governance-mode` / `--years` /
+`--real` or any other prompt-affecting CLI flag differing from the source
+run (`--workers` may differ freely); the current git commit differing
+from the source run's; the current uncommitted diff (`git diff HEAD`,
+hashed) differing from the source run's, even at the same commit (an
+untracked file appearing since the crash, such as the crashed run's own
+output, never counts as a difference); or the agent-config YAML, the
+prompt template, or the skill registry YAML having been edited since the
+source run loaded them (each is content-hashed, so an in-place edit is
+caught even when `--config-dir` itself is unchanged).
+
+A resumed run always writes to a new `--output` directory and never
+modifies the source run's files; its own `llm_journal.jsonl` holds both
+the replayed history and everything new, so it can be resumed again if it
+also crashes.
+
 ## 2. Production Results (v21)
 
 **Experiment**: 78 agents × 42 years, gemma3:4b, strict governance, seed 42.
