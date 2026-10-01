@@ -27,6 +27,16 @@ this test is trying to isolate.
 from __future__ import annotations
 
 from pathlib import Path
+import importlib.util
+
+
+def _timeout_args(seconds):
+    """``--timeout`` for the inner pytest run, only when pytest-timeout is
+    installed: CI installs the dev extras without it, and an unknown
+    ``--timeout`` makes the inner run exit with a usage error."""
+    if importlib.util.find_spec("pytest_timeout") is None:
+        return []
+    return [f"--timeout={seconds}"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _REAL_CONFTEST_PATH = _REPO_ROOT / "conftest.py"
@@ -100,7 +110,7 @@ def test_session_fixture_teardown_leak_flushed_during_zz_is_not_swallowed(pytest
     )
 
     result = pytester.runpytest_subprocess(
-        "-p", "no:cacheprovider", "--timeout=60",
+        "-p", "no:cacheprovider", *_timeout_args(60),
     )
 
     assert result.ret != 0, (
@@ -126,7 +136,7 @@ def test_control_without_the_late_leak_the_real_guard_passes_clean(pytester):
     )
 
     result = pytester.runpytest_subprocess(
-        "-p", "no:cacheprovider", "--timeout=60",
+        "-p", "no:cacheprovider", *_timeout_args(60),
     )
 
     assert result.ret == 0, "the real guard with no injected leak must pass cleanly"
@@ -170,7 +180,7 @@ def test_marker_added_by_trylast_collection_hook_is_not_swallowed(pytester):
         encoding="utf-8",
     )
 
-    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", "--timeout=60")
+    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", *_timeout_args(60))
 
     assert result.ret != 0, (
         "a marker added at runtime by a trylast collection hook must not "
@@ -205,7 +215,7 @@ def test_marker_added_by_autouse_fixture_setup_is_not_swallowed(pytester):
         """,
     )
 
-    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", "--timeout=60")
+    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", *_timeout_args(60))
 
     assert result.ret != 0, (
         "a marker added at runtime by an autouse fixture's own setup must "
@@ -305,7 +315,7 @@ def test_real_llm_probe_reaches_original_host_not_the_dead_port(pytester, monkey
         """,
     )
 
-    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", "--timeout=30")
+    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", *_timeout_args(30))
 
     acceptor.join(timeout=15)
     fake_daemon.close()

@@ -405,6 +405,9 @@ class TestBackoffWrapper:
         overrides={"max_retries": 1} makes create_llm_invoke's OWN short
         internal empty-content retry loop a no-op, so each of the 3 stubbed
         responses maps to exactly one backoff-level attempt."""
+        # create_llm_invoke builds its Ollama client from langchain-ollama,
+        # which CI does not install.
+        pytest.importorskip("langchain_ollama")
         import requests
         from broker.utils.llm_utils import create_llm_invoke
 
