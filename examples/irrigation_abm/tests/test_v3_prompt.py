@@ -27,6 +27,7 @@ old one). The tests for those changes fail on the first WP4 version as well.
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import re
@@ -1028,6 +1029,74 @@ def test_no_action_line_after_omitted_field_is_true(arm_runs):
                 "every required field; if this continues, the default action (maintain demand) "
                 "will be applied.") in b
         assert "No action passes every rule this step;" not in b
+
+
+# ===========================================================================
+# 4.5 a year in which nothing executed (WP6 fix round: an ABORTED decision)
+# ===========================================================================
+
+NO_DECISION_LEAD = ("no valid decision was read; your request stayed at the amount you received "
+                    "the year before.")
+
+
+def test_memory_line_of_a_year_without_a_decision():
+    """The line names no action: the environment left the request at the
+    base, last year's receipt (spec 2.1). An action context, even one passed
+    by mistake, is not reported."""
+    line = build_action_outcome_feedback({"skill_name": "increase_demand", "magnitude_pct": 8.0}, 2020,
+                                         60_085.0, 60_085.0, 1, basin="upper_basin", decision_read=False)
+    assert line == ("Year 2020: no valid decision was read; your request stayed at the amount you "
+                    "received the year before. You requested 60,085 acre-ft and received 60,085 "
+                    "acre-ft. Demand fully met. That winter's precipitation in your sub-basin was "
+                    "above the previous winter's.")
+    short = build_action_outcome_feedback(None, 2047, 1_000.0, 800.0, 0, basin="lower_basin",
+                                          gap_reason=describe_gap_reason(
+                                              {"gap_reason": "lb_mead_availability"}, "past"),
+                                          decision_read=False)
+    assert short.startswith(f"Year 2047: {NO_DECISION_LEAD} You requested 1,000 acre-ft and received "
+                            "800 acre-ft. Shortfall: 200 acre-ft (20.0% unmet), because Lake Mead could not")
+
+
+class _UnreadableIn2020(ScriptedLLM):
+    """Agent_000 answers nothing readable in 2020: every format retry fails,
+    so its 2020 decision is ABORTED and nothing executes."""
+
+    def __call__(self, prompt: str):
+        if ("Lesson Learned" not in prompt and "You are Agent_000," in prompt
+                and "It is now the year 2020." in prompt):
+            with self._lock:
+                attempt = self.calls[("Agent_000", 2020)]
+                self.calls[("Agent_000", 2020)] += 1
+                self.decisions[("Agent_000", 2020, attempt)] = prompt
+            return "no decision here", LLMStats(retries=0, success=True)
+        return super().__call__(prompt)
+
+
+def test_aborted_year_memory_line_states_no_decision(tmp_path):
+    """Before the fix the 2021 and 2022 prompts said "Year 2020: You chose to
+    increase demand (by N%)", the 2019 action, though nothing was decided or
+    executed in 2020 (IrrigationLifecycleHooks.pre_year read the action
+    context the runner had left from 2019)."""
+    llm = _UnreadableIn2020(lambda agent, year, attempt: ("M", "M", "Increase") if year == 2019
+                            else ("M", "M", "Keep"))
+    with pytest.MonkeyPatch.context() as mp:
+        out = _run(mp, tmp_path / "run", llm, "--agents", "3", "--years", "4", "--seed", "7")
+    with open(out / "irrigation_farmer_governance_audit.csv", encoding="utf-8-sig") as fh:
+        audit = {(r["agent_id"], r["year"]): r for r in csv.DictReader(fh)}
+    assert audit[("Agent_000", "2")]["execution_path"] == "aborted"
+    with open(out / "simulation_log.csv", encoding="utf-8") as fh:
+        log = {(r["agent_id"], r["year"]): r for r in csv.DictReader(fh)}
+    request_2020 = float(log[("Agent_000", "2")]["request"])
+    assert request_2020 == float(log[("Agent_000", "2")]["base_af"])  # the request stayed at the base
+    for year in (2021, 2022):
+        memory = {line[:12]: line for line in llm.decisions[("Agent_000", year, 0)].splitlines()
+                  if line.startswith("- Year ")}
+        assert memory["- Year 2019:"].startswith("- Year 2019: You chose to increase demand (by ")
+        assert memory["- Year 2020:"].startswith(
+            f"- Year 2020: {NO_DECISION_LEAD} You requested {request_2020:,.0f} acre-ft and received ")
+        assert "You chose to" not in memory["- Year 2020:"]
+    # a later year with a decision reads normally again
+    assert "- Year 2021: You chose to maintain demand." in llm.decisions[("Agent_000", 2022, 0)]
 
 
 # ===========================================================================
