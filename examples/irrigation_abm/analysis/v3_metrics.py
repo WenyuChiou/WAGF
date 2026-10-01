@@ -336,6 +336,18 @@ def assert_thinking_rules_match_config(config_path: Path = CONFIG_PATH) -> None:
         )
 
 
+def assert_short_year_window_matches_config(config_path: Path = CONFIG_PATH) -> None:
+    """R5b's K window (item 33c, reviewer fix, 2026-10-01) must be the same
+    one the dashboard shows: config/agent_types.yaml's
+    irrigation_farmer.feedback.trend_window, never a copy of that number."""
+    raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
+    window = raw["irrigation_farmer"]["feedback"]["trend_window"]
+    if window != R5B_SHORT_YEAR_WINDOW:
+        raise MetricsError(
+            f"{config_path}: irrigation_farmer.feedback.trend_window={window!r} differs from "
+            f"R5B_SHORT_YEAR_WINDOW={R5B_SHORT_YEAR_WINDOW!r} (item 33c, R5b's shown-years window)")
+
+
 # =============================================================================
 # Run identity and the provenance guard
 # =============================================================================
@@ -1722,7 +1734,8 @@ def lb_agent_summary(kges: Mapping[str, Kge]) -> Dict[str, Any]:
 
 
 # =============================================================================
-# R4 (item 23): drought recovery of each UB sub-basin
+# R4 (item 23): drought recovery of each UB sub-basin. Dry-year definition
+# reworked 2026-10-01 (reviewer fix, item 33c): see ub_subbasin_dry_years.
 # =============================================================================
 
 def _at_least(value: float, reference: float) -> bool:
@@ -1730,41 +1743,116 @@ def _at_least(value: float, reference: float) -> bool:
     return value >= reference or math.isclose(value, reference, rel_tol=1e-9, abs_tol=AF_TOL)
 
 
-def drought_recovery(sim: SimLog, label: str, arm: str = "") -> List[Dict[str, Any]]:
-    """R4 (item 23), the study's definition (orchestrator, 2026-10-01).
+# The threshold-level method of hydrological drought (ub_subbasin_dry_years):
+# no source sets this percentile for an irrigation sub-basin, so it is a
+# named, stated ASSUMPTION (item 34), never a tuned value.
+UB_DRY_YEAR_PERCENTILE = 20.0
+
+
+def _ub_subbasin_available_af(sim: SimLog, cfg: WaterSystemConfig) -> Dict[str, Dict[int, float]]:
+    """A_s(t) (acre-ft, WP1b item 20) for every UB sub-basin present in
+    ``sim``, by loop year, from the run's own ``ub_subbasin_supply_variant``
+    (``_load_ub_subbasin_supply_table``: the module's existing, checksum-
+    pinned data access -- this function never copies a supply number).
+    Shared by ``ub_subbasin_dry_years`` (R4, R5c) and ``r5d_ub_little_spare``."""
+    table = _load_ub_subbasin_supply_table(cfg.ub_subbasin_supply_variant)
+    sub_basins = sorted({sb for sb in sim.subbasin.values() if sb is not None})
+    out: Dict[str, Dict[int, float]] = {}
+    for sb in sub_basins:
+        series: Dict[int, float] = {}
+        for y in sim.years:
+            sim_year = sim.sim_year(y)
+            if sim_year not in table:
+                raise MetricsError(
+                    f"{sim.path}: year {y} (sim_year {sim_year}) is outside the ub_subbasin_supply "
+                    f"table for variant {cfg.ub_subbasin_supply_variant!r}")
+            series[y] = table[sim_year][f"a_{sb}_af"]
+        out[sb] = series
+    return out
+
+
+def _ub_subbasin_dry_threshold(cfg: WaterSystemConfig, sub_basin: str) -> float:
+    """The UB_DRY_YEAR_PERCENTILE-th percentile of one UB sub-basin's A_s
+    over the FULL ub_subbasin_supply_v3 table for cfg's own
+    ``ub_subbasin_supply_variant`` -- every row the table holds (42 on the
+    real data), never just the years one run happens to cover (item 34:
+    "the 42-year trace"). A run shorter than the full table (a pilot run, a
+    test fixture) therefore gets the SAME threshold, hence the same dry
+    years, as the full table restricted to its own years
+    (test_ub_subbasin_dry_years_uses_the_full_table_not_the_runs_own_years,
+    test_v3_metrics.py)."""
+    table = _load_ub_subbasin_supply_table(cfg.ub_subbasin_supply_variant)
+    values = [row[f"a_{sub_basin}_af"] for row in table.values()]
+    return float(np.percentile(values, UB_DRY_YEAR_PERCENTILE))
+
+
+def ub_subbasin_dry_years(sim: SimLog, cfg: WaterSystemConfig) -> Dict[str, Set[int]]:
+    """Exogenous hydrological dry years (item 34; replaces the realised-
+    shortage definition this docstring describes below). Per UB sub-basin,
+    a dry year is one whose sub-basin supply A_s(t)
+    (``_ub_subbasin_available_af``) is below the UB_DRY_YEAR_PERCENTILE-th
+    percentile of that sub-basin's A_s over the FULL supply table
+    (``_ub_subbasin_dry_threshold``, "the 42-year trace", not just this
+    run's own years): the threshold-level method of hydrological drought, a
+    stated ASSUMPTION (no source sets a percentile for this; Brunner and
+    Tallaksen 2019 and irrigation_v3_drought_rule_scan_2026-10-01.md Q2 give
+    classes, not a cutoff). A_s is a hydrology input, fixed before any agent
+    decides, so these dry years are identical for every arm and seed that
+    shares a ``ub_subbasin_supply_variant``, whatever years each run itself
+    covers (test_ub_subbasin_dry_years_independent_of_agent_behaviour,
+    test_v3_metrics.py).
+
+    Replaces: dry year = ``ub_subbasin_ratio`` < FULL_SUPPLY_RATIO, the
+    settled share at the members' FINAL, post-decision requests. That
+    definition was endogenous: at a level supply (A_s at or above the sum
+    of the sub-basin's keep requests) a dry year existed only when some
+    member's request rose that year and pushed the sub-basin over its
+    available supply, so an arm whose agents increase more produced more,
+    and longer, spells for a reason that had nothing to do with the water
+    available; and under the appraisal freeze, an agent's own increase in a
+    level year could itself turn that year dry and then (item 29c's
+    sharing clause) lower its own later first-stated WSA, so R5c's "WSA
+    dulls within a dry spell" reading was partly true by construction,
+    not only by appraisal."""
+    available = _ub_subbasin_available_af(sim, cfg)
+    out: Dict[str, Set[int]] = {}
+    for sb, series in available.items():
+        threshold = _ub_subbasin_dry_threshold(cfg, sb)
+        out[sb] = {y for y, a in series.items() if a < threshold}
+    return out
+
+
+def drought_recovery(sim: SimLog, cfg: WaterSystemConfig, label: str, arm: str = "") -> List[Dict[str, Any]]:
+    """R4 (item 23), the study's definition (orchestrator, 2026-10-01; dry
+    year redefined by reviewer fix, 2026-10-01: see ``ub_subbasin_dry_years``).
 
     Per UB sub-basin (``ub_subbasin``), a dry spell is a maximal run of
-    consecutive years with ``ub_subbasin_ratio`` below FULL_SUPPLY_RATIO. Its
-    reference is the sub-basin's total ``request`` in the last year before
-    the spell; a spell that starts in the first year has no reference and is
-    skipped (status "no reference", counted). The recovery time is the
-    smallest j >= 1 such that the total request in (last spell year + j) is
-    at or above the reference (``_at_least``). A spell is censored when that
-    is not reached before the next spell starts or the run ends. The same
-    function scores every LLM run and every FQL seed."""
+    consecutive ``ub_subbasin_dry_years`` years. Its reference is the
+    sub-basin's total ``request`` in the last year before the spell; a spell
+    that starts in the first year has no reference and is skipped (status
+    "no reference", counted). The recovery time is the smallest j >= 1 such
+    that the total request in (last spell year + j) is at or above the
+    reference (``_at_least``). A spell is censored when that is not reached
+    before the next spell starts or the run ends. The same function scores
+    every LLM run and every FQL seed."""
     spells: List[Dict[str, Any]] = []
     groups: Dict[str, List[str]] = defaultdict(list)
     for a in sim.agents:
         if sim.subbasin[a] is not None:
             groups[sim.subbasin[a]].append(a)
+    dry_years = ub_subbasin_dry_years(sim, cfg)
     first, last = sim.years[0], sim.years[-1]
     for sb in sorted(groups):
         members = groups[sb]
-        request: Dict[int, float] = {}
-        dry: Dict[int, bool] = {}
-        for y in sim.years:
-            ratios = {sim.num(a, y, "ub_subbasin_ratio") for a in members}
-            if len(ratios) != 1:
-                raise MetricsError(f"{sim.path}: {sb} members log different ub_subbasin_ratio in year {y}")
-            dry[y] = ratios.pop() < FULL_SUPPLY_RATIO
-            request[y] = sum(sim.num(a, y, "request") for a in members)
+        dry = dry_years[sb]
+        request: Dict[int, float] = {y: sum(sim.num(a, y, "request") for a in members) for y in sim.years}
         y = first
         while y <= last:
-            if not dry[y]:
+            if y not in dry:
                 y += 1
                 continue
             start = y
-            while y + 1 <= last and dry[y + 1]:
+            while y + 1 <= last and (y + 1) in dry:
                 y += 1
             end = y
             record = {"run": label, "arm": arm, "subbasin": sb, "members": len(members),
@@ -1778,7 +1866,7 @@ def drought_recovery(sim: SimLog, label: str, arm: str = "") -> List[Dict[str, A
                 record["reference_request_af"] = reference
                 record["status"], record["censored_by"] = "censored", "end of run"
                 for u in range(end + 1, last + 1):
-                    if dry[u]:
+                    if u in dry:
                         record["censored_by"] = "next spell"
                         break
                     if _at_least(request[u], reference):
@@ -1816,6 +1904,432 @@ def recovery_table(spells: Sequence[Mapping[str, Any]], groups: Sequence[str],
             subset = mine if sb == "pooled" else [s for s in mine if s["subbasin"] == sb]
             rows.append({group_key: group, "subbasin": sb, **recovery_summary(subset)})
     return rows
+
+
+# =============================================================================
+# R5 (item 33c; pre-registered 2026-10-01, `irrigation_v3_drought_rule_scan_
+# 2026-10-01.md` Q6): first-stated WSA against the supply headline, the
+# agent's short-year history and item-31 dry spells. Report-only: never
+# gated (v3_pilot_gate's checks read none of this), never part of the IBR,
+# never a refusal, never changes the runner, prompts or governance. Computed
+# for LLM runs only; the FQL reference states no appraisal.
+# =============================================================================
+
+# This module's own ordinal code for a first-stated WSA level, used only by
+# R5b and R5c's means; no other part of this module orders WSA numerically.
+WSA_ORDINAL: Dict[str, int] = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
+
+# R5a's five bands are irrigation_personas.build_water_situation_text's
+# headline bands (spec 4.3). The top edge is FULL_SUPPLY_RATIO (imported
+# above, never copied here); the other three edges are literals in that
+# function's own elif chain with no importable constant, so
+# test_r5a_band_edges_match_build_water_situation_text (test_v3_metrics.py)
+# pins these four numbers against that function's own source text.
+R5A_BANDS = ("sufficient", "slightly_short", "short", "well_short", "critical")
+R5B_SHORT_YEAR_WINDOW = 5  # config/agent_types.yaml irrigation_farmer.feedback.trend_window
+R5C_POST_SPELL_YEARS = 3  # item 33c: "the 3 years after the spell ends"
+
+
+def r5a_headline_band(r_share: float) -> str:
+    """The band of the prompt's headline sentence for r = supply_ratio
+    (Decision.supply_ratio, state_supply_ratio), as
+    irrigation_personas.build_water_situation_text computes it (spec 4.3)."""
+    if r_share >= FULL_SUPPLY_RATIO:
+        return "sufficient"
+    if r_share >= 0.95:
+        return "slightly_short"
+    if r_share >= 0.80:
+        return "short"
+    if r_share >= 0.50:
+        return "well_short"
+    return "critical"
+
+
+def _new_wsa_tally() -> Dict[str, Any]:
+    return {"n": 0, "sum_wsa": 0, "aborted_excluded": 0, "blank_wsa_excluded": 0, "off_scale_excluded": 0}
+
+
+def _add_decision_to_wsa_tally(tally: Dict[str, Any], d: Decision) -> None:
+    """Item 33c's exclusion rule for R5b and R5c: an ABORTED or
+    ABORTED_EXCEPTION row is excluded and counted under aborted_excluded; a
+    decision with no first-stated WSA under blank_wsa_excluded; one whose
+    first-stated WSA is stated but is not one of the five construct levels
+    under off_scale_excluded (reviewer fix, 2026-10-01: the ibr_metrics
+    split of first_wsa_missing from first_wsa_off_scale). None of these is
+    ever silently dropped from the mean."""
+    if d.aborted:
+        tally["aborted_excluded"] += 1
+        return
+    if d.first_wsa is None:
+        tally["blank_wsa_excluded"] += 1
+        return
+    if d.first_wsa not in WSA_ORDINAL:
+        tally["off_scale_excluded"] += 1
+        return
+    tally["n"] += 1
+    tally["sum_wsa"] += WSA_ORDINAL[d.first_wsa]
+
+
+def _wsa_category(first_wsa: Optional[str]) -> str:
+    """first_wsa as an R5a cell key: "missing" (no statement, including
+    every ABORTED row) or "off_scale" (stated, but not one of the five
+    construct levels) are counted apart (reviewer fix, 2026-10-01), never
+    merged, as ibr_metrics splits first_wsa_missing from first_wsa_off_scale."""
+    if first_wsa is None:
+        return "missing"
+    if first_wsa not in WSA_ORDINAL:
+        return "off_scale"
+    return first_wsa
+
+
+R5A_WSA_CATEGORIES = list(LEVELS) + ["missing", "off_scale"]
+
+
+def r5a_wsa_by_band(run: LoadedRun) -> List[Dict[str, Any]]:
+    """R5a: first-stated WSA distribution by the prompt's supply headline
+    band, over this run's decisions. A decision whose state_supply_ratio is
+    unknown (the ABORTED_EXCEPTION sentinel, which logs no supply state) has
+    no band and is counted under band "unknown_no_supply_state" rather than
+    dropped. See _wsa_category for the missing/off_scale split."""
+    counts: Dict[Tuple[Optional[str], str], int] = defaultdict(int)
+    for d in run.decisions.values():
+        band = r5a_headline_band(d.supply_ratio) if d.supply_ratio is not None else None
+        counts[(band, _wsa_category(d.first_wsa))] += 1
+    rows: List[Dict[str, Any]] = []
+    for band in R5A_BANDS:
+        for wsa in R5A_WSA_CATEGORIES:
+            rows.append({"run": run.label, "arm": run.info.arm, "seed": run.info.seed,
+                        "band": band, "first_wsa": wsa, "decisions": counts.get((band, wsa), 0)})
+    for wsa in R5A_WSA_CATEGORIES:
+        n = counts.get((None, wsa), 0)
+        if n:
+            rows.append({"run": run.label, "arm": run.info.arm, "seed": run.info.seed,
+                        "band": "unknown_no_supply_state", "first_wsa": wsa, "decisions": n})
+    return rows
+
+
+def r5a_band_summary(rows: Sequence[Mapping[str, Any]], groups: Sequence[str]) -> List[Dict[str, Any]]:
+    """R5a pooled by arm (seeds summed), with each cell's share of its
+    arm+band total. Every real band (R5A_BANDS) always gets its zero cells
+    (the recovery_table pattern); "unknown_no_supply_state" is pooled and
+    emitted too, for whichever arm actually logged an ABORTED_EXCEPTION
+    decision (reviewer fix, 2026-10-01: it was silently dropped from this
+    summary before, even though r5a_wsa_by_band already counted it)."""
+    pooled = {(r["arm"], r["band"], r["first_wsa"]): r["decisions"]
+             for r in _sum_by(rows, ("arm", "band", "first_wsa"), ("decisions",))}
+    band_totals: Dict[Tuple[str, str], int] = defaultdict(int)
+    for (arm, band, _wsa), n in pooled.items():
+        band_totals[(arm, band)] += n
+    out: List[Dict[str, Any]] = []
+    for arm in groups:
+        bands = list(R5A_BANDS)
+        if (arm, "unknown_no_supply_state") in band_totals:
+            bands.append("unknown_no_supply_state")
+        for band in bands:
+            total = band_totals.get((arm, band), 0)
+            for wsa in R5A_WSA_CATEGORIES:
+                n = pooled.get((arm, band, wsa), 0)
+                out.append({"arm": arm, "band": band, "first_wsa": wsa, "decisions": n,
+                            "band_total_decisions": total, "pct_of_band": _pct(n, total)})
+    return out
+
+
+def r5b_wsa_by_short_years(run: LoadedRun) -> List[Dict[str, Any]]:
+    """R5b: mean first-stated WSA (WSA_ORDINAL) by K, the number of short
+    years (that year's final delivery below FULL_SUPPLY_RATIO of its
+    request, irrigation_personas.supply_ratio on simulation_log's diversion
+    and request) among the agent's last R5B_SHORT_YEAR_WINDOW shown years,
+    the dashboard history window (config/agent_types.yaml
+    irrigation_farmer.feedback.trend_window; pinned by
+    assert_short_year_window_matches_config). full_window marks whether the
+    window actually held all R5B_SHORT_YEAR_WINDOW years (reviewer fix,
+    2026-10-01: False in years 2..R5B_SHORT_YEAR_WINDOW, when fewer years
+    have been shown yet, so a K of, say, 2 does not mean the same thing with
+    2 years shown as with 5). A decision in the first simulated year has no
+    shown prior year at all; it is counted under k_short_years "no_window"
+    rather than silently folded into K = 0."""
+    sim = run.sim
+    tallies: Dict[Tuple[int, bool], Dict[str, Any]] = defaultdict(_new_wsa_tally)
+    no_window = 0
+    for (agent, y), d in run.decisions.items():
+        if y <= sim.years[0]:
+            no_window += 1
+            continue
+        window = list(range(max(sim.years[0], y - R5B_SHORT_YEAR_WINDOW), y))
+        full_window = len(window) >= R5B_SHORT_YEAR_WINDOW
+        k = sum(1 for yy in window if supply_ratio(sim.num(agent, yy, "diversion"),
+                                                   sim.num(agent, yy, "request")) < FULL_SUPPLY_RATIO)
+        _add_decision_to_wsa_tally(tallies[(k, full_window)], d)
+    rows: List[Dict[str, Any]] = []
+    for k in range(0, R5B_SHORT_YEAR_WINDOW + 1):
+        for full_window in (True, False):
+            t = tallies.get((k, full_window), _new_wsa_tally())
+            rows.append({"run": run.label, "arm": run.info.arm, "seed": run.info.seed,
+                        "k_short_years": k, "full_window": full_window,
+                        "n_in_mean": t["n"], "sum_first_wsa": t["sum_wsa"],
+                        "mean_first_wsa": (t["sum_wsa"] / t["n"]) if t["n"] else None,
+                        "aborted_excluded": t["aborted_excluded"], "blank_wsa_excluded": t["blank_wsa_excluded"],
+                        "off_scale_excluded": t["off_scale_excluded"], "no_window_excluded": 0})
+    rows.append({"run": run.label, "arm": run.info.arm, "seed": run.info.seed,
+                "k_short_years": "no_window", "full_window": None,
+                "n_in_mean": 0, "sum_first_wsa": 0, "mean_first_wsa": None,
+                "aborted_excluded": 0, "blank_wsa_excluded": 0, "off_scale_excluded": 0,
+                "no_window_excluded": no_window})
+    return rows
+
+
+def r5b_summary_table(rows: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """R5b pooled by arm: counts and WSA-ordinal totals summed over seeds,
+    the mean recomputed from the pooled sums (never averaging already
+    per-run means)."""
+    pooled = _sum_by(rows, ("arm", "k_short_years", "full_window"),
+                     ("n_in_mean", "sum_first_wsa", "aborted_excluded", "blank_wsa_excluded",
+                      "off_scale_excluded", "no_window_excluded"))
+    for row in pooled:
+        row["mean_first_wsa"] = row["sum_first_wsa"] / row["n_in_mean"] if row["n_in_mean"] else None
+    return pooled
+
+
+def r5c_wsa_by_spell_year(run: LoadedRun, cfg: WaterSystemConfig) -> List[Dict[str, Any]]:
+    """R5c: mean first-stated WSA by year within each item-31 UB dry spell
+    (the same spells as drought_recovery/R4, including the reviewer's
+    exogenous A_s-percentile redefinition: position_type "in_spell",
+    position 1, 2, 3... counted from the spell's first dry year) and in the
+    R5C_POST_SPELL_YEARS years after it ends (position_type "after_spell",
+    position 1..3). UB sub-basins only: drought_recovery groups agents by
+    ub_subbasin, which is blank for every Lower Basin agent, so R5c is
+    UB-only too, like R4 (spec item 33c). A year that is both N years after
+    one spell and inside the next is counted on both axes: they answer
+    different questions and are not mutually exclusive. Because the spells
+    no longer depend on agent decisions, R5c's positions are identical
+    across arms and seeds too."""
+    sim = run.sim
+    spells = drought_recovery(sim, cfg, run.label, run.info.arm)
+    groups: Dict[str, List[str]] = defaultdict(list)
+    for a in sim.agents:
+        if sim.subbasin[a] is not None:
+            groups[sim.subbasin[a]].append(a)
+    last = sim.years[-1]
+    tallies: Dict[Tuple[str, int], Dict[str, Any]] = defaultdict(_new_wsa_tally)
+    for spell in spells:
+        start = spell["start_year"] - sim.sim_start_year + 1
+        end = spell["end_year"] - sim.sim_start_year + 1
+        members = groups[spell["subbasin"]]
+        for y in range(start, end + 1):
+            for agent in members:
+                d = run.decisions.get((agent, y))
+                if d is None:
+                    raise MetricsError(f"{run.label}: no decision for {agent} year {y} (R5c in_spell)")
+                _add_decision_to_wsa_tally(tallies[("in_spell", y - start + 1)], d)
+        for offset in range(1, R5C_POST_SPELL_YEARS + 1):
+            y = end + offset
+            if y > last:
+                break
+            for agent in members:
+                d = run.decisions.get((agent, y))
+                if d is None:
+                    raise MetricsError(f"{run.label}: no decision for {agent} year {y} (R5c after_spell)")
+                _add_decision_to_wsa_tally(tallies[("after_spell", offset)], d)
+    rows: List[Dict[str, Any]] = []
+    for (position_type, position), t in sorted(tallies.items(), key=lambda kv: (kv[0][0] != "in_spell", kv[0][1])):
+        rows.append({"run": run.label, "arm": run.info.arm, "seed": run.info.seed,
+                    "position_type": position_type, "position": position,
+                    "n_in_mean": t["n"], "sum_first_wsa": t["sum_wsa"],
+                    "mean_first_wsa": (t["sum_wsa"] / t["n"]) if t["n"] else None,
+                    "aborted_excluded": t["aborted_excluded"], "blank_wsa_excluded": t["blank_wsa_excluded"],
+                    "off_scale_excluded": t["off_scale_excluded"]})
+    return rows
+
+
+def r5c_summary_table(rows: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """R5c pooled by arm, the same way as r5b_summary_table."""
+    pooled = _sum_by(rows, ("arm", "position_type", "position"),
+                     ("n_in_mean", "sum_first_wsa", "aborted_excluded", "blank_wsa_excluded",
+                      "off_scale_excluded"))
+    for row in pooled:
+        row["mean_first_wsa"] = row["sum_first_wsa"] / row["n_in_mean"] if row["n_in_mean"] else None
+    return pooled
+
+
+# R5d's splits (reviewer fix, item 33c, 2026-10-01; spec 33b: how often an
+# Upper Basin increase takes water from others while a drought persists at a
+# level supply). "overall" is the original, pre-reviewer definition, now
+# also excluding at-cap decisions (see _r5d_population).
+R5D_SPLITS: Tuple[Tuple[str, Dict[str, str]], ...] = (
+    ("overall", {}),
+    ("basin=upper_basin", {"basin_filter": "upper_basin"}),
+    ("basin=lower_basin", {"basin_filter": "lower_basin"}),
+    ("last_year=short", {"last_year_filter": "short"}),
+    ("last_year=not_short", {"last_year_filter": "not_short"}),
+    ("last_year=first_year", {"last_year_filter": "first_year"}),
+    # Crossed (reviewer fix, item 34): spec 33b's own scenario, an Upper
+    # Basin agent proposing while a drought persists at a level supply, read
+    # through the prompt's last-year-short framing rather than the hydrology
+    # (item 31/34 dry-spell) framing of R5c.
+    ("basin=upper_basin,last_year=short", {"basin_filter": "upper_basin", "last_year_filter": "short"}),
+)
+
+
+def _r5d_population(run: LoadedRun, basin_filter: Optional[str] = None,
+                    last_year_filter: Optional[str] = None) -> Dict[str, int]:
+    """One R5d split's tally. Eligible = first-stated WSA not High or Very
+    High AND the supply rule's condition False (neither TR1 nor the supply
+    rule could act). Excluded and counted beside, never folded into the
+    denominator: ABORTED/ABORTED_EXCEPTION, a blank or off-scale
+    first-stated WSA, and (reviewer fix, item 34) an at-cap decision: the
+    menu does not OFFER increase_demand there, but an off-menu increase can
+    still be PROPOSED (the LLM is not restricted to the menu) and is then
+    blocked by the water-right cap, not by TR1 or the supply rule -- a
+    different blocking mechanism, so it does not belong in "neither TR1 nor
+    the supply rule could act" either way. Fixture d6 in
+    test_r5d_hand_computed is exactly this case: at the cap, first proposal
+    increase_demand, blocked by the cap (and the two registry backstops).
+    ``basin_filter`` restricts to "upper_basin" or "lower_basin";
+    ``last_year_filter`` to "short", "not_short" or "first_year" (no prior
+    shown year: the prompt's first-year sentence states no shortfall, spec
+    4.3)."""
+    sim = run.sim
+    eligible = increases = 0
+    excl_aborted = excl_blank = excl_off_scale = excl_at_cap = 0
+    for (agent, y), d in run.decisions.items():
+        if basin_filter is not None and sim.basin[agent] != basin_filter:
+            continue
+        if last_year_filter is not None:
+            if y == sim.years[0]:
+                category = "first_year"
+            else:
+                prior_short = supply_ratio(sim.num(agent, y - 1, "diversion"),
+                                           sim.num(agent, y - 1, "request")) < FULL_SUPPLY_RATIO
+                category = "short" if prior_short else "not_short"
+            if category != last_year_filter:
+                continue
+        if d.aborted:
+            excl_aborted += 1
+            continue
+        if d.first_wsa is None:
+            excl_blank += 1
+            continue
+        if d.first_wsa not in WSA_ORDINAL:
+            excl_off_scale += 1
+            continue
+        if run.traces[(agent, y)].at_cap:
+            excl_at_cap += 1
+            continue
+        condition = d.supply_condition
+        if condition is None:
+            raise MetricsError(f"{run.label} {agent} {y}: supply_condition is unknown on a "
+                              "decision that was not aborted")
+        if d.first_wsa in TR1_WSA or condition:
+            continue  # TR1 or the supply rule could act: not an R5d decision
+        eligible += 1
+        increases += d.first_proposal == INCREASE
+    return {"eligible_decisions": eligible, "first_proposal_increases": increases,
+           "excluded_aborted": excl_aborted, "excluded_blank_wsa": excl_blank,
+           "excluded_off_scale_wsa": excl_off_scale, "excluded_at_cap": excl_at_cap}
+
+
+def r5d_rows(run: LoadedRun) -> List[Dict[str, Any]]:
+    """R5d with the reviewer's splits: the pooled row ("overall"), by basin,
+    by whether last year was short as the prompt shows it, and the crossed
+    Upper-Basin-and-last-year-short row."""
+    rows = []
+    for split, kwargs in R5D_SPLITS:
+        tally = _r5d_population(run, **kwargs)
+        rows.append({"run": run.label, "arm": run.info.arm, "seed": run.info.seed, "split": split,
+                    **tally, "share_pct": _pct(tally["first_proposal_increases"], tally["eligible_decisions"])})
+    return rows
+
+
+def r5d_summary_table(rows: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """R5d pooled by arm and split."""
+    pooled = _sum_by(rows, ("arm", "split"),
+                     ("eligible_decisions", "first_proposal_increases", "excluded_aborted",
+                      "excluded_blank_wsa", "excluded_off_scale_wsa", "excluded_at_cap"))
+    for row in pooled:
+        row["share_pct"] = _pct(row["first_proposal_increases"], row["eligible_decisions"])
+    return pooled
+
+
+def r5d_ub_little_spare(run: LoadedRun, cfg: WaterSystemConfig) -> Dict[str, Any]:
+    """R5d-UB-little-spare (item 34; spec 33b; REPLACES r5d_ub_zero_sum,
+    2026-10-01). r5d_ub_zero_sum's strict zero-sum condition (the supply
+    rule's condition False AND A_s(t) <= the sub-basin's keep-request sum)
+    is near-empty by construction: for a UB sub-basin, every member's
+    settled ratio at the keep requests is the SAME shared factor,
+    min(1, A_s / sum of keep requests) (spec WP1b.3), so the supply rule's
+    condition is False exactly when that factor is at least
+    FULL_SUPPLY_RATIO, i.e. A_s is ALREADY at least FULL_SUPPLY_RATIO times
+    the keep-request sum -- "A_s <= the keep-request sum" can then only add
+    the razor-thin band [FULL_SUPPLY_RATIO, 1) of it, and its hand test
+    needed a ratio the water system cannot actually produce from the A_s
+    and keep requests it assumed.
+
+    This metric instead asks whether the sub-basin's unused water, A_s(t)
+    minus the sum of its members' keep requests that year (never negative
+    when the supply rule did not fire, up to float tolerance), is smaller
+    than the DECIDING agent's own typical step -- ``typical_step_af``,
+    simulation_log.csv's own column (spec 2.5: the median of the agent's
+    own step distribution; the same number the option texts show, "your
+    typical step of about {s} acre-ft", irrigation_personas.
+    build_option_texts). When 0 <= unused < typical_step_af, even one
+    ordinary-sized increase by this agent cannot be absorbed by the
+    sub-basin's unused water and must come out of other members' shares
+    (spec 29c's sharing clause). Among such decisions, the share of first
+    proposals that are increases.
+
+    The keep-request sum is read from Decision.keep_request_af
+    (``state_supply_keep_request_af``, logged for every decision), never
+    from a settled, POST-decision total: that is exactly the endogenous
+    quantity the reviewer flagged for R4 and R5c. A member whose keep
+    request is unknown (the ABORTED_EXCEPTION sentinel) makes that
+    sub-basin-year's sum unknown; every other decision in that sub-basin-
+    year is then excluded and counted under excluded_unknown_sum rather
+    than reported as computable from a partial sum."""
+    sim = run.sim
+    available = _ub_subbasin_available_af(sim, cfg)
+    groups: Dict[str, List[str]] = defaultdict(list)
+    for a in sim.agents:
+        if sim.subbasin[a] is not None:
+            groups[sim.subbasin[a]].append(a)
+    eligible = increases = excluded_aborted = excluded_unknown_sum = 0
+    for sb, members in groups.items():
+        for y in sim.years:
+            member_decisions = [run.decisions[(m, y)] for m in members]
+            known = all(d.keep_request_af is not None for d in member_decisions)
+            keep_sum = sum(d.keep_request_af for d in member_decisions) if known else None
+            a_s = available[sb][y]
+            for agent, d in zip(members, member_decisions):
+                if d.aborted:
+                    excluded_aborted += 1
+                    continue
+                condition = d.supply_condition
+                if condition is None:
+                    raise MetricsError(f"{run.label} {d.agent_id} {d.year}: supply_condition is "
+                                      "unknown on a decision that was not aborted")
+                if condition:
+                    continue  # the supply rule could act: not this population
+                if keep_sum is None:
+                    excluded_unknown_sum += 1
+                    continue
+                unused = a_s - keep_sum
+                step = sim.num(agent, y, "typical_step_af")
+                if not (0 <= unused < step):
+                    continue  # plenty of spare water (or, rarely, a float-noise negative)
+                eligible += 1
+                increases += d.first_proposal == INCREASE
+    return {"run": run.label, "arm": run.info.arm, "seed": run.info.seed,
+           "eligible_decisions": eligible, "first_proposal_increases": increases,
+           "share_pct": _pct(increases, eligible),
+           "excluded_aborted": excluded_aborted, "excluded_unknown_sum": excluded_unknown_sum}
+
+
+def r5d_ub_little_spare_summary(rows: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """R5d-UB-little-spare pooled by arm."""
+    pooled = _sum_by(rows, ("arm",), ("eligible_decisions", "first_proposal_increases",
+                                      "excluded_aborted", "excluded_unknown_sum"))
+    for row in pooled:
+        row["share_pct"] = _pct(row["first_proposal_increases"], row["eligible_decisions"])
+    return pooled
 
 
 # =============================================================================
@@ -1887,7 +2401,7 @@ def run_metrics(run: LoadedRun, reference: Reference, cfg: WaterSystemConfig) ->
     row["kge_lb_agent_defined"] = lb["defined"]
     row["kge_lb_agent_constant_sim"] = lb["constant_sim"]
     row["kge_lb_agent_undefined"] = lb["undefined"]
-    episodes = drought_recovery(run.sim, run.label, run.info.arm)
+    episodes = drought_recovery(run.sim, cfg, run.label, run.info.arm)
     row.update(recovery_summary(episodes))
     return {
         "row": row, "exposure": exposure, "census": rule_census(run),
@@ -1943,6 +2457,16 @@ class MetricsResult:
     recovery_summary: List[Dict[str, Any]]
     lb_agent_rows: List[Dict[str, Any]]
     lb_agent_ceilings: List[Dict[str, Any]]
+    r5a: List[Dict[str, Any]]
+    r5a_summary: List[Dict[str, Any]]
+    r5b: List[Dict[str, Any]]
+    r5b_summary: List[Dict[str, Any]]
+    r5c: List[Dict[str, Any]]
+    r5c_summary: List[Dict[str, Any]]
+    r5d: List[Dict[str, Any]]
+    r5d_summary: List[Dict[str, Any]]
+    r5d_little_spare: List[Dict[str, Any]]
+    r5d_little_spare_summary: List[Dict[str, Any]]
     notes: List[str]
 
 
@@ -2030,6 +2554,7 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
     """Every WP6 metric over a corpus of LLM runs, read against the FQL
     reference (and the fixed-demand replays, when given)."""
     assert_thinking_rules_match_config()
+    assert_short_year_window_matches_config()
     cfg = analysis_config()
     llm_infos = _infos_of(run_dirs, "llm")
     fql_infos = _infos_of(fql_dirs, "fql")
@@ -2050,7 +2575,7 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
     for run in fql_runs:
         seed_row = {"run": run.label, "seed": run.info.seed, **reservoir_outcomes(run.sim, cfg)}
         seed_row.update(bench_per_seed.get(run.info.seed, {}))
-        episodes = drought_recovery(run.sim, run.label, "fql")
+        episodes = drought_recovery(run.sim, cfg, run.label, "fql")
         recovery.extend(episodes)
         seed_row.update(recovery_summary(episodes))
         fql_per_seed.append(seed_row)
@@ -2077,6 +2602,7 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
         notes.append("No replay directory given: the KGE floor and ceiling (replays A and B) are not reported.")
 
     per_run, census, exposure, agreement, lb_agent_rows = [], [], [], [], []
+    r5a, r5b, r5c, r5d, r5d_little_spare = [], [], [], [], []
     for info in sorted(llm_infos, key=lambda i: (ARMS.index(i.arm), i.seed)):
         run = load_run(info.path, info=info)
         result = run_metrics(run, reference, cfg)
@@ -2097,6 +2623,11 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
                                       "kge": k.kge, "note": k.note, "ceiling": own.get("ceiling"),
                                       "ceiling_seeds_defined": own.get("seeds_defined")})
         recovery.extend(result["recovery"])
+        r5a.extend(r5a_wsa_by_band(run))
+        r5b.extend(r5b_wsa_by_short_years(run))
+        r5c.extend(r5c_wsa_by_spell_year(run, cfg))
+        r5d.extend(r5d_rows(run))
+        r5d_little_spare.append(r5d_ub_little_spare(run, cfg))
         del run
 
     arm_summary = []
@@ -2154,9 +2685,17 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
             feasibility.append(entry)
 
     groups = [a for a in ARMS if any(r["arm"] == a for r in per_run)] + (["fql"] if fql_runs else [])
+    llm_arms = [a for a in groups if a != "fql"]
+    r5a_summary = r5a_band_summary(r5a, llm_arms)
+    r5b_summary = r5b_summary_table(r5b)
+    r5c_summary = r5c_summary_table(r5c)
+    r5d_summary = r5d_summary_table(r5d)
+    r5d_little_spare_summary_rows = r5d_ub_little_spare_summary(r5d_little_spare)
     return MetricsResult(provenance, per_run, fql_per_seed, replays, arm_summary, paired, feasibility,
                          census, exposure, agreement, kge_rows, benchmark_rows, benchmark_summary,
                          recovery, recovery_table(recovery, groups), lb_agent_rows, lb_agent_ceiling_rows,
+                         r5a, r5a_summary, r5b, r5b_summary, r5c, r5c_summary, r5d, r5d_summary,
+                         r5d_little_spare, r5d_little_spare_summary_rows,
                          notes)
 
 
@@ -3229,14 +3768,14 @@ def report_r3(runs: Sequence[LoadedRun]) -> Dict[str, Any]:
                   {run.label: {"wall_hours_first_decision_to_finalize": run_hours(run)} for run in runs})
 
 
-def report_r4(runs: Sequence[LoadedRun], fql_runs: Sequence[LoadedRun]) -> Dict[str, Any]:
+def report_r4(runs: Sequence[LoadedRun], fql_runs: Sequence[LoadedRun], cfg: WaterSystemConfig) -> Dict[str, Any]:
     """Item 23 (reported, never gated): R4 per sub-basin and pooled, for each
     pilot run and the FQL seeds pooled, by the definition of drought_recovery."""
     spells: List[Dict[str, Any]] = []
     for run in runs:
-        spells.extend(drought_recovery(run.sim, run.label, run.label))
+        spells.extend(drought_recovery(run.sim, cfg, run.label, run.label))
     for run in fql_runs:
-        spells.extend(drought_recovery(run.sim, run.label, "fql"))
+        spells.extend(drought_recovery(run.sim, cfg, run.label, "fql"))
     groups = [run.label for run in runs] + (["fql"] if fql_runs else [])
     return _check("R4", "drought recovery (UB sub-basins)", False, None, "reported",
                   {"by_subbasin_and_pooled": recovery_table(spells, groups), "spells": spells})
@@ -3289,7 +3828,7 @@ def pilot_gate(strict_dir: str, disabled_dir: str, fql_dirs: Sequence[str], repl
         gate_p10(rows, strict.label, [strict, disabled], expected),
     ]
     reported = [report_r1(strict, disabled, replays), report_r2(disabled), report_r3([strict, disabled]),
-                report_r4([strict, disabled], fql_runs)]
+                report_r4([strict, disabled], fql_runs, cfg)]
     gated_passed = all(c["passed"] for c in checks if c["gated"])
     overrides = [flag for flag, on in (("--allow-mixed-provenance", allow_mixed_provenance),
                                        ("--allow-dirty", allow_dirty)) if on]
@@ -3683,9 +4222,11 @@ def metrics_markdown(result: MetricsResult) -> str:
                                            for n in HEADLINE_SERIES]
                              + [_fmt(r["mead_min_ft"], 1), r["tier3_years"]] for r in result.replays]), ""]
     if result.recovery_summary:
-        lines += ["## R4 drought recovery (item 23; reported, never gated)", "",
-                  "Per UB sub-basin, a dry spell is a maximal run of consecutive years with ub_subbasin_ratio "
-                  "below FULL_SUPPLY_RATIO; its reference is the sub-basin total request in the last year before "
+        lines += ["## R4 drought recovery (items 23, 31, 34; reported, never gated)", "",
+                  "Per UB sub-basin, a dry spell is a maximal run of consecutive years whose sub-basin supply "
+                  f"A_s(t) is below the {UB_DRY_YEAR_PERCENTILE:.0f}th percentile of that sub-basin's own A_s "
+                  "over the full supply table (item 34; a stated assumption, never the settled, post-decision "
+                  "ub_subbasin_ratio); its reference is the sub-basin total request in the last year before "
                   "the spell; the recovery time is the smallest j >= 1 with the total request in (last spell "
                   "year + j) at or above the reference; a spell is censored when that is not reached before the "
                   "next spell or the end of the run. Spells starting in the first year have no reference and "
@@ -3737,6 +4278,121 @@ def metrics_markdown(result: MetricsResult) -> str:
                         [[c["arm"], c["rule"], c["enforcement"], c["runs"], c["condition_held"],
                           c["condition_unknown"], c["first_attempt_violations"], c["final_proposal_violations"],
                           c["executed_violations"], c["live_blocked_decisions"]] for c in census]), ""]
+
+    def r5_cell(rows: Sequence[Mapping[str, Any]], key: str, value: Any, arm: str) -> str:
+        row = next((r for r in rows if r.get(key) == value and r["arm"] == arm), None)
+        if row is None or row["mean_first_wsa"] is None:
+            return "n/a"
+        return f"{row['mean_first_wsa']:.2f} (n={row['n_in_mean']})"
+
+    def r5b_cell(arm: str, k: Any, full_window: Optional[bool]) -> str:
+        row = next((r for r in result.r5b_summary if r["arm"] == arm and r["k_short_years"] == k
+                   and r["full_window"] == full_window), None)
+        if row is None or row["mean_first_wsa"] is None:
+            return "n/a"
+        return f"{row['mean_first_wsa']:.2f} (n={row['n_in_mean']})"
+
+    def r5c_cell(rows: Sequence[Mapping[str, Any]], position_type: str, position: int, arm: str) -> str:
+        row = next((r for r in rows if r["position_type"] == position_type and r["position"] == position
+                   and r["arm"] == arm), None)
+        if row is None or row["mean_first_wsa"] is None:
+            return "n/a"
+        return f"{row['mean_first_wsa']:.2f} (n={row['n_in_mean']})"
+
+    if result.r5a_summary:
+        lines += ["## R5: appraisal against the supply headline and multi-year drought "
+                  "(items 33b, 34; report-only, pre-registered 2026-10-01; never gated)", "",
+                  "First-stated WSA ordinal for R5b and R5c's means: VL=1, L=2, M=3, H=4, VH=5. In every "
+                  "mean or share below, ABORTED, ABORTED_EXCEPTION, a blank first-stated WSA ('missing') "
+                  "and a stated-but-off-scale one ('off_scale') are excluded and counted beside it, never "
+                  "silently dropped. Per-run detail: r5a_wsa_by_band.csv, r5b_wsa_by_short_years.csv, "
+                  "r5c_wsa_by_spell_year.csv, r5d_unblocked_increase_share.csv, r5d_ub_little_spare.csv. R4 "
+                  "and R5c's dry years are the exogenous threshold-level definition (ub_subbasin_dry_years, "
+                  f"item 34): below the {UB_DRY_YEAR_PERCENTILE:.0f}th percentile of the sub-basin's own A_s "
+                  "over the FULL supply table for the variant (the 42-year trace, not just this run's own "
+                  "years), a stated assumption, identical in every arm and seed.", "",
+                  "### R5a: first-stated WSA by the supply headline band (counts, pooled over seeds)", ""]
+        for arm in arms:
+            body = []
+            bands = list(R5A_BANDS)
+            if any(r["arm"] == arm and r["band"] == "unknown_no_supply_state" for r in result.r5a_summary):
+                bands.append("unknown_no_supply_state")
+            for band in bands:
+                cells = [next((r["decisions"] for r in result.r5a_summary if r["arm"] == arm
+                              and r["band"] == band and r["first_wsa"] == wsa), 0)
+                        for wsa in R5A_WSA_CATEGORIES]
+                total = next((r["band_total_decisions"] for r in result.r5a_summary
+                             if r["arm"] == arm and r["band"] == band), 0)
+                body.append([band] + cells + [total])
+            lines += [f"{arm}:", "", _md_table(["band"] + R5A_WSA_CATEGORIES + ["total"], body), ""]
+        if result.r5b_summary:
+            lines += ["### R5b: mean first-stated WSA by short years in the last "
+                      f"{R5B_SHORT_YEAR_WINDOW} shown years", "",
+                      "full_window = True: all 5 years were shown (years 6+); False: fewer were (years "
+                      "2-5, so a given K means less). Year 1 decisions (no shown prior year) are under "
+                      "k_short_years = no_window in the exclusions table below, not folded into K = 0.", "",
+                      "full_window = True:", "",
+                      _md_table(["k short years"] + arms,
+                                [[k] + [r5b_cell(a, k, True) for a in arms]
+                                 for k in range(R5B_SHORT_YEAR_WINDOW + 1)]), "",
+                      "full_window = False:", "",
+                      _md_table(["k short years"] + arms,
+                                [[k] + [r5b_cell(a, k, False) for a in arms]
+                                 for k in range(R5B_SHORT_YEAR_WINDOW + 1)]), "",
+                      "Exclusions (summed over seeds, k and full_window):", "",
+                      _md_table(["arm", "aborted", "blank WSA", "off-scale WSA", "no_window"],
+                                [[a, sum(r["aborted_excluded"] for r in result.r5b_summary if r["arm"] == a),
+                                  sum(r["blank_wsa_excluded"] for r in result.r5b_summary if r["arm"] == a),
+                                  sum(r["off_scale_excluded"] for r in result.r5b_summary if r["arm"] == a),
+                                  sum(r["no_window_excluded"] for r in result.r5b_summary if r["arm"] == a)]
+                                 for a in arms]), ""]
+        if result.r5c_summary:
+            positions = sorted({(r["position_type"], r["position"]) for r in result.r5c_summary},
+                               key=lambda p: (p[0] != "in_spell", p[1]))
+            lines += ["### R5c: mean first-stated WSA by year within a UB dry spell (items 31, 34) and after it "
+                      "(UB sub-basins only, as in R4)", "",
+                      _md_table(["position"] + arms,
+                                [[f"{pt} {p}"] + [r5c_cell(result.r5c_summary, pt, p, a) for a in arms]
+                                 for pt, p in positions]), "",
+                      "Exclusions (summed over seeds and position):", "",
+                      _md_table(["arm", "aborted", "blank WSA", "off-scale WSA"],
+                                [[a, sum(r["aborted_excluded"] for r in result.r5c_summary if r["arm"] == a),
+                                  sum(r["blank_wsa_excluded"] for r in result.r5c_summary if r["arm"] == a),
+                                  sum(r["off_scale_excluded"] for r in result.r5c_summary if r["arm"] == a)]
+                                 for a in arms]), ""]
+        else:
+            lines += ["### R5c: mean first-stated WSA by year within a UB dry spell (items 31, 34) and after it",
+                      "", "No UB dry spell in this corpus (UB sub-basins only, as in R4).", ""]
+        if result.r5d_summary:
+            splits = [s for s, _ in R5D_SPLITS if any(r["split"] == s for r in result.r5d_summary)]
+            body = []
+            for split in splits:
+                row_cells = []
+                for a in arms:
+                    r = next((r for r in result.r5d_summary if r["arm"] == a and r["split"] == split), None)
+                    row_cells.append("n/a" if r is None or r["eligible_decisions"] == 0
+                                     else f"{_fmt(r['share_pct'], 1)}% (n={r['eligible_decisions']})")
+                body.append([split] + row_cells)
+            lines += ["### R5d: first proposals that are increases where neither TR1 nor the supply rule "
+                      "could act (spec 33b), by split (item 33c)", "",
+                      _md_table(["split"] + arms, body), "",
+                      "overall's exclusions (summed over seeds; aborted, blank WSA, off-scale WSA, "
+                      "at-cap -- increase not on the menu):", "",
+                      _md_table(["arm", "aborted", "blank WSA", "off-scale WSA", "at-cap"],
+                                [[a] + [next((r[f"excluded_{k}"] for r in result.r5d_summary
+                                             if r["arm"] == a and r["split"] == "overall"), 0)
+                                       for k in ("aborted", "blank_wsa", "off_scale_wsa", "at_cap")]
+                                 for a in arms]), ""]
+        if result.r5d_little_spare_summary:
+            lines += ["### R5d-UB-little-spare: first proposals that are increases where the supply rule "
+                      "did not fire and the sub-basin's unused water (A_s minus the sum of the members' "
+                      "Decision.keep_request_af) is below the deciding agent's own typical_step_af (item "
+                      "34; spec 33b)", "",
+                      _md_table(["arm", "eligible", "increases", "share %", "excl. aborted",
+                                 "excl. unknown sum"],
+                                [[r["arm"], r["eligible_decisions"], r["first_proposal_increases"],
+                                  _fmt(r["share_pct"], 1), r["excluded_aborted"], r["excluded_unknown_sum"]]
+                                 for r in result.r5d_little_spare_summary]), ""]
     return "\n".join(lines)
 
 
@@ -3752,6 +4408,13 @@ def write_metrics(result: MetricsResult, out_dir: Path) -> List[Path]:
         "kge_fql_benchmark.csv": result.benchmark_rows, "kge_fql_benchmark_summary.csv": result.benchmark_summary,
         "lb_agent_kge.csv": result.lb_agent_rows, "lb_agent_ceilings.csv": result.lb_agent_ceilings,
         "drought_recovery.csv": result.recovery, "drought_recovery_summary.csv": result.recovery_summary,
+        "r5a_wsa_by_band.csv": result.r5a, "r5a_wsa_by_band_summary.csv": result.r5a_summary,
+        "r5b_wsa_by_short_years.csv": result.r5b, "r5b_wsa_by_short_years_summary.csv": result.r5b_summary,
+        "r5c_wsa_by_spell_year.csv": result.r5c, "r5c_wsa_by_spell_year_summary.csv": result.r5c_summary,
+        "r5d_unblocked_increase_share.csv": result.r5d,
+        "r5d_unblocked_increase_share_summary.csv": result.r5d_summary,
+        "r5d_ub_little_spare.csv": result.r5d_little_spare,
+        "r5d_ub_little_spare_summary.csv": result.r5d_little_spare_summary,
     }
     written = []
     for name, rows in tables.items():

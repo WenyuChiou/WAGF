@@ -72,9 +72,11 @@ Reported as agreement with the source model's decision rule in the same water sy
 - LB per agent: each LB agent's request KGE, against that agent's own ceiling, computed per agent: the median across FQL seeds of the agent's request KGE against the mean of the other seeds (`lb_agent_kge.csv`, `lb_agent_ceilings.csv`). Per run, `kge_lb_agent_request_median` is the median over LB agents of the per-agent KGE, reported beside `kge_lb_agent_constant_sim` (agents scored by the convention, in the median) and `kge_lb_agent_undefined` (agents with a constant reference, left out; the same in every arm), in `per_run_metrics.csv`, `arm_summary.csv` and `paired_tests.csv`.
 - Floor and ceiling (item 21): replays A (every agent's request held at its 2018 use) and B (held at 0.99 W), both with `hold_requests_fixed = True`, scored against the same reference. Held requests make the request series constant, so their request KGE is the convention's 1 - sqrt(2 + (beta - 1)^2): a no-change floor, not a model result. `replays.csv` lists those cells in `kge_convention_series` with a `kge_note`, and the markdown marks them (c).
 
-## 8. R4 drought recovery (item 23; reported, never gated)
+## 8. R4 drought recovery (items 23, 34; reported, never gated)
 
-This is the study's definition (stated assumption, 2026-10-01). Per UB sub-basin (`ub_subbasin`), a dry spell is a maximal run of consecutive years with `ub_subbasin_ratio` (its final settlement ratio) below FULL_SUPPLY_RATIO. Its reference is the sub-basin's total `request` in the last year before the spell; a spell that starts in the first year has no reference and is skipped and counted. The recovery time is the smallest j >= 1 such that the total request in (last spell year + j) is at or above the reference (compared with a 1e-9 relative, 1e-6 AF absolute tolerance); the spell is censored when that is not reached before the next spell starts or the run ends. Reported per sub-basin and pooled: spells, recovered, censored, the median recovery years among recovered spells, and the skipped spells; seeds pooled per arm, and the FQL seeds pooled, with the same definition.
+This is the study's definition (stated assumption, 2026-10-01; dry-year definition replaced 2026-10-01, item 34). Per UB sub-basin (`ub_subbasin`), a dry spell is a maximal run of consecutive dry years (`v3_metrics.ub_subbasin_dry_years`). Its reference is the sub-basin's total `request` in the last year before the spell; a spell that starts in the first year has no reference and is skipped and counted. The recovery time is the smallest j >= 1 such that the total request in (last spell year + j) is at or above the reference (compared with a 1e-9 relative, 1e-6 AF absolute tolerance); the spell is censored when that is not reached before the next spell starts or the run ends. Reported per sub-basin and pooled: spells, recovered, censored, the median recovery years among recovered spells, and the skipped spells; seeds pooled per arm, and the FQL seeds pooled, with the same definition.
+
+Dry-year definition: a year is dry when the sub-basin's available supply A_s(t) (`examples/irrigation_abm/data/ub_subbasin_supply_v3.csv`, the run's own `ub_subbasin_supply_variant`, WP1b item 20, read through `irrigation_env._load_ub_subbasin_supply_table`, the module's existing checksum-pinned data access) is below the 20th percentile (`UB_DRY_YEAR_PERCENTILE`, a stated ASSUMPTION; the threshold-level method of hydrological drought, no source sets a percentile for this) of that sub-basin's own A_s over the FULL supply table for the variant (the 42-year trace, item 34; `_ub_subbasin_dry_threshold`), not just the years one run happens to cover, so a short run gets the same dry years as the full table restricted to its own years. This REPLACES the earlier realised-shortage definition (dry year = `ub_subbasin_ratio`, the settled share at the members' FINAL post-decision requests, below FULL_SUPPLY_RATIO): that definition was endogenous, because at a level supply (A_s at or above the sub-basin's keep-request sum) a dry year existed only when some member actually increased its request that year, so an arm whose agents increase more produced more and longer spells for a reason that had nothing to do with the water available; and because TR1 is evaluated under the appraisal freeze, an agent's own increase could itself turn a level year dry and then (the sharing clause) lower that same agent's own later first-stated WSA, making R5c's "WSA dulls within a dry spell" reading partly true by construction rather than only by appraisal. A_s is a hydrology input fixed before any agent decides, so under the new definition the dry years (and therefore R4's and R5c's spells) are identical in every arm and seed that shares a supply variant.
 
 ## 9. Statistics
 
@@ -125,3 +127,104 @@ The spec WP6 items this module does not compute; they read the finished corpus:
 - LB increases executed in declared Tier 2 or 3 years (descriptive).
 - The LB-versus-UB request replay split (L4-05).
 - Powell elevation crossings.
+
+## 14. R5: appraisal against the supply headline and multi-year drought (items 33b, 34; report-only, pre-registered 2026-10-01)
+
+Five report-only tables (R5a-R5d plus R5d-UB-little-spare, added 2026-10-01
+on review), never gated and never part of the IBR or any refusal
+(`.research/design_specs/irrigation_v3_drought_rule_scan_2026-10-01.md`, Q6:
+DO NOT ADD a multi-year appraisal-grounding rule; measure it instead).
+Computed for LLM runs only; the FQL reference states no appraisal. R5b and
+R5c's means use a module-own ordinal code for the first-stated WSA (item
+28): VL=1, L=2, M=3, H=4, VH=5. In every mean or share below, an ABORTED or
+ABORTED_EXCEPTION decision is excluded and counted under `aborted_excluded`;
+a decision with no first-stated WSA under `blank_wsa_excluded`; one whose
+first-stated WSA is stated but not one of the five construct levels under
+`off_scale_excluded` (the `ibr_metrics` split of `first_wsa_missing` from
+`first_wsa_off_scale`). None is ever silently dropped.
+
+- R5a: the first-stated WSA distribution by the prompt's supply headline
+  band (`irrigation_personas.build_water_situation_text`, spec 4.3): r =
+  `state_supply_ratio` against FULL_SUPPLY_RATIO (0.999), 0.95, 0.80 and
+  0.50 (`v3_metrics.r5a_headline_band`). A decision whose
+  `state_supply_ratio` is unknown (the ABORTED_EXCEPTION sentinel) has no
+  band and is counted under band "unknown_no_supply_state" (pooled by arm
+  too, `r5a_band_summary`: fixed 2026-10-01, it was silently dropped from
+  the pooled summary before).
+- R5b: the mean first-stated WSA by K, the number of short years (that
+  year's final delivery below FULL_SUPPLY_RATIO of its request,
+  `irrigation_personas.supply_ratio` on `simulation_log.csv`'s `diversion`
+  and `request`) among the agent's last 5 shown years
+  (`config/agent_types.yaml`'s `irrigation_farmer.feedback.trend_window`,
+  pinned by `assert_short_year_window_matches_config`), K = 0 to 5, split
+  by `full_window` (True: all 5 years were shown, years 6+; False: fewer
+  were, years 2-5, so a given K means less; added 2026-10-01). A decision
+  in the first simulated year has no shown prior year at all and is
+  counted under K = "no_window" (`full_window` = null there).
+- R5c (items 31, 34): the mean first-stated WSA by year within each UB dry
+  spell (`drought_recovery`, the same spells as R4, including its
+  exogenous, full-table dry-year redefinition of item 34: position 1, 2,
+  3... from the spell's first dry year) and in the 3 years after it ends
+  (position 1 to 3). Upper Basin sub-basins only, like R4: `drought_
+  recovery` groups agents by `ub_subbasin`, which is blank for every Lower
+  Basin agent, so no Lower Basin decision is ever in an R5c row. A year
+  that is both N years after one spell and inside the next is counted on
+  both axes. Because the spells no longer depend on agent decisions, R5c's
+  positions are identical across arms and seeds too.
+- R5d (item 34; spec 33b: how often an Upper Basin increase takes water
+  from others while a drought persists at a level supply): by arm and by
+  split (`split` column: "overall", "basin=upper_basin", "basin=
+  lower_basin", "last_year=short", "last_year=not_short", "last_year=
+  first_year", and the crossed "basin=upper_basin,last_year=short"), the
+  share of first proposals that are increases in decisions where neither
+  TR1 nor the supply rule could act: first-stated WSA not High or Very
+  High, and `Decision.supply_condition`
+  (`state_supply_physical_ratio < FULL_SUPPLY_RATIO`) False. "last_year=*"
+  reads the prompt's own last-year-short framing
+  (`irrigation_personas.supply_ratio` on the PRIOR year's logged diversion
+  and request); "first_year" is year 1, which has no prior year (spec 4.3:
+  its sentence states no shortfall). Every split also excludes an at-cap
+  decision (`excluded_at_cap`): the menu does not OFFER `increase_demand`
+  there, but the agent can still PROPOSE an off-menu increase (fixture d6
+  in `test_r5d_hand_computed` does exactly this), which is then blocked by
+  the water-right cap rather than by TR1 or the supply rule, so it belongs
+  to neither population either way; counted beside the share, not folded
+  into the denominator.
+- R5d-UB-little-spare (item 34; spec 33b; REPLACES the 2026-10-01
+  R5d-UB-zero-sum, whose strict condition -- the supply rule's condition
+  False AND A_s(t) <= the sub-basin's keep-request sum -- is near-empty by
+  construction: every member's settled ratio at the keep requests is the
+  SAME shared factor min(1, A_s / sum of keep requests) (spec WP1b.3), so
+  "the supply rule did not fire" already means A_s is at least
+  FULL_SUPPLY_RATIO times that sum, leaving only the razor-thin band
+  [FULL_SUPPLY_RATIO, 1) of it for "A_s <= the sum" to add, and its hand
+  test assumed a ratio the water system cannot actually produce from the
+  A_s and keep requests it used): among Upper Basin decisions where the
+  supply rule's condition does NOT hold AND the sub-basin's unused water,
+  A_s(t) minus the sum of its members' `Decision.keep_request_af` that
+  year, is smaller than the DECIDING agent's own typical step
+  (`typical_step_af`, `simulation_log.csv`'s own column, spec 2.5: the
+  median of the agent's own step distribution, the same number the option
+  texts show as "your typical step of about {s} acre-ft",
+  `irrigation_personas.build_option_texts`) -- `0 <= A_s - keep sum <
+  typical_step_af`, i.e. even one ordinary-sized increase by this agent
+  cannot be absorbed by the sub-basin's unused water and must come out of
+  other members' shares -- the share of first proposals that are
+  increases. The keep-request sum is read from `Decision.
+  keep_request_af` (`state_supply_keep_request_af`), never a settled
+  POST-decision total: that would be the same endogenous quantity the
+  realised-shortage dry-year definition was flagged for. A_s is read the
+  same way as R4's dry years (`_ub_subbasin_available_af`). A member whose
+  keep request is unknown (the ABORTED_EXCEPTION sentinel) makes the whole
+  sub-basin-year's sum unknown; every other decision in it is excluded
+  under `excluded_unknown_sum` rather than approximated from a partial
+  sum.
+
+Per run: `r5a_wsa_by_band.csv`, `r5b_wsa_by_short_years.csv`,
+`r5c_wsa_by_spell_year.csv`, `r5d_unblocked_increase_share.csv`,
+`r5d_ub_little_spare.csv`. Pooled by arm (seeds summed, the mean or share
+recomputed from the pooled sums, never from averaging already-rounded
+per-run means): `r5a_wsa_by_band_summary.csv`,
+`r5b_wsa_by_short_years_summary.csv`, `r5c_wsa_by_spell_year_summary.csv`,
+`r5d_unblocked_increase_share_summary.csv`, `r5d_ub_little_spare_summary.csv`,
+and the "R5" section of `v3_metrics.md`'s own markdown output.

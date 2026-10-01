@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import dataclasses
+import inspect
 import json
 import re
 import shutil
@@ -864,46 +865,91 @@ def test_dead_pool_dates(tmp_path):
     assert r["mead_dead_pool_dates"] == [2021, 2022] and r["mead_first_dead_pool_jan1"] == 2021
 
 
-def _recovery_sim(tmp_path: Path, ratios: Sequence[float], requests: Sequence[float]) -> vm.SimLog:
-    n = len(ratios)
+def _patch_ub_supply(monkeypatch, a_s: Dict[str, Dict[int, float]], variant: Optional[str] = None) -> None:
+    """Monkeypatch vm._load_ub_subbasin_supply_table (the module's existing,
+    checksum-pinned data access for A_s(t)) to return a_{sb}_af =
+    a_s[sb][sim_year], instead of reading the committed CSV. ``a_s`` is
+    keyed by sub-basin then by the real sim_year (CFG.sim_start_year + loop
+    year - 1). Used by every test below that needs a controlled A_s trace
+    (item 34: dry years now come from A_s, never from a settled,
+    post-decision ub_subbasin_ratio)."""
+    variant = variant or CFG.ub_subbasin_supply_variant
+
+    def fake(v: str) -> Dict[int, Dict[str, float]]:
+        assert v == variant, f"expected variant {variant!r}, got {v!r}"
+        years = sorted({y for series in a_s.values() for y in series})
+        return {y: {"source_calendar_year": y,
+                    **{f"a_{sb}_af": series[y] for sb, series in a_s.items() if y in series}}
+                for y in years}
+
+    monkeypatch.setattr(vm, "_load_ub_subbasin_supply_table", fake)
+
+
+def _recovery_sim(monkeypatch, tmp_path: Path, a_s: Sequence[float], requests: Sequence[float],
+                  ratio: float = 1.0) -> vm.SimLog:
+    """A UT1 sim (UB1 + UB2) of len(a_s) years for drought_recovery tests.
+    Dry years now come from A_s (monkeypatched via _patch_ub_supply), never
+    from ub_subbasin_ratio, which this sim holds at a constant ``ratio``
+    (irrelevant to the dry-year definition; see
+    test_ub_subbasin_dry_years_independent_of_agent_behaviour). ``requests``
+    is the sub-basin's total request each year, for the recovery reference."""
+    n = len(a_s)
     hydrology = _load_hydrology_table()
     system = system_years(n, [13.0] * n, [11.0] * n, [0] * n)
     for t in system:
         system[t]["calendar_year"] = hydrology[CFG.sim_start_year + t - 1]["source_calendar_year"]
-    years = {("UB1", t): {"ub_subbasin_ratio": ratios[t - 1], "request": requests[t - 1] / 2}
+    _patch_ub_supply(monkeypatch, {"UT1": {CFG.sim_start_year + t - 1: a_s[t - 1] for t in range(1, n + 1)}})
+    years = {("UB1", t): {"ub_subbasin_ratio": ratio, "request": requests[t - 1] / 2}
              for t in range(1, n + 1)}
-    years.update({("UB2", t): {"ub_subbasin_ratio": ratios[t - 1], "request": requests[t - 1] / 2}
+    years.update({("UB2", t): {"ub_subbasin_ratio": ratio, "request": requests[t - 1] / 2}
                   for t in range(1, n + 1)})
     path = write_run(tmp_path / "r4", fql_manifest(42), sim_rows(system, years))
     return vm.load_sim_log(path)
 
 
-def test_drought_recovery_hand_computed(tmp_path):
-    sim = _recovery_sim(tmp_path, [1.0, 0.8, 0.9, 1.0, 1.0, 1.0], [100, 90, 80, 90, 101, 105])
-    (spell,) = vm.drought_recovery(sim, "x", "strict")
+def test_drought_recovery_hand_computed(monkeypatch, tmp_path):
+    """A_s(UT1) = [100,100,20,25,100,100,100,100]: the 20th percentile of
+    this 8-year trace is 55.0 (verified against numpy directly), so years 3
+    and 4 (values 20, 25) are dry -- a 2-year spell, identical to whatever
+    ub_subbasin_ratio the agents happened to settle at (item 34)."""
+    sim = _recovery_sim(monkeypatch, tmp_path, [100, 100, 20, 25, 100, 100, 100, 100],
+                        [100, 100, 90, 80, 90, 101, 105, 110])
+    (spell,) = vm.drought_recovery(sim, CFG, "x", "strict")
     assert (spell["subbasin"], spell["start_year"], spell["end_year"], spell["dry_years"]) == (
-        "UT1", 2020, 2021, 2)
-    # reference: the 2019 total, 100; 2022 has 90, 2023 has 101, so j = 2
+        "UT1", 2021, 2022, 2)
+    # reference: year 2's total, 100; year 5 has 90, year 6 has 101, so j = 2
     assert (spell["reference_request_af"], spell["status"], spell["recovery_years"]) == (100, "recovered", 2)
 
 
-@pytest.mark.parametrize("ratios,requests,status,censored_by", [
-    ([0.8, 1.0, 1.0], [100, 90, 100], "no reference", ""),            # starts in year 1: skipped
-    ([1.0, 0.8, 1.0], [100, 90, 95], "censored", "end of run"),
-    ([1.0, 0.8, 1.0, 0.7, 1.0], [100, 90, 95, 80, 120], "censored", "next spell"),
-    ([1.0, 0.8, 0.7, 1.0], [100, 90, 101, 100], "recovered", ""),     # a dry year above the reference is no recovery
+@pytest.mark.parametrize("a_s,requests,status,censored_by", [
+    # dry at year 1 only: starts in year 1, skipped (no reference).
+    ([10, 1000, 1010, 1020, 1030], [100, 90, 100, 100, 100], "no reference", ""),
+    # dry at year 2 only; years 3-5 never reach the year-1 reference (100).
+    ([1000, 10, 1020, 1030, 1040], [100, 90, 95, 96, 97], "censored", "end of run"),
+    # dry at years 2 and 5 (separate 1-year spells): the first spell's
+    # recovery search (years 3-4, below reference) is interrupted by the
+    # second spell starting at year 5.
+    ([1000, 10, 1020, 1030, 11, 1040, 1050, 1060], [100, 90, 95, 96, 80, 120, 105, 110],
+     "censored", "next spell"),
+    # dry at years 2-3 (one 2-year spell); year 3's request (101) is ABOVE
+    # the year-1 reference (100) but is INSIDE the spell, so it must not
+    # trigger an early "recovered" -- recovery is only checked from year 4.
+    ([1000, 10, 11, 1020, 1030, 1040, 1050, 1060], [100, 90, 101, 100, 105, 110, 115, 120],
+     "recovered", ""),
 ])
-def test_drought_recovery_censored_and_skipped(tmp_path, ratios, requests, status, censored_by):
-    spell = vm.drought_recovery(_recovery_sim(tmp_path, ratios, requests), "x", "strict")[0]
+def test_drought_recovery_censored_and_skipped(monkeypatch, tmp_path, a_s, requests, status, censored_by):
+    spell = vm.drought_recovery(_recovery_sim(monkeypatch, tmp_path, a_s, requests), CFG, "x", "strict")[0]
     assert (spell["status"], spell["censored_by"]) == (status, censored_by)
     if status == "recovered":
         assert spell["recovery_years"] == 1  # j counts from the last spell year
 
 
-def test_drought_recovery_compares_float_safely(tmp_path):
+def test_drought_recovery_compares_float_safely(monkeypatch, tmp_path):
     """The reference total 0.1 + 0.2 = 0.30000000000000004 and a later total
-    of exactly 0.3 count as equal: recovered, not censored."""
-    spell = vm.drought_recovery(_recovery_sim(tmp_path, [1.0, 0.8, 1.0], [0.1 + 0.2, 0.1, 0.3]), "x", "strict")[0]
+    of exactly 0.3 count as equal: recovered, not censored. A_s = [1000, 10,
+    1020] is dry at year 2 only (verified against numpy)."""
+    spell = vm.drought_recovery(
+        _recovery_sim(monkeypatch, tmp_path, [1000, 10, 1020], [0.1 + 0.2, 0.1, 0.3]), CFG, "x", "strict")[0]
     assert spell["reference_request_af"] > 0.3
     assert (spell["status"], spell["recovery_years"]) == ("recovered", 1)
 
@@ -921,6 +967,381 @@ def test_recovery_table_per_subbasin_and_pooled():
     assert tuple(rows[("strict", "pooled")][k] for k in keys) == (3, 2, 1, 2.0, 1)
     assert tuple(rows[("disabled", "pooled")][k] for k in keys) == (0, 0, 0, None, 0)  # no spell, still a row
     assert tuple(rows[("fql", "pooled")][k] for k in keys) == (1, 1, 0, 2.0, 0)
+
+
+def test_ub_subbasin_dry_years_independent_of_agent_behaviour(monkeypatch, tmp_path):
+    """The reviewer's point (item 34): dry years come only from A_s
+    (hydrology), never from the settled ub_subbasin_ratio. Two sims that
+    differ only in their agents' settled ratios (as strict vs disabled
+    might, or a run that increases a lot vs one that never does) get the
+    identical dry-year set."""
+    a_s = [100, 100, 20, 25, 100, 100, 100, 100]
+    requests = [100] * 8
+    sim_never_short = _recovery_sim(monkeypatch, tmp_path / "a", a_s, requests, ratio=1.0)
+    sim_always_short = _recovery_sim(monkeypatch, tmp_path / "b", a_s, requests, ratio=0.3)
+    dry_a = vm.ub_subbasin_dry_years(sim_never_short, CFG)
+    dry_b = vm.ub_subbasin_dry_years(sim_always_short, CFG)
+    assert dry_a == dry_b == {"UT1": {3, 4}}
+
+
+def test_ub_subbasin_dry_years_uses_the_full_table_not_the_runs_own_years(monkeypatch, tmp_path):
+    """Item 34: the dry-year threshold is the UB_DRY_YEAR_PERCENTILE-th
+    percentile of the FULL ub_subbasin_supply_v3 table for the variant (the
+    "42-year trace"), not of whatever years one run happens to cover.
+    A_s(UT1) = [60,60,60,60,20,20,20,20] over the full 8-year table gives
+    threshold 20.0 exactly (verified against numpy), so years 5-8 (value
+    20, not STRICTLY below 20) are NOT dry. A short run covering only years
+    1-5 ([60,60,60,60,20]), if it wrongly computed its own percentile from
+    just those 5 values, would get threshold 52.0 and flag year 5 as dry
+    (also verified against numpy); using the full table's threshold it
+    correctly has none."""
+    full_a_s = {CFG.sim_start_year + t - 1: v for t, v in
+               enumerate([60, 60, 60, 60, 20, 20, 20, 20], start=1)}
+    _patch_ub_supply(monkeypatch, {"UT1": full_a_s})
+    n = 5
+    system = system_years(n, [13.0] * n, [11.0] * n, [0] * n)
+    years = {("UB1", t): {"ub_subbasin_ratio": 1.0, "request": 50.0} for t in range(1, n + 1)}
+    years.update({("UB2", t): {"ub_subbasin_ratio": 1.0, "request": 50.0} for t in range(1, n + 1)})
+    path = write_run(tmp_path / "short", fql_manifest(42), sim_rows(system, years))
+    short_sim = vm.load_sim_log(path)
+    assert vm.ub_subbasin_dry_years(short_sim, CFG) == {"UT1": set()}
+
+
+# =============================================================================
+# R5 (item 33c; pre-registered 2026-10-01; item 34, 2026-10-01: fixes to the
+# dry-year definition, R5d and some smaller gaps): report-only, never gated.
+# =============================================================================
+
+def test_r5a_headline_band_edges():
+    f = personas.FULL_SUPPLY_RATIO
+    assert vm.r5a_headline_band(f) == "sufficient"
+    assert vm.r5a_headline_band(f - 1e-9) == "slightly_short"
+    assert vm.r5a_headline_band(0.95) == "slightly_short"
+    assert vm.r5a_headline_band(0.95 - 1e-9) == "short"
+    assert vm.r5a_headline_band(0.80) == "short"
+    assert vm.r5a_headline_band(0.80 - 1e-9) == "well_short"
+    assert vm.r5a_headline_band(0.50) == "well_short"
+    assert vm.r5a_headline_band(0.50 - 1e-9) == "critical"
+
+
+def test_r5a_band_edges_match_build_water_situation_text():
+    """irrigation_personas.build_water_situation_text has no importable band
+    constant for 0.95, 0.80 and 0.50 (spec 4.3); this pins r5a_headline_band
+    against that function's own source so the two cannot silently drift
+    apart. FULL_SUPPLY_RATIO, the top edge, is imported, never copied."""
+    src = inspect.getsource(personas.build_water_situation_text)
+    found = [float(x) for x in re.findall(r"r_share >= (0\.\d+)", src)]
+    assert found == [0.95, 0.80, 0.50]
+
+
+def test_r5b_window_matches_config():
+    """R5b's K window must be the dashboard's own trend_window (item 34),
+    never a copy of that number."""
+    vm.assert_short_year_window_matches_config()
+
+
+def test_r5b_window_mismatch_is_refused(tmp_path):
+    import yaml as _yaml
+    raw = _yaml.safe_load(vm.CONFIG_PATH.read_text(encoding="utf-8"))
+    raw["irrigation_farmer"]["feedback"]["trend_window"] = 3
+    bad = tmp_path / "agent_types.yaml"
+    bad.write_text(_yaml.dump(raw), encoding="utf-8")
+    with pytest.raises(vm.MetricsError, match="trend_window"):
+        vm.assert_short_year_window_matches_config(bad)
+
+
+def test_r5a_wsa_by_band_hand_computed(strict_run):
+    """Band "sufficient" (ratio 1.0): d1(H), d2(L), d3(M), d4(VH), d6(M),
+    d7(ABORTED, missing), d9(L) = 7 decisions. Band "short" (ratio 0.9,
+    the supply rule's condition): d5(M), d8(H) = 2 decisions."""
+    rows = vm.r5a_wsa_by_band(strict_run)
+    assert len(rows) == 35  # 5 real bands x 7 wsa categories, always emitted
+    assert sum(r["decisions"] for r in rows) == 9
+    by_cell = {(r["band"], r["first_wsa"]): r["decisions"] for r in rows}
+    assert by_cell[("sufficient", "H")] == 1 and by_cell[("sufficient", "L")] == 2
+    assert by_cell[("sufficient", "M")] == 2 and by_cell[("sufficient", "VH")] == 1
+    assert by_cell[("sufficient", "VL")] == 0 and by_cell[("sufficient", "missing")] == 1  # d7
+    assert by_cell[("sufficient", "off_scale")] == 0
+    assert by_cell[("short", "H")] == 1 and by_cell[("short", "M")] == 1
+    assert by_cell[("short", "VL")] == 0
+    assert by_cell[("slightly_short", "VL")] == 0  # an empty band still gets its zero cells
+    assert by_cell[("critical", "missing")] == 0
+
+
+def test_r5a_unknown_band_for_aborted_exception(tmp_path):
+    """The ABORTED_EXCEPTION sentinel logs no supply state: it has no band
+    (r5a_headline_band needs a ratio) and is counted under
+    "unknown_no_supply_state", never dropped."""
+    decisions = dict(STRICT_DECISIONS)
+    decisions[("LB1", 1)] = dict(attempts=[], executed=None, crashed=True)  # was d3, WSA=M, "sufficient"
+    run = vm.load_run(fixture_run(tmp_path, "strict", decisions), keep_prompts=True)
+    rows = {(r["band"], r["first_wsa"]): r["decisions"] for r in vm.r5a_wsa_by_band(run)}
+    assert rows[("unknown_no_supply_state", "missing")] == 1
+    assert rows[("sufficient", "M")] == 1  # d6 only now; d3 moved to "unknown"
+    assert sum(rows.values()) == 9
+
+
+def test_r5a_band_summary_emits_unknown_band(tmp_path):
+    """Reviewer fix, 2026-10-01: a pooled r5a_band_summary must still show
+    the "unknown_no_supply_state" band for an arm that has one -- it was
+    silently dropped from the pooled summary before, even though the
+    per-run table (r5a_wsa_by_band) already counted it."""
+    decisions = dict(STRICT_DECISIONS)
+    decisions[("LB1", 1)] = dict(attempts=[], executed=None, crashed=True)
+    run = vm.load_run(fixture_run(tmp_path, "strict", decisions), keep_prompts=True)
+    pooled = vm.r5a_band_summary(vm.r5a_wsa_by_band(run), ["strict"])
+    unknown = [r for r in pooled if r["band"] == "unknown_no_supply_state"]
+    assert unknown and sum(r["decisions"] for r in unknown) == 1
+    assert next(r for r in unknown if r["first_wsa"] == "missing")["decisions"] == 1
+
+
+def test_r5a_off_scale_wsa_is_counted_separately(tmp_path):
+    """A first-stated WSA that is neither blank nor one of the five
+    construct levels is counted under "off_scale", never merged with
+    "missing" (reviewer fix, 2026-10-01: the ibr_metrics split of
+    first_wsa_missing from first_wsa_off_scale)."""
+    decisions = dict(STRICT_DECISIONS)
+    decisions[("LB1", 1)] = dict(attempts=[(KEEP, {"WSA_LABEL": "MAYBE", "ACA_LABEL": "M"}, [])], executed=KEEP)
+    run = vm.load_run(fixture_run(tmp_path, "strict", decisions), keep_prompts=True)
+    assert run.decisions[("LB1", 1)].first_wsa == "MAYBE"
+    rows = {(r["band"], r["first_wsa"]): r["decisions"] for r in vm.r5a_wsa_by_band(run)}
+    assert rows[("sufficient", "off_scale")] == 1  # was d3, WSA=M; now off-scale
+    assert rows[("sufficient", "M")] == 1  # d6 only
+    assert rows[("sufficient", "missing")] == 1  # d7, still ABORTED
+
+
+def test_r5b_wsa_by_short_years_hand_computed(strict_run):
+    """K = short years (ratio < FULL_SUPPLY_RATIO) among up to 5 prior shown
+    years. Year 1 decisions (d1, d2, d3) have no prior year: no_window.
+    K=0: d4(VH=5), d5(M=3), d6(M=3), d9(L=2) valid, plus d7 ABORTED (also
+    K=0, since UB1 was never short in years 1-2). K=1: d8(H=4), because
+    UB2 was short (ratio 0.9) in year 2. The fixture only has 3 years, so
+    the window never reaches R5B_SHORT_YEAR_WINDOW (5): every real bucket is
+    full_window=False."""
+    rows = {(r["k_short_years"], r["full_window"]): r for r in vm.r5b_wsa_by_short_years(strict_run)}
+    k0 = rows[(0, False)]
+    assert (k0["n_in_mean"], k0["sum_first_wsa"], k0["aborted_excluded"], k0["blank_wsa_excluded"],
+            k0["off_scale_excluded"]) == (4, 13, 1, 0, 0)
+    assert k0["mean_first_wsa"] == pytest.approx(3.25)
+    k1 = rows[(1, False)]
+    assert (k1["n_in_mean"], k1["sum_first_wsa"]) == (1, 4)
+    assert k1["mean_first_wsa"] == pytest.approx(4.0)
+    for k in (2, 3, 4, 5):
+        assert rows[(k, False)]["n_in_mean"] == 0 and rows[(k, False)]["mean_first_wsa"] is None
+        assert rows[(k, True)]["n_in_mean"] == 0  # full_window never occurs in a 3-year fixture
+    no_window = rows[("no_window", None)]
+    assert no_window["no_window_excluded"] == 3  # UB1/UB2/LB1 year 1
+    assert sum(r["n_in_mean"] + r["aborted_excluded"] + r["blank_wsa_excluded"] + r["off_scale_excluded"]
+              for r in rows.values()) + no_window["no_window_excluded"] == 9
+
+
+def test_r5b_blank_wsa_is_excluded_and_counted(tmp_path):
+    """A decision whose only attempt states no WSA at all (not a relabel,
+    not a fallback: genuinely never stated) is excluded from the mean and
+    counted under blank_wsa_excluded, never silently dropped."""
+    decisions = dict(STRICT_DECISIONS)
+    decisions[("LB1", 3)] = dict(attempts=[(KEEP, {"WSA_LABEL": "", "ACA_LABEL": "M"}, [])], executed=KEEP)
+    run = vm.load_run(fixture_run(tmp_path, "strict", decisions), keep_prompts=True)
+    assert run.decisions[("LB1", 3)].first_wsa is None and not run.decisions[("LB1", 3)].aborted
+    rows = {(r["k_short_years"], r["full_window"]): r for r in vm.r5b_wsa_by_short_years(run)}
+    # k=0 loses d9 (L=2) to blank_wsa_excluded; d4, d5, d6 remain (sum 11, n 3)
+    k0 = rows[(0, False)]
+    assert (k0["n_in_mean"], k0["sum_first_wsa"], k0["blank_wsa_excluded"], k0["aborted_excluded"]) == (3, 11, 1, 1)
+    assert k0["mean_first_wsa"] == pytest.approx(11 / 3)
+    k1 = rows[(1, False)]
+    assert (k1["n_in_mean"], k1["mean_first_wsa"]) == (1, pytest.approx(4.0))
+    assert rows[("no_window", None)]["no_window_excluded"] == 3
+
+
+def _r5c_run(monkeypatch, tmp_path: Path) -> vm.LoadedRun:
+    """UB1 and UB2 (sub-basin UT1) and LB1 (no sub-basin), 8 years, reusing
+    the A_s trace of test_drought_recovery_hand_computed (dry years 3-4, the
+    20th percentile, verified against numpy): a 2-year dry spell and 3
+    recovered years (5-7, the R5c post-spell window), with years 1, 2 and 8
+    as padding. UB2's year 4 is ABORTED, to exercise the exclusion rule
+    inside a spell."""
+    n = 8
+    a_s = [100, 100, 20, 25, 100, 100, 100, 100]
+    system = system_years(n, [13.0] * n, [11.0] * n, [0] * n)
+    _patch_ub_supply(monkeypatch, {"UT1": {CFG.sim_start_year + t - 1: a_s[t - 1] for t in range(1, n + 1)}})
+    agent_years = {}
+    for t in range(1, n + 1):
+        agent_years[("UB1", t)] = {"request": 1000.0, "diversion": 1000.0}
+        agent_years[("UB2", t)] = {"request": 1000.0, "diversion": 1000.0}
+        agent_years[("LB1", t)] = {"request": 1000.0, "diversion": 1000.0}
+    wsa = {
+        ("UB1", 3): "H", ("UB2", 3): "M",         # in_spell position 1
+        ("UB1", 4): "VH",                         # in_spell position 2; UB2 ABORTED
+        ("UB1", 5): "M", ("UB2", 5): "L",         # after_spell offset 1
+        ("UB1", 6): "L", ("UB2", 6): "L",         # after_spell offset 2
+        ("UB1", 7): "VL", ("UB2", 7): "M",        # after_spell offset 3
+    }
+    decisions = {}
+    for t in range(1, n + 1):
+        for agent in ("UB1", "UB2", "LB1"):
+            if (agent, t) == ("UB2", 4):
+                decisions[(agent, t)] = dict(attempts=[], executed=None, status="ABORTED", path="aborted",
+                                             format_retries=0, llm_success="")
+                continue
+            label = wsa.get((agent, t), "M")  # LB1's label and the padding years are never read by R5c
+            decisions[(agent, t)] = dict(attempts=[(KEEP, {"WSA_LABEL": label, "ACA_LABEL": "M"}, [])],
+                                         executed=KEEP)
+    audits = [audit_row(a, t, **spec) for (a, t), spec in decisions.items()]
+    traces = [trace(a, t, aborted=spec.get("path") == "aborted") for (a, t), spec in decisions.items()]
+    path = write_run(tmp_path / "r5c", llm_manifest("strict", agents=sorted(AGENTS)),
+                     sim_rows(system, agent_years), audits, traces)
+    return vm.load_run(path, keep_prompts=True)
+
+
+def test_r5c_wsa_by_spell_year_hand_computed(monkeypatch, tmp_path):
+    run = _r5c_run(monkeypatch, tmp_path)
+    rows = {(r["position_type"], r["position"]): r for r in vm.r5c_wsa_by_spell_year(run, CFG)}
+    assert (rows[("in_spell", 1)]["n_in_mean"], rows[("in_spell", 1)]["mean_first_wsa"]) == (
+        2, pytest.approx(3.5))  # UB1=H(4), UB2=M(3)
+    assert (rows[("in_spell", 2)]["n_in_mean"], rows[("in_spell", 2)]["mean_first_wsa"],
+            rows[("in_spell", 2)]["aborted_excluded"]) == (1, pytest.approx(5.0), 1)  # UB1=VH(5); UB2 ABORTED
+    assert (rows[("after_spell", 1)]["n_in_mean"], rows[("after_spell", 1)]["mean_first_wsa"]) == (
+        2, pytest.approx(2.5))  # UB1=M(3), UB2=L(2)
+    assert (rows[("after_spell", 2)]["n_in_mean"], rows[("after_spell", 2)]["mean_first_wsa"]) == (
+        2, pytest.approx(2.0))  # UB1=L(2), UB2=L(2)
+    assert (rows[("after_spell", 3)]["n_in_mean"], rows[("after_spell", 3)]["mean_first_wsa"]) == (
+        2, pytest.approx(2.0))  # UB1=VL(1), UB2=M(3)
+    # LB1 (no sub-basin) never appears: 2+1+2+2+2 = 9 of UB1/UB2's 10
+    # decisions across the 5 positions (one, UB2 year 4, is aborted_excluded
+    # above), none of LB1's 8.
+    assert sum(r["n_in_mean"] for r in rows.values()) == 9
+    assert sum(r["aborted_excluded"] for r in rows.values()) == 1
+
+
+def test_r5d_hand_computed(strict_run):
+    """Splits (item 34). Overall: eligible = d2 (decrease), d3 (keep), d9
+    (increase); d1/d4/d8 excluded via TR1 (WSA H/VH, not counted anywhere:
+    TR1 could act), d5 via the supply rule's condition (physical ratio 0.9,
+    also not counted: the supply rule could act), d7 (ABORTED), and d6 via
+    excluded_at_cap: at the cap, the menu does not OFFER increase_demand,
+    but d6's first attempt PROPOSES it anyway (an off-menu increase, the
+    LLM is not restricted to the menu) and it is blocked by the cap (and
+    the two registry backstops), not by TR1 or the supply rule -- so it
+    belongs to neither population and is counted apart."""
+    rows = {r["split"]: r for r in vm.r5d_rows(strict_run)}
+    assert strict_run.decisions[("LB1", 2)].first_proposal == INC  # d6: an off-menu increase, not "impossible"
+    overall = rows["overall"]
+    assert (overall["eligible_decisions"], overall["first_proposal_increases"]) == (3, 1)
+    assert overall["share_pct"] == pytest.approx(100 / 3)
+    assert (overall["excluded_aborted"], overall["excluded_at_cap"],
+            overall["excluded_blank_wsa"], overall["excluded_off_scale_wsa"]) == (1, 1, 0, 0)
+
+    ub = rows["basin=upper_basin"]
+    assert (ub["eligible_decisions"], ub["first_proposal_increases"], ub["excluded_aborted"]) == (1, 0, 1)
+    lb = rows["basin=lower_basin"]
+    assert (lb["eligible_decisions"], lb["first_proposal_increases"], lb["excluded_at_cap"]) == (2, 1, 1)
+
+    first_year = rows["last_year=first_year"]  # d1, d2, d3 (year 1, no prior year)
+    assert (first_year["eligible_decisions"], first_year["first_proposal_increases"]) == (2, 0)
+    not_short = rows["last_year=not_short"]  # d4, d5, d6, d7, d9
+    assert (not_short["eligible_decisions"], not_short["first_proposal_increases"],
+            not_short["excluded_aborted"], not_short["excluded_at_cap"]) == (1, 1, 1, 1)
+    short = rows["last_year=short"]  # only d8 (UB2's year 2 was short)
+    assert (short["eligible_decisions"], short["share_pct"]) == (0, None)
+
+    # Crossed (item 34): Upper Basin AND last year short. d8 is UB2's year
+    # 3, the only last_year=short decision in the fixture, and it is UB --
+    # same population as the plain last_year=short split above.
+    crossed = rows["basin=upper_basin,last_year=short"]
+    assert (crossed["eligible_decisions"], crossed["share_pct"]) == (0, None)
+
+
+def _r5d_little_spare_run(monkeypatch, tmp_path: Path) -> vm.LoadedRun:
+    """UB1 (typical_step_af 50) and UB2 (typical_step_af 15), sub-basin
+    UT1, 4 years, for r5d_ub_little_spare. Every ratio is
+    round(min(1, A_s / 2000), 6), the water system's own formula for a UB
+    sub-basin's settled share at the keep requests (spec WP1b.3), so (item
+    34, replacing r5d_ub_zero_sum's hand test) no decision asserts a ratio
+    the environment could not actually produce from its A_s and keep
+    requests. Year 1: A_s 3000 (1000 AF unused): plenty of spare water for
+    both agents' steps. Year 2: A_s 2020 (20 AF unused, ratio still capped
+    at 1.0): little spare for UB1 (step 50 > 20) but not for UB2 (step
+    15 < 20, a typical UB2 increase would fit). Year 3: A_s 1900 (ratio
+    0.95): the supply rule fires, so neither agent counts either way.
+    Year 4: A_s 2020 again, but UB2 is the ABORTED_EXCEPTION sentinel, so
+    the pool's keep-request sum is unknown."""
+    n = 4
+    a_s_by_year = {1: 3000.0, 2: 2020.0, 3: 1900.0, 4: 2020.0}
+    keep_sum = 2000.0
+    ratio_by_year = {t: round(min(1.0, a_s_by_year[t] / keep_sum), 6) for t in range(1, n + 1)}
+    _patch_ub_supply(monkeypatch, {"UT1": {CFG.sim_start_year + t - 1: a_s_by_year[t] for t in range(1, n + 1)}})
+    system = system_years(n, [13.0] * n, [11.0] * n, [0] * n)
+    agent_years = {}
+    for t in range(1, n + 1):
+        agent_years[("UB1", t)] = {"request": 1000.0, "diversion": 1000.0 * ratio_by_year[t],
+                                   "typical_step_af": 50.0}
+        agent_years[("UB2", t)] = {"request": 1000.0, "diversion": 1000.0 * ratio_by_year[t],
+                                   "typical_step_af": 15.0}
+    decisions = {
+        ("UB1", 1): dict(attempts=[(KEEP, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=KEEP, physical=ratio_by_year[1]),
+        ("UB2", 1): dict(attempts=[(KEEP, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=KEEP, physical=ratio_by_year[1]),
+        ("UB1", 2): dict(attempts=[(INC, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=INC, physical=ratio_by_year[2]),
+        ("UB2", 2): dict(attempts=[(KEEP, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=KEEP, physical=ratio_by_year[2]),
+        ("UB1", 3): dict(attempts=[(INC, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [SUP]),
+                                   (KEEP, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=KEEP, physical=ratio_by_year[3]),
+        ("UB2", 3): dict(attempts=[(KEEP, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=KEEP, physical=ratio_by_year[3]),
+        ("UB1", 4): dict(attempts=[(INC, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])],
+                         executed=INC, physical=ratio_by_year[4]),
+        ("UB2", 4): dict(attempts=[], executed=None, crashed=True),
+    }
+    audits = [audit_row(a, t, **spec) for (a, t), spec in decisions.items()]
+    traces = [trace(a, t, aborted=spec.get("path") == "aborted", crashed=spec.get("crashed", False))
+             for (a, t), spec in decisions.items()]
+    path = write_run(tmp_path / "r5d_little_spare", llm_manifest("strict", agents=sorted(AGENTS)),
+                     sim_rows(system, agent_years), audits, traces)
+    return vm.load_run(path, keep_prompts=True)
+
+
+def test_r5d_ub_little_spare_hand_computed(monkeypatch, tmp_path):
+    """Eligible: only UB1's year 2 (20 AF unused < its 50 AF typical step),
+    an increase. UB2's year 2 does not count (20 AF unused is NOT below its
+    smaller 15 AF step). Year 1 has plenty of spare water for both agents'
+    steps; year 3's ratio (0.95) means the supply rule fires, excluding
+    both; year 4 has UB2 crashed, so UB1 -> excluded_unknown_sum and UB2 ->
+    excluded_aborted (not approximated from a partial sum)."""
+    run = _r5d_little_spare_run(monkeypatch, tmp_path)
+    row = vm.r5d_ub_little_spare(run, CFG)
+    assert (row["eligible_decisions"], row["first_proposal_increases"]) == (1, 1)
+    assert row["share_pct"] == pytest.approx(100.0)
+    assert (row["excluded_aborted"], row["excluded_unknown_sum"]) == (1, 1)
+
+
+def test_r5_summary_tables_pool_by_arm(strict_run, disabled_run):
+    """Pooling (as compute_metrics would, across seeds within an arm) sums
+    counts and recomputes the mean or share from the pooled sums."""
+    r5a = vm.r5a_wsa_by_band(strict_run) + vm.r5a_wsa_by_band(disabled_run)
+    pooled_a = {(r["arm"], r["band"], r["first_wsa"]): r for r in vm.r5a_band_summary(r5a, ["strict", "disabled"])}
+    assert pooled_a[("strict", "sufficient", "H")]["decisions"] == 1
+    assert pooled_a[("strict", "sufficient", "H")]["band_total_decisions"] == 7
+
+    r5b = vm.r5b_wsa_by_short_years(strict_run)
+    pooled_b = {(r["k_short_years"], r["full_window"]): r for r in vm.r5b_summary_table(r5b)}
+    assert pooled_b[(0, False)]["mean_first_wsa"] == pytest.approx(3.25)  # one run pooled: unchanged
+
+    r5d = vm.r5d_rows(strict_run) + vm.r5d_rows(disabled_run)
+    pooled_d = {(r["arm"], r["split"]): r for r in vm.r5d_summary_table(r5d)}
+    overall_strict = pooled_d[("strict", "overall")]
+    assert overall_strict["eligible_decisions"] == 3 and overall_strict["share_pct"] == pytest.approx(100 / 3)
+
+
+def test_r5_never_changes_the_pilot_gate_verdict():
+    """Item 33c: R5 is report-only, computed only by the ``metrics`` command.
+    pilot_gate's source (its gated checks and its "reported" R1-R4 list)
+    names no R5 function or field, so no future wiring mistake can reach it
+    without a visible diff here."""
+    src = inspect.getsource(vm.pilot_gate)
+    assert "r5" not in src.lower()
 
 
 # =============================================================================
@@ -1314,7 +1735,11 @@ def test_e2e_metrics_over_all_five_arms(mock_corpus, tmp_path):
                  "rule_census.csv", "supply_exposure.csv", "rule_agreement.csv", "kge.csv",
                  "kge_fql_benchmark_summary.csv", "lb_agent_kge.csv", "lb_agent_ceilings.csv",
                  "drought_recovery.csv", "drought_recovery_summary.csv", "replays.csv", "provenance.json",
-                 "v3_metrics.md"):
+                 "v3_metrics.md", "r5a_wsa_by_band.csv", "r5a_wsa_by_band_summary.csv",
+                 "r5b_wsa_by_short_years.csv", "r5b_wsa_by_short_years_summary.csv",
+                 "r5c_wsa_by_spell_year.csv", "r5c_wsa_by_spell_year_summary.csv",
+                 "r5d_unblocked_increase_share.csv", "r5d_unblocked_increase_share_summary.csv",
+                 "r5d_ub_little_spare.csv", "r5d_ub_little_spare_summary.csv"):
         assert (out / name).is_file(), name
     # spec 7.2: the LLM manifests now record the sub-basin keys, so every
     # water-system key is compared across all runs
@@ -1432,6 +1857,30 @@ def test_e2e_pilot_gate_on_the_mock_pair(mock_corpus, tmp_path):
     for check_id in ("P1", "P2", "P6", "P9"):
         assert checks[check_id]["passed"] is True, checks[check_id]["reason"]
     assert checks["P3"]["gated"] is False
+    assert {r["id"] for r in report["reported"]} == {"R1", "R2", "R3", "R4"}
+
+
+def test_r5_functions_monkeypatched_to_raise_do_not_change_pilot_gate(mock_corpus, tmp_path, monkeypatch):
+    """Empirical companion to test_r5_never_changes_the_pilot_gate_verdict
+    (reviewer fix, 2026-10-01): even if every R5 function were wired into
+    pilot_gate by mistake, its verdict on the mock pair is byte-for-byte
+    unchanged from test_e2e_pilot_gate_on_the_mock_pair, because it never
+    calls them. drought_recovery, ub_subbasin_dry_years and
+    _ub_subbasin_available_af are deliberately NOT in this list: report_r4
+    legitimately calls them inside pilot_gate (R4 is a real, intentional
+    "reported" item), and that must keep working."""
+    def boom(*a, **k):
+        raise AssertionError("pilot_gate must not call an R5 function")
+    for name in ("r5a_wsa_by_band", "r5a_band_summary", "r5b_wsa_by_short_years", "r5b_summary_table",
+                "r5c_wsa_by_spell_year", "r5c_summary_table", "r5d_rows", "r5d_summary_table",
+                "r5d_ub_little_spare", "r5d_ub_little_spare_summary"):
+        monkeypatch.setattr(vm, name, boom)
+    code = vm.main(["pilot-gate", "--runs", str(mock_corpus / "runs" / "strict_seed42"),
+                    str(mock_corpus / "runs" / "disabled_seed42"), "--fql", str(mock_corpus / "fql"),
+                    "--replays", str(mock_corpus / "replays"), "--out", str(tmp_path), "--allow-dirty"])
+    report = json.loads((tmp_path / "v3_pilot_gate_report.json").read_text(encoding="utf-8"))
+    assert code == 1 and report["passed"] is False
+    assert report["provenance_overrides"] == ["--allow-dirty"] and report["required_rows"] == 3276
     assert {r["id"] for r in report["reported"]} == {"R1", "R2", "R3", "R4"}
 
 
