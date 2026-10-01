@@ -62,6 +62,47 @@ results/<run_name>/
   reflection_log.jsonl                   # Memory consolidation events
 ```
 
+### Running with `--workers`
+
+`--workers N` (default 1) processes each year's agents through a
+`ThreadPoolExecutor` instead of one at a time
+(`broker/core/experiment_runner.py (ExperimentRunner._run_agents_parallel)`).
+
+**Guaranteed**: with `--model mock`, a run at any `--workers` value
+produces an identical `simulation_log.csv`, an identical
+`governance_summary.json` and an identical `run_integrity.json` to the
+same run at `--workers 1`, byte for byte, regardless of thread-completion
+order. The stock `--model mock` invoke
+(`broker/utils/llm_utils.py (create_llm_invoke)`) is itself a pure
+function of the prompt text, so this guarantee covers an ordinary
+`--model mock` run, not only a custom test double.
+`irrigation_farmer_governance_audit.csv` is identical row for row too,
+but only AFTER `broker.tools.compare_audit_csv`'s timestamp
+normalisation: every row carries a wall-clock `timestamp` column that
+differs between any two separate process runs regardless of code, so a
+raw byte or `diff` comparison of two runs' audit CSVs always shows a
+difference even with zero change. The apply loop (`_apply_state_changes`
+plus the `post_step` hook, including the memory engine's consolidation
+draw from its one shared `random.Random`) runs in submission order, not
+completion order; the audit CSV is sorted by `step_id` at export for the
+same reason. See
+`examples/irrigation_abm/tests/test_v3_workers_determinism.py`.
+
+**Not guaranteed**:
+
+- Real-LLM concurrency needs the Ollama server's own `OLLAMA_NUM_PARALLEL`
+  set to at least `--workers`, or requests queue server-side and the
+  wall-clock benefit disappears. Batched inference also changes the
+  model's numerics, and Ollama's own output is not reproducible run to
+  run at a fixed seed even at `--workers 1` (this runner sends no Ollama
+  seed). Run every arm of one corpus at the same `--workers` value so
+  this is never a hidden confound between arms.
+- The streamed JSONL (`raw/irrigation_farmer_traces.jsonl`) stays in
+  thread-completion order; it is not re-sorted at write time.
+  `broker.tools.recover_csv_from_jsonl` sorts by `step_id` when it
+  rebuilds a CSV from that JSONL, so a crash-recovered CSV's row order
+  matches a normal `finalize()` run's.
+
 ### v0.6 Coupling Layer (optional, default OFF)
 
 Pass `--coupling` to wrap `IrrigationEnvironment` in

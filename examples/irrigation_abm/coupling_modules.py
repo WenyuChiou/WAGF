@@ -20,13 +20,17 @@ ON (``global_config.coupling.enable: true``, or the ``--coupling`` CLI
 flag in ``run_experiment.py`` / ``run_ungoverned_experiment.py``),
 ``simulation_log.csv`` is BYTE-IDENTICAL to the contract-OFF run at the
 same model/seed/years/agents, and every PRE-EXISTING governance-audit-CSV
-column keeps the exact same values row-for-row (at ``workers=1``; row
-ORDER at ``workers>1`` is independently non-deterministic under BOTH
-coupling on and off, a pre-existing ThreadPoolExecutor-completion-order
+column keeps the exact same values row-for-row, in the SAME row order, at
+``workers=1`` and at ``workers>1`` alike: row order across worker counts
+has been deterministic since feat/v3-parallel-determinism
+(``GenericAuditWriter._export_csv`` sorts by ``step_id`` at export; see
+the README's "Running with --workers" section). It was independently
+non-deterministic before that fix, a ThreadPoolExecutor-completion-order
 property unrelated to coupling - see
 ``examples/irrigation_abm/tests/test_coupling.py::
-test_coupling_off_vs_on_byte_identical_workers_4`` and the README's
-"Workers and the v0.6 coupling layer" section). The audit CSV gains
+test_coupling_off_vs_on_byte_identical_workers_4`` (its stable-key sort
+before comparing predates the fix and is now a no-op) and the README's
+"Workers and the v0.6 coupling layer" section. The audit CSV gains
 EXACTLY two new columns, ``world_request`` and ``world_contention_rule``,
 because ``EnvironmentCouplingAdapter.execute_skill`` (``broker/coupling/
 adapter.py``) always reports a ``WorldDelta`` through
