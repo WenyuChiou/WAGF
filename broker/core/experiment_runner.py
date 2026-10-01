@@ -415,6 +415,15 @@ class ExperimentRunner:
             "governance_profile": self.config.governance_profile,
             "num_years": self.config.num_years,
             "num_steps": self.config.num_steps,
+            # NOT an identifying field for resume (a domain's own
+            # allowed_to_differ must list it, and a domain runner's own
+            # identifying-config dict deliberately leaves --workers out
+            # for exactly this reason): recorded here so a LATER provenance guard reading
+            # this run's own header as a resume SOURCE (see
+            # broker.utils.llm_journal.LLMJournalManager.provenance_metadata's
+            # source_workers) can tell what worker count the replayed
+            # portion of a resumed run actually came from.
+            "workers": self.config.workers,
             # Reuses the SAME capture __init__ already made (see its own
             # comment on why construction time, not finalize time, is the
             # right moment) -- no extra git subprocess call. Sampling
@@ -1477,6 +1486,28 @@ class ExperimentRunner:
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
 
+        # 5.05. Parallel worker count (ExperimentConfig.workers; F14/F41
+        #     parallel-determinism review, F43 crash-resume journal review).
+        #     Recorded so a provenance guard pooling runs after the fact
+        #     (e.g. a domain's analysis script) can tell whether every run
+        #     in a pool used the same worker count, even
+        #     though workers>1 is proven to produce the SAME outputs as
+        #     workers=1 (_run_agents_parallel's submission-order sort) --
+        #     this field is provenance, not a correctness signal.
+        #     isinstance-guarded like max_retries_resolved below (same
+        #     reason: several tests build this runner with `self.config` as
+        #     a bare MagicMock(), which answers ANY attribute access with
+        #     another Mock rather than raising -- that would otherwise
+        #     write a non-JSON-serialisable value into this dict and break
+        #     manifest serialisation for a test that never touched this
+        #     field at all). bool excluded the same way, though no known
+        #     caller could set workers to a bool.
+        _workers = getattr(self.config, "workers", None)
+        metadata["workers"] = (
+            _workers if isinstance(_workers, int) and not isinstance(_workers, bool)
+            else None
+        )
+
         # 5.4. Governance-resolution provenance (F9 + F10, 2026-06-10 review).
         #     F10: the manifest recorded only the INTENDED profile
         #     (config.governance_profile); rule loading keys on the
@@ -2229,6 +2260,15 @@ class ExperimentRunner:
         only becomes deterministic across worker counts if that loop sees a
         fixed order. See the sort right before the final ``return`` below.
         """
+        # Crash-resume journal: same re-raise-before-the-broad-handler
+        # treatment as LLMFailureRateAborted below -- see that except
+        # clause's own comment (JournalWriteError is caught there too,
+        # alongside JournalReplayDivergence, though only the latter can
+        # actually be raised from in here -- see that comment for why).
+        # _run_agents_sequential has the analogous clause for
+        # JournalReplayDivergence only. Imported here (not module level) so
+        # a run that never touches the journal feature pays no import cost.
+        from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
         results = []
 
         def process_agent(agent, step_id, declared_decider=None):
@@ -2368,6 +2408,59 @@ class ExperimentRunner:
                     # before `raise`, means the executor is already fully
                     # drained by the time this exception reaches run()'s
                     # finally, instead of racing it.
+                    executor.shutdown(wait=True, cancel_futures=True)
+                    raise
+                except (JournalReplayDivergence, JournalWriteError):
+                    # Crash-resume journal: same reasoning as the
+                    # LLMFailureRateAborted clause just above -- a
+                    # divergence raised inside THIS worker's process_step
+                    # must escape this handler, not become another ABORTED
+                    # row. Without this clause the broad `except Exception`
+                    # below would catch it, the run would keep submitting
+                    # agents, and every OTHER worker would go on being
+                    # served from a journal already proven to not match the
+                    # rebuilt state -- exactly the silent-divergence outcome
+                    # this exception exists to prevent. `future.result()`
+                    # re-raises whatever the worker thread raised, so this
+                    # is reached exactly when some agent's process_step hit
+                    # one of these.
+                    #
+                    # _run_agents_sequential's own clause catches only
+                    # JournalReplayDivergence, not JournalWriteError: a
+                    # write failure is never raised synchronously from
+                    # inside a call this loop makes (LLMJournalManager.
+                    # _record_call_safely stores it as a STICKY error
+                    # instead of raising), it only ever surfaces later, from
+                    # LLMJournalManager.step_end -- which both execution
+                    # paths call from run()'s own loop, never from in here.
+                    # JournalWriteError is caught here too, alongside
+                    # JournalReplayDivergence, purely for symmetry with
+                    # run()'s own top-level `except (JournalReplayDivergence,
+                    # JournalWriteError)`: harmless (this arm of the except
+                    # tuple can never actually match on this path today) in
+                    # exchange for not having to revisit this clause if a
+                    # future change ever makes a write failure raise
+                    # synchronously instead.
+                    #
+                    # cancel_futures=True, same as the abort clause: every
+                    # agent is already SUBMITTED by this point (the
+                    # executor.submit() loop above runs to completion before
+                    # this result loop ever starts), so the real gain here
+                    # is not "fewer agents run" -- it is that this method
+                    # never returns a `results` list for this step at all:
+                    # the exception propagates straight out, before run()'s
+                    # apply loop (_apply_state_changes + post_step, per
+                    # agent) ever sees a step built on an unproven rebuild,
+                    # and without one more agent's failure being misfiled as
+                    # a spurious ABORTED_EXCEPTION row for what is actually
+                    # a whole-run integrity problem. cancel_futures=True
+                    # additionally drops whichever QUEUED-but-not-yet-
+                    # started agents the executor had not gotten to yet (a
+                    # real savings whenever workers < len(agents)); an
+                    # already-running future cannot be interrupted mid-call,
+                    # but wait=True blocks until those finish, so the
+                    # executor is fully drained before this reaches run()'s
+                    # own except/finally instead of racing it.
                     executor.shutdown(wait=True, cancel_futures=True)
                     raise
                 except Exception as e:

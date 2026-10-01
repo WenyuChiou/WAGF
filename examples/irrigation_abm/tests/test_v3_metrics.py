@@ -606,6 +606,21 @@ def test_mixed_commit_is_refused_and_recorded_with_the_override(tmp_path):
      "hydrology_v3_sha256"),
     (lambda m: m.update(hold_requests_fixed=True), "hold_requests_fixed"),
     (lambda m: m.update(run_status="aborted_llm_failure_rate"), "aborted"),
+    # Opus review follow-up item 2: any run_status PREFIXED "aborted" is
+    # refused, not only the LLM safeguard's own exact "aborted_llm_failure_rate"
+    # -- this is a value the LLM safeguard never writes (it is
+    # ExperimentRunner.run's own crash-resume-journal abort path), proving
+    # the check is a prefix match rather than happening to special-case two
+    # known literals.
+    (lambda m: m.update(run_status="aborted_journal_divergence"), "aborted"),
+    # Opus review follow-up item 1: a run's own `workers` can agree with
+    # every other run in the pool while its `source_workers` (present only
+    # on a resumed run; see broker.utils.llm_journal.LLMJournalManager.
+    # provenance_metadata) reveals its replayed portion actually came from
+    # a DIFFERENT worker count -- refused even though plain `workers` alone
+    # (both manifests omit it here, matching llm_manifest()'s own baseline)
+    # would see no difference at all.
+    (lambda m: m.update(source_workers=4), "workers"),
     (lambda m: m.update(ub_supply_mode="lees_ferry_pool"), "water system differs in ub_supply_mode"),
     (lambda m: m.update(ub_subbasin_envelope_v3_sha256="0" * 64), "ub_subbasin_envelope_sha256"),
     (lambda m: m.update(ub_subbasin_variant_means_v3_sha256="0" * 64), "ub_subbasin_variant_means_sha256"),
