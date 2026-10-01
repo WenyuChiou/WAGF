@@ -402,6 +402,11 @@ class TestResolvePrevActionNoSilentFallback:
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found")
     def test_real_agents_never_fall_back_to_zero(self):
+        """WP5 review (2026-09-30, item 5): the Upper Basin follows H&Y's
+        own yi==0 override (ABM_CRSS_coupling.py lines 642-643) -- Div_y0
+        is the 2018 value there, not 2017 -- so resolve_prev_action's
+        second return value is basin-dependent, not uniformly the 2017
+        value."""
         profiles = create_profiles_from_data(
             params_csv_path=str(CRSS_PARAMS_CSV), crss_db_dir=str(CRSS_DB_DIR),
             rng=np.random.default_rng(42), paper_water_margin=0.4,
@@ -409,11 +414,37 @@ class TestResolvePrevActionNoSilentFallback:
         for p in profiles:
             prev_action, prev_div_2017, source = resolve_prev_action(p, CRSS_DB_DIR)
             assert source in {"ql_div_csv", "historical_annual_series"}
-            assert prev_div_2017 == pytest.approx(p.actual_2017_diversion)
+            if p.basin == "upper_basin":
+                assert prev_action == pytest.approx(0.0)
+                assert prev_div_2017 == pytest.approx(p.actual_2018_diversion)
+            else:
+                assert prev_div_2017 == pytest.approx(p.actual_2017_diversion)
 
 
 # ── (c) --fql-init zero byte-identical to pre-fix ──
 
+@pytest.mark.skip(
+    reason="Superseded by WP5 (irrigation_v3_spec_2026-09-28.md section 5, "
+           "2026-09-30): this pin's whole premise -- that run_simulation's "
+           "request-setting mechanism is UNCHANGED since 00654d14 -- is "
+           "exactly what WP5 deliberately breaks. Spec 5.2/L1-04 removes "
+           "the execute_skill() redraw this test's docstring calls out as "
+           "what it verifies stayed identical: run_simulation now writes "
+           "req = Div_t + k*a directly via env.update_agent_request (a's "
+           "own FQLAgent-seeded RNG stream), never resampling a step via "
+           "execute_skill's hy_step_af (the per-(seed, year, agent, skill) "
+           "decision RNG stream) -- two different streams, so every "
+           "request value diverges from the pre-fix script by design, not "
+           "by regression. Same treatment as "
+           "TestZeroInitRealDataRegressionAgainstPrimaryClone below: a new "
+           "byte-identity baseline against WP5's own request formula "
+           "belongs to test_fql_v3.py's trajectory goldens "
+           "(TestRealTrajectoryGolden, TestSyntheticTrajectoryGolden -- "
+           "pinned to 1e-9 against a checked-in fixture, not just "
+           "same-seed determinism) and its determinism test (same seed -> "
+           "same output, different seed -> different output), not this "
+           "pre-WP5 regression guard."
+)
 class TestZeroInitByteIdenticalToPreFix:
     """--fql-init zero must reproduce the pre-fix (commit 00654d14, the
     parent of feat/fql-calibrated-warm-start) run_fql_baseline.py output

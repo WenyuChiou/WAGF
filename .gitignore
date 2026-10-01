@@ -115,6 +115,17 @@ temp_*.json
 !examples/irrigation_abm/data/hindcast_observed_v3.csv
 !examples/irrigation_abm/data/hindcast_observed_v3_sources.csv
 
+# ...and the WP5 FQL reference trajectory goldens (test fixtures, not
+# results/audit CSVs: test_fql_v3.py compares a fresh run against these to
+# 1e-9; the blanket *.csv rule above would otherwise silently drop them,
+# making the golden tests fail on any fresh clone). WP5 final review
+# (2026-09-30): narrowed from the whole fixtures/ directory to files
+# actually named *_golden.csv, so a future non-golden CSV dropped into
+# this directory (a results/audit CSV copied in by mistake, a scratch
+# fixture) is still caught by the blanket rule above instead of being
+# silently tracked by a too-broad negation.
+!examples/irrigation_abm/tests/fixtures/*_golden.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/

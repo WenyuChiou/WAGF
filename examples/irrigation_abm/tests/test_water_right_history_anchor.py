@@ -695,6 +695,13 @@ class TestFQLClipParity:
             # Upper Basin profile to carry a sub-basin -- this test is
             # about the Q-grid/water-right clip, unrelated to which one.
             precip_group="WY",
+            # WP5 review (item 8a, 2026-09-30): create_fql_agents's zero-init
+            # branch now requires k explicitly (no silent "or 1.0" for an
+            # Upper Basin profile -- see run_fql_baseline._resolve_
+            # demand_per_grid_unit); unrelated to what this test checks
+            # (the Q-grid/water-right clip), so set to the model's own
+            # Upper Basin value rather than changed behavior.
+            demand_per_grid_unit=0.5,
         )                             # to engage regardless of the RNG draw.
 
     def test_q_grid_stays_on_grid_top_not_capped_water_right(self):
