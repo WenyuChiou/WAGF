@@ -1517,12 +1517,35 @@ class GenericAuditWriter:
         raw OSError — no signal that "the run completed, only the
         CSV export for this agent_type failed". The error is
         logged with the agent_type + path so operators can debug.
+
+        feat/v3-parallel-determinism: ``traces`` lands in
+        ``self._trace_buffer[agent_type]`` in WRITE-LOCK ACQUISITION order
+        (``write_trace``), which is thread-COMPLETION order under
+        ``workers > 1``, not the order agents were submitted in. Sorted
+        here by ``step_id`` (stable, so tied rows keep their buffer order)
+        so the exported CSV's row order is the same regardless of worker
+        count or thread scheduling; a no-op at ``workers == 1``, where
+        append order already equals step_id order. The key is crash-proof:
+        a row whose ``step_id`` is missing, ``None``, or not an ``int`` (a
+        legacy or malformed trace) sorts after every numbered row instead
+        of raising -- ``int`` is checked explicitly rather than trusting a
+        bare comparison, because Python raises ``TypeError`` comparing an
+        ``int`` to a ``str`` or ``None``, which a less careful key would
+        let crash ``finalize()`` on exactly the malformed row this guard
+        exists for.
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
         csv_path = self.output_dir / f"{agent_type}_governance_audit.csv"
         schema_path = self.output_dir / f"{agent_type}_governance_audit.schema.json"
         if not traces: return
 
+        traces = sorted(
+            traces,
+            key=lambda t: (
+                (0, t["step_id"]) if isinstance(t.get("step_id"), int)
+                else (1, 0)
+            ),
+        )
         flat_rows = [trace_to_csv_row(t) for t in traces]
 
         if not flat_rows: return

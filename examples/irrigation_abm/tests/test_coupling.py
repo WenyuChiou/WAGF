@@ -9,9 +9,11 @@ Verifies:
    broker/components/analytics/audit.py, shared by every coupled domain,
    not something IrrigationBundle can or should suppress). Checked for
    both a strict and a disabled governance profile, at workers=1 and at
-   workers=4 (row ORDER at workers=4 is independently non-deterministic
-   under coupling on and off alike, so that check sorts rows to a stable
-   key first, then compares content).
+   workers=4. Row order across worker counts has been deterministic since
+   feat/v3-parallel-determinism (GenericAuditWriter._export_csv sorts by
+   step_id at export); the workers=4 check below still sorts rows to a
+   stable key before comparing, which predates that fix and is now a
+   no-op, kept for defense in depth.
 2. A contract-on run's run_integrity.json records coupling_adapter=True
    and the reproducibility manifest carries coupling_provenance with a
    contract_sha256 and derived_from_config pointing at the original file.
@@ -172,12 +174,15 @@ def test_coupling_off_vs_on_byte_identical_workers_4(tmp_path: Path):
     """AR-3 (broker/INVARIANTS.md "Accepted risks") warns that workers>1
     with coupling is generically unsupported. This test is the empirical
     check backing coupling_modules.py's "WORKERS" section: content is
-    identical for irrigation specifically, once rows are sorted to a
-    stable key. Row ORDER itself is NOT checked here; two coupling-OFF
-    runs at workers=4 already produce different row orders from each
-    other (verified by hand while writing this test) because the audit
-    writer appends rows in ThreadPoolExecutor completion order, a
-    property of workers>1 that has nothing to do with coupling.
+    identical for irrigation specifically. Row order across worker counts
+    has been deterministic since feat/v3-parallel-determinism
+    (GenericAuditWriter._export_csv sorts by step_id at export); before
+    that fix two coupling-OFF runs at workers=4 produced different row
+    orders from each other (verified by hand while writing this test)
+    because the audit writer appended rows in ThreadPoolExecutor
+    completion order, a property of workers>1 that had nothing to do with
+    coupling. The stable-key sort below predates that fix and is now a
+    no-op, kept for defense in depth.
     """
     off_dir = tmp_path / "off_w4"
     on_dir = tmp_path / "on_w4"

@@ -2034,7 +2034,18 @@ class ExperimentRunner:
             )
 
     def _run_agents_parallel(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
-        """Execute agent steps in parallel using ThreadPoolExecutor."""
+        """Execute agent steps in parallel using ThreadPoolExecutor.
+
+        Returns results in SUBMISSION order (the same order
+        ``_run_agents_sequential`` would produce), never thread-completion
+        order. ``run()``'s apply loop reads this return value to drive
+        ``_apply_state_changes`` and the ``post_step`` hook per agent, in
+        order; anything those two read or write that is SHARED across
+        agents (a shared ``random.Random`` some memory engines draw from on
+        consolidation, e.g. ``HumanCentricMemoryEngine._add_memory_internal``)
+        only becomes deterministic across worker counts if that loop sees a
+        fixed order. See the sort right before the final ``return`` below.
+        """
         results = []
 
         def process_agent(agent, step_id, declared_decider=None):
@@ -2152,9 +2163,10 @@ class ExperimentRunner:
                 )] = (agent, self.step_counter)
 
             for future in as_completed(futures):
+                _, submitted_step_id = futures[future]
                 try:
                     agent, result = future.result()
-                    results.append((agent, result))
+                    results.append((submitted_step_id, agent, result))
                 except LLMFailureRateAborted:
                     # Spec item 24: same reasoning as the sequential path's
                     # identical clause -- must escape this handler, not
@@ -2186,13 +2198,13 @@ class ExperimentRunner:
                     # ``--workers 4`` for MA flood scale-up) had the
                     # same v0.88.15-class denominator-shrink: failed
                     # agents vanished from the audit CSV.
-                    failed_agent, failed_step = futures[future]
+                    failed_agent, _ = futures[future]
                     logger.error(
                         f"[Parallel] Agent {failed_agent.id} failed: {e}",
                         exc_info=True,
                     )
                     self._write_aborted_trace(failed_agent, run_id, env, e,
-                                              step_id=failed_step)
+                                              step_id=submitted_step_id)
                     error_result = SkillBrokerResult(
                         outcome=SkillOutcome.ABORTED,
                         skill_proposal=None,
@@ -2203,6 +2215,21 @@ class ExperimentRunner:
                             f"{str(e)[:500]}"
                         ],
                     )
-                    results.append((failed_agent, error_result))
+                    results.append((submitted_step_id, failed_agent, error_result))
 
-        return results
+        # feat/v3-parallel-determinism: reorder to SUBMISSION order. The loop
+        # above builds `results` in as_completed()'s THREAD-COMPLETION order.
+        # Callers (run()'s apply loop: _apply_state_changes and the
+        # post_step hook, per agent, in list order) must see the same order
+        # regardless of worker count or which thread happens to finish
+        # first. That is what keeps a shared-state read/write inside that
+        # loop (e.g. the one `random.Random` draw
+        # HumanCentricMemoryEngine._add_memory_internal makes on
+        # consolidation) deterministic across workers. `step_id` is unique
+        # and strictly increasing in SUBMISSION order within this call (one
+        # `self.step_counter += 1` per agent, in the submit loop above), so
+        # a sort by it exactly reconstructs that order. At workers == 1,
+        # completion order already equals submission order, so this sort is
+        # a no-op there.
+        results.sort(key=lambda item: item[0])
+        return [(agent, result) for _, agent, result in results]
