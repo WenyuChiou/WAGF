@@ -194,3 +194,74 @@ class TestAbortPreservesProvenanceAndSimulationLog:
             "simulation_log.csv must have a header plus at least year 1's "
             "agent rows, not just an empty file"
         )
+
+
+class TestGenericExceptionRecordsAbortedExceptionRunStatus:
+    """Opus review of WP7 launcher, item 3(a): ``run()``'s try block only
+    special-cased two exception families (``LLMFailureRateAborted``, the
+    crash-resume journal's ``JournalReplayDivergence`` / ``JournalWriteError``).
+    Anything else escaping the loop (a hook bug, a provider error neither of
+    those two catch) used to reach ``finally`` with neither
+    ``_llm_safeguard_abort`` nor ``_llm_journal_abort`` set, so
+    ``_finalize_experiment``'s manifest build added no ``run_status`` key at
+    all -- indistinguishable from a normal completion that merely covered
+    fewer years than configured. Fixed with a third, generic
+    ``except Exception as exc`` clause that stashes ``self._generic_abort``
+    before re-raising, read by `_finalize_experiment` the same way.
+
+    ``ExperimentRunner._call_hook`` is monkeypatched directly (domain-
+    agnostic: every runner calls ``self._call_hook(name, *args)`` from
+    inside ``run()``'s own try block, and ``_call_hook``'s own documented
+    job is to log and RE-RAISE a hook exception, never swallow it) to
+    raise a plain ``RuntimeError`` on its very first call -- a stand-in for
+    "some exception neither of the two special-cased families" that needs
+    no real Ollama contact and no safeguard/journal configuration."""
+
+    def test_generic_exception_sets_aborted_exception_run_status(self, tmp_path, monkeypatch):
+        from broker.core.experiment_runner import ExperimentRunner
+        from examples.irrigation_abm.run_experiment import main
+
+        def _raising_call_hook(self, name, *args):
+            raise RuntimeError("stubbed hook failure: no live Ollama contact in this test")
+
+        monkeypatch.setattr(ExperimentRunner, "_call_hook", _raising_call_hook)
+
+        argv = [
+            "run_experiment.py", "--model", "mock", "--years", "3", "--agents", "3",
+            "--seed", "42", "--workers", "1", "--output", str(tmp_path),
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+        with pytest.raises(RuntimeError, match="stubbed hook failure"):
+            main()
+
+        manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text())
+        assert manifest["run_status"] == "aborted_exception"
+        assert manifest["aborted_exception_type"] == "RuntimeError"
+        assert "stubbed hook failure" in manifest["aborted_exception_message"]
+        # Mutually exclusive with the other two abort families on this run.
+        assert "llm_safeguard_abort" not in manifest
+        assert "llm_journal_abort" not in manifest
+
+
+class TestNormalRunKeepsExactlyItsKeys:
+    """Companion regression to the class above: a run that raises NOTHING
+    must come out of _finalize_experiment with no run_status key at all
+    (absent, not null) and none of the three abort-detail keys -- proving
+    the new generic except clause adds nothing on the ordinary path."""
+
+    def test_clean_run_has_no_run_status_or_abort_keys(self, tmp_path, monkeypatch):
+        from examples.irrigation_abm.run_experiment import main
+
+        argv = [
+            "run_experiment.py", "--model", "mock", "--years", "2", "--agents", "3",
+            "--seed", "42", "--workers", "1", "--output", str(tmp_path),
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+        main()
+
+        manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text())
+        for key in (
+            "run_status", "aborted_exception_type", "aborted_exception_message",
+            "llm_safeguard_abort", "llm_journal_abort",
+        ):
+            assert key not in manifest, f"{key!r} must be absent on a clean completion"

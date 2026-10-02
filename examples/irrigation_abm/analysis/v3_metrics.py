@@ -645,18 +645,40 @@ def check_provenance(infos: Sequence[RunInfo], allow_mixed: bool = False,
     # actually came from, which can differ from the run's own `workers` by
     # design (resuming at a different worker count is supported). A run
     # that crashed under workers=4 and was resumed at workers=1 therefore
-    # carries `workers=1, source_workers=4`: pairing the two catches it as
-    # mixed even when pooled only against OTHER workers=1 runs that were
-    # never resumed at all (plain `workers` alone would read both as 1 and
-    # miss it).
-    workers_values = {
-        json.dumps(_jsonable((i.manifest.get("workers"), i.manifest.get("source_workers"))))
-        for i in llm
-    }
-    if len(workers_values) > 1:
+    # carries `workers=1, source_workers=4`: this run ITSELF touched two
+    # distinct worker counts and is refused below regardless of what else
+    # is in the pool.
+    #
+    # Opus review of WP7 launcher, item 4(b) (bug fix): the previous
+    # implementation compared the raw ``(workers, source_workers)`` tuple
+    # across runs, e.g. a fresh run's ``(4, None)`` against a same-workers
+    # RESUMED run's ``(4, 4)`` -- two different tuples, so every resumed
+    # run was refused as "mixed" even when every run in the pool, resumed
+    # or not, was consistently at workers=4. The correct rule: per run, the
+    # set of distinct values among {workers} and source_workers (when
+    # present) must itself be a singleton (a run whose own history touched
+    # two different worker counts is refused on its own, independent of
+    # the rest of the pool); only once every run clears that does the
+    # single value from each run get compared ACROSS the pool.
+    per_run_workers: Dict[str, Any] = {}
+    for i in llm:
+        source_workers = i.manifest.get("source_workers")
+        values = {i.manifest.get("workers")}
+        if source_workers is not None:
+            values.add(source_workers)
+        if len(values) > 1:
+            problems.append(
+                f"{i.label}: workers={i.manifest.get('workers')!r} but "
+                f"source_workers={source_workers!r} -- this run itself mixed "
+                f"worker counts across a crash and its resume"
+            )
+            continue
+        per_run_workers[i.label] = next(iter(values))
+    distinct_workers = {json.dumps(_jsonable(v)) for v in per_run_workers.values()}
+    if len(distinct_workers) > 1:
         problems.append(
-            f"workers (paired with any resumed source_workers) differs across "
-            f"LLM runs: {sorted(workers_values)}"
+            f"workers differs across LLM runs: "
+            f"{dict(sorted(per_run_workers.items()))}"
         )
 
     # Seed scheme.
