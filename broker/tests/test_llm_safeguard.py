@@ -1227,4 +1227,63 @@ class TestRunAbortsCleanlyAndRecordsTheManifest:
         assert runner._llm_safeguard_abort is None
         manifest = json.loads((second_dir / "reproducibility_manifest.json").read_text())
         assert "run_status" not in manifest
+
+    def test_a_second_clean_run_does_not_inherit_the_first_runs_generic_abort(self, tmp_path):
+        """Opus review of WP7 launcher, round 2 (non-blocking): twin of the
+        test above for `_generic_abort` (added round 1 for any exception
+        other than LLMFailureRateAborted / the crash-resume journal pair),
+        which needs the SAME reset-at-the-top discipline run() now gives
+        it. Without the reset, a second run() on the same instance that
+        finishes cleanly would still carry the FIRST run's generic abort
+        and wrongly stamp a clean corpus's manifest with
+        run_status: aborted_exception.
+
+        The generic exception comes from a HOOK, not `process_step`:
+        `_run_agents_sequential` catches a plain exception from
+        `process_step` per-agent-step and turns it into an ABORTED row
+        (proven empirically: reusing the process_step-side_effect pattern
+        above with a bare RuntimeError just produces more ABORTED rows,
+        never reaching run()'s own try/except) -- only the three
+        specially-recognized abort types are exempted from that catch. A
+        hook exception is the one path proven (here and in
+        test_abort_provenance.py's integration-level equivalent) to escape
+        all the way to run()'s try/except for an ARBITRARY exception type,
+        since `_call_hook`'s own documented job is to log and re-raise,
+        never swallow."""
+        from broker.interfaces.skill_types import SkillBrokerResult, SkillOutcome
+
+        ok_result = SkillBrokerResult(
+            outcome=SkillOutcome.APPROVED, skill_proposal=None,
+            approved_skill=None, execution_result=None,
+        )
+        generic_err = RuntimeError("stubbed failure: no live Ollama contact in this test")
+
+        first_dir = tmp_path / "first"
+        second_dir = tmp_path / "second"
+        first_dir.mkdir()
+        second_dir.mkdir()
+
+        runner = _make_runner([ok_result] * 5, output_dir=first_dir, num_years=5)
+        runner._hooks = {"post_year": lambda *a, **kw: None}
+        runner._call_hook = MagicMock(side_effect=generic_err)
+        with pytest.raises(RuntimeError, match="stubbed failure"):
+            runner.run()
+        assert runner._generic_abort is generic_err
+        manifest = json.loads((first_dir / "reproducibility_manifest.json").read_text())
+        assert manifest["run_status"] == "aborted_exception"
+        assert manifest["aborted_exception_type"] == "RuntimeError"
+
+        # Re-point at a fresh output dir, a hook that never fails, and
+        # num_years matching the fresh process_step side_effect exactly
+        # (2), then run the SAME instance again.
+        runner.config.output_dir = second_dir
+        runner.config.num_years = 2
+        runner.broker.process_step = MagicMock(side_effect=[ok_result, ok_result])
+        runner._call_hook = MagicMock(return_value=None)
+        runner.run()
+
+        assert runner._generic_abort is None
+        manifest = json.loads((second_dir / "reproducibility_manifest.json").read_text())
+        assert "run_status" not in manifest
+        assert "aborted_exception_type" not in manifest
         assert "llm_safeguard_abort" not in manifest
