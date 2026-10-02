@@ -360,3 +360,97 @@ class TestParallelPathDoesNotSwallowJournalExceptions:
             call["cancel_futures"] is True and call["wait"] is True
             for call in shutdown_calls
         ), f"expected an explicit shutdown(wait=True, cancel_futures=True) call, got {shutdown_calls}"
+
+
+# ---------------------------------------------------------------------------
+# check_provenance's workers/source_workers comparison (Opus review of WP7
+# launcher, item 4(b), bug fix). Minimal synthetic RunInfo objects, not full
+# mock-driven runs: this exercises check_provenance's own logic in isolation.
+# ---------------------------------------------------------------------------
+
+def _llm_water_system_fields() -> dict:
+    """Every ``_LLM_WATER_KEYS`` path, nested the way
+    ``_record_water_system_config_provenance`` actually writes them
+    (``coupling_retrofit_metadata.water_system_<name>`` for some keys, top
+    level for others), filled in from ``_analysis_water_expectations()`` so
+    these synthetic fixtures equal whatever this module's own water-system
+    constants currently are, rather than guessing numbers that would drift
+    out of sync with them."""
+    expectations = vm._analysis_water_expectations()
+    fields: dict = {}
+    for key, path in vm._LLM_WATER_KEYS.items():
+        if key in ("hold_requests_fixed", "paper_water_margin"):
+            continue  # set separately: not in _analysis_water_expectations()
+        node = fields
+        for part in path[:-1]:
+            node = node.setdefault(part, {})
+        node[path[-1]] = expectations[key]
+    return fields
+
+
+_BASE_PROVENANCE_MANIFEST = {
+    "git_commit": "deadbeefcafe00",
+    "git_dirty": False,
+    "model": "gemma3:4b",
+    "memory_seed": 42,
+    "governance_profile": "strict",
+    "governance_profile_resolved": "strict",
+    "retry_feedback_mode": None,
+    "appraisal_freeze_resolved": True,
+    "hold_requests_fixed": False,
+    "step_bin_source": ["hy2021_grid"],
+    **vm.SPEC_72_VALUES,
+    **_llm_water_system_fields(),
+}
+
+
+def _synthetic_llm_run(seed: int, workers, source_workers=None) -> "vm.RunInfo":
+    manifest = dict(_BASE_PROVENANCE_MANIFEST)
+    manifest["seed"] = seed
+    manifest["workers"] = workers
+    if source_workers is not None:
+        manifest["source_workers"] = source_workers
+    return vm.RunInfo(Path(f"/fake/run_seed{seed}"), "llm", "strict", seed, manifest)
+
+
+class TestCheckProvenanceWorkersBugFix:
+    """Before the fix, `check_provenance` compared the raw
+    ``(workers, source_workers)`` tuple across runs, e.g. a fresh run's
+    ``(4, None)`` against a same-workers RESUMED run's ``(4, 4)`` -- two
+    different tuples, so EVERY resumed run was refused as "mixed" even when
+    the whole pool, resumed or not, was consistently at one workers value.
+    Fixed rule: per run, the set of distinct values among {workers} and
+    source_workers (when present) must itself be a singleton (catches a run
+    whose OWN history touched two worker counts); only then are the
+    per-run singleton values compared ACROSS the pool."""
+
+    def test_resumed_at_same_workers_as_a_fresh_run_passes(self):
+        fresh = _synthetic_llm_run(43, workers=4)
+        resumed_same_workers = _synthetic_llm_run(44, workers=4, source_workers=4)
+        vm.check_provenance([fresh, resumed_same_workers])  # must not raise
+
+    def test_crashed_at_4_resumed_at_1_is_refused(self):
+        resumed_mismatched = _synthetic_llm_run(45, workers=1, source_workers=4)
+        with pytest.raises(vm.ProvenanceError, match="workers"):
+            vm.check_provenance([resumed_mismatched])
+
+    def test_crashed_at_4_resumed_at_1_refused_even_pooled_only_against_workers_1(self):
+        """The scenario the original comment described: a run resumed at a
+        DIFFERENT worker count than its own crash must be refused even when
+        every other run in the pool already sits at the resume's value."""
+        resumed_mismatched = _synthetic_llm_run(45, workers=1, source_workers=4)
+        plain_workers_1 = _synthetic_llm_run(46, workers=1)
+        with pytest.raises(vm.ProvenanceError, match="workers"):
+            vm.check_provenance([resumed_mismatched, plain_workers_1])
+
+    def test_two_fresh_runs_at_different_workers_is_refused(self):
+        a = _synthetic_llm_run(43, workers=4)
+        b = _synthetic_llm_run(44, workers=1)
+        with pytest.raises(vm.ProvenanceError, match="workers"):
+            vm.check_provenance([a, b])
+
+    def test_mixed_allowed_with_allow_mixed_provenance(self):
+        a = _synthetic_llm_run(43, workers=4)
+        b = _synthetic_llm_run(44, workers=1)
+        record = vm.check_provenance([a, b], allow_mixed=True)
+        assert any("workers" in d for d in record["differences"])
