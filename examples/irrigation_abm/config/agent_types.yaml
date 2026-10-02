@@ -51,6 +51,31 @@ global_config:
 
   llm:
     model: "command-line-override"
+    # Spec 7.3 (v3 launch): these three were previously UNSET here, so every
+    # call silently took Ollama's own gemma3:4b modelfile defaults. The
+    # matching numbers in broker/tests/test_manifest_llm_params.py's
+    # TestLLMParamsResolvedAbsentAndMockSkip fixture are from a FAKE
+    # modelfile response the test hands to a mocked `ollama show` call (it
+    # tests the parsing logic, not gemma3:4b's real defaults): the actual
+    # confirmation that gemma3:4b's own defaults are 1.0/0.95/64 is an
+    # external, out-of-repo fact (the model's shipped Modelfile), not
+    # something this test asserts. Writing them explicitly here makes them
+    # appear in reproducibility_manifest.json's `llm_params_resolved` (the
+    # per-agent-type MERGED params actually sent, r19 G7/G8) instead of
+    # recording them as absent for a value that was in effect all along.
+    # The manifest's SEPARATE legacy top-level `temperature` / `top_p`
+    # fields are NOT affected by this edit and stay null: they read
+    # `broker.utils.llm_utils.LLM_CONFIG`, a module-level singleton loaded
+    # from `Path.cwd()/agent_types.yaml` (falling back to
+    # `broker/utils/agent_types.yaml`) at import time, a different file
+    # from this one -- a pre-existing quirk outside this change's scope,
+    # covered by that test module's own TestBackwardCompatibleTopLevelFields.
+    # No `seed` key is added: Ollama sampling stays UNSEEDED (disclosed,
+    # spec 7.3) -- a real-LLM run's output is still not byte-reproducible
+    # run to run, only now the sampling settings it used are on the record.
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 64
     num_ctx: 8192
     num_predict: 4096
     max_retries: 2

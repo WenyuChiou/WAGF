@@ -742,6 +742,10 @@ class ExperimentRunner:
         # safeguard abort above, for the SAME reason (a reused runner's
         # second run() must not inherit the first run's abort stamp).
         self._llm_journal_abort = None
+        # Opus review of WP7 launcher, round 2 (non-blocking): the generic
+        # abort added in round 1 needs the SAME reset-at-the-top discipline
+        # as the two above, for the same reason.
+        self._generic_abort = None
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
@@ -874,6 +878,22 @@ class ExperimentRunner:
             # manifest build in _finalize_experiment's unconditional
             # finally must be able to see this and record run_status.
             self._llm_journal_abort = exc
+            raise
+        except BaseException as exc:
+            # Opus review of WP7 launcher, item 3(a): the two guards above only
+            # cover their own two narrow exception families. Any OTHER
+            # exception escaping the loop above (a provider error, a bug in a
+            # hook, anything not LLMFailureRateAborted/JournalReplayDivergence/
+            # JournalWriteError) used to fall straight through to `finally`
+            # with neither `_llm_safeguard_abort` nor `_llm_journal_abort` set,
+            # so `_finalize_experiment`'s manifest build below added no
+            # `run_status` key at all -- indistinguishable from a normal
+            # completion that merely covered fewer years than configured. Same
+            # stash-before-finally pattern as the two guards above, generalised.
+            # Round 2 (non-blocking): BaseException, not Exception, so
+            # KeyboardInterrupt and SystemExit are recorded too -- still
+            # re-raised unchanged either way, this only adds a record of why.
+            self._generic_abort = exc
             raise
         finally:
             self._finalize_experiment(iterations)
@@ -1011,6 +1031,16 @@ class ExperimentRunner:
                 "type": type(_journal_abort).__name__,
                 "message": str(_journal_abort),
             }
+        # Opus review of WP7 launcher, item 3(a): any exception other than the
+        # two narrow families above, stashed by run()'s new third except
+        # clause. Same absent-unless-it-happened posture as the two blocks
+        # above: a normal run never sets `_generic_abort`, so this adds
+        # nothing to a clean manifest.
+        _generic_abort = getattr(self, "_generic_abort", None)
+        if _generic_abort is not None:
+            manifest["run_status"] = "aborted_exception"
+            manifest["aborted_exception_type"] = type(_generic_abort).__name__
+            manifest["aborted_exception_message"] = str(_generic_abort)
         # Memory write policy snapshot (populated if the engine is wrapped by
         # PolicyFilteredMemoryEngine). This captures the policy and dropped-count
         # summary so the audit trace explains any "missing" memories unambiguously.
