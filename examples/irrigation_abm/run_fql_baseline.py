@@ -77,7 +77,6 @@ from examples.irrigation_abm.learning.fql_skill_mapper import (
 from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
     WaterSystemConfig,
-    MIN_UTIL,
     hy_threshold_af,
     resolve_step_bin_af,
     HYDROLOGY_V3_SHA256,
@@ -814,7 +813,7 @@ def _fql_agent_decision(
     action_precap_af = k * action
 
     water_right = float(ctx["water_right"])
-    floor = water_right * MIN_UTIL
+    floor = water_right * env.config.min_utilisation_fraction
     # WP5 review (item 1, 2026-09-30): the SECOND return value (the
     # not-yet-governance-aware prev_action) is kept, not discarded via
     # ``_`` -- a discarded return value here was exactly why the "/k on
@@ -1556,8 +1555,14 @@ def main():
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config_kwargs: Dict[str, Any] = {}
+    if args.lb_non_ag_total_maf is not None:
+        config_kwargs["lb_non_ag_total_maf"] = args.lb_non_ag_total_maf
     if args.lb_return_flow_fraction is not None:
         config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
+    if args.min_utilisation_fraction is not None:
+        config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
+    if args.powell_post2026_equalization is not None:
+        config_kwargs["powell_post2026_equalization"] = args.powell_post2026_equalization
     config = WaterSystemConfig(seed=seed, **config_kwargs)
     # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
     # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
@@ -1726,6 +1731,12 @@ def main():
         # Item 36e (2026-10-05); Opus review P2-2: 0.0 (default,
         # byte-identical) unless --lb-return-flow-fraction set it.
         "lb_return_flow_fraction": env.config.lb_return_flow_fraction,
+        # 2026-10-06 CPU rerun finding: 0.10 (default, byte-identical)
+        # unless --min-utilisation-fraction set it. Also present nested
+        # under water_system_config below (_FQL_WATER_KEYS reads it from
+        # there); recorded top level too for human-readable parity with
+        # lb_return_flow_fraction just above.
+        "min_utilisation_fraction": env.config.min_utilisation_fraction,
         # WP5 essentials (irrigation_v3_spec_2026-09-28.md section 5,
         # 2026-09-30): "the manifest records everything that identifies
         # the reference: --fql-init, the table directory, the
@@ -1831,6 +1842,19 @@ def parse_args():
                         "water_right = (1 + paper_water_margin) * peak_obs_af alone "
                         "(no grid-top term). Only affects --real profiles. Recorded "
                         "in reproducibility_manifest.json.")
+    p.add_argument("--lb-non-ag-total-maf", type=float, default=None,
+                   help="LB non-farm total (M&I + tribal + CAP + system losses, MAF/yr). "
+                        "Default: WaterSystemConfig's own default (5.2, the record-"
+                        "implied value at lb_return_flow_fraction=0.0 -- see "
+                        "analysis/hindcast_v3.py (record_implied_non_ag)). A "
+                        "--lb-return-flow-fraction sensitivity run (below) MUST pass "
+                        "the record-implied value for that SAME fraction here (derived "
+                        "first via 'python analysis/hindcast_v3.py "
+                        "--lb-return-flow-fraction f'; see the runbook's return-flow "
+                        "sensitivity pair) -- the 5.2 default was derived at f=0.0, and "
+                        "pairing a non-zero f with the f=0.0 constant double-counts "
+                        "water the fraction already credits back to Mead. Recorded in "
+                        "reproducibility_manifest.json.")
     p.add_argument("--lb-return-flow-fraction", type=float, default=None,
                    help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
                         "agricultural draw treated as reused downstream (e.g. "
@@ -1838,6 +1862,18 @@ def parse_args():
                         "against Mead's outflow, on [0, 0.5]. Default: "
                         "WaterSystemConfig's own default (0.0, byte-identical). "
                         "Recorded in reproducibility_manifest.json.")
+    p.add_argument("--min-utilisation-fraction", type=float, default=None,
+                   help="2026-10-06 CPU rerun finding (spec item 36k): the minimum-use "
+                        "floor, as a fraction of each agent's water right, on [0, 1]. "
+                        "Default: WaterSystemConfig's own default (0.10, byte-"
+                        "identical). CPU sensitivities at 0 and 0.05 (provenance C6b). "
+                        "Recorded in reproducibility_manifest.json.")
+    p.add_argument("--powell-post2026-equalization", choices=["hold_2026", "extend_slope"], default=None,
+                   help="How the Equalization elevation is extended past 2026 (item "
+                        "36c), same meaning and default as run_experiment.py's own "
+                        "WaterSystemConfig default ('extend_slope'). Default: "
+                        "WaterSystemConfig's own default (byte-identical). Recorded "
+                        "in reproducibility_manifest.json.")
     p.add_argument("--cluster-method", type=str, default="hy2021",
                    choices=["hy2021", "legacy_centroid"],
                    help="How each real CRSS agent's cluster (aggressive / "

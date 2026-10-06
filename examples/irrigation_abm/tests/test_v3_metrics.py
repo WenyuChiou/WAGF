@@ -73,6 +73,8 @@ def llm_manifest(arm: str, seed: int = 42, commit: str = COMMIT, model: str = "m
         "lb_non_ag_total_maf": CFG.lb_non_ag_total_maf,
         # Item 36e (2026-10-05); Opus review P2-2: 0.0 by default.
         "lb_return_flow_fraction": CFG.lb_return_flow_fraction,
+        # 2026-10-06 CPU rerun finding: 0.10 by default.
+        "min_utilisation_fraction": CFG.min_utilisation_fraction,
         "paper_water_margin": 0.4,
         "cluster_method": "hy2021", "step_bin_source": {a: None for a in agents},
         "ub_supply_mode": CFG.ub_supply_mode, "ub_subbasin_supply_variant": CFG.ub_subbasin_supply_variant,
@@ -751,6 +753,23 @@ def test_fql_nonzero_return_flow_fraction_refused_against_the_default_reference(
         vm.check_provenance([run, info])
 
 
+def test_fql_nonzero_min_utilisation_fraction_refused_against_the_default_reference(tmp_path):
+    """2026-10-06 CPU rerun finding: same treatment as
+    test_fql_nonzero_return_flow_fraction_refused_against_the_default_reference
+    just above -- an FQL/replay manifest whose
+    water_system_config.min_utilisation_fraction differs from the
+    analysis's own default (0.10) is refused when pooled, through the
+    same generic full-dataclass-dump comparison (check_provenance)."""
+    run = vm.read_run_info(fixture_run(tmp_path, "strict", STRICT_DECISIONS))
+    fql = fql_manifest(42, agents=sorted(AGENTS))
+    fql["water_system_config"]["min_utilisation_fraction"] = 0.0
+    sims = sim_rows(system_years(3, (13.0, 12.0, 11.5), (11.0, 10.0, 9.0), (0, 0, 1)),
+                    {(a, t): {} for a in AGENTS for t in (1, 2, 3)})
+    info = vm.read_run_info(write_run(tmp_path / "fql", fql, sims))
+    with pytest.raises(vm.ProvenanceError, match="min_utilisation_fraction"):
+        vm.check_provenance([run, info])
+
+
 def test_missing_manifest_is_refused(tmp_path):
     path = fixture_run(tmp_path, "strict", STRICT_DECISIONS)
     (path / vm.MANIFEST).unlink()
@@ -1394,6 +1413,51 @@ def test_p1_closure_and_a_residual(tmp_path, strict_run):
     broken = vm.load_run(fixture_run(tmp_path, "strict", STRICT_DECISIONS, name="broken", unbalance={2: 1e-6}))
     check = vm.gate_p1([broken])
     assert check["passed"] is False and "2020" in check["reason"]
+
+
+def test_p1_default_run_has_no_return_flow_correction(strict_run):
+    """The default fixture (no lb_phys_ratio / lb_return_flow_maf columns
+    in its CSV, matching lb_return_flow_fraction=0.0's production default)
+    must load those two optional columns as exactly 0.0, making gate_p1's
+    return-flow correction a no-op -- byte-identical to the pre-correction
+    formula."""
+    for y in strict_run.sim.years:
+        s = strict_run.sim.system[y]
+        assert s["lb_phys_ratio"] == 0.0
+        assert s["lb_return_flow_maf"] == 0.0
+
+
+def test_p1_accounts_for_lb_return_flow_fraction(tmp_path):
+    """2026-10-06 CPU rerun finding (irrigation_v3_cpu_rerun_2026-10-06.md
+    section 4(iii)): a non-default lb_return_flow_fraction charges Mead's
+    outflow LESS by lb_phys_ratio * lb_return_flow_maf every year
+    (irrigation_env.py settle_year, line ~3796); gate_p1's mass-balance
+    check must add that term back (the same correction hindcast_v3.py's
+    run_hindcast() already applies), or every run with a non-zero fraction
+    fails P1 at face value even though mass balance actually holds (the
+    real sensitivity run: residual up to 0.77 MAF/yr uncorrected)."""
+    phys_ratio, return_flow_maf = 0.95, 0.2
+    charged = phys_ratio * return_flow_maf
+    system = system_years(3, (13.0, 12.0, 11.5), (11.0, 10.0, 9.0), (0, 0, 1),
+                          unbalance={t: charged for t in (1, 2, 3)})
+    agent_years = {}
+    for (agent, t), spec in STRICT_DECISIONS.items():
+        values: Dict[str, Any] = {"lb_phys_ratio": phys_ratio, "lb_return_flow_maf": return_flow_maf}
+        if spec.get("physical", 1.0) < 1.0:
+            values["ub_subbasin_ratio"] = spec["physical"]
+            values["diversion"] = 1000.0 * spec["physical"]
+        agent_years[(agent, t)] = values
+    audits = [audit_row(a, t, **spec) for (a, t), spec in STRICT_DECISIONS.items()]
+    traces = [trace(a, t, at_cap=(a, t) in AT_CAP, aborted=spec.get("path") == "aborted",
+                    crashed=spec.get("crashed", False))
+              for (a, t), spec in STRICT_DECISIONS.items()]
+    path = write_run(tmp_path / "strict_lbflow", llm_manifest("strict", agents=sorted(AGENTS)),
+                     sim_rows(system, agent_years), audits, traces)
+    run = vm.load_run(path, keep_prompts=True)
+
+    check = vm.gate_p1([run])
+    assert check["passed"] is True, check["reason"]
+    assert check["details"]["largest_residual_maf"][run.label] < 1e-9
 
 
 def test_p2_bounds(tmp_path, strict_run):

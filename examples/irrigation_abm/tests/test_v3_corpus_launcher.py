@@ -560,6 +560,86 @@ class TestResumeChainAwareStatus:
         assert launcher.run_status_for_plan_entry(run, state_dir) == "running"
 
 
+class TestRunRecordNamespacedBySha8:
+    """2026-10-06 CPU rerun finding (irrigation_v3_cpu_rerun_2026-10-06.md
+    section 1): the run-record path used to carry only the plan label, not
+    the sha8 the output-dir names already carry, so stale records left by
+    an OLDER campaign under the SAME --state-dir made every NEW sha8's
+    entry misreport as "crashed" before it had even run. Records are now
+    namespaced under `state_dir/runs/<sha8>/`, so a new tag starts clean
+    under the same --state-dir, while a resume of the SAME tag still
+    finds its own record."""
+
+    def test_record_path_is_namespaced_under_runs_sha8(self, tmp_path):
+        state_dir = tmp_path / "state"
+        path = launcher._run_record_path(state_dir, "fql_seed42", "cca02b21")
+        assert path == state_dir / "runs" / "cca02b21" / "fql_seed42.json"
+
+    def test_record_path_without_sha8_keeps_the_old_flat_layout(self, tmp_path):
+        """Byte-identity / back-compat: a caller that passes no sha8 (the
+        default) gets exactly the old flat path -- needed so every
+        pre-existing direct call to read/write_run_record in this suite
+        keeps working unchanged."""
+        state_dir = tmp_path / "state"
+        assert launcher._run_record_path(state_dir, "fql_seed42") == state_dir / "runs" / "fql_seed42.json"
+
+    def test_stale_record_from_an_old_sha8_does_not_poison_a_new_sha8(self, tmp_path):
+        state_dir = tmp_path / "state"
+        old_sha8 = "92e575ed"  # the previous campaign's tag/commit
+        new_sha8 = "cca02b21"  # a fresh tag, same --state-dir, same labels
+        # The old campaign recorded fql_seed42 as crashed (exit 1), under
+        # the SAME label a new tag's plan reuses.
+        launcher.write_run_record(state_dir, "fql_seed42", {"pid": 1234, "returncode": 1}, old_sha8)
+
+        plan = launcher.build_plan(tmp_path / "results", new_sha8, 1)
+        run = next(r for r in plan if r.label == "fql_seed42")
+        # The new sha8's output dir does not exist yet either: a truly
+        # fresh run must read "pending", NOT "crashed" from the old
+        # campaign's stale record.
+        assert launcher.run_status_for_plan_entry(run, state_dir, new_sha8) == "pending"
+        assert launcher.read_run_record(state_dir, "fql_seed42", new_sha8) is None
+        # The OLD sha8's own record is untouched and still reachable under
+        # its own namespace (a resume of the OLD tag must still find it).
+        assert launcher.read_run_record(state_dir, "fql_seed42", old_sha8) == {
+            "pid": 1234, "returncode": 1,
+        }
+
+    def test_resume_of_the_same_sha8_still_finds_its_own_record(self, tmp_path):
+        state_dir = tmp_path / "state"
+        sha8 = "cca02b21"
+        launcher.write_run_record(state_dir, "fql_seed42", {"pid": 1234, "returncode": None}, sha8)
+        assert launcher.read_run_record(state_dir, "fql_seed42", sha8) == {
+            "pid": 1234, "returncode": None,
+        }
+
+    def test_cmd_plan_end_to_end_a_new_sha8_is_not_poisoned_by_an_old_ones_record(
+        self, monkeypatch, tmp_path, git_repo, capsys,
+    ):
+        """Reproduces the actual incident through the CLI entry point: a
+        stale record from a different (old) sha8 under the same
+        --state-dir must not make `plan`'s status column read "crashed"
+        for a label that has never run at this sha8."""
+        repo, _git = git_repo
+        monkeypatch.setattr(launcher, "_REPO_ROOT", repo)
+        results_root = tmp_path / "results"
+        state_dir = tmp_path / "state"
+        new_sha8 = launcher.resolve_commit("v-test", repo)[:8]
+        old_sha8 = "92e575ed"
+        assert old_sha8 != new_sha8
+
+        launcher.write_run_record(state_dir, "fql_seed42", {"pid": 1234, "returncode": 1}, old_sha8)
+
+        rc = launcher.main([
+            "plan", "--tag", "v-test",
+            "--results-root", str(results_root), "--state-dir", str(state_dir),
+        ])
+        assert rc == 0
+        out = capsys.readouterr().out
+        fql_line = next(line for line in out.splitlines() if "fql_seed42" in line)
+        assert "[pending]" in fql_line
+        assert "[crashed]" not in fql_line
+
+
 # =============================================================================
 # Workers-consistency guard
 # =============================================================================
@@ -918,7 +998,7 @@ class TestCmdResume:
         state_dir = tmp_path / "state"
         sha8 = launcher.resolve_commit("v-test", repo)[:8]
         crashed = self._seed_crashed_run(results_root, sha8)  # really "running" once recorded below
-        launcher.write_run_record(state_dir, "strict_43", {"pid": 4242, "returncode": None})
+        launcher.write_run_record(state_dir, "strict_43", {"pid": 4242, "returncode": None}, sha8)
         _mock_liveness(monkeypatch, {4242: str(crashed.output_dir)})
         launcher.save_state(state_dir, {"workers": 4, "pilot_gate": {"passed": True, "sha8": sha8}})
 

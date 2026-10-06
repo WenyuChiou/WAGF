@@ -84,12 +84,15 @@ def real_profiles_by_id(real_profiles):
 
 def _one_agent_env(request: float, diversion: float, water_right: float = 1_000_000.0,
                     basin: str = "lower_basin", mu: float = 0.3, sigma: float = 1.1,
-                    step_bin_af: float = 5_000.0) -> IrrigationEnvironment:
+                    step_bin_af: float = 5_000.0, config=None) -> IrrigationEnvironment:
     """A minimal, hand-built one-agent environment -- no CRSS data needed --
     with ``request`` (whatever was carried from a prior decision) and
     ``diversion`` (last COMMITTED delivery) set independently, exactly the
-    shape ``_reset_requests_to_base`` must tell apart."""
-    env = IrrigationEnvironment(WaterSystemConfig(seed=1))
+    shape ``_reset_requests_to_base`` must tell apart. ``config`` (2026-10-06
+    CPU rerun finding): the WaterSystemConfig to build the environment with,
+    default WaterSystemConfig(seed=1) -- a caller can pass one with a
+    non-default min_utilisation_fraction to prove the floor follows it."""
+    env = IrrigationEnvironment(config or WaterSystemConfig(seed=1))
     env._agents["A"] = {
         "basin": basin, "diversion": diversion, "request": request,
         "water_right": water_right, "curtailment_ratio": 0.0, "delivery_ratio": 1.0,
@@ -170,6 +173,39 @@ def test_decrease_never_raises_a_request_that_starts_below_the_floor():
     ))
     assert result.success
     assert result.state_changes["request"] == pytest.approx(below_floor)
+
+
+def test_decrease_floor_follows_the_config_not_the_default():
+    """2026-10-06 CPU rerun finding (spec item 36k): execute_skill's
+    decrease branch reads config.min_utilisation_fraction, not the
+    module-level MIN_UTIL constant -- a large decrease step from well
+    above both floors stops at the DEFAULT floor (10% W) under a default
+    config, but at a RAISED floor (20% W) under a config that sets
+    min_utilisation_fraction=0.20, never going below it either way."""
+    W = 1_000_000.0
+    start = 0.30 * W  # above both the default (10% W) and raised (20% W) floors
+    huge_step = 0.5 * W  # large enough that an unclamped decrease would undershoot both
+
+    default_env = _one_agent_env(
+        request=start, diversion=start, water_right=W, mu=10.0, sigma=0.0, step_bin_af=huge_step,
+    )
+    default_env._reset_requests_to_base()
+    default_result = default_env.execute_skill(SimpleNamespace(
+        skill_name="decrease_demand", agent_id="A", parameters={},
+    ))
+    assert default_result.success
+    assert default_result.state_changes["request"] == pytest.approx(0.10 * W)
+
+    raised_floor_env = _one_agent_env(
+        request=start, diversion=start, water_right=W, mu=10.0, sigma=0.0, step_bin_af=huge_step,
+        config=WaterSystemConfig(seed=1, min_utilisation_fraction=0.20),
+    )
+    raised_floor_env._reset_requests_to_base()
+    raised_result = raised_floor_env.execute_skill(SimpleNamespace(
+        skill_name="decrease_demand", agent_id="A", parameters={},
+    ))
+    assert raised_result.success
+    assert raised_result.state_changes["request"] == pytest.approx(0.20 * W)
 
 
 def test_reset_precedes_release_plan():
