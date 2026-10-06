@@ -398,11 +398,16 @@ def test_step_rescale_set(real_profiles):
 @_real_ref
 def test_water_rights_sum_unchanged_by_wp2(real_profiles):
     """Acceptance: WP2 touches bin_size_af / step_bin_af only -- the water
-    rights it does NOT touch still sum to 4.932 MAF (UB) / 4.177 MAF (LB)."""
+    rights it does NOT touch are unaffected BY WP2. Item 36f/36g
+    (2026-10-05 design-basis audit + fix proposals, spec item 36, a
+    LATER change than WP2) moved the sums themselves: UB 4.932 -> 4.950
+    MAF (dropping the grid-top term, item 36g, raises the one agent it
+    used to bind); LB 4.177 -> 4.266 MAF (grid top alone, item 36f, no
+    longer scaled down by the margin for 10 agents)."""
     ub_total = sum(p.water_right for p in real_profiles if p.basin == "upper_basin")
     lb_total = sum(p.water_right for p in real_profiles if p.basin == "lower_basin")
-    assert ub_total / 1e6 == pytest.approx(4.932, abs=5e-4)
-    assert lb_total / 1e6 == pytest.approx(4.177, abs=5e-4)
+    assert ub_total / 1e6 == pytest.approx(4.950, abs=5e-4)
+    assert lb_total / 1e6 == pytest.approx(4.266, abs=5e-4)
 
 
 @_real_ref

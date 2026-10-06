@@ -26,6 +26,21 @@ global_config:
     consolidation_threshold: 0.6
     consolidation_probability: 0.7
     decay_rate: 0.1
+    # Item 36b (2026-10-05 design-basis audit + fix proposals, spec item
+    # 36b, N9/N10/X2): three generic framework options, default OFF in
+    # broker/components/memory/engines/humancentric.py so every other
+    # domain (including flood) stays byte-identical; irrigation turns
+    # all three on. deterministic_consolidation removes the random draw
+    # that decided whether a >= 0.6-importance outcome entered long-term
+    # memory at all (previously a coin flip, p = 0.42 to 0.63, on every
+    # eligible shortfall year); decay_ignore_emotion removes the
+    # emotion-weighted decay-rate modifier; decay_by_calendar_year counts
+    # decay age in calendar years instead of stored items (irrigation
+    # stores one outcome line plus one reflection per year, so the
+    # item-count age over-decayed at roughly twice the stated rate).
+    deterministic_consolidation: true
+    decay_ignore_emotion: true
+    decay_by_calendar_year: true
 
   reflection:
     interval: 1
@@ -491,10 +506,16 @@ irrigation_farmer:
       - { name: "shortage_alone", source: "shortage_alone", unit: "", format: ".0f", display: false }
       - { name: "shortage_upper_basin", source: "shortage_upper_basin", unit: "", format: ".0f", display: false }
     assertions:
-      # A warning when last year's delivery was below 85 percent of the
-      # request (provenance G12; "supply >= 1" is a unit guard:
-      # SafeExpressionEvaluator replaces 0 with 1e-10, and a real delivery is
-      # thousands of acre-feet). Each variant names who shares the shortage
+      # Item 36h (2026-10-05 design-basis audit + fix proposals, spec
+      # item 36h, provenance G12a): the warning edge is FULL_SUPPLY_RATIO
+      # (0.999), the SAME edge the supply rule and the situation-text
+      # headline switch at -- not the old, unsourced 0.85. This YAML
+      # cannot import the Python constant, so the number is written out
+      # here; test_v3_prompt.py pins it against
+      # irrigation_personas.FULL_SUPPLY_RATIO so the two can never drift
+      # apart again ("supply >= 1" is a unit guard: SafeExpressionEvaluator
+      # replaces 0 with 1e-10, and a real delivery is thousands of
+      # acre-feet). Each variant names who shares the shortage
       # in the words of the supply rule's message (spec 3.7, item 29c: a
       # larger request raises the agent's share only by lowering other
       # users' deliveries and adds no water to the pool). The unmet share has
@@ -504,7 +525,7 @@ irrigation_farmer:
       # agent's shortfall is always Lake Mead's physical availability, and an
       # agent holding junior-priority water is told that a declared shortage
       # can cut the part of a request above its senior entitlement (item 29f).
-      - when: "supply / request < 0.85 and supply >= 1 and shortage_junior >= 1"
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_junior >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -516,7 +537,7 @@ irrigation_farmer:
           proportion to requests, and a larger request would raise your share
           only by lowering the deliveries of other users in the Lower Basin;
           it would not add water to the Lower Basin.
-      - when: "supply / request < 0.85 and supply >= 1 and shortage_lower_basin >= 1"
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_lower_basin >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -526,7 +547,7 @@ irrigation_farmer:
           short it is shared in proportion to requests, so a larger request
           would raise your share only by lowering the deliveries of other
           users in the Lower Basin; it would not add water to the Lower Basin.
-      - when: "supply / request < 0.85 and supply >= 1 and shortage_lower_basin_junior_holder >= 1"
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_lower_basin_junior_holder >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -538,7 +559,7 @@ irrigation_farmer:
           shared in proportion to requests, so a larger request would raise
           your share only by lowering the deliveries of other users in the
           Lower Basin; it would not add water to the Lower Basin.
-      - when: "supply / request < 0.85 and supply >= 1 and shortage_subbasin >= 1"
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_subbasin >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -548,7 +569,7 @@ irrigation_farmer:
           lowering the deliveries of other users in your sub-basin; it would
           not add water to your sub-basin.
       # The only member of its sub-basin (H&Y's UT2) has no one to share with.
-      - when: "supply / request < 0.85 and supply >= 1 and shortage_alone >= 1"
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_alone >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -556,7 +577,7 @@ irrigation_farmer:
           situation above. When water is short, a larger request would not
           add water.
       # The basin-wide Upper Basin backstop (or ub_supply_mode lees_ferry_pool).
-      - when: "supply / request < 0.85 and supply >= 1 and shortage_upper_basin >= 1"
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_upper_basin >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
@@ -669,7 +690,20 @@ irrigation_farmer:
           grounding: world
           message: "Increase not available: your request is already at your water right."
         # Minimum-use floor: no decrease once the base is at or below
-        # 1.01 F, F = 0.10 W.
+        # 1.01 F, F = 0.10 W. Legal basis for having a floor at all (spec
+        # item 36k, PI-decided 2026-10-06): beneficial use is the basis
+        # and limit of a water right (Arizona Revised Statutes
+        # 45-141(B); Upper Colorado River Basin Compact 1948, Article
+        # III(b)(2)), and the UNUSED part of a right ends or is subject
+        # to forfeiture or abandonment after years of non-use (5 years
+        # in Arizona, A.R.S. 45-141(C); 7 years in Utah, Utah Code
+        # 73-1-4(2)(a); 10 years in Colorado, Colorado Revised Statutes
+        # 37-92-402(11)); approved conservation is exempt (A.R.S.
+        # 45-141(F); C.R.S. 37-92-103(2)). The 10 PERCENT PER YEAR value
+        # is this model's own assumption, not from these statutes (which
+        # set multi-year non-use periods, not an annual fraction); the
+        # source model (Hung and Yang 2021) has no floor at all. CPU
+        # sensitivities at 0 and 0.05 x W (provenance C6b).
         - id: minimum_utilisation_floor
           precondition: below_minimum_utilisation
           blocked_skills: ["decrease_demand"]

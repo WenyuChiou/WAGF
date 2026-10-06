@@ -251,9 +251,10 @@ AZ_LB_TIER_VOLUME_AF = {0: 0.0, 1: 320_000.0, 2: 400_000.0, 3: 480_000.0}
 # the two entitlement figures below are the PUBLISHED USBR figures
 # THEMSELVES, in the SAME units and basis the listing gives (diversion or
 # consumptive use -- see the ``basis`` column of the built CSV), never
-# derived from or scaled by the model's water_right W (min(grid_top, 1.4 x
-# peak diversion) -- a modelling proxy for a DIFFERENT purpose, the request
-# ceiling, unrelated to which priority class a unit of water falls in).
+# derived from or scaled by the model's water_right W (item 36f,
+# 2026-10-05: grid_top alone -- a modelling proxy for a DIFFERENT
+# purpose, the request ceiling, unrelated to which priority class a
+# unit of water falls in).
 # H&Y's own coupling code (ABM_CRSS_coupling.py, Calculate_Annual_Div_QL_LB)
 # fills each priority slot up to an ABSOLUTE bound (``QL_UpperBounds``),
 # not a share of some other ceiling -- this restores that shape exactly.
@@ -885,9 +886,9 @@ def build_lb_priority_split_csv(
     2026-09-29): ``senior_entitlement_af`` / ``junior_entitlement_af`` are
     the ABSOLUTE, PUBLISHED USBR figures themselves (``_LB_PRIORITY_SOURCE_TABLE``,
     hand-entered and cited), NEVER derived from or scaled by the agent's
-    ``water_right`` (the SEPARATE ``min(grid_top_af, (1 + paper_water_margin)
-    * peak_obs_af)`` value -- a modelling proxy for the request ceiling,
-    unrelated to which priority class a unit of water falls in; round 1's
+    ``water_right`` (the SEPARATE ``grid_top_af`` value, item 36f,
+    2026-10-05 -- a modelling proxy for the request ceiling, unrelated
+    to which priority class a unit of water falls in; round 1's
     "senior_entitlement_af = (1 - junior_share) * water_right_af" coupled
     the two together, so a paper_water_margin change alone would have
     silently moved the priority split -- MEDIUM 5). H&Y's own coupling
