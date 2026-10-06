@@ -162,9 +162,22 @@ def _write_synthetic_ref(tmp_path: Path) -> Path:
 
 
 class TestSyntheticCeilingFormula:
-    """(a) Formula test: min(grid_top, (1 + margin) * peak) on a fixture."""
+    """(a) Formula test, basin-specific since item 36f/36g (2026-10-05):
+    Lower Basin water_right is ALWAYS grid_top_af (item 36f: the margin
+    multiplier no longer applies to the Lower Basin at all); Upper Basin
+    water_right is ALWAYS (1 + margin) * peak_obs_af, with no grid-top
+    term (item 36g). Both fixtures below are both-agents-LB (this class
+    predates item 36f/36g and both its agents happen to be Lower Basin);
+    the Upper Basin formula is covered by
+    TestUBWaterRightDropsGridTerm below, which reuses
+    _write_ub_two_agent_group_fixture.
+    """
 
-    def test_grid_top_and_peak_scaled_branches(self, tmp_path):
+    def test_lb_water_right_is_always_grid_top(self, tmp_path):
+        """Item 36f: the Lower Basin ceiling is grid_top_af, full stop --
+        NOT min(grid_top, (1 + margin) * peak), even for the agent whose
+        OLD (pre-2026-10-05) capped ceiling would have been the
+        peak-scaled branch."""
         params_path, crss_db_dir = _write_synthetic_ref(tmp_path)
 
         # cluster_method="legacy_centroid": this fixture's synthetic agent
@@ -184,22 +197,26 @@ class TestSyntheticCeilingFormula:
         below = by_id["LB_Below"]
         above = by_id["LB_Above"]
 
-        # Common history: peak 900, threshold (1 + 0.4) * 900 = 1260.
+        # Common history: peak 900, kept on the profile (SI table, CPU
+        # sensitivity) but no longer feeds the Lower Basin ceiling.
         assert below.peak_obs_af == pytest.approx(900.0)
         assert above.peak_obs_af == pytest.approx(900.0)
 
-        # grid_top (1000) <= 1260 -> keeps the grid top.
+        # grid_top (1000): below the old peak-scaled threshold (1260) --
+        # the old rule and the new rule agree here.
         assert below.grid_top_af == pytest.approx(1000.0)
         assert below.water_right == pytest.approx(1000.0)
         assert below.water_right_source == "grid_top"
 
-        # grid_top (5000) > 1260 -> capped at the peak-scaled ceiling.
+        # grid_top (5000): ABOVE the old peak-scaled threshold (1260) --
+        # the pre-2026-10-05 rule would have capped this at 1260
+        # ("peak_scaled"); item 36f keeps the full grid top instead.
         assert above.grid_top_af == pytest.approx(5000.0)
-        assert above.water_right == pytest.approx(1260.0)
-        assert above.water_right_source == "peak_scaled"
+        assert above.water_right == pytest.approx(5000.0)
+        assert above.water_right_source == "grid_top"
 
         # bin_size_af (the H&Y step) always comes from the grid, unaffected
-        # by which ceiling won: grid_top / 4 in this 5-point linspace.
+        # by the water-right ceiling: grid_top / 4 in this 5-point linspace.
         assert below.bin_size_af == pytest.approx(250.0)
         assert above.bin_size_af == pytest.approx(1250.0)
 
@@ -352,6 +369,47 @@ class TestUBGroupProportionalSplit:
         assert by_id["G_Agent_B"].peak_obs_af == pytest.approx(group_peak_af * (400.0 / group_total))
 
 
+class TestUBWaterRightDropsGridTerm:
+    """Item 36g (2026-10-05 design-basis audit + fix proposals): the Upper
+    Basin water right is (1 + margin) * peak_obs_af ONLY -- the grid-top
+    term is DROPPED (not converted), unlike the pre-2026-10-05
+    min(grid_top, scaled) rule. Reuses the two-agent group fixture
+    (G_Agent_A grid_top=600, peak_obs_af=480; G_Agent_B grid_top=400,
+    peak_obs_af=320 -- see TestUBGroupProportionalSplit above), where at
+    the default margin (0.4, multiplier 1.4) BOTH agents' peak-scaled
+    value exceeds their grid top, so the old rule would have kept the
+    grid top for both and the new rule keeps the peak-scaled value for
+    both -- the two rules disagree on every agent in this fixture.
+    """
+
+    def test_ub_water_right_is_peak_scaled_even_above_grid_top(self, tmp_path):
+        params_path, crss_db_dir = _write_ub_two_agent_group_fixture(tmp_path)
+        profiles = create_profiles_from_data(
+            params_csv_path=str(params_path),
+            crss_db_dir=str(crss_db_dir),
+            rng=np.random.default_rng(0),
+            paper_water_margin=0.4,
+        )
+        by_id = {p.agent_id: p for p in profiles}
+        assert set(by_id) == {"G_Agent_A", "G_Agent_B"}
+
+        a = by_id["G_Agent_A"]
+        b = by_id["G_Agent_B"]
+
+        assert a.grid_top_af == pytest.approx(600.0)
+        assert a.peak_obs_af == pytest.approx(480.0)
+        # 1.4 * 480 = 672, ABOVE grid_top (600) -- the pre-2026-10-05 rule
+        # (min(grid_top, scaled)) would have given 600 here.
+        assert a.water_right == pytest.approx(672.0)
+        assert a.water_right_source == "peak_scaled"
+
+        assert b.grid_top_af == pytest.approx(400.0)
+        assert b.peak_obs_af == pytest.approx(320.0)
+        # 1.4 * 320 = 448, ABOVE grid_top (400).
+        assert b.water_right == pytest.approx(448.0)
+        assert b.water_right_source == "peak_scaled"
+
+
 # ---------------------------------------------------------------------------
 # (b) AZ_UB regression: real ref data, all 78 agents resolve
 # ---------------------------------------------------------------------------
@@ -422,7 +480,13 @@ class TestRealDataDefaultMargin:
         # Default paper_water_margin = 0.4; see irrigation_personas.
         # create_profiles_from_data docstring / docs/irrigation_physics.md
         # for the derivation (4.86 / 3.536 = 1.374 -> rounded margin 0.4).
-        assert 4.90 <= ub_sum_maf <= 5.00, f"UB water_right sum {ub_sum_maf:.4f} MAF out of range"
+        # Item 36g (2026-10-05): water_right = 1.4 * peak_obs_af only (the
+        # grid-top term is dropped, not min()'d in), which raises the sum
+        # slightly above the pre-2026-10-05 ~4.93 MAF to ~4.95 MAF (the
+        # one agent the grid term used to bind, UtahUsesAbove
+        # GreenRiverConfluence_UtahAgDNRProjects, no longer capped below
+        # its peak-scaled value).
+        assert 4.90 <= ub_sum_maf <= 5.05, f"UB water_right sum {ub_sum_maf:.4f} MAF out of range"
 
     def test_no_agent_water_right_below_2018_use(self):
         """No agent's new ceiling should fall below what it actually used
@@ -621,14 +685,20 @@ class TestManifestRecordsWaterSystemConfigProvenance:
 
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["powell_release_mode"] == "ig2007_tiers"
-        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        # Item 36c (2026-10-05): the default is now "extend_slope"
+        # (USBR's own documented CRSS continuation practice), not
+        # "hold_2026" (now the SI sensitivity).
+        assert manifest["powell_post2026_equalization"] == "extend_slope"
         assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
+        # Item 36e: default 0.0, byte-identical.
+        assert manifest["lb_return_flow_fraction"] == pytest.approx(0.0)
 
         import yaml
         snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
         assert snapshot["metadata"]["powell_release_mode"] == "ig2007_tiers"
-        assert snapshot["metadata"]["powell_post2026_equalization"] == "hold_2026"
+        assert snapshot["metadata"]["powell_post2026_equalization"] == "extend_slope"
         assert snapshot["metadata"]["lb_non_ag_total_maf"] == pytest.approx(5.2)
+        assert snapshot["metadata"]["lb_return_flow_fraction"] == pytest.approx(0.0)
 
     def test_non_default_config_recorded(self, tmp_path):
         """Not a hard-coded literal -- reads whatever the config actually
@@ -659,6 +729,84 @@ class TestManifestRecordsWaterSystemConfigProvenance:
             _record_water_system_config_provenance,
         )
         _record_water_system_config_provenance(tmp_path, WaterSystemConfig())  # no exception
+
+
+# ---------------------------------------------------------------------------
+# (e0) Manifest records the three item-36b memory options (Opus review P3-2)
+# ---------------------------------------------------------------------------
+class TestManifestRecordsMemoryOptionsProvenance:
+    def test_record_memory_options_provenance(self, tmp_path):
+        from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+        from examples.irrigation_abm.run_experiment import _record_memory_options_provenance
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+        snapshot_path = tmp_path / "config_snapshot.yaml"
+        snapshot_path.write_text("metadata:\n  seed: 42\n", encoding="utf-8")
+
+        engine = HumanCentricMemoryEngine(
+            deterministic_consolidation=True, decay_ignore_emotion=True,
+            decay_by_calendar_year=True,
+        )
+        _record_memory_options_provenance(tmp_path, engine)
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["deterministic_consolidation"] is True
+        assert manifest["decay_ignore_emotion"] is True
+        assert manifest["decay_by_calendar_year"] is True
+
+        import yaml
+        snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["metadata"]["deterministic_consolidation"] is True
+        assert snapshot["metadata"]["decay_ignore_emotion"] is True
+        assert snapshot["metadata"]["decay_by_calendar_year"] is True
+
+    def test_default_off_recorded(self, tmp_path):
+        from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+        from examples.irrigation_abm.run_experiment import _record_memory_options_provenance
+
+        manifest_path = tmp_path / "reproducibility_manifest.json"
+        manifest_path.write_text(json.dumps({"seed": 42}), encoding="utf-8")
+
+        _record_memory_options_provenance(tmp_path, HumanCentricMemoryEngine())
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["deterministic_consolidation"] is False
+        assert manifest["decay_ignore_emotion"] is False
+        assert manifest["decay_by_calendar_year"] is False
+
+    def test_missing_files_do_not_raise(self, tmp_path):
+        from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+        from examples.irrigation_abm.run_experiment import _record_memory_options_provenance
+        _record_memory_options_provenance(tmp_path, HumanCentricMemoryEngine())  # no exception
+
+    def test_non_engine_object_warns_not_raises(self, tmp_path, capsys):
+        from examples.irrigation_abm.run_experiment import _record_memory_options_provenance
+        _record_memory_options_provenance(tmp_path, object())  # no exception
+        assert "no item-36b options" in capsys.readouterr().out
+
+    @requires_real_ref
+    def test_mock_real_run_manifest_has_memory_options(self, tmp_path):
+        """A full --real --model mock run records all three (irrigation's
+        agent_types.yaml turns them all on)."""
+        import examples.irrigation_abm.run_experiment as run_experiment
+
+        argv = [
+            "run_experiment.py",
+            "--real", "--model", "mock", "--years", "1", "--seed", "1",
+            "--output", str(tmp_path), "--governance-mode", "disabled",
+        ]
+        old_argv = sys.argv
+        sys.argv = argv
+        try:
+            run_experiment.main()
+        finally:
+            sys.argv = old_argv
+
+        manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+        assert manifest["deterministic_consolidation"] is True
+        assert manifest["decay_ignore_emotion"] is True
+        assert manifest["decay_by_calendar_year"] is True
 
 
 # ---------------------------------------------------------------------------

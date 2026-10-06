@@ -64,6 +64,8 @@ From the per-year columns of `simulation_log.csv` (identical on every row of a y
 
 (Gupta et al. 2009, original form.) Series, 2019-2060, from `simulation_log.csv`: Lake Mead 1 January elevation (`lake_mead_level`); the UB+LB, Upper Basin and Lower Basin totals of `request` and of `diversion` (delivered) over the agricultural agents; each UB sub-basin's request and delivery totals (`ub_subbasin`); each LB agent's `request`. The reference is the mean, year by year, of the FQL seeds (10 on the corpus: raw FQL, no WAGF rules).
 
+Item 36j (2026-10-05 design-basis audit + fix proposals, spec item 36j, K7a): the FQL reference's calibrated warm start is `Initial_Files/All-1109`, KEPT as the reference snapshot because its 78 Q tables share the 2020-11-08 calibration date with the loaded parameter file (`ALL_colorado_ABM_params_cal_1108.csv`); `All` (a different, later snapshot the authors' own init script copies) is run as a CPU sensitivity and its KGE spread against All-1109 is reported beside the FQL-versus-FQL benchmark above, not used as the reference itself.
+
 Constant series (convention, stated assumption, orchestrator 2026-10-01): a simulated series that is constant (range within 1e-12 of its magnitude) against a reference that is not is scored with r := 0 and alpha := 0, so KGE = 1 - sqrt(2 + (beta - 1)^2); its note says so. KGE is undefined (n/a, with its reason) only for fewer than 3 years, a constant reference or a zero reference mean. The convention keeps an agent whose request never moved in the per-agent median, so every arm's median runs over the same agents: those whose reference is not constant.
 
 Reported as agreement with the source model's decision rule in the same water system, never as validation:
@@ -83,6 +85,7 @@ Dry-year definition: a year is dry when the sub-basin's available supply A_s(t) 
 - Per arm: n, mean, sd (ddof 1), median, min and max over seeds of each per-run value.
 - Paired comparisons by seed (strict - disabled, placebo - strict, silent - strict, placebo - disabled, silent - disabled, placebo - silent): the mean paired difference and an exact two-sided sign-flip test, p = #{sign vectors s : |mean(s x d)| >= |mean(d)|} / 2^n, over the seeds where both values exist (`seeds` in `paired_tests.csv` lists exactly those). A zero difference keeps its value under either sign, so with z zero differences the smallest attainable p is 2^(z + 1) / 2^n (capped at 1): 2 / 2^n = 0.0625 at n = 5 when none is zero, so no p below 0.05 is possible. The executed feasibility rates are compared only in the pairs that include disabled; in the others both sides are 0 by construction.
 - feasibility_only (n = 1): its value and whether it lies inside the strict and disabled ranges; no test statistic (item 16).
+- Item 36i (2026-10-05 design-basis audit + fix proposals, spec item 36i, J2): the paper reports the five-seed results as per-seed values, effect sizes (the mean paired difference above) and the five-seed range, NOT as a significance claim; the sign-flip p is DESCRIPTIVE ONLY, printed alongside its 0.0625 floor at n = 5 (above), never read as "significant" or "not significant" at a conventional alpha, since no value below 0.05 is attainable at this n.
 
 ## 10. Provenance guard
 
@@ -103,7 +106,7 @@ Gated, on the strict and disabled runs, both seed 42 (any other pair is refused)
 - P7: strict share of decisions with `retry_count > 0` <= 50 percent; disabled <= 0.5 percent; each run's share with a parse retry (`format_retries > 0`, or a governance retry that did not parse: an empty group in the `attempt_*` columns) <= 5 percent; 0 disagreements for the supply rule, TR1 and TR3 in strict (section 4).
 - P8: no `llm_success` False; each CSV holds 3,276 rows (78 agents x 42 years), counted on the files, with every agent in every year (the run's own `run_integrity.configured_grid_rows` is reported, never used); decisions with no readable final proposal <= 0.5 percent.
 - P9: from the menu of each first-attempt prompt and `state_before`: no increase offered at the cap and no decrease at the floor; one option set per state class (cap, floor, neither), the same in both runs.
-- P10: IBR in [0, 100] and equal to TR1 + TR3, over all 3,276 decisions (its denominator must be 3,276); final-label IBR and relabel rate in [0, 100]; strict executed rates 0; Mead minimum in [895, 1,082] ft; Tier-3 years in [0, 42]; UB request <= 4.932 MAF and LB <= 4.177 MAF every year; KGE of Mead, UB request and LB request finite. Added guard (orchestrator 2026-10-01): each run's UB+LB request total is not the same in every year, because under the constant-series convention a run whose requests never moved still has a finite KGE.
+- P10: IBR in [0, 100] and equal to TR1 + TR3, over all 3,276 decisions (its denominator must be 3,276); final-label IBR and relabel rate in [0, 100]; strict executed rates 0; Mead minimum in [895, 1,082] ft; Tier-3 years in [0, 42]; UB request <= 4.951 MAF and LB <= 4.267 MAF every year (item 36f/36g, 2026-10-05 design-basis audit + fix proposals: raised from 4.932/4.177 MAF by the basin-specific water-right formula -- UB actual sum 4.950 MAF, LB actual sum 4.266 MAF); KGE of Mead, UB request and LB request finite. Added guard (orchestrator 2026-10-01): each run's UB+LB request total is not the same in every year, because under the constant-series convention a run whose requests never moved still has a finite KGE.
 
 Reported, never gated: P3 (Powell minimum date and dead-pool dates beside H&Y's 2034 and the replays), R1 (per rule, condition counts and blocks, beside the supply-rule condition counts of replays A and B), R2 (disabled: first-stated WSA and ACA both H or VH with keep; and both H or VH, where TR1 with TR2 would leave only a decrease, by cluster), R3 (wall-clock hours from the first decision to the manifest's finalize time), R4 (section 8).
 
@@ -143,10 +146,18 @@ first-stated WSA is stated but not one of the five construct levels under
 `off_scale_excluded` (the `ibr_metrics` split of `first_wsa_missing` from
 `first_wsa_off_scale`). None is ever silently dropped.
 
-- R5a: the first-stated WSA distribution by the prompt's supply headline
-  band (`irrigation_personas.build_water_situation_text`, spec 4.3): r =
-  `state_supply_ratio` against FULL_SUPPLY_RATIO (0.999), 0.95, 0.80 and
-  0.50 (`v3_metrics.r5a_headline_band`). A decision whose
+- R5a: the first-stated WSA distribution by a five-way REPORT-ONLY
+  analysis bin on r = `state_supply_ratio` (`v3_metrics.r5a_headline_band`,
+  `R5A_BANDS`: `sufficient`, `slightly_short`, `moderately_short`,
+  `well_short`, `critical`; the middle bin renamed from `short` to
+  `moderately_short`, Opus review P3-6, 2026-10-06, to stop reading as
+  the same thing as the prompt's own `short` state). Before item 36a
+  (2026-10-05) these five bins were exactly the prompt's own supply
+  headline band (`irrigation_personas.build_water_situation_text`, spec
+  4.3); as of item 36a the prompt's headline is two states only
+  (`sufficient` / `short`, at FULL_SUPPLY_RATIO) and no longer reads any
+  of these five, which survive here as analysis bins only. Edges:
+  FULL_SUPPLY_RATIO (0.999), 0.95, 0.80 and 0.50. A decision whose
   `state_supply_ratio` is unknown (the ABORTED_EXCEPTION sentinel) has no
   band and is counted under band "unknown_no_supply_state" (pooled by arm
   too, `r5a_band_summary`: fixed 2026-10-01, it was silently dropped from

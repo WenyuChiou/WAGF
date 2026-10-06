@@ -108,11 +108,17 @@ def _hooks_with_snapshot(tmp_path, action_ctx, request, diversion):
 
 def test_outcome_line_metadata_is_banded_not_keyword(tmp_path):
     """M3: the yearly outcome line carries band importance from the unmet
-    fraction (5 percent unmet -> 0.45, not the keyword bank's 1.0)."""
+    fraction (5 percent unmet -> 0.45, not the keyword bank's 1.0).
+
+    Item 36b (2026-10-05 design-basis audit + fix proposals, spec item
+    36b): the metadata also carries "year" (the calendar year this
+    outcome is about, snapshot["calendar_year"]) now, for
+    HumanCentricMemoryEngine's opt-in decay_by_calendar_year option
+    (default off; on in irrigation)."""
     meta = _hooks_with_snapshot(tmp_path, {"skill_name": "increase_small", "year": 1},
                                 100_000.0, 95_000.0)
     assert meta == {"importance": 0.45, "emotion": "strategic_choice",
-                    "source": "personal", "type": "outcome"}
+                    "source": "personal", "type": "outcome", "year": 2019}
 
 
 def test_fallback_outcome_line_gets_same_band_as_approved(tmp_path):

@@ -469,7 +469,9 @@ class TestManifestRecordsWaterSystemConfigProvenance:
 
         manifest = json.loads((tmp_path / "reproducibility_manifest.json").read_text(encoding="utf-8"))
         assert manifest["powell_release_mode"] == "ig2007_tiers"
-        assert manifest["powell_post2026_equalization"] == "hold_2026"
+        # Item 36c (2026-10-05): the default is "extend_slope", not
+        # "hold_2026" (now the SI sensitivity).
+        assert manifest["powell_post2026_equalization"] == "extend_slope"
         assert manifest["lb_non_ag_total_maf"] == pytest.approx(5.2)
 
 

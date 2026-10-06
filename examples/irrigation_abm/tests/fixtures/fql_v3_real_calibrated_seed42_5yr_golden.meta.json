@@ -5,6 +5,6 @@
   "fql_init": "calibrated",
   "no_governance": true,
   "command": "python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated --years 5 --seed 42",
-  "captured": "2026-09-30",
-  "note": "Regenerated for WP5 review round 3 (SeedSequence(seed).spawn(n) replaces default_rng([seed, i]) for per-agent RNG streams -- item 5). ULP-level differences are possible under a different numpy version; the test FAILS (does not skip) on a numpy_version mismatch -- regenerate this fixture instead."
+  "captured": "2026-10-06",
+  "note": "Regenerated for item 36f (2026-10-05 design-basis audit + fix proposals, spec item 36f; Opus review P1-1 correction, 2026-10-06: the only two cells that actually moved are CRIR CA's request/diversion at years 4 and 5, 2717.70/2423.99 -> 2775.01 flat with fql_action 0.0 -- NOT item 36g). The Lower Basin water right is now the grid top alone, no margin scaling (create_profiles_from_data, _lb_water_right); CRIR CA's water right rises to 40,000 AF, so its 10 percent floor rises from 1,966 to 4,000 AF, which is ABOVE its year-4/5 request (2,775 AF) -- a decrease is no longer offered (below_minimum_utilisation), so the FQL path's fql_action pins at 0.0 instead of continuing to decrease. Item 36g (Upper Basin water right = 1.4 x observed peak only) changes zero cells in this particular 5-year trajectory. Prior note (WP5 review round 3, 2026-09-30): SeedSequence(seed).spawn(n) replaces default_rng([seed, i]) for per-agent RNG streams (item 5). ULP-level differences are possible under a different numpy version; the test FAILS (does not skip) on a numpy_version mismatch -- regenerate this fixture instead."
 }

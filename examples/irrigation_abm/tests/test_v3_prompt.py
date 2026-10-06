@@ -74,13 +74,14 @@ needs_ref = pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference d
 SKILL_IDS = ("increase_demand", "maintain_demand", "decrease_demand")
 _LABEL_CODE = re.compile(r"\b(VL|L|M|H|VH)\b")
 
+# Item 36a (2026-10-05 design-basis audit + fix proposals, spec item 36a):
+# TWO headline states only, at FULL_SUPPLY_RATIO. The pre-2026-10-05 five
+# bands ("slightly short" / "well short" / "critically short ...") are
+# retired from the prompt and survive only as analysis.v3_metrics's
+# report-only R5A_BANDS.
 HEADLINES = {
     "sufficient": "Water supply is sufficient for your full request this year.",
-    "slightly": "Water supply is slightly short of your request this year.",
     "short": "Water supply is short of your request this year.",
-    "well": "Water supply is well short of your request this year.",
-    "critical": ("Water supply is critically short this year: expected deliveries "
-                 "fall well below requests."),
 }
 
 # Spec 4.x test_banned_phrases_absent, plus the task's "no farmer, crop or
@@ -169,8 +170,22 @@ UT2 = "UtahUsesAboveGreenRiverConfluence_UtahAgDNRProjects"
 
 def _golden_script(agent: str, year: int, attempt: int):
     """Everyone keeps with a middle appraisal, except UT2, which increases
-    every year until its water right, so it reaches 2033, the one year its
-    own sub-basin supply (17,370 AF) is below its right (20,000 AF)."""
+    every year. Before item 36g (2026-10-05 design-basis audit + fix
+    proposals), UT2's water right was min(grid_top, scaled) = 20,000 AF
+    (the grid-top term bound for this one agent), and this always-increase
+    script reached it exactly at 2033, the one year its own sub-basin
+    supply (17,370 AF) was below that old right, demonstrating "at cap,
+    no increase on the menu". Item 36g drops the grid-top term, so UT2's
+    right is now 1.4 x its observed peak (38,080 AF); its own sub-basin
+    supply never lets an always-increasing request grow past the mid-
+    20,000s AF (checked out to simulation year 42 / calendar 2060), so
+    UT2 no longer reaches its own water right anywhere in the real
+    horizon -- the always-increase script still demonstrates sustained
+    growth meeting the supply rule repeatedly (2033 is kept as a golden
+    year for that reason), but no real agent in this fixture now
+    exercises the water-right-cap menu filter; that filter's own
+    coverage is test_v3_governance.py::test_menu_parity_at_cap
+    (synthetic, basin-agnostic, unaffected by this change)."""
     if agent == UT2:
         return "M", "M", "Increase"
     return "M", "M", "Keep"
@@ -510,9 +525,22 @@ def _after_menu(prompt: str) -> str:
 @needs_ref
 def test_option_notes_rendered(golden_run):
     """A year after a cut: both lines right after the options; a year after
-    full delivery: the random-step line only; an agent at its water right
-    (UT2 in 2033, no increase on the menu): the decrease-only line, and
-    nothing after the menu mentions an increase."""
+    full delivery: the random-step line only.
+
+    Item 36g (2026-10-05 design-basis audit + fix proposals): this test
+    used to add a third real-run demonstration here, an agent at its own
+    water right (UT2 in 2033, no increase on the menu, so only the
+    decrease-only line). Dropping the grid-top term raised UT2's water
+    right from 20,000 to 38,080 AF, and UT2's own sub-basin supply never
+    lets its request grow anywhere near that (checked to the end of the
+    real 2019-2060 horizon), so no real agent in this golden run reaches
+    its water right any more. The decrease-only-at-cap rendering itself
+    is covered directly and exhaustively (every governance profile) by
+    test_v3_governance.py::test_menu_parity_at_cap (synthetic, basin-
+    agnostic) and by the synthetic test_pre_year_option_notes above
+    (the 490,000-at-490,000 case) -- so this real-run demonstration is
+    retired rather than chasing a cap this agent no longer reaches.
+    """
     nl = chr(10)
     mohave = _first_prompt(golden_run, "MohaveValleyIDD", 2022)
     options_end = mohave.index(nl, mohave.index("3. Decrease your request"))
@@ -522,12 +550,6 @@ def test_option_notes_rendered(golden_run):
     wellton = _first_prompt(golden_run, "WelltonMohawkIDD", 2022)
     options_end = wellton.index(nl, wellton.index("3. Decrease your request"))
     assert wellton[options_end + 1:].startswith(OPTION_NOTE + nl + nl)
-    ut2_prompt = _first_prompt(golden_run, UT2, 2033)
-    options_end = ut2_prompt.index(nl, ut2_prompt.index(". Decrease your request"))
-    assert ut2_prompt[options_end + 1:].startswith(DECREASE_NOTE + nl + nl)
-    ut2 = _after_menu(ut2_prompt)
-    assert "Increase your request" not in ut2
-    assert "increase" not in ut2.lower(), ut2
 
 
 @needs_ref
@@ -535,7 +557,20 @@ def test_random_step_line_names_the_offered_directions_in_every_prompt(golden_ru
     """Over every decision prompt of the real run: the random-step line
     names exactly the directions the menu offers, and the item-23 sentence
     appears exactly when an increase is offered and last year's delivery was
-    short; with no increase offered nothing after the menu mentions one."""
+    short; with no increase offered nothing after the menu mentions one.
+
+    Item 36g (2026-10-05 design-basis audit + fix proposals): before this
+    item, UT2 (the always-increasing agent) reached its own water right
+    by 2033 (see _golden_script's docstring), so this loop always found
+    at least one at-cap prompt here. Dropping the grid-top term raised
+    UT2's right to 38,080 AF, which its own sub-basin supply never lets
+    it approach, so no real agent in this 15-year run is at cap any
+    more; the branch below is still exercised (and still asserted) if
+    one ever is, but it is no longer REQUIRED to fire -- the governance-
+    level invariant itself (at cap -> decrease-only, no "increase"
+    anywhere after the menu) is covered unconditionally by
+    test_v3_governance.py::test_menu_parity_at_cap.
+    """
     at_cap = 0
     for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
         after = _after_menu(prompt)
@@ -550,7 +585,6 @@ def test_random_step_line_names_the_offered_directions_in_every_prompt(golden_ru
         if not up:
             at_cap += 1
             assert "increase" not in after.lower(), (agent, year)
-    assert at_cap > 0  # UT2 reaches its water right
 
 
 # ===========================================================================
@@ -578,19 +612,23 @@ def _headline(text: str) -> str:
 
 
 @pytest.mark.parametrize("ratio,band", [
-    (1.0, "sufficient"), (FULL_SUPPLY_RATIO, "sufficient"), (0.998999, "slightly"),
-    (0.97, "slightly"), (0.95, "slightly"), (0.949999, "short"), (0.949, "short"),
-    (0.80, "short"), (0.799999, "well"), (0.79, "well"), (0.50, "well"),
-    (0.499999, "critical"), (0.49, "critical"), (0.0, "critical"),
+    (1.0, "sufficient"), (FULL_SUPPLY_RATIO, "sufficient"), (0.998999, "short"),
+    (0.97, "short"), (0.95, "short"), (0.949999, "short"), (0.949, "short"),
+    (0.80, "short"), (0.799999, "short"), (0.79, "short"), (0.50, "short"),
+    (0.499999, "short"), (0.49, "short"), (0.0, "short"),
 ])
 @pytest.mark.parametrize("drought_index", [0.05, 0.3, 0.6, 0.9])
 def test_headline_bands(ratio, band, drought_index):
-    """Spec 4.3: the headline reads r alone, in five bands, the top edge
-    FULL_SUPPLY_RATIO (the supply rule's edge); each lower edge is pinned on
-    both sides at r's 6-place rounding (review LOW 9). No drought headline
-    such as "adequate but slightly below normal" sits beside a supply-rule
-    block: below the edge the headline is never "sufficient", whatever the
-    old drought index says, and no drought wording appears at all."""
+    """Item 36a (2026-10-05): the headline reads r alone, in TWO states,
+    the single edge FULL_SUPPLY_RATIO (the supply rule's own edge); pinned
+    on both sides at r's 6-place rounding (review LOW 9). No drought
+    headline such as "adequate but slightly below normal" sits beside a
+    supply-rule block: below the edge the headline is never "sufficient",
+    whatever the old drought index says, and no drought wording appears at
+    all. The retired three-way split within "short" (slightly/well/
+    critically) is a report-only analysis bin now
+    (analysis.v3_metrics.R5A_BANDS / r5a_headline_band), never read by the
+    agent -- see test_v3_metrics.py::test_r5a_band_edges_are_the_five_retired_prompt_bands."""
     text = build_water_situation_text(_lb_ctx(ratio, drought_index=drought_index))
     assert _headline(text) == HEADLINES[band]
     for drought_word in ("drought", "dryness", "adequate but", "favorable", "below normal",
@@ -722,12 +760,20 @@ def test_ub_subbasin_flow_line():
     assert lines[2] == "Winter precipitation in your sub-basin this year was 61 mm (below last year)."
     assert lines[3] == ("The natural flow of the rivers your sub-basin draws on is 65% of its "
                         "1971-2018 average this year.")
-    assert lines[4] == "Lake Powell holds 10.4 million acre-ft on 1 January."
+    # Item 36d (2026-10-05 design-basis audit + fix proposals, spec item
+    # 36d, G5): no Lake Powell sentence for an Upper Basin agent at all --
+    # under item 4/E14 the Upper Basin is never cut for a Powell release,
+    # so Powell's level cannot affect this agent's delivery. The line
+    # that followed the flow line (line index 4) is now the "last year"
+    # sentence instead.
+    assert "Lake Powell" not in text
+    assert lines[4] == "In 2029 you used 91,435 acre-ft."
     assert "Lees Ferry" not in text and "forecast" not in text
     mock = build_water_situation_text(_ub_ctx(supply_group=None, ub_subbasin_flow_share=None,
                                               natural_flow_maf=9.87))
     assert "Winter precipitation averaged over the Upper Basin this year was 61 mm" in mock
     assert "your sub-basin this year" not in mock
+    assert "Lake Powell" not in mock
 
 
 # ===========================================================================
@@ -814,6 +860,25 @@ def test_dashboard_sharing_flags_match_the_supply_rule_sentence():
         dashboard_sharing_flags({"basin": "lower_basin", "gap_reason": "lb_mead_availability"})
 
 
+def test_dashboard_warning_edge_pins_to_full_supply_ratio():
+    """Item 36h (2026-10-05 design-basis audit + fix proposals, spec item
+    36h, provenance G12a): the dashboard warning's edge is FULL_SUPPLY_RATIO
+    (0.999), the SAME edge the supply rule and the situation-text headline
+    use -- not the old, unsourced 0.85. The YAML cannot import the Python
+    constant, so it is written out as a literal; this pins that literal
+    against the constant so the two can never silently drift apart again."""
+    raw = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    assertions = raw["irrigation_farmer"]["feedback"]["assertions"]
+    assert len(assertions) >= 6
+    edges = set()
+    for a in assertions:
+        m = re.search(r"supply / request < (\d+\.\d+)", a["when"])
+        assert m, a["when"]
+        edges.add(float(m.group(1)))
+    assert edges == {FULL_SUPPLY_RATIO}
+    assert FULL_SUPPLY_RATIO == 0.999  # sanity: the literal this pins against
+
+
 # ===========================================================================
 # 4.5 to 4.7 across a real run: memory, dashboard, reflection, banned phrases
 # ===========================================================================
@@ -889,14 +954,29 @@ def test_single_reflection_kept_from_the_previous_year(golden_run):
 UT1 = "AgUsesAboveGreenRUt_NonIndian"
 GOLDEN = {
     # (agent, calendar year): (what the year is, sha256 of the full prompt)
-    (UT1, 2019): ("UB, normal year", "2fc9af3d9e7c86bb73b3d4d752c8d44a91c7d2760b5626aa4bb70955738ce092"),
-    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "e4a7e918e504b63961460bd30915c2fb9b88c753d6591e090a5d66b9d9d1a5e1"),
-    (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "2ce3c9b336041cbe6da0ddbad9c55a81a066e28cb37a87d00555bcd17a7da753"),
-    (UT2, 2033): ("UT2 at its right, its sub-basin short", "70efe2553f7a9d4918565934d0dba7a422573dc590fa34b90b56d01acede129c"),
-    ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "b563884a2cdb786b7dc49ca8d601cbde893c18321c25fc1b7f84c1eef6dd37b1"),
-    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "f5f5fc3884a3d2719f9b9aac9a030a4b84a16ac79f11a468595d9d19696dea51"),
-    ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "63486962797cc6470a226efe6eee7e02f21af446a4b08ba8a7f2d264e805bb50"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "41f9108e3042af2d13d79e198768ca0745a522e2eb54d51dc7bad3f769f3a266"),
+    # Items 36a/36d/36g (2026-10-05) changed the four Upper Basin entries
+    # below: the two-state headline, the removed Lake Powell sentence, and
+    # (UT2 only) the new 1.4x-peak-only water right (38,080 AF, was
+    # 20,000 AF) all change the rendered text.
+    # Opus review (2026-10-06): all EIGHT entries changed again, Upper AND
+    # Lower Basin alike, because `config/prompts/irrigation_farmer.txt`
+    # now starts with `{system_prompt}{priority_section}` (both always
+    # empty for irrigation) instead of implicitly picking up
+    # TieredContextBuilder.format_prompt's own auto-prepended
+    # "{system_prompt}\n\n{priority_section}\n\n" (broker/components/
+    # context/tiered.py) -- removing 4 leading blank lines every real
+    # prompt was sending (confirmed: not render-only, the actual LLM
+    # input). See examples/irrigation_abm/tests/test_v3_prompt.py::
+    # test_no_leading_blank_lines for the regression pin.
+    (UT1, 2019): ("UB, normal year", "f7a58305f4f24325874261e0f13c019eae2895f8591e1ce8f61a2348a2ca560c"),
+    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "c1d8f051824f693e83c964ed37bde91e9469cbc886968cc8535b620893923b20"),
+    (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "d9e8dc70fcaff57af6c4a1fba3a6f2f721224f951415cb64366eccf8b1c5b27b"),
+    (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
+                  "8ba8618b172f80b4536f5d486007c91720e03dd303082936cbde76461d6acc2c"),
+    ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "b8984b49c172983a0e68aea9edaead391c36188c1201e804a59fba3c368cee80"),
+    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "49062ccdb7224233b7c148c9f34b96b6a434d3dc545d23ae407ca74ffcd1d699"),
+    ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "ff5476449efe16faa5292097db715a0a952c467c60bf5436666524ff435180a3"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "a0c5373fe16ae7d3c7d09c19d4b43ebdb29e368031016a881901c16a25866f82"),
 }
 
 
@@ -906,6 +986,29 @@ def test_golden_prompt(golden_run, key):
     prompt = _first_prompt(golden_run, *key)
     digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
     assert digest == GOLDEN[key][1], f"{key} ({GOLDEN[key][0]}) changed; prompt:\n{prompt}"
+
+
+@needs_ref
+def test_no_leading_blank_lines(golden_run):
+    """Opus review (2026-10-06): every real prompt used to start with 4
+    blank lines, for BOTH basins -- not a rendering artifact of any one
+    extraction script, but TieredContextBuilder.format_prompt
+    (broker/components/context/tiered.py) auto-prepending
+    "{system_prompt}\\n\\n{priority_section}\\n\\n" whenever a template
+    does not itself reference "{system_prompt}"; irrigation's template
+    never did, and neither var is ever set for this domain (no
+    SystemPromptProvider, no PrioritySchemaProvider in
+    TieredContextBuilder's own default provider list), so both render
+    empty and only the 4 newlines survived. Fixed template-side only
+    (config/prompts/irrigation_farmer.txt now starts with
+    "{system_prompt}{priority_section}{narrative_persona}"), not in
+    tiered.py itself, so no other domain's prompt is touched."""
+    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+        assert not prompt.startswith("\n"), (agent, year, attempt, repr(prompt[:20]))
+        if attempt == 0:  # a retry (attempt > 0) legitimately prepends its own header
+            assert prompt.startswith("You are "), (agent, year, attempt, repr(prompt[:20]))
+    for prompt in golden_run.llm.reflections:
+        assert not prompt.startswith("\n"), repr(prompt[:20])
 
 
 @needs_ref
@@ -919,7 +1022,13 @@ def test_golden_prompts_shortage_years_read_short(golden_run):
             "fixed share of the natural flow of its rivers, is below the combined requests of "
             "its users") in ut1
     ut2 = _first_prompt(golden_run, UT2, 2033)
-    assert ("you can expect 17,370 acre-ft (86.9%) this year, because the water your sub-basin "
+    # Item 36g (2026-10-05): UT2's water right is now 38,080 AF (1.4 x
+    # peak only, was 20,000 AF under the old min(grid_top, scaled) rule),
+    # so its 2033 request (24,098 AF, grown by the always-increase
+    # script) is no longer capped at the right; the delivered acre-ft
+    # (17,370, the sub-basin's own supply) is unchanged, but the
+    # percentage of the (now larger) request is lower: 72.1%, not 86.9%.
+    assert ("you can expect 17,370 acre-ft (72.1%) this year, because the water your sub-basin "
             "can draw this year, a fixed share of the natural flow of its rivers, is below your "
             "own request.") in ut2
     wm = _first_prompt(golden_run, "WelltonMohawkIDD", 2022)

@@ -253,6 +253,11 @@ class HindcastResult:
     # one that relied on WaterSystemConfig's own default -- reports which rule
     # it actually ran under.
     powell_release_mode: str = "ig2007_tiers"
+    # Opus review P3-d (2026-10-06): the RESOLVED fraction (env.config's own
+    # value), mirroring powell_release_mode above, so every row -- including
+    # one that relied on WaterSystemConfig's own default -- reports which
+    # value it actually ran under; _row() surfaces it as a CSV column.
+    lb_return_flow_fraction: float = 0.0
     metrics: Dict[str, float] = field(default_factory=dict)
     gate: Dict[str, bool] = field(default_factory=dict)
     series: List[Dict[str, float]] = field(default_factory=list)
@@ -265,6 +270,7 @@ class HindcastResult:
 def run_hindcast(first: int = 2000, last: int = 2018, *, lb_non_ag_total_maf: Optional[float] = None,
                  powell_release_mode: Optional[str] = None,
                  powell_post2026_equalization: Optional[str] = None,
+                 lb_return_flow_fraction: Optional[float] = None,
                  observed_release: bool = False, profiles=None, observed=None, requests=None) -> HindcastResult:
     """Simulate calendar years first..last from the observed 1 January storages of ``first`` and score
     the 1 January values of first+1..last+1. ``lb_non_ag_total_maf=None`` uses the config default.
@@ -273,7 +279,10 @@ def run_hindcast(first: int = 2000, last: int = 2018, *, lb_non_ag_total_maf: Op
     (13.0 ft / +1.09 MAF / KGE 0.74 at 5.2 MAF; ``test_v3_powell_tiers.py::TestStorageBalancingHindcast``)
     without a separate driver. ``powell_post2026_equalization`` is accepted for the same reason but never
     exercised by this 2000-2018 window (the SI's own post-2026 sensitivity uses the 2019-2060 projection
-    instead)."""
+    instead). ``lb_return_flow_fraction`` (item 36e, 2026-10-05; Opus review P2-2, 2026-10-06): None
+    (default) leaves ``WaterSystemConfig``'s own default (0.0) in effect; a non-zero value IS exercised
+    within this 2000-2018 window, since it changes Lake Mead's outflow every year of it, unlike
+    ``powell_post2026_equalization`` above."""
     observed = observed if observed is not None else load_observed()
     profiles = profiles if profiles is not None else load_profiles()
     requests = requests if requests is not None else observed_requests(profiles, range(first, last + 1))
@@ -289,16 +298,29 @@ def run_hindcast(first: int = 2000, last: int = 2018, *, lb_non_ag_total_maf: Op
         kw["powell_release_mode"] = str(powell_release_mode)
     if powell_post2026_equalization is not None:
         kw["powell_post2026_equalization"] = str(powell_post2026_equalization)
+    if lb_return_flow_fraction is not None:
+        kw["lb_return_flow_fraction"] = float(lb_return_flow_fraction)
     env = HistoricalIrrigationEnvironment(WaterSystemConfig(**kw), observed, requests, observed_release=observed_release)
     env.initialize_from_profiles(profiles)
     res = HindcastResult(first, last, env.config.lb_non_ag_total_maf, observed_release,
-                        powell_release_mode=env.config.powell_release_mode)
+                        powell_release_mode=env.config.powell_release_mode,
+                        lb_return_flow_fraction=env.config.lb_return_flow_fraction)
     for t in range(first, last + 1):
         env.advance_year()
         st = env.settle_year()
         dS = (st["powell_storage_end_maf"] - st["powell_storage_maf"]) + (st["mead_storage_end_maf"] - st["mead_storage_maf"])
+        # Item 36e (lb_return_flow_fraction, P3-d): "lb_return_flow_maf" is
+        # logged UNSCALED by phi (P3-f, informational only -- see
+        # irrigation_env.py's own field comment), so the amount actually
+        # charged against Mead's storage is lb_delivered_maf minus
+        # phi * lb_return_flow_maf, not lb_delivered_maf minus the raw
+        # logged value. Default lb_return_flow_fraction=0.0 makes this a
+        # no-op (lb_return_flow_maf is always 0.0 then), so this is
+        # byte-identical to before item 36e.
+        lb_return_charged_maf = st["lb_phys_ratio"] * st.get("lb_return_flow_maf", 0.0)
         flux = (st["natural_flow_maf"] + st["lb_tributary_maf"] - st["ub_non_farm_maf"] - st["ub_delivered_maf"]
-                - st["powell_evap_maf"] - st["mead_evap_maf"] - st["lb_delivered_maf"] - st["lb_non_ag_delivered_maf"]
+                - st["powell_evap_maf"] - st["mead_evap_maf"]
+                - (st["lb_delivered_maf"] - lb_return_charged_maf) - st["lb_non_ag_delivered_maf"]
                 - st["mexico_delivered_maf"] - st["mead_spill_maf"])
         assert abs(dS - flux) < 1e-9, f"mass balance does not close in {t}"
         o = observed[t]
@@ -355,34 +377,44 @@ def _score(res: HindcastResult, observed: Dict[int, Dict[str, float]], dead_pool
     }
 
 
-def record_implied_non_ag(years: Iterable[int], *, profiles=None, observed=None, requests=None) -> float:
+def record_implied_non_ag(years: Iterable[int], *, lb_return_flow_fraction: Optional[float] = None,
+                          profiles=None, observed=None, requests=None) -> float:
     """Mean over ``years`` of the Lower Basin non-farm withdrawal that closes the model's own Lake Mead
     balance given the record:
         N(t) = intervening natural flow + observed release - observed change in Mead storage
                - model Mead evaporation at the observed 1 January storage
-               - the 22 LB agents' observed diversions (clipped to the water right, as the model does)
+               - (1 - f) x the 22 LB agents' observed diversions (clipped to the water right, as the
+                 model does; f = lb_return_flow_fraction, item 36e, 2026-10-05 -- Opus review P3-d,
+                 2026-10-06: None (default) reads WaterSystemConfig's own default, 0.0, so f = 0 and
+                 this term is unchanged, byte-identical, from before item 36e)
                - the model's Mexico delivery at the observed 1 January elevation
     (no tier cut: no Lower Basin shortage was declared before 2022)."""
     years = list(years)
     observed = observed if observed is not None else load_observed()
     profiles = profiles if profiles is not None else load_profiles()
     requests = requests if requests is not None else observed_requests(profiles, years)
-    env = IrrigationEnvironment(WaterSystemConfig())
+    config_kw: Dict[str, Any] = {}
+    if lb_return_flow_fraction is not None:
+        config_kw["lb_return_flow_fraction"] = float(lb_return_flow_fraction)
+    env = IrrigationEnvironment(WaterSystemConfig(**config_kw))
+    f = env.config.lb_return_flow_fraction
     wr = {p.agent_id: p.water_right for p in profiles}
     lb_ids = [p.agent_id for p in profiles if p.basin != "upper_basin"]
     vals = []
     for t in years:
         h0, h1 = observed[t - 1]["mead_elev_ft_eoy"], observed[t]["mead_elev_ft_eoy"]
         s0, s1 = mead_total_maf(h0), mead_total_maf(h1)
+        lb_draw_maf = sum(min(requests[t][a], wr[a]) for a in lb_ids) / 1e6
         vals.append((observed[t]["intervening_natural_af"] + observed[t]["lees_ferry_release_af"]) / 1e6
                     - (s1 - s0) - env._mead_evaporation_maf(s0)
-                    - sum(min(requests[t][a], wr[a]) for a in lb_ids) / 1e6
+                    - (1.0 - f) * lb_draw_maf
                     - env._mexico_delivery_maf(h0))
     return float(np.mean(vals))
 
 
 def split_sample(value: Optional[float] = None, *, powell_release_mode: Optional[str] = None,
                  powell_post2026_equalization: Optional[str] = None,
+                 lb_return_flow_fraction: Optional[float] = None,
                  profiles=None, observed=None) -> List[Dict[str, Any]]:
     """Derive the record-implied constant on each half and score the other half with it (model release
     rule), then score ``value`` (default: the config default) on each half, then repeat the held-out
@@ -392,7 +424,8 @@ def split_sample(value: Optional[float] = None, *, powell_release_mode: Optional
     function previously ignored both, so ``main()``'s ``--powell-release-mode`` only ever reached the
     "pre-registered" and "reference 5.0" rows, never the split-sample ones): threaded into every
     ``run_hindcast`` call below, exactly like ``run_hindcast`` itself threads them into
-    ``WaterSystemConfig``. ``None`` (default) leaves the config's own default in effect, as before."""
+    ``WaterSystemConfig``. ``None`` (default) leaves the config's own default in effect, as before.
+    ``lb_return_flow_fraction`` (item 36e; Opus review P2-2) follows the same pattern."""
     observed = observed if observed is not None else load_observed()
     profiles = profiles if profiles is not None else load_profiles()
     requests = observed_requests(profiles, range(SPLIT_HALVES[0][0], SPLIT_HALVES[1][1] + 1))
@@ -402,6 +435,8 @@ def split_sample(value: Optional[float] = None, *, powell_release_mode: Optional
         mode_kw["powell_release_mode"] = powell_release_mode
     if powell_post2026_equalization is not None:
         mode_kw["powell_post2026_equalization"] = powell_post2026_equalization
+    if lb_return_flow_fraction is not None:
+        mode_kw["lb_return_flow_fraction"] = lb_return_flow_fraction
     derived = {h: record_implied_non_ag(range(h[0], h[1] + 1), **kw) for h in SPLIT_HALVES}
     rows = []
     for (cal, score) in ((SPLIT_HALVES[0], SPLIT_HALVES[1]), (SPLIT_HALVES[1], SPLIT_HALVES[0])):
@@ -423,6 +458,11 @@ def _row(case: str, window: str, r: HindcastResult) -> Dict[str, Any]:
             # split_sample(), which had no way to receive it at all.
             "powell_release_mode": r.powell_release_mode,
             "lb_non_ag_total_maf": round(r.lb_non_ag_total_maf, 3),
+            # Opus review P3-d (2026-10-06): item 36e's CPU sensitivity,
+            # reported alongside lb_non_ag_total_maf for the same reason --
+            # which value this row actually ran under, visible in the CSV
+            # even for a row that came out of split_sample().
+            "lb_return_flow_fraction": round(r.lb_return_flow_fraction, 3),
             "release": "observed" if r.observed_release else "model rule",
             "M1_mae_ft": round(m["M1_mead_mae_ft"], 1), "M2_ratio": round(m["M2_mead_change_ratio"], 2),
             "M3_bias_maf": round(m["M3_combined_bias_maf"], 2), "M3_ratio": round(m["M3_combined_change_ratio"], 2),
@@ -445,6 +485,12 @@ def main() -> None:
     ap.add_argument("--powell-post2026-equalization", choices=["hold_2026", "extend_slope"], default=None,
                     help="post-2026 Equalization elevation extension; unused by this 2000-2018 window "
                          "(accepted for CLI parity with WaterSystemConfig)")
+    ap.add_argument("--lb-return-flow-fraction", type=float, default=None,
+                    help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
+                         "agricultural draw treated as reused downstream instead of charged "
+                         "against Mead's outflow, on [0, 0.5]; default: WaterSystemConfig's "
+                         "own default (0.0). Exercised by this 2000-2018 window (unlike "
+                         "--powell-post2026-equalization above).")
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "examples" / "irrigation_abm" / "results" / "hindcast_v3")
     a = ap.parse_args()
     observed, profiles = load_observed(), load_profiles()
@@ -454,6 +500,8 @@ def main() -> None:
         mode_kw["powell_release_mode"] = a.powell_release_mode
     if a.powell_post2026_equalization is not None:
         mode_kw["powell_post2026_equalization"] = a.powell_post2026_equalization
+    if a.lb_return_flow_fraction is not None:
+        mode_kw["lb_return_flow_fraction"] = a.lb_return_flow_fraction
     rows = [_row("pre-registered", "2000-2018", run_hindcast(2000, 2018, lb_non_ag_total_maf=value,
                                                              profiles=profiles, observed=observed, **mode_kw))]
     effective = value if value is not None else WaterSystemConfig().lb_non_ag_total_maf
