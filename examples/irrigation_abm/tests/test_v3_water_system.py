@@ -534,6 +534,87 @@ class TestShortageVolumesAndMexico:
 
 
 # ===========================================================================
+# LB return-flow option (item 36e, 2026-10-05 design-basis audit + fix
+# proposals; wording fixed per Opus review P2-3, 2026-10-06): a CPU
+# sensitivity, default 0.0, byte-identical, on the diversion-versus-
+# consumptive-use units gap. A non-zero fraction of the LB agricultural
+# draw is treated as reused downstream (e.g. credited toward the Mexico
+# delivery) rather than lost to the system, so Mead releases LESS this
+# year by that share -- it is NOT water physically returned to the river
+# below Mead, and NOT water credited back into Mead's own storage.
+# ===========================================================================
+
+def _env_with_return_flow(lb, fraction: float) -> IrrigationEnvironment:
+    env = IrrigationEnvironment(WaterSystemConfig(seed=42, lb_return_flow_fraction=fraction))
+    for i, r in enumerate(lb):
+        env._agents[f"LB{i}"] = _agent("lower_basin", r)
+    return env
+
+
+class TestLbReturnFlowFraction:
+    def _settle(self, fraction: float):
+        env = _env_with_return_flow((1_350_000.0, 1_350_000.0), fraction)  # r_LB = 2.7 MAF
+        snap = {"powell_storage": 15.0, "mead_storage": 20.0, "natural_flow": 15.0,
+                "lb_shortage_volume_maf": 0.0, "mexico": 1.5, "lb_tributary": 0.8,
+                "lb_request_projected_maf": 2.7}
+        return env, env._settle(_planned(env, snap))
+
+    def test_config_rejects_out_of_range_fraction(self):
+        """Capped at 0.5, not 1.0 (Opus review P2-3): the only
+        diversion-to-consumptive-use anchor this model has is the Upper
+        Basin's own 50 percent depletion convention; a Lower Basin
+        fraction above that would claim MORE reuse than that convention
+        assumes, which no source supports."""
+        for bad in (-0.01, 0.51, 0.6, -5.0, 2.0, 1.0):
+            with pytest.raises(ValueError, match="lb_return_flow_fraction"):
+                WaterSystemConfig(lb_return_flow_fraction=bad)
+
+    def test_default_is_zero_and_byte_identical(self):
+        """Default (0.0): lb_return_flow_maf is 0.0, and the settlement is
+        IDENTICAL to a hand-built env that never set the field at all."""
+        default_env, default_st = self._settle(0.0)
+        plain_env = _env(lb=(1_350_000.0, 1_350_000.0))
+        snap = {"powell_storage": 15.0, "mead_storage": 20.0, "natural_flow": 15.0,
+                "lb_shortage_volume_maf": 0.0, "mexico": 1.5, "lb_tributary": 0.8,
+                "lb_request_projected_maf": 2.7}
+        plain_st = plain_env._settle(_planned(plain_env, snap))
+        assert default_st["lb_return_flow_maf"] == 0.0
+        assert default_st["mead_storage_end_maf"] == pytest.approx(plain_st["mead_storage_end_maf"], abs=1e-12)
+        for aid in ("LB0", "LB1"):
+            assert default_st["agents"][aid]["delivered"] == pytest.approx(
+                plain_st["agents"][aid]["delivered"], abs=1e-9)
+
+    def test_nonzero_fraction_reduces_meads_outflow_without_changing_deliveries(self):
+        """A non-zero fraction treats part of the LB agricultural draw as
+        reused downstream, charging Mead's outflow for less of it,
+        WITHOUT changing what any agent is delivered -- it is a
+        bookkeeping change to Mead's outflow, not to the agents' own
+        settlement."""
+        zero_env, zero_st = self._settle(0.0)
+        quarter_env, quarter_st = self._settle(0.25)
+        half_env, half_st = self._settle(0.5)
+
+        for aid in ("LB0", "LB1"):
+            assert quarter_st["agents"][aid]["delivered"] == pytest.approx(
+                zero_st["agents"][aid]["delivered"], abs=1e-9)
+            assert half_st["agents"][aid]["delivered"] == pytest.approx(
+                zero_st["agents"][aid]["delivered"], abs=1e-9)
+
+        lb_ag_draw_maf = zero_st["lb_delivered_maf"]
+        assert quarter_st["lb_return_flow_maf"] == pytest.approx(0.25 * lb_ag_draw_maf, abs=1e-9)
+        assert half_st["lb_return_flow_maf"] == pytest.approx(0.5 * lb_ag_draw_maf, abs=1e-9)
+        assert zero_st["lb_return_flow_maf"] == 0.0
+
+        # More reused downstream -> less charged against Mead's outflow
+        # -> more left in storage at year end (strictly increasing in
+        # the fraction, all else equal).
+        assert zero_st["mead_storage_end_maf"] < quarter_st["mead_storage_end_maf"] < half_st["mead_storage_end_maf"]
+        assert half_st["mead_storage_end_maf"] - quarter_st["mead_storage_end_maf"] == pytest.approx(
+            quarter_st["mead_storage_end_maf"] - zero_st["mead_storage_end_maf"], abs=1e-9,
+        )  # linear in the fraction
+
+
+# ===========================================================================
 # 42-year mass balance closure at fixed demand
 # ===========================================================================
 
@@ -656,9 +737,15 @@ class TestMassBalanceClosureV3:
         .research/design_specs/irrigation_v3_powell_tiers_2026-09-29.md
         section 4, "A, 2018 use held (subbasin)": proposed 10/10/14/8, Mead
         minimum 7.0652 MAF, ~1,000.8 ft in 2024) and reproduced exactly
-        here (7.065235... MAF)."""
+        here (7.065235... MAF).
+
+        Item 36c (2026-10-05 design-basis audit + fix proposals, spec
+        item 36c): the post2026 Equalization default moves from
+        "hold_2026" to "extend_slope", moving tier counts from
+        {0: 10, 1: 10, 2: 14, 3: 8} to the values below; Mead's minimum
+        1 January storage is unchanged."""
         tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("subbasin")
-        assert tier_counts == {0: 10, 1: 10, 2: 14, 3: 8}
+        assert tier_counts == {0: 7, 1: 11, 2: 16, 3: 8}
         assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)  # ~1,000.8 ft (2024)
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
@@ -679,9 +766,14 @@ class TestMassBalanceClosureV3:
         the subbasin pin above (5.2 MAF non-ag bucket + ig2007_tiers).
         The design memo (section 4, "A, lees_ferry_pool") gives 10/8/17/7
         and states the Mead minimum is the SAME 7.0652 MAF "in both UB
-        modes" -- reproduced exactly here."""
+        modes" -- reproduced exactly here.
+
+        Item 36c (2026-10-05): the post2026 Equalization default move
+        (hold_2026 -> extend_slope) moves this to 7/10/18/7; Mead's
+        minimum is unchanged, still the SAME value as the "subbasin"
+        pin above."""
         tier_counts, mead_min_maf = self._run_real_2018_fixed_demand_42_years("lees_ferry_pool")
-        assert tier_counts == {0: 10, 1: 8, 2: 17, 3: 7}
+        assert tier_counts == {0: 7, 1: 10, 2: 18, 3: 7}
         assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)  # ~1,000.8 ft (2024)
 
 
@@ -743,13 +835,18 @@ class TestKeepEveryYear42Years:
         storage_balancing->ig2007_tiers (item 26/27) default changes as
         every other pin in this module. The design memo's own replay
         table (section 4, "Keep every year") gives 17/11/8/6 and Mead
-        minimum 7.1028 MAF -- reproduced exactly here."""
+        minimum 7.1028 MAF -- reproduced exactly here.
+
+        Item 36c (2026-10-05 design-basis audit + fix proposals, spec
+        item 36c): the post2026 Equalization default move (hold_2026 ->
+        extend_slope) moves tier counts to {0: 14, 1: 15, 2: 8, 3: 5};
+        Mead's minimum is unchanged, still 7.1028 MAF."""
         tier_counts, mead_min_maf = (
             TestMassBalanceClosureV3._run_real_2018_fixed_demand_42_years(
                 "subbasin", hold_requests_fixed=False,
             )
         )
-        assert tier_counts == {0: 17, 1: 11, 2: 8, 3: 6}
+        assert tier_counts == {0: 14, 1: 15, 2: 8, 3: 5}
         assert mead_min_maf == pytest.approx(7.1028, abs=1e-3)
 
 

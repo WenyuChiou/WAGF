@@ -200,8 +200,15 @@ P7_PARSE_RETRY_MAX = 0.05
 P8_UNREADABLE_MAX = 0.005
 P10_MEAD_MIN_FT = (895.0, 1082.0)
 P10_TIER3_YEARS = (0, 42)
-P10_UB_RIGHTS_MAF = 4.932
-P10_LB_RIGHTS_MAF = 4.177
+# Item 36f/36g (2026-10-05 design-basis audit + fix proposals, spec item
+# 36): these are the sums of IrrigationAgentProfile.water_right over the
+# 56 Upper Basin / 22 Lower Basin agents, which moved from 4.932/4.177 MAF
+# when the water-right formula became basin-specific (UB: 1.4 x peak
+# only, no grid-top term; LB: grid top alone, no margin). Actual sums at
+# the default paper_water_margin (0.4): UB 4.95026 MAF, LB 4.26635 MAF;
+# rounded up slightly here since these are upper BOUNDS, not pins.
+P10_UB_RIGHTS_MAF = 4.951
+P10_LB_RIGHTS_MAF = 4.267
 # P8 and P10: each CSV of a pilot run holds 3,276 rows (78 agents x 42 years),
 # counted on the files, never taken from the run's own configured grid.
 FULL_CORPUS_ROWS = 78 * 42
@@ -447,6 +454,11 @@ _LLM_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     "powell_release_mode": ("powell_release_mode",),
     "powell_post2026_equalization": ("powell_post2026_equalization",),
     "lb_non_ag_total_maf": ("lb_non_ag_total_maf",),
+    # Item 36e (2026-10-05); Opus review P2-2: 0.0 by default (every
+    # existing run); a non-zero CPU-sensitivity run is refused when
+    # pooled with the default reference, through the same "differs from
+    # this analysis" check every other water-system key already uses.
+    "lb_return_flow_fraction": ("lb_return_flow_fraction",),
     "paper_water_margin": ("paper_water_margin",),
     "lb_tributary_source": ("coupling_retrofit_metadata", "water_system_lb_tributary_source"),
     "lb_priority_mode": ("coupling_retrofit_metadata", "water_system_lb_priority_mode"),
@@ -464,6 +476,7 @@ _FQL_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     "powell_release_mode": ("powell_release_mode",),
     "powell_post2026_equalization": ("powell_post2026_equalization",),
     "lb_non_ag_total_maf": ("lb_non_ag_total_maf",),
+    "lb_return_flow_fraction": ("water_system_config", "lb_return_flow_fraction"),
     "paper_water_margin": ("paper_water_margin",),
     "lb_tributary_source": ("water_system_config", "lb_tributary_source"),
     "lb_priority_mode": ("lb_priority_mode",),
@@ -498,6 +511,7 @@ def _analysis_water_expectations() -> Dict[str, Any]:
         "powell_release_mode": cfg.powell_release_mode,
         "powell_post2026_equalization": cfg.powell_post2026_equalization,
         "lb_non_ag_total_maf": cfg.lb_non_ag_total_maf,
+        "lb_return_flow_fraction": cfg.lb_return_flow_fraction,
         "lb_tributary_source": cfg.lb_tributary_source,
         "lb_priority_mode": cfg.lb_priority_mode,
         "ub_supply_mode": cfg.ub_supply_mode,
@@ -1941,27 +1955,46 @@ def recovery_table(spells: Sequence[Mapping[str, Any]], groups: Sequence[str],
 # R5b and R5c's means; no other part of this module orders WSA numerically.
 WSA_ORDINAL: Dict[str, int] = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
 
-# R5a's five bands are irrigation_personas.build_water_situation_text's
-# headline bands (spec 4.3). The top edge is FULL_SUPPLY_RATIO (imported
-# above, never copied here); the other three edges are literals in that
-# function's own elif chain with no importable constant, so
-# test_r5a_band_edges_match_build_water_situation_text (test_v3_metrics.py)
-# pins these four numbers against that function's own source text.
-R5A_BANDS = ("sufficient", "slightly_short", "short", "well_short", "critical")
+# R5a's five bands are REPORT-ONLY analysis bins (item 36a, 2026-10-05
+# design-basis audit + fix proposals, spec item 36a): before 2026-10-05
+# these were irrigation_personas.build_water_situation_text's own
+# headline bands; as of item 36a that function's headline collapsed to
+# TWO states at FULL_SUPPLY_RATIO (no agent reads a "slightly short" /
+# "well short" / "critical" distinction any more), but the five-way
+# split survives HERE, for reporting only, so R5a's pre-registered
+# analysis is unaffected. The top edge is FULL_SUPPLY_RATIO (imported
+# above, never copied here); the other three edges (0.95, 0.80, 0.50)
+# are literals in r5a_headline_band below, with no importable constant
+# and no longer cross-checked against build_water_situation_text's own
+# source (which no longer states them) -- see
+# test_r5a_band_edges_are_the_five_retired_prompt_bands (test_v3_metrics.py).
+# "short" renamed to "moderately_short" (Opus review P3-6, 2026-10-06):
+# since item 36a the prompt's own headline is two states, "sufficient"
+# and "short" (everything below FULL_SUPPLY_RATIO) -- a bare "short"
+# band here, in [0.80, 0.95), read as if it were that SAME prompt state,
+# when it is one fifth of a report-only split the agent never reads.
+R5A_BANDS = ("sufficient", "slightly_short", "moderately_short", "well_short", "critical")
 R5B_SHORT_YEAR_WINDOW = 5  # config/agent_types.yaml irrigation_farmer.feedback.trend_window
 R5C_POST_SPELL_YEARS = 3  # item 33c: "the 3 years after the spell ends"
 
 
 def r5a_headline_band(r_share: float) -> str:
-    """The band of the prompt's headline sentence for r = supply_ratio
-    (Decision.supply_ratio, state_supply_ratio), as
-    irrigation_personas.build_water_situation_text computes it (spec 4.3)."""
+    """The five-way REPORT-ONLY band for r = supply_ratio (Decision.
+    supply_ratio, state_supply_ratio). Before item 36a (2026-10-05) these
+    five bands were exactly irrigation_personas.build_water_situation_text's
+    own prompt headline; as of item 36a that function's headline is TWO
+    states only (sufficient / short, at FULL_SUPPLY_RATIO) -- the agent
+    never reads the "slightly short" / "well short" / "critical"
+    distinction below. R5a keeps the five-way split as an analysis bin
+    only, so the pre-registered report is unaffected by the prompt
+    change; the three interior edges (0.95, 0.80, 0.50) are this
+    function's own literals now, not a copy of anything in the prompt."""
     if r_share >= FULL_SUPPLY_RATIO:
         return "sufficient"
     if r_share >= 0.95:
         return "slightly_short"
     if r_share >= 0.80:
-        return "short"
+        return "moderately_short"
     if r_share >= 0.50:
         return "well_short"
     return "critical"

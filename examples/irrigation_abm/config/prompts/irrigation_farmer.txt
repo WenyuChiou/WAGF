@@ -1,4 +1,4 @@
-{narrative_persona}
+{system_prompt}{priority_section}{narrative_persona}
 {water_situation_text}
 {feedback_dashboard}
 Your memory includes:

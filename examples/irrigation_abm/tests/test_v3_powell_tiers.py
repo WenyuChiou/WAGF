@@ -152,11 +152,21 @@ class TestPowellCurve:
 # ===========================================================================
 
 class TestPost2026Extension:
-    def test_hold_2026_default(self):
+    def test_extend_slope_default(self):
+        """Item 36c (2026-10-05 design-basis audit + fix proposals, spec
+        item 36c): "extend_slope" is now the v3 default -- USBR's own
+        documented CRSS continuation practice (the 2012 Colorado River
+        Basin Study, Technical Report G Appendix G2, and Reclamation's
+        5-Year Probabilistic Projections page), not a stated assumption
+        of this model's own. Before item 36c the default was
+        "hold_2026" (see test_hold_2026_opt_in below, now the SI
+        sensitivity)."""
         env = IrrigationEnvironment(WaterSystemConfig())
-        assert env.config.powell_post2026_equalization == "hold_2026"
-        assert env._powell_equalization_elevation_ft(2027) == pytest.approx(3666.0)
-        assert env._powell_equalization_elevation_ft(2060) == pytest.approx(3666.0)
+        assert env.config.powell_post2026_equalization == "extend_slope"
+        slope = (3666.0 - 3645.0) / (2026 - 2012)
+        assert slope == pytest.approx(1.5, abs=0.01)
+        assert env._powell_equalization_elevation_ft(2027) == pytest.approx(3666.0 + slope)
+        assert env._powell_equalization_elevation_ft(2060) == pytest.approx(3666.0 + slope * 34)
 
     def test_extend_slope(self):
         """USBR 2012 Colorado River Basin Study, Technical Report G
@@ -167,6 +177,14 @@ class TestPost2026Extension:
         assert slope == pytest.approx(1.5, abs=0.01)
         assert env._powell_equalization_elevation_ft(2027) == pytest.approx(3666.0 + slope)
         assert env._powell_equalization_elevation_ft(2060) == pytest.approx(3666.0 + slope * 34)
+
+    def test_hold_2026_opt_in(self):
+        """"hold_2026" (pre-2026-10-05 default; now the SI sensitivity, a
+        stated ASSUMPTION rather than USBR's own documented practice)
+        still works exactly as before, opted into explicitly."""
+        env = IrrigationEnvironment(WaterSystemConfig(powell_post2026_equalization="hold_2026"))
+        assert env._powell_equalization_elevation_ft(2027) == pytest.approx(3666.0)
+        assert env._powell_equalization_elevation_ft(2060) == pytest.approx(3666.0)
 
     def test_config_rejects_invalid_option(self):
         with pytest.raises(ValueError, match="powell_post2026_equalization"):
@@ -563,7 +581,12 @@ class TestStorageBalancingHindcast:
         r = hv.run_hindcast(2000, 2018, powell_release_mode="storage_balancing")
         assert r.gate == {"M1": True, "M2": True, "M3_bias": True, "M3_change": True}
         assert r.metrics["M1_mead_mae_ft"] == pytest.approx(13.0, abs=0.1)
-        assert r.metrics["M3_combined_bias_maf"] == pytest.approx(1.09, abs=0.01)
+        # Item 36f/36g (2026-10-05): the hindcast runs on real agent
+        # profiles, so the basin-specific water-right formula shifts this
+        # pin slightly (1.09 -> 1.08 MAF); re-pinned to the new value,
+        # same tolerance. The gate (above) is the actual acceptance
+        # bound and is unaffected.
+        assert r.metrics["M3_combined_bias_maf"] == pytest.approx(1.08, abs=0.01)
         assert r.metrics["mead_kge"] == pytest.approx(0.74, abs=0.01)
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")

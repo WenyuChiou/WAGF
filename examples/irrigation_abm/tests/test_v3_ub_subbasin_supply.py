@@ -786,7 +786,21 @@ class TestReleasePlanUsesSubbasinProjection:
         removes that confound."""
         rng = np.random.default_rng(7)
         profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
-        env = IrrigationEnvironment(WaterSystemConfig(seed=7))  # ub_supply_mode="subbasin"
+        # powell_post2026_equalization="hold_2026": this is a white-box
+        # plumbing check (the sub-basin breakdown reaches the release
+        # plan, and CAN move it), not a claim about the v3 production
+        # default. Item 36c (2026-10-05 design-basis audit + fix
+        # proposals) made "extend_slope" the default; under it, this
+        # exact no-agent-decision 42-year trajectory at seed 7 never
+        # diverges (the planned release lands on a bound in every year
+        # regardless of the Upper Basin projection), which would make
+        # this test assert something false about the mechanism rather
+        # than about the default. "hold_2026" (still a fully supported,
+        # tested option -- see test_v3_powell_tiers.py) reliably
+        # exhibits the divergence this test exists to catch.
+        env = IrrigationEnvironment(WaterSystemConfig(
+            seed=7, powell_post2026_equalization="hold_2026",
+        ))  # ub_supply_mode="subbasin"
         env.initialize_from_profiles(profiles)
 
         found_divergence = False

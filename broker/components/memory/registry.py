@@ -127,6 +127,9 @@ def _register_builtins():
                 "ranking_mode", "seed", "forgetting_threshold",
                 "max_working", "max_longterm", "interference_cap",
                 "emotion_keywords",
+                # Item 36b: generic, opt-in memory options (default off).
+                "deterministic_consolidation", "decay_ignore_emotion",
+                "decay_by_calendar_year",
             ) if k in kwargs
         }
         return HumanCentricMemoryEngine(
