@@ -100,6 +100,94 @@ water-right-margin variants, the alternate UB supply envelopes, the
 other calibrated warm-start snapshot). Those are SI-only, reported after
 the corpus, and have no place in the 32-run plan this launcher builds.
 
+### CPU sensitivities (SI only, outside the 32-run plan)
+
+Each is 10 seeds (42-51), launched directly via `run_fql_baseline.py`
+(the launcher's `build_plan` does not expose these flags), same
+`--years 42 --paper-water-margin 0.4 --cluster-method hy2021` as every
+other v3 FQL run, into its own clearly-named output directory (never
+reusing an existing one). Substitute `<sha8>` for the tag's own sha8 and
+`<N>` for each seed 42-51.
+
+**(i) FQL warm-start snapshot `All` instead of `All-1109`:**
+
+```
+python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated \
+  --years 42 --seed <N> --paper-water-margin 0.4 --cluster-method hy2021 \
+  --fql-init-dir ref/CRSS_DB/CRSS_DB/Initial_Files/All \
+  --output examples/irrigation_abm/results/v3_corpus/v3_fql_sensitivity_<sha8>_fqlinitAll_seed<N>
+```
+
+**(ii) Minimum-use floor 0 and 0.05 x W** (2026-10-06: `--min-utilisation-fraction`,
+`WaterSystemConfig.min_utilisation_fraction`, default 0.10). **FQL-only**:
+`run_experiment.py` REFUSES any `--min-utilisation-fraction` other than the
+0.10 default (Opus review P2-1, 2026-10-06) -- `config/agent_types.yaml`'s
+`minimum_utilisation_floor` rule message hard-codes "10% of your water
+right" and is deliberately not templated, so an LLM agent blocked under a
+different floor would be told the wrong number. Only `run_fql_baseline.py`
+(no LLM, no retry message) can run this sensitivity until that message is
+templated:
+
+```
+python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated \
+  --years 42 --seed <N> --paper-water-margin 0.4 --cluster-method hy2021 \
+  --min-utilisation-fraction 0.0 \
+  --output examples/irrigation_abm/results/v3_corpus/v3_fql_sensitivity_<sha8>_floor000_seed<N>
+
+python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated \
+  --years 42 --seed <N> --paper-water-margin 0.4 --cluster-method hy2021 \
+  --min-utilisation-fraction 0.05 \
+  --output examples/irrigation_abm/results/v3_corpus/v3_fql_sensitivity_<sha8>_floor005_seed<N>
+```
+
+**(iii) `--lb-return-flow-fraction 0.2`** (2026-10-06: run as a PAIR, never
+alone -- the default `lb_non_ag_total_maf` (5.2) was itself the
+record-implied value at `lb_return_flow_fraction = 0.0`
+(`analysis/hindcast_v3.py (record_implied_non_ag)`); pairing a non-zero
+fraction with the `f = 0.0` constant double-counts water the fraction
+already credits back to Mead. First re-derive the record-implied
+non-farm constant for `f = 0.2` from the hindcast, then pass BOTH flags
+to the FQL run:
+
+```
+python examples/irrigation_abm/analysis/hindcast_v3.py --lb-return-flow-fraction 0.2 \
+  --out examples/irrigation_abm/results/v3_corpus/hindcast_lbflow020
+
+# Read the "derived on 2003-2010" / "derived on 2011-2018" rows'
+# lb_non_ag_total_maf from hindcast_lbflow020/hindcast_v3_summary.csv and
+# average them (the same procedure that derived the f=0.0 default, 5.2
+# MAF, from 5.167/5.214 -- see WaterSystemConfig.lb_non_ag_total_maf's
+# own comment), e.g. <derived_5p2_equivalent>.
+
+python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated \
+  --years 42 --seed <N> --paper-water-margin 0.4 --cluster-method hy2021 \
+  --lb-return-flow-fraction 0.2 --lb-non-ag-total-maf <derived_5p2_equivalent> \
+  --output examples/irrigation_abm/results/v3_corpus/v3_fql_sensitivity_<sha8>_lbflow020_seed<N>
+```
+
+Also note (2026-10-06 CPU rerun): `v3_metrics.py gate_p1`'s mass-balance
+check now adds back `lb_phys_ratio * lb_return_flow_maf` (the amount this
+fraction actually credits against Mead's outflow this year, logged
+unscaled by phi) when scoring a non-default `lb_return_flow_fraction`
+run -- without that correction P1 fails at face value (residual up to
+0.77 MAF/yr) even though mass balance holds.
+
+**(iv) `--powell-post2026-equalization hold_2026`** (2026-10-06:
+`--powell-post2026-equalization {extend_slope,hold_2026}` on
+`run_fql_baseline.py`; default `extend_slope`):
+
+```
+python examples/irrigation_abm/run_fql_baseline.py --real --no-governance --fql-init calibrated \
+  --years 42 --seed <N> --paper-water-margin 0.4 --cluster-method hy2021 \
+  --powell-post2026-equalization hold_2026 \
+  --output examples/irrigation_abm/results/v3_corpus/v3_fql_sensitivity_<sha8>_hold2026_seed<N>
+```
+
+Every sensitivity's acceptance check is the same `v3_metrics.load_run` +
+`gate_p1` / `gate_p2` / `gate_p4` WP5 check section 2 below describes,
+run directly against the sensitivity's own 10 output directories (never
+reusing the reference's).
+
 ## 2. FQL reference and the WP1b replays (CPU, no GPU, no Ollama)
 
 ```

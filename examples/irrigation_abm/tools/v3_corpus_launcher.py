@@ -366,17 +366,30 @@ def is_chain_alive(pid: Optional[int], timeout: float = _LIVENESS_TIMEOUT) -> bo
     return is_process_alive_for(pid, "_run-chain", timeout=timeout)
 
 
-def _run_record_path(state_dir: Path, record_label: str) -> Path:
+def _run_record_path(state_dir: Path, record_label: str, sha8: Optional[str] = None) -> Path:
+    """Records are namespaced under `state_dir/runs/<sha8>/` when a sha8
+    is given, so a fresh tag/campaign under the SAME --state-dir never
+    reads a stale record left by an older sha8 (previously the record
+    path carried only the plan label, so re-tagging without a fresh
+    --state-dir made every new sha8's first status check misreport as
+    "crashed" before the run even started -- the 2026-10-06 CPU rerun
+    hit this). `sha8=None` keeps the old flat path, for callers that
+    have no sha8 to namespace by (e.g. tests exercising this helper in
+    isolation)."""
+    if sha8:
+        return state_dir / "runs" / sha8 / f"{record_label}.json"
     return state_dir / "runs" / f"{record_label}.json"
 
 
-def read_run_record(state_dir: Optional[Path], record_label: str) -> Optional[dict]:
+def read_run_record(
+    state_dir: Optional[Path], record_label: str, sha8: Optional[str] = None,
+) -> Optional[dict]:
     """The chain driver's own record of one run's PID / start / exit
     (written by `run_chain`, read by status detection). `None` when there
     is no state dir to look in, or no record yet."""
     if state_dir is None:
         return None
-    path = _run_record_path(state_dir, record_label)
+    path = _run_record_path(state_dir, record_label, sha8)
     if not path.is_file():
         return None
     try:
@@ -385,8 +398,10 @@ def read_run_record(state_dir: Optional[Path], record_label: str) -> Optional[di
         return None
 
 
-def write_run_record(state_dir: Path, record_label: str, record: dict) -> None:
-    path = _run_record_path(state_dir, record_label)
+def write_run_record(
+    state_dir: Path, record_label: str, record: dict, sha8: Optional[str] = None,
+) -> None:
+    path = _run_record_path(state_dir, record_label, sha8)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -487,16 +502,22 @@ def record_label_for_attempt(label: str, attempt_index: int) -> str:
     return label if attempt_index == 0 else f"{label}_resume{attempt_index}"
 
 
-def run_status_for_plan_entry(run: PlannedRun, state_dir: Optional[Path] = None) -> str:
+def run_status_for_plan_entry(
+    run: PlannedRun, state_dir: Optional[Path] = None, sha8: Optional[str] = None,
+) -> str:
     """Item 4(a): an LLM run's status is resolved against the LATEST
     attempt in its resume chain, so a finished `_resumeN` directory counts
     as the run's own completion. The replay entry is a special case: one
     `v3_metrics.py replay` call writes BOTH `A/` and `B/` under its --out
     directory (never resumed -- only LLM runs are), so the entry is "done"
     only when both are, "pending" only when both are, "running" if either
-    is, and "crashed" otherwise."""
+    is, and "crashed" otherwise.
+
+    `sha8` namespaces the run-record lookup (see `_run_record_path`) so a
+    fresh tag never reads a stale record left by an older sha8 under the
+    same --state-dir; `None` keeps the old flat lookup."""
     if run.label == "replays_ab":
-        record = read_run_record(state_dir, run.label) if state_dir else None
+        record = read_run_record(state_dir, run.label, sha8) if state_dir else None
         a = run_status_for_dir(run.output_dir / "A", is_llm=False, record=record)
         b = run_status_for_dir(run.output_dir / "B", is_llm=False, record=record)
         if a == "done" and b == "done":
@@ -508,14 +529,14 @@ def run_status_for_plan_entry(run: PlannedRun, state_dir: Optional[Path] = None)
         return "crashed"
 
     if not run.is_llm:
-        record = read_run_record(state_dir, run.label) if state_dir else None
+        record = read_run_record(state_dir, run.label, sha8) if state_dir else None
         return run_status_for_dir(run.output_dir, is_llm=False, record=record)
 
     chain = resume_chain_dirs(run.output_dir)
     attempt_index = len(chain) - 1
     latest_dir = chain[attempt_index]
     record_label = record_label_for_attempt(run.label, attempt_index)
-    record = read_run_record(state_dir, record_label) if state_dir else None
+    record = read_run_record(state_dir, record_label, sha8) if state_dir else None
     return run_status_for_dir(latest_dir, is_llm=True, record=record)
 
 
@@ -530,17 +551,19 @@ def journaled_attempt_dirs(base_output_dir: Path) -> List[Path]:
 
 def latest_done_attempt_dir(
     base_output_dir: Path, state_dir: Optional[Path], label: str, is_llm: bool,
+    sha8: Optional[str] = None,
 ) -> Optional[Path]:
     """Item 3: the latest attempt in base_output_dir's resume chain that
     is "done", or None if none is. `cmd_gate` and
     `pilot_pair_manifest_workers` need the directory that ACTUALLY
     finished (e.g. `..._seed42_resume1`), never the crashed base dir, even
-    though the base dir is still the stable path identifying the run."""
+    though the base dir is still the stable path identifying the run.
+    `sha8` namespaces the run-record lookup; see `_run_record_path`."""
     chain = resume_chain_dirs(base_output_dir)
     for attempt_index in range(len(chain) - 1, -1, -1):
         d = chain[attempt_index]
         record_label = record_label_for_attempt(label, attempt_index)
-        record = read_run_record(state_dir, record_label) if state_dir else None
+        record = read_run_record(state_dir, record_label, sha8) if state_dir else None
         if run_status_for_dir(d, is_llm=is_llm, record=record) == "done":
             return d
     return None
@@ -673,7 +696,9 @@ def pilot_pair_manifest_workers(
     by_label = {r.label: r for r in plan}
     values = set()
     for label in ("pilot_strict_42", "pilot_disabled_42"):
-        done_dir = latest_done_attempt_dir(by_label[label].output_dir, state_dir, label, is_llm=True)
+        done_dir = latest_done_attempt_dir(
+            by_label[label].output_dir, state_dir, label, is_llm=True, sha8=sha8,
+        )
         if done_dir is None:
             continue
         manifest_path = done_dir / _MANIFEST_NAME
@@ -714,7 +739,7 @@ def _fql_and_replays_not_done(
     for r in plan:
         if r.phase != "fql" and r.label != "replays_ab":
             continue
-        if run_status_for_plan_entry(r, state_dir) != "done":
+        if run_status_for_plan_entry(r, state_dir, sha8) != "done":
             not_done.append(r.label)
     return sorted(not_done)
 
@@ -748,12 +773,14 @@ def _popen_detached(argv: Sequence[str], *, cwd: Path, log_path: Path) -> subpro
 
 def _write_chain_spec(
     state_dir: Path, chain_name: str, entries: Sequence[PlannedRun], log_path: Path,
+    sha8: Optional[str] = None,
 ) -> Path:
     spec = {
         "chain": chain_name,
         "cwd": str(_REPO_ROOT),
         "log": str(log_path),
         "state_dir": str(state_dir),
+        "sha8": sha8,
         "runs": [
             {"label": r.label, "command": r.command, "output_dir": str(r.output_dir)}
             for r in entries
@@ -781,6 +808,7 @@ def run_chain(spec_path: Path) -> int:
     cwd = spec["cwd"]
     state_dir = Path(spec["state_dir"])
     log_path = Path(spec["log"])
+    sha8 = spec.get("sha8")  # absent in specs written before this field existed
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as log_fh:
         def _log(message: str) -> None:
@@ -793,7 +821,7 @@ def run_chain(spec_path: Path) -> int:
             # record matters most for status detection) rather than
             # aborting a run that is otherwise fine.
             try:
-                write_run_record(state_dir, label, record)
+                write_run_record(state_dir, label, record, sha8)
             except OSError as exc:
                 _log(f"[v3_corpus_launcher] WARNING: could not write the run record for {label}: {exc}")
 
@@ -831,9 +859,10 @@ def run_chain(spec_path: Path) -> int:
 
 def _launch_chain_detached(
     state_dir: Path, chain_name: str, entries: Sequence[PlannedRun],
+    sha8: Optional[str] = None,
 ) -> "tuple[subprocess.Popen, Path, Path]":
     log_path = state_dir / "logs" / f"{chain_name}_{int(time.time())}.log"
-    spec_path = _write_chain_spec(state_dir, chain_name, entries, log_path)
+    spec_path = _write_chain_spec(state_dir, chain_name, entries, log_path, sha8)
     proc = _popen_detached(
         [sys.executable, str(_THIS_FILE), "_run-chain", "--spec", str(spec_path)],
         cwd=_REPO_ROOT, log_path=log_path,
@@ -889,13 +918,13 @@ def cmd_plan(args: argparse.Namespace) -> int:
         print("[v3_corpus_launcher] no --tag given: sha8 resolved from the current HEAD (preview only).")
     counts: Dict[str, int] = {}
     for run in entries:
-        status = run_status_for_plan_entry(run, state_dir)
+        status = run_status_for_plan_entry(run, state_dir, sha8)
         counts[run.phase] = counts.get(run.phase, 0) + 1
         pid_suffix = ""
         if status in ("running", "crashed"):
             chain = resume_chain_dirs(run.output_dir) if run.is_llm else [run.output_dir]
             record_label = record_label_for_attempt(run.label, len(chain) - 1) if run.is_llm else run.label
-            record = read_run_record(state_dir, record_label)
+            record = read_run_record(state_dir, record_label, sha8)
             if record and record.get("pid"):
                 pid_suffix = f" pid={record['pid']}"
         print(f"[{run.phase:8s}] [{status:7s}]{pid_suffix} {run.label}")
@@ -971,7 +1000,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "running": "already running (a live process holds its PID)",
     }
     for run in all_entries:
-        status = run_status_for_plan_entry(run, state_dir)
+        status = run_status_for_plan_entry(run, state_dir, sha8)
         if status == "pending":
             to_launch.append(run)
         else:
@@ -985,7 +1014,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     state["results_root"] = str(results_root)
     _record_interpreter(state)
 
-    proc, spec_path, log_path = _launch_chain_detached(state_dir, args.phase, to_launch)
+    proc, spec_path, log_path = _launch_chain_detached(state_dir, args.phase, to_launch, sha8)
     state.setdefault("launches", []).append({
         "phase": args.phase, "pid": proc.pid, "spec": str(spec_path), "log": str(log_path),
         "started_at": _timestamp(),
@@ -1061,7 +1090,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
     resume_from_dir = journaled[-1]
     resume_from_index = all_attempts.index(resume_from_dir)
     record_label = record_label_for_attempt(run.label, resume_from_index)
-    record = read_run_record(state_dir, record_label)
+    record = read_run_record(state_dir, record_label, sha8)
     status = run_status_for_dir(resume_from_dir, is_llm=True, record=record)
     if status != "crashed":
         raise SystemExit(
@@ -1083,7 +1112,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
     _record_interpreter(state)
 
     proc, spec_path, log_path = _launch_chain_detached(
-        state_dir, f"resume_{args.run_label}_{next_index}", [resume_run],
+        state_dir, f"resume_{args.run_label}_{next_index}", [resume_run], sha8,
     )
     state.setdefault("launches", []).append({
         "phase": f"resume:{args.run_label}", "pid": proc.pid, "spec": str(spec_path), "log": str(log_path),
@@ -1111,8 +1140,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # Item 3: pass the LATEST DONE attempt (e.g. a resumed "..._resume1")
     # to p5c-sample and pilot-gate, never the crashed base dir, even when
     # the pilot run only finished after being resumed once.
-    strict42 = latest_done_attempt_dir(entries["pilot_strict_42"].output_dir, state_dir, "pilot_strict_42", True)
-    disabled42 = latest_done_attempt_dir(entries["pilot_disabled_42"].output_dir, state_dir, "pilot_disabled_42", True)
+    strict42 = latest_done_attempt_dir(
+        entries["pilot_strict_42"].output_dir, state_dir, "pilot_strict_42", True, sha8,
+    )
+    disabled42 = latest_done_attempt_dir(
+        entries["pilot_disabled_42"].output_dir, state_dir, "pilot_disabled_42", True, sha8,
+    )
     if strict42 is None:
         raise SystemExit(
             f"refused: pilot_strict_42 ({entries['pilot_strict_42'].output_dir}) is not done yet "

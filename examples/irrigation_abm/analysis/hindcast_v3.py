@@ -271,6 +271,7 @@ def run_hindcast(first: int = 2000, last: int = 2018, *, lb_non_ag_total_maf: Op
                  powell_release_mode: Optional[str] = None,
                  powell_post2026_equalization: Optional[str] = None,
                  lb_return_flow_fraction: Optional[float] = None,
+                 min_utilisation_fraction: Optional[float] = None,
                  observed_release: bool = False, profiles=None, observed=None, requests=None) -> HindcastResult:
     """Simulate calendar years first..last from the observed 1 January storages of ``first`` and score
     the 1 January values of first+1..last+1. ``lb_non_ag_total_maf=None`` uses the config default.
@@ -282,7 +283,11 @@ def run_hindcast(first: int = 2000, last: int = 2018, *, lb_non_ag_total_maf: Op
     instead). ``lb_return_flow_fraction`` (item 36e, 2026-10-05; Opus review P2-2, 2026-10-06): None
     (default) leaves ``WaterSystemConfig``'s own default (0.0) in effect; a non-zero value IS exercised
     within this 2000-2018 window, since it changes Lake Mead's outflow every year of it, unlike
-    ``powell_post2026_equalization`` above."""
+    ``powell_post2026_equalization`` above. ``min_utilisation_fraction`` (2026-10-06 CPU rerun finding,
+    spec item 36k) is accepted for CLI parity with ``WaterSystemConfig`` like
+    ``powell_post2026_equalization`` -- this window's requests are held fixed from the observed record
+    (``hold_requests_fixed=True`` below), so the decrease-floor logic the field gates
+    (``IrrigationEnvironment.execute_skill`` / ``update_agent_request``) never runs here either."""
     observed = observed if observed is not None else load_observed()
     profiles = profiles if profiles is not None else load_profiles()
     requests = requests if requests is not None else observed_requests(profiles, range(first, last + 1))
@@ -300,6 +305,8 @@ def run_hindcast(first: int = 2000, last: int = 2018, *, lb_non_ag_total_maf: Op
         kw["powell_post2026_equalization"] = str(powell_post2026_equalization)
     if lb_return_flow_fraction is not None:
         kw["lb_return_flow_fraction"] = float(lb_return_flow_fraction)
+    if min_utilisation_fraction is not None:
+        kw["min_utilisation_fraction"] = float(min_utilisation_fraction)
     env = HistoricalIrrigationEnvironment(WaterSystemConfig(**kw), observed, requests, observed_release=observed_release)
     env.initialize_from_profiles(profiles)
     res = HindcastResult(first, last, env.config.lb_non_ag_total_maf, observed_release,
@@ -415,6 +422,7 @@ def record_implied_non_ag(years: Iterable[int], *, lb_return_flow_fraction: Opti
 def split_sample(value: Optional[float] = None, *, powell_release_mode: Optional[str] = None,
                  powell_post2026_equalization: Optional[str] = None,
                  lb_return_flow_fraction: Optional[float] = None,
+                 min_utilisation_fraction: Optional[float] = None,
                  profiles=None, observed=None) -> List[Dict[str, Any]]:
     """Derive the record-implied constant on each half and score the other half with it (model release
     rule), then score ``value`` (default: the config default) on each half, then repeat the held-out
@@ -425,7 +433,8 @@ def split_sample(value: Optional[float] = None, *, powell_release_mode: Optional
     "pre-registered" and "reference 5.0" rows, never the split-sample ones): threaded into every
     ``run_hindcast`` call below, exactly like ``run_hindcast`` itself threads them into
     ``WaterSystemConfig``. ``None`` (default) leaves the config's own default in effect, as before.
-    ``lb_return_flow_fraction`` (item 36e; Opus review P2-2) follows the same pattern."""
+    ``lb_return_flow_fraction`` (item 36e; Opus review P2-2) and ``min_utilisation_fraction``
+    (2026-10-06 CPU rerun finding) follow the same pattern."""
     observed = observed if observed is not None else load_observed()
     profiles = profiles if profiles is not None else load_profiles()
     requests = observed_requests(profiles, range(SPLIT_HALVES[0][0], SPLIT_HALVES[1][1] + 1))
@@ -437,6 +446,8 @@ def split_sample(value: Optional[float] = None, *, powell_release_mode: Optional
         mode_kw["powell_post2026_equalization"] = powell_post2026_equalization
     if lb_return_flow_fraction is not None:
         mode_kw["lb_return_flow_fraction"] = lb_return_flow_fraction
+    if min_utilisation_fraction is not None:
+        mode_kw["min_utilisation_fraction"] = min_utilisation_fraction
     derived = {h: record_implied_non_ag(range(h[0], h[1] + 1), **kw) for h in SPLIT_HALVES}
     rows = []
     for (cal, score) in ((SPLIT_HALVES[0], SPLIT_HALVES[1]), (SPLIT_HALVES[1], SPLIT_HALVES[0])):
@@ -491,6 +502,13 @@ def main() -> None:
                          "against Mead's outflow, on [0, 0.5]; default: WaterSystemConfig's "
                          "own default (0.0). Exercised by this 2000-2018 window (unlike "
                          "--powell-post2026-equalization above).")
+    ap.add_argument("--min-utilisation-fraction", type=float, default=None,
+                    help="2026-10-06 CPU rerun finding (spec item 36k): the minimum-use floor, "
+                         "as a fraction of each agent's water right, on [0, 1]; unused by this "
+                         "2000-2018 window (requests are held fixed from the observed record; "
+                         "accepted for CLI parity with WaterSystemConfig, like "
+                         "--powell-post2026-equalization above). Default: WaterSystemConfig's "
+                         "own default (0.10).")
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "examples" / "irrigation_abm" / "results" / "hindcast_v3")
     a = ap.parse_args()
     observed, profiles = load_observed(), load_profiles()
@@ -502,6 +520,8 @@ def main() -> None:
         mode_kw["powell_post2026_equalization"] = a.powell_post2026_equalization
     if a.lb_return_flow_fraction is not None:
         mode_kw["lb_return_flow_fraction"] = a.lb_return_flow_fraction
+    if a.min_utilisation_fraction is not None:
+        mode_kw["min_utilisation_fraction"] = a.min_utilisation_fraction
     rows = [_row("pre-registered", "2000-2018", run_hindcast(2000, 2018, lb_non_ag_total_maf=value,
                                                              profiles=profiles, observed=observed, **mode_kw))]
     effective = value if value is not None else WaterSystemConfig().lb_non_ag_total_maf
