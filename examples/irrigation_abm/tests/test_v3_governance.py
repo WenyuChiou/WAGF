@@ -235,6 +235,35 @@ def test_runner_refuses_pilot_phase_and_ablation_mode(monkeypatch, tmp_path, fla
     assert not out.exists()
 
 
+@pytest.mark.parametrize("fraction", [0.0, 0.05, 0.2, 1.0])
+def test_runner_refuses_non_default_min_utilisation_fraction(monkeypatch, tmp_path, fraction):
+    """2026-10-06 Opus review P2-1: config/agent_types.yaml's
+    minimum_utilisation_floor rule message hard-codes "10% of your water
+    right" and is not templated, so this LLM-governed runner refuses any
+    --min-utilisation-fraction other than the config default (0.10) --
+    those sensitivities are FQL-only (run_fql_baseline.py) for now."""
+    out = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", [
+        "run_experiment.py", "--model", "mock", "--years", "1", "--agents", "2",
+        "--output", str(out), "--min-utilisation-fraction", str(fraction)])
+    with pytest.raises(SystemExit, match="FQL-only"):
+        run_experiment.main()
+    assert not out.exists()
+
+
+def test_runner_accepts_the_default_min_utilisation_fraction_explicitly(monkeypatch, tmp_path):
+    """Passing the default value explicitly (0.10) is NOT refused -- only a
+    value that actually differs from the config default is."""
+    out = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", [
+        "run_experiment.py", "--model", "mock", "--years", "1", "--agents", "2",
+        "--output", str(out), "--min-utilisation-fraction", "0.10"])
+    try:
+        run_experiment.main()
+    except SystemExit as exc:
+        assert "FQL-only" not in str(exc)
+
+
 # ===========================================================================
 # 3.2 dispatch and 3.6 labels
 # ===========================================================================

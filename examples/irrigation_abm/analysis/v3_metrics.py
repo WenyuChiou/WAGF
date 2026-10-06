@@ -74,7 +74,6 @@ from examples.irrigation_abm.irrigation_env import (  # noqa: E402
     HYDROLOGY_V3_SHA256,
     LB_PRIORITY_SPLIT_SHA256,
     MEAD_CAPACITY_SHA256,
-    MIN_UTIL,
     POWELL_CURVE_ACTIVE_STORAGE_MAF,
     POWELL_CURVE_ELEVATION_FT,
     UB_SUBBASIN_ENVELOPE_SHA256,
@@ -459,6 +458,12 @@ _LLM_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     # pooled with the default reference, through the same "differs from
     # this analysis" check every other water-system key already uses.
     "lb_return_flow_fraction": ("lb_return_flow_fraction",),
+    # 2026-10-06 CPU rerun finding: same treatment as lb_return_flow_fraction
+    # just above -- 0.10 by default (every existing run); a 0 or 0.05 x W
+    # CPU-sensitivity run is refused when pooled with the default
+    # reference, so an LLM run and an FQL run under a different
+    # --min-utilisation-fraction can never be silently mixed.
+    "min_utilisation_fraction": ("min_utilisation_fraction",),
     "paper_water_margin": ("paper_water_margin",),
     "lb_tributary_source": ("coupling_retrofit_metadata", "water_system_lb_tributary_source"),
     "lb_priority_mode": ("coupling_retrofit_metadata", "water_system_lb_priority_mode"),
@@ -477,6 +482,7 @@ _FQL_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     "powell_post2026_equalization": ("powell_post2026_equalization",),
     "lb_non_ag_total_maf": ("lb_non_ag_total_maf",),
     "lb_return_flow_fraction": ("water_system_config", "lb_return_flow_fraction"),
+    "min_utilisation_fraction": ("water_system_config", "min_utilisation_fraction"),
     "paper_water_margin": ("paper_water_margin",),
     "lb_tributary_source": ("water_system_config", "lb_tributary_source"),
     "lb_priority_mode": ("lb_priority_mode",),
@@ -512,6 +518,7 @@ def _analysis_water_expectations() -> Dict[str, Any]:
         "powell_post2026_equalization": cfg.powell_post2026_equalization,
         "lb_non_ag_total_maf": cfg.lb_non_ag_total_maf,
         "lb_return_flow_fraction": cfg.lb_return_flow_fraction,
+        "min_utilisation_fraction": cfg.min_utilisation_fraction,
         "lb_tributary_source": cfg.lb_tributary_source,
         "lb_priority_mode": cfg.lb_priority_mode,
         "ub_supply_mode": cfg.ub_supply_mode,
@@ -806,6 +813,15 @@ SYSTEM_FLOAT_COLUMNS = (
     "lb_shortage_volume_maf",
 )
 SYSTEM_INT_COLUMNS = ("shortage_tier", "calendar_year")
+# Item 36e (lb_return_flow_fraction, 2026-10-05) columns: logged by every
+# run at or after that commit (irrigation_env.py's settlement result
+# always carries them, build_simulation_log_row always writes them), but
+# NOT in SYSTEM_FLOAT_COLUMNS/SIM_REQUIRED -- kept optional, defaulting to
+# 0.0 when a row's CSV predates the column, so loading an OLDER run never
+# breaks. 0.0 for either factor is also exactly the value that makes
+# gate_p1's lb_phys_ratio * lb_return_flow_maf correction (below) a no-op,
+# matching the pre-item-36e residual formula bit for bit.
+SYSTEM_OPTIONAL_FLOAT_COLUMNS = ("lb_phys_ratio", "lb_return_flow_maf")
 AGENT_COLUMNS = (
     "agent_id", "year", "basin", "cluster", "request", "diversion", "water_right", "base_af",
     "ub_subbasin", "ub_subbasin_ratio", "precipitation_mm", "precipitation_flag",
@@ -881,6 +897,7 @@ def load_sim_log(run_dir: Path) -> SimLog:
             row = rows[(a, y)]
             current = {c: _num(row, c, where) for c in SYSTEM_FLOAT_COLUMNS}
             current.update({c: float(_int_cell(row, c, where)) for c in SYSTEM_INT_COLUMNS})
+            current.update({c: (_num(row, c, where) if c in row else 0.0) for c in SYSTEM_OPTIONAL_FLOAT_COLUMNS})
             if values is None:
                 values = current
             elif current != values:
@@ -3266,7 +3283,7 @@ class PromptChecker:
                 line.cover(mt)
             return
         typical = sim.num(agent, t, "typical_step_af")
-        b_r, s_r, w_r, f_r = round(base), round(typical), round(w), round(w * MIN_UTIL)
+        b_r, s_r, w_r, f_r = round(base), round(typical), round(w), round(w * self.cfg.min_utilisation_fraction)
         m = _R["opt_inc"].match(text)
         if m:
             line.expect(m, 2, _f0(min(b_r + s_r, w_r)), "increase target")
@@ -3379,11 +3396,24 @@ def gate_p1(runs: Sequence[LoadedRun]) -> Dict[str, Any]:
         largest = 0.0
         for y in run.sim.years:
             s = run.sim.system[y]
+            # Item 36e (lb_return_flow_fraction, 2026-10-06 CPU rerun
+            # finding): "lb_return_flow_maf" is logged UNSCALED by phi
+            # (irrigation_env.py's own field comment), so the amount
+            # actually charged against Mead's outflow this year is
+            # lb_delivered_maf minus lb_phys_ratio * lb_return_flow_maf,
+            # not lb_delivered_maf alone -- the same correction
+            # hindcast_v3.py's run_hindcast() already applies to its own
+            # mass-balance assertion. Default lb_return_flow_fraction=0.0
+            # makes lb_return_flow_maf (and this term) 0.0, so this is a
+            # no-op, byte-identical to the pre-correction formula, for
+            # every run at the v3 production default.
+            lb_return_charged_maf = s["lb_phys_ratio"] * s["lb_return_flow_maf"]
             residual = ((s["powell_storage_end_maf"] - s["powell_storage_maf"])
                         + (s["mead_storage_end_maf"] - s["mead_storage_maf"])
                         - (s["natural_flow_maf"] - s["ub_non_farm_maf"] + s["lb_tributary_maf"]
                            - s["ub_delivered_maf"] - s["powell_evap_maf"] - s["mead_evap_maf"]
-                           - (s["lb_delivered_maf"] + s["lb_non_ag_delivered_maf"] + s["mexico_delivered_maf"])
+                           - (s["lb_delivered_maf"] - lb_return_charged_maf
+                              + s["lb_non_ag_delivered_maf"] + s["mexico_delivered_maf"])
                            - s["mead_spill_maf"]))
             largest = max(largest, abs(residual))
             if abs(residual) >= P1_TOL_MAF:

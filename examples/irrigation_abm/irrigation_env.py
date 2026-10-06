@@ -72,23 +72,21 @@ _UB_SUBBASIN_SUPPLY_VARIANTS = (
 # Minimum utilisation floor: agents cannot reduce demand below this fraction
 # of their water right.  Prevents "economic hallucination" spiral to zero.
 #
-# Legal basis for having a floor AT ALL (spec item 36k, PI-decided
-# 2026-10-06, keeps 0.10 W): Western prior-appropriation law makes
-# beneficial use the basis and limit of a water right (Arizona Revised
-# Statutes 45-141(B); Upper Colorado River Basin Compact 1948, Article
-# III(b)(2)) and ends or forfeits the UNUSED part of a right after years
-# of non-use -- five successive years in Arizona (A.R.S. 45-141(C)),
-# subject to forfeiture after seven years in Utah (Utah Code
-# 73-1-4(2)(a)), and a rebuttable presumption of abandonment after ten
-# years in Colorado (Colorado Revised Statutes 37-92-402(11)); approved
-# conservation is exempt from this in both states (A.R.S. 45-141(F);
-# C.R.S. 37-92-103(2)). The 10 PERCENT PER YEAR value below is this
-# model's own assumption, NOT drawn from these statutes, which set
-# multi-year non-use periods (5, 7, 10 years) on the unused portion of a
-# right, not an annual fraction; the source model (Hung and Yang 2021)
-# has no floor at all -- their diversion-state grids start at 0 for
-# every one of the 78 real agents. CPU sensitivities at 0 and 0.05 x W
-# (provenance C6b) report this choice's effect.
+# 2026-10-06 CPU rerun finding: this used to be a bare module constant
+# with no CLI flag, config field or manifest record, so the 0/0.05 x W
+# sensitivities (CPU) could not be run without editing tracked code.
+# WaterSystemConfig.min_utilisation_fraction (below) is now the single
+# source of truth -- every production reader (this module's
+# IrrigationEnvironment methods, run_experiment.py's prompt-text floor,
+# run_fql_baseline.py's request clipping, v3_metrics.py's PromptChecker)
+# reads ``config.min_utilisation_fraction``, never this constant. MIN_UTIL
+# itself is kept, UNCHANGED at 0.10, only because the test suite
+# (test_fql_v3.py, test_v3_action_model.py, test_v3_governance.py) uses it
+# as a literal default-floor value in its own assertions;
+# test_min_utilisation_fraction_default_matches_min_util
+# (test_v3_action_model.py) pins the two equal so they cannot silently
+# drift apart. The legal basis for having a floor AT ALL (spec item 36k)
+# is documented on the field itself, not duplicated here.
 MIN_UTIL = 0.10
 
 # CRSS 2019-2060 aggregate agricultural demand target for the 78 agents
@@ -579,6 +577,39 @@ class WaterSystemConfig:
     powell_evaporation_maf: float = 0.70
     evap_min_frac: float = 0.15               # on [0, 1]; same floor as Mead's evaporation term
 
+    # 2026-10-06 CPU rerun finding (spec item 36k follow-up): promoted from
+    # the bare MIN_UTIL module constant above to a config field, so the 0
+    # and 0.05 x W CPU sensitivities can be run via --min-utilisation-
+    # fraction (run_fql_baseline.py / run_experiment.py / hindcast_v3.py)
+    # instead of editing tracked code. Used everywhere MIN_UTIL used to be
+    # read: IrrigationEnvironment._reset_requests_to_base,
+    # update_agent_request and execute_skill's decrease branch (the floor
+    # itself), run_experiment.py's option-text floor, run_fql_baseline.py's
+    # FQL request clipping, and v3_metrics.py's PromptChecker (verifies the
+    # floor stated in the prompt text matches this same value) -- so an
+    # LLM run and an FQL run under the same --min-utilisation-fraction can
+    # never silently disagree about where the floor sits.
+    #
+    # Legal basis for having a floor AT ALL (spec item 36k, PI-decided
+    # 2026-10-06, keeps 0.10 W as the DEFAULT): Western prior-appropriation
+    # law makes beneficial use the basis and limit of a water right
+    # (Arizona Revised Statutes 45-141(B); Upper Colorado River Basin
+    # Compact 1948, Article III(b)(2)) and ends or forfeits the UNUSED part
+    # of a right after years of non-use -- five successive years in
+    # Arizona (A.R.S. 45-141(C)), subject to forfeiture after seven years
+    # in Utah (Utah Code 73-1-4(2)(a)), and a rebuttable presumption of
+    # abandonment after ten years in Colorado (Colorado Revised Statutes
+    # 37-92-402(11)); approved conservation is exempt from this in both
+    # states (A.R.S. 45-141(F); C.R.S. 37-92-103(2)). The 10 PERCENT PER
+    # YEAR default value is this model's own assumption, NOT drawn from
+    # these statutes, which set multi-year non-use periods (5, 7, 10
+    # years) on the unused portion of a right, not an annual fraction; the
+    # source model (Hung and Yang 2021) has no floor at all -- their
+    # diversion-state grids start at 0 for every one of the 78 real
+    # agents. CPU sensitivities at 0 and 0.05 x W (provenance C6b) report
+    # this choice's effect; on [0, 1] (enforced in __post_init__).
+    min_utilisation_fraction: float = 0.10
+
     def __post_init__(self) -> None:
         if not 0.0 <= self.evap_min_frac <= 1.0:
             raise ValueError(f"evap_min_frac must be on [0, 1], got {self.evap_min_frac}")
@@ -660,6 +691,28 @@ class WaterSystemConfig:
         if not isinstance(self.hold_requests_fixed, bool):
             raise ValueError(
                 f"hold_requests_fixed must be a bool, got {self.hold_requests_fixed!r}"
+            )
+        if not 0.0 <= self.min_utilisation_fraction <= 1.0:
+            raise ValueError(
+                "min_utilisation_fraction must be on [0, 1] (a fraction of "
+                f"the water right, see the field's own comment), got "
+                f"{self.min_utilisation_fraction!r}"
+            )
+        # 2026-10-06 Opus review P3-4: a --lb-non-ag-total-maf override (now
+        # threaded in from run_fql_baseline.py / run_experiment.py) must be
+        # a real, physically plausible withdrawal -- finite, positive, and
+        # well below the Lower Basin's own ~7.5 MAF compact allocation (20
+        # MAF is a generous ceiling, not itself a calibrated bound: the
+        # record-implied default is 5.2 MAF, see the field's own comment).
+        if not math.isfinite(self.lb_non_ag_total_maf):
+            raise ValueError(
+                f"lb_non_ag_total_maf must be finite, got {self.lb_non_ag_total_maf!r}"
+            )
+        if not 0.0 < self.lb_non_ag_total_maf < 20.0:
+            raise ValueError(
+                "lb_non_ag_total_maf must be > 0 and < 20 MAF (a Lower Basin "
+                "non-farm withdrawal outside this range is not physically "
+                f"plausible), got {self.lb_non_ag_total_maf!r}"
             )
 
     # Number of Monte Carlo runs
@@ -2078,7 +2131,7 @@ class IrrigationEnvironment:
             agent["base_af"] = base_af
             agent["request"] = base_af
             agent["at_allocation_cap"] = base_af >= 0.99 * wr
-            agent["below_minimum_utilisation"] = base_af <= 1.01 * wr * MIN_UTIL
+            agent["below_minimum_utilisation"] = base_af <= 1.01 * wr * self.config.min_utilisation_fraction
 
     def get_agent_context(self, agent_id: str) -> Dict[str, Any]:
         """Build context dict for a specific agent's LLM prompt.
@@ -2338,7 +2391,7 @@ class IrrigationEnvironment:
         # of the floor is treated as AT it, matching execute_skill's own
         # decrease no-op guard below and _reset_requests_to_base's flag.
         agent["below_minimum_utilisation"] = (
-            new_request <= agent["water_right"] * MIN_UTIL * 1.01
+            new_request <= agent["water_right"] * self.config.min_utilisation_fraction * 1.01
         )
 
         # Provisional delivery at the new request: this year's expected
@@ -2517,7 +2570,7 @@ class IrrigationEnvironment:
             # start there, spec/provenance C6) would have its "decrease"
             # RAISE its request to F, which spec 2.1 explicitly forbids
             # ("never raised to F").
-            floor = wr * MIN_UTIL
+            floor = wr * self.config.min_utilisation_fraction
             if current > 1.01 * floor:
                 new_req = max(current - step_af, floor)
             else:
