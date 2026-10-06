@@ -70,7 +70,10 @@ def llm_manifest(arm: str, seed: int = 42, commit: str = COMMIT, model: str = "m
         "git_commit": commit, "git_dirty": False, "timestamp": "2026-09-30T10:00:00",
         "hold_requests_fixed": False, "powell_release_mode": CFG.powell_release_mode,
         "powell_post2026_equalization": CFG.powell_post2026_equalization,
-        "lb_non_ag_total_maf": CFG.lb_non_ag_total_maf, "paper_water_margin": 0.4,
+        "lb_non_ag_total_maf": CFG.lb_non_ag_total_maf,
+        # Item 36e (2026-10-05); Opus review P2-2: 0.0 by default.
+        "lb_return_flow_fraction": CFG.lb_return_flow_fraction,
+        "paper_water_margin": 0.4,
         "cluster_method": "hy2021", "step_bin_source": {a: None for a in agents},
         "ub_supply_mode": CFG.ub_supply_mode, "ub_subbasin_supply_variant": CFG.ub_subbasin_supply_variant,
         "ub_subbasin_supply_v3_sha256": _UB_SUBBASIN_SUPPLY_VARIANT_FILES[CFG.ub_subbasin_supply_variant][1],
@@ -603,6 +606,9 @@ def test_mixed_commit_is_refused_and_recorded_with_the_override(tmp_path):
     (lambda m: m.update(model="gemma3:4b"), "model differs"),
     (lambda m: m.update(memory_seed=7), "seed scheme"),
     (lambda m: m.update(lb_non_ag_total_maf=5.0), "water system differs in lb_non_ag_total_maf"),
+    # Item 36e (2026-10-05); Opus review P2-2: a non-zero LB return-flow
+    # CPU sensitivity run is refused when pooled with the (0.0) default.
+    (lambda m: m.update(lb_return_flow_fraction=0.2), "water system differs in lb_return_flow_fraction"),
     (lambda m: m["coupling_retrofit_metadata"].update(water_system_hydrology_v3_sha256="0" * 64),
      "hydrology_v3_sha256"),
     (lambda m: m.update(hold_requests_fixed=True), "hold_requests_fixed"),
@@ -724,6 +730,24 @@ def test_fql_reference_must_be_raw_and_share_the_commit(tmp_path):
                     {(a, t): {} for a in AGENTS for t in (1, 2, 3)})
     info = vm.read_run_info(write_run(tmp_path / "fql", fql, sims))
     with pytest.raises(vm.ProvenanceError, match="raw FQL"):
+        vm.check_provenance([run, info])
+
+
+def test_fql_nonzero_return_flow_fraction_refused_against_the_default_reference(tmp_path):
+    """Item 36e (2026-10-05); Opus review P2-2: an FQL/replay manifest
+    whose water_system_config.lb_return_flow_fraction is non-zero is
+    refused when pooled against the analysis's own default (0.0) --
+    through the generic full-dataclass-dump comparison
+    (check_provenance), which needs no per-key wiring since
+    dataclasses.asdict(WaterSystemConfig(...)) already carries every
+    field, including this one."""
+    run = vm.read_run_info(fixture_run(tmp_path, "strict", STRICT_DECISIONS))
+    fql = fql_manifest(42, agents=sorted(AGENTS))
+    fql["water_system_config"]["lb_return_flow_fraction"] = 0.2
+    sims = sim_rows(system_years(3, (13.0, 12.0, 11.5), (11.0, 10.0, 9.0), (0, 0, 1)),
+                    {(a, t): {} for a in AGENTS for t in (1, 2, 3)})
+    info = vm.read_run_info(write_run(tmp_path / "fql", fql, sims))
+    with pytest.raises(vm.ProvenanceError, match="lb_return_flow_fraction"):
         vm.check_provenance([run, info])
 
 
@@ -1013,24 +1037,40 @@ def test_ub_subbasin_dry_years_uses_the_full_table_not_the_runs_own_years(monkey
 # =============================================================================
 
 def test_r5a_headline_band_edges():
+    """The middle band is "moderately_short", not "short" (Opus review
+    P3-6, 2026-10-06): since item 36a the prompt's own headline is two
+    states, "sufficient" and "short", and a bare "short" ANALYSIS bin
+    here would read as if it were that same prompt state."""
     f = personas.FULL_SUPPLY_RATIO
     assert vm.r5a_headline_band(f) == "sufficient"
     assert vm.r5a_headline_band(f - 1e-9) == "slightly_short"
     assert vm.r5a_headline_band(0.95) == "slightly_short"
-    assert vm.r5a_headline_band(0.95 - 1e-9) == "short"
-    assert vm.r5a_headline_band(0.80) == "short"
+    assert vm.r5a_headline_band(0.95 - 1e-9) == "moderately_short"
+    assert vm.r5a_headline_band(0.80) == "moderately_short"
     assert vm.r5a_headline_band(0.80 - 1e-9) == "well_short"
     assert vm.r5a_headline_band(0.50) == "well_short"
     assert vm.r5a_headline_band(0.50 - 1e-9) == "critical"
 
 
-def test_r5a_band_edges_match_build_water_situation_text():
-    """irrigation_personas.build_water_situation_text has no importable band
-    constant for 0.95, 0.80 and 0.50 (spec 4.3); this pins r5a_headline_band
-    against that function's own source so the two cannot silently drift
-    apart. FULL_SUPPLY_RATIO, the top edge, is imported, never copied."""
+def test_r5a_band_edges_are_the_five_retired_prompt_bands():
+    """Item 36a (2026-10-05 design-basis audit + fix proposals, spec item
+    36a): irrigation_personas.build_water_situation_text's headline
+    collapsed from five bands to two (sufficient / short) at
+    FULL_SUPPLY_RATIO; its source no longer states 0.95/0.80/0.50 at all,
+    so r5a_headline_band's three interior edges can no longer be
+    cross-checked against that function's source (the pre-2026-10-05 form
+    of this test). This instead pins r5a_headline_band's own literals
+    directly, so the five REPORT-ONLY bins (R5A_BANDS) stay exactly what
+    the pre-item-36a prompt headline used to print, for the pre-registered
+    R5a analysis. FULL_SUPPLY_RATIO, the top edge, is still imported,
+    never copied, in both functions."""
     src = inspect.getsource(personas.build_water_situation_text)
-    found = [float(x) for x in re.findall(r"r_share >= (0\.\d+)", src)]
+    # No numeric literal threshold on r_share remains in the prompt
+    # function -- only the symbolic FULL_SUPPLY_RATIO edge.
+    assert re.findall(r"r_share >= (0\.\d+)", src) == []
+    assert "r_share >= FULL_SUPPLY_RATIO" in src
+    src_r5a = inspect.getsource(vm.r5a_headline_band)
+    found = [float(x) for x in re.findall(r"r_share >= (0\.\d+)", src_r5a)]
     assert found == [0.95, 0.80, 0.50]
 
 
@@ -1052,8 +1092,9 @@ def test_r5b_window_mismatch_is_refused(tmp_path):
 
 def test_r5a_wsa_by_band_hand_computed(strict_run):
     """Band "sufficient" (ratio 1.0): d1(H), d2(L), d3(M), d4(VH), d6(M),
-    d7(ABORTED, missing), d9(L) = 7 decisions. Band "short" (ratio 0.9,
-    the supply rule's condition): d5(M), d8(H) = 2 decisions."""
+    d7(ABORTED, missing), d9(L) = 7 decisions. Band "moderately_short"
+    (ratio 0.9, the supply rule's condition; renamed from "short", Opus
+    review P3-6, 2026-10-06): d5(M), d8(H) = 2 decisions."""
     rows = vm.r5a_wsa_by_band(strict_run)
     assert len(rows) == 35  # 5 real bands x 7 wsa categories, always emitted
     assert sum(r["decisions"] for r in rows) == 9
@@ -1062,8 +1103,8 @@ def test_r5a_wsa_by_band_hand_computed(strict_run):
     assert by_cell[("sufficient", "M")] == 2 and by_cell[("sufficient", "VH")] == 1
     assert by_cell[("sufficient", "VL")] == 0 and by_cell[("sufficient", "missing")] == 1  # d7
     assert by_cell[("sufficient", "off_scale")] == 0
-    assert by_cell[("short", "H")] == 1 and by_cell[("short", "M")] == 1
-    assert by_cell[("short", "VL")] == 0
+    assert by_cell[("moderately_short", "H")] == 1 and by_cell[("moderately_short", "M")] == 1
+    assert by_cell[("moderately_short", "VL")] == 0
     assert by_cell[("slightly_short", "VL")] == 0  # an empty band still gets its zero cells
     assert by_cell[("critical", "missing")] == 0
 
@@ -1581,13 +1622,16 @@ def test_pilot_pair_must_be_seed_42(tmp_path):
 @needs_ref
 def test_replay_a_matches_the_pinned_2018_fixed_demand_values():
     """test_v3_water_system.py (TestMassBalanceClosureV3) pins the 2018
-    fixed-demand replay: tiers {0: 10, 1: 10, 2: 14, 3: 8}, Mead minimum
-    1 January storage 7.0652 MAF."""
+    fixed-demand replay: tiers {0: 7, 1: 11, 2: 16, 3: 8} (item 36c,
+    2026-10-05 design-basis audit + fix proposals, spec item 36c: moved
+    from {0: 10, 1: 10, 2: 14, 3: 8} by the post2026 Equalization default
+    move, hold_2026 -> extend_slope), Mead minimum 1 January storage
+    unchanged at 7.0652 MAF."""
     profiles = vm.make_profiles(True, 0, 7, 0.4, "hy2021")
     rows, condition, env = vm.run_fixed_demand_replay("A", profiles, 42, 7, True)
     years = sorted({r["year"] for r in rows})
     tiers = Counter(next(r["shortage_tier"] for r in rows if r["year"] == y) for y in years)
-    assert dict(tiers) == {0: 10, 1: 10, 2: 14, 3: 8}
+    assert dict(tiers) == {0: 7, 1: 11, 2: 16, 3: 8}
     assert min(r["mead_storage_maf"] for r in rows) == pytest.approx(7.0652, abs=1e-3)
     assert env.config.hold_requests_fixed is True
     # every agent's request is its 2018 use in every year

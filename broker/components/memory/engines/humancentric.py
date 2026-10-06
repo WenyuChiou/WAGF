@@ -74,6 +74,42 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # Reserved retrieval slots (weighted mode only): {memory type: count}
         # or a list of types (one slot each). None -> strict no-op.
         reserve_types: Optional[Any] = None,
+        # Design-basis audit + fix proposals, 2026-10-05: three generic,
+        # opt-in framework options for a "memory randomness, seed and
+        # documentation" finding raised against one consuming domain's
+        # case study. Every one defaults to False/off, so a caller that
+        # does not pass these (every existing domain) gets BYTE-IDENTICAL
+        # behaviour to before this change.
+        #
+        # deterministic_consolidation: when True, an item with importance
+        # >= consolidation_threshold ALWAYS enters long-term memory (no
+        # random draw; self.rng.random() is not even called for this
+        # item, so the rng stream another caller might also read from
+        # this engine is unaffected). When False (default), the
+        # pre-existing stochastic draw (consolidation_prob * importance)
+        # is unchanged.
+        deterministic_consolidation: bool = False,
+        # decay_ignore_emotion: when True, _apply_decay's emotion modifier
+        # (high-emotion memories decay slower) is disabled -- every
+        # memory decays at the bare decay_rate, regardless of its
+        # classified emotion. When False (default), the pre-existing
+        # emotion-weighted modifier is unchanged.
+        decay_ignore_emotion: bool = False,
+        # decay_by_calendar_year: when True, _apply_decay's "age" is the
+        # difference between the CALLER-SUPPLIED "year" metadata of each
+        # memory (echoed through final_metadata into the stored item,
+        # see _add_memory_internal) and the latest such year across that
+        # agent's own working+long-term store, instead of the difference
+        # between stored-item COUNTS (today's "timestamp"). The audit
+        # found the item-count age over-decays by roughly 2x whenever a
+        # domain stores more than one item per simulated year (e.g. one
+        # outcome line plus one reflection per year).
+        # Requires every working/long-term memory of an agent being
+        # decayed to carry a numeric "year" in its metadata; raises
+        # ValueError rather than silently falling back to the item-count
+        # age if one is missing. When False (default), the pre-existing
+        # item-count age is unchanged.
+        decay_by_calendar_year: bool = False,
     ):
         """
         Args:
@@ -114,6 +150,22 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.ranking_mode = ranking_mode
         self.forgetting_threshold = forgetting_threshold
         self.reserve_types = self._normalise_reserve_types(reserve_types)
+        # Item 36b: see the three parameters' docstrings above. Opus
+        # review P3-2 (2026-10-06): type-checked here, not left to raise
+        # downstream on a string like "true" or "false" read straight
+        # from YAML (a plain dict .get() does no coercion) -- the SAME
+        # discipline AgentTypeConfig's own boolean getters and
+        # WaterSystemConfig.hold_requests_fixed already apply.
+        for _name, _value in (
+            ("deterministic_consolidation", deterministic_consolidation),
+            ("decay_ignore_emotion", decay_ignore_emotion),
+            ("decay_by_calendar_year", decay_by_calendar_year),
+        ):
+            if not isinstance(_value, bool):
+                raise ValueError(f"{_name} must be a bool, got {_value!r}")
+        self.deterministic_consolidation = deterministic_consolidation
+        self.decay_ignore_emotion = decay_ignore_emotion
+        self.decay_by_calendar_year = decay_by_calendar_year
 
         # Memory capacity limits (0 = unlimited)
         self._max_working = max_working
@@ -281,10 +333,19 @@ class HumanCentricMemoryEngine(MemoryEngine):
 
         self.working[agent_id].append(memory_item)
 
-        # Stochastic consolidation: high importance items have chance to go to long-term
+        # Stochastic consolidation: high importance items have chance to go
+        # to long-term. Item 36b: deterministic_consolidation (opt-in,
+        # default off) replaces the random draw with "always consolidate"
+        # for every item at or above the threshold -- no rng.random() call
+        # at all in that branch, so this option changes nothing about the
+        # rng stream any other caller on this engine instance reads.
         if importance >= self.consolidation_threshold:  # Configurable threshold
-            consolidate_p = self.consolidation_prob * importance
-            if self.rng.random() < consolidate_p:
+            if self.deterministic_consolidation:
+                should_consolidate = True
+            else:
+                consolidate_p = self.consolidation_prob * importance
+                should_consolidate = self.rng.random() < consolidate_p
+            if should_consolidate:
                 memory_item["consolidated"] = True
                 # Deep copy to fully isolate working and longterm stores
                 self.longterm[agent_id].append(copy.deepcopy(memory_item))
@@ -292,20 +353,78 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # Enforce capacity limits if configured
         self._enforce_capacity(agent_id)
     
-    def _apply_decay(self, memories: List[Dict], current_time: int) -> List[Dict]:
-        """Apply emotional time decay (Legacy Logic)."""
+    def _apply_decay(
+        self, memories: List[Dict], current_time: int,
+        current_year: Optional[int] = None,
+    ) -> List[Dict]:
+        """Apply emotional time decay (Legacy Logic).
+
+        Item 36b (opt-in, both default off, byte-identical when off):
+        - ``decay_ignore_emotion``: the emotion modifier below becomes
+          1.0 for every memory (bare ``decay_rate``), instead of varying
+          by the memory's classified emotion.
+        - ``decay_by_calendar_year``: ``age`` is ``current_year -
+          m["year"]`` instead of ``current_time - m["timestamp"]``. The
+          caller must then also pass ``current_year`` (the retrieval
+          call's own "now", computed the same way as ``current_time`` but
+          over each memory's "year" metadata); every memory in
+          ``memories`` must carry a numeric "year" -- a missing one
+          raises rather than silently falling back to the item-count age,
+          since that would quietly re-introduce the ~2x over-decay this
+          option exists to remove.
+        """
         import math
         decayed = []
         for m in memories:
-            age = current_time - m["timestamp"]
-            # Emotion-modified decay: high emotion memories decay slower
-            emotion_modifier = 1.0 - (0.5 * self.emotional_weights.get(m.get("emotion"), 0.1))
+            if self.decay_by_calendar_year:
+                if current_year is None or m.get("year") is None:
+                    raise ValueError(
+                        "HumanCentricMemoryEngine._apply_decay: "
+                        "decay_by_calendar_year is True but this memory "
+                        f"has no numeric 'year' metadata (content={m.get('content')!r}) "
+                        "or the caller passed no current_year; refusing to "
+                        "silently fall back to the item-count age."
+                    )
+                age = current_year - m["year"]
+            else:
+                age = current_time - m["timestamp"]
+            # Emotion-modified decay: high emotion memories decay slower,
+            # unless decay_ignore_emotion disables the modifier (item 36b).
+            if self.decay_ignore_emotion:
+                emotion_modifier = 1.0
+            else:
+                emotion_modifier = 1.0 - (0.5 * self.emotional_weights.get(m.get("emotion"), 0.1))
             effective_decay = self.decay_rate * emotion_modifier
             decay_factor = math.exp(-effective_decay * age)
             m["decayed_importance"] = m["importance"] * decay_factor
             if m["decayed_importance"] > 0.05:  # Threshold for forgetting
                 decayed.append(m)
         return decayed
+
+    def _current_year_for_decay(self, working: List[Dict], longterm: List[Dict]) -> Optional[int]:
+        """Item 36b: the "now" year for ``decay_by_calendar_year``, the max
+        "year" metadata across an agent's working + long-term store --
+        the same combined-store convention ``current_time`` already uses
+        for the item-count age. Returns None (decay then uses the
+        item-count age) when the option is off; raises if it is on and
+        any memory in either list lacks a numeric "year".
+        """
+        if not self.decay_by_calendar_year:
+            return None
+        combined = working + longterm
+        if not combined:
+            return None
+        years = [m.get("year") for m in combined]
+        if any(y is None for y in years):
+            missing = [m.get("content") for m in combined if m.get("year") is None]
+            raise ValueError(
+                "HumanCentricMemoryEngine: decay_by_calendar_year is True but "
+                f"{len(missing)} memor{'y' if len(missing) == 1 else 'ies'} have no "
+                f"numeric 'year' metadata (e.g. content={missing[0]!r}); every "
+                "add_memory_for_agent call must pass metadata['year'] when this "
+                "option is on."
+            )
+        return max(years)
 
     # ── P2 Innovation: Contextual Resonance ──────────────────────────
 
@@ -515,6 +634,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if longterm:
             max_timestamp = max(max_timestamp, max(m["timestamp"] for m in longterm))
         current_time = max_timestamp + 1
+        # Item 36b: None (decay then uses the item-count age) unless
+        # decay_by_calendar_year is on.
+        current_year = self._current_year_for_decay(working, longterm)
 
         # --- MODE 1: LEGACY (v1 Parity for Groups A/B) ---
         if self.ranking_mode == "legacy":
@@ -522,8 +644,8 @@ class HumanCentricMemoryEngine(MemoryEngine):
              _n_sig = self.top_k_significant if top_k_significant is None else int(top_k_significant)
              recent = working[-_window:] if _window > 0 else []
              recent_texts = [m["content"] for m in recent]
-             
-             decayed_longterm = self._apply_decay(longterm, current_time)
+
+             decayed_longterm = self._apply_decay(longterm, current_time, current_year)
              
              # Contextual Boosters are IGNORED in legacy mode
              # Use generic significance key
@@ -563,7 +685,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         else:
             # Correctly combine and deduplicate memories while preserving metadata.
             all_memories_map = {}
-            for mem in self._apply_decay(longterm, current_time):
+            for mem in self._apply_decay(longterm, current_time, current_year):
                 all_memories_map[mem["content"]] = mem
             for mem in working:
                 all_memories_map[mem["content"]] = mem
@@ -673,9 +795,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if longterm:
             max_timestamp = max(max_timestamp, max(m["timestamp"] for m in longterm))
         current_time = max_timestamp + 1
+        current_year = self._current_year_for_decay(working, longterm)
 
         all_memories_map = {}
-        for mem in self._apply_decay(longterm, current_time):
+        for mem in self._apply_decay(longterm, current_time, current_year):
             all_memories_map[mem["content"]] = mem
         for mem in working:
             all_memories_map[mem["content"]] = mem

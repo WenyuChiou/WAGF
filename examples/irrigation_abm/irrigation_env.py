@@ -71,6 +71,24 @@ _UB_SUBBASIN_SUPPLY_VARIANTS = (
 
 # Minimum utilisation floor: agents cannot reduce demand below this fraction
 # of their water right.  Prevents "economic hallucination" spiral to zero.
+#
+# Legal basis for having a floor AT ALL (spec item 36k, PI-decided
+# 2026-10-06, keeps 0.10 W): Western prior-appropriation law makes
+# beneficial use the basis and limit of a water right (Arizona Revised
+# Statutes 45-141(B); Upper Colorado River Basin Compact 1948, Article
+# III(b)(2)) and ends or forfeits the UNUSED part of a right after years
+# of non-use -- five successive years in Arizona (A.R.S. 45-141(C)),
+# subject to forfeiture after seven years in Utah (Utah Code
+# 73-1-4(2)(a)), and a rebuttable presumption of abandonment after ten
+# years in Colorado (Colorado Revised Statutes 37-92-402(11)); approved
+# conservation is exempt from this in both states (A.R.S. 45-141(F);
+# C.R.S. 37-92-103(2)). The 10 PERCENT PER YEAR value below is this
+# model's own assumption, NOT drawn from these statutes, which set
+# multi-year non-use periods (5, 7, 10 years) on the unused portion of a
+# right, not an annual fraction; the source model (Hung and Yang 2021)
+# has no floor at all -- their diversion-state grids start at 0 for
+# every one of the 78 real agents. CPU sensitivities at 0 and 0.05 x W
+# (provenance C6b) report this choice's effect.
 MIN_UTIL = 0.10
 
 # CRSS 2019-2060 aggregate agricultural demand target for the 78 agents
@@ -257,6 +275,46 @@ class WaterSystemConfig:
     # ~2.7 MAF) are consistent with either value once tribal deliveries
     # and lower-river system losses are added; no primary document names
     # a single bucket figure directly (2026-09-26 verification pass).
+    lb_return_flow_fraction: float = 0.0      # Item 36e: the share of the LB
+    # agricultural draw this year that is NOT released from Lake Mead,
+    # because it is treated as reused downstream (e.g. credited toward
+    # the Mexico delivery or another downstream use already accounted
+    # for in this settlement) instead of being withdrawn and lost to the
+    # system a second time. On [0, 0.5] (enforced in __post_init__; see
+    # below for why the range stops at 0.5, not 1.0). Default 0.0
+    # reproduces today's behaviour EXACTLY (byte-identical): every
+    # acre-foot an LB agricultural agent is delivered is debited from
+    # Lake Mead's release one for one, i.e. treated as fully consumptive,
+    # k=1.0 (demand_per_grid_unit for the Lower Basin).
+    #
+    # The design-basis audit (X1, 2026-10-05) is this: the Upper Basin
+    # already models the gap between a DIVERSION and its CONSUMPTIVE USE
+    # with H&Y's 50 percent depletion convention (demand_per_grid_unit=
+    # 0.5, half of a diversion returns to the system and is not charged
+    # against the river a second time); the Lower Basin has no such
+    # convention (k=1.0), so an LB diversion is charged to Mead's
+    # release in full, as if none of it were ever reused. This option is
+    # a CPU sensitivity (no GPU, no LLM involved) on that SAME
+    # diversion-versus-consumptive-use units gap, applied to the Lower
+    # Basin instead of the Upper Basin: when set, it reduces the
+    # agricultural draw actually charged against Mead's outflow this
+    # year by this fraction, standing in for the part of an LB diversion
+    # that in CRSS is not a net loss to the system (the 5.2 MAF
+    # non-agricultural bucket is calibrated to the observed 2003-2018
+    # Mead record and so already absorbs this effect AT THE BASE, 2018,
+    # level; this option is about an increase ABOVE 2018 use, which was
+    # being charged to Mead's release one for one with no offsetting
+    # reuse). It is NOT turned on by default -- the audit recommends
+    # running the sensitivity FIRST and changing the default only on
+    # evidence (spec item 36e). Capped at 0.5, not 1.0: the only
+    # quantitative anchor this model has for a diversion-to-consumptive-
+    # use gap at all is the Upper Basin's own 50 percent depletion
+    # convention; a Lower Basin fraction above that would claim the
+    # Lower Basin returns MORE of a diversion than the Upper Basin's own
+    # H&Y-sourced convention assumes, which no source supports. Applied
+    # in `_settle` to (r_lb - junior_cuts_total_maf), i.e. the
+    # agricultural draw actually requested from Mead this year, never to
+    # the non-agricultural bucket or the Mexico delivery itself.
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr) -- the "constant" fallback
     # Calibrated aggregate: a plausible order of magnitude for the ungauged
     # Lower Basin inflow between Powell and Mead (Virgin River, Muddy River,
@@ -348,16 +406,28 @@ class WaterSystemConfig:
     # revert to the operating criteria used to model baseline conditions"
     # of the 2000 Interim Surplus Guidelines Final EIS -- a DIFFERENT,
     # unmodelled operating regime, not an Equalization-elevation schedule
-    # at all. "hold_2026" (v3 default, a stated ASSUMPTION that DEPARTS
-    # from the ROD's own reversion clause, design memo section 5 #9):
-    # holds the elevation at the last published value, 3,666 ft, for
-    # every year after 2026, so the model keeps operating under
-    # ig2007_tiers logic rather than switching regimes. "extend_slope"
-    # (SI sensitivity): extends the 2012-2026 slope (about 1.5 ft/yr) per
-    # the USBR 2012 Colorado River Basin Study (Technical Report G,
-    # Appendix G2, pp. G2-3 to G2-4, "Alternative 1a") -- also a
-    # continuation of ig2007_tiers logic, not the ROD's own reversion.
-    powell_post2026_equalization: str = "hold_2026"
+    # at all. Item 36c (2026-10-05 design-basis audit + fix proposals,
+    # spec item 36c) makes "extend_slope" the v3 DEFAULT: extends the
+    # 2012-2026 slope (about 1.5 ft/yr) per the USBR 2012 Colorado River
+    # Basin Study (Technical Report G, Appendix G2, pp. G2-3 to G2-4,
+    # "Alternative 1a") and Reclamation's own 5-Year Probabilistic
+    # Projections (CRSS) page (footnote 2, fetched 2026-10-05), which
+    # states that "for modeling purposes, simulated years beyond 2026
+    # assume a continuation of the 2007 Interim Guidelines". So
+    # CONTINUING the Guidelines past 2026 is USBR's own documented CRSS
+    # modelling practice; the only element that was ever this study's own
+    # invention was HOW the line is extended, and extend_slope is USBR's
+    # own documented extension method, not a stated assumption of ours.
+    # "hold_2026" (pre-2026-10-05 default; now the SI sensitivity, a
+    # stated ASSUMPTION that DEPARTS from the ROD's own reversion clause,
+    # design memo section 5 #9): holds the elevation at the last
+    # published value, 3,666 ft, for every year after 2026. Both modes
+    # continue ig2007_tiers logic rather than the ROD's own Section 8.C
+    # reversion to the 2000 Interim Surplus Guidelines FEIS, and both
+    # omit the 2019 Drought Contingency Plans and the 2024 Supplement
+    # that Reclamation's CURRENT CRSS continues -- consistent with H&Y's
+    # own pre-DCP CRSS basis (p. 18), stated here once for both modes.
+    powell_post2026_equalization: str = "extend_slope"
     min_powell_release_maf: float = 7.0       # Powell release floor (MAF/yr): storage_balancing's
     # own floor always, and ig2007_tiers's Lower Elevation Balancing tier floor (ROD p. 53).
     max_powell_release_maf: float = 9.5       # Powell release ceiling (MAF/yr) for storage_balancing
@@ -578,6 +648,14 @@ class WaterSystemConfig:
             raise ValueError(
                 "powell_post2026_equalization must be 'hold_2026' or "
                 f"'extend_slope', got {self.powell_post2026_equalization!r}"
+            )
+        if not (0.0 <= self.lb_return_flow_fraction <= 0.5):
+            raise ValueError(
+                "lb_return_flow_fraction must be in [0, 0.5] (capped at the "
+                "Upper Basin's own 50 percent depletion convention, the only "
+                "diversion-to-consumptive-use anchor this model has; see the "
+                "field's own comment), got "
+                f"{self.lb_return_flow_fraction!r}"
             )
         if not isinstance(self.hold_requests_fixed, bool):
             raise ValueError(
@@ -2228,10 +2306,12 @@ class IrrigationEnvironment:
             "basin_request_over_target": self._global.get("basin_request_over_target", 0),
             "natural_flow_maf": self._global.get("natural_flow_maf", 0),
             "powell_storage_maf": self._global.get("powell_storage_maf", 0),
-            # N7 (2026-09-26 regression audit): read by
-            # irrigation_personas.py (build_water_situation_text) to render
-            # the dead-pool sentence instead of "Lake Powell holds N million
-            # acre-ft" when storage is at or below the floor.
+            # N7 (2026-09-26 regression audit). Item 36d (2026-10-05):
+            # irrigation_personas.py (build_water_situation_text) no
+            # longer prints a Lake Powell sentence for Upper Basin agents
+            # at all (neither this nor the dead-pool form); both
+            # powell_storage_maf and powell_dead_pool_maf stay in this
+            # context dict for non-prompt consumers (logging, metrics).
             "powell_dead_pool_maf": self.config.powell_dead_pool_maf,
         }
 
@@ -2971,9 +3051,11 @@ class IrrigationEnvironment:
         for a year outside its stated domain. Past 2026 (the last
         published value, 3,666 ft),
         ``config.powell_post2026_equalization`` decides the extension:
-        ``"hold_2026"`` (default, a stated ASSUMPTION) holds 3,666 ft;
-        ``"extend_slope"`` (SI sensitivity) extends the 2012-2026 slope
-        per the USBR 2012 Colorado River Basin Study."""
+        ``"extend_slope"`` (v3 default since item 36c, 2026-10-05) extends
+        the 2012-2026 slope per the USBR 2012 Colorado River Basin Study,
+        USBR's own documented CRSS practice; ``"hold_2026"`` (pre-2026-10-05
+        default, now the SI sensitivity, a stated ASSUMPTION) holds
+        3,666 ft."""
         if year < 2008:
             raise ValueError(
                 f"_powell_equalization_elevation_ft: {year} is before water "
@@ -3690,7 +3772,28 @@ class IrrigationEnvironment:
         # that amount every tier year -- caught by
         # test_v3_lb_priority.py's mass-balance and bit-identity tests
         # (TestSplitMatchesSeniorAllAggregate).
-        outflow = (r_lb - junior_cuts_total_maf) + non_ag + mexico
+        # Item 36e (2026-10-05 design-basis audit, X1; Opus review P2-3):
+        # lb_return_flow_fraction (default 0.0, byte-identical to
+        # pre-item-36e behaviour) treats a share of the LB agricultural
+        # draw as reused downstream (e.g. credited toward the Mexico
+        # delivery or another downstream use this settlement already
+        # accounts for) rather than lost to the system, so Mead releases
+        # LESS this year by that share -- NOT water physically returned
+        # to the river below Mead, and NOT water credited back into
+        # Mead's own storage; the mechanism is "charge Mead's outflow
+        # for less of the draw", a CPU sensitivity on the SAME
+        # diversion-versus-consumptive-use units gap the Upper Basin's
+        # k=0.5 depletion convention already models (field comment,
+        # WaterSystemConfig.lb_return_flow_fraction, has the full
+        # reasoning and the [0, 0.5] range's cap). Applied ONLY to the
+        # agricultural draw (r_lb net of the junior tier cut), never to
+        # non_ag or mexico -- X1 is specifically about LB diversions
+        # being treated as fully consumptive, not about the
+        # non-agricultural bucket (already calibrated to the observed
+        # Mead record) or the treaty delivery itself.
+        lb_ag_draw = r_lb - junior_cuts_total_maf
+        lb_return_maf = lb_ag_draw * cfg.lb_return_flow_fraction
+        outflow = (lb_ag_draw - lb_return_maf) + non_ag + mexico
         available = max(0.0, m_usable + release + trib - e_m)
         phi = 1.0 if (outflow <= 0 or outflow <= available) else available / outflow
         s_m_end = s_m + release + trib - e_m - phi * outflow
@@ -3814,6 +3917,20 @@ class IrrigationEnvironment:
             "mead_evap_maf": e_m,
             "mead_spill_maf": mead_spill,
             "lb_tributary_maf": trib,
+            # Item 36e: informational only (0.0 whenever
+            # lb_return_flow_fraction is 0.0, the default); the share of
+            # this year's LB agricultural draw treated as reused
+            # downstream rather than charged against Mead's outflow.
+            # Opus review P3-f (2026-10-06): this value is logged UNSCALED
+            # by phi (the physical shortage ratio computed a few lines
+            # above) -- it is lb_ag_draw * lb_return_flow_fraction before
+            # any curtailment, not the amount actually charged against
+            # Mead's storage this year (that amount is phi *
+            # lb_return_maf; see outflow/s_m_end above, and
+            # hindcast_v3.py's run_hindcast(), which re-derives
+            # phi * lb_return_flow_maf for its own mass-balance check
+            # rather than using this field directly).
+            "lb_return_flow_maf": lb_return_maf,
         }
         if snapshot.get("calendar_year") is not None:
             result["calendar_year"] = snapshot["calendar_year"]

@@ -187,6 +187,15 @@ def _llm_command(
     cmd = [
         _PYTHON, "examples/irrigation_abm/run_experiment.py",
         "--real", "--model", _MODEL, "--years", str(_YEARS), "--seed", str(seed),
+        # Item 36b (2026-10-05 design-basis audit + fix proposals, spec
+        # item 36b, N11): without this, run_experiment.py's --memory-seed
+        # default (42) applied to EVERY launcher-produced run regardless
+        # of --seed, so every run drew the SAME memory-consolidation
+        # stream -- the launcher-side half of the N9/N10/N11 finding
+        # (the framework-side half is the three HumanCentricMemoryEngine
+        # options above). --memory-seed now follows --seed, one memory
+        # stream per corpus seed, same as every other per-run value here.
+        "--memory-seed", str(seed),
         "--paper-water-margin", _PAPER_WATER_MARGIN,
         "--cluster-method", _CLUSTER_METHOD,
         "--governance-mode", governance_mode,

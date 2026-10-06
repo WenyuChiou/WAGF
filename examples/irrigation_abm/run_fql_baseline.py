@@ -408,9 +408,11 @@ def create_fql_agents(
             matching parameter file shipped in this release) is what the
             authors' own initialization_ABM_CRSS_v3.py copies; 'All-WRR'
             is a composite of the 2020-09-13 Upper Basin and 2020-10-20
-            Lower Basin batches. To be confirmed with the model's
-            authors; the other snapshots are reported as a sensitivity
-            in the SI, not silently dropped.
+            Lower Basin batches. Item 36j (2026-10-05 design-basis
+            audit + fix proposals, PI decision): All-1109 is KEPT, on the
+            shared-calibration-date reason above; 'All' is run as a CPU
+            sensitivity and reported beside it in the SI, not silently
+            dropped.
         crss_db_dir: ref/CRSS_DB/CRSS_DB directory, used by
             resolve_prev_action() to look for Hung & Yang's own
             QL_Div_2017/2018.csv coupling files before falling back to
@@ -1553,7 +1555,10 @@ def main():
     )
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
-    config = WaterSystemConfig(seed=seed)
+    config_kwargs: Dict[str, Any] = {}
+    if args.lb_return_flow_fraction is not None:
+        config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
+    config = WaterSystemConfig(seed=seed, **config_kwargs)
     # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
     # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
     # runner never exposes a flag for it (test_hold_requests_fixed_
@@ -1718,6 +1723,9 @@ def main():
         "powell_release_mode": env.config.powell_release_mode,
         "powell_post2026_equalization": env.config.powell_post2026_equalization,
         "lb_non_ag_total_maf": env.config.lb_non_ag_total_maf,
+        # Item 36e (2026-10-05); Opus review P2-2: 0.0 (default,
+        # byte-identical) unless --lb-return-flow-fraction set it.
+        "lb_return_flow_fraction": env.config.lb_return_flow_fraction,
         # WP5 essentials (irrigation_v3_spec_2026-09-28.md section 5,
         # 2026-09-30): "the manifest records everything that identifies
         # the reference: --fql-init, the table directory, the
@@ -1817,10 +1825,19 @@ def parse_args():
                    help="Use real 78-agent CRSS data from paper")
     p.add_argument("--paper-water-margin", type=float, default=0.4,
                    help="Water-right history-anchor margin, same meaning and default "
-                        "as run_experiment.py --paper-water-margin, on [0, 1]: "
-                        "water_right = min(grid_top_af, (1 + paper_water_margin) * "
-                        "peak_obs_af). Only affects --real profiles. Recorded in "
-                        "reproducibility_manifest.json.")
+                        "as run_experiment.py --paper-water-margin, on [0, 1]. Item "
+                        "36f/36g (2026-10-05): basin-specific since then -- Lower "
+                        "Basin water_right = grid_top_af alone; Upper Basin "
+                        "water_right = (1 + paper_water_margin) * peak_obs_af alone "
+                        "(no grid-top term). Only affects --real profiles. Recorded "
+                        "in reproducibility_manifest.json.")
+    p.add_argument("--lb-return-flow-fraction", type=float, default=None,
+                   help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
+                        "agricultural draw treated as reused downstream (e.g. "
+                        "credited toward the Mexico delivery) instead of charged "
+                        "against Mead's outflow, on [0, 0.5]. Default: "
+                        "WaterSystemConfig's own default (0.0, byte-identical). "
+                        "Recorded in reproducibility_manifest.json.")
     p.add_argument("--cluster-method", type=str, default="hy2021",
                    choices=["hy2021", "legacy_centroid"],
                    help="How each real CRSS agent's cluster (aggressive / "
@@ -1895,10 +1912,11 @@ def parse_args():
                         "this release) is what the authors' own "
                         "initialization_ABM_CRSS_v3.py copies; 'All-WRR' is a "
                         "composite of the 2020-09-13 Upper Basin and 2020-10-20 "
-                        "Lower Basin batches. This choice is to be confirmed with "
-                        "the model's authors; the other snapshots (All, All-WRR, "
-                        "All-0913, All-1020, All-1022) are reported as a "
-                        "sensitivity in the SI, not silently dropped.")
+                        "Lower Basin batches. Item 36j (2026-10-05 design-basis audit + fix "
+                        "proposals, PI decision): All-1109 is KEPT, on the shared-"
+                        "calibration-date reason above; 'All' is run as a CPU sensitivity "
+                        "(All-WRR, All-0913, All-1020, All-1022 stay available as further "
+                        "sensitivities), not silently dropped.")
     return p.parse_args()
 
 

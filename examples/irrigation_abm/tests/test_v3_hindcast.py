@@ -74,3 +74,52 @@ def test_split_sample_record_implied_values_bracket_5p2(inputs):
     assert a == pytest.approx(5.167, abs=0.005)
     assert b == pytest.approx(5.214, abs=0.005)
     assert abs(a - 5.2) < 0.05 and abs(b - 5.2) < 0.05
+
+
+@needs_ref
+def test_record_implied_non_ag_lb_return_flow_fraction_default_is_unset(inputs):
+    """Item 36e (P3-d, Opus review 2026-10-06): leaving lb_return_flow_fraction unset (None) reads
+    WaterSystemConfig's own default, 0.0, so it is byte-identical to passing 0.0 explicitly, and
+    both are byte-identical to the pre-item-36e behaviour (no fraction parameter at all)."""
+    kw = {"profiles": inputs["profiles"], "observed": inputs["observed"]}
+    unset = hv.record_implied_non_ag(range(2003, 2011), **kw)
+    explicit_zero = hv.record_implied_non_ag(range(2003, 2011), lb_return_flow_fraction=0.0, **kw)
+    assert explicit_zero == unset
+    assert unset == pytest.approx(5.167, abs=0.005)       # same pin as the test above
+
+
+@needs_ref
+def test_record_implied_non_ag_lb_return_flow_fraction_raises_the_implied_value(inputs):
+    """A positive f (item 36e) subtracts (1 - f) x the LB draw instead of the full draw, so the
+    record-implied non-farm constant that still closes Mead's balance is larger by
+    f x (mean LB draw over the window) -- P3-d, Opus review 2026-10-06."""
+    years = range(2003, 2011)
+    kw = {"profiles": inputs["profiles"], "observed": inputs["observed"], "requests": inputs["requests"]}
+    baseline = hv.record_implied_non_ag(years, **kw)
+    f = 0.2
+    with_return_flow = hv.record_implied_non_ag(years, lb_return_flow_fraction=f, **kw)
+
+    wr = {p.agent_id: p.water_right for p in inputs["profiles"]}
+    lb_ids = [p.agent_id for p in inputs["profiles"] if p.basin != "upper_basin"]
+    lb_draws_maf = [sum(min(inputs["requests"][t][a], wr[a]) for a in lb_ids) / 1e6 for t in years]
+    expected_increase = f * (sum(lb_draws_maf) / len(lb_draws_maf))
+
+    assert with_return_flow - baseline == pytest.approx(expected_increase, abs=1e-9)
+    assert with_return_flow > baseline
+
+
+@needs_ref
+def test_hindcast_result_reports_lb_return_flow_fraction_column(inputs):
+    """Opus review P3-d (2026-10-06): HindcastResult carries the RESOLVED lb_return_flow_fraction
+    (env.config's own value, mirroring powell_release_mode), and _row() surfaces it as a CSV
+    column -- visible even for a row built from split_sample(), which has no other way to receive
+    it. A short 2-year window is enough; this test is about the plumbing, not the fit metrics."""
+    kw = {"profiles": inputs["profiles"], "observed": inputs["observed"], "requests": inputs["requests"]}
+
+    r_default = hv.run_hindcast(2000, 2001, **kw)
+    assert r_default.lb_return_flow_fraction == 0.0
+    assert hv._row("case", "window", r_default)["lb_return_flow_fraction"] == 0.0
+
+    r_set = hv.run_hindcast(2000, 2001, lb_return_flow_fraction=0.2, **kw)
+    assert r_set.lb_return_flow_fraction == pytest.approx(0.2)
+    assert hv._row("case", "window", r_set)["lb_return_flow_fraction"] == pytest.approx(0.2)

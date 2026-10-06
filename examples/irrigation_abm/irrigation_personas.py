@@ -106,14 +106,17 @@ class IrrigationAgentProfile:
     # None for a profile step_bin_af was never computed for.
     step_bin_source: Optional[str] = None
 
-    # History-anchor ceiling (2026-09-26, water-right history-anchor):
-    # water_right above is min(grid_top_af, (1 + paper_water_margin) *
-    # peak_obs_af) for profiles built by create_profiles_from_data (see its
-    # docstring); these three fields record
-    # which bound applied and from what. None for profiles that do not go
-    # through that path (create_profiles_from_csv, synthetic builders),
-    # where water_right is set directly and grid_top_af/peak_obs_af have no
-    # meaning.
+    # History-anchor ceiling (2026-09-26, water-right history-anchor;
+    # made basin-specific by item 36f/36g, 2026-10-05): for profiles built
+    # by create_profiles_from_data (see its docstring), water_right is
+    # ``grid_top_af`` for the Lower Basin (``_lb_water_right``, always
+    # source "grid_top") and ``(1 + paper_water_margin) * peak_obs_af``
+    # for the Upper Basin (``_ub_water_right``, source "peak_scaled",
+    # falling back to "grid_top" only when no observed peak exists at
+    # all). These three fields record which bound applied and from what.
+    # None for profiles that do not go through that path
+    # (create_profiles_from_csv, synthetic builders), where water_right
+    # is set directly and grid_top_af/peak_obs_af have no meaning.
     grid_top_af: Optional[float] = None  # top of the Div_States grid (Div_max)
     peak_obs_af: Optional[float] = None  # observed peak, 1971-2018, same series as actual_2018_diversion
     water_right_source: Optional[str] = None  # "grid_top" or "peak_scaled"
@@ -460,18 +463,46 @@ def build_water_situation_text(
     env_context: Dict[str, Any],
     last_year: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """The situation text of the prompt, ``{water_situation_text}`` (spec 4.3).
+    """The situation text of the prompt, ``{water_situation_text}`` (spec 4.3,
+    headline revised by item 36a, 2026-10-05).
 
     In order: the year and basin; a headline on r, the expected delivery at
-    the keep request as a share of it (five bands, "sufficient" only at r >=
+    the keep request as a share of it (TWO states only, "sufficient" at r >=
     FULL_SUPPLY_RATIO, the edge below which the supply rule blocks an
-    increase); the basin's water information (Upper Basin: the agent's own
-    sub-basin winter precipitation, the sub-basin's natural flow as a share
-    of its 1971-2018 average, Lake Powell storage; Lower Basin: Lake Mead's
+    increase, else "short"; the design-basis audit's three intermediate
+    band texts at 0.95/0.80/0.50 had no source and are retired -- see
+    item 36a below); the basin's water information (Upper Basin: the
+    agent's own sub-basin winter precipitation, the sub-basin's natural
+    flow as a share of its 1971-2018 average; Lower Basin: Lake Mead's
     1 January level and trend, and the declared tier); last year's request,
     delivery and reason (in the first year, the 2018 use); the expected
     delivery at the keep request with its reason; the water right and last
     year's delivery as a share of it. No drought index anywhere.
+
+    Item 36a/36d (2026-10-05 design-basis audit + fix proposals, PI
+    decision spec item 36): two changes from the pre-2026-10-05 text.
+    (a) The headline collapses from five bands (sufficient / slightly
+    short / short / well short / critically short, at 0.999/0.95/0.80/0.50)
+    to two (sufficient / short) at the single edge FULL_SUPPLY_RATIO. The
+    three dropped edges had no source, and because the WSA anchor words
+    (abundant/adequate/tight/scarce/very scarce) map almost one-to-one onto
+    the five old headline texts, the old bands were effectively choosing
+    the agent's own water-scarcity appraisal for it -- TR1 then partly
+    read our band edges rather than the agent's judgement. The exact
+    acre-ft figure and percentage still follow two lines below (G9), so no
+    information is lost; a reader who wants the old five-way split can
+    still compute it from that number. The retired bands survive only as
+    REPORT-ONLY analysis bins in ``analysis/v3_metrics.py`` (``R5A_BANDS``),
+    explicitly labelled there as bins the agent never read.
+    (d) The "Lake Powell holds ... on 1 January" / dead-pool sentence is
+    removed from Upper Basin prompts. Under item 4 / E14 (Hung and Yang's
+    own priority rule) the Upper Basin is never curtailed to protect a
+    Powell release, so an Upper Basin agent's delivery never depends on
+    Powell's level; showing the figure anyway invited a WSA reading driven
+    by a number that cannot affect the agent, exactly the Lower-Basin-style
+    "shown but inert" pattern item 4 removed from the gap-reason text. The
+    sub-basin natural-flow-share line (G4), which IS what sets this agent's
+    supply, is unchanged and stays.
 
     ``env_context`` is ``IrrigationEnvironment.get_agent_context``;
     ``current_request`` is the keep request (the base, WP2 spec 2.1) and
@@ -498,20 +529,13 @@ def build_water_situation_text(
         f"{_BASIN_DISPLAY[basin]}."
     ]
 
-    # Headline on r only (spec 4.3; L3 A.1). The top edge is FULL_SUPPLY_RATIO.
+    # Headline on r only (spec 4.3 as revised by item 36a). TWO states only;
+    # the edge is FULL_SUPPLY_RATIO, the same edge the supply rule blocks
+    # on, so an agent told "sufficient" is never blocked by that rule.
     if r_share >= FULL_SUPPLY_RATIO:
         lines.append("Water supply is sufficient for your full request this year.")
-    elif r_share >= 0.95:
-        lines.append("Water supply is slightly short of your request this year.")
-    elif r_share >= 0.80:
-        lines.append("Water supply is short of your request this year.")
-    elif r_share >= 0.50:
-        lines.append("Water supply is well short of your request this year.")
     else:
-        lines.append(
-            "Water supply is critically short this year: expected deliveries fall "
-            "well below requests."
-        )
+        lines.append("Water supply is short of your request this year.")
 
     if upper:
         # The agent's own sub-basin column and its strict ">" flag (spec 1.6;
@@ -541,16 +565,15 @@ def build_water_situation_text(
                 "Natural flow on the river this year is forecast at "
                 f"{env_context['natural_flow_maf']:.1f} million acre-ft."
             )
-        powell = env_context.get("powell_storage_maf")
-        powell_dead_pool = env_context.get("powell_dead_pool_maf")
-        if powell:
-            if powell_dead_pool is not None and powell <= powell_dead_pool + 1e-6:
-                lines.append(
-                    "Lake Powell is at its dead-pool floor on 1 January; "
-                    "releases are limited to inflow."
-                )
-            else:
-                lines.append(f"Lake Powell holds {powell:.1f} million acre-ft on 1 January.")
+        # Item 36d (2026-10-05): the Lake Powell storage sentence is REMOVED
+        # from Upper Basin prompts. Under item 4 / E14 the Upper Basin is
+        # never curtailed to protect a Powell release, so Powell's level
+        # cannot affect this agent's delivery; the design-basis audit (G5)
+        # found the figure could still raise an Upper Basin agent's WSA
+        # (and so trigger TR1) over a quantity with no effect on it. The
+        # env_context key `powell_storage_maf` is still populated (other
+        # consumers, e.g. logging, may read it) -- only this prompt
+        # sentence is dropped.
     else:
         # ",.0f" as every other number in the prompt ("1,034 feet", review
         # LOW 8); the flag by direct index (LOW 10).
@@ -1276,6 +1299,9 @@ def build_simulation_log_row(
         "base_af": base_af,
         "ub_non_farm_maf": settlement.get("ub_non_farm_maf"),
         "lb_tributary_maf": settlement.get("lb_tributary_maf"),
+        # Item 36e: 0.0 whenever lb_return_flow_fraction is 0.0 (the
+        # default); the CPU sensitivity's own output column.
+        "lb_return_flow_maf": settlement.get("lb_return_flow_maf"),
         "powell_evap_maf": settlement.get("powell_evap_maf"),
         "mead_evap_maf": settlement.get("mead_evap_maf"),
         "powell_spill_maf": settlement.get("powell_spill_maf"),
@@ -1792,17 +1818,34 @@ def create_profiles_from_data(
     their 1971-2018 observed peak (3.54 MAF) and 3.5x their 2018 use
     (3.05 MAF); at that ceiling requests grow to 7-10 MAF within a few
     years, hit the 5.0 MAF Upper Basin delivery capacity from year 2, and
-    Lake Powell sits at dead pool for roughly half the run. ``water_right``
-    below is therefore ``min(grid_top_af, (1 + paper_water_margin) *
-    peak_obs_af)`` for every one of the 78 agents (one rule, both basins)
-    -- ``paper_water_margin`` is the share by which a district's legal
+    Lake Powell sits at dead pool for roughly half the run.
+
+    Item 36f/36g (2026-10-05 design-basis audit + fix proposals, spec
+    item 36, SUPERSEDES the pre-2026-10-05 "one rule, both basins" text
+    below): ``water_right`` is now a BASIN-SPECIFIC rule, one unit, one
+    term, per basin --
+    - Lower Basin: ``water_right = grid_top_af`` (``_lb_water_right``).
+      H&Y's own grid top, unscaled; the margin multiplier no longer
+      applies here (the audit found 1.4 is derived purely from Upper
+      Basin quantities, and the Lower Basin's own grid tops are already
+      a narrower ceiling -- about 1.36x peak at the median -- than the
+      Upper Basin's 2.8x).
+    - Upper Basin: ``water_right = (1 + paper_water_margin) * peak_obs_af``
+      (``_ub_water_right``), falling back to ``grid_top_af`` only when no
+      observed peak is available at all. The grid-top term is DROPPED
+      (not converted to depletion units): the audit found the grid top
+      is in diversion units while the 1.4x-peak term is in depletion
+      units, and converting it (as the audit first proposed) would cap
+      12 Upper Basin agents below their own observed peak.
+    ``paper_water_margin`` is the share by which a district's legal
     ceiling may exceed its largest observed annual use, on ``[0, 1]``;
     ``peak_obs_af`` is the same agent's own observed peak over 1971-2018
     (the historical series ``actual_2018_diversion`` already reads, UB
     depletion file / LB diversion file, UB split proportionally across a
     state group exactly as ``actual_2018_diversion`` is), and
     ``grid_top_af``/``peak_obs_af``/``water_right_source`` are kept on the
-    profile so a manifest or analysis script can see which bound applied.
+    profile so a manifest or analysis script can see which bound applied
+    (``water_right_source`` is always "grid_top" for the Lower Basin now).
     ``bin_size_af`` (the Hung & Yang STEP size) is unaffected -- it always
     comes from the grid, independent of which ceiling wins here.
 
@@ -1825,12 +1868,14 @@ def create_profiles_from_data(
     5.28 MAF, above that capacity; a margin of 0.0, i.e. capping at the
     bare observed peak, leaves most Upper Basin agents almost no room to
     increase -- their peak-to-2018-use ratio has a median of about 1.01).
-    The Lower Basin is bound by the same rule and the same
-    ``paper_water_margin`` (not a per-basin value); its grid tops stay
-    the binding value for a narrow majority of its 22 agents, the
-    peak-scaled ceiling for the rest. See ``docs/irrigation_physics.md``
-    and ``docs/irrigation_model_caveats.md`` (item 11) for the
-    corresponding physics-side and disclosure-side notes.
+    Before item 36f, the Lower Basin was bound by this same
+    ``min(grid_top, scaled)`` rule and the same ``paper_water_margin``;
+    as of item 36f the Lower Basin's water right is its grid top alone
+    (``_lb_water_right``), with no ``paper_water_margin`` dependence --
+    the entitlement-cap and unit-consistent-cap alternatives considered
+    for the Lower Basin stay as SI/CPU sensitivities, never the default.
+    See ``docs/irrigation_physics.md`` and ``docs/irrigation_model_caveats.md``
+    (item 11) for the corresponding physics-side and disclosure-side notes.
 
     Change 2 (AZ_UB history-column bug, found during the same audit): the
     3 ``ArizonaMiscUses_*`` agents (state group ``AZ_UB``) got
@@ -1862,12 +1907,16 @@ def create_profiles_from_data(
         crss_db_dir: Path to ref/CRSS_DB/CRSS_DB/ directory
         rng: Random number generator for crop type and persona selection.
         paper_water_margin: Share by which a district's legal ceiling may
-            exceed its 1971-2018 observed peak diversion, on ``[0, 1]``
-            (enforced -- raises ``ValueError`` outside that range);
-            ``water_right = min(grid_top_af, (1 + paper_water_margin) *
-            peak_obs_af)``. Default 0.4 (see derivation above). Exposed
-            end-to-end via ``--paper-water-margin`` on
-            ``run_experiment.py`` and ``run_fql_baseline.py``.
+            exceed its 1971-2018 observed peak, on ``[0, 1]`` (enforced
+            -- raises ``ValueError`` outside that range). Item 36f/36g
+            (2026-10-05): basin-specific since then, not a single
+            min(...) formula -- Lower Basin ``water_right = grid_top_af``
+            alone (``_lb_water_right``, this parameter has no effect on
+            it); Upper Basin ``water_right = (1 + paper_water_margin) *
+            peak_obs_af`` alone, no grid-top term (``_ub_water_right``).
+            Default 0.4 (see derivation above). Exposed end-to-end via
+            ``--paper-water-margin`` on ``run_experiment.py`` and
+            ``run_fql_baseline.py``.
         cluster_method: How each entity's persona cluster ("aggressive" /
             "forward_looking_conservative" / "myopic_conservative") is
             assigned (enforced -- raises ``ValueError`` for any other
@@ -2030,19 +2079,60 @@ def create_profiles_from_data(
     # key).
     _margin_multiplier = 1.0 + paper_water_margin
 
-    def _capped_water_right(grid_top_af: float, peak_obs_af: Optional[float]) -> Tuple[float, str]:
-        """``min(grid_top_af, (1 + paper_water_margin) * peak_obs_af)`` and its source label.
+    def _lb_water_right(grid_top_af: float, peak_obs_af: Optional[float]) -> Tuple[float, str]:
+        """Item 36f (2026-10-05 design-basis audit + fix proposals, spec
+        item 36f): the Lower Basin water right is H&Y's own grid top,
+        full stop -- NOT ``min(grid_top_af, (1 + margin) * peak_obs_af)``.
 
-        Falls back to ``grid_top_af`` (source "grid_top") when no observed
-        peak is available (e.g. the historical file was not found) -- the
-        pre-history-anchor behaviour, never worse than before.
+        Before this change, 1.4 (the margin multiplier at the default
+        ``paper_water_margin`` 0.4) capped 10 of the 22 Lower Basin
+        agents below their grid top, even though that 1.4 factor is
+        derived ONLY from Upper Basin quantities (irrigation's Compact
+        III(a) share divided by the 56 Upper Basin agents' observed-peak
+        sum; see the module docstring above) and applying it to the Lower
+        Basin was "one rule across the basin", not a Lower-Basin-specific
+        reason. The fix-proposals memo (C4b) finds the Lower Basin's own
+        grid tops are already a narrower ceiling than the Upper Basin's
+        (about 1.36x peak at the median, versus 2.8x for the Upper
+        Basin), so H&Y's source-model ceiling is kept as-is: the margin
+        multiplier no longer applies to this basin. ``peak_obs_af`` is
+        kept on the profile for the SI table (water right versus
+        published entitlement and versus peak) and for the entitlement
+        cap CPU sensitivity, but no longer feeds the Lower Basin ceiling
+        itself. ``water_right_source`` is always "grid_top" for the
+        Lower Basin now (the "peak_scaled" branch is Upper-Basin-only,
+        see ``_ub_water_right`` below).
+        """
+        return grid_top_af, "grid_top"
+
+    def _ub_water_right(grid_top_af: float, peak_obs_af: Optional[float]) -> Tuple[float, str]:
+        """Item 36g (2026-10-05 design-basis audit + fix proposals, spec
+        item 36g): the Upper Basin water right is 1.4 x observed peak
+        DEPLETION only -- the grid-top term is DROPPED, not converted.
+
+        Before this change, W_UB = min(grid_top_af, (1 + margin) *
+        peak_obs_af) mixed units: grid_top_af is in H&Y's DIVERSION
+        units, peak_obs_af (and the 1.4 derivation itself, Compact
+        III(a) share / observed-peak sum) is in DEPLETION units. The
+        design-basis audit's own numeric check found the grid-top term
+        bound only 1 of 56 Upper Basin agents at the default margin, and
+        that the audit's own proposed fix (converting the grid top by
+        k=0.5) would cap 12 agents below their own 1971-2018 observed
+        peak and one agent below its 2018 use -- i.e. the grid, split by
+        each agent's share of its state group's grid-top total, is not a
+        reliable PER-AGENT bound in depletion units at all. Dropping the
+        term instead keeps one unit, one term, fully explained by the
+        Compact-share derivation (4.86 / 3.536 = 1.374, rounded to 1.4).
+        Falls back to ``grid_top_af`` (source "grid_top") only when no
+        observed peak is available at all (e.g. the historical file was
+        not found) -- a defensive branch that should never fire for a
+        real CRSS Upper Basin profile, since ``create_profiles_from_data``
+        requires the Upper Basin historical file for every active state
+        group (Review P2) before this point is reached.
         """
         if peak_obs_af is None or peak_obs_af <= 0:
             return grid_top_af, "grid_top"
-        scaled = _margin_multiplier * peak_obs_af
-        if grid_top_af <= scaled:
-            return grid_top_af, "grid_top"
-        return scaled, "peak_scaled"
+        return _margin_multiplier * peak_obs_af, "peak_scaled"
 
     def _step_bin_and_source(
         agent_name: str, bin_size_af: float, actual_2018_diversion: Optional[float],
@@ -2086,7 +2176,7 @@ def create_profiles_from_data(
             if agent_name in lb_hist.columns
             else None
         )
-        water_right, water_right_source = _capped_water_right(grid_top_af, peak_obs_af)
+        water_right, water_right_source = _lb_water_right(grid_top_af, peak_obs_af)
 
         p = params_df[agent_name]
         mu = float(p["mu"])
@@ -2157,7 +2247,7 @@ def create_profiles_from_data(
             if state_group in ub_group_peak_af
             else None
         )
-        water_right, water_right_source = _capped_water_right(grid_top_af, peak_obs_af)
+        water_right, water_right_source = _ub_water_right(grid_top_af, peak_obs_af)
 
         p = params_df[state_group]
         mu = float(p["mu"])

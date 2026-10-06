@@ -335,3 +335,158 @@ def test_flood_keeps_every_new_option_off_and_irrigation_turns_them_on():
     assert irr.get_reflection_keep_latest_only() is True
     assert irr.get_governance_plain_action_names() is True
     assert irr.get_governance_placebo_closer() == "Please reconsider your decision."
+
+
+# ---------------------------------------------------------------------------
+# design-basis audit + fix proposals (2026-10-05): three generic, opt-in
+# HumanCentricMemoryEngine options (deterministic_consolidation,
+# decay_ignore_emotion, decay_by_calendar_year) -- all default False/off,
+# so a caller that does not pass them (every existing domain) gets
+# BYTE-IDENTICAL behaviour to before this change.
+# ---------------------------------------------------------------------------
+
+def test_deterministic_consolidation_off_is_byte_identical_to_shipped():
+    """Off (default): the stochastic draw is unchanged from the SHIPPED
+    (origin/main, commit 92e575ed) engine -- captured by exec'ing that
+    commit's own humancentric.py source (git show origin/main:...) in a
+    namespace with the real BaseAgent/MemoryEngine imports, then running
+    this exact scenario against it (Opus review P3-1, 2026-10-06: a twin
+    built from the NEW code only proves internal self-consistency, not
+    that "off" actually reproduces what main shipped). importance=1.0
+    with consolidation_prob=1.0 makes the OLD stochastic formula
+    (rng.random() < 1.0) deterministic by construction, so this ground
+    truth is not itself seed-fragile."""
+    off = HumanCentricMemoryEngine(consolidation_prob=1.0, consolidation_threshold=0.6, seed=1)
+    for i in range(20):
+        off.add_memory("A", f"m{i}", {"importance": 1.0, "emotion": "major", "source": "personal"})
+    assert [m["content"] for m in off.longterm["A"]] == [f"m{i}" for i in range(20)]
+
+
+def test_deterministic_consolidation_on_consolidates_every_eligible_item():
+    eng = HumanCentricMemoryEngine(
+        consolidation_prob=0.01, consolidation_threshold=0.6, seed=1,
+        deterministic_consolidation=True,
+    )
+    for i in range(10):
+        eng.add_memory("A", f"m{i}", {"importance": 0.6, "emotion": "major", "source": "personal"})
+    # consolidation_prob=0.01 would almost certainly consolidate ~0 of 10
+    # under the stochastic draw; deterministic_consolidation=True ignores
+    # it entirely and consolidates every one.
+    assert len(eng.longterm["A"]) == 10
+    below_threshold = HumanCentricMemoryEngine(
+        consolidation_threshold=0.6, seed=1, deterministic_consolidation=True,
+    )
+    below_threshold.add_memory("A", "low", {"importance": 0.3, "emotion": "routine", "source": "abstract"})
+    assert below_threshold.longterm["A"] == []  # still gated by the threshold
+
+
+def test_decay_ignore_emotion_off_is_byte_identical_to_shipped():
+    """Off (default): byte-identical to the SHIPPED (origin/main, commit
+    92e575ed) engine on this exact scenario (Opus review P3-1, 2026-10-06;
+    captured the same way as test_deterministic_consolidation_off_is_
+    byte_identical_to_shipped above). importance=1.0 again makes
+    consolidation deterministic by construction; the retrieved item's
+    own timestamp (10, not 5) is the shipped engine's own arithmetic --
+    _add_memory_internal's timestamp is working-length + longterm-length,
+    and every item here consolidates into both stores, so it advances by
+    2 per add, not 1."""
+    off = HumanCentricMemoryEngine(consolidation_prob=1.0, consolidation_threshold=0.0, seed=1)
+    off.add_memory("A", "crisis", {"importance": 1.0, "emotion": "critical", "source": "personal"})
+    for i in range(5):
+        off.add_memory("A", f"filler{i}", {"importance": 1.0, "emotion": "critical", "source": "personal"})
+    result = off.retrieve(SimpleNamespace(id="A", memory=[]), window_size=0, top_k_significant=1)
+    assert result == [{
+        "content": "filler4", "emotion": "critical", "importance": 1.0,
+        "source": "personal", "timestamp": 10, "final_score": 0.9512,
+    }]
+
+
+def test_decay_ignore_emotion_on_removes_the_emotion_modifier():
+    """A "critical" item (emotion modifier 0.5) and a "routine" item
+    (modifier 0.955) decay at visibly different rates when off; at the
+    SAME bare decay_rate when decay_ignore_emotion is on."""
+    def decayed_importance(ignore_emotion: bool, emotion: str, age: int) -> float:
+        eng = HumanCentricMemoryEngine(decay_rate=0.1, decay_ignore_emotion=ignore_emotion)
+        mem = {"importance": 0.9, "emotion": emotion, "timestamp": 0}
+        return eng._apply_decay([mem], current_time=age)[0]["decayed_importance"]
+
+    off_critical = decayed_importance(False, "critical", 10)
+    off_routine = decayed_importance(False, "routine", 10)
+    assert off_critical != pytest.approx(off_routine)
+
+    on_critical = decayed_importance(True, "critical", 10)
+    on_routine = decayed_importance(True, "routine", 10)
+    assert on_critical == pytest.approx(on_routine)
+
+
+def test_decay_by_calendar_year_off_is_byte_identical_to_shipped():
+    """Off (default): "year" metadata is stored but IGNORED by decay --
+    age is still the item-count difference, matching the SHIPPED
+    (origin/main, commit 92e575ed) engine's own computed value on this
+    exact scenario (Opus review P3-1, 2026-10-06), not a formula
+    re-derived from the new code's own decay_rate/emotional_weights."""
+    eng = HumanCentricMemoryEngine(consolidation_prob=1.0, consolidation_threshold=0.0, seed=1)
+    eng.add_memory("A", "old", {"importance": 1.0, "emotion": "major", "source": "personal", "year": 2019})
+    for i in range(3):
+        eng.add_memory("A", f"filler{i}", {"importance": 0.1, "emotion": "routine", "source": "abstract", "year": 2020 + i})
+    decayed = eng._apply_decay(eng.longterm["A"], current_time=4)
+    old = next(m for m in decayed if m["content"] == "old")
+    assert old["timestamp"] == 0
+    # item-count age = 4 - 0 = 4, NOT a year-based age (2019 is stored,
+    # unused, by this off path).
+    assert old["decayed_importance"] == pytest.approx(0.8025187979624785)
+
+
+def test_decay_by_calendar_year_on_uses_year_metadata_not_item_count():
+    """On: two items added back-to-back (item-count age 1 apart) but
+    tagged 10 calendar years apart decay as if 10 years had passed, not 1
+    stored item."""
+    eng = HumanCentricMemoryEngine(
+        consolidation_prob=1.0, consolidation_threshold=0.0, seed=1,
+        decay_by_calendar_year=True,
+    )
+    eng.add_memory("A", "old", {"importance": 0.9, "emotion": "major", "source": "personal", "year": 2010})
+    eng.add_memory("A", "new", {"importance": 0.9, "emotion": "major", "source": "personal", "year": 2020})
+    decayed = eng._apply_decay(eng.longterm["A"], current_time=2, current_year=2020)
+    old = next(m for m in decayed if m["content"] == "old")
+    import math
+    expected = 0.9 * math.exp(-eng.decay_rate * (1.0 - 0.5 * eng.emotional_weights["major"]) * 10)
+    assert old["decayed_importance"] == pytest.approx(expected)
+
+
+def test_decay_by_calendar_year_on_requires_year_metadata():
+    eng = HumanCentricMemoryEngine(
+        consolidation_prob=1.0, consolidation_threshold=0.0, seed=1,
+        decay_by_calendar_year=True,
+    )
+    eng.add_memory("A", "no year", {"importance": 0.9, "emotion": "major", "source": "personal"})
+    with pytest.raises(ValueError, match="year"):
+        eng._apply_decay(eng.longterm["A"], current_time=1, current_year=2020)
+    # retrieve() itself refuses the same way, through _current_year_for_decay.
+    with pytest.raises(ValueError, match="year"):
+        eng.retrieve(SimpleNamespace(id="A", memory=[]))
+
+
+@pytest.mark.parametrize("name", [
+    "deterministic_consolidation", "decay_ignore_emotion", "decay_by_calendar_year",
+])
+@pytest.mark.parametrize("bad", ["true", "false", "True", "", 1, 0, None])
+def test_memory_option_rejects_non_bool(name, bad):
+    """Opus review P3-2 (2026-10-06): bool only, raised here rather than
+    left to fail downstream on a string read straight from YAML -- "1"/
+    "0" (Python ints, truthy/falsy but not bool) are refused too, same
+    as WaterSystemConfig.hold_requests_fixed's own check."""
+    with pytest.raises(ValueError, match=name):
+        HumanCentricMemoryEngine(**{name: bad})
+
+
+def test_memory_options_flood_off_irrigation_on():
+    flood = AgentTypeConfig.load(str(FLOOD_CONFIG))
+    flood_memory = flood._config.get("global_config", {}).get("memory", {})
+    for key in ("deterministic_consolidation", "decay_ignore_emotion", "decay_by_calendar_year"):
+        assert flood_memory.get(key, False) is False
+
+    irr = AgentTypeConfig.load(str(IRRIGATION_CONFIG))
+    irr_memory = irr._config.get("global_config", {}).get("memory", {})
+    for key in ("deterministic_consolidation", "decay_ignore_emotion", "decay_by_calendar_year"):
+        assert irr_memory.get(key) is True

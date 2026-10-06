@@ -801,11 +801,18 @@ class TestSplitMatchesSeniorAllAggregate:
 
         split_tc, split_min, split_cut_years = run("split")
         senior_tc, senior_min, senior_cut_years = run("senior_all")
-        assert split_tc == senior_tc == {0: 10, 1: 10, 2: 14, 3: 8}
+        # Item 36c (2026-10-05 design-basis audit + fix proposals, spec
+        # item 36c): powell_post2026_equalization's default moved from
+        # "hold_2026" to "extend_slope", which moves tier counts from
+        # {0: 10, 1: 10, 2: 14, 3: 8} to the values below (Mead's own
+        # minimum is unchanged -- the mass-balance invariant this test
+        # is really about, split == senior_all under a held-fixed
+        # replay, is unaffected either way).
+        assert split_tc == senior_tc == {0: 7, 1: 11, 2: 16, 3: 8}
         assert split_min == pytest.approx(senior_min, abs=1e-9)
         assert split_min == pytest.approx(7.0652, abs=1e-3)
         assert senior_cut_years == 0
-        assert split_cut_years == 32  # every declared-tier year (10 + 14 + 8)
+        assert split_cut_years == 35  # every declared-tier year (11 + 16 + 8)
 
     @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
     def test_keep_every_year_diverges_from_senior_all_with_feedback(self):
@@ -819,12 +826,15 @@ class TestSplitMatchesSeniorAllAggregate:
 
         Spec items 25/26/27 (2026-09-29): moved from {0: 29, 1: 7, 2: 4,
         3: 2} / 7.4989 MAF (the pre-item-25/26/27 senior_all/HEAD pin,
-        5.0 MAF non-ag bucket + storage_balancing) to the values below
-        (5.2 MAF + ig2007_tiers, this file's own recipe) -- diverging from
-        "split"'s new {0: 17, 1: 11, 2: 8, 3: 6} / 7.1028 MAF pin exactly
-        as the docstring above describes (split lowers the six junior
-        agents' own subsequent requests further than senior_all does, once
-        a tier actually cuts them)."""
+        5.0 MAF non-ag bucket + storage_balancing) to {0: 16, 1: 11, 2: 9,
+        3: 6} / 7.0652 MAF (5.2 MAF + ig2007_tiers, this file's own
+        recipe) -- diverging from "split"'s then-pin of {0: 17, 1: 11,
+        2: 8, 3: 6} / 7.1028 MAF exactly as the docstring above describes
+        (split lowers the six junior agents' own subsequent requests
+        further than senior_all does, once a tier actually cuts them).
+        Item 36c (2026-10-05): the post2026 Equalization default move
+        (hold_2026 -> extend_slope) moves this to the values below;
+        Mead's own minimum is unchanged."""
         from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
 
         rng = np.random.default_rng(7)
@@ -843,7 +853,7 @@ class TestSplitMatchesSeniorAllAggregate:
             if mead_min_maf is None or mead_1jan < mead_min_maf:
                 mead_min_maf = mead_1jan
             env.settle_year()
-        assert tier_counts == {0: 16, 1: 11, 2: 9, 3: 6}
+        assert tier_counts == {0: 13, 1: 16, 2: 8, 3: 5}
         assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)
 
 
@@ -866,15 +876,22 @@ class TestHoldRequestsFixedReplay:
         years.
 
         Spec items 25/26/27 (2026-09-29): tier counts and Mead minimum
-        move to {0: 10, 1: 10, 2: 14, 3: 8} / 7.0652 MAF, the SAME pin as
+        moved to {0: 10, 1: 10, 2: 14, 3: 8} / 7.0652 MAF, the SAME pin as
         TestSplitMatchesSeniorAllAggregate above (5.2 MAF non-ag bucket,
         item 25 + ig2007_tiers, item 26/27); dead pool is still never
-        reached. junior_short_years_total moves from 105 to 160 (32 years
-        each for the five agents a declared tier always cuts, since 32 is
-        now the total declared-tier-year count, 10 + 14 + 8) -- the same
+        reached. junior_short_years_total moved from 105 to 160 (32 years
+        each for the five agents a declared tier always cuts, since 32 was
+        then the total declared-tier-year count, 10 + 14 + 8) -- the same
         move test_split_matches_senior_all_under_hold_requests_fixed's
-        junior_cut_years makes (21 -> 32), read per-agent here instead of
-        aggregated."""
+        junior_cut_years made (21 -> 32), read per-agent here instead of
+        aggregated.
+
+        Item 36c (2026-10-05 design-basis audit + fix proposals, spec
+        item 36c): the post2026 Equalization default move (hold_2026 ->
+        extend_slope) moves tier counts to {0: 7, 1: 11, 2: 16, 3: 8}
+        (Mead minimum unchanged, 7.0652 MAF) and junior_short_years_total
+        to 175 (35 declared-tier years, 11 + 16 + 8, for each of the
+        same five agents)."""
         from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
 
         rng = np.random.default_rng(7)
@@ -903,14 +920,14 @@ class TestHoldRequestsFixedReplay:
                     junior_short_years_total += 1
                     junior_short_years_by_agent[aid] += 1
 
-        assert tier_counts == {0: 10, 1: 10, 2: 14, 3: 8}
+        assert tier_counts == {0: 7, 1: 11, 2: 16, 3: 8}
         assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)
         assert not dead_pool_reached
 
-        assert junior_short_years_total == 160
+        assert junior_short_years_total == 175
         assert junior_short_years_by_agent == {
-            "MohaveValleyIDD": 32, "CibolaValleyIDD": 32, "GilaMonsterFarms": 32,
-            "HopiTribe": 32, "NorthBajaLLC": 32, "CocopahIndRes": 0,
+            "MohaveValleyIDD": 35, "CibolaValleyIDD": 35, "GilaMonsterFarms": 35,
+            "HopiTribe": 35, "NorthBajaLLC": 35, "CocopahIndRes": 0,
         }
 
 

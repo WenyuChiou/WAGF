@@ -686,6 +686,11 @@ class IrrigationLifecycleHooks:
                     "emotion": self.memory_adapter.classify_emotion(proposed, salience_ctx),
                     "source": "personal",
                     "type": "outcome",
+                    # Item 36b: the calendar year this outcome line is
+                    # ABOUT (same value the line itself names), read by
+                    # HumanCentricMemoryEngine's decay_by_calendar_year
+                    # option (default off elsewhere; on in irrigation).
+                    "year": snapshot["calendar_year"],
                 })
 
     # -- post_step: record each agent's decision --
@@ -1046,6 +1051,9 @@ class IrrigationLifecycleHooks:
                         "emotion": emotion,
                         "source": "personal",
                         "type": "reflection",
+                        # Item 36b: see the matching comment on the outcome
+                        # memory above.
+                        "year": written_in,
                     },
                     keep_latest_only=keep_latest_only,
                 )
@@ -1284,6 +1292,9 @@ def _record_water_system_config_provenance(
             "lb_non_ag_total_maf": config.lb_non_ag_total_maf,
             "ub_supply_mode": config.ub_supply_mode,
             "ub_subbasin_supply_variant": config.ub_subbasin_supply_variant,
+            # Item 36e: 0.0 (default, byte-identical) unless a CPU
+            # sensitivity run sets it.
+            "lb_return_flow_fraction": config.lb_return_flow_fraction,
         }
     except Exception as e:
         print(f"[Provenance] WARNING: could not resolve the water-system keys for "
@@ -1328,6 +1339,56 @@ def _record_water_system_config_provenance(
     except Exception as e:
         print(f"[Provenance] WARNING: could not record the water-system keys "
               f"{sorted(water_system)} in config_snapshot.yaml: {e}")
+
+
+def _record_memory_options_provenance(output_dir: Path, memory_engine) -> None:
+    """Additively record the three item-36b HumanCentricMemoryEngine
+    options in this run's two provenance files (Opus review P3-2,
+    2026-10-06).
+
+    Same pattern as ``_record_hold_requests_fixed_provenance`` above:
+    always recorded (not conditioned on ``--real``), reads the already-
+    type-checked, already-constructed engine's own attributes rather
+    than re-deriving them from the YAML dict a caller could have built
+    the engine from, and never fails the run over a provenance-write
+    problem.
+    """
+    try:
+        options = {
+            "deterministic_consolidation": memory_engine.deterministic_consolidation,
+            "decay_ignore_emotion": memory_engine.decay_ignore_emotion,
+            "decay_by_calendar_year": memory_engine.decay_by_calendar_year,
+        }
+    except AttributeError as e:
+        print(f"[Provenance] WARNING: memory_engine has no item-36b options to "
+              f"record (not a HumanCentricMemoryEngine?): {e}")
+        return
+
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest.update(options)
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record the memory options "
+              f"{sorted(options)} in reproducibility_manifest.json: {e}")
+
+    try:
+        snapshot_path = output_dir / "config_snapshot.yaml"
+        if snapshot_path.exists():
+            with open(snapshot_path, "r", encoding="utf-8") as f:
+                snapshot = yaml.safe_load(f)
+            snapshot = snapshot or {}
+            snapshot.setdefault("metadata", {})
+            snapshot["metadata"].update(options)
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                yaml.dump(snapshot, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record the memory options "
+              f"{sorted(options)} in config_snapshot.yaml: {e}")
 
 
 def _record_cluster_method_provenance(
@@ -1768,7 +1829,10 @@ def main():
     ).get_coupling_context_contract()
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
-    config = WaterSystemConfig(seed=seed)
+    config_kwargs: Dict[str, Any] = {}
+    if args.lb_return_flow_fraction is not None:
+        config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
+    config = WaterSystemConfig(seed=seed, **config_kwargs)
     # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
     # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
     # runner never exposes a flag for it (test_hold_requests_fixed_
@@ -1835,6 +1899,13 @@ def main():
         # Reserved retrieval slot(s) by memory type (framework option,
         # weighted mode only); not set for irrigation since 2026-09-26.
         reserve_types=irr_mem.get("reserve_types"),
+        # Item 36b (2026-10-05 design-basis audit + fix proposals, spec
+        # item 36b): three generic, opt-in framework options (default
+        # off everywhere, including here, unless global_config.memory
+        # sets them -- irrigation's agent_types.yaml turns all three on).
+        deterministic_consolidation=gm.get("deterministic_consolidation", False),
+        decay_ignore_emotion=gm.get("decay_ignore_emotion", False),
+        decay_by_calendar_year=gm.get("decay_by_calendar_year", False),
     )
     print(f"[Pillar 2] HumanCentricMemoryEngine (window={memory_engine.window_size}, top_k_significant={memory_engine.top_k_significant}, mode={memory_engine.ranking_mode})")
 
@@ -2028,6 +2099,7 @@ def main():
         _record_step_bin_source_provenance(output_dir, profiles, args.real)
         _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
         _record_water_system_config_provenance(output_dir, env.config)
+        _record_memory_options_provenance(output_dir, memory_engine)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
 
         # Finalize audit. Also already called from inside
@@ -2076,12 +2148,21 @@ def parse_args():
     p.add_argument("--paper-water-margin", type=float, default=0.4,
                    help="Water-right history-anchor margin, on [0, 1]: the share by "
                         "which a real agent's legal ceiling may exceed its 1971-2018 "
-                        "observed peak diversion. water_right = min(grid_top_af, "
-                        "(1 + paper_water_margin) * peak_obs_af). Only affects --real "
-                        "profiles (create_profiles_from_data). Default 0.4 (see "
+                        "observed peak. Item 36f/36g (2026-10-05): basin-specific -- "
+                        "Lower Basin water_right = grid_top_af alone; Upper Basin "
+                        "water_right = (1 + paper_water_margin) * peak_obs_af alone "
+                        "(no grid-top term). Only affects --real profiles "
+                        "(create_profiles_from_data). Default 0.4 (see "
                         "irrigation_personas.create_profiles_from_data docstring and "
                         "docs/irrigation_physics.md for the derivation). Recorded in "
                         "reproducibility_manifest.json and config_snapshot.yaml.")
+    p.add_argument("--lb-return-flow-fraction", type=float, default=None,
+                   help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
+                        "agricultural draw treated as reused downstream (e.g. "
+                        "credited toward the Mexico delivery) instead of charged "
+                        "against Mead's outflow, on [0, 0.5]. Default: "
+                        "WaterSystemConfig's own default (0.0, byte-identical). "
+                        "Recorded via _record_water_system_config_provenance.")
     p.add_argument("--cluster-method", type=str, default="hy2021",
                    choices=["hy2021", "legacy_centroid"],
                    help="How each real CRSS agent's persona cluster (aggressive / "

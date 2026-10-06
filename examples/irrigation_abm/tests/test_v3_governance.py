@@ -417,9 +417,12 @@ def test_supply_rule_tolerance():
     full, short = text(0.999), text(0.998999)
     assert "you can expect full delivery this year" in full
     assert "Water supply is sufficient for your full request this year." in full
-    # WP4 (spec 4.3): the band just below the edge, and the share printed
-    # with one decimal, never as 100%.
-    assert "Water supply is slightly short of your request this year." in short
+    # Item 36a (2026-10-05 design-basis audit + fix proposals): just below
+    # FULL_SUPPLY_RATIO the headline is the one surviving "short" state
+    # (the pre-2026-10-05 five-band text, "slightly short", is retired
+    # from the prompt); the share still prints with one decimal, never
+    # as 100%.
+    assert "Water supply is short of your request this year." in short
     assert "(99.9%) this year" in short
     assert "you can expect full delivery" not in short
 
