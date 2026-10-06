@@ -35,7 +35,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
-    MIN_UTIL,
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -561,7 +560,7 @@ class IrrigationLifecycleHooks:
                     profile,
                     base=agent_state["base_af"],
                     water_right=ctx["water_right"],
-                    floor=ctx["water_right"] * MIN_UTIL,
+                    floor=ctx["water_right"] * self.env.config.min_utilisation_fraction,
                 ),
                 # WP3 (spec 3.3): read by describe_gap_reason in the supply
                 # rule's block message when this agent's own junior-priority
@@ -1295,6 +1294,9 @@ def _record_water_system_config_provenance(
             # Item 36e: 0.0 (default, byte-identical) unless a CPU
             # sensitivity run sets it.
             "lb_return_flow_fraction": config.lb_return_flow_fraction,
+            # 2026-10-06 CPU rerun finding: 0.10 (default, byte-identical)
+            # unless --min-utilisation-fraction sets it.
+            "min_utilisation_fraction": config.min_utilisation_fraction,
         }
     except Exception as e:
         print(f"[Provenance] WARNING: could not resolve the water-system keys for "
@@ -1596,6 +1598,27 @@ def main():
             "hy2021 exists to preserve. Pass --cluster-method "
             "legacy_centroid if you want the rebalanced distribution."
         )
+    # 2026-10-06 Opus review P2-1: config/agent_types.yaml's three
+    # minimum_utilisation_floor rule messages hard-code "10% of your
+    # water right" (deliberately not templated -- a templating pass is
+    # its own change, not this one). An LLM agent blocked under a
+    # DIFFERENT floor would be told the wrong number, so this runner
+    # refuses any --min-utilisation-fraction other than the config
+    # default (0.10) rather than show a stale message. The 0 and 0.05 x W
+    # floor CPU sensitivities (provenance C6b) stay FQL-only
+    # (run_fql_baseline.py never shows this message to an LLM) until the
+    # rule message is templated.
+    if args.min_utilisation_fraction is not None and args.min_utilisation_fraction != 0.10:
+        raise SystemExit(
+            f"--min-utilisation-fraction {args.min_utilisation_fraction} is refused on "
+            "this LLM-governed runner: config/agent_types.yaml's "
+            "minimum_utilisation_floor rule message hard-codes \"10% of your water "
+            "right\" and is not templated, so an LLM agent blocked under a "
+            "different floor would be told the wrong number. Floor sensitivities "
+            "(0 and 0.05 x W, provenance C6b) are FQL-only for now -- use "
+            "run_fql_baseline.py's --min-utilisation-fraction instead -- until "
+            "that message is templated."
+        )
 
     # --- Crash-resume: resolve the source journal and read its header
     # early (cheap: one small file read). The actual checks run below,
@@ -1830,8 +1853,12 @@ def main():
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
     config_kwargs: Dict[str, Any] = {}
+    if args.lb_non_ag_total_maf is not None:
+        config_kwargs["lb_non_ag_total_maf"] = args.lb_non_ag_total_maf
     if args.lb_return_flow_fraction is not None:
         config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
+    if args.min_utilisation_fraction is not None:
+        config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
     config = WaterSystemConfig(seed=seed, **config_kwargs)
     # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
     # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
@@ -2156,6 +2183,19 @@ def parse_args():
                         "irrigation_personas.create_profiles_from_data docstring and "
                         "docs/irrigation_physics.md for the derivation). Recorded in "
                         "reproducibility_manifest.json and config_snapshot.yaml.")
+    p.add_argument("--lb-non-ag-total-maf", type=float, default=None,
+                   help="LB non-farm total (M&I + tribal + CAP + system losses, MAF/yr). "
+                        "Default: WaterSystemConfig's own default (5.2, the record-"
+                        "implied value at lb_return_flow_fraction=0.0 -- see "
+                        "analysis/hindcast_v3.py (record_implied_non_ag)). A "
+                        "--lb-return-flow-fraction sensitivity run (below) MUST pass "
+                        "the record-implied value for that SAME fraction here (derived "
+                        "first via 'python analysis/hindcast_v3.py "
+                        "--lb-return-flow-fraction f'; see the runbook's return-flow "
+                        "sensitivity pair) -- the 5.2 default was derived at f=0.0, and "
+                        "pairing a non-zero f with the f=0.0 constant double-counts "
+                        "water the fraction already credits back to Mead. Recorded via "
+                        "_record_water_system_config_provenance.")
     p.add_argument("--lb-return-flow-fraction", type=float, default=None,
                    help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
                         "agricultural draw treated as reused downstream (e.g. "
@@ -2163,6 +2203,16 @@ def parse_args():
                         "against Mead's outflow, on [0, 0.5]. Default: "
                         "WaterSystemConfig's own default (0.0, byte-identical). "
                         "Recorded via _record_water_system_config_provenance.")
+    p.add_argument("--min-utilisation-fraction", type=float, default=None,
+                   help="2026-10-06 CPU rerun finding (spec item 36k): the minimum-use "
+                        "floor, as a fraction of each agent's water right, on [0, 1]. "
+                        "Default: WaterSystemConfig's own default (0.10, byte-"
+                        "identical). REFUSED at any other value on this runner "
+                        "(config/agent_types.yaml's minimum_utilisation_floor message "
+                        "hard-codes 10% and is not templated) -- the 0 and 0.05 "
+                        "sensitivities (provenance C6b) are FQL-only; use "
+                        "run_fql_baseline.py instead. Recorded via "
+                        "_record_water_system_config_provenance.")
     p.add_argument("--cluster-method", type=str, default="hy2021",
                    choices=["hy2021", "legacy_centroid"],
                    help="How each real CRSS agent's persona cluster (aggressive / "

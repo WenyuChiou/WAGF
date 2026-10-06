@@ -615,6 +615,96 @@ class TestLbReturnFlowFraction:
 
 
 # ===========================================================================
+# Minimum-use floor as a config field (2026-10-06 CPU rerun finding, spec
+# item 36k): promoted from the bare MIN_UTIL module constant to
+# WaterSystemConfig.min_utilisation_fraction, default 0.10, byte-identical,
+# so the 0 and 0.05 x W CPU sensitivities (provenance C6b) can be run via
+# --min-utilisation-fraction instead of editing tracked code.
+# ===========================================================================
+
+class TestMinUtilisationFraction:
+    def test_config_rejects_out_of_range_fraction(self):
+        for bad in (-0.01, 1.01, -5.0, 2.0):
+            with pytest.raises(ValueError, match="min_utilisation_fraction"):
+                WaterSystemConfig(min_utilisation_fraction=bad)
+
+    def test_boundary_values_are_accepted(self):
+        WaterSystemConfig(min_utilisation_fraction=0.0)
+        WaterSystemConfig(min_utilisation_fraction=1.0)
+
+    def test_default_matches_the_min_util_module_constant(self):
+        """MIN_UTIL (irrigation_env.py) is kept only as a literal mirror
+        for the test suite's own assertions; this pins the two equal so
+        they cannot silently drift apart (see MIN_UTIL's own comment)."""
+        from examples.irrigation_abm.irrigation_env import MIN_UTIL
+        assert WaterSystemConfig().min_utilisation_fraction == MIN_UTIL == 0.10
+
+    def test_update_agent_request_floor_follows_the_config_not_the_default(self):
+        """Proof that update_agent_request reads
+        config.min_utilisation_fraction, not the module-level MIN_UTIL
+        constant: a request strictly between the default floor (10% W)
+        and a non-default floor (20% W) reads below_minimum_utilisation
+        differently depending on which config the environment was built
+        with."""
+        water_right = 4_000_000.0
+        request_between_floors = 0.15 * water_right  # below 20% W, above 10% W
+
+        default_env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        default_env._agents["LB0"] = _agent("lower_basin", water_right, water_right)
+        default_env.update_agent_request("LB0", request_between_floors)
+        assert default_env._agents["LB0"]["below_minimum_utilisation"] is False
+
+        raised_floor_env = IrrigationEnvironment(
+            WaterSystemConfig(seed=42, min_utilisation_fraction=0.20)
+        )
+        raised_floor_env._agents["LB0"] = _agent("lower_basin", water_right, water_right)
+        raised_floor_env.update_agent_request("LB0", request_between_floors)
+        assert raised_floor_env._agents["LB0"]["below_minimum_utilisation"] is True
+
+    def test_reset_requests_to_base_floor_follows_the_config_not_the_default(self):
+        """Same proof as above for _reset_requests_to_base (the OTHER
+        below_minimum_utilisation producer, run at the start of every
+        year -- WP2 spec 2.1)."""
+        water_right = 4_000_000.0
+        base_between_floors = 0.15 * water_right
+
+        default_env = IrrigationEnvironment(WaterSystemConfig(seed=42))
+        default_env._agents["LB0"] = _agent("lower_basin", base_between_floors, water_right)
+        default_env._reset_requests_to_base()
+        assert default_env._agents["LB0"]["below_minimum_utilisation"] is False
+
+        raised_floor_env = IrrigationEnvironment(
+            WaterSystemConfig(seed=42, min_utilisation_fraction=0.20)
+        )
+        raised_floor_env._agents["LB0"] = _agent("lower_basin", base_between_floors, water_right)
+        raised_floor_env._reset_requests_to_base()
+        assert raised_floor_env._agents["LB0"]["below_minimum_utilisation"] is True
+
+
+class TestLbNonAgTotalMafValidation:
+    """2026-10-06 Opus review P3-4: --lb-non-ag-total-maf is now threaded
+    in from run_fql_baseline.py / run_experiment.py, so an out-of-range
+    value (a typo, a unit confusion with AF instead of MAF) must be
+    refused here rather than silently accepted into the physics."""
+
+    def test_rejects_non_finite_values(self):
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            with pytest.raises(ValueError, match="lb_non_ag_total_maf"):
+                WaterSystemConfig(lb_non_ag_total_maf=bad)
+
+    def test_rejects_non_positive_and_too_large_values(self):
+        for bad in (0.0, -1.0, -5.2, 20.0, 25.0, 1_000_000.0):
+            with pytest.raises(ValueError, match="lb_non_ag_total_maf"):
+                WaterSystemConfig(lb_non_ag_total_maf=bad)
+
+    def test_accepts_the_default_and_other_plausible_values(self):
+        WaterSystemConfig()  # 5.2, the record-implied default
+        WaterSystemConfig(lb_non_ag_total_maf=5.0)
+        WaterSystemConfig(lb_non_ag_total_maf=0.01)
+        WaterSystemConfig(lb_non_ag_total_maf=19.99)
+
+
+# ===========================================================================
 # 42-year mass balance closure at fixed demand
 # ===========================================================================
 
