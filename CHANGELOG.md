@@ -23,7 +23,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are unaffected (the mock reply's value is an int, not a string). Each
   fallback read is logged.
 
+### Changed
+
+- **`examples/single_agent` (flood): HEAD no longer reproduces the
+  `83fa97e1` corpus.** The WRR26-fidelity rerun (flood design record,
+  `.research/design_specs/flood_design_record_2026-09-29.md`) corrects
+  several divergences from the published reference model and its own
+  public code (`LLMABM-GitHub-WRR.py`): insurance now lapses only on a
+  "do nothing" decision, not on every decision except "buy insurance" (so
+  elevating or relocating no longer silently cancels an existing policy);
+  the social-observation memory is two separate lines per year instead of
+  one combined sentence; the per-year memory write is one `add_memory`
+  call per event line instead of one `" | "`-joined line; the "Year t: You
+  chose to X." own-action memory line is removed; the neighbour-trust
+  update reads the community action rate from BEFORE the year's decisions,
+  not after; the four leading blank lines in every rendered prompt are
+  gone; an elevated household's menu now reads "1, 2, or 3" everywhere,
+  including the JSON placeholder; retry text for R1/R3/R4 is neutral
+  (states the judgment made at the start of the decision in plain words,
+  names no label code, carries no internal rule id --
+  `global_config.governance.rule_id_prefix: false`); `plain_action_names`
+  names the blocked skill in plain words; the thinking-rule appraisal is
+  frozen to the first-stated label within a decision
+  (`global_config.governance.appraisal_freeze: true`); R1 is redefined as
+  threat H/VH AND coping NOT (VL/L), not threat alone; `global_config.llm`
+  now sends gemma3:4b's own Modelfile defaults explicitly (`temperature:
+  1.0`, `top_p: 0.95`, `top_k: 64`) instead of leaving them unset (same
+  effective sampling, now recorded in every manifest); and
+  `global_config.audit.initial_proposal_columns` / `attempt_columns` /
+  `corrected_status_columns` are all turned on (needed by the post-run
+  IBR, `examples/single_agent/analysis/flood_ibr_v2.py`). Full list and
+  commands: `examples/single_agent/docs/flood_wrr_rerun_runbook.md`.
+- **`run_flood.py`'s `--use-priority-schema` now refuses to run** instead
+  of silently rendering a glued-together prompt: the WRR26-rerun
+  `household.txt` template's first line
+  (`{system_prompt}{priority_section}{narrative_persona}`) has no
+  separator between `{priority_section}` and `{narrative_persona}`, so an
+  old Group-C launcher that passes this flag now exits with a clear
+  `ValueError` instead of producing a malformed prompt.
+  `--use-priority-schema` was never part of the WRR26-fidelity rerun; a
+  priority-schema experiment needs a separate template/arm.
+
 ### Added
+
+- **`global_config.audit.retry_prompt_columns`** (default off): adds
+  `retry_prompts` to the raw JSONL trace -- the EXACT text sent on each
+  governance retry attempt (a list, one entry per retry, `[]` for a
+  decision that never retried), under whichever `retry_feedback_mode` is
+  active (`full`, `placebo` and `silent` each record what was actually
+  sent, not a reconstruction). Previously the trace recorded only the
+  decision's FIRST prompt (`input`); a retry's text had to be rebuilt after
+  the fact from log lines and the adapter's own template functions.
+  JSONL-only by construction: `trace_to_csv_row`
+  (`broker/components/analytics/audit.py`) copies only the keys it
+  explicitly names, and `retry_prompts` is not one of them, so this flag
+  can never add a column to the audit CSV -- a rerun of a published corpus
+  with the flag absent (or present) is byte-identical on the CSV side
+  either way. Wired through `RetryMixin._governance_retry_loop`
+  (`broker/core/_retry_loop.py`), `SkillBrokerEngine`
+  (`broker/core/skill_broker_engine.py`) and `AuditMixin._write_audit_trace`
+  (`broker/core/_audit_helpers.py`); `AgentTypeConfig.
+  get_audit_retry_prompt_columns()` reads the key. Documented in
+  `docs/references/yaml_configuration_reference.md` §2.1.6 and
+  `docs/AUDIT_SCHEMA.md` ("Which Plane Answers What"). Generic
+  framework option; the flood WRR26 rerun turns it on.
 
 - **`global_config.governance.retry_feedback_mode: silent`**, a third
   red-team-objection-3 retry-feedback arm alongside `full` and `placebo`.
