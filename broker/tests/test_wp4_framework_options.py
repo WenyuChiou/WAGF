@@ -326,10 +326,23 @@ def test_retry_text_getters_default_off_and_validated():
                  ).get_governance_placebo_closer()
 
 
-def test_flood_keeps_every_new_option_off_and_irrigation_turns_them_on():
+def test_reflection_and_placebo_closer_still_differentiate_flood_and_irrigation():
+    """P3-10 (opus review round 3): renamed from
+    test_flood_keeps_every_new_option_off_and_irrigation_turns_them_on,
+    which had become inaccurate the moment the WRR26 rerun turned
+    plain_action_names on for flood too (opus review P3-h, following
+    irrigation's own WP4, spec 3.7, items 11 and 15 -- a retry report
+    should name the blocked skill in plain words, not its internal id, in
+    either domain) -- "flood keeps every new option off" was no longer
+    true of the very option this test asserts first. Renamed for what it
+    actually checks: reflection_keep_latest_only and placebo_closer remain
+    the domains' own original differentiator (unrelated to the flood
+    rerun); see test_appraisal_freeze.py::
+    test_shipped_flood_config_resolved_option_set_2026_10 for flood's full
+    resolved option set."""
     flood = AgentTypeConfig.load(str(FLOOD_CONFIG))
     assert flood.get_reflection_keep_latest_only() is False
-    assert flood.get_governance_plain_action_names() is False
+    assert flood.get_governance_plain_action_names() is True
     assert flood.get_governance_placebo_closer() is None
     irr = AgentTypeConfig.load(str(IRRIGATION_CONFIG))
     assert irr.get_reflection_keep_latest_only() is True

@@ -748,6 +748,7 @@ class AuditMixin:
         feasible_by_attempt: Optional[List] = None,
         attempt_labels: Optional[List] = None,
         attempt_failed_rules: Optional[List] = None,
+        attempt_prompts: Optional[List] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -951,6 +952,15 @@ class AuditMixin:
         # nothing else in it says which is which.
         decider_extra = self._decider_audit_extra(decider)
 
+        # global_config.audit.retry_prompt_columns (default OFF): key-gated
+        # by the list itself -- the engine passes a (possibly empty) list
+        # only when the flag is on, exactly like feasible_by_attempt above.
+        # Writes to the raw JSONL only: trace_to_csv_row does not know this
+        # key, so it never becomes a CSV column (see the getter's docstring).
+        retry_prompt_extra: Dict[str, Any] = {}
+        if attempt_prompts is not None:
+            retry_prompt_extra["retry_prompts"] = list(attempt_prompts)
+
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)
         if (callable(get_pflag) and get_pflag()
@@ -1046,6 +1056,8 @@ class AuditMixin:
             **decider_extra,
             # Agent-state columns, spread last (same rationale).
             **state_extra,
+            # Retry-prompt text, spread last (same rationale); JSONL-only.
+            **retry_prompt_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

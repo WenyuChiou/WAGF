@@ -342,6 +342,7 @@ published corpus byte-identical. Turn them on for all NEW runs.
 | `grounding_columns` | bool | No | false | Forces `rules_world_grounded` + `rules_self_report` on. Already ON automatically whenever the active profile declares a world-grounded rule, so set this only to get the columns in a self-report-only profile. |
 | `decider_columns` | bool | No | false | Forces `decider` + `decider_path` on. Already ON automatically whenever any agent type declares a `decider:` other than `llm` (see §2.3.5), so set this only to record provenance in an all-`llm` run. |
 | `attempt_columns` | bool | No | false | Adds `attempt_labels`, `attempt_failed_rules` (per attempt, in step with `attempt_skills`) and `appraisal_relabeled`. Refused with an advisory channel on. |
+| `retry_prompt_columns` | bool | No | false | Adds `retry_prompts`: the EXACT text sent on each governance retry attempt (one entry per retry, `[]` for a decision that never retried), under whichever `retry_feedback_mode` is active (full/placebo/silent each record what was actually sent). JSONL-only -- `trace_to_csv_row` does not know this key, so it never adds a CSV column. |
 | `state_columns` | list of strings | No | (none) | One `state_<key>` column per listed key of the decision's agent state; a missing key is written `unobserved` |
 
 **`corrected_status_columns` (v0.7)** is the one to set if you are starting a

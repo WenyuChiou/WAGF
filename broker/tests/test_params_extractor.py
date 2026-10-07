@@ -5,8 +5,18 @@ and historically discarded all but the collapsed `magnitude_pct`. B2 routes that
 dict onto `SkillProposal.parameters` — but ONLY when the agent_type opts in via
 `multi_param_action`. Frozen domains never opt in, so `parameters` stays {} ->
 to_dict omits it -> byte-identical, EVEN for an agent_type that declares two
-numeric fields (single_agent 'household' declares magnitude_pct +
-secondary_magnitude_pct, so a count-based gate would be unsafe — the opt-in is not).
+numeric fields -- a count-based gate would be unsafe, the opt-in is not.
+
+2026-10 WRR26 rerun note: this module used to point `CONFIG_PATH` at
+single_agent's real `household` because it happened to declare two numeric
+response_format fields (magnitude_pct, secondary_magnitude_pct). The flood
+rerun deliberately removes both (design record row C5, "non-WRR26 residual
+leftover": the model never read them) and now declares zero numeric fields.
+`test_on_routes_full_numeric_dict` injects a synthetic 2-numeric-field
+response_format onto a deep-copied config instead, so this generic-mechanism
+test no longer depends on a domain example's field count; the OFF-path test
+below is unaffected either way (the gate is multi_param_action, not field
+count).
 
 See .research/wagf_coupling_IMPLEMENTATION_PLAN_2026-06-12.md (B2, O1, risk R3).
 """
@@ -18,9 +28,19 @@ import pytest
 from broker.utils.agent_config import AgentTypeConfig
 from broker.utils.model_adapter import UnifiedAdapter
 
-CONFIG_PATH = str(Path("examples/single_agent/agent_types.yaml"))  # 'household': 2 numeric fields
+CONFIG_PATH = str(Path("examples/single_agent/agent_types.yaml"))  # 'household' agent type
 _JSON = '{"decision": 1, "magnitude_pct": 20, "secondary_magnitude_pct": 10}'
 _CTX = {"agent_id": "H0001", "agent_type": "household"}
+
+# A synthetic 2-numeric-field response_format, injected onto a deep-copied
+# config in test_on_routes_full_numeric_dict (see module docstring): flood's
+# own `household` no longer declares secondary_magnitude_pct post-rerun.
+_TWO_NUMERIC_FIELDS = [
+    {"key": "reasoning", "type": "text", "required": True},
+    {"key": "decision", "type": "choice", "required": True},
+    {"key": "magnitude_pct", "type": "numeric", "min": 1, "max": 30, "unit": "%", "required": False},
+    {"key": "secondary_magnitude_pct", "type": "numeric", "min": 1, "max": 30, "unit": "%", "required": False},
+]
 
 
 # ---- the opt-in accessor (the new gate logic) ----
@@ -70,9 +90,15 @@ def test_on_routes_full_numeric_dict():
     AgentTypeConfig.clear_cache()
     try:
         adapter = UnifiedAdapter(agent_type="household", config_path=CONFIG_PATH)
-        # detach this adapter's config from the shared cache, then flip the opt-in
+        # detach this adapter's config from the shared cache, then flip the
+        # opt-in AND restore a synthetic 2-numeric-field response_format
+        # (household's own shared.response_format no longer declares
+        # secondary_magnitude_pct post-rerun; see module docstring).
         adapter.agent_config._config = copy.deepcopy(adapter.agent_config._config)
         adapter.agent_config._config["household"]["multi_param_action"] = True
+        adapter.agent_config._config["shared"]["response_format"]["fields"] = (
+            copy.deepcopy(_TWO_NUMERIC_FIELDS)
+        )
         proposal = adapter.parse_output(_JSON, _CTX)
         assert proposal is not None
         assert proposal.parameters.get("magnitude_pct") == 20

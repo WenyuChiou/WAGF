@@ -218,17 +218,43 @@ def test_audit_getters_defaults_and_validation():
         _cfg({"global_config": {"audit": {"attempt_columns": "yes"}}}).get_audit_attempt_columns()
 
 
-def test_shipped_flood_config_keeps_every_new_option_off():
-    """Flood never sets the new keys: freeze off, prefix on, no new columns."""
+def test_shipped_flood_config_resolved_option_set_2026_10():
+    """Renamed from test_shipped_flood_config_keeps_every_new_option_off,
+    which had come to directly contradict its own body -- the WRR26 rerun
+    (flood design record, PI decision 2026-10-06 item 5, items 8, 9 and 13)
+    has turned ON appraisal_freeze, retry_prompt_columns,
+    initial_proposal_columns, corrected_status_columns, attempt_columns and
+    plain_action_names for flood -- that is most of the new option set, not
+    "every new option off". This test now simply pins the FULL resolved
+    set, named for what it actually checks. rule_id_prefix is OFF (no
+    "[Rule: ...]" prefix, so retry text names neither a label nor an
+    internal rule id); hide_registry_backstop_reports and state_columns
+    remain off/empty -- flood never needed either.
+
+    Also pins the sampling values (item 13, spec item 37e: flood sends
+    gemma3:4b's own Modelfile defaults explicitly) THROUGH
+    ``get_llm_params("household")`` -- the actual merged
+    shared/global/per-type dict ``ExperimentRunner.get_llm_invoke`` reads
+    from, not a raw re-read of the YAML's ``global_config.llm`` block,
+    which would miss an agent-type override and so could pass even if the
+    household type never actually saw these values."""
     from pathlib import Path
 
     repo = Path(__file__).resolve().parents[2]
     cfg = AgentTypeConfig.load(str(repo / "examples" / "single_agent" / "agent_types.yaml"))
-    assert cfg.get_governance_appraisal_freeze() is False
-    assert cfg.get_governance_rule_id_prefix() is True
+    assert cfg.get_governance_appraisal_freeze() is True
+    assert cfg.get_governance_rule_id_prefix() is False
+    assert cfg.get_governance_plain_action_names() is True
     assert cfg.get_governance_hide_registry_backstop_reports() is False
-    assert cfg.get_audit_attempt_columns() is False
+    assert cfg.get_audit_attempt_columns() is True
     assert cfg.get_audit_state_columns() == []
+    assert cfg.get_audit_retry_prompt_columns() is True
+    assert cfg.get_audit_initial_proposal_columns() is True
+    assert cfg.get_audit_corrected_status_columns() is True
+    llm_params = cfg.get_llm_params("household")
+    assert llm_params["temperature"] == 1.0
+    assert llm_params["top_p"] == 0.95
+    assert llm_params["top_k"] == 64
 
 
 # ---------------------------------------------------------------------------
@@ -680,8 +706,16 @@ def test_rule_id_prefix_and_suggestion(tmp_path, monkeypatch, prefix, expected_s
     AgentTypeConfig.clear_cache()
 
 
-def test_flood_messages_keep_the_rule_prefix(monkeypatch):
-    """Flood sets no rule_id_prefix: every YAML rule message keeps it."""
+def test_flood_messages_drop_the_rule_prefix(monkeypatch):
+    """2026-10 WRR26 rerun (coordinator decision on open point 2, following
+    irrigation's own WP3.5): flood now sets ``rule_id_prefix: false``, so a
+    triggered rule's message carries NO "[Rule: <id>] " prefix -- a retry
+    prompt names neither a label value nor an internal rule id.
+
+    Also (item 9, neutral retry text): ``relocation_threat_low`` carries a
+    ``suggestion`` (irrigation-style neutral wording, no label code) whose
+    text itself names no rule id either.
+    """
     from pathlib import Path
 
     from broker.validators import AgentValidator
@@ -689,10 +723,15 @@ def test_flood_messages_keep_the_rule_prefix(monkeypatch):
     monkeypatch.setenv("GOVERNANCE_PROFILE", "strict")
     repo = Path(__file__).resolve().parents[2]
     validator = AgentValidator(config_path=str(repo / "examples" / "single_agent" / "agent_types.yaml"))
-    assert validator.rule_id_prefix is True
+    assert validator.rule_id_prefix is False
     results = validator.validate_thinking(
         "household", "H1", "relocate", {}, {"TP_LABEL": "VL", "CP_LABEL": "H"})
     blocked = [r for r in results if not r.valid]
-    assert blocked and all(r.errors[0].startswith("[Rule: ") for r in blocked)
-    assert all("suggestion" not in r.metadata for r in results)
+    assert blocked and all(not r.errors[0].startswith("[Rule: ") for r in blocked)
+    assert blocked and all("[Rule:" not in r.errors[0] for r in blocked)
+    for r in blocked:
+        suggestion = r.metadata.get("suggestion", "")
+        assert suggestion and "[Rule:" not in suggestion
+        for code in ("VL", "L", "M", "H", "VH"):
+            assert f" {code} " not in f" {suggestion} "
     AgentTypeConfig.clear_cache()

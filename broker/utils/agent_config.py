@@ -942,6 +942,54 @@ class AgentTypeConfig:
             )
         return value
 
+    def get_audit_retry_prompt_columns(self) -> bool:
+        """Opt-in RETRY-PROMPT-TEXT audit column (default-OFF).
+
+        The raw JSONL trace records the decision's FIRST prompt only
+        (``input``); the text of a governance-retry prompt -- header, rules
+        block and closer wrapped around the same original prompt -- is built
+        fresh each retry (``RetryMixin._governance_retry_loop``) and
+        otherwise never saved anywhere. When
+        ``global_config.audit.retry_prompt_columns: true``, every decision
+        row gains a ``retry_prompts`` key: a list of the exact text sent on
+        each retry attempt, in order (``[]`` for a decision that never
+        retried).
+
+        Key-gated like every other opt-in column, but with one additional
+        guarantee: ``trace_to_csv_row`` (broker/components/analytics/audit.py)
+        copies only the keys it explicitly names, and ``retry_prompts`` is
+        not one of them, so this flag can never add a column to the audit
+        CSV -- only the raw JSONL grows. Flag-OFF (the default) emits no key
+        at all, so every existing corpus stays byte-identical.
+
+        Two scopes this flag does NOT cover, both by design, not omission:
+
+        - An ABORTED / ABORTED_EXCEPTION sentinel row
+          (``_write_aborted_sentinel_trace``) never carries ``retry_prompts``
+          at all, on or off: that path writes its own fixed key set (gated on
+          ``corrected_status_columns``, separately from this flag) and has no
+          governance-retry text to record in the first place -- there was no
+          decision to retry.
+        - The advisory channels (``governance.advise`` /
+          ``governance.advise_mode``) make their own extra LLM call through a
+          SEPARATE code path (``_advisory_pass`` / ``_soft_rule_pass``, not
+          ``RetryMixin._governance_retry_loop``), so their prompt text is
+          never appended to ``attempt_prompts`` / recorded under
+          ``retry_prompts`` either, whether or not an agent-year also went
+          through a governance retry. This flag's ``retry_prompts`` is
+          GOVERNANCE-RETRY text only.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict) or "retry_prompt_columns" not in block:
+            return False
+        value = block["retry_prompt_columns"]
+        if not isinstance(value, bool):
+            raise ValueError(
+                "global_config.audit.retry_prompt_columns must be true or "
+                f"false (a YAML bool), got {type(value).__name__} {value!r}."
+            )
+        return value
+
     def get_audit_state_columns(self) -> List[str]:
         """Opt-in AGENT-STATE audit columns (default: none).
 

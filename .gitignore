@@ -126,6 +126,15 @@ temp_*.json
 # silently tracked by a too-broad negation.
 !examples/irrigation_abm/tests/fixtures/*_golden.csv
 
+# ...and the flood --config-root variants' own small CSVs (agent profiles,
+# flood-year schedule) -- config, not a results/audit CSV the blanket rule
+# above is meant to catch. Without this, a plain `git add` of a variant
+# directory silently drops them, leaving a --config-root that fails
+# _preflight_isolated_root's required-file check the first time anyone runs
+# it (caught this way once; see examples/single_agent/config_variants/
+# nonudge/NOTES.md).
+!examples/single_agent/config_variants/**/*.csv
+
 # Analysis figures (generated)
 examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/
