@@ -15,15 +15,17 @@ Sources: `.research/design_specs/irrigation_v3_spec_2026-09-28.md` (WP6, section
 - TR1: first-stated WSA in {H, VH} and the skill is `increase_demand`. TR3: first-stated WSA in {VL, L} and the skill is `decrease_demand` (item 9). The module checks these sets against the strict profile of `config/agent_types.yaml` on every run.
 - Rates are percentages of N unless stated.
 
-## 2. IBR (primary, item 19)
+## 2. IBR (primary, item 37a, 2026-10-06 -- 37a is what DECIDES the primary is the FINAL proposal, i.e. the last attempt; supersedes item 19's wording, not its arithmetic, since item 19 already counted the final proposal against the first-stated WSA)
 
     IBR_TR1 = 100 x #{d : final(d) = increase_demand and WSA_first(d) in {H, VH}} / N
     IBR_TR3 = 100 x #{d : final(d) = decrease_demand and WSA_first(d) in {VL, L}} / N
     IBR     = IBR_TR1 + IBR_TR3
 
-The same rules in every arm: live in strict, placebo and silent; post hoc in disabled and feasibility_only. A decision whose retries ran out keeps its blocked proposal as its final proposal and counts. No decision can violate both rules. Columns: `attempt_skills`, `initial_labels`, `attempt_labels`.
+The same rules in every arm: live in strict, placebo and silent; post hoc in disabled and feasibility_only. Each agent-year counts ONCE, judged on its LAST attempt (`final(d)`, item 37a): a decision whose retries ran out keeps its blocked proposal as its final proposal and counts once, never once per retry. No decision can violate both rules. The denominator N is every agent-year (3,276 per run), pooled per run; the older conditional denominators (e.g. WSA H/VH only) are RETIRED outright (item 37) -- not kept anywhere as an SI row; section 13's "conditional IBR of provenance K1" entry is marked not reported for the same reason. Columns: `attempt_skills`, `initial_labels`, `attempt_labels`.
 
-Beside it:
+Beside the primary number:
+- Executed share (`ibr_executed_pct`, `_tr1_pct`, `_tr3_pct`; item 37/37a: "the executed action is reported separately" / "reported separately for feasibility"): the identical formula with `final(d)` replaced by `executed_skill`, the action that actually reached the water system. With `on_retry_exhausted` at its `default` setting (item 37b: irrigation `maintain_demand`), a blocked proposal's retries end in the registry default, which violates neither TR1 nor TR3, so this is ~0 in strict, placebo and silent. In disabled and feasibility_only, TR1 and TR3 never retry, so `final(d)` and `executed_skill` often agree there too -- BUT the water-right cap, the minimum-use floor and the supply rule still act in EVERY arm (menu filter and environment clip, spec 3.1), so an executed increase or decrease can still be blocked or clipped by one of those feasibility rules even where TR1/TR3 do nothing; this can pull the executed share below the final-proposal share in disabled and feasibility_only too, not only in strict/placebo/silent.
+- First-proposal share (`ibr_first_proposal_pct`, `_tr1_pct`, `_tr3_pct`; this companion is NOT from item 37 -- it is `paper_scope_2026-10-06.md` C2's analogy to flood's own first-proposal/final-proposal/executed figures, 8.5% / 0.5% / 0.5%): the identical formula with `final(d)` replaced by the FIRST attempt's proposal (`attempt_skills`' first entry) -- the share before any retry had a chance to change or block it.
 - Final-label IBR: the same counts with `WSA_final` (from `final_labels`) in place of `WSA_first`.
 - Relabel rate (WSA only): `100 x #{retried d : some attempt states a non-blank WSA other than WSA_first(d)} / #{d : retry_count > 0}`. An ACA change is not counted. Columns: `retry_count`, `attempt_labels`.
 - Not reported: the share of relabels made with no change in r (RB 6.4; r is the expected delivery ratio at the keep request). r is fixed within a decision, so that share is always 100%.
@@ -123,7 +125,7 @@ Reported, never gated: P3 (Powell minimum date and dead-pool dates beside H&Y's 
 
 The spec WP6 items this module does not compute; they read the finished corpus:
 - The 2026-05-29 IBR definition (all high-scarcity rows) as an SI function, and its acceptance on the 431adb5e corpus: L4's 47.0 (strict) and 85.9 (disabled), reproduced to one decimal.
-- The conditional IBR of provenance K1, as an SI robustness row (item 3).
+- The conditional IBR of provenance K1 (item 3's pre-item-37 SI-robustness framing). NOT REPORTED: item 37 (2026-10-06) retires the older conditional denominators outright ("the older conditional denominators, threat not M / WSA H or VH, are retired") with no SI survival; this entry is listed here only so a reader of the pre-item-37 spec text does not go looking for it as a still-live SI row.
 - Exhausted rows reported as "blocked, default applied" (L4-13).
 - UB-cut years and volumes per sub-basin.
 - The declared-shortage volume borne by the LB non-agricultural aggregate (`lb_non_ag_delivered_maf`).

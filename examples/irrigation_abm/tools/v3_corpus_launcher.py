@@ -24,7 +24,13 @@ launch anything at all unless that interpreter is Python 3.14, the corpus
 interpreter (`python3` on this machine is 3.11 with a different numpy --
 see the memory note on the two-Python-interpreters hazard).
 
-Four run-plan phases, 32 total planned runs:
+Four run-plan phases, 27 total planned runs (dated note, 2026-10-07: the
+PLACEBO arm is dropped -- decided in `.research/paper_scope_2026-10-06.md`
+section 5 ("灌溉 v3 placebo | ... | 不做"), appended to
+`.research/design_specs/irrigation_v3_spec_2026-09-28.md` as item 39 rather
+than rewriting WP7 7.4's original 21-LLM-run text. Before this note the
+corpus phase ran 19 post-gate runs / 21 LLM runs / 32 total; it now runs 14
+post-gate runs / 16 LLM runs / 27 total):
 
 * `fql`      (CPU, 10 runs):  FQL reference, seeds 42-51 (spec 7.5).
 * `replays`  (CPU, 1 run):    the WP1b fixed-demand replays A and B, written
@@ -32,9 +38,9 @@ Four run-plan phases, 32 total planned runs:
 * `pilot`    (GPU, 2 runs):   strict and disabled, seed 42 (spec section 4).
                                These are also the strict/disabled seed-42
                                members of the corpus (spec 7.4).
-* `corpus`   (GPU, 19 runs):  strict and disabled seeds 43-46, placebo and
-                               silent seeds 42-46, feasibility_only seed 42
-                               (spec 7.4, item 16).
+* `corpus`   (GPU, 14 runs):  strict and disabled seeds 43-46, silent seeds
+                               42-46, feasibility_only seed 42 (spec 7.4,
+                               item 16; item 39 drops placebo).
 
 A run's status is one of four, by inspecting its own directory (and, for an
 LLM run, the launcher's own per-run record of its PID and exit code, see
@@ -158,7 +164,9 @@ _CLUSTER_METHOD = "hy2021"
 _FQL_SEEDS = list(range(42, 52))          # 42..51 (spec 7.5)
 _PILOT_SEED = 42
 _POST_GATE_SEEDS = [43, 44, 45, 46]       # strict / disabled post-gate
-_PLACEBO_SILENT_SEEDS = [42, 43, 44, 45, 46]
+# Item 39 (2026-10-07): the PLACEBO arm is dropped from the corpus (decided
+# in paper_scope_2026-10-06.md section 5); only silent runs this seed list now.
+_SILENT_SEEDS = [42, 43, 44, 45, 46]
 
 _PHASES = ("fql", "replays", "pilot", "corpus")
 _GPU_PHASES = ("pilot", "corpus")
@@ -210,9 +218,10 @@ def _llm_command(
 
 
 def build_plan(results_root: Path, sha8: str, workers: Union[int, str]) -> List[PlannedRun]:
-    """The full 32-entry ordered plan: 10 FQL + 1 replay call (A and B
-    together) + 2 pilot + 19 post-gate corpus runs (spec 7.4, 21 LLM runs
-    in all). `workers` is only baked into the LLM (pilot/corpus) commands;
+    """The full 27-entry ordered plan: 10 FQL + 1 replay call (A and B
+    together) + 2 pilot + 14 post-gate corpus runs (spec 7.4, item 39;
+    16 LLM runs in all -- the PLACEBO arm is dropped, item 39). `workers`
+    is only baked into the LLM (pilot/corpus) commands;
     the CPU phases (fql, replays) never take --workers. `workers` may be a
     descriptive placeholder string (`cmd_plan` passes one when no value is
     known yet) since it is only ever embedded via `str()`, never compared
@@ -256,13 +265,7 @@ def build_plan(results_root: Path, sha8: str, workers: Union[int, str]) -> List[
         runs.append(PlannedRun(
             f"disabled_{seed}", "corpus", _llm_command(seed, "disabled", None, out, workers), out, True,
         ))
-    for seed in _PLACEBO_SILENT_SEEDS:
-        out = results_root / f"v3_placebo_42yr_gemma3_4b_{sha8}_seed{seed}"
-        runs.append(PlannedRun(
-            f"placebo_{seed}", "corpus",
-            _llm_command(seed, "strict", "placebo", out, workers), out, True,
-        ))
-    for seed in _PLACEBO_SILENT_SEEDS:
+    for seed in _SILENT_SEEDS:
         out = results_root / f"v3_silent_42yr_gemma3_4b_{sha8}_seed{seed}"
         runs.append(PlannedRun(
             f"silent_{seed}", "corpus",
