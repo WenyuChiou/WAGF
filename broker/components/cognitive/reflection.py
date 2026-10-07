@@ -671,7 +671,9 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
     ) -> Dict[str, Optional[ReflectionInsight]]:
         """
         Robust multi-stage parser for batch reflections.
-        Handles JSON, Markdown, and Heuristic Line-parsing.
+        Handles JSON, Markdown, and Heuristic Line-parsing. When the batch
+        holds exactly one agent id, a one-key JSON reply with a non-blank
+        string value is read for that agent whatever the key is called.
         """
         import json
         import re
@@ -705,7 +707,20 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                     found_key = next((k for k in data.keys() if k.lower() == aid.lower()), None)
                     if found_key and isinstance(data[found_key], str):
                         results[aid] = self._create_insight(data[found_key], current_year)
-                
+
+                # Single-agent batch (batch_size 1): small models often answer
+                # under a shortened or generic key ("Agent_1", the tail of a
+                # compound id) instead of the exact id. The prompt held only
+                # this agent's memories, so a one-key reply can only be about
+                # this agent.
+                if (len(batch_agent_ids) == 1 and results[batch_agent_ids[0]] is None
+                        and len(data) == 1):
+                    sole_key, sole_value = next(iter(data.items()))
+                    if isinstance(sole_value, str) and sole_value.strip():
+                        results[batch_agent_ids[0]] = self._create_insight(sole_value, current_year)
+                        logger.info("[Reflection:Batch] Single-id reply read under key %r for %s",
+                                    sole_key, batch_agent_ids[0])
+
                 if any(v is not None for v in results.values()):
                     success = True
                     logger.info("[Reflection:Batch] Stage 1 (JSON) parsing successful.")
