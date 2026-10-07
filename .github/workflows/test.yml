@@ -60,7 +60,7 @@ jobs:
       # run: without it pytest aborts the session and the whole signal is lost.
       - name: Tests (no LLM)
         run: |
-          python -m pytest tests/ broker/ -ra --tb=short \
+          python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short \
             --continue-on-collection-errors \
             -k "not real_llm"
 

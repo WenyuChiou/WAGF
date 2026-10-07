@@ -319,6 +319,18 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 "not record, so they would fall out of step with "
                 "attempt_skills. Turn one of them off."
             )
+        # Retry-prompt text column (global_config.audit.retry_prompt_columns,
+        # default OFF): the exact text sent on each governance retry,
+        # recorded into the raw JSONL trace only (never the CSV; see the
+        # getter's docstring). Flag-OFF: attempt_prompts stays None end to
+        # end and no key is added anywhere. Read after the attempt-columns
+        # refusal check above: this flag has no such conflict of its own, so
+        # ordering it after the check that DOES apply keeps every "refuse an
+        # invalid combination" raise grouped together, ahead of flags that
+        # merely record something.
+        _get_rpc = getattr(self.config, "get_audit_retry_prompt_columns", None)
+        _rpc = _get_rpc() if callable(_get_rpc) else False
+        self._retry_prompt_columns = _rpc if isinstance(_rpc, bool) else False
         # Agent-state audit columns (global_config.audit.state_columns,
         # default none): each listed state key is written as state_<key>.
         _get_scol = getattr(self.config, "get_audit_state_columns", None)
@@ -913,6 +925,13 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             [self._failed_rule_ids(validation_results)]
             if self._attempt_columns else None
         )
+        # Retry-prompt text (global_config.audit.retry_prompt_columns,
+        # default OFF): one entry per RETRY attempt (attempt 0's prompt is
+        # already recorded as the trace's "input"), appended in
+        # _governance_retry_loop. [] for a decision that never retries.
+        attempt_prompts: Optional[List[str]] = (
+            [] if self._retry_prompt_columns else None
+        )
 
         # P0-1c: the single-shot advisory pass. No-op (returns its inputs, zero LLM
         # calls) unless an arm config declares global_config.governance.advise. Runs
@@ -967,6 +986,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 feasible_by_attempt=feasible_by_attempt,
                 attempt_labels=attempt_labels,
                 attempt_failed_rules=attempt_failed_rules,
+                attempt_prompts=attempt_prompts,
             )
         )
 
@@ -1161,6 +1181,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 feasible_by_attempt=feasible_by_attempt,
                 attempt_labels=attempt_labels,
                 attempt_failed_rules=attempt_failed_rules,
+                attempt_prompts=attempt_prompts,
             )
 
         # Spec item 24: this decision's outcome for the abort-rate window --

@@ -242,10 +242,15 @@ class DecisionFilteredMemoryEngine:
     def __init__(self, inner):
         self.inner = inner
 
-    # The runner writes an immediate decision line for approved rows
-    # ("Decided to: X") and, since the F06/F20 fix, for fallback rows
-    # ("... default action applied: Y"). Both are dropped here; the
-    # deferred pre_year line is the only action memory, as in the baseline.
+    # The GENERIC framework (experiment_runner.py) writes an immediate
+    # decision line for approved rows ("Decided to: X") and, since the
+    # F06/F20 fix, for fallback rows ("... default action applied: Y").
+    # Both are dropped here, independently of the domain-level own-action
+    # line that `FinalParityHook.pre_year` used to add (F3): that deferred
+    # line was removed outright in the 2026-10 WRR26 rerun (it is not in
+    # WRR26), so no action memory of any kind reaches the agent now, and
+    # this filter exists purely to keep the generic runner's own two
+    # markers from leaking into the WRR26-parity memory stream.
     @staticmethod
     def _is_decision_memory(content: str) -> bool:
         return (DECISION_MEMORY_MARKER in content
@@ -337,14 +342,24 @@ class ResearchSimulation:
         elif skill == "buy_insurance": 
             state_changes["has_insurance"] = True
             
-        elif skill == "relocate": 
+        elif skill == "relocate":
             state_changes["relocated"] = True
             agent.is_active = False
-            
-        # 2. Insurance Renewal Logic (Annual expiry if not buying)
-        if skill != "buy_insurance":
+
+        # Insurance renewal (flood design record row C2): WRR26's own logic
+        # (`LLMABM-GitHub-WRR.py` at commit 7116057b, the `was_elevated` /
+        # not-elevated decision-code branches that assign `has_insurance`)
+        # touches `has_insurance` on exactly two actions: "buy insurance"
+        # sets it True; "do nothing" sets it False (lapses, unless bought
+        # again that year). On elevate OR relocate, `has_insurance` is left
+        # UNTOUCHED -- WRR26's code simply never assigns it in those
+        # branches, so whatever the household had carries forward. The
+        # previous WAGF code set has_insurance=False on every skill except
+        # buy_insurance, which incorrectly cancelled an elevated household's
+        # existing policy the moment it elevated.
+        if skill == "do_nothing":
             state_changes["has_insurance"] = False
-            
+
         return ExecutionResult(success=True, state_changes=state_changes)
 
 def classify_adaptation_state(agent):
@@ -375,7 +390,21 @@ class FinalParityHook:
         active_agents = [a for a in self.sim.agents.values() if not getattr(a, 'relocated', False)]
         total_elevated = sum(1 for a in active_agents if getattr(a, 'elevated', False))
         total_relocated = len(self.sim.agents) - len(active_agents)
-        
+
+        # 2026-10 WRR26 rerun (design record row E3, item 1): the neighbour-
+        # trust update in post_year must use the community action rate as it
+        # stood BEFORE this year's decisions, as WRR26's code does (WAGF used
+        # to recompute it in post_year, AFTER decisions). These counts are
+        # exactly the pre-decision counts (same ones the "I observe X%..."
+        # memory line below is built from), captured here and read back in
+        # post_year instead of being recomputed from post-decision state.
+        if self.sim.agents:
+            self._pre_decision_community_rate = (
+                (total_elevated + total_relocated) / len(self.sim.agents)
+            )
+        else:
+            self._pre_decision_community_rate = 0.0
+
         for agent in self.sim.agents.values():
             if getattr(agent, 'relocated', False): 
                 if len(agent.flood_history) < year: agent.flood_history.append(False)
@@ -404,45 +433,50 @@ class FinalParityHook:
             if self.sim.grant_available:
                 yearly_memories.append(f"Year {year}: Elevation grants are available.")
 
-            # Social Observation Memory (baseline order)
+            # Social Observation Memory (baseline order; flood design record
+            # row E3): WRR26's own code (`LLMABM-GitHub-WRR.py` at commit
+            # 7116057b, the per-agent neighbour-observation block in its
+            # main year loop) appends TWO separate memory lines here, not
+            # one combined sentence -- "I observe {e}% of my neighbors have
+            # elevated homes." THEN "I observe {r}% of my neighbors have
+            # relocated." in that order. The previous combined line
+            # ("I observe {e}% of neighbors elevated and {r}% relocated.")
+            # was neither WRR26's wording nor WRR26's line count.
             num_others = len(self.sim.agents) - 1
             if num_others > 0:
                 elev_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_others) * 100)
+                yearly_memories.append(f"Year {year}: I observe {elev_pct}% of my neighbors have elevated homes.")
                 reloc_pct = round((total_relocated / num_others) * 100)
-                yearly_memories.append(f"Year {year}: I observe {elev_pct}% of neighbors elevated and {reloc_pct}% relocated.")
+                yearly_memories.append(f"Year {year}: I observe {reloc_pct}% of my neighbors have relocated.")
 
             # Stochastic recall (baseline order)
             if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
                 yearly_memories.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
 
-            # Action feedback from last year's decision
-            if year > 1:
-                action_ctx = getattr(agent, '_last_action_context', None)
-                if action_ctx and action_ctx.get("skill_name"):
-                    skill = action_ctx["skill_name"].replace("_", " ")
-                    act_year = action_ctx.get("year", year - 1)
-                    if action_ctx.get("was_fallback"):
-                        # Rejected proposal; the registry default ran instead.
-                        proposed = action_ctx.get("proposed_skill")
-                        if proposed:
-                            yearly_memories.append(
-                                f"Year {act_year}: Your proposal to "
-                                f"{proposed.replace('_', ' ')} was rejected; "
-                                f"{skill} was applied.")
-                        else:
-                            yearly_memories.append(
-                                f"Year {act_year}: No valid proposal was made; "
-                                f"{skill} was applied.")
-                    else:
-                        yearly_memories.append(f"Year {act_year}: You chose to {skill}.")
-
-            # Consolidate and Add ONCE to preserve window history
-            consolidated_mem = " | ".join(yearly_memories)
-            self.runner.memory_engine.add_memory(
-                agent.id,
-                consolidated_mem,
-                _flood_memory_metadata(flood_event=flood_event),
-            )
+            # 2026-10 WRR26 rerun (design record rows F2 and F3, items 2 and 3):
+            # the "Year t: You chose to X." own-action line (F3, not in WRR26)
+            # is REMOVED -- it is no longer appended here at all -- and each
+            # of this year's event lines is added as its OWN memory item (F2)
+            # instead of being " | "-joined into one item per year. WRR26
+            # keeps the five most recent EVENT LINES (MEMORY_WINDOW = 5,
+            # confirmed against the public repo's `agent["memory"] =
+            # agent["memory"][-MEMORY_WINDOW:]`, applied AFTER all of this
+            # year's lines are appended, same net effect as a FIFO retrieve
+            # here); a year now appends 3 to 5 lines (flood outcome, always
+            # 1; the grant line, 0 or 1; the two neighbour lines above,
+            # always 2; the recall line, 0 or 1), each its own memory item
+            # (not joined), so a 5-item window spans a little under one
+            # year to about one year, matching WRR26's own window span.
+            # WindowMemoryEngine.retrieve()
+            # is a plain FIFO over add_memory calls
+            # (broker/components/memory/engines/window.py), so one call per
+            # line is what makes the window a window over EVENTS.
+            for line in yearly_memories:
+                self.runner.memory_engine.add_memory(
+                    agent.id,
+                    line,
+                    _flood_memory_metadata(flood_event=flood_event),
+                )
 
     def post_step(self, agent, result):
         year = self.sim.current_year
@@ -524,9 +558,19 @@ class FinalParityHook:
             agent.flood_threshold = max(0.001, agent.flood_threshold)
 
     def post_year(self, year, agents):
-        total_elevated = sum(1 for a in agents.values() if getattr(a, 'elevated', False))
-        total_relocated = sum(1 for a in agents.values() if getattr(a, 'relocated', False))
-        community_action_rate = (total_elevated + total_relocated) / len(agents)
+        # 2026-10 WRR26 rerun (design record row E3, item 1): the neighbour-
+        # trust update reads the community action rate as it stood BEFORE
+        # this year's decisions (captured in pre_year, same counts as the
+        # "I observe X%..." memory line), as WRR26's code does. Recomputing
+        # from `agents` here would read AFTER this year's decisions, which is
+        # what WAGF did before this fix. Fallback (pre_year not called first,
+        # e.g. a direct unit-test call) keeps the previous AFTER-decision
+        # behaviour rather than raising.
+        community_action_rate = getattr(self, "_pre_decision_community_rate", None)
+        if community_action_rate is None:
+            total_elevated = sum(1 for a in agents.values() if getattr(a, 'elevated', False))
+            total_relocated = sum(1 for a in agents.values() if getattr(a, 'relocated', False))
+            community_action_rate = (total_elevated + total_relocated) / len(agents)
 
         for agent in agents.values():
             if not getattr(agent, 'relocated', False):
@@ -931,6 +975,34 @@ def _preflight_isolated_root(base_path: Path, script_dir: Path) -> None:
 # --- 6. Main Runner ---
 def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
+
+    # Flood design record item 5 (leading-blank-lines fix): refuse rather
+    # than silently garble. household.txt's first line is now
+    # "{system_prompt}{priority_section}{narrative_persona}" with NO
+    # separator between {priority_section} and {narrative_persona} (the fix
+    # for the 4-leading-blank-lines bug deliberately collapses both to ""
+    # when nothing fills them). PrioritySchemaProvider fills
+    # {priority_section} with a non-empty "### [CRITICAL FACTORS..." block
+    # that would then be glued directly onto "You are a homeowner..." with
+    # no blank line between them -- a rendering bug, not a feature. Rather
+    # than patch the template with a separator (which this rerun's own
+    # WRR26-fidelity principle -- follow WRR26 wherever the framework does
+    # not need a change -- gives no reason to do, since --use-priority-schema
+    # is itself a WAGF-only, non-WRR26 experimental feature, Group C /
+    # Pillar 3 only, already carrying its own confound warning below),
+    # refuse the combination outright with a clear error.
+    if use_priority_schema:
+        raise ValueError(
+            "--use-priority-schema is not supported with the WRR26-rerun "
+            "household.txt template: that template's first line is "
+            "\"{system_prompt}{priority_section}{narrative_persona}\" (no "
+            "separator), so a non-empty {priority_section} block would be "
+            "glued directly onto the persona sentence with no blank line. "
+            "This flag also carries its own documented confound (see the "
+            "2026-04-19 priority-schema finding in MEMORY.md) and was never "
+            "part of the WRR26-fidelity rerun; use a separate template/arm "
+            "if a priority-schema experiment is genuinely needed."
+        )
 
     # 1. Load Registry & Prompt Template
     # config_root lets a campaign point at an ISOLATED copy of the config files so new
