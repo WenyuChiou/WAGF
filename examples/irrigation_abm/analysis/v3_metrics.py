@@ -1313,14 +1313,47 @@ def _pct(numerator: float, denominator: float) -> Optional[float]:
 
 
 def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
-    """Primary IBR (item 19): decisions whose FINAL proposal violates TR1 or
-    TR3, judged on the first-stated WSA (item 28), over all decisions;
-    TR1 and TR3 separately and summed. Beside it: the same count on the
-    final attempt's WSA, and the WSA relabel rate over retried decisions."""
+    """Primary IBR (item 37a, 2026-10-06, decides the primary is the FINAL
+    proposal -- the last attempt; supersedes item 19's wording, not its
+    arithmetic -- item 19's final-proposal/first-WSA formula is unchanged):
+    each agent-year counts ONCE, judged on its LAST attempt (final
+    proposal), against the WSA first stated (item 28); a decision whose
+    retries ran out keeps its blocked proposal as final and counts once,
+    never "+3" for repeated retries (item 37a). TR1 and TR3 separately and
+    summed, over all decisions (the denominator is every agent-year; the
+    older conditional denominators are RETIRED outright, item 37 -- not
+    kept anywhere as an SI row; see ``docs/v3_metrics.md`` section 13).
+
+    Beside the primary number:
+    - the EXECUTED share (``ibr_executed_*``; item 37/37a: "the executed
+      action is reported separately" / "reported separately for
+      feasibility"): the same judgment applied to the actually EXECUTED
+      skill. With ``on_retry_exhausted`` at its `default` setting (item
+      37b), a blocked proposal's retries end in the registry default
+      (``maintain_demand``, which violates neither rule), so this is ~0 in
+      strict, placebo and silent. In disabled and feasibility_only, TR1 and
+      TR3 never retry, so the executed skill often equals the final
+      proposal there too -- BUT the water-right cap, the minimum-use floor
+      and the supply rule still act in EVERY arm (menu filter and
+      environment clip, spec 3.1), so an executed increase or decrease can
+      still be blocked or clipped by one of those feasibility rules even
+      where TR1/TR3 do nothing; the executed share can therefore fall
+      below the final-proposal share in disabled and feasibility_only too,
+      not only in strict/placebo/silent.
+    - the FIRST-proposal share (``ibr_first_proposal_*``; NOT from item 37
+      -- this companion is paper_scope C2's analogy to flood's own
+      first-proposal/final-proposal/executed figures, 8.5% / 0.5% / 0.5%):
+      the same first-stated-WSA judgment applied to the FIRST attempt's
+      proposal, i.e. before any retry had a chance to change or block it.
+    Also beside it: the same final-proposal count on the FINAL attempt's own
+    WSA (not the first-stated one), and the WSA relabel rate over retried
+    decisions."""
     n = len(decisions)
     if n == 0:
         raise MetricsError("ibr_metrics: no decisions")
     tr1 = tr3 = tr1_final = tr3_final = 0
+    tr1_first_proposal = tr3_first_proposal = 0
+    tr1_executed = tr3_executed = 0
     retried = relabeled = 0
     no_wsa = off_scale = unreadable = final_wsa_missing = 0
     for d in decisions:
@@ -1337,6 +1370,10 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
             raise MetricsError(f"{d.agent_id} {d.year}: violates TR1 and TR3 at once")
         tr1 += v1
         tr3 += v3
+        tr1_first_proposal += d.first_proposal == INCREASE and d.first_wsa in TR1_WSA
+        tr3_first_proposal += d.first_proposal == DECREASE and d.first_wsa in TR3_WSA
+        tr1_executed += d.executed_skill == INCREASE and d.first_wsa in TR1_WSA
+        tr3_executed += d.executed_skill == DECREASE and d.first_wsa in TR3_WSA
         if final is not None and d.final_wsa is None:
             final_wsa_missing += 1
         tr1_final += final == INCREASE and d.final_wsa in TR1_WSA
@@ -1348,6 +1385,13 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
         "decisions": n,
         "ibr_tr1_count": tr1, "ibr_tr3_count": tr3,
         "ibr_tr1_pct": _pct(tr1, n), "ibr_tr3_pct": _pct(tr3, n), "ibr_pct": _pct(tr1 + tr3, n),
+        "ibr_first_proposal_tr1_count": tr1_first_proposal, "ibr_first_proposal_tr3_count": tr3_first_proposal,
+        "ibr_first_proposal_tr1_pct": _pct(tr1_first_proposal, n),
+        "ibr_first_proposal_tr3_pct": _pct(tr3_first_proposal, n),
+        "ibr_first_proposal_pct": _pct(tr1_first_proposal + tr3_first_proposal, n),
+        "ibr_executed_tr1_count": tr1_executed, "ibr_executed_tr3_count": tr3_executed,
+        "ibr_executed_tr1_pct": _pct(tr1_executed, n), "ibr_executed_tr3_pct": _pct(tr3_executed, n),
+        "ibr_executed_pct": _pct(tr1_executed + tr3_executed, n),
         "ibr_final_label_tr1_pct": _pct(tr1_final, n), "ibr_final_label_tr3_pct": _pct(tr3_final, n),
         "ibr_final_label_pct": _pct(tr1_final + tr3_final, n),
         "retried_decisions": retried, "relabeled_decisions": relabeled,
@@ -2499,6 +2543,10 @@ EXEC_PAIRED_ARM = "disabled"
 SUMMARY_METRICS = (
     "ibr_pct", "ibr_tr1_pct", "ibr_tr3_pct", "ibr_final_label_pct", "ibr_final_label_tr1_pct",
     "ibr_final_label_tr3_pct", "relabel_rate_pct",
+    # Items 37/37a (2026-10-06): the first-proposal and executed shares
+    # reported beside the primary (final-proposal) IBR above.
+    "ibr_first_proposal_pct", "ibr_first_proposal_tr1_pct", "ibr_first_proposal_tr3_pct",
+    "ibr_executed_pct", "ibr_executed_tr1_pct", "ibr_executed_tr3_pct",
     "exec_supply_pct", "exec_cap_pct", "exec_floor_pct", "exec_total_pct",
     "supply_condition_pct", "supply_condition_ub_pct", "supply_condition_lb_pct",
     "supply_live_blocked_decisions", "mead_min_ft", "mead_min_jan1_year", "tier0_years",
@@ -3762,6 +3810,20 @@ def gate_p10(rows: Mapping[str, Mapping[str, Any]], strict_label: str, runs: Seq
         r = rows[run.label]
         if not (0.0 <= r["ibr_pct"] <= 100.0) or abs(r["ibr_pct"] - r["ibr_tr1_pct"] - r["ibr_tr3_pct"]) > 1e-9:
             failures.append(f"{run.label}: IBR {r['ibr_pct']} vs TR1 {r['ibr_tr1_pct']} + TR3 {r['ibr_tr3_pct']}")
+        # P2-1 (Opus review): the same TR1+TR3=combined sum check, for the
+        # first-proposal and executed companions beside the primary IBR.
+        if not (0.0 <= r["ibr_first_proposal_pct"] <= 100.0) or abs(
+            r["ibr_first_proposal_pct"] - r["ibr_first_proposal_tr1_pct"] - r["ibr_first_proposal_tr3_pct"]
+        ) > 1e-9:
+            failures.append(
+                f"{run.label}: first-proposal IBR {r['ibr_first_proposal_pct']} vs TR1 "
+                f"{r['ibr_first_proposal_tr1_pct']} + TR3 {r['ibr_first_proposal_tr3_pct']}")
+        if not (0.0 <= r["ibr_executed_pct"] <= 100.0) or abs(
+            r["ibr_executed_pct"] - r["ibr_executed_tr1_pct"] - r["ibr_executed_tr3_pct"]
+        ) > 1e-9:
+            failures.append(
+                f"{run.label}: executed IBR {r['ibr_executed_pct']} vs TR1 {r['ibr_executed_tr1_pct']} "
+                f"+ TR3 {r['ibr_executed_tr3_pct']}")
         if r["decisions"] != expected:
             failures.append(f"{run.label}: the IBR is over {r['decisions']} decisions, not all {expected} "
                             "(78 agents x 42 years)")
@@ -3795,6 +3857,7 @@ def gate_p10(rows: Mapping[str, Mapping[str, Any]], strict_label: str, runs: Seq
     return _check("P10", "metric sanity", True, not failures,
                   "all hold" if not failures else "; ".join(failures[:8]),
                   {label: {k: rows[label][k] for k in ("ibr_pct", "ibr_tr1_pct", "ibr_tr3_pct",
+                                                        "ibr_first_proposal_pct", "ibr_executed_pct",
                                                         "ibr_final_label_pct", "relabel_rate_pct",
                                                         "exec_supply_pct", "exec_cap_pct", "exec_floor_pct",
                                                         "mead_min_ft", "tier3_years", "kge_mead_jan1_ft",
@@ -4200,13 +4263,21 @@ def metrics_markdown(result: MetricsResult) -> str:
                             for a in cols] for metric in metrics]
         return _md_table(["metric"] + cols, body)
 
-    lines += ["## IBR (item 19)", "",
+    lines += ["## IBR (items 37, 37a)", "",
               summary_table(("ibr_pct", "ibr_tr1_pct", "ibr_tr3_pct", "ibr_final_label_pct",
                              "ibr_final_label_tr1_pct", "ibr_final_label_tr3_pct",
                              "relabel_rate_pct")), "",
               "relabel_rate_pct is a share of retried decisions (WSA only). The share of relabels made with no "
               "change in r (RB 6.4; r is the expected delivery ratio at the keep request) is not reported: r is "
               "fixed within a decision, so that share is always 100%.", ""]
+    lines += ["## IBR by attempt: first proposal vs final proposal vs executed (items 37, 37a)", "",
+              "The primary IBR above is the FINAL-proposal share (each agent-year counted once, on its "
+              "last attempt). Beside it: the FIRST-proposal share (before any retry could change or block "
+              "it) and the EXECUTED share (did a violating action actually reach the water system; with "
+              "on_retry_exhausted = default this is ~0 in strict, placebo and silent).", "",
+              summary_table(("ibr_first_proposal_pct", "ibr_pct", "ibr_executed_pct",
+                             "ibr_first_proposal_tr1_pct", "ibr_first_proposal_tr3_pct",
+                             "ibr_executed_tr1_pct", "ibr_executed_tr3_pct")), ""]
     lines += ["## Executed feasibility violation rate (items 10, 19)", "",
               summary_table(("exec_supply_pct", "exec_cap_pct", "exec_floor_pct", "exec_total_pct")), ""]
     lines += ["## Supply-rule exposure", "", summary_table(("supply_condition_pct", "supply_condition_ub_pct",

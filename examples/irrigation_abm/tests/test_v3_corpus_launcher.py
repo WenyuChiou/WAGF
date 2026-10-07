@@ -162,13 +162,16 @@ def git_repo(tmp_path):
 
 class TestBuildPlan:
     def test_total_count_and_phase_counts(self):
+        # Item 39 (2026-10-07): the PLACEBO arm is dropped from the corpus
+        # (paper_scope_2026-10-06.md section 5), so corpus shrinks from 19
+        # to 14 runs (27 total planned runs, not 32).
         plan = launcher.build_plan(Path("R"), "deadbeef", 4)
-        assert len(plan) == 32
+        assert len(plan) == 27
         phases = [r.phase for r in plan]
         assert phases.count("fql") == 10
         assert phases.count("replays") == 1
         assert phases.count("pilot") == 2
-        assert phases.count("corpus") == 19
+        assert phases.count("corpus") == 14
 
     def test_order_fql_then_replays_then_pilot_then_corpus(self):
         plan = launcher.build_plan(Path("R"), "deadbeef", 4)
@@ -177,7 +180,7 @@ class TestBuildPlan:
         assert plan[10].label == "replays_ab"
         assert [r.label for r in plan[11:13]] == ["pilot_strict_42", "pilot_disabled_42"]
         assert all(r.phase == "corpus" for r in plan[13:])
-        assert len(plan[13:]) == 19
+        assert len(plan[13:]) == 14
 
     def test_fql_seeds_42_to_51_in_order(self):
         plan = launcher.build_plan(Path("R"), "deadbeef", 4)
@@ -185,15 +188,17 @@ class TestBuildPlan:
         assert fql_seeds == list(range(42, 52))
 
     def test_corpus_labels_match_spec_item_16(self):
+        # Item 39 (2026-10-07): no placebo_* labels -- the PLACEBO arm is
+        # dropped from the corpus.
         plan = launcher.build_plan(Path("R"), "deadbeef", 4)
         corpus_labels = [r.label for r in plan if r.phase == "corpus"]
         assert corpus_labels == [
             "strict_43", "strict_44", "strict_45", "strict_46",
             "disabled_43", "disabled_44", "disabled_45", "disabled_46",
-            "placebo_42", "placebo_43", "placebo_44", "placebo_45", "placebo_46",
             "silent_42", "silent_43", "silent_44", "silent_45", "silent_46",
             "feasibility_only_42",
         ]
+        assert not any(label.startswith("placebo") for label in corpus_labels)
 
     def test_all_labels_unique(self):
         plan = launcher.build_plan(Path("R"), "deadbeef", 4)
@@ -248,11 +253,11 @@ class TestBuildPlan:
                 assert run.command[run.command.index("--model") + 1] == "gemma3:4b"
                 assert run.command[run.command.index("--years") + 1] == "42"
 
-    def test_placebo_and_silent_are_strict_governance_with_retry_feedback_mode(self):
+    def test_silent_is_strict_governance_with_retry_feedback_mode(self):
+        # Item 39 (2026-10-07): placebo is dropped from the plan; only
+        # silent remains as a strict-governance / alternate-feedback-mode run.
         plan = launcher.build_plan(Path("R"), "deadbeef", 1)
-        placebo = next(r for r in plan if r.label == "placebo_44")
-        assert placebo.command[placebo.command.index("--governance-mode") + 1] == "strict"
-        assert placebo.command[placebo.command.index("--retry-feedback-mode") + 1] == "placebo"
+        assert not any(r.label.startswith("placebo") for r in plan)
         silent = next(r for r in plan if r.label == "silent_44")
         assert silent.command[silent.command.index("--governance-mode") + 1] == "strict"
         assert silent.command[silent.command.index("--retry-feedback-mode") + 1] == "silent"
@@ -1314,7 +1319,8 @@ class TestCmdRunHappyPaths:
 
         assert rc == 0
         spec = json.loads(Path(captured["argv"][-1]).read_text(encoding="utf-8"))
-        assert len(spec["runs"]) == 19
+        # Item 39 (2026-10-07): 14 corpus runs, not 19 (placebo dropped).
+        assert len(spec["runs"]) == 14
 
     def test_run_skips_done_and_crashed_and_running_entries_launching_only_pending(
         self, monkeypatch, tmp_path, git_repo, capsys,

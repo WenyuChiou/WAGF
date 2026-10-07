@@ -18,9 +18,10 @@ launcher automates on its own.
 
 - `python examples/irrigation_abm/tools/v3_corpus_launcher.py plan --tag <tag>`
   works on an ordinary development tree (it does not require a clean
-  tree or a matching HEAD) and is the fastest way to see the full 32-run
-  list, exact command lines and output directories before anything is
-  tagged.
+  tree or a matching HEAD) and is the fastest way to see the full 27-run
+  list (dated note, 2026-10-07, item 39 of the spec: 32 before the
+  placebo arm was dropped), exact command lines and output directories
+  before anything is tagged.
 - Nobody else is using the GPU for the pilot and corpus phases. Ask
   first; this machine's Ollama instance is shared.
 - `examples/irrigation_abm/README.md`'s "Resuming a crashed run" section
@@ -97,10 +98,22 @@ mistake here is caught immediately rather than discovered mid-run.
 Not scripted anywhere in this launcher (deliberately out of scope for
 WP7): spec 7.4's section-5 CPU sensitivities (minimum-use floor and
 water-right-margin variants, the alternate UB supply envelopes, the
-other calibrated warm-start snapshot). Those are SI-only, reported after
-the corpus, and have no place in the 32-run plan this launcher builds.
+other calibrated warm-start snapshot). Those are available but, per item
+40 (2026-10-07, following `paper_scope_2026-10-06.md` section 5), not
+reported in the paper, and have no place in the 27-run plan this launcher
+builds.
 
-### CPU sensitivities (SI only, outside the 32-run plan)
+### CPU sensitivities (available, not reported in the paper; outside the
+27-run plan)
+
+Dated note (2026-10-07, item 40 of the spec, following
+`paper_scope_2026-10-06.md` section 5: "灌溉 CPU 敏感度 | 第2節的假設 | 0 |
+不做（Wenyu 2026-10-06）；`All` 已跑的結果留著不報"): all four of the CPU
+sensitivities below (and any other irrigation CPU sensitivity, e.g. the
+floor and water-right-margin variants of spec section 5) are AVAILABLE --
+the commands cost nothing to keep and any output already produced stays on
+disk -- but NONE is reported in the paper. This page keeps the commands
+documented for anyone who wants to run or re-check one later.
 
 Each is 10 seeds (42-51), launched directly via `run_fql_baseline.py`
 (the launcher's `build_plan` does not expose these flags), same
@@ -255,6 +268,74 @@ Whatever `--workers N` you settle on here is the value every later
 state file records the first one and refuses a different value after
 that (see section 5).
 
+## 3a. Pre-flight checklist (read now, run NONE of it until Ollama is free)
+
+This section is reference only, for the moment Ollama is actually free for
+this campaign (another person currently shares this machine's instance).
+Do not run anything in this checklist today; it is written so the operator
+has one place to work through right before section 4, instead of
+re-deriving each check from memory under time pressure.
+
+1. **Model present and its digest recorded.** `ollama list` shows the
+   model tag and an ID column (`gemma3:4b`, the model `_llm_command`
+   always requests); copy that ID BY HAND into the campaign's own notes
+   before the pilot. Do not trust `reproducibility_manifest.json`'s own
+   `model_digest` field for this: `broker/core/experiment_runner.py`
+   queries Ollama's `/api/show` endpoint, which does not return a
+   `digest` key at all, so `metadata["model_digest"]` always falls
+   through to `/api/show`'s `modified_at` -- a timestamp, not a content
+   digest (Opus review P3-3, 2026-10-07). A `modified_at` string still
+   catches SOME re-pulls (it changes when the local image is replaced),
+   but it is not the same guarantee as a real digest, and the local tag
+   `gemma3:4b` can point at a different pulled image after an
+   `ollama pull` on this shared machine between campaigns. If the ID on
+   hand does not match whatever was recorded for an earlier pilot or
+   CPU-free check, treat it as a new model until confirmed otherwise.
+2. **`OLLAMA_NUM_PARALLEL` and a throughput probe.** Covered already in
+   section 3 above (`setx OLLAMA_NUM_PARALLEL 4` plus the two
+   `--years 2` probe runs) -- do that step here, immediately before
+   deciding `--workers N` for section 4, not days in advance (the other
+   user's own load on the server changes what a probe from last week
+   would show).
+3. **GPU not on CPU fallback.** `ollama ps` must read 100% GPU for the
+   loaded model (the 2026-05-13 incident: a driver update silently moved
+   inference to CPU, about 12x slower, four hours lost before anyone
+   noticed -- memory notes `ollama_gpu_cpu_fallback_fix_2026-05-13.md`,
+   the cross-project GPU-detection failure and its 4-step fix, and
+   `paper1b_infra_incident_2026-05-13.md`, the specific incident this run
+   hit, fixed via `CUDA_VISIBLE_DEVICES`). If it reads CPU, check
+   `CUDA_VISIBLE_DEVICES` is set and visible to the Ollama server process
+   (`echo %CUDA_VISIBLE_DEVICES%` in the same shell Ollama was started
+   from) before restarting the server; do not just restart and hope --
+   confirm `ollama ps` again after any fix, same command, before
+   launching the pilot.
+4. **Windows task protection for a multi-day run.** See section 10 below
+   for the exact elevated-PowerShell commands (`Get-ScheduledTask` /
+   `Disable-ScheduledTask`, the Windows Update pause registry write, and
+   saving the pre-change state first) -- these are USER steps the
+   operator runs by hand, never something this runbook, the launcher, or
+   an agent changes on its own. Do this immediately before leaving
+   section 4 or section 7 running unattended, not earlier (a task
+   disabled days ahead of the run is a task someone may forget to
+   re-enable, and a Windows Update pause has a finite duration).
+5. **Backup coverage of the results folder.** Section 9 below covers the
+   existing nightly `backup_wagf_to_gdrive.ps1` robocopy, already paired
+   to `examples/irrigation_abm/results` (this launcher's default results
+   root). Run it by hand right after the pilot and after the gate passes,
+   as section 9 says, not only at its 04:30 schedule.
+6. **The launcher's state dir is NOT covered by that backup.** The
+   default `~/.wagf_launcher/` (override `--state-dir`) holds the chain
+   PIDs, per-run exit records, and the pilot-gate pass/fail result keyed
+   to this commit's sha8 -- the bookkeeping `resume` and `run corpus`
+   depend on to avoid double-launching a run. It lives under the user
+   profile, outside `examples/irrigation_abm/results`, so the robocopy of
+   item 5 does not reach it. Before a multi-day unattended run, copy
+   `~/.wagf_launcher/` somewhere also backed up (or note its path to
+   Wenyu) so a lost state dir does not turn into "which runs were already
+   launched" guesswork; this is a documentation gap to flag, not
+   something fixed here (fixing it would mean editing the nightly backup
+   script, out of scope for this runbook).
+
 ## 4. Pilot (GPU, 2 runs)
 
 ```
@@ -280,18 +361,39 @@ Once both pilot runs show `done`:
 python examples/irrigation_abm/tools/v3_corpus_launcher.py gate --tag irrigation-v3-YYYY-MM-DD
 ```
 
-`gate` always runs `p5c-sample` first, which writes
-`v3_pilot_p5c_<sha8>/p5c_review_template.json` and the sampled prompt
-texts under `v3_pilot_p5c_<sha8>/p5c_prompts/` inside the results root.
-The first time you run `gate`, the review file does not exist yet, so
-the launcher prints where the template is and what to do, then still
-runs `pilot-gate` (which will not pass P5(c) without it).
+`gate` always runs `p5c-sample` first (`v3_metrics.py (p5c_review_template,
+select_p5c_sample)`), which writes the review package for Wenyu:
+`v3_pilot_p5c_<sha8>/p5c_review_template.json` -- each pilot run's label
+and `git_commit`, and for each of its 10 sampled prompts (5 Upper Basin, 5
+Lower Basin, years 2019/2028/2034/2048/2060, the Lower Basin picks
+rotating through the three clusters) the agent, year, the sha256 of the
+logged prompt text, a blank `sentences_without_source` to fill in, a free
+`notes` field, and the fixed `instructions` string that doubles as the
+checklist -- plus the rendered prompt TEXTS themselves under
+`v3_pilot_p5c_<sha8>/p5c_prompts/`, so the reviewer never has to go dig
+them out of `raw/irrigation_farmer_traces.jsonl` by hand. This is 20
+prompts total (10 per run), matching spec section 4 P5(c); it is a sample
+of FIRST-ATTEMPT prompts (the claim-map reading sample), not a separate
+sample of retry prompts -- a retry a sampled decision happened to need is
+still visible inside that same decision's full governance-audit row, but
+there is no dedicated "retry examples" field in the package today, so do
+not expect one. The first time you run `gate`, the review file does not
+exist yet, so the launcher prints where the template is and what to do,
+then still runs `pilot-gate` -- which is written to FAIL P5(c) outright
+when no review record is supplied (`v3_metrics.py (gate_p5)`: `review is
+None` sets `c_ok = False` unconditionally, so the gate's overall `passed`
+can never be True without a signed record; this is the hard refusal, not
+a soft warning).
 
 A reviewer who did not write this code reads the sampled prompts, fills
 in `reviewer`, `reviewer_wrote_code` (must be `false`) and, per sampled
 prompt, `sentences_without_source`, and saves the filled copy as
 `v3_pilot_p5c_<sha8>/p5c_review.json` (or anywhere else, passed via
-`--p5c-review <path>`). Rerun `gate` once that file exists.
+`--p5c-review <path>`). `check_p5c_review` additionally refuses a record
+whose labels, commits, sampled (agent, year) list or prompt hashes do not
+match the actual pilot pair byte-for-byte, so an old or hand-edited review
+file cannot be reused across a re-tagged pilot. Rerun `gate` once that
+file exists.
 
 ## 6. The gate
 
@@ -317,7 +419,7 @@ is on record for the exact commit it resolves, so skipping straight to a
 new pilot pair without redoing section 2 would simply fail later, at
 `gate` or `run corpus`, instead of being caught here.
 
-## 7. The 19 post-gate runs (GPU)
+## 7. The 14 post-gate runs (GPU)
 
 Only after a PASSED gate:
 
@@ -327,13 +429,17 @@ python examples/irrigation_abm/tools/v3_corpus_launcher.py run corpus --tag irri
 
 `<N>` must be the same value used for the pilot; the launcher refuses a
 different one. This launches, in order, strict and disabled seeds
-43-46, placebo and silent seeds 42-46, and the feasibility-only seed-42
-run (spec item 16), 19 runs chained in one detached process. Spec 7.6's
+43-46, silent seeds 42-46, and the feasibility-only seed-42 run (spec
+item 16), 14 runs chained in one detached process (dated note,
+2026-10-07, item 39 of the spec: the placebo arm, seeds 42-46, is
+dropped from this phase; before this note it was 19 runs). Spec 7.6's
 budget estimate (about 63 plus-or-minus 16 GPU hours for the 21 LLM
-runs, pilot included) is re-estimated from the pilot pair's own measured
-time before this phase starts; if the pilot took much longer or shorter
-than expected, revisit the estimate before leaving this phase running
-unattended overnight.
+runs, pilot included) scales down roughly proportionally for 16 LLM
+runs (pilot included) to about 48 plus-or-minus 12 GPU hours, but is
+still RE-ESTIMATED from the pilot pair's own measured time before this
+phase starts, exactly as spec 7.6 requires; if the pilot took much
+longer or shorter than expected, revisit the estimate before leaving
+this phase running unattended overnight.
 
 ## 8. Resuming a crashed run
 
