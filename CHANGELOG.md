@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Batch reflection with one agent per batch reads replies filed under
+  another key.** `ReflectionEngine.parse_batch_reflection_response` now
+  accepts a one-key JSON reply with a non-blank string value when the batch
+  holds exactly one agent id, whatever the key is called (small models often
+  write `"Agent_1"` or the tail of a compound id). Before, such replies were
+  dropped as "no readable reply" (about 40 percent of irrigation v3
+  reflections with gemma3:4b, which uses batch size 1). Multi-agent batches
+  are unchanged, but a flood run whose last reflection batch holds one agent
+  can now read a reply that was dropped before, so a real-LLM rerun at this
+  commit does not follow exactly the same path as earlier corpora. Mock runs
+  are unaffected (the mock reply's value is an int, not a string). Each
+  fallback read is logged.
+
 ### Added
 
 - **`global_config.governance.retry_feedback_mode: silent`**, a third
