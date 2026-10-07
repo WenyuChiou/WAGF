@@ -265,6 +265,7 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "decider_columns",           # agent_config.get_audit_decider_columns (PR-8)
     "attempt_columns",           # agent_config.get_audit_attempt_columns
     "state_columns",             # agent_config.get_audit_state_columns
+    "retry_prompt_columns",      # agent_config.get_audit_retry_prompt_columns
 }
 
 # PR-4: the single opt-in parsing-hardening flag, default-OFF, same fail-open

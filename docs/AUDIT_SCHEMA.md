@@ -843,6 +843,7 @@ evidence and document the schema era in any paper or replication package.
 | Validator names | no | yes | no |
 | Per-issue metadata such as `expected_terminal` | no | yes | no |
 | Full prompts | no | yes, if the trace writer includes them | no |
+| Full text sent on each governance RETRY attempt (not just the first prompt) | no | yes, under `audit.retry_prompt_columns` (`retry_prompts`: a list, one entry per retry attempt in order, `[]` for a decision that never retried; the EXACT text sent that attempt under whichever `retry_feedback_mode` is active -- full, placebo and silent each record what was actually sent, not a reconstruction) | no (flag OFF) |
 | World commit deltas | yes, only when key-gated columns appear | yes | no |
 | Per-attempt retry sequence | yes, under `audit.initial_proposal_columns` (`attempt_skills`) | yes | no |
 | Appraisal-label change from first to final attempt | yes, under `audit.initial_proposal_columns` (`final_labels`, `appraisal_drift` e.g. `WSA_LABEL:H>M`, empty when unchanged, not retried, or when either end carries no labels such as an unparsed final attempt; `appraisal_drifted` bool) | yes | no |

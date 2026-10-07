@@ -31,17 +31,85 @@ global_config:
   # [Universe Physics] - LLM & System Generation Settings
   llm:
     model: "command-line-override" # NOTE: Overridden by --model in run scripts
-    temperature: 0.8             # Ollama default (align with Group A)
-    top_p: 0.9                   # Ollama default
-    top_k: 40                    # Ollama default
+    # 2026-10 WRR26 rerun (spec item 37e, "flood sends gemma3:4b's model-file
+    # defaults explicitly ... as irrigation does (spec 7.3), so the manifest
+    # records them; this is the same effective sampling as WRR26 sending
+    # none"): temperature/top_p/top_k are gemma3:4b's own Ollama Modelfile
+    # defaults, written here explicitly (not left for Ollama to fill in
+    # silently) so a run's manifest records the sampling settings actually
+    # in effect, matching examples/irrigation_abm/config/agent_types.yaml.
+    # Previously 0.8/0.9/40 here (hand-set, not the Ollama default despite
+    # the old comments), then removed entirely on 2026-10 (that removal's
+    # own comment is superseded by this one); the untracked wagf-main-runs
+    # config_variants/defaults/ variant made the same removal ad hoc on
+    # 2026-09-23. No `seed` key is added: Ollama sampling stays UNSEEDED
+    # (disclosed), as irrigation's own comment states. See
+    # docs/flood_wrr_rerun_runbook.md.
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 64
     num_ctx: 8192            # Context window size (Optimized for local stability)
     num_predict: 4096         # Max tokens to generate (Extended for DeepSeek R1 thinking)
     max_retries: 2            # Infrastructure resilience
-    
+
   # [System Governance] - Global Rules
   governance:
     max_retries: 3
     max_reports_per_retry: 3
+    # 2026-10 WRR26 rerun (PI decision 2026-10-06 item 5, "8 appraisal freeze
+    # on retry (as irrigation)"): every thinking rule reads each construct
+    # label as FIRST STATED in the decision, so relabelling on retry cannot
+    # pass a rule. Generic framework option (broker/core/_appraisal_freeze.py),
+    # default false; irrigation WP3.8 turns it on the same way.
+    appraisal_freeze: true
+    # 2026-10 WRR26 rerun (coordinator decision on open point 2, following
+    # irrigation's own WP3.5/spec 3.5, examples/irrigation_abm/config/
+    # agent_types.yaml): no "[Rule: <id>] " prefix in rule messages, so a
+    # retry prompt names neither a label value nor an internal rule id.
+    # Generic framework option (framework default true);
+    # AgentValidator._rule_message reads this off self.rule_id_prefix.
+    rule_id_prefix: false
+    # Following irrigation's own WP4 (spec 3.7, items 11 and 15): a retry
+    # report names the blocked skill in plain words ("elevate house"),
+    # never its internal skill id ("elevate_house"). Generic framework
+    # option (framework default false).
+    plain_action_names: true
+
+  # Retry-prompt provenance (item 13): persist the actual retry-prompt text
+  # in the raw JSONL trace so a reviewer can see what the agent was told on
+  # a retry (the trace otherwise records only the FIRST prompt). Generic
+  # framework option (global_config.audit.retry_prompt_columns), default
+  # false everywhere else; the key never reaches the audit CSV (trace_to_csv_row
+  # copies named keys only), so only this domain's raw/*.jsonl grows.
+  audit:
+    retry_prompt_columns: true
+    # Post-run IBR (irrigation v3 spec item 37e, the shared IBR family):
+    # this records the exact first-parsed-attempt labels (initial_labels)
+    # so the analysis function reads them directly instead of inferring a
+    # proxy from retry_count + failed_rules (the pre-rerun corpus's only
+    # option; see flood_wrr_rerun_runbook.md section 5). Generic framework
+    # option (P0-1a), default false; irrigation turns the SAME key on for
+    # the SAME reason.
+    initial_proposal_columns: true
+    # Following irrigation's own spec item 24 fix (CRITICAL 2): the audit
+    # schema must not depend on whether a given run happened to hit a parse
+    # failure. Without this, SkillBrokerEngine._write_aborted_sentinel_trace
+    # writes NO row at all for a decision whose last attempt never parsed
+    # (the PR-3 sentinel is itself gated on this flag) -- so a
+    # fully-aborted agent-year could be silently MISSING from
+    # household_governance_audit.csv entirely, not merely unreadable,
+    # shrinking flood_ibr_v2's denominator without a trace of it. Also
+    # gives execution_path/executed_skill on every row. Generic framework
+    # option, default false.
+    corrected_status_columns: true
+    # Following irrigation's own WP3 (spec item 19): per attempt, the
+    # appraisal labels and the ids of the rules that blocked it
+    # (attempt_labels, attempt_failed_rules, in step with attempt_skills),
+    # and appraisal_relabeled. Needed so flood_ibr_v2's "first-stated"
+    # label can count a construct first stated on a LATER attempt
+    # (irrigation's own _first_stated logic), not just attempt 0. Generic
+    # framework option, default false.
+    attempt_columns: true
 
 
 # =============================================================================
@@ -73,10 +141,14 @@ shared:
           construct: "CP_LABEL",
           reason_hint: "One sentence summary of how well you think you can cope or act.",
         }
-      - { key: "decision", type: "choice", required: true, description: "Enter the numeric ID (1-4) of your chosen action." }
-      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
-      - { key: "secondary_decision", type: "secondary_choice", required: false }
-      - { key: "secondary_magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
+      # 2026-10 WRR26 rerun (item 4, row C5): "description" removed so the
+      # placeholder falls back to ResponseFormatBuilder's dynamic
+      # "Numeric ID, choose ONE from: {valid_choices_text}" -- the old
+      # literal "(1-4)" was wrong for an elevated household's 3-option menu.
+      - { key: "decision", type: "choice", required: true }
+      # magnitude_pct / secondary_decision / secondary_magnitude_pct removed
+      # (item 4, row C5): the flood model never read them (multi_skill.enabled
+      # is false below); WRR26 has no second action or magnitude field.
 
 
 
@@ -87,13 +159,29 @@ household:
   description: "Household agents making adaptation decisions based on PMT"
   psychological_framework: pmt   # Phase 6J-A: explicit (was inferred from the "household" name substring)
   llm_params:
-    # Inherits num_ctx/num_predict from global_config.llm
+    # Inherits temperature/top_p/top_k/num_ctx/num_predict from
+    # global_config.llm (gemma3:4b's own Modelfile defaults, written there
+    # explicitly as of spec item 37e; see that block's comment).
     # temperature: 1.0    # Higher = more diverse, Lower = more deterministic
     # top_p: 0.95         # Nucleus sampling threshold
     # top_k: 50           # Top-k sampling
 
   # Prompt Template — loaded from external file for maintainability
   # See config/prompts/household.txt for the full prompt
+  #
+  # Flood design record item 5: household.txt's FIRST
+  # line is "{system_prompt}{priority_section}{narrative_persona}", not just
+  # "{narrative_persona}". Without "{system_prompt}" somewhere in the
+  # template, TieredContextBuilder.format_prompt (broker/components/context/
+  # tiered.py) auto-prepends "{system_prompt}\n\n{priority_section}\n\n" --
+  # both vars render empty for flood (no SystemPromptProvider or
+  # PrioritySchemaProvider in its provider list), so that fallback used to
+  # leave 4 bare blank lines at the start of every real prompt sent to the
+  # LLM (confirmed via a real trace, not a render-only artifact). Do not
+  # remove this prefix from household.txt without re-reading
+  # examples/single_agent/tests/test_prompt_rendering.py, the regression
+  # guard that runs a real scripted-mock simulation and asserts no prompt
+  # (first attempt or retry) starts with "\n".
   prompt_template_file: "config/prompts/household.txt"
 
   # Parsing & Skill Mapping
@@ -339,12 +427,26 @@ household:
   governance:
     strict:
       thinking_rules:
+        # 2026-10 WRR26 rerun (PI decision 2026-10-06 item 5 / item 10):
+        # R1 redefined as threat H/VH AND coping NOT VL/L -- PMT's
+        # non-protective-response case (Grothmann and Reusswig 2006 p.106),
+        # not threat alone. `values: ["M","H","VH"]` on CP_LABEL expresses
+        # "coping not VL or L" (the engine has no categorical NOT-IN; see
+        # broker/validators/agent/agent_validator.py _run_rule_set). Message
+        # is neutral (item 9): states the judgment in plain words, names no
+        # label code, and does not invite relabelling -- the appraisal freeze
+        # above makes relabelling moot anyway.
         - {
             id: extreme_threat_block,
-            construct: TP_LABEL,
-            when_above: ["H", "VH"],
+            conditions:
+              [
+                { construct: TP_LABEL, values: ["H", "VH"] },
+                { construct: CP_LABEL, values: ["M", "H", "VH"] },
+              ],
             blocked_skills: ["do_nothing"],
             level: ERROR,
+            message: "Inaction blocked under the rule on severe-threat response: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low, and doing nothing is not available under this rule in that case.",
+            suggestion: "Under this rule, doing nothing is not available in this decision.",
           }
         # Realism Rule: Block complex actions if self-efficacy (Coping) is too low
         - {
@@ -355,20 +457,31 @@ household:
             level: WARNING,
             message: "Low coping appraisal: agent perceives low self-efficacy for complex actions.",
           }
+        # 2026-10 WRR26 rerun (item 9): neutral retry text, irrigation style
+        # (WP3.7) -- states the judgment made at the start of the decision in
+        # plain words, names no label code, carries no instruction to change it.
         - {
             id: relocation_threat_low,
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
-            message: "Relocation blocked: Threat level is too low to justify abandoning property.",
+            message: "Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.",
+            suggestion: "Under this rule, relocating is not available in this decision.",
           }
         - {
             id: elevation_threat_low,
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            # Template syntax: {context.TP_LABEL} will be replaced with actual value
-            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
+            # 2026-10 WRR26 rerun (item 7, item 9): replaces the unfilled
+            # "{context.TP_LABEL}" placeholder bug -- AgentValidator._run_rule_set
+            # never ran thinking-rule messages through the {context.X}
+            # formatter (broker/validators/governance/base_validator.py has
+            # that formatter; this rule path does not call it), so the retry
+            # prompt showed the literal brace string. Fixed by removing the
+            # placeholder rather than wiring the formatter, as irrigation does.
+            message: "Elevation blocked under the rule on elevating without threat: at the start of this decision you judged the flood threat to be low, and elevating when threat is judged low is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
       identity_rules:
         - {
@@ -395,6 +508,12 @@ household:
           }
 
     # Ablation: strict minus extreme_threat_block (Paper 1b R2)
+    # This profile's own copies of relocation_threat_low/elevation_threat_low
+    # had not been updated alongside strict/grounded_v1 and still carried the
+    # unfilled "{context.TP_LABEL}" placeholder bug (item 7) and the old,
+    # label-pointing wording (item 9). Brought in line with strict's
+    # neutral text, not run in this corpus (it is the R1-ablation profile,
+    # kept consistent so it is not a stale landmine).
     strict_no_etb:
       thinking_rules:
         - {
@@ -410,14 +529,16 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
-            message: "Relocation blocked: Threat level is too low to justify abandoning property.",
+            message: "Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.",
+            suggestion: "Under this rule, relocating is not available in this decision.",
           }
         - {
             id: elevation_threat_low,
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
+            message: "Elevation blocked under the rule on elevating without threat: at the start of this decision you judged the flood threat to be low, and elevating when threat is judged low is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
       identity_rules:
         - {
@@ -439,12 +560,19 @@ household:
     # Select with `--governance-mode grounded_v1`.
     grounded_v1:
       thinking_rules:
+        # Kept verbatim with the redefined `strict` rule set above (not run
+        # in this corpus; kept consistent so it is not a stale landmine).
         - {
             id: extreme_threat_block,
-            construct: TP_LABEL,
-            when_above: ["H", "VH"],
+            conditions:
+              [
+                { construct: TP_LABEL, values: ["H", "VH"] },
+                { construct: CP_LABEL, values: ["M", "H", "VH"] },
+              ],
             blocked_skills: ["do_nothing"],
             level: ERROR,
+            message: "Inaction blocked under the rule on severe-threat response: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low, and doing nothing is not available under this rule in that case.",
+            suggestion: "Under this rule, doing nothing is not available in this decision.",
           }
         - {
             id: low_coping_block,
@@ -459,14 +587,16 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
-            message: "Relocation blocked: Threat level is too low to justify abandoning property.",
+            message: "Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.",
+            suggestion: "Under this rule, relocating is not available in this decision.",
           }
         - {
             id: elevation_threat_low,
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
+            message: "Elevation blocked under the rule on elevating without threat: at the start of this decision you judged the flood threat to be low, and elevating when threat is judged low is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
         # WORLD-GROUNDED. The first condition reads `flood_event`, which the
         # simulation publishes in the environment context each year; the agent

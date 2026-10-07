@@ -489,6 +489,7 @@ class RetryMixin:
         feasible_by_attempt: Optional[List] = None,
         attempt_labels: Optional[List] = None,
         attempt_failed_rules: Optional[List] = None,
+        attempt_prompts: Optional[List] = None,
     ):
         """Run governance validation retry loop.
 
@@ -527,6 +528,12 @@ class RetryMixin:
         with ``attempt_skills`` -- the attempt's construct labels (a dict) and
         the sorted ids of the rules that returned an ERROR on it; ``None``
         for an attempt that produced no parsable proposal.
+
+        Retry-prompt text (``global_config.audit.retry_prompt_columns``,
+        default off): when ``attempt_prompts`` is supplied (a list, starting
+        empty), it receives exactly one entry per retry attempt -- the EXACT
+        text sent that attempt, under whichever ``retry_feedback_mode`` is
+        active. Not reset on early exit; simply not appended to again.
         """
         # The five cost keys are seeded by _invoke_llm_with_retries, which in
         # production always runs first — but this method is also entered
@@ -690,6 +697,13 @@ class RetryMixin:
                     framing=getattr(self, "_intervention_framing", "legacy"),
                     **_feasible_kw,
                 )
+            # global_config.audit.retry_prompt_columns (default off): record
+            # the EXACT text sent this attempt, whichever branch above built
+            # it (silent/placebo/full) -- so a reviewer can see what the
+            # agent was actually told on retry, not a reconstruction.
+            if attempt_prompts is not None:
+                attempt_prompts.append(retry_prompt)
+
             res = llm_invoke(retry_prompt)
             if "llm_calls" in total_llm_stats:
                 total_llm_stats["llm_calls"] += 1
