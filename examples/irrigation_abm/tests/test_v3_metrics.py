@@ -509,6 +509,175 @@ def test_ibr_first_proposal_final_proposal_executed_hand_computed():
 
 
 # =============================================================================
+# Item 37d (2026-10-07): the primary IBR steps back to the agent's LAST
+# PARSED attempt when the literal last attempt did not parse (status
+# REJECTED_FALLBACK), instead of treating it as no violation. Hand-built
+# Decisions, no CSV round-trip needed (ibr_metrics reads only attempts,
+# first_wsa and executed_skill).
+# =============================================================================
+
+def _stepback_decision(agent: str, skills: Sequence[Optional[str]], wsa: str) -> vm.Decision:
+    """Like ``_ibr_decision`` (frozen WSA throughout, no relabel), but
+    ``skills`` may end in one or more ``None`` entries: an attempt that did
+    not parse. ``skills`` itself must not be empty (an ABORTED decision,
+    with no attempts at all, is a separate, pre-existing case)."""
+    attempts = tuple(
+        vm.Attempt(s, {"WSA_LABEL": wsa}, ()) if s is not None else vm.Attempt(None, None, None)
+        for s in skills
+    )
+    last_parsed = next((s for s in reversed(skills) if s is not None), None)
+    unparsed_tail = skills[-1] is None
+    return vm.Decision(
+        agent_id=agent, year=1,
+        status="REJECTED_FALLBACK" if unparsed_tail else "APPROVED",
+        # docs/AUDIT_SCHEMA.md: execution_path = "fallback" is the real value
+        # for status REJECTED_FALLBACK ("rejected_default" is a different
+        # path -- a REJECTED row under on_retry_exhausted = default).
+        execution_path="fallback" if unparsed_tail else "approved",
+        executed_skill=KEEP, proposed_skill=last_parsed or KEEP,
+        attempts=attempts, retry_count=len(skills) - 1, format_retries=0, llm_success=True,
+        keep_request_af=1000.0, expected_at_keep_af=1000.0, supply_ratio=1.0, physical_ratio=1.0,
+        first_wsa=wsa, first_aca=None, final_wsa=None if unparsed_tail else wsa,
+        wsa_relabeled=False, error_messages="", timestamp="2026-10-07T00:00:00",
+    )
+
+
+def test_primary_ibr_steps_back_to_last_parsed_attempt():
+    """Spec item 37d: three hand-built decisions pin the step-back rule and
+    its two companion counts."""
+    decisions = [
+        # (a) increase, increase, unparsed: steps back to increase; WSA H
+        # -> a TR1 violation found ONLY by stepping back (the literal last
+        # attempt is unparsed, so final_proposal alone would read None).
+        _stepback_decision("a", [INC, INC, None], wsa="H"),
+        # (b) increase, keep, unparsed: steps back to keep -> no violation,
+        # even though the literal last attempt is also unparsed.
+        _stepback_decision("b", [INC, KEEP, None], wsa="H"),
+        # (c) unparsed only: no parsed attempt anywhere -> no violation
+        # (same as an unreadable final_proposal), but still a
+        # last-attempt-unparsed row. The WSA here is a hand-built
+        # convenience (Decision.first_wsa is set directly, not derived from
+        # attempts): through parse_decision a non-ABORTED row's first
+        # attempt always parses, so a real "every attempt unparsed" audit
+        # row with a stated WSA is unreachable -- this case exists only to
+        # pin last_parsed_proposal's defensive None return.
+        _stepback_decision("c", [None], wsa="H"),
+    ]
+    m = vm.ibr_metrics(decisions)
+    assert m["decisions"] == 3
+    assert (m["ibr_tr1_count"], m["ibr_tr3_count"]) == (1, 0)
+    assert m["ibr_pct"] == pytest.approx(100 / 3)
+    assert m["ibr_pct"] == pytest.approx(m["ibr_tr1_pct"] + m["ibr_tr3_pct"])
+    # all three decisions end on an unparsed attempt (unlike unreadable_
+    # final_proposals, which would also count a fully-aborted decision --
+    # none of these is aborted, so the two counts agree here).
+    assert m["last_attempt_unparsed_n"] == 3
+    assert m["unreadable_final_proposals"] == 3
+    # only (a) is a violation found exclusively through the step-back.
+    assert m["ibr_stepback_violations_n"] == 1
+
+
+def test_primary_ibr_stepback_mirrors_tr3():
+    """Same shape, the TR3 (decrease, low WSA) mirror of case (a)."""
+    decisions = [_stepback_decision("d", [DEC, DEC, None], wsa="L")]
+    m = vm.ibr_metrics(decisions)
+    assert (m["ibr_tr1_count"], m["ibr_tr3_count"]) == (0, 1)
+    assert (m["last_attempt_unparsed_n"], m["ibr_stepback_violations_n"]) == (1, 1)
+
+
+def test_primary_ibr_stepback_does_not_affect_other_companions():
+    """Item 37d changes only the primary (step-back) count: the executed
+    share, the first-proposal share and the final-label IBR still read the
+    literal last attempt / first attempt / executed skill, so an unparsed
+    literal last attempt leaves them at their pre-item-37d values."""
+    decisions = [_stepback_decision("a", [INC, INC, None], wsa="H")]
+    m = vm.ibr_metrics(decisions)
+    assert m["ibr_tr1_count"] == 1          # found via step-back
+    assert m["ibr_first_proposal_tr1_count"] == 1   # attempt 0 was already an increase under WSA H
+    assert m["ibr_executed_tr1_count"] == 0  # executed_skill is KEEP in this fixture
+    assert m["ibr_final_label_tr1_pct"] == 0.0  # final_wsa is None (unparsed last attempt)
+    assert m["unreadable_final_proposals"] == 1  # final_proposal (literal last attempt) is still None
+
+
+def _strict_decisions_with_fallback_tr1(agent_year: Tuple[str, int] = ("LB1", 1)
+                                        ) -> Dict[Tuple[str, int], Dict[str, Any]]:
+    """STRICT_DECISIONS with ``agent_year`` replaced by a real
+    REJECTED_FALLBACK row (execution_path "fallback"): two parsed
+    increase attempts under WSA H (a live TR1 block each time), then an
+    unparsed last attempt -- the CSV-round-trip shape of item 37d's
+    worked example."""
+    decisions = dict(STRICT_DECISIONS)
+    decisions[agent_year] = dict(
+        attempts=[(INC, {"WSA_LABEL": "H", "ACA_LABEL": "M"}, [TR1]),
+                 (INC, {"WSA_LABEL": "H", "ACA_LABEL": "M"}, [TR1]),
+                 (None, None, None)],
+        executed=KEEP, status="REJECTED_FALLBACK", path="fallback")
+    return decisions
+
+
+def test_primary_ibr_steps_back_through_csv_round_trip(tmp_path):
+    """Item 37d through the real audit CSV / ``parse_decision`` path (not a
+    hand-built ``Decision``): a REJECTED_FALLBACK row whose last attempt is
+    unparsed but an earlier one parsed as a TR1 violation."""
+    run = vm.load_run(fixture_run(tmp_path, "strict", _strict_decisions_with_fallback_tr1()))
+    d = run.decisions[("LB1", 1)]
+    assert d.status == "REJECTED_FALLBACK" and d.execution_path == "fallback"
+    assert not d.aborted and d.last_attempt_unparsed
+    assert d.final_proposal is None and d.last_parsed_proposal == INC and d.first_wsa == "H"
+    m = vm.ibr_metrics(run.ordered())
+    # The original (LB1, 1) (d3) contributed 0 violations (final was KEEP);
+    # replacing it with this fallback row adds exactly one TR1 violation,
+    # found only by the step-back, beside d8's pre-existing one; TR3 (d2)
+    # is untouched.
+    assert (m["ibr_tr1_count"], m["ibr_tr3_count"]) == (2, 1)
+    assert m["last_attempt_unparsed_n"] == 1
+    assert m["ibr_stepback_violations_n"] == 1
+
+
+def test_stepback_violations_never_exceed_unparsed_rows(strict_run, disabled_run, tmp_path):
+    """Item 37d invariant: ``ibr_stepback_violations_n`` counts a SUBSET of
+    ``last_attempt_unparsed_n`` (a step-back violation requires a
+    last-attempt-unparsed row; the converse need not hold -- cases (b) and
+    (c) of the hand-built test above are unparsed-tail rows with no
+    violation), checked over several differently-shaped runs."""
+    hand_built = vm.ibr_metrics([
+        _stepback_decision("a", [INC, INC, None], wsa="H"),
+        _stepback_decision("b", [INC, KEEP, None], wsa="H"),
+        _stepback_decision("c", [None], wsa="H"),
+        _stepback_decision("d", [DEC, DEC, None], wsa="L"),
+    ])
+    assert hand_built["ibr_stepback_violations_n"] <= hand_built["last_attempt_unparsed_n"]
+    for run in (strict_run, disabled_run):  # no unparsed-tail rows: 0 <= 0
+        m = vm.ibr_metrics(run.ordered())
+        assert m["ibr_stepback_violations_n"] <= m["last_attempt_unparsed_n"]
+    fallback_run = vm.load_run(
+        fixture_run(tmp_path, "strict", _strict_decisions_with_fallback_tr1(), name="fallback_check"))
+    m = vm.ibr_metrics(fallback_run.ordered())
+    assert m["ibr_stepback_violations_n"] <= m["last_attempt_unparsed_n"]
+
+
+def test_ibr_metrics_checks_the_unreadable_split_invariant():
+    """Item 37d: ``ibr_metrics`` itself raises if ``unreadable_final_proposals``
+    ever disagreed with ``#{ABORTED rows} + last_attempt_unparsed_n`` -- the
+    only two disjoint reasons ``final_proposal`` can be None. Exercised here
+    directly over a mix of an ABORTED decision, an unparsed-tail decision
+    and an ordinary one; the check passes silently (no raise) when the
+    split is consistent, which it always is by construction."""
+    aborted = vm.Decision(
+        agent_id="e", year=1, status="ABORTED", execution_path="aborted",
+        executed_skill=None, proposed_skill="", attempts=(), retry_count=0, format_retries=0,
+        llm_success=None, keep_request_af=None, expected_at_keep_af=None, supply_ratio=None,
+        physical_ratio=None, first_wsa=None, first_aca=None, final_wsa=None, wsa_relabeled=False,
+        error_messages="", timestamp="2026-10-07T00:00:00",
+    )
+    decisions = [_stepback_decision("a", [INC, INC, None], wsa="H"), aborted,
+                _stepback_decision("d", [KEEP], wsa="M")]
+    m = vm.ibr_metrics(decisions)  # would raise MetricsError on a split mismatch
+    assert m["unreadable_final_proposals"] == 2  # "a" (unparsed tail) and the aborted row
+    assert m["last_attempt_unparsed_n"] == 1     # "a" only; the aborted row has no attempts at all
+
+
+# =============================================================================
 # Items 10, 19: executed feasibility violations; census; exposure; agreement
 # =============================================================================
 
