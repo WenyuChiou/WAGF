@@ -982,6 +982,31 @@ class Decision:
         return self.attempts[0].skill if self.attempts else None
 
     @property
+    def last_attempt_unparsed(self) -> bool:
+        """Spec item 37d: True when this decision has at least one attempt
+        and the literal LAST one did not parse (status REJECTED_FALLBACK
+        in irrigation). False for an ABORTED/ABORTED_EXCEPTION row (no
+        attempts at all: a different, pre-existing category, counted
+        under ``unreadable_final_proposals`` but not this one) and for a
+        decision whose last attempt parsed."""
+        return bool(self.attempts) and not self.attempts[-1].parsed
+
+    @property
+    def last_parsed_proposal(self) -> Optional[str]:
+        """Spec item 37d: step back through ``attempts``, most recent
+        first, to the latest one that parsed. None only when no attempt
+        parsed at all (an ABORTED/ABORTED_EXCEPTION row, or -- in a
+        hand-built edge case that cannot occur through ``parse_decision``,
+        since a non-ABORTED row's first attempt always parses -- every
+        attempt unparsed); such a decision has no readable proposal under
+        either rule and violates nothing, same as ``final_proposal``'s
+        None case."""
+        for attempt in reversed(self.attempts):
+            if attempt.parsed:
+                return attempt.skill
+        return None
+
+    @property
     def retried(self) -> bool:
         return self.retry_count > 0
 
@@ -1316,13 +1341,29 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
     """Primary IBR (item 37a, 2026-10-06, decides the primary is the FINAL
     proposal -- the last attempt; supersedes item 19's wording, not its
     arithmetic -- item 19's final-proposal/first-WSA formula is unchanged):
-    each agent-year counts ONCE, judged on its LAST attempt (final
-    proposal), against the WSA first stated (item 28); a decision whose
-    retries ran out keeps its blocked proposal as final and counts once,
-    never "+3" for repeated retries (item 37a). TR1 and TR3 separately and
-    summed, over all decisions (the denominator is every agent-year; the
-    older conditional denominators are RETIRED outright, item 37 -- not
-    kept anywhere as an SI row; see ``docs/v3_metrics.md`` section 13).
+    each agent-year counts ONCE, judged on ``lp(d)``, its LAST PARSED
+    attempt (item 37a + item 37d; ``Decision.last_parsed_proposal``),
+    against the WSA first stated (item 28); a decision whose retries ran
+    out keeps its blocked proposal as final and counts once, never "+3"
+    for repeated retries (item 37a). TR1 and TR3 separately and summed,
+    over all decisions (the denominator is every agent-year; the older
+    conditional denominators are RETIRED outright, item 37 -- not kept
+    anywhere as an SI row; see ``docs/v3_metrics.md`` section 13).
+
+    Item 37d (2026-10-07): ``lp(d)`` equals the literal last attempt
+    (``final_proposal``, ``final(d)`` in the docs) except when that
+    attempt could not be parsed (status REJECTED_FALLBACK), in which case
+    it steps back through ``attempts``, most recent first, to the latest
+    one that DID parse, instead of treating the decision as no violation.
+    Two counts beside the primary number report this: ``last_attempt_unparsed_n``
+    (decisions whose literal last attempt had no skill) and
+    ``ibr_stepback_violations_n`` (violations counted ONLY because of the
+    step-back -- reading ``final(d)`` alone would have missed them). The
+    three companions just below are UNCHANGED by item 37d: the executed
+    share reads ``executed_skill``, the first-proposal share reads the
+    first attempt, and the final-label IBR reads the literal last attempt
+    (``final_proposal``) with ``final_wsa`` -- none of the three reads
+    ``lp(d)``.
 
     Beside the primary number:
     - the EXECUTED share (``ibr_executed_*``; item 37/37a: "the executed
@@ -1356,20 +1397,33 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
     tr1_executed = tr3_executed = 0
     retried = relabeled = 0
     no_wsa = off_scale = unreadable = final_wsa_missing = 0
+    last_attempt_unparsed_n = ibr_stepback_violations_n = aborted_n = 0
     for d in decisions:
         final = d.final_proposal
         if final is None:
             unreadable += 1
+        if d.aborted:
+            aborted_n += 1
+        stepped_back = d.last_attempt_unparsed
+        if stepped_back:
+            last_attempt_unparsed_n += 1
+        # Item 37d: the primary judgment is on the last PARSED attempt,
+        # stepping back past an unparsed literal last attempt; ``final``
+        # above (the literal last attempt) still feeds every OTHER
+        # companion (unreadable, final-label IBR) unchanged.
+        judged = d.last_parsed_proposal
         if d.first_wsa is None:
             no_wsa += 1
         elif d.first_wsa not in LEVELS:
             off_scale += 1
-        v1 = final == INCREASE and d.first_wsa in TR1_WSA
-        v3 = final == DECREASE and d.first_wsa in TR3_WSA
+        v1 = judged == INCREASE and d.first_wsa in TR1_WSA
+        v3 = judged == DECREASE and d.first_wsa in TR3_WSA
         if v1 and v3:
             raise MetricsError(f"{d.agent_id} {d.year}: violates TR1 and TR3 at once")
         tr1 += v1
         tr3 += v3
+        if stepped_back and (v1 or v3):
+            ibr_stepback_violations_n += 1
         tr1_first_proposal += d.first_proposal == INCREASE and d.first_wsa in TR1_WSA
         tr3_first_proposal += d.first_proposal == DECREASE and d.first_wsa in TR3_WSA
         tr1_executed += d.executed_skill == INCREASE and d.first_wsa in TR1_WSA
@@ -1381,6 +1435,16 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
         if d.retried:
             retried += 1
             relabeled += d.wsa_relabeled
+    # Invariant (item 37d): a decision's literal final_proposal is None for
+    # exactly two disjoint reasons -- it is ABORTED/ABORTED_EXCEPTION (no
+    # attempts at all), or its last attempt is unparsed but the decision is
+    # not aborted (last_attempt_unparsed). unreadable_final_proposals must
+    # therefore always equal their sum; a mismatch means the two
+    # properties have drifted apart from final_proposal's own definition.
+    if unreadable != aborted_n + last_attempt_unparsed_n:
+        raise MetricsError(
+            f"ibr_metrics: unreadable_final_proposals {unreadable} != aborted rows {aborted_n} + "
+            f"last_attempt_unparsed_n {last_attempt_unparsed_n} (item 37d invariant)")
     return {
         "decisions": n,
         "ibr_tr1_count": tr1, "ibr_tr3_count": tr3,
@@ -1399,6 +1463,9 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
         "first_wsa_missing": no_wsa, "first_wsa_off_scale": off_scale,
         "final_wsa_missing": final_wsa_missing,
         "unreadable_final_proposals": unreadable,
+        # Item 37d (2026-10-07): the primary IBR's step-back companions.
+        "last_attempt_unparsed_n": last_attempt_unparsed_n,
+        "ibr_stepback_violations_n": ibr_stepback_violations_n,
     }
 
 
@@ -1493,9 +1560,11 @@ def rule_agreement(run: LoadedRun) -> Dict[str, Dict[str, Any]]:
 
 def rule_census(run: LoadedRun) -> List[Dict[str, Any]]:
     """Per rule: decisions on which its condition held, first-attempt,
-    final-proposal and executed violations, and live blocks (decisions and
-    attempts). Cap and floor conditions are unknown on ABORTED rows and
-    counted apart."""
+    final-proposal (item 37d: the agent's last PARSED attempt,
+    ``last_parsed_proposal``, matching the primary IBR's step-back for
+    every rule, not only TR1 and TR3) and executed violations, and live
+    blocks (decisions and attempts). Cap and floor conditions are unknown
+    on ABORTED rows and counted apart."""
     rows = []
     for rule in ALL_RULES:
         blocked = BLOCKED_SKILL[rule]
@@ -1513,7 +1582,7 @@ def rule_census(run: LoadedRun) -> List[Dict[str, Any]]:
                 continue
             held += 1
             first += d.first_proposal == blocked
-            final += d.final_proposal == blocked
+            final += d.last_parsed_proposal == blocked
             executed += d.executed_skill == blocked
         rows.append({
             "run": run.label, "arm": run.info.arm, "seed": run.info.seed, "rule": rule,
@@ -2543,6 +2612,10 @@ EXEC_PAIRED_ARM = "disabled"
 SUMMARY_METRICS = (
     "ibr_pct", "ibr_tr1_pct", "ibr_tr3_pct", "ibr_final_label_pct", "ibr_final_label_tr1_pct",
     "ibr_final_label_tr3_pct", "relabel_rate_pct",
+    # Item 37d (2026-10-07): counts beside the primary (step-back) IBR --
+    # decisions whose literal last attempt did not parse, and the subset
+    # of those that are violations found only by stepping back.
+    "last_attempt_unparsed_n", "ibr_stepback_violations_n",
     # Items 37/37a (2026-10-06): the first-proposal and executed shares
     # reported beside the primary (final-proposal) IBR above.
     "ibr_first_proposal_pct", "ibr_first_proposal_tr1_pct", "ibr_first_proposal_tr3_pct",
@@ -4269,12 +4342,19 @@ def metrics_markdown(result: MetricsResult) -> str:
                              "relabel_rate_pct")), "",
               "relabel_rate_pct is a share of retried decisions (WSA only). The share of relabels made with no "
               "change in r (RB 6.4; r is the expected delivery ratio at the keep request) is not reported: r is "
-              "fixed within a decision, so that share is always 100%.", ""]
+              "fixed within a decision, so that share is always 100%.", "",
+              "Item 37d (2026-10-07): when the literal last attempt could not be parsed (status "
+              "REJECTED_FALLBACK), the primary IBR above judges the agent's LAST PARSED attempt instead, "
+              "stepping back through its attempts. Counts beside it:", "",
+              summary_table(("last_attempt_unparsed_n", "ibr_stepback_violations_n")), "",
+              "last_attempt_unparsed_n: decisions whose literal last attempt had no skill. "
+              "ibr_stepback_violations_n: of those, the ones counted as a TR1 or TR3 violation only because "
+              "of the step-back (the literal last attempt alone would have missed them).", ""]
     lines += ["## IBR by attempt: first proposal vs final proposal vs executed (items 37, 37a)", "",
               "The primary IBR above is the FINAL-proposal share (each agent-year counted once, on its "
-              "last attempt). Beside it: the FIRST-proposal share (before any retry could change or block "
-              "it) and the EXECUTED share (did a violating action actually reach the water system; with "
-              "on_retry_exhausted = default this is ~0 in strict, placebo and silent).", "",
+              "last parsed attempt, item 37d). Beside it: the FIRST-proposal share (before any retry could "
+              "change or block it) and the EXECUTED share (did a violating action actually reach the water "
+              "system; with on_retry_exhausted = default this is ~0 in strict, placebo and silent).", "",
               summary_table(("ibr_first_proposal_pct", "ibr_pct", "ibr_executed_pct",
                              "ibr_first_proposal_tr1_pct", "ibr_first_proposal_tr3_pct",
                              "ibr_executed_tr1_pct", "ibr_executed_tr3_pct")), ""]
