@@ -435,6 +435,80 @@ def test_final_label_ibr_reads_the_final_wsa(tmp_path):
 
 
 # =============================================================================
+# Opus review P2-1 (2026-10-07): pin the three IBR variants (first proposal,
+# final proposal = primary, executed) against four hand-picked decisions per
+# rule, built directly as Decision/Attempt (no CSV round-trip needed: these
+# are the only fields ibr_metrics reads).
+# =============================================================================
+
+def _ibr_decision(agent: str, year: int, skills: Sequence[str], wsa: str, executed: Optional[str]) -> vm.Decision:
+    """A minimal Decision for ibr_metrics: ``skills`` is the proposed skill
+    of each successive attempt (the frozen WSA ``wsa`` throughout, no
+    relabel); ``executed`` is the actually executed skill."""
+    attempts = tuple(vm.Attempt(s, {"WSA_LABEL": wsa}, ()) for s in skills)
+    return vm.Decision(
+        agent_id=agent, year=year, status="APPROVED", execution_path="approved",
+        executed_skill=executed, proposed_skill=skills[-1], attempts=attempts,
+        retry_count=len(skills) - 1, format_retries=0, llm_success=True,
+        keep_request_af=1000.0, expected_at_keep_af=1000.0, supply_ratio=1.0, physical_ratio=1.0,
+        first_wsa=wsa, first_aca=None, final_wsa=wsa, wsa_relabeled=False,
+        error_messages="", timestamp="2026-10-07T00:00:00",
+    )
+
+
+def test_ibr_first_proposal_final_proposal_executed_hand_computed():
+    """Four TR1 decisions (WSA H, increase) plus their TR3 mirror (WSA L,
+    decrease), pinning the first-proposal, final-proposal (primary) and
+    executed shares exactly, per Opus review P2-1:
+
+    - exhausted (I,I,I,I -> executed maintain): first=violates, final=
+      violates (the blocked proposal stays final, item 37a), executed=does
+      not (the registry default never violates TR1/TR3).
+    - I then K (one retry succeeds): first=violates, final=does not,
+      executed=does not.
+    - disabled-style I -> I (never retried, not live): first=violates,
+      final=violates, executed=violates (nothing blocked it).
+    - K (never an issue): none of the three violate.
+
+    Over the 8 decisions (4 TR1 + 4 TR3 mirror), each variant's TR1 and TR3
+    sub-counts are equal (3/3, 2/2, 1/1), so the combined first/final/
+    executed shares come out to the flood-analogue 75% / 50% / 25% exactly,
+    all over the SAME N = 8.
+    """
+    decisions = [
+        # TR1 (WSA H, increase_demand):
+        _ibr_decision("TR1a", 1, [INC, INC, INC, INC], "H", executed=KEEP),   # exhausted
+        _ibr_decision("TR1b", 1, [INC, KEEP], "H", executed=KEEP),            # I then K
+        _ibr_decision("TR1c", 1, [INC], "H", executed=INC),                  # disabled-style
+        _ibr_decision("TR1d", 1, [KEEP], "H", executed=KEEP),                 # K
+        # TR3 mirror (WSA L, decrease_demand):
+        _ibr_decision("TR3a", 1, [DEC, DEC, DEC, DEC], "L", executed=KEEP),
+        _ibr_decision("TR3b", 1, [DEC, KEEP], "L", executed=KEEP),
+        _ibr_decision("TR3c", 1, [DEC], "L", executed=DEC),
+        _ibr_decision("TR3d", 1, [KEEP], "L", executed=KEEP),
+    ]
+    m = vm.ibr_metrics(decisions)
+    assert m["decisions"] == 8
+    # Final proposal (primary, item 37a): 2 of 4 per rule (exhausted + disabled-style).
+    assert (m["ibr_tr1_count"], m["ibr_tr3_count"]) == (2, 2)
+    assert m["ibr_pct"] == pytest.approx(50.0)
+    # First proposal (paper_scope C2 companion, not item 37): 3 of 4 per rule
+    # (every attempt-0 proposal except the never-an-issue K decision).
+    assert (m["ibr_first_proposal_tr1_count"], m["ibr_first_proposal_tr3_count"]) == (3, 3)
+    assert m["ibr_first_proposal_pct"] == pytest.approx(75.0)
+    # Executed (item 37/37a companion): 1 of 4 per rule (only the
+    # disabled-style decision, never blocked, executes the violating skill).
+    assert (m["ibr_executed_tr1_count"], m["ibr_executed_tr3_count"]) == (1, 1)
+    assert m["ibr_executed_pct"] == pytest.approx(25.0)
+    # The same TR1+TR3=combined sum identity the code checks in gate_p10,
+    # pinned here for all three variants.
+    assert m["ibr_pct"] == pytest.approx(m["ibr_tr1_pct"] + m["ibr_tr3_pct"])
+    assert m["ibr_first_proposal_pct"] == pytest.approx(
+        m["ibr_first_proposal_tr1_pct"] + m["ibr_first_proposal_tr3_pct"])
+    assert m["ibr_executed_pct"] == pytest.approx(m["ibr_executed_tr1_pct"] + m["ibr_executed_tr3_pct"])
+
+
+# =============================================================================
 # Items 10, 19: executed feasibility violations; census; exposure; agreement
 # =============================================================================
 
@@ -1895,7 +1969,9 @@ def test_e2e_metrics_over_all_five_arms(mock_corpus, tmp_path):
     summary_metrics = {r["metric"] for r in csv.DictReader(open(out / "arm_summary.csv", encoding="utf-8"))}
     assert {"kge_lb_agent_constant_sim", "kge_lb_agent_undefined", "kge_total_request_maf"} <= summary_metrics
     md = (out / "v3_metrics.md").read_text(encoding="utf-8")
-    for heading in ("## IBR (item 19)", "## Executed feasibility violation rate", "## Supply-rule exposure",
+    for heading in ("## IBR (items 37, 37a)",
+                    "## IBR by attempt: first proposal vs final proposal vs executed (items 37, 37a)",
+                    "## Executed feasibility violation rate", "## Supply-rule exposure",
                     "## KGE against the FQL ensemble mean", "## R4 drought recovery", "## Paired comparisons",
                     "## Feasibility-only run against the five-seed ranges", "## Rule census"):
         assert heading in md
