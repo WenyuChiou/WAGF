@@ -1,322 +1,235 @@
-# WAGF — Water Agent Governance Framework
+# WAGF：用於水資源模擬的受治理 LLM agent
 
-<div align="center">
+[English](README.md) | [繁體中文](README_zh.md)
 
-**一個受治理的、LLM 驅動的代理人框架，用於耦合人類-自然系統。** 人類決策者被建模為 LLM 代理人；每個決策在作用於模擬系統之前，都會先經過可行性與行為理論規則的篩查。仲裁器核心可外掛領域 — 內附水資源（洪水/灌溉）參考套件，以及一個非水資源示範（疫苗接種）。
+## WAGF 是什麼
 
-每個 LLM 決策都會經過驗證管線——領域規則、行為理論檢查、附帶針對性反饋的重試——才能修改模擬狀態。
+WAGF（Water Agent Governance Framework）是位於語言模型 agent 與水資源模擬或 agent-based simulation 之間的治理層。agent 提出行動後，validator 會在模擬執行前檢查物理與制度限制，並比較行動是否符合 agent 自己陳述的評估。若發現具阻擋效果的違規，系統會要求 agent 重新決策。啟用規則回饋時，也會說明原因。
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://github.com/WenyuChiou/WAGF/actions/workflows/test.yml/badge.svg)](https://github.com/WenyuChiou/WAGF/actions/workflows/test.yml)
-[![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
+例如，灌溉 agent 可能要求超過模擬分配量的用水。洪水 agent 也可能描述高度威脅，卻選擇與研究所採行行為理論不符的行動。WAGF 將這些檢查明確寫成研究者提供的規則。
 
-[**English**](README.md) | [**中文**](README_zh.md)
+模擬會套用最後得到的行動並更新狀態。audit trail 會記錄決策、驗證結果與重試結果。選用的嘗試欄位與呼叫日誌可提供更多重試細節。
 
-</div>
+## 為什麼需要 WAGF
 
-## WAGF 是什麼？
+**評估與行動不一致。** LLM agent 可能以一種方式描述情境，卻採取另一種方式的行動。它可能回報嚴重缺水，卻仍提高需求。理論規則會依據研究所選的行為理論，檢查行動是否符合 agent 自己陳述的評估。
 
-WAGF 是一個**受治理的、LLM 驅動的代理人框架，用於耦合人類-自然系統**。它將人類決策者（農戶、家戶）建模為以自然語言推理其環境的 LLM 代理人，並在每個決策作用於模擬系統之前，先經過一個**治理仲裁器 (Governance Broker)** 篩查。
+**行動超出模型限制。** agent 可能提出水資源系統或制度不允許的行動，例如超出分配量取水，或支付負擔不起的措施費用。在雙向耦合模型中，這類行動會改變共享資源，以及其他 agent 面對的條件。可行性規則會在提案影響系統前進行檢查。
 
-治理分為兩層：
+## 運作方式
 
-- **硬性規則 (Hard rules)** — 物理、財務與制度上的可行性：也就是世界所「允許」的。你不能花你沒有的錢，也不能取走不存在的水；代理人的推理無法繞過這些限制。
-- **思考規則 (Thinking rules)** — 行為理論的一致性：決策是否與代理人自己陳述的評估一致（保護動機理論、雙評估等）。
+單次決策會依照以下路徑進行。圖中的重試分支採用完整回饋。
 
-不合格的決策會觸發「附帶回饋的重試」，而非單純重新提示。最終結果是**可審計、可重現**的代理人行為，足以作為論文附錄材料，而非原始 LLM 輸出。
+```mermaid
+flowchart TD
+  C["Context and prompt"] --> L["LLM proposal"]
+  L --> P["Parse action and appraisal"]
+  P --> V{"Validators"}
+  V -->|"blocking violation"| R["Retry with reasons"]
+  R -->|"retries remain"| L
+  R -->|"retries exhausted"| F["Domain fallback policy"]
+  V -->|"passes, possibly with warnings"| E["Execute action"]
+  F --> E
+  E --> U["Environment update"]
+  U --> M["Memory for later decisions"]
+  M --> A["Audit trail"]
+  A -.->|"next decision"| C
+```
 
-仲裁器核心與領域無關。已驗證的參考領域是人類-環境耦合 — 洪水適應（保護動機理論）與灌溉（雙評估）— 並以疫苗接種（健康信念模型）證明本框架可推廣到環境系統之外。新領域只需提供 YAML 配置 + 一個 `DomainPack` 子類即可接入，無需修改 `broker/`。
+此圖呈現決策順序，一次執行也會記錄拒絕與解析失敗。在多 agent 執行中，環境可在一個週期結束時套用所有合併後的行動。
 
-> **目前版本**:v0.6.0(2026-06-10)。完整發布時程見 [`CHANGELOG.md`](CHANGELOG.md)。近期:Phase 6V 環境耦合層(`broker/coupling/` — BMI 承載、期末結算、連續控制;三個實作範例,均完成真實 LLM 驗證)+ 審計綱要第 2 版。`main` 上(v0.6.0 之後):耦合層新增**多維設定點動作**(一個離散技能 + 一個具名、有界數值設定點的型別化字典)與**網格→代理人投影**(`GridProjector`),兩者皆預設關閉且保持位元組一致性。
+### 治理規則與模式
 
-## 快速上手
+研究者為自己的領域定義規則。可行性規則會讀取模型狀態，例如可用水量或家庭資金。理論規則則會讀取 agent 的評估標籤。兩類規則都能設定成會阻擋提案的錯誤，或不會阻擋執行的警告。
 
-### AI 輔助設定（首次使用者推薦）
+| 設定 | 功能 |
+|---|---|
+| `level: ERROR` | 阻擋提案並開始重試，最多重試 `max_retries` 次。 |
+| `level: WARNING` | 記錄一項檢查發現，但不阻擋執行。 |
+| `strict` | 套用領域所設定的治理規則。 |
+| `disabled` | 使用領域的比較 profile，保留哪些檢查由該領域決定。 |
+| `retry_feedback_mode: full` | 在重試 prompt 中回傳拒絕原因。 |
+| `retry_feedback_mode: silent` | 重複使用原始 prompt，不附拒絕原因，驗證仍會執行。 |
 
-在 [Claude Code](https://claude.ai/code) 開啟此 repo，輸入：
+名為 `disabled` 的 profile 不保證移除所有可行性檢查。例如，irrigation v3 會在此 profile 中保留身分規則。領域可以宣告其他 profile（irrigation v3 也有 `feasibility_only`）。
 
-> 「I just cloned WAGF, help me set this up.」
+重試次數用盡時，`on_retry_exhausted: default` 會執行 registry 的預設行動。選用的 `keep_proposal` policy 可保留一項已註冊但遭拒的提案。然而，只要任一阻擋項被標記為硬性限制，broker 就會改為執行預設行動；啟用耦合時，broker 會直接拒絕這項設定。領域作者必須正確分類這些限制。
 
-`wagf-quickstart` skill 會帶你做環境檢查、2 分鐘 smoke test、並啟動第一個實驗（約 10 分鐘 + LLM 執行時間）。另外七個 skill 涵蓋完整研究流程：
+只有啟用獨立的建議 channel 時，agent 才會收到警告。規則層級、回饋設定及其解讀方式，請參閱[治理指南](docs/guides/governance_layers.md)。
 
-| 需求 | Skill |
-|------|-------|
-| 規劃實驗 | `wagf-experiment-designer` |
-| 建立新領域 | `wagf-domain-builder` |
-| 端到端驗證新領域（六閘 setup→done 階梯） | `wagf-verification-ladder` |
-| 設計外部模型耦合 | `wagf-coupling-designer` |
-| 分析 audit traces | `llm-agent-audit-trace-analyzer` |
-| 驗證外部模型耦合 | `model-coupling-contract-checker` |
-| 投稿前 reproducibility 稽核 | `abm-reproducibility-checker` |
+### 記憶
 
-完整 skill 對照表見 [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md)。所有 skill 都打包在 `.claude/skills/`，在 Claude Code 開啟此 repo 時會自動載入。
+記憶會儲存經驗供後續 prompt 使用，可選擇近期視窗或選擇性檢索與反思。研究者可依領域選擇引擎及其設定，詳見[記憶指南](docs/modules/memory_components.md)。
 
-### 手動設定
+### DomainPack
 
-想自己手動設定？從這裡開始。
+`DomainPack` 會提供領域 hook 與註冊項目，以及行動定義、prompt、治理規則和選定的行為框架。它讓新領域可以使用 broker，而不必在 broker 核心加入領域邏輯，詳見 [DomainPack 指南](docs/guides/domain_pack_guide.md)。
 
-### 前置需求
+### 與外部模型耦合
 
-- Python 3.10+
-- [Ollama](https://ollama.com/download)（本地 LLM 推理，可選；有 mock 模式可用）
+connector 會與模型交換觀測資料和行動，`CouplingContract` 則宣告單位、範圍、型別、方向及頻率。[耦合指南](docs/COUPLING_CONNECTORS.md)涵蓋同一程序內的 solver、檔案 replay 模式、subprocess 模型，以及與另一個 ABM 交換資料。
+
+runtime adapter 會檢查宣告的值，但不會驗證單位轉換。灌溉範例是在領域內實作水量平衡，未使用這個通用 contract adapter。
+
+### Audit 與可重現性
+
+執行會寫入 trace 與 metadata，讓研究者檢查提出了什麼、觸發了哪些規則，以及重試後發生了什麼。預設的決策 trace 不會保留每次重試的完整 prompt 與 response。
+
+| 記錄 | 用途 |
+|---|---|
+| 原始 JSONL trace 與治理 audit CSV | 包含驗證結果與重試結果的決策記錄。 |
+| `reproducibility_manifest.json` | 程式碼 revision、模型資訊、seed 與 configuration provenance。 |
+| `config_snapshot.yaml` | 執行時使用的 agent-type 設定（規則與設定值，含命令列覆寫）。Prompt template 檔案只以路徑引用，不會複製。 |
+| `run_integrity.json` | Audit coverage 與 integrity 檢查，包括耦合 provenance。 |
+| 選用的嘗試欄位 | 啟用時記錄每次嘗試的行動、標籤與阻擋規則。 |
+| 選用的 LLM 呼叫日誌 | 記錄呼叫，以便當機後 replay 已完成的步驟。 |
+
+builder 支援 `with_llm_journal(...)` 與 `with_resume_journal(...)`。resume 會 replay 已記錄的 response 以重建狀態；若某次呼叫沒有相符的記錄，系統會拋出錯誤，而不會即時呼叫模型。只記錄 seed 並不能保證即時 LLM response 完全相同。
+
+audit 比較工具會移除 timestamp 與 timing 差異並排序 set representation，再檢查正規化內容是否具 byte identity。復原工具會從 JSONL trace 重建 audit CSV。可用以下命令查看用法：
 
 ```bash
-# 克隆並安裝
+python -m broker.tools.compare_audit_csv --help
+python -m broker.tools.recover_csv_from_jsonl --help
+```
+
+分析一次執行前，請先閱讀 [audit schema](docs/AUDIT_SCHEMA.md)，並特別留意欄位限制，以及提議行動與實際執行行動之間的差異。
+
+## 使用方式
+
+### 安裝
+
+請使用 Python 3.10 或更新版本（`pyproject.toml` 要求 `>=3.10`）：
+
+```bash
 git clone https://github.com/WenyuChiou/WAGF.git
 cd WAGF
-pip install -e ".[llm]"
+python -m pip install -e .
+```
 
-# 試試 mock 示範（不需要 Ollama）
-python examples/quickstart/01_barebone.py
+核心安裝已足以完成下方的 mock 執行。這些執行使用 scripted response，不需下載模型或提供 API key。
 
-# 使用真實 LLM 執行
+### 執行 smoke test
+
+在 repository root 執行：
+
+```bash
+python examples/quickstart/02_governance.py
+```
+
+此 script 使用 mock model。它會先允許一項防護行動，接著在 agent 已受保護後阻擋重複採取該行動，並重試決策。它會在 `examples/quickstart/results/` 下寫入 audit 檔案與 trace，此目錄會在執行時建立。
+
+請參閱[快速入門教學](examples/quickstart/README.md)，其中包含配套的 barebone 範例與 pipeline 說明。
+
+### 執行耦合範例
+
+catastrophe 範例展示保險公司的理賠決策如何與 hazard 和 loss model 耦合，並在付款前進行 solvency 檢查：
+
+```bash
+python examples/cat_model/run_cat.py --model mock --years 3
+```
+
+輸出會寫入 `examples/cat_model/results/`，此目錄會在執行時建立。mock 執行會檢查接線，但不會驗證行為理論，也不能證明物理模型代表真實流域。
+
+### 使用真實模型執行
+
+安裝並啟動本機 Ollama 後，下載模型並執行洪水範例：
+
+```bash
 ollama pull gemma3:4b
 python examples/single_agent/run_flood.py --model gemma3:4b --years 3 --agents 10
 ```
 
-**雲端 LLM 提供者**（不需要本地 GPU）：
+雲端模型可使用 `--model anthropic:<id>`、`--model openai:<id>` 或 `--model gemini:<id>`；provider 會分別從環境讀取 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 或 `GOOGLE_API_KEY`。設定與連線問題請參閱[疑難排解指南](docs/guides/troubleshooting_guide.md)。
+
+### 執行測試
+
+CI 使用以下命令排除名稱含有 `real_llm` 的測試：
 
 ```bash
---model anthropic:claude-sonnet-4-5    # 需要 ANTHROPIC_API_KEY
---model openai:gpt-4o                  # 需要 OPENAI_API_KEY
---model gemini:gemini-2.5-flash        # 需要 GOOGLE_API_KEY
+python -m pytest tests/ broker/ -ra --tb=short --continue-on-collection-errors -k "not real_llm"
 ```
 
-### 每一步發生了什麼
+### 建立自己的領域
 
-來自洪水模擬的具體軌跡：
-
-```text
-第 3 年，代理人 #42（低收入屋主，高洪水風險區）：
-
-  LLM 提議：elevate_home（費用 $30,000）
-    物理驗證器：  通過  （尚未加高）
-    思考驗證器：  錯誤 — 威脅評估=中等，但選擇了最昂貴的動作
-    → 附帶反饋重試：「您的威脅評估為中等。請考慮保險（$1,200/年）
-      是否更符合您的風險評估。」
-
-  LLM 提議（重試 1）：buy_insurance（$1,200/年）
-    物理驗證器：  通過
-    思考驗證器：  通過  （中等威脅 → 適度動作）
-    個人驗證器：  通過  （收入 $35,000 > 保費 $1,200）
-    社會驗證器：  警告 — 70% 的鄰居未採取行動（記錄）
-    核准 → 由模擬引擎執行
-
-  審計軌跡：year=3, agent=42, proposed=elevate_home, rejected,
-               retry=1, final=buy_insurance, approved
-```
-
----
-
-## WAGF 跟其他框架（如 LangChain、Mesa）有何不同？
-
-WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（Mesa、NetLogo）；WAGF 把它們從「規則式代理人」延伸到「LLM 驅動代理人」，同時保留執行前驗證的嚴謹性。
-
-| 框架類別 | 範例 | 主要功能 | WAGF 獨有的差異 |
-|:---|:---|:---|:---|
-| LLM 提供者 SDK | Anthropic SDK、OpenAI SDK | 包裝 API 呼叫 | 在任何提供者之上加入領域驗證器 + 審計管線 |
-| RAG 框架 | LangChain、LlamaIndex | 用檢索內容增強 LLM 上下文 | 驗證 LLM 的「輸出」，而非僅輸入 |
-| 代理人協調框架 | LangGraph、AutoGen、CrewAI | 多步驟 LLM 工具呼叫迴圈 | 強制治理閘道在任何狀態變更前介入；不只是工具分派 |
-| 規則式 ABM | Mesa、NetLogo | 以手寫規則的代理人模擬 | 相同模擬嚴謹度，但代理人是 LLM 驅動，且每個決策都被行為理論約束 |
-| **WAGF** ⭐ | （本專案）| **LLM 驅動代理人模型的治理層** | 驗證為一等公民、附反饋的重試、審計軌跡為科學產出 |
-
-簡而言之：WAGF 不是 chatbot 框架，不是檢索工具，也不是 LLM SDK。它是研究級的鷹架，用於跑 LLM 代理人 ABM 實驗 — 每個決策必須通過領域物理、行為理論、制度約束驗證，且審計軌跡可重現到能直接附在論文 Supplementary Information。
-
-## 核心特色
-
-- **治理管線** — 任何動作到達模擬前的六步驟驗證：上下文 → LLM → 解析 → 驗證 → 核准/重試 → 執行
-- **完整審計軌跡** — 每個決策、拒絕、重試及推理軌跡均以結構化 JSONL/CSV 記錄，供科學審查
-- **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **框架可參數化的行為理論** — `broker/` 內無硬編碼理論；參考包涵蓋保護動機理論（洪水）、雙評估（灌溉）、健康信念模型（疫苗）。新理論透過 YAML 宣告即可
-- **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
-- **社群媒體傳播頻道**（v0.5+，可選啟用）— 選用的 Pattern-B `SocialMediaProvider` 會將領域發出的貼文注入代理人提示詞的 `{social_media_feed}`，依「可信度層級 × 年齡衰減 × 互動數」排序。預設關閉——已發表論文的逐位元組一致性不受影響。（跨頻道去重模組已隨框架出貨，作為未來消費者的基礎設施；提供者整合暫緩。）
-- **環境耦合層**（v0.6，可選啟用）— `broker/coupling/` 以窄腰介面（`EventSource` / `ControlSink` / `InterfaceBundle`）將外部模擬器接入受治理的決策迴圈，`CouplingContract` 在邊界檢查單位、範圍、方向與型別。可承載任何符合 CSDMS-BMI 規範的模型（`BmiEventSource`），支援連續控制（`ContinuousBundle`：每次決策驅動 K 個求解器子步，數值設定點在抵達求解器**之前**先過治理），並附三個完成真實 LLM 驗證的實作範例——巨災損失鏈、多代理保險期末結算、水庫放水控制。`main` 上本層再新增**多維設定點動作**(一個離散技能攜帶一個具名、有界、標註單位的數值設定點型別化字典——例如水庫操作員在單次決策中設定 `{release, hydropower, flood_pool}`——逐欄治理並 reject-and-retry;實作範例 `examples/reservoir_control_multidim/`)與**網格→代理人投影**(`GridProjector` 將 2D 模型場映射為各代理人數值——最近鄰/雙線性/分區,權重於綁定時快取,CRS/單位 fail-loud)。四種連接器原型詳見 [`docs/COUPLING_CONNECTORS.md`](docs/COUPLING_CONNECTORS.md)。全面預設關閉
-- **跨領域已驗證** — 泛型命名空間識別符稽核（Phase 6U，於 v0.4.0 完成）已消除 `broker/` 內所有水資源領域洩漏；`FakeTrafficDomainPack` + 自訂 `bounded_rationality` 框架的端對端 smoke 測試確認框架確實具備多領域能力
-- **AI 輔助工作流** — 內建 8 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-verification-ladder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊。設定路徑（Claude Code / Cursor / Cline / 純 Python）詳見 [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md)
-
-## 為什麼需要治理？
-
-| 挑戰 | 會出什麼問題 | WAGF 解決方案 |
-|:---|:---|:---|
-| **幻覺** | LLM 捏造不存在的動作 | 嚴格技能註冊表：僅接受已註冊的動作 |
-| **邏輯漂移** | 推理與選擇的動作矛盾 | 思考驗證器強制構念-行動一致性 |
-| **上下文溢出** | 無法將完整歷史塞入提示詞 | 加權記憶檢索（依近期性 + 重要性 + 上下文取 top-k） |
-| **不透明決策** | 無供科學審查的審計軌跡 | 結構化 JSONL 軌跡：輸入、推理、驗證、結果 |
-| **不安全修改** | LLM 直接修改模擬狀態 | 仲裁器閘控執行：驗證通過的技能由引擎執行，非 LLM |
-
-> **術語對照** — 程式碼裡稱為 `skill` 的概念，在 Nature Water
-> 論文裡稱為 **action**（例如 `increase_demand`、`elevate_house`）。
-> 兩者指同一件事：一個已註冊、經驗證的決策選項。`skill` 是早期
-> 實作命名，貫穿整個原始碼樹（`SkillRegistry`、`skill_registry.yaml`）。
-
----
-
-## 架構
-
-![WAGF 架構](docs/architecture.png)
-
-框架分為三層運作：
-
-1. **LLM 層（LLM Layer）**：代理人以自然語言推理提出行動
-2. **治理層（Governance Layer）**：Parser 擷取結構化輸出；Validator 檢查領域規則；Auditor 記錄軌跡。若驗證失敗（ERROR），提案附帶針對性反饋返回 LLM
-3. **環境與執行層（Environment & Execution Layer）**：核准的行動修改環境，記憶與反思反饋進入下一個決策週期
-
-**關鍵入口檔案：**
-
-```text
-broker/core/skill_broker_engine.py     — 六步驟治理管線
-broker/core/experiment.py              — ExperimentRunner + Builder API
-broker/validators/governance/          — 6 類驗證器實作
-broker/components/memory/              — 記憶引擎 ABC + 各實作
-broker/components/context/             — 上下文組裝鏈
-broker/components/cognitive/           — 反思引擎 + 認知軌跡
-broker/components/governance/          — 技能登錄表 + temporal_rules/
-examples/quickstart/                   — 漸進式教學
-```
-
-### 反思模組
-
-年末反思會將近期記憶整合為結構化的洞察，以 `emotion="major"` 寫回代理人記憶，並在後續檢索中浮現。反思是 YAML 驅動的——當下情境的反思問題、多模態觸發（危機／週期性／決策後／制度變遷），以及反思間隔，都在 `agent_types.yaml` 的 `global_config.reflection` 下逐領域定義。三種當下情境問題涵蓋風險顯著性、社會比較，以及成本-安全權衡。
-
-本框架保留第四個面向——**時間一致性**——作為條件式擴展：當某個序列層級規則（M1 評估-歷史一致性、M2 行為慣性、M3 證據支持的不可逆性）觸發時，會將一個針對性的時間問題注入代理人的反思提示詞。在目前版本中，這些時間問題僅在設計層級指定，尚未實際注入；其實證評估保留為後續工作。引擎見 `broker/components/cognitive/reflection.py`，序列層級規則框架見 `broker/components/governance/temporal_rules/`，完整設計規格見 `.ai/reflection_taxonomy_design_2026-04-19.md`。
-
-### 組合式代理人設計
-
-透過堆疊模組，建構不同認知複雜度的代理人，以進行受控實驗：
-
-| 層級 | 新增組件 | 效果 |
-|:---|:---|:---|
-| **底座** | 執行引擎 | 可執行動作，無記憶或推理 |
-| **+ Level 1** | 上下文 + 視窗記憶 | 對近期事件的有限感知 |
-| **+ Level 2** | 加權記憶 | 情緒編碼、整合、衰減 |
-| **+ Level 3** | 治理仲裁器 | 決策必須通過領域規則驗證 |
-
-運行 Level 1（無治理）對比 Level 3（完整治理），以隔離驗證對代理人行為的影響。
-
----
-
-## 參考實作
-
-| 案例研究 | 行為理論 | 代理人 | 期間 | 領域 |
-|:---|:---|:---|:---|:---|
-| **洪水（單）** | PMT | 單代理人 | 13 年 | 帕塞伊克河流域，紐澤西州（水資源） |
-| **洪水（多）** | PMT + 制度 | 402（200 屋主 + 200 租戶 + 政府 + 保險） | 13 年 | 帕塞伊克河流域，紐澤西州（水資源） |
-| **灌溉** | 雙評估（WSA × ACA） | 78 個 CRSS 代理人 | 42 年 | 科羅拉多河流域（水資源） |
-| **疫苗接種（單）** | 健康信念模型 (6 constructs) | 25 個文獻錨定代理人 | 5 年 | 公共衛生 Tier-2 showcase（3 seeds × 2 models） |
-
-兩個洪水實驗使用來自水文模擬（2011-2023）的逐代理人洪水深度網格。灌溉實驗以 LLM 驅動的農民代理人重現 Hung & Yang (2021) 的科羅拉多河模擬系統設定。跨模型實驗在每個配置下以 3-5 個隨機種子比較不同 LLM 系列及規模的行為。vaccination_demo 是非水資源 Tier-2 showcase — 25 個文獻錨定的合成代理人，跨 5 年 COVID-19 outbreak schedule — 不是 paper-grade 校準，但工程等級跟水資源案例平起平坐。
-
-| 範例 | 說明 | 連結 |
-|:---|:---|:---|
-| **快速上手** | 治理迴路的漸進式教學 | [前往](examples/quickstart/) |
-| **單代理人洪水** | 使用 PMT 的洪水適應 | [前往](examples/single_agent/) |
-| **灌溉 ABM** | 稀缺條件下的水資源分配 | [前往](examples/irrigation_abm/) |
-| **多代理人洪水** | 制度回饋（政府 + 保險 + 家戶） | [前往](examples/multi_agent/flood/) |
-| **疫苗接種（單）** | 非水資源 Tier-2 showcase（HBM、25 agents、5 年 COVID-19 schedule、3 seeds × 2 models） | [前往](examples/vaccination_demo/) |
-| **巨災模型（耦合）** | 外部「災害→損失」鏈耦合受治理代理人；單代理 + 多代理保險結算（期末按比例資金池、政府救濟） | [前往](examples/cat_model/) |
-| **水庫控制（耦合）** | 連續控制：年度放水決策 × 12 個月求解器子步，死庫容投影牆治理數值設定點 | [前往](examples/reservoir_control/) |
-| **水庫控制 — 多維（耦合）** | 多維動作：操作員在單次決策中設定 3 個有界設定點（放水 / 水力發電 / 防洪庫容）；逐欄邊界驗證 + reject-and-retry。*Mock 驗證骨架；真實 LLM 執行 + 基線待補。* | [前往](examples/reservoir_control_multidim/) |
-
----
-
-## 配置與擴展
-
-所有領域特定值均從 YAML 載入。領域特定邏輯位於 `examples/<domain>/` 與 `broker/domains/<domain>/`；`broker/` 本體只保留框架邏輯。
-
-| 您想變更的內容 | 僅 YAML | 需要 Python |
-|:---|:---:|:---:|
-| 新增/移除技能（動作） | 是 | 否 |
-| 定義代理人類型與人設 | 是 | 否 |
-| 新增/修改治理規則 | 是 | 否 |
-| 調整記憶參數 | 是 | 否 |
-| 變更 LLM 模型或提供者 | 是 | 否 |
-| 新增領域驗證器 | 否 | 是 |
-| 新增記憶引擎 | 否 | 是 |
-| 新增 LLM 提供者 | 否 | 是 |
-
-**新增領域**需提供三個檔案：
-1. `skill_registry.yaml` — 可用動作及其前置條件
-2. `agent_types.yaml` — 人設定義、構念標籤、治理規則
-3. `lifecycle_hooks.py` — 繼承 `BaseLifecycleHooks` 處理環境轉換
-
-*可選* — 若需自訂記憶分類、驗證器規則、漂移偵測器閾值或其他框架旋鈕，亦可繼承 `DomainPack` 並透過 `DomainPackRegistry.register(name, pack)` 註冊。預設 pack 為九個 hook（memory / drift / retrieval / perception / population-governance / policy-event-tiers / bridge-importance / event-handlers / agent-impact-handlers）提供 no-op stub，所以簡單領域可跳過此步驟。最小 DomainPack 範例參見 `examples/vaccination_demo/adapters/vaccination_pack.py`。
-
-### 稽核你的執行
-
-每次實驗後，產生一份泛用的就緒度報告：
+先建立 action skeleton，再加入研究問題所需的模型狀態、prompt、規則依據與執行邏輯：
 
 ```bash
-python -m broker.tools.readiness_report \
-    --results <your_run_dir> \
-    --profile functional   # 或 'behavioral' / 'stress'
+python -m broker.tools.scaffold_domain my_domain --framework generic --skills "action_a,action_b"
+python -m broker.tools.validate_prompt examples/my_domain_demo/config/agent_types.yaml
+python examples/my_domain_demo/run_experiment.py --model mock --years 1 --agents 1
 ```
 
-內附三種設定檔——`functional`（管線能否運行？）、`behavioral`（模型是否產生多樣且一致的決策？）、`stress`（治理是否正確處理硬性約束？）。此報告器與**領域無關**——它使用每個 DomainPack 可宣告的逐技能動作分類（`category` / `intensity` / `reversibility`），將終端結果歸入八個類別（approved、retry_recovered、expected_hard_block、recoverable_retry_failed、no_feasible_action、parser_failure、execution_failure、unknown_terminal）。輸出為主控台摘要加上 `<results>/readiness_report.json`。完整細節、注意事項（小型 smoke 測試不涵蓋動作多樣性；終端拒絕可能是有效治理）以及閾值覆寫，見 [CONTRIBUTING.md](CONTRIBUTING.md#post-experiment-readiness-reports)。
+第一個命令會建立 `examples/my_domain_demo/`，後兩個命令則使用它產生的檔案。`generic` 不會在開始時選定具名的行為理論。skeleton 的 mock response 可能觸發缺少欄位警告與 fallback。完成一次產生 audit 輸出的執行，可確認 pipeline 已連接。在將 skeleton 視為研究模型前，請替換 placeholder action，並將領域 hook 連接到模擬。
 
-### 程式化 API
+generator 是 [broker/tools/scaffold_domain.py](broker/tools/scaffold_domain.py)。請依照[新領域指南](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)，完成 skeleton 之外所需的設定與 Python hook。
 
-```python
-from broker.core.experiment import ExperimentBuilder
-from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+Claude Code 使用者可以使用內附的 [WAGF skills](docs/skills/wagf-skills.md)，這些 skill 位於 [.claude/skills/](.claude/skills/)。先使用 `wagf-domain-builder`，若要連接外部模型則使用 `wagf-coupling-designer`，再以 `wagf-verification-ladder` 檢查結果。[AI 輔助設定指南](docs/AI_ASSISTED_SETUP.md)會說明此工作流程。
 
-runner = (
-    ExperimentBuilder()
-    .with_model("gemma3:4b")
-    .with_years(13)
-    .with_agents(agents)
-    .with_simulation(sim_engine)
-    .with_skill_registry("config/skill_registry.yaml")
-    .with_governance("strict", "config/agent_types.yaml")
-    .with_memory_engine(HumanCentricMemoryEngine(ranking_mode="weighted"))
-    .with_seed(42)
-    .build()
-)
-runner.run()
-```
+## 範例
 
-詳見 [自定義指南](docs/guides/customization_guide.md)、[實驗設計指南](docs/guides/experiment_design_guide.md) 與 [領域包指南](docs/guides/domain_pack_guide.md)。
+兩個主要水資源案例已在下方標示。其他可執行範例用來展示 framework 的個別部分，fixture 僅供測試使用。
 
----
+| 範例 | 展示內容 |
+|---|---|
+| **主要水資源案例：[單 agent 洪水](examples/single_agent/)** | 改編自 Yang and Chiou（2026，WRR）：由洪水條件到家庭決策的單向耦合，以及保護動機理論（PMT）下的評估與行動一致性。 |
+| **主要水資源案例：[irrigation v3](examples/irrigation_abm/)** | 重新實作 Hung and Yang（2021，WRR）的灌溉決策設定，包含 78 位用水者與簡化的 CRSS-style 科羅拉多河模型：透過 Lake Mead 的雙向回饋與可行性檢查。 |
+| [快速入門](examples/quickstart/) | 以 scripted mock 決策介紹執行、記憶與治理。 |
+| [受治理洪水](examples/governed_flood/) | 包含領域規則的精簡洪水教學範例。 |
+| [多 agent 洪水](examples/multi_agent/flood/) | 家庭、政府與保險公司依宣告的階段順序共享洪水環境。 |
+| [Catastrophe model](examples/cat_model/) | Hazard-to-loss 耦合與受治理的保險理賠，包括 shared-pool 變體。 |
+| [水庫控制](examples/reservoir_control/) | 將受治理的數值放水 setpoint 傳給簡化的水庫 solver。 |
+| [多 setpoint 水庫控制](examples/reservoir_control_multidim/) | 在執行前共同檢查放水、水力發電與防洪庫容提案。 |
+| [耦合範例](examples/coupling_examples/) | 透過 subprocess connector 與外部簡化模型交換 JSON。 |
+| [疫苗接種](examples/vaccination_demo/) | 註冊健康信念模型（HBM）的非水資源領域。 |
+| [測試 fixture](examples/_test_fixtures/) | 整合測試使用的非水資源 traffic DomainPack，沒有獨立 runner。 |
 
-## 文件
+灌溉模型是簡化的 surrogate，不是完整 CRSS 模型。其假設與資料需求請參閱該案例的 [README](examples/irrigation_abm/README.md)。[範例索引](examples/README.md)說明其餘目錄與進入點。
 
-**入門**：[快速上手指南](docs/guides/quickstart_guide.md) | [實驗設計](docs/guides/experiment_design_guide.md) | [領域包](docs/guides/domain_pack_guide.md) | [疑難排解](docs/guides/troubleshooting_guide.md)
+## 後續閱讀
 
-**指南**：[代理人組裝](docs/guides/agent_assembly.md) | [自定義](docs/guides/customization_guide.md) | [多代理人設定](docs/guides/multi_agent_setup_guide.md) | [進階模式](docs/guides/advanced_patterns.md) | [YAML 參考](docs/references/yaml_configuration_reference.md)
+| 目的 | 閱讀資料 |
+|---|---|
+| 尋找檔案與進入點 | [Repository map](docs/REPO_MAP.md) |
+| 瞭解 runtime | [架構總覽](ARCHITECTURE.md)與 [runtime 架構](docs/architecture/architecture.md) |
+| 選擇規則與回饋設定 | [治理指南](docs/guides/governance_layers.md) |
+| 設計實驗 | [實驗設計指南](docs/guides/experiment_design_guide.md) |
+| 新增領域 | [新領域指南](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)與 [DomainPack 指南](docs/guides/domain_pack_guide.md) |
+| 連接 simulator | [耦合指南](docs/COUPLING_CONNECTORS.md) |
+| 分析一次執行 | [重現與分析指南](reproduction/README.md) |
+| 解讀 trace | [Audit schema](docs/AUDIT_SCHEMA.md) |
+| 診斷設定問題 | [疑難排解指南](docs/guides/troubleshooting_guide.md) |
+| 檢查 framework 限制 | [Broker invariants](broker/INVARIANTS.md) |
 
-**架構**：[系統總覽](docs/architecture/architecture.md) | [技能管線](docs/architecture/skill_architecture.md) | [治理核心](docs/modules/governance_core.md) | [記憶系統](docs/modules/memory_components.md)
+已知限制請參閱 [audit schema](docs/AUDIT_SCHEMA.md) 與 [broker invariants](broker/INVARIANTS.md)。
 
-**理論**：[理論基礎](docs/modules/00_theoretical_basis_overview.md) | [技能註冊表](docs/modules/skill_registry.md)
+### 引用方式
 
-| 讀者類型 | 建議起點 |
-|:---|:---|
-| **研究者**（想試用） | [快速上手](docs/guides/quickstart_guide.md) → [範例](examples/README.md) → [實驗設計](docs/guides/experiment_design_guide.md) |
-| **開發者**（擴展框架） | [架構](docs/architecture/architecture.md) → [自定義](docs/guides/customization_guide.md) → [領域包](docs/guides/domain_pack_guide.md) |
-
----
-
-## 引用方式
+framework 論文仍在準備中。在論文發表前，請引用 Yang and Chiou (2026) 與本 repository。
 
 ```bibtex
-@article{wagf2026,
-  title={Water Agent Governance Framework: Governing LLM-Driven Agent-Based Models for Water Resources},
-  author={Chiou, Wenyu and Yang, Y. C. Ethan},
-  year={2026},
-  note={Manuscript in preparation}
+@article{yang2026wrr,
+  author  = {Yang, Y. C. Ethan and Chiou, Wenyu},
+  title   = {Leveraging Large Language Models for Agent-Based Simulation of Human-Water System Interactions},
+  journal = {Water Resources Research},
+  year    = {2026},
+  volume  = {62},
+  number  = {6},
+  pages   = {e2025WR042111},
+  doi     = {10.1029/2025WR042111}
+}
+
+@misc{wagf,
+  author = {Chiou, Wenyu and Yang, Y. C. Ethan},
+  title  = {{WAGF}: a governance layer for language-model agents in coupled
+            human-water models},
+  year   = {2026},
+  note   = {Framework paper in preparation}
 }
 ```
 
-## 參考文獻
+灌溉 testbed 採用 Hung, C.-L. J., & Yang, Y. C. E.（2021），*Water Resources Research* 57(7)，e2020WR029262 的 CRSS 設定。
 
-1. Rogers, R. W. (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. *Social Psychophysiology*.
-2. Grimm, V., et al. (2005). Pattern-oriented modeling of agent-based complex systems. *Science*, 310(5750), 987-991.
-3. Park, J. S., et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior. *ACM CHI*.
-4. Hung, C.-L. J., & Yang, Y. C. E. (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments. *Water Resources Research*, 57(7).
-5. Bubeck, P., Botzen, W. J. W., & Aerts, J. C. J. H. (2012). A review of risk perceptions and other factors that influence flood mitigation behavior. *Risk Analysis*, 32(9), 1481-1495.
+### 授權條款
 
----
-
-## 授權
-
-MIT
+MIT。請參閱 [LICENSE](LICENSE)。
