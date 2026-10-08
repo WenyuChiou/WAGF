@@ -272,6 +272,8 @@ class ReflectionCheckTally:
         for code in dict.fromkeys(p.code for p in result.first_problems):
             problems[code] += 1
         if result.insight is not None:
+            if getattr(result.insight, "parse", "strict") == "lenient":
+                counts["recovered_lenient"] += 1
             flags = self._flags.setdefault(period, Counter())
             flags.update(dict.fromkeys(p.code for p in result.flags).keys())
 
@@ -280,12 +282,14 @@ class ReflectionCheckTally:
         out = {k: int(c.get(k, 0)) for k in self.OUTCOMES}
         out["stored_total"] = out["stored"] + out["stored_after_retry"]
         out["retried"] = int(self._retried.get(period, 0))
+        out["recovered_lenient"] = int(c.get("recovered_lenient", 0))
         return out
 
     def log_line(self, period: Any) -> str:
         c = self.counts(period)
         return (f"stored {c['stored_total']} ({c['stored_after_retry']} after one retry), "
                 f"retried {c['retried']}, dropped {c['dropped']}, "
+                f"recovered lenient {c['recovered_lenient']}, "
                 f"flagged by reason {dict(sorted(self._flags.get(period, {}).items()))}")
 
     def summary(self) -> Dict[str, Any]:
@@ -403,6 +407,7 @@ def run_checked_reflection(
             logger.error("[Reflection] checker failed for %s in period %s: %s",
                          agent_id, period, error)
         attempts.append({"attempt": attempt, "raw_reply": raw, "lesson": lesson,
+                         "parse": getattr(insight, "parse", "strict"),
                          "problems": [{"code": p.code, "message": p.message} for p in problems],
                          "flags": [{"code": p.code, "message": p.message} for p in flags],
                          "error": error})
@@ -508,6 +513,7 @@ class ReflectionInsight:
     importance: float = 1.0           # Consolidated importance score (0-1)
     year_created: int = 0             # When this insight was generated
     domain_tags: List[str] = field(default_factory=list)  # e.g., ["event_type", "impact", "response"]
+    parse: str = "strict"             # Reply parsing provenance (spec item 45n)
 
 
 @dataclass
@@ -1170,6 +1176,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             json_content = json_match.group(1)
         
         success = False
+        data = None
         try:
             # Try to repair common small-model JSON errors
             repaired = json_content.strip()
@@ -1204,6 +1211,46 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                     logger.info("[Reflection:Batch] Stage 1 (JSON) parsing successful.")
         except Exception as e:
             logger.debug(f"[Reflection:Batch] Stage 1 failed: {e}")
+
+        # Only a one-agent reply can be attributed without an exact id.
+        # These off-schema forms retain the complete value for the usual
+        # normalization and checks, including years, numbers and length.
+        if len(batch_agent_ids) == 1 and results[batch_agent_ids[0]] is None:
+            value = None
+            try:
+                if not isinstance(data, dict):
+                    data = json.loads(json_content)
+                if isinstance(data, dict) and isinstance(data.get("lesson"), str):
+                    candidate = data["lesson"]
+                    if candidate.strip():
+                        value = candidate
+            except Exception:
+                quoted = r'"(?:[^"\\]|\\.)*"'
+                chained = re.fullmatch(
+                    rf'\{{\s*{quoted}\s*:\s*(?P<middle>{quoted})\s*:\s*(?P<lesson>{quoted})\s*,?\s*\}}',
+                    json_content.strip(), re.DOTALL)
+                if chained:
+                    try:
+                        middle = json.loads(chained.group("middle"))
+                        candidate = json.loads(chained.group("lesson"))
+                        middle_is_id_like = (
+                            not re.search(r"[.!?]", middle) and len(middle.split()) <= 6
+                            and len(middle.split()) < len(candidate.split())
+                        )
+                        if candidate.strip() and middle_is_id_like:
+                            value = candidate
+                        else:
+                            return results  # Rejected chains must not reach legacy recovery.
+                    except Exception:
+                        return results  # An invalid escape remains an unreadable reply.
+            if value is not None:
+                insight = self._create_insight(value, current_year, truncate=not allow_plain_text)
+                insight.parse = "lenient"
+                results[batch_agent_ids[0]] = insight
+                success = True
+            elif (isinstance(data, dict) and isinstance(data.get("lesson"), str)
+                  and not data["lesson"].strip()):
+                return results
 
         # Checked one-agent replies must retain the whole value. The legacy
         # fallback stages split on quotes/newlines and would hide later

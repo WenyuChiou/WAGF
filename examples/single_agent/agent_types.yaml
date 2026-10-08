@@ -48,7 +48,7 @@ global_config:
     year_lines: true
     program_facts: true
     lesson_no_numbers: true
-    persona_instruction: "Speak in the first person (for example, 'I learned that ...') and base your lesson only on the years listed below. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
+    persona_instruction: "Speak in the first person and base your lesson only on the years listed below. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
     questions:
       - "What does your record teach you about protecting your home from floods?"
     triggers:
