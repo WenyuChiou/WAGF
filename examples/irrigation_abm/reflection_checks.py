@@ -216,23 +216,23 @@ def fact_line(line: OutcomeLine, previous_received: Optional[int] = None) -> str
 # ---------------------------------------------------------------------------
 
 # analyze.py: the precipitation-rule check
-_RULE_SHORT_CUE = re.compile(r"shortfall|unmet|short of|fell short|falls? short|fail\w* to (?:meet|secure|fulfil|fully)|not (?:fully )?met|insufficient (?:water|deliver|supply)|deficit|less than (?:I|my|what I) request|curtail|cut |reduced deliver|reductions? in (?:my )?(?:deliver|supply|allocation)", re.I)
-_RULE_FULL_CUE = re.compile(r"fully met|full(?:y)? (?:fulfil\w*|deliver\w*|satisf\w*)|full fulfil\w*|full demand|demand (?:was |being )?(?:fully )?met|request(?:s)? (?:was |were )?(?:fully |successfully )?met|successfully met|met my (?:request|demand|need)|fulfil(?:l)?(?:ed|ment) (?:of )?my|received (?:the )?(?:full|exact|same)|met in full|always met|consistently met|full supply", re.I)
-_LOWP = re.compile(r"(?:below|low|lower|decreas\w*|reduced|less|drier|dry|declin\w*|poor|lack of|limited|scarce|unfavorable)[\w\s-]{0,25}precipitation|precipitation[\w\s'-]{0,30}?(?:was |is |were )?(?:below|decreas\w*|declin\w*|lower|low\b|dropp\w*|fell|less)", re.I)
-_HIGHP = re.compile(r"(?:above|high|higher|increas\w*|more|wetter|wet|abundant|ample|favorable|good|strong)[\w\s-]{0,25}precipitation|precipitation[\w\s'-]{0,30}?(?:was |is |were )?(?:above|increas\w*|higher|high\b|exceed\w*|rose|rising)", re.I)
+_RULE_SHORT_CUE = re.compile(r"shortfall|\bunmet\b|short of|fell short\b|falls? short\b|fail\w* to (?:meet|secure|fulfil|fully)|not (?:fully )?met\b|insufficient (?:water|deliver|supply)|deficit|less than (?:I|my|what I) request(?:s|ed|ing)?\b|curtail|\bcut |reduced deliver|reductions? in (?:my )?(?:deliver|supply|allocation)", re.I)
+_RULE_FULL_CUE = re.compile(r"fully met\b|full(?:y)? (?:fulfil\w*|deliver\w*|satisf\w*)|full fulfil\w*|full demands?\b|demand (?:was |being )?(?:fully )?met\b|request(?:s)? (?:was |were )?(?:fully |successfully )?met\b|successfully met\b|met my (?:requests?|demands?|needs?)\b|fulfil(?:l)?(?:ed|ment) (?:of )?my\b|received (?:the )?(?:full(?:y)?|exact(?:ly)?|same)\b|met in full\b|always met\b|consistently met\b|full supply\b", re.I)
+_LOWP = re.compile(r"\b(?:below|low|lower|decreas\w*|reduced|less|drier|dry|declin\w*|poor|lack of|limited|scarce|unfavorable)[\w\s-]{0,25}\bprecipitation|\bprecipitation[\w\s'-]{0,30}?(?:was |is |were )?\b(?:below|decreas\w*|declin\w*|lower|low\b|dropp\w*|fell|less)", re.I)
+_HIGHP = re.compile(r"\b(?:above|high|higher|increas\w*|more|wetter|wet|abundant|ample|favorable|good|strong)[\w\s-]{0,25}\bprecipitation|\bprecipitation[\w\s'-]{0,30}?(?:was |is |were )?\b(?:above|increas\w*|higher|high\b|exceed\w*|rose|rising)", re.I)
 # analyze3.py: the persistent-outcome and Lake Mead checks
-_SHORT_CUE = re.compile(r"shortfall|unmet|short of|fell short|falls? short|fail\w* to (?:meet|secure|fulfil|fully)|not (?:fully )?met|insufficient (?:water|deliver|supply)|deficit|less than (?:I|my|what I) request|curtail|reduced my (?:allocation|deliver|water)|cut my|reduc\w* my (?:junior|water|allocation)", re.I)
-_FULL_CUE = re.compile(r"fully met|full(?:y)? (?:fulfil\w*|deliver\w*|satisf\w*)|full fulfil\w*|full demand|full water|demand (?:was |being )?(?:fully )?met|request(?:s)? (?:was |were )?(?:fully |successfully )?met|successfully met|met my (?:request|demand|need)|fulfil(?:l)?(?:ed|ment) (?:of )?my|received (?:the )?(?:full|exact|same)|met in full|always met|consistently met|full supply|full allocation", re.I)
-_PERSIST = re.compile(r"consistent\w*|persistent\w*|always|every year|each year|year after year|repeated\w*|continu\w*|invariabl\w*", re.I)
-_COND = re.compile(r"\bwhen\b|\bif\b|\bduring\b|particularly|especially|whenever|\bonly\b|despite|even (?:when|though|with)|unless|\bexcept|\bin years\b", re.I)
+_SHORT_CUE = re.compile(r"shortfall|\bunmet\b|short of|fell short\b|falls? short\b|fail\w* to (?:meet|secure|fulfil|fully)|not (?:fully )?met\b|insufficient (?:water|deliver|supply)|deficit|less than (?:I|my|what I) request(?:s|ed|ing)?\b|curtail|reduced my (?:allocations?|deliver\w*|water)\b|cut my\b|reduc\w* my (?:junior|water|allocations?)\b", re.I)
+_FULL_CUE = re.compile(r"fully met\b|full(?:y)? (?:fulfil\w*|deliver\w*|satisf\w*)|full fulfil\w*|full demands?\b|full water\b|demand (?:was |being )?(?:fully )?met\b|request(?:s)? (?:was |were )?(?:fully |successfully )?met\b|successfully met\b|met my (?:requests?|demands?|needs?)\b|fulfil(?:l)?(?:ed|ment) (?:of )?my\b|received (?:the )?(?:full(?:y)?|exact(?:ly)?|same)\b|met in full\b|always met\b|consistently met\b|full supply\b|full allocations?\b", re.I)
+_PERSIST = re.compile(r"\bconsistent\w*|\bpersistent\w*|\balways\b|\bevery year\b|\beach year\b|\byear after year\b|\brepeated\w*|\bcontinu\w*|\binvariabl\w*", re.I)
+_COND = re.compile(r"\bwhen\b|\bif\b|\bduring\b|\bparticularly\b|\bespecially\b|\bwhenever\b|\bonly\b|\bdespite\b|\beven (?:when|though|with(?:out)?)\b|\bunless\b|\bexcept(?:ions?)?\b|\bin years\b", re.I)
 _MEAD_TIGHT = re.compile(
-    r"(?:Mead|lake|reservoir|water)(?:'s)?\s+(?:water\s+)?levels?\s+(?:\w+\s+){0,2}(?:consistently|steadily|always|continuously|continually|repeatedly)\s+(?:\w+\s+){0,1}(?P<d1>rose|rising|risen|increas\w*|higher|climb\w*|declin\w*|fell|falling|drop\w*|lower|decreas\w*)"
+    r"\b(?:Mead|lake|reservoir|water)(?:'s)?\s+(?:water\s+)?levels?\s+(?:\w+\s+){0,2}(?:consistently|steadily|always|continuously|continually|repeatedly)\s+(?:\w+\s+){0,1}(?P<d1>rose|rising|risen|increas\w*|higher|climb\w*|declin\w*|fell|falling|drop\w*|lower(?:ed|ing)?|decreas\w*)\b"
     # One change from analyze3.py (2026-10-07 hand check of the offline
     # replay): "water" alone counted as the lake, so "consistently
     # increasing my water demand" read as Lake Mead rising; it must now be
     # "water level(s)".
-    r"|(?:consistently|steadily|continuously|continually)\s+(?P<d2>rising|increasing|declining|decreasing|falling|dropping|higher|lower)\s+(?:\w+\s+){0,2}(?:Lake\s+)?(?:Mead|lake|reservoir|water\s+levels?)"
-    r"|(?:Mead|lake|reservoir)(?:'s)?\s+(?:water\s+)?levels?\s+(?P<d3>rose|increased|declined|fell|dropped|decreased)\s+(?:\w+\s+){0,2}(?:consistently|steadily|each year|every year|year after year|in each)", re.I)
+    r"|\b(?:consistently|steadily|continuously|continually)\s+(?P<d2>rising|increasing|declining|decreasing|falling|dropping|higher|lower)\s+(?:\w+\s+){0,2}(?:Lake\s+)?(?:Mead|lakes?|reservoirs?|water\s+levels?)\b"
+    r"|\b(?:Mead|lake|reservoir)(?:'s)?\s+(?:water\s+)?levels?\s+(?P<d3>rose|increased|declined|fell|dropped|decreased)\s+(?:\w+\s+){0,2}(?:consistently|steadily|each year|every year|year after year|in each)\b", re.I)
 
 
 def _sentences(text: str) -> List[str]:

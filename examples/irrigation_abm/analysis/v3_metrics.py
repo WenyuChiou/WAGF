@@ -3096,6 +3096,8 @@ class PromptAudit:
     reflection_lines: int = 0
     banned_hits: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
     banned_hits_in_reflections: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    banned_hits_in_reflection_lessons: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    reflection_lesson_examples: List[str] = field(default_factory=list)
     banned_examples: List[str] = field(default_factory=list)
 
 
@@ -3170,12 +3172,26 @@ class PromptChecker:
         w = sim.num(agent, t, "water_right")
         base = d.keep_request_af
         out.prompts += 1
+        program_facts = run.info.manifest.get("reflection_checks", {}).get("settings", {}).get("program_facts", False)
         for i, raw in enumerate(prompt.split("\n")):
             text = raw.rstrip()
             where = f"{run.label} {agent} {year} line {i}"
             stripped = text.strip()
+            program_text, lesson = text, ""
+            if stripped.startswith("- Consolidated Reflection"):
+                if " Lesson: " in text:
+                    program_text, lesson = text.split(" Lesson: ", 1)
+                elif not program_facts:
+                    reflection = _R["reflection"].match(stripped)
+                    if reflection:  # Old-style reflection: heading plus model prose.
+                        lesson = reflection.group(2)
+                        program_text = text[:len(text) - len(lesson)]
             for phrase in P5_BANNED_PHRASES:
-                if phrase in text:
+                if phrase in lesson:
+                    out.banned_hits_in_reflection_lessons[phrase] += 1
+                    if len(out.reflection_lesson_examples) < 10:
+                        out.reflection_lesson_examples.append(f"{where}: {phrase!r}: {lesson[:500]}")
+                if phrase in program_text:
                     out.banned_hits[phrase] += 1
                     if stripped.startswith("- Consolidated Reflection"):
                         out.banned_hits_in_reflections[phrase] += 1
@@ -3920,11 +3936,15 @@ def gate_p5(runs: Sequence[LoadedRun], cfg: WaterSystemConfig, review: Optional[
     return _check("P5", "invented text", True, a_ok and b_ok and c_ok, reason, {
         "a_banned_hits_in_prompts": dict(audit.banned_hits),
         "a_banned_hits_in_reflection_lines": dict(audit.banned_hits_in_reflections),
+        "a_banned_hits_in_reflection_lessons": dict(audit.banned_hits_in_reflection_lessons),
+        "a_reflection_lesson_examples": audit.reflection_lesson_examples,
         "a_banned_hits_in_rule_texts": dict(error_hits),
         "a_banned_hits_in_retry_texts": retry_hits,
         "a_retry_texts_scanned": len(retry_texts),
         "a_examples": audit.banned_examples + retry_where[:10],
-        "a_scope": ("first-attempt prompts (trace input); the logged rule texts (error_messages); the retry "
+        "a_scope": ("program-written text in first-attempt prompts (trace input); reflection headings and facts "
+                    "are gated, while model-written lessons are reported separately; "
+                    "the logged rule texts (error_messages); the retry "
                     "wrapper (full and placebo, with every configured rule message and suggestion) and the "
                     "feasible-action lines, rendered by the broker from the config (retry_text_samples). "
                     "Retry prompts are not logged; a silent retry repeats the first-attempt prompt"),

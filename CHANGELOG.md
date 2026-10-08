@@ -57,6 +57,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Reflection pilot fixes (irrigation v3 spec item 45n, items 1 to 4).**
+  Add word boundaries to irrigation and flood report-only flag patterns
+  while preserving their existing inflections; recover chained-key and
+  `lesson` replies for one-agent reflection calls, including legacy batches
+  without `allow_plain_text` (a chained reply the guard rejects, or one
+  with an invalid escape, now stays unreadable there instead of falling
+  through to the legacy recovery stages). Lenient parsing is recorded in check rows,
+  period counts and run logs, and `reflection_log.jsonl` entries carry a
+  `parse` field. Gate P5(a) on program-written reflection text and report
+  model lesson phrases separately; remove the quoted lesson opener from
+  the three reflection instructions; the existing decision-prompt golden
+  hashes hold.
+
 - **Batch reflection with one agent per batch reads replies filed under
   another key.** `ReflectionEngine.parse_batch_reflection_response` now
   accepts a one-key JSON reply with a non-blank string value when the batch
