@@ -277,6 +277,8 @@ def _infer_category(metadata: Dict[str, Any], validator_name: str) -> str:
     of the five governance categories, and guessing a bucket for them is how
     the number stops meaning anything.
     """
+    if metadata.get("exception_used") is True:
+        return ""
     for text in (
         str(metadata.get("tier", "")),
         str(validator_name or ""),
@@ -333,6 +335,8 @@ def get_rule_breakdown(
         # result should raise into _safe_rule_breakdown's warning, not be
         # silently absorbed.
         metadata = result.metadata
+        if metadata.get("exception_used") is True:
+            continue
         category = metadata.get("category", "")
         if category not in breakdown and allow_metadata_fallback:
             category = _infer_category(

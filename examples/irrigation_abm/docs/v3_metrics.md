@@ -12,7 +12,7 @@ Sources: `.research/design_specs/irrigation_v3_spec_2026-09-28.md` (WP6, section
 - Final-attempt WSA: `WSA_LABEL` in `final_labels`.
 - Supply-rule condition: `state_supply_physical_ratio < FULL_SUPPLY_RATIO` (0.999, imported from `irrigation_personas`, the same object the live rule reads). `state_supply_physical_ratio` is the expected delivery at the keep request (last year's receipt) as a share of it, net of a declared junior-priority cut, logged for every decision in every arm.
 - Cap and floor conditions: `at_allocation_cap` and `below_minimum_utilisation` in the decision's `state_before` (`raw/irrigation_farmer_traces.jsonl`), the flags the identity rules read. An ABORTED row has no `state_before`; its cap and floor conditions are unknown and counted apart.
-- TR1: first-stated WSA in {H, VH} and the skill is `increase_demand`. TR3: first-stated WSA in {VL, L} and the skill is `decrease_demand` (item 9). The module checks these sets against the strict profile of `config/agent_types.yaml` on every run.
+- TR1: first-stated WSA in {H, VH} and the skill is `increase_demand`, except when the previous shortfall cause is exactly `lb_junior_tier_cut` and the previous request exceeded the previous delivery (items 45p/45q). The excepted action uses the ordinary uncapped H&Y step; only the water-right cap still applies. TR3: first-stated WSA in {VL, L} and the skill is `decrease_demand` (item 9). The module checks these sets and TR1's exception against the strict profile of `config/agent_types.yaml` on every run.
 - Rates are percentages of N unless stated.
 
 ## 2. IBR (primary, item 37a, 2026-10-06 -- 37a is what DECIDES the primary is the FINAL proposal, i.e. the last attempt; supersedes item 19's wording, not its arithmetic, since item 19 already counted the final proposal against the first-stated WSA; item 37d, 2026-10-07, then refines "the last attempt" to mean the last PARSED one)
@@ -24,13 +24,30 @@ Sources: `.research/design_specs/irrigation_v3_spec_2026-09-28.md` (WP6, section
                (`Decision.last_parsed_proposal`); still undefined when no attempt parsed at all (ABORTED,
                or, unreachably on real data since a non-ABORTED row's first attempt always parses, every
                attempt unparsed)
-    IBR_TR1  = 100 x #{d : lp(d) = increase_demand and WSA_first(d) in {H, VH}} / N
+    restore(d) = previous gap_reason is exactly lb_junior_tier_cut and
+                 previous year's request > previous year's delivery
+    IBR_TR1  = 100 x #{d : lp(d) = increase_demand and WSA_first(d) in {H, VH}
+                          and not restore(d)} / N
     IBR_TR3  = 100 x #{d : lp(d) = decrease_demand and WSA_first(d) in {VL, L}} / N
     IBR      = IBR_TR1 + IBR_TR3
 
 The same rules in every arm: live in strict, placebo and silent; post hoc in disabled and feasibility_only. Each agent-year counts ONCE, judged on `lp(d)` (item 37a + item 37d): a decision whose retries ran out keeps its blocked proposal as its final proposal and counts once, never once per retry; a decision whose literal last attempt did not parse is judged on the last attempt that DID parse, stepping back, rather than read as unreadable. No decision can violate both rules. The denominator N is every agent-year (3,276 per run), pooled per run; the older conditional denominators (e.g. WSA H/VH only) are RETIRED outright (item 37) -- not kept anywhere as an SI row; section 13's "conditional IBR of provenance K1" entry is marked not reported for the same reason. Columns: `attempt_skills`, `initial_labels`, `attempt_labels`.
 
 Beside the primary number:
+
+Items 45p/45q apply the same restoration exception to every IBR companion below,
+including the step-back proposal of items 37d/37e. `junior_restore.tr1_violation`
+is shared with enforcement. Eligibility depends only on the prior settlement,
+so analysis never reconstructs a random H&Y step or tests the resulting request.
+A run whose manifest contains `tier_cut_restore` uses this definition (including
+manifests naming 45p or 45q). Older corpora retain the historical TR1 definition
+by default. Use `load_run(..., apply_tier_cut_restore=True)` or the CLI flag
+`--apply-tier-cut-restore` only for an explicit counterfactual reanalysis of such
+an older run; the output provenance records the override, and a pilot gate run
+under it cannot pass as an unchanged historical-run validation. Audit
+`rule_exceptions_used` records actual restoring executions, and manifest
+`tier_cut_restore.uses_per_year` counts them by calendar year.
+
 - Executed share (`ibr_executed_pct`, `_tr1_pct`, `_tr3_pct`; item 37/37a: "the executed action is reported separately" / "reported separately for feasibility"): the identical formula with `lp(d)` replaced by `executed_skill`, the action that actually reached the water system. With `on_retry_exhausted` at its `default` setting (item 37b: irrigation `maintain_demand`), a blocked proposal's retries end in the registry default, which violates neither TR1 nor TR3, so this is ~0 in strict, placebo and silent. In disabled and feasibility_only, TR1 and TR3 never retry, so `lp(d)` and `executed_skill` often agree there too -- BUT the water-right cap, the minimum-use floor and the supply rule still act in EVERY arm (menu filter and environment clip, spec 3.1), so an executed increase or decrease can still be blocked or clipped by one of those feasibility rules even where TR1/TR3 do nothing; this can pull the executed share below the final-proposal share in disabled and feasibility_only too, not only in strict/placebo/silent.
 - First-proposal share (`ibr_first_proposal_pct`, `_tr1_pct`, `_tr3_pct`; this companion is NOT from item 37 -- it is `paper_scope_2026-10-06.md` C2's analogy to flood's own first-proposal/final-proposal/executed figures, 8.5% / 0.5% / 0.5%): the identical formula with `lp(d)` replaced by the FIRST attempt's proposal (`attempt_skills`' first entry) -- the share before any retry had a chance to change or block it.
 - Final-label IBR: the identical formula with `lp(d)` replaced by `final(d)` (the literal last attempt, NOT stepped back) and `WSA_first` replaced by `WSA_final` (from `final_labels`).
@@ -52,7 +69,7 @@ A blocked proposal ends in keep, so the rate is zero by construction in strict, 
 
 ## 4. Rule census (SI) and live-against-post-hoc agreement
 
-Per rule and run: decisions on which the condition held (supply: the physical ratio; cap and floor: the `state_before` flags; TR1 and TR3: the first-stated WSA), first-attempt violations (condition and attempt 0 proposes the blocked skill), final-proposal violations, executed violations, and live blocks (decisions and attempts whose `attempt_failed_rules` group names the rule id). Rule families are counted by rule id; `rules_self_report` and `rules_world_grounded` are not read (an off-menu row files the registry backstops `precondition_violation` and `output_schema_violation` under self-report).
+Per rule and run: decisions on which the condition held (supply: the physical ratio; cap and floor: the `state_before` flags; TR1: first-stated WSA H/VH without an eligible tier-cut restoration; TR3: the first-stated WSA), first-attempt violations (condition and attempt 0 proposes the blocked skill), final-proposal violations, executed violations, and live blocks (decisions and attempts whose `attempt_failed_rules` group names the rule id). When 45p/45q analysis is enabled, an eligible restoration moves out of TR1's `condition_held` count as well as its violation counts. Rule families are counted by rule id; `rules_self_report` and `rules_world_grounded` are not read (an off-menu row files the registry backstops `precondition_violation` and `output_schema_violation` under self-report).
 
 Item 37d (2026-10-07): "final-proposal violations" reads `lp(d)`, the agent's last PARSED attempt (`last_parsed_proposal`), not the literal last attempt -- the same step-back the primary IBR uses, applied here to every rule in `ALL_RULES` (the two identity rules and the supply rule included, not only TR1 and TR3).
 
@@ -201,9 +218,11 @@ first-stated WSA is stated but not one of the five construct levels under
   lower_basin", "last_year=short", "last_year=not_short", "last_year=
   first_year", and the crossed "basin=upper_basin,last_year=short"), the
   share of first proposals that are increases in decisions where neither
-  TR1 nor the supply rule could act: first-stated WSA not High or Very
-  High, and `Decision.supply_condition`
-  (`state_supply_physical_ratio < FULL_SUPPLY_RATIO`) False. "last_year=*"
+  TR1 nor the supply rule could act: TR1 does not hold under the run's
+  historical or 45p/45q definition, and `Decision.supply_condition`
+  (`state_supply_physical_ratio < FULL_SUPPLY_RATIO`) False. An eligible
+  tier-cut restoration therefore moves into this population when 45p/45q
+  analysis is enabled. "last_year=*"
   reads the prompt's own last-year-short framing
   (`irrigation_personas.supply_ratio` on the PRIOR year's logged diversion
   and request); "first_year" is year 1, which has no prior year (spec 4.3:

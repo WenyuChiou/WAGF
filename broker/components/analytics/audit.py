@@ -919,6 +919,10 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     # recovered CSVs, which share this function) instead of JSONL-only.
     exec_result = t.get("execution_result") or {}
     action_ctx = exec_result.get("action_context") or {}
+    # Key-gated, generic record of rule exceptions actually used by execution.
+    # Domains that emit none retain their original row keys and CSV bytes.
+    if "rule_exceptions_used" in action_ctx:
+        row["rule_exceptions_used"] = "|".join(action_ctx["rule_exceptions_used"])
     world_delta = action_ctx.get("world_delta")
     if isinstance(world_delta, dict):
         for wkey, wval in (world_delta.get("world_changes") or {}).items():
@@ -1185,6 +1189,8 @@ class GenericAuditWriter:
 
             for r in validation_results:
                 metadata = getattr(r, "metadata", None) or {}
+                if metadata.get("exception_used") is True:
+                    continue
                 rid = metadata.get("rule_id")
                 if (
                     not rid

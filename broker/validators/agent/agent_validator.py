@@ -769,6 +769,18 @@ class AgentValidator:
                 blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
                 
                 if normalized_decision in blocked_normalized:
+                    # Generic, opt-in exception backed by a boolean state flag.
+                    # The domain decides what the excepted action does; this
+                    # result records only the frozen-label rule exception.
+                    exception = (getattr(rule, "metadata", None) or {}).get("exception_precondition")
+                    if exception and state.get(exception) is True:
+                        results.append(ValidationResult(
+                            valid=True,
+                            validator_name=f"AgentValidator:{tier_name}_exception",
+                            metadata={"rule_id": rule.id, "exception_used": True,
+                                      "exception_precondition": exception},
+                        ))
+                        continue
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
                     if lv == ValidationLevel.ERROR:
                         self.auditor.log_intervention(rule.id, success=False, is_final=False)

@@ -177,6 +177,7 @@ class EnvironmentCouplingAdapter:
             success=True,
             state_changes=dict(delta.agent_state_changes),
             action_context={
+                **delta.action_context,
                 "world_delta": delta.audited_summary(),
                 "contention_rule": delta.contention_rule,
             },

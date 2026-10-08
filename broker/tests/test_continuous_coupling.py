@@ -243,6 +243,42 @@ def test_adapter_full_decide_commit_cycle():
     assert env2["storage"] == pytest.approx(46.0)
 
 
+@pytest.mark.parametrize("exceptions", [[], ["TR1"]])
+def test_adapter_preserves_domain_audit_context(exceptions):
+    """Domain audit keys survive coupling; contract evidence remains authoritative."""
+    class ContextBundle(ContinuousBundle):
+        def commit_world_delta(self, approved_skill):
+            delta = super().commit_world_delta(approved_skill)
+            return WorldDelta(
+                agent_state_changes=delta.agent_state_changes,
+                world_changes=delta.world_changes,
+                contention_rule=delta.contention_rule,
+                action_context={
+                    "rule_exceptions_used": exceptions,
+                    "world_delta": "cannot replace contract evidence",
+                    "contention_rule": "cannot replace contract evidence",
+                },
+            )
+
+    bundle = ContextBundle(contract=_contract(), solver=ToyBmiReservoir())
+    adapter, _ = _adapter(bundle)
+    result = adapter.execute_skill(_approved(release=4.0))
+    assert result.action_context == {
+        "rule_exceptions_used": exceptions,
+        "world_delta": {"world_changes": {"release": 4.0}, "contention_rule": "none"},
+        "contention_rule": "none",
+    }
+
+
+def test_adapter_default_audit_context_is_unchanged():
+    adapter, _ = _adapter()
+    result = adapter.execute_skill(_approved(release=4.0))
+    assert result.action_context == {
+        "world_delta": {"world_changes": {"release": 4.0}, "contention_rule": "none"},
+        "contention_rule": "none",
+    }
+
+
 # --------------------------------------------------------------------------
 # Runtime contract guards in execute_skill (checks #1/#3 + sampling guard)
 # --------------------------------------------------------------------------

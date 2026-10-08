@@ -2,6 +2,22 @@
 
 The model is a stated simplification of Hung & Yang (2021) RL-ABM-CRSS, not a reproduction.
 
+**Spec 45p/45q junior restoration (2026-10-08):** after a tier-only junior shortfall, the decision prompt
+explains that the fixed proportional cut leaves the water right unchanged and
+that keeping carries forward the reduced receipt. Under an H/VH first-stated
+scarcity appraisal, TR1 permits an increase after that tier-only cut. The
+increase uses the ordinary uncapped H&Y step and remains subject to the existing
+water-right cap; it may exceed last year's request by up to one step. Repeated
+tier cuts can therefore still ratchet down the request base (item 45o). Prompt
+guidance is omitted after or in anticipation of a Lake Mead physical shortage,
+even when physical delivery ratio $\phi$ is in [0.999, 1) and the general supply
+headline rounds that year to full supply; the TR1 exception still applies from
+the exact prior-year cause. The prompt is also omitted when its two displayed
+amounts round to the same acre-foot or increase is absent at the allocation cap.
+Every arm's post hoc TR1 uses the same exception when manifest key
+`tier_cut_restore` is present; historical runs without it retain the old definition unless
+analysis explicitly opts in. Exception uses are audited.
+
 ## Methods/SI Caveats
 
 **Spec item 45m memory update (2026-10-08; supersedes caveat 14's count and
