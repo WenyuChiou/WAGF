@@ -1732,6 +1732,7 @@ class ExperimentRunner:
             metadata["run_integrity"] = record_run_integrity(
                 self.config.output_dir,
                 memory_engine=self.memory_engine,
+                reflection_enabled=getattr(self, "reflection_enabled", None),
                 governance_mode=self.config.governance_profile,
                 seed=self.config.seed,
                 # The RESOLVED flag, not the YAML's requested one: this is the

@@ -36,6 +36,8 @@ Configuration example (``agent_types.yaml``)::
         - name: "flag"                # display: false -> assertions only,
           source: "some_flag"         # never a table column
           display: false
+        # optional ``label: "observed"`` on a metric: the table heading
+        # uses that label and unit while assertions keep the metric's name
       assertions:
         - when: "supply / request < 0.95"
           severity: "warning"
@@ -246,6 +248,17 @@ class FeedbackDashboardProvider(ContextProvider):
                     f"feedback.tracked_metrics[{cfg.get('name')!r}].display must be "
                     f"true or false (a YAML bool), got {cfg.get('display')!r}."
                 )
+            # ``label`` (optional): the table's column heading for this
+            # metric instead of its ``name``, so a heading can change
+            # without renaming the metric every assertion and message
+            # refers to (case-study spec item 45i: a column can read
+            # "received" while the metric keeps its name). Absent: the
+            # heading is the name, as shipped.
+            if "label" in cfg and (not isinstance(cfg["label"], str) or not cfg["label"].strip()):
+                raise ValueError(
+                    f"feedback.tracked_metrics[{cfg.get('name')!r}].label must be a "
+                    f"non-empty string, got {cfg['label']!r}."
+                )
         self._shown_cfg: List[Dict[str, Any]] = [
             cfg for cfg in self._metrics_cfg if cfg.get("display", True)
         ]
@@ -357,7 +370,7 @@ class FeedbackDashboardProvider(ContextProvider):
 
         # Column headers from config (``display: false`` metrics hidden)
         headers = ["Year"] + [
-            f"{cfg['name']} ({cfg.get('unit', '')})" for cfg in self._shown_cfg
+            f"{cfg.get('label', cfg['name'])} ({cfg.get('unit', '')})" for cfg in self._shown_cfg
         ]
 
         # Build rows from history

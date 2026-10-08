@@ -84,12 +84,81 @@ makes relative to the `83fa97e1` corpus:
     malformed prompt silently. `--use-priority-schema` was never part of
     the WRR26-fidelity rerun; a priority-schema experiment needs a separate
     template/arm.
+17. Reflection is ON (design record PI decision 2026-10-07 item 7, Wenyu:
+    "we need to turn reflection on in both cases"), with the same checks and
+    storage as irrigation. Flood's current 5 + 2 + 1 design also reads its
+    previous reflection's program facts (design record item 8), preserving key
+    years beyond the recent and significant event slots. Design record item 9 opts the rerun
+    into 5 + 2 + 1 decision memory: five recent event lines, the two highest
+    decayed-importance older event lines, and the latest reflection.
+    `global_config.reflection.enabled: true` builds the reflection engine
+    alongside the resolved 5 + 2 + 1 memory engine
+    (`run_flood.py (_reflection_enabled)`);
+    one household per call, only the latest reflection kept
+    (`keep_latest_only`); a dropped reflection keeps the previous stored one.
+    A stored reflection is a high-importance memory.
+    The year-end reflection sees the event-line years in the retrieved window
+    plus the prior reflection's program-fact years. Window and current years use
+    `flood_reflection.py (year_line)`; prior-only years use a regenerated
+    `flood_reflection.py (fact_line)`. Both come from the household's true record and
+    are ordered oldest first (`run_flood.py (FinalParityHook._grounded_reflection)`).
+    The program writes the key years (the year
+    just ended and the most recent damaged remembered year,
+    `flood_reflection.key_years`) and the model writes only the lesson. A
+    lesson is retried once and otherwise not stored only when it contains a
+    number, is junk (fewer than three words or no letters), or exceeds 500
+    characters. Semantic patterns that a
+    listed year contradicts ("never been damaged" after a listed damage year,
+    "a flood every year" with a listed dry year, or a stated elevation or
+    insurance state that is not the house's,
+    `flood_reflection.check_flood_lesson`) are report-only flags and do not
+    trigger retry or prevent storage. The stored
+    line, "Consolidated Reflection (written in Year {t}): {facts} Lesson:
+    {lesson}", is shown after the five recent and up to two significant older
+    event lines (`DecisionFilteredMemoryEngine`'s reflection slot), never in
+    one of those event slots. Its remembered years may also occur in the
+    significant event lines. Counts of stored, retried and
+    dropped reflections are printed per year and written to
+    `reproducibility_manifest.json`
+    (`reflection_checks`), including `flagged_by_reason` at the total and
+    per-year levels; every attempt and its flags are in
+    `reflection_checks.jsonl`. A window-memory launch refuses a window below
+    five lines, the maximum one year can write, before any model call. See
+    section 1a.
 
 Everything else (WRR26 parameters, trust-wording cutoffs, flood years
 3/4/9, damage draw, elevation effect, grants, initial profiles CSV, the
 labelled-appraisal JSON response, retry with reasons, the "Do Nothing" note)
 is unchanged. Verified with a scripted-mock smoke (section 7) and
 `pytest examples/single_agent broker tests` (section 8).
+
+## 1a. Difference-table entry and limitation (reflection, item 17)
+
+Difference table (Methods/SI; the flood case is "adapted from" WRR26, PI
+decisions 2026-10-06 items 1 and 4), one row added beside D2 (labelled
+appraisal in JSON):
+
+| Row | WRR26 | This rerun | Why |
+|---|---|---|---|
+| R1 (reflection) | no reflection; the decision prompt shows the five most recent event lines | one high-importance stored year-end reflection appears after all event lines. Window and current years use `flood_reflection.py (year_line)`; prior-only program-fact years use regenerated `flood_reflection.py (fact_line)` input (`run_flood.py (FinalParityHook._grounded_reflection)`). All input comes from the true household record. Stored facts name the year just ended plus the newest damaged remembered year. The model's one- or two-sentence lesson receives report-only semantic flags, while mechanical failures are retried once before drop; a dropped reflection keeps the previous stored one | a WAGF memory feature with the same checks and storage as irrigation; flood's 5 + 2 + 1 design also reads its previous reflection's program facts (design record item 8), preserving key years beyond the recent and significant event slots. |
+| R2 (memory 5 + 2 + 1) | five most recent event lines | the two highest decayed-importance older event lines precede the five recent lines, ordered from highest to lowest decayed importance, and the latest reflection follows them (at most eight items). The newer significant year can therefore appear before an older year. Event text and the order of the five recent lines remain verbatim WRR26. A selected older random-recall line receives only a `Year N:` prefix from its stored year; its original recall text remains verbatim. Importance is 1.0 for own damage, 0.8 for a flood without own damage, and 0.2 for dry, grant, neighbour and random-recall lines. Pre-simulation profile narratives retain their early recency position but have importance 0 and cannot fill a significant event slot. All eligible events consolidate deterministically; importance decays by calendar year at 0.1; equal scores put the newer event first | design record item 9 retains salient older experience without displacing WRR26's recent five or the separate reflection. `global_config.memory.event_memory_5_2_1` is opt-in; absent/false retains the previous engine selection. |
+
+Limitation (Methods/SI, both cases; literature scan
+`.research/design_specs/llm_agent_memory_reflection_lit_2026-10-07.md`,
+A4): "Reflections are written by the LLM and can misstate the agent's own
+history, as reported for generative agents (Park et al., 2023; Maharana et
+al., 2024). WAGF limits this by writing every year and amount of a stored
+reflection in the program and blocking storage when the model's lesson
+contains a number, is junk, or exceeds 500 characters; a blocking lesson is
+retried once and otherwise not stored.
+Semantic word-pattern checks are measured as report-only flags, with known
+false positives, and will be hand-audited in the pilot. The share of
+reflections stored, retried and dropped and the flags by reason are reported.
+Word patterns cannot catch every misstatement. Reflection is shown as a
+framework feature; we do not claim it makes behaviour more realistic, since
+published evidence for that rests on believability ratings (Larooij and
+Törnberg, 2025). No reported metric reads the reflection text; it enters the
+next year's decision prompt as memory."
 
 ## 2. Model, sampling and governance flags
 
@@ -109,9 +178,15 @@ is unchanged. Verified with a scripted-mock smoke (section 7) and
 - `--num-ctx 8192 --num-predict 4096 --thinking-mode disabled` on every
   launch (design record row G4).
 - `--memory-engine window --window-size 5` (default; design record row F4
-  -- this is the engine every frozen launch command actually uses, despite
+  -- this is the frozen launch interface, despite
   `agent_types.yaml`'s `household.memory.engine_type: human_centric`,
-  which only takes effect under `--memory-engine humancentric`).
+  which only takes effect under `--memory-engine humancentric`). The rerun's
+  `global_config.memory.event_memory_5_2_1: true` transparently uses the
+  human-centric engine for composed retrieval with deterministic threshold-0
+  consolidation and calendar-year decay; absent/false keeps the former window
+  implementation. With
+  `global_config.reflection.enabled: true` (item 17) the reflection runs
+  under this engine too; no CLI flag is needed or exists for it.
 - `--flood-mode fixed` (years 3/4/9 from `flood_years.csv`; default).
 - `--memory-seed 42` (memory engine consolidation seed; default; distinct
   from `--seed`, which seeds Python's `random` for damage draws, grants
@@ -351,6 +426,14 @@ python examples/single_agent/tests/scripted_mock_driver.py \
 # repeat for --governance-mode disabled, --retry-feedback-mode silent,
 # and --config-root examples/single_agent/config_variants/nonudge
 ```
+
+Since item 17 the driver also answers the year-end reflection prompts
+(`_reflection_reply`): one household in four names a year at its first
+answer (stored after the retry), one makes a claim its listed years
+contradict (stored with a report-only flag), and the rest answer a clean
+lesson. The smoke log's `[reflect] year N:` lines, the manifest's
+`reflection_checks`, and `reflection_checks.jsonl` show the counted outcomes
+and flags.
 
 `scripted_mock_driver.py` is tracked in the repo (not a scratch file); its
 docstring explains exactly why a plain `--model mock` run does not exercise

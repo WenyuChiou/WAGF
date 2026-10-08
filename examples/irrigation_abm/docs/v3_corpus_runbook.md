@@ -353,6 +353,22 @@ If a pilot run crashes partway (Ollama restart, a transient Windows
 task, anything in the memory notes on long-running batches), see
 section 8 before touching anything.
 
+Reflection (spec item 45): each run prints per-year stored, retried,
+dropped and semantic-flag counts, and writes them to
+`reproducibility_manifest.json` under `reflection_checks`, including
+`flagged_by_reason` per year and in total. Every attempt's raw reply and
+flags are in `reflection_checks.jsonl` next to `reflection_log.jsonl`.
+Semantic contradictions are measured, not enforced: they never trigger a
+retry or drop. These regex flags have known false positives (including
+negated claims) and omissions; hand-audit them in the pilot rather than
+assuming the old prompt's precision carries over. Only numbers with
+`lesson_no_numbers` on, junk (no letters or fewer than three words), lessons
+over 500 characters, and foreign figures block storage: one retry, then
+drop. Leading preambles are removed before checks, and overlong lessons
+are never truncated. See `broker/components/cognitive/reflection.py
+(run_checked_reflection)` and `examples/irrigation_abm/reflection_checks.py
+(check_lesson)`.
+
 ## 5. P5(c) human review
 
 Once both pilot runs show `done`:
