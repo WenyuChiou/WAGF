@@ -432,6 +432,7 @@ class IrrigationLifecycleHooks:
         # retried, dropped), printed each year and written to the manifest
         # by main() when the grounded reflection keys are on.
         self.reflection_tally = ReflectionCheckTally()
+        self.tier_cut_restore_uses = {}
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -603,6 +604,9 @@ class IrrigationLifecycleHooks:
                 # EVERY arm, so the disabled arm can be scored post hoc on
                 # the same numbers.
                 **supply_rule_fields(ctx, agent_state),
+                "previous_gap_reason": agent_state["previous_gap_reason"],
+                "previous_request_af": agent_state["previous_request_af"],
+                "tier_cut_restore_available": agent_state["tier_cut_restore_available"],
             }
             # The supply rule's text says "the {keep} acre-ft you received
             # last year": WP2 (spec 2.1) resets every request to last year's
@@ -615,6 +619,12 @@ class IrrigationLifecycleHooks:
                     f"differs from last year's receipt base_af={agent_state['base_af']}; "
                     "the WP2 reset to the base did not run before this decision."
                 )
+            # Embedded hook users can omit a broker rule config entirely.
+            # Production runners always supply it, so their active exception
+            # flags are checked against the state before the first decision.
+            rule_config = getattr(getattr(self.runner, "broker", None), "config", None)
+            if rule_config is not None:
+                _validate_exception_state_fields(rule_config, validator_fields)
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
@@ -897,6 +907,8 @@ class IrrigationLifecycleHooks:
 
         # Print yearly summary
         n_agents = len(agents)
+        self.tier_cut_restore_uses[str(self.env.config.sim_start_year + year - 1)] = sum(
+            bool(self.env.get_agent_state(aid).get("tier_cut_restore_used")) for aid in agents)
         decisions = [
             self.yearly_decisions.get((aid, year), {}).get("skill", "N/A")
             for aid in agents
@@ -1396,6 +1408,31 @@ def _record_hold_requests_fixed_provenance(
     except Exception as e:
         print(f"[Provenance] WARNING: could not record hold_requests_fixed in "
               f"config_snapshot.yaml: {e}")
+
+
+def _validate_exception_state_fields(config, state: Dict[str, Any]) -> None:
+    """Fail before any decision if an active rule reads an unpublished flag."""
+    for rule in config.get_thinking_rules("irrigation_farmer"):
+        flag = (rule.metadata or {}).get("exception_precondition")
+        if flag and flag not in state:
+            raise ValueError(f"{flag}: exception_precondition state flag is not published "
+                             "by the irrigation domain")
+
+
+def _record_tier_cut_restore_provenance(output_dir: Path, uses_per_year: Dict[str, int]) -> None:
+    """Record execution uses without turning a provenance failure into a run failure."""
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["tier_cut_restore"] = {
+                "spec": "45p/45q", "uses_per_year": dict(uses_per_year),
+                "total_uses": sum(uses_per_year.values()),
+            }
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    except Exception as exc:
+        print(f"[Provenance] WARNING: could not record tier_cut_restore in "
+              f"reproducibility_manifest.json: {exc}")
 
 
 def _record_governance_dispatch_provenance(
@@ -2331,6 +2368,7 @@ def main():
         _record_water_system_config_provenance(output_dir, env.config)
         _record_memory_options_provenance(output_dir, memory_engine)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
+        _record_tier_cut_restore_provenance(output_dir, hooks.tier_cut_restore_uses)
         # Spec item 45e: the per-year stored / retried / dropped counts of
         # the checked reflections (only when the grounded keys are on).
         _grounding = runner.broker.config.get_reflection_grounding()

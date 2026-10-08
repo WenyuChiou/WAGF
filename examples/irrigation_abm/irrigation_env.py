@@ -2128,6 +2128,14 @@ class IrrigationEnvironment:
         for agent in self._agents.values():
             base_af = float(agent["diversion"])
             wr = float(agent["water_right"])
+            # Preserve the committed cause/request before the provisional
+            # settlement replaces gap_reason with this year's expectation.
+            from examples.irrigation_abm.junior_restore import restoration_available
+            agent["previous_gap_reason"] = agent.get("gap_reason", "none")
+            agent["previous_request_af"] = float(agent["request"])
+            agent["tier_cut_restore_available"] = restoration_available(
+                agent["previous_gap_reason"], agent["previous_request_af"], base_af)
+            agent["tier_cut_restore_used"] = False
             agent["base_af"] = base_af
             agent["request"] = base_af
             agent["at_allocation_cap"] = base_af >= 0.99 * wr
@@ -2545,12 +2553,24 @@ class IrrigationEnvironment:
         # actually samples a magnitude, so build_action_outcome_feedback's
         # "(by N%)" reflects the Gaussian-sampled value the environment used,
         # not the LLM's discrete request.
-        action_context: Dict[str, Any] = {}
+        action_context: Dict[str, Any] = {"rule_exceptions_used": []}
 
         if skill in ("increase_large", "increase_small", "increase_demand"):
             # H&Y step added to the request, capped at the water right;
             # deliveries are limited by _settle, not here.
             new_req = min(current + step_af, wr)
+            from examples.irrigation_abm.junior_restore import TR1_RULE, restoration_available
+            restore_used = any(
+                result.valid and result.metadata.get("rule_id") == TR1_RULE
+                and result.metadata.get("exception_used") is True
+                for result in (getattr(approved_skill, "validation_results", None) or [])
+            )
+            if restore_used:
+                if not restoration_available(agent.get("previous_gap_reason"),
+                                             agent.get("previous_request_af"), agent.get("base_af")):
+                    raise ValueError(f"{aid}: TR1 exception without a committed tier-only cut")
+                agent["tier_cut_restore_used"] = True
+                action_context["rule_exceptions_used"] = [TR1_RULE]
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             _set_realised_magnitude(state_changes, action_context, step_af, size_class,

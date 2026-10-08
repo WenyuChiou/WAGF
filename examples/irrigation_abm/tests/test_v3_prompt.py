@@ -1070,6 +1070,11 @@ GOLDEN = {
     # their latest reflection moves after the salience-ordered event lines;
     # UT2 2033 also gains an event because reflection no longer consumes one
     # of the five recent slots. The memory text itself is otherwise unchanged.
+    # Spec items 45p/45q change only MohaveValleyIDD 2022: it is the sole
+    # golden prompt eligible for the junior-tier recovery guidance. The 45q
+    # hash below replaces "choose maintain/request" and "choose increase"
+    # with the exact menu-aligned D3 wording; all other golden hashes remain
+    # byte-identical.
     (UT1, 2019): ("UB, normal year", "f7a58305f4f24325874261e0f13c019eae2895f8591e1ce8f61a2348a2ca560c"),
     (UT1, 2020): ("UB, own sub-basin short at 2018 use", "8e62457c7633e39a7bbd52448dc3619e2588b6d0c7745b32e18ad06458971eff"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "d9e8dc70fcaff57af6c4a1fba3a6f2f721224f951415cb64366eccf8b1c5b27b"),
@@ -1078,7 +1083,7 @@ GOLDEN = {
     ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "b8984b49c172983a0e68aea9edaead391c36188c1201e804a59fba3c368cee80"),
     ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "ce925a4280531557a44a71955cfd3bc01d27f6eda57649e9116bab8af7789c75"),
     ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "ff5476449efe16faa5292097db715a0a952c467c60bf5436666524ff435180a3"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "57ba7a244b00f4537b5205a99a6387bfae66dd6d6c1d01f5bdd1be54a86d8021"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "c870f3f1e9e4d4e55f41890b48e28ff25e5ee49f7537bb6e6bda1cb274201f44"),
 }
 
 
