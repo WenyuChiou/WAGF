@@ -197,6 +197,64 @@ def test_check_lesson(lesson, lines, codes):
     assert [p.code for p in check_lesson(lesson, parsed, " ".join(lines))] == codes
 
 
+@pytest.mark.parametrize(("lesson", "codes"), [
+    ("Maintaining demand works when river flow and precipitation are favorable.", []),
+    ("Maintaining demand works when river flow and precipitation are favorable, but my request was unmet.", []),
+    ("Lower precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Lowest precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Lowered precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Lessened precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Lesser precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Poorer precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Scarcer precipitation causes my shortfalls.", ["precipitation_rule"]),
+    ("Highest precipitation meant my demand was fully met.", ["precipitation_rule"]),
+    ("Wettest precipitation meant my demand was fully met.", ["precipitation_rule"]),
+    ("Stronger precipitation meant my demand was fully met.", ["precipitation_rule"]),
+    ("Unfavorable precipitation always meant my demand was fully met.", ["always_full"]),
+    ("Higher precipitation left my demand fully methodical.", []),
+    ("Lower precipitation left me unmeticulous.", []),
+    ("My demand was consistently unmeticulous.", []),
+    ("My demand was consistently fully methodical.", []),
+    ("My demand was alwaysmore fully met.", []),
+    ("My demand was met every yearly cycle.", []),
+    ("My demand was met every year.", ["always_full"]),
+    ("My demand was consistently fully met particularlygood.", ["always_full"]),
+    ("My demand was consistently fully met, particularly when flow was high.", []),
+    ("My demand was always fully met, with the exception of one dry year.", []),
+    ("My demand was always fully met, even without high river flow.", []),
+    ("My demand was inconsistently fully met.", []),
+    ("My demand was discontinued after being fully met.", []),
+    ("Lower precipitation gave me a shortcut to planning.", []),
+    ("Lake Mead levels consistently rosemary.", []),
+    ("Lake Mead levels consistently rose.", ["mead_direction"]),
+    ("Snowlake levels consistently rose.", []),
+    ("I saw consistently rising lakefront demand.", []),
+    ("I saw consistently rising lake levels.", ["mead_direction"]),
+    ("I saw consistently declining reservoirs.", ["mead_direction"]),
+    ("I saw consistently falling lakes.", ["mead_direction"]),
+    ("Water levels consistently lowered.", ["mead_direction"]),
+    ("Lake Mead levels rose every yearly cycle.", []),
+    ("Lake Mead levels rose every year.", ["mead_direction"]),
+    ("Lower precipitation left less than I requested.", ["precipitation_rule"]),
+    ("My demand consistently reduced my deliveries.", ["always_short"]),
+    ("My demand consistently reduced my allocations.", ["always_short"]),
+    ("Lower precipitation caused reductions in my allocations.", ["precipitation_rule"]),
+    ("My demand consistently met my requests.", ["always_full"]),
+    ("My demand consistently met my demands.", ["always_full"]),
+    ("My demand consistently met my needs.", ["always_full"]),
+    ("I consistently received exactly my demand.", ["always_full"]),
+    ("My demand consistently received full allocations.", ["always_full"]),
+    ("I consistently received full demands.", ["always_full"]),
+    ("I consistently received fully what I requested.", ["always_full"]),
+])
+def test_semantic_patterns_match_whole_words_and_preserve_intentional_stems(lesson, codes):
+    texts = LB_MEAD if any(
+        word in lesson.lower() for word in ("mead", "lake", "reservoir", "water levels")
+    ) else PILOT_C1
+    parsed = _lines(texts)
+    assert [p.code for p in check_lesson(lesson, parsed, " ".join(texts))] == codes
+
+
 @pytest.mark.parametrize("lesson", [
     "Lower precipitation means my demand is not fully met.",
     "Lower precipitation always causes a shortfall because no water is available.",
