@@ -583,6 +583,9 @@ def build_water_situation_text(
             f"from last year)."
         )
         lines.append(_lower_basin_tier_text(env_context))
+        junior_restore_text = _junior_restore_prompt_text(env_context, last_year)
+        if junior_restore_text is not None:
+            lines.append(junior_restore_text)
 
     # Last year's outcome (final settlement); in the first year, the 2018 use.
     if last_year is not None:
@@ -618,6 +621,61 @@ def build_water_situation_text(
         f"was {share_of_right:.0%} of it."
     )
     return "\n".join(lines)
+
+
+def _junior_restore_prompt_text(
+    env_context: Dict[str, Any],
+    last_year: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """Return spec-45p recovery guidance after a tier-only cut, if eligible."""
+    if last_year is None or last_year.get("gap_reason") != "lb_junior_tier_cut":
+        return None
+    current_gap_codes = set(str(env_context.get("gap_reason") or "none").split("+"))
+    if "lb_mead_availability" in current_gap_codes:
+        return None
+    junior_entitlement = env_context.get("lb_junior_entitlement_af")
+    if junior_entitlement is None or float(junior_entitlement) <= 1e-6:
+        return None
+    if env_context.get("at_allocation_cap", False):
+        return None
+    last_request = float(last_year["request"])
+    last_delivery = float(last_year["diversion"])
+    if last_request <= last_delivery:
+        return None
+
+    base = float(env_context["current_request"])
+    if f"{last_request:,.0f}" == f"{base:,.0f}":
+        return None
+    senior_entitlement = float(env_context["lb_senior_entitlement_af"])
+    if int(env_context["shortage_tier"]) > 0:
+        if senior_entitlement <= 1e-6:
+            opening = (
+                "The tier cut is a fixed share of the junior-priority water you request; "
+                "it does not change your water right."
+            )
+        else:
+            opening = (
+                "The tier cut is a fixed share of the junior-priority part of your request, "
+                f"the part above {senior_entitlement:,.0f} acre-ft; it does not change your "
+                "water right."
+            )
+    elif senior_entitlement <= 1e-6:
+        opening = (
+            "Last year's tier cut was a fixed share of the junior-priority water you "
+            "requested; it did not change your water right."
+        )
+    else:
+        opening = (
+            "Last year's tier cut was a fixed share of the junior-priority part of your "
+            f"request, the part above {senior_entitlement:,.0f} acre-ft; it did not change "
+            "your water right."
+        )
+    return (
+        f"{opening} If you choose to keep your request, you ask for the reduced "
+        f"{base:,.0f} acre-ft "
+        f"you received last year. To return toward the {last_request:,.0f} acre-ft you "
+        "requested last year, choose to increase your request."
+    )
 
 
 def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:

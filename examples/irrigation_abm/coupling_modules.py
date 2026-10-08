@@ -304,6 +304,7 @@ class IrrigationBundle(InterfaceBundle):
             agent_state_changes=state_changes,
             world_changes=world_changes,
             contention_rule="none",
+            action_context=dict(result.action_context or {}),
         )
 
     def get_provenance(self) -> Dict[str, Any]:

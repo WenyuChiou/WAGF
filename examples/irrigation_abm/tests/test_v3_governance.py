@@ -167,7 +167,7 @@ def test_profile_rule_sets(monkeypatch):
                      r.message, r.metadata) for r in thinking] == [
                 (TR1, [{"construct": "WSA_LABEL", "values": ["H", "VH"]}],
                  ["increase_demand"], "ERROR", "self_report", TR1_MESSAGE,
-                 {"suggestion": TR1_SUGGESTION}),
+                 {"suggestion": TR1_SUGGESTION, "exception_precondition": "tier_cut_restore_available"}),
                 (TR3, [{"construct": "WSA_LABEL", "values": ["VL", "L"]}],
                  ["decrease_demand"], "ERROR", "self_report", TR3_MESSAGE,
                  {"suggestion": TR3_SUGGESTION}),
@@ -487,7 +487,8 @@ def test_supply_rule_fields_single_source_and_refusals():
                             "current_diversion": 1.0}, {"lb_phys_ratio": None})
     # the YAML's state_columns are exactly these fields, in this order
     raw = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-    assert tuple(raw["global_config"]["audit"]["state_columns"]) == SUPPLY_RULE_FIELDS
+    assert tuple(raw["global_config"]["audit"]["state_columns"]) == (
+        *SUPPLY_RULE_FIELDS, 'previous_gap_reason', 'previous_request_af', 'tier_cut_restore_available')
 
 
 def test_full_supply_ratio_single_source():

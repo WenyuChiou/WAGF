@@ -258,6 +258,9 @@ global_config:
       - supply_ratio
       - supply_physical_ratio
       - full_supply_ratio
+      - previous_gap_reason
+      - previous_request_af
+      - tier_cut_restore_available
 
   coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
 
@@ -703,12 +706,16 @@ irrigation_farmer:
         # TR1: a larger request when the agent itself judges water to be
         # scarce (WSA H or VH) -- flagged as a documented maladaptive
         # response on a shared supply (item 15; rule basis 6.2, support
-        # moderate).
+        # moderate). Items 45p/45q exempt an increase after an exact
+        # tier-only cut when last year's request exceeded its delivery.
+        # Execution uses the ordinary H&Y step and water-right cap;
+        # physical supply shortfalls retain the unchanged supply rule.
         - id: high_scarcity_no_increase
           conditions: [{ construct: WSA_LABEL, values: ["H", "VH"] }]
           blocked_skills: ["increase_demand"]
           level: ERROR
           grounding: self_report
+          exception_precondition: tier_cut_restore_available
           message: "Demand increase blocked under the rule on increases under scarcity: at the start of this decision you judged water to be scarce this year, and a larger request when water is scarce draws more from a supply you share with other users."
           suggestion: "Under this rule an increase is not available in this decision."
         # TR3: a cut when the agent itself judges water not to be scarce

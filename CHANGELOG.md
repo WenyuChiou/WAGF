@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Junior tier-cut restoration (irrigation specs 45p/45q, P + R').** The prompt
+  explains recovery after a tier-only cut using the agent's own amounts.
+  TR1 permits an H/VH restoring increase using the ordinary uncapped H&Y
+  step, subject to the existing water-right cap; every post hoc IBR variant
+  uses the shared irrigation predicate. Historical runs without manifest key
+  `tier_cut_restore` retain the old TR1 definition unless analysis explicitly
+  opts in. The supply rule and H&Y step size remain unchanged. Audit rows and
+  manifests record execution uses. Thinking rules gain a generic opt-in
+  `exception_precondition`; other domains retain their previous behavior.
 - **Separate decision reflection slot (opt-in, default off).**
   `broker/components/memory/engines/humancentric.py`
   (`HumanCentricMemoryEngine`) accepts `reflection_slot: separate`: only the
@@ -57,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Coupled runs keep the environment's action context.** `broker/coupling/adapter.py`
+  and `broker/coupling/interfaces.py` (`WorldDelta.action_context`) pass the
+  environment's `action_context` through, so a `--coupling` irrigation run
+  writes the same memory lines as an uncoupled one (before, an increase lost
+  its "(by N%)" text); other coupled domains get the default `{}`.
 - **Reflection pilot fixes (irrigation v3 spec item 45n, items 1 to 4).**
   Add word boundaries to irrigation and flood report-only flag patterns
   while preserving their existing inflections; recover chained-key and
