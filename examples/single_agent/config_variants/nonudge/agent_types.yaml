@@ -5,7 +5,12 @@ global_config:
   # [Cognitive Biology] - Shared mental constraints (Default for all agents)
   memory:
     window_size: 5            # Short-term working memory capacity
-    consolidation_threshold: 0.6  # Importance score needed to consider LTM transfer
+    # Flood design record item 9: opt into 5 recent event lines + the 2
+    # highest-decayed older event lines. run_flood.py supplies deterministic
+    # threshold-0 consolidation, calendar-year decay, and newer-first ties.
+    # Missing/false preserves the previous engine selection for legacy arms.
+    event_memory_5_2_1: true
+    consolidation_threshold: 0.6  # Legacy setting; opt-in flood composition uses 0.0
     consolidation_probability: 0.7 # [Global Param] Probability of transfer to LTM (0.0-1.0)
     top_k_significant: 2      # Active retrieval span
     decay_rate: 0.1           # [Global Param] Forgetting rate (Higher = Faster forgetting)
@@ -13,12 +18,39 @@ global_config:
   # [Cognitive Routine] - Metacognition schedules
   reflection:
     interval: 1               # Reflect every N years
-    batch_size: 10            # Reduced from 25 to avoid LLM output truncation
+    # 2026-10-07 (flood design record PI decision item 7, Wenyu: "we need to
+    # turn reflection on in both cases"): reflection is ON for the WRR26
+    # rerun, with the same checks and storage as irrigation. Flood's current
+    # 5 + 2 + 1 design also reads the previous reflection's program facts
+    # (design record item 8), preserving key years beyond the recent and
+    # significant event slots. A WAGF addition listed in the runbook's
+    # difference table. `enabled` is read by run_flood.py
+    # (_reflection_enabled): it builds the reflection engine alongside the
+    # resolved memory engine, and DecisionFilteredMemoryEngine shows the stored
+    # reflection AFTER five recent plus up to two significant older event
+    # lines (its own slot, not one of the seven). One household per call and only the latest reflection
+    # kept, as irrigation.
+    enabled: true
+    batch_size: 1
     importance_boost: 0.9     # Boost emotional weight for reflected memories
+    keep_latest_only: true
+    # The grounded mechanism (framework options, default false everywhere
+    # else; broker/utils/agent_config.py (AgentTypeConfig.get_reflection_grounding)):
+    # the year-end reflection sees the year's own outcome and the house's
+    # state at the end of it; one line per year, oldest first; the program
+    # writes the key years (the year just ended and the most recent damaged
+    # year, examples/single_agent/flood_reflection.py (key_years)) and the
+    # model writes only the lesson; a lesson naming a year or any number is
+    # retried once, then not stored. Contradictions with a listed year from
+    # flood_reflection.check_flood_lesson are report-only flags: never retried
+    # or dropped.
+    year_outcome: true
+    year_lines: true
+    program_facts: true
+    lesson_no_numbers: true
+    persona_instruction: "Speak in the first person (for example, 'I learned that ...') and base your lesson only on the years listed below. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
     questions:
-      - "What risks feel most urgent to your family right now?"
-      - "Have your neighbors' choices influenced your thinking?"
-      - "What trade-offs have you faced between cost and safety?"
+      - "What does your record teach you about protecting your home from floods?"
     triggers:
       crisis: true                    # Triggered by severe flood event
       periodic_interval: 5            # Every 5 years

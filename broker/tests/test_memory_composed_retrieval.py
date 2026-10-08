@@ -8,6 +8,9 @@ Stores are built directly with fixed timestamps so consolidation (which is
 stochastic) cannot decide the outcome."""
 from types import SimpleNamespace
 
+import json
+import pytest
+
 from broker.components.context.providers import MemoryProvider
 from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
 
@@ -201,3 +204,74 @@ def test_no_op_when_ranking_mode_is_not_legacy():
     result = e.retrieve(_agent(), top_k=5)
     assert isinstance(result, list) and result
     assert "content" in result[0]
+
+
+def test_separate_reflection_preserves_five_recent_and_two_significant_slots():
+    e = _engine(reflection_slot="separate", decay_rate=0.0)
+    events = [_item(f"Year {i}: event", i * 2, 0.8, year=i, type="event")
+              for i in range(1, 9)]
+    old = _item("old reflection", 13, 1.0, year=6, type="reflection")
+    latest = _item("latest reflection", 17, 1.0, year=8, type="reflection")
+    _store(e, events + [old, latest], events + [old, latest])
+    result = e.retrieve(_agent(), top_k=3)
+    assert len(result) == 8
+    assert [m["content"] for m in result[2:7]] == [f"Year {i}: event" for i in range(4, 9)]
+    assert [m["content"] for m in result[:2]] == ["Year 1: event", "Year 2: event"]
+    assert result[-1]["content"] == "latest reflection"
+    assert [m["type"] for m in result].count("reflection") == 1
+    assert all(m["year"] >= 1 for m in result)
+
+
+def test_separate_reflection_with_zero_significant_slots_and_only_reflections():
+    e = _engine(reflection_slot="separate", top_k_significant=0)
+    _standard(e)
+    result = e.retrieve(_agent())
+    assert len(result) == 6
+    assert result[-1]["content"] == "Consolidated Reflection 2"
+    _store(e, [_item("only reflection", 1, 0.9, type="reflection")], [])
+    assert [m["content"] for m in e.retrieve(_agent())] == ["only reflection"]
+
+
+def test_separate_reflection_can_be_disabled_for_a_call():
+    e = _engine(reflection_slot="separate")
+    off = _engine()
+    _standard(e)
+    _standard(off)
+    assert e.retrieve(_agent(), reflection_slot=None) == off.retrieve(_agent())
+
+
+@pytest.mark.parametrize("mode", ["legacy", "weighted"])
+def test_memory_slot_defaults_preserve_payload_bytes_and_rng(mode):
+    default = HumanCentricMemoryEngine(ranking_mode=mode, seed=73)
+    explicit = HumanCentricMemoryEngine(ranking_mode=mode, seed=73,
+                                       reflection_slot=None, significant_tie_break="earlier")
+    for engine in (default, explicit):
+        for i in range(10):
+            engine.add_memory("A1", f"line {i}", {"importance": 0.9, "type": "reflection" if i == 9 else "event"})
+    assert json.dumps(default.retrieve(_agent())) == json.dumps(explicit.retrieve(_agent()))
+    assert default.rng.getstate() == explicit.rng.getstate()
+    assert default.working == explicit.working
+
+
+def test_significant_tie_break_recent_is_opt_in():
+    e = _engine(window_size=1, top_k_significant=1, decay_rate=0.0,
+                significant_tie_break="recent")
+    _store(e, [_item("latest", 5, 0.1)],
+           [_item("first", 1, 0.8), _item("second", 2, 0.8)])
+    assert [m["content"] for m in e.retrieve(_agent())] == ["second", "latest"]
+
+
+@pytest.mark.parametrize("option,value", [("reflection_slot", True),
+                                          ("reflection_slot", "replace"),
+                                          ("significant_tie_break", "random")])
+def test_memory_slot_options_reject_invalid_values(option, value):
+    with pytest.raises(ValueError, match=option):
+        _engine(**{option: value})
+
+
+def test_memory_factory_passes_separate_slot_and_tie_break():
+    from broker.components.memory.factory import create_memory_engine
+    engine = create_memory_engine("humancentric", reflection_slot="separate",
+                                  significant_tie_break="recent")
+    assert engine.reflection_slot == "separate"
+    assert engine.significant_tie_break == "recent"

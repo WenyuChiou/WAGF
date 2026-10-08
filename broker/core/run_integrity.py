@@ -227,8 +227,9 @@ def reset_decider_row_counts() -> None:
 
 # Sentinel for ``reflection_engine``: distinguishes "the caller did not pass a
 # reflection engine object" (leave unset) from "reflection exists and is None".
-# It controls only the informational ``reflection_engine_wired`` field — whether
-# reflection is *expected* is driven by the memory engine being humancentric (below),
+# It controls only the informational ``reflection_engine_wired`` field. Whether
+# reflection is expected follows the resolved reflection_enabled flag when supplied,
+# otherwise the humancentric memory default (below),
 # so the ExperimentRunner path (which passes the engine object, not the type string,
 # and holds no reflection engine) is still judged.
 _UNSET = object()
@@ -311,6 +312,7 @@ def record_run_integrity(
     memory_engine_type: Optional[str] = None,
     memory_engine=None,
     reflection_engine=_UNSET,
+    reflection_enabled: Optional[bool] = None,
     governance_mode: Optional[str] = None,
     seed=None,
     expected_rows=None,
@@ -336,6 +338,9 @@ def record_run_integrity(
     recorded — this is the net for the silent ``WindowMemoryEngine`` fallback. Pass
     ``reflection_engine`` only on paths where reflection is a concept; leaving it
     unset means reflection parity is not asserted for this run (no false alarm).
+    Pass the resolved ``reflection_enabled`` flag when the run enables or
+    disables reflection independently of its memory engine. When absent,
+    the existing expectation for humancentric memory is retained.
 
     Returns the audit dict (also embedded in the reproducibility manifest by callers
     that have one).
@@ -347,10 +352,11 @@ def record_run_integrity(
 
     # Resolve the effective memory engine type: the explicit string if the caller
     # passed it (run_flood), else inferred from the instantiated class (ExperimentRunner).
-    # Reflection is expected whenever the memory engine is humancentric — independent of
-    # whether a reflection_engine object was passed — so both run paths are judged.
+    # The resolved reflection_enabled flag takes precedence over the legacy
+    # humancentric memory default, independently of a reflection_engine object.
     effective_type = memory_engine_type or _MEM_CLASS_TO_TYPE.get(memory_engine_class)
-    reflection_expected = (effective_type == "humancentric")
+    reflection_expected = (reflection_enabled if reflection_enabled is not None
+                           else effective_type == "humancentric")
 
     audit = {
         "memory_engine_type": memory_engine_type,
@@ -653,7 +659,7 @@ def record_run_integrity(
     if extra:
         audit.update(extra)
 
-    # mismatch = a humancentric memory engine produced no reflection entries
+    # mismatch = a run expecting reflection produced no reflection entries
     # (refl_count <= 0 also catches the -1 "exists but unreadable" sentinel — the
     # conservative direction: flag rather than silently pass).
     mismatch = reflection_expected and refl_count <= 0
@@ -686,8 +692,11 @@ def record_run_integrity(
             print("!" * 72 + "\n")
         if mismatch:
             print("\n" + "!" * 72)
-            print(" [INTEGRITY GUARDRAIL] humancentric memory engine but "
-                  "reflection_log.jsonl")
+            expectation_source = (f"reflection_enabled={reflection_enabled!r}"
+                                  if reflection_enabled is not None
+                                  else "the humancentric memory default")
+            print(f" [INTEGRITY GUARDRAIL] Reflection expected from {expectation_source}, but")
+            print(" reflection_log.jsonl")
             print(f" has {refl_count} entries at {output_dir}. Reflection did NOT run —")
             print(" this run is NOT comparable to reflection-on runs (the 2026-05-30")
             print(" data-defect failure mode).")

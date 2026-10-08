@@ -28,9 +28,10 @@ global_config:
     decay_rate: 0.1
     # Item 36b (2026-10-05 design-basis audit + fix proposals, spec item
     # 36b, N9/N10/X2): three generic framework options, default OFF in
-    # broker/components/memory/engines/humancentric.py so every other
-    # domain (including flood) stays byte-identical; irrigation turns
-    # all three on. deterministic_consolidation removes the random draw
+    # broker/components/memory/engines/humancentric.py so callers remain
+    # byte-identical unless their case config opts in; irrigation turns all
+    # three on (the flood case now also opts into its documented subset).
+    # deterministic_consolidation removes the random draw
     # that decided whether a >= 0.6-importance outcome entered long-term
     # memory at all (previously a coin flip, p = 0.42 to 0.63, on every
     # eligible shortfall year); decay_ignore_emotion removes the
@@ -41,6 +42,11 @@ global_config:
     deterministic_consolidation: true
     decay_ignore_emotion: true
     decay_by_calendar_year: true
+    # Spec item 45m: reserve the latest stored reflection its own final
+    # decision-prompt slot. It is excluded from both the 5 recent event slots
+    # and the 2 significant event slots; year-end reflection explicitly opts
+    # out so its outcome-only input remains byte-for-byte unchanged.
+    reflection_slot: separate
 
   reflection:
     interval: 1
@@ -49,15 +55,41 @@ global_config:
     # acre-ft figure that never belonged to the agent).
     batch_size: 1
     importance_boost: 0.9
-    persona_instruction: "Summarize each agent's memories into a 2-sentence 'Lesson Learned'. Speak in the FIRST PERSON (e.g., 'I realized...') and maintain the agent's role."
+    # Spec item 45d (reflection error diagnosis 2026-10-07, section 6 R2):
+    # describe only the listed years; precipitation and Lake Mead only as
+    # higher or lower than the year before, never "average" (47 percent of
+    # Upper Basin pilot reflections named a baseline the input never gives);
+    # a general rule only if no listed year contradicts it (73 percent of
+    # the pilot's precipitation rules had a counterexample in their own
+    # input). The "Lesson Learned" / "patterns" wording that invited those
+    # rules is gone, and the three questions that asked the model to restate
+    # facts are one lesson question (literature scan 2026-10-07, A2). The
+    # framework adds the closing "no years or numbers" line
+    # (LESSON_ONLY_INSTRUCTION) because program_facts is on.
+    persona_instruction: "Speak in the first person (for example, 'I learned that ...') and base your lesson only on the years listed below. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
     questions:
-      - "Was your water request strategy effective given the supply conditions?"
-      - "Did the direction you chose (increase, keep or decrease) match the outcome?"
-      - "What patterns do you notice between your requests and the water you received?"
+      - "What does your record teach you about choosing your request next year?"
     # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's
     # latest reflection in memory (framework option, default false:
     # broker/components/cognitive/reflection.py, store_reflection_memory).
     keep_latest_only: true
+    # Spec item 45 (a)-(e), framework options (default false everywhere
+    # else; broker/utils/agent_config.py (AgentTypeConfig.get_reflection_grounding)):
+    # (a) the reflection written at the end of a year sees that year's own
+    #     outcome line (IrrigationLifecycleHooks._batch_reflect_grounded);
+    # (b) its input is listed one line per year, oldest first (the decision
+    #     prompt's memory order stays by salience, spec item 36l);
+    # (c) the program writes the key years (the year just ended and the
+    #     listed year with the largest shortfall, reflection_checks.key_years)
+    #     and the model writes only the lesson: stored as "{facts} Lesson: {lesson}";
+    # (e) a lesson naming a year or any number is retried once, then not
+    #     stored; the contradiction checks from the irrigation checker
+    #     (reflection_checks.check_lesson) are report-only flags, never
+    #     retried or dropped.
+    year_outcome: true
+    year_lines: true
+    program_facts: true
+    lesson_no_numbers: true
     # reflection fires every year via reflection.interval (IrrigationLifecycleHooks.post_year
     # -> ReflectionEngine.should_reflect); the trigger-based system this block once
     # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
@@ -388,11 +420,13 @@ irrigation_farmer:
   memory:
     engine_type: "human_centric"
     # Composed retrieval as stated in the SI section 3.8 (2026-09-26): the
-    # window_size (5) most recent memories are always included, plus the
-    # top_k_significant (2) long-term memories with the highest decayed
+    # window_size (5) most recent event memories are always included, plus
+    # the top_k_significant (2) event memories with the highest decayed
     # importance (ties: earlier first; decayed importance at or below 0.05
-    # dropped), so a prompt carries up to 7 memories. These keys are LIVE
-    # AGAIN: MemoryProvider passes them to the engine (composed_retrieval).
+    # dropped), followed by the latest stored reflection in its own slot, so
+    # a prompt carries up to 5 + 2 + 1 memories (spec item 45m). These keys
+    # are LIVE AGAIN: MemoryProvider passes them to the engine
+    # (composed_retrieval).
     # Corpora produced before 2026-09-26 served 3 items by weighted
     # recency / importance / context scoring (MemoryProvider's top_k=3).
     ranking_mode: legacy
@@ -447,8 +481,9 @@ irrigation_farmer:
 
     # reserve_types (a reserved retrieval slot per memory type, weighted
     # mode only; framework option, default off) is OFF for irrigation since
-    # 2026-09-26: the composed retrieval above always shows the 5 most recent
-    # memories, which include the latest reflection, plus 2 significant ones.
+    # 2026-09-26: the composed retrieval above provides the event slots and
+    # global_config.memory.reflection_slot provides the separate final
+    # reflection slot.
     # How the memory line of a year whose proposal was overruled reads:
     # neutral (default here) names the rule and the action applied, not the
     # rejected proposal; explicit is the pre-redesign text, kept as an
@@ -492,6 +527,12 @@ irrigation_farmer:
         source: "current_diversion"
         unit: "AF"
         format: ",.0f"
+        # Spec item 45i (P5(c) claim map 1.3 k): the column is what the agent
+        # received, not the basin's water supply. The heading reads
+        # "received (AF)" (framework option `label`, broker/components/
+        # analytics/feedback.py); the metric keeps its name, which the
+        # assertions below and their {supply_fmt} placeholders read.
+        label: "received"
       # v3 (WP4, spec 4.6): 0/1 flags that pick the warning below naming WHO
       # shares a shortage, decided from last year's settled gap_reason the
       # way the supply rule's sharing sentence decides it

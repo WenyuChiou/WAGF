@@ -56,7 +56,7 @@ class HashScriptedLLM:
         time.sleep(((h >> 32) % 21) / 1000.0)
         stats = LLMStats(retries=0, success=True)
 
-        if "Lesson Learned" in prompt:
+        if "You are a Reflection Assistant" in prompt:
             ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
             return (
                 json.dumps({aid: "Noted for next year." for aid in ids}),

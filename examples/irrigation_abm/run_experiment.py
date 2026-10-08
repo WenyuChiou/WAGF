@@ -51,10 +51,34 @@ from examples.irrigation_abm.irrigation_personas import (
     describe_gap_reason,
     read_lake_mead_level_for_log,
     rebalance_clusters,
+    reflection_rule_lines,
 )
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory.engine import HumanCentricMemoryEngine
-from broker.components.cognitive.reflection import ReflectionEngine, store_reflection_memory
+from broker.components.cognitive.reflection import (
+    ReflectionCheckTally,
+    ReflectionEngine,
+    add_year_outcome,
+    compose_lesson_with_facts,
+    record_reflection_checks,
+    run_checked_reflection,
+    store_reflection_memory,
+)
+# Item 45: the figure helpers moved to reflection_checks.py with the lesson
+# checks; imported here under the same names (v3_metrics and the tests read
+# run_experiment._foreign_figures).
+from examples.irrigation_abm.reflection_checks import (  # noqa: F401
+    _FIGURE,
+    _FIGURE_TOLERANCE,
+    _figures,
+    _foreign_figures,
+    _near,
+    check_lesson,
+    fact_line,
+    key_years,
+    line_year,
+    parse_outcome_line,
+)
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 from broker.components.governance.registry import SkillRegistry
 from broker.components.context.builder import TieredContextBuilder
@@ -68,6 +92,28 @@ from examples.irrigation_abm.validators.irrigation_validators import (
 )
 
 # ---------------------------------------------------------------------------
+class IrrigationContextBuilder(TieredContextBuilder):
+    """Keep event salience ordering while placing reflection last (45m)."""
+
+    @staticmethod
+    def _format_memory(memory_val) -> str:
+        if not isinstance(memory_val, list):
+            return TieredContextBuilder._format_memory(memory_val)
+        reflections = [item for item in memory_val
+                       if isinstance(item, dict) and item.get("type") == "reflection"]
+        events = [item for item in memory_val
+                  if not (isinstance(item, dict) and item.get("type") == "reflection")]
+        rendered_events = TieredContextBuilder._format_memory(events)
+        if not reflections:
+            return rendered_events
+        reflection = max(reflections, key=lambda item: item.get("timestamp", 0))
+        content = str(reflection.get("content", "")).strip()
+        rendered_reflection = f"- {content}" if content else "-"
+        if rendered_events == "No memories yet.":
+            return rendered_reflection
+        return f"{rendered_events}\n{rendered_reflection}"
+
+
 # Constants
 # ---------------------------------------------------------------------------
 # v3 (WP2 spec 2.2, 2026-09-29): three skills -- the LLM chooses the
@@ -333,28 +379,13 @@ def _unmet_frac(request: float, delivered: float) -> float:
 
 
 # Every stored reflection starts with this; the full line is
-# "Consolidated Reflection (written in {calendar year}): {summary}" (spec 4.7).
+# "Consolidated Reflection (written in {calendar year}): {summary}" (spec 4.7),
+# and since spec item 45c "...: {program facts} Lesson: {lesson}".
 _REFLECTION_MEMORY_PREFIX = "Consolidated Reflection"
 
 # Stripped from both ends of a summary before it is stored (spec 4.7): quotes,
 # whitespace and the trailing comma of a JSON-residue copy ('"...",', L3 M8).
 _REFLECTION_STRIP_CHARS = ' \t\n"\'“”‘’,'
-
-# A figure a reflection summary can quote (spec 4.7, review HIGH 1): a number
-# with thousands separators ("20,155"), a plain number, optionally followed by
-# a unit: "%" or "percent" (a share), "million" (million acre-ft), or an
-# acre-ft unit ("acre-ft", "acre-feet", "AF"). Not preceded by a letter,
-# digit, point or comma, so "UT2" or the tail of a longer number never match.
-_FIGURE = re.compile(
-    r"(?<![\w.,])(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
-    r"(?P<unit>\s*(?:%|percent\b|million\b|acre[- ]?f(?:ee|oo)?t\b|af\b))?",
-    re.IGNORECASE,
-)
-
-# A summary figure within this relative distance of a figure of the same kind
-# in the agent's own memory text counts as that figure, rounded (review HIGH 1:
-# "about 20,000 acre-ft" for a memory line's 20,155 is the agent's own figure).
-_FIGURE_TOLERANCE = 0.05
 
 
 def _normalize_reflection_text(text: str) -> str:
@@ -369,60 +400,6 @@ def _is_reflection_memory(item: Any) -> bool:
     content but not its ``type``, so the fixed prefix identifies it)."""
     content = item.get("content", "") if isinstance(item, dict) else str(item)
     return str(content).startswith(_REFLECTION_MEMORY_PREFIX)
-
-
-def _figures(text: str) -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
-    """(volumes, percentages) quoted in ``text``, each as (as written, value).
-
-    A volume is a number with thousands separators, a plain number of four or
-    more digits that is not a calendar year (1900 to 2100), or any number
-    followed by an acre-ft unit or "million" (scaled to acre-ft). A percentage
-    is a number followed by "%" or "percent". Any other bare number (a count,
-    a tier, a day of the month, a year) is not a figure."""
-    volumes: List[Tuple[str, float]] = []
-    percents: List[Tuple[str, float]] = []
-    for m in _FIGURE.finditer(text):
-        num = m.group("num")
-        unit = (m.group("unit") or "").strip().lower()
-        value = float(num.replace(",", ""))
-        written = m.group(0).strip()
-        if unit in ("%", "percent"):
-            percents.append((written, value))
-        elif unit == "million":
-            volumes.append((written, value * 1e6))
-        elif unit:
-            volumes.append((written, value))
-        elif "," in num:
-            volumes.append((written, value))
-        elif "." not in num and len(num) >= 4 and not (len(num) == 4 and 1900 <= value <= 2100):
-            volumes.append((written, value))
-    return volumes, percents
-
-
-def _near(value: float, pool: List[float]) -> bool:
-    return any(abs(value - ref) <= _FIGURE_TOLERANCE * abs(ref) for ref in pool)
-
-
-def _foreign_figures(summary: str, own_text: str) -> List[str]:
-    """Figures in ``summary`` that match no figure of the same kind in
-    ``own_text`` (the agent's own memory lines the reflection was written
-    from), within ``_FIGURE_TOLERANCE``. A reflection that quotes one is not
-    stored (spec 4.7; L3 M8: 201 prompts showed an acre-ft figure that
-    belonged to another agent).
-
-    Review HIGH 1 (2026-09-30): rounding is tolerated ("about 20,000
-    acre-ft" matches a memory line's 20,155), and figures written without
-    separators ("14420 acre-ft") and percentages are checked too. A
-    percentage also matches the complement of a memory percentage (a
-    delivered share is 100 minus the unmet share the memory line states), and
-    0 and 100 percent always match (a full delivery or none, nobody's own
-    figure)."""
-    own_volumes, own_percents = _figures(own_text)
-    volume_pool = [v for _, v in own_volumes]
-    percent_pool = [p for _, p in own_percents] + [100.0 - p for _, p in own_percents] + [0.0, 100.0]
-    volumes, percents = _figures(summary)
-    return ([w for w, v in volumes if not _near(v, volume_pool)]
-            + [w for w, p in percents if not _near(p, percent_pool)])
 
 
 class IrrigationLifecycleHooks:
@@ -451,6 +428,10 @@ class IrrigationLifecycleHooks:
         # memory.rejection_line_style for the yearly memory line (set by main()
         # from the irrigation_farmer.memory YAML block).
         self.rejection_line_style = "neutral"
+        # Spec item 45e: per-year counts of checked reflections (stored,
+        # retried, dropped), printed each year and written to the manifest
+        # by main() when the grounded reflection keys are on.
+        self.reflection_tally = ReflectionCheckTally()
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -481,6 +462,52 @@ class IrrigationLifecycleHooks:
         if mode not in ("full", "placebo", "silent"):
             raise ValueError(f"IrrigationLifecycleHooks: unknown _retry_feedback_mode {mode!r}.")
         return mode == "full"
+
+    def _outcome_line(self, agent, snapshot: Dict[str, Any], basin: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+        """(the memory line of the year ``snapshot`` describes, the action
+        context it read; None for a year with no decision read).
+
+        ``snapshot`` is the one ``post_year`` took at the end of that year.
+        ``pre_year`` of the next year writes this line to memory; spec item
+        45a has ``_batch_reflect`` build the same line at the end of the
+        year itself, so the year-end reflection sees the year's own outcome
+        (before, it saw only the lines up to the year before)."""
+        action_ctx = getattr(agent, '_last_action_context', None)
+        # ExperimentRunner._apply_state_changes stamps the context
+        # with the loop year of a decision that EXECUTED; a year in
+        # which nothing executed (an ABORTED decision) leaves an older
+        # context behind, which must not be reported as last year's
+        # action (WP6 P5(b) finding). The request then stayed at the
+        # base the environment reset it to.
+        decision_read = bool(action_ctx) and action_ctx.get("year") == snapshot["year"]
+        if not decision_read:
+            action_ctx = None
+        feedback = build_action_outcome_feedback(
+            action_ctx=action_ctx,
+            # WP4 (spec 4.5, L3 M14): calendar years, as everywhere
+            # else in the prompt.
+            year=snapshot["calendar_year"],
+            request=snapshot["request"],
+            diversion=snapshot["diversion"],
+            preceding_factor=snapshot["preceding_factor"],
+            # F15: the Lower Basin signal is Lake Mead, not precipitation.
+            basin=basin,
+            # The past-tense form of the reason the situation text and
+            # the rule messages use (spec 4.4).
+            gap_reason=describe_gap_reason(snapshot, "past"),
+            rejection_line_style=self.rejection_line_style,
+            # Spec 4.5: placebo and silent retries name no rule, so
+            # neither does their memory line (L3 M13).
+            name_rule=self._retries_name_rules(),
+            subbasin=snapshot.get("supply_group") is not None,
+            decision_read=decision_read,
+            # Spec item 45f: the sub-basin natural-flow share of that year.
+            flow_share=snapshot.get("ub_subbasin_flow_share"),
+            # Spec item 45g: a keep after a short year states the change.
+            previous_request=snapshot.get("previous_request"),
+            previous_diversion=snapshot.get("previous_diversion"),
+        )
+        return feedback, action_ctx
 
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
@@ -602,6 +629,9 @@ class IrrigationLifecycleHooks:
                 increase_offered=not validator_fields["at_allocation_cap"],
                 decrease_offered=not validator_fields["below_minimum_utilisation"],
                 last_year=getattr(agent, "_last_year_outcome", None),
+                # Spec item 45i: say why no decrease is offered at the floor.
+                floor_af=ctx["water_right"] * self.env.config.min_utilisation_fraction,
+                floor_share=self.env.config.min_utilisation_fraction,
             )
 
             # Feedback dashboard metrics are recorded in post_year from the
@@ -635,36 +665,9 @@ class IrrigationLifecycleHooks:
                     )
                 prev_request = snapshot["request"]
                 prev_diversion = snapshot["diversion"]
-                action_ctx = getattr(agent, '_last_action_context', None)
-                # ExperimentRunner._apply_state_changes stamps the context
-                # with the loop year of a decision that EXECUTED; a year in
-                # which nothing executed (an ABORTED decision) leaves an older
-                # context behind, which must not be reported as last year's
-                # action (WP6 P5(b) finding). The request then stayed at the
-                # base the environment reset it to.
-                decision_read = bool(action_ctx) and action_ctx.get("year") == snapshot["year"]
-                if not decision_read:
-                    action_ctx = None
-                feedback = build_action_outcome_feedback(
-                    action_ctx=action_ctx,
-                    # WP4 (spec 4.5, L3 M14): calendar years, as everywhere
-                    # else in the prompt.
-                    year=snapshot["calendar_year"],
-                    request=prev_request,
-                    diversion=prev_diversion,
-                    preceding_factor=snapshot["preceding_factor"],
-                    # F15: the Lower Basin signal is Lake Mead, not precipitation.
-                    basin=ctx["basin"],
-                    # The past-tense form of the reason the situation text and
-                    # the rule messages use (spec 4.4).
-                    gap_reason=describe_gap_reason(snapshot, "past"),
-                    rejection_line_style=self.rejection_line_style,
-                    # Spec 4.5: placebo and silent retries name no rule, so
-                    # neither does their memory line (L3 M13).
-                    name_rule=self._retries_name_rules(),
-                    subbasin=snapshot.get("supply_group") is not None,
-                    decision_read=decision_read,
-                )
+                # The same helper builds this line for the year-end reflection
+                # (spec item 45a), so both read the same text.
+                feedback, action_ctx = self._outcome_line(agent, snapshot, ctx["basin"])
                 # add_memory_for_agent (not add_memory) so the engine sees this
                 # agent's memory_config (the irrigation_farmer.memory YAML
                 # block, injected by ExperimentBuilder.build()'s Phase-12 step).
@@ -769,6 +772,9 @@ class IrrigationLifecycleHooks:
             # year" memory line instead of re-querying live env state. Taken
             # from the SAME agent_state simulation_log.csv logs below, so
             # memory and the CSV always agree.
+            # Spec item 45g: last year's request and receipt, for the keep
+            # line's change clause (None in the first year).
+            previous = getattr(agent, "_last_year_outcome", None)
             agent._last_year_outcome = {
                 "year": year,
                 # WP4 (spec 4.5): the calendar year the memory line names.
@@ -796,6 +802,14 @@ class IrrigationLifecycleHooks:
                 # WP4: whether the Upper Basin memory line may say "your
                 # sub-basin" (None for a synthetic mock agent).
                 "supply_group": agent_context.get("supply_group"),
+                # Spec item 45f: the sub-basin natural-flow share the
+                # decision prompt showed this year (None in the Lower Basin
+                # and for an agent without a sub-basin); agent_context is
+                # still this year's (advance_year has not run).
+                "ub_subbasin_flow_share": agent_context.get("ub_subbasin_flow_share"),
+                # Spec item 45g.
+                "previous_request": previous["request"] if previous else None,
+                "previous_diversion": previous["diversion"] if previous else None,
             }
 
             # F08+F33 (2026-09-25 audit): drought_count is a real, cumulative
@@ -897,6 +911,194 @@ class IrrigationLifecycleHooks:
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
             self._batch_reflect(year)
 
+    def _reflection_importance_context(self, aid: str, agent, year: int) -> Dict[str, Any]:
+        """The context the adapter's reflection importance and emotion read.
+
+        F08+F33 (2026-09-25 audit): real, current-year values --
+        water_right_pct and supply_ratio from the settled state,
+        recent_decision from the executed skill (agent._last_action_context),
+        and drought_count from the counter post_year maintains. Rounded to 6
+        places so float noise cannot move a band edge. Supply-side redesign
+        (spec M4): the adapter also reads the PROPOSED skill, the fallback
+        flag and the unmet fraction."""
+        attrs = getattr(agent, "custom_attributes", {})
+        agent_state = self.env.get_agent_state(aid)
+        water_right = agent_state.get("water_right", 0) or 0
+        request = agent_state.get("request", 0) or 0
+        diversion = agent_state.get("diversion", 0) or 0
+        action_ctx = getattr(agent, "_last_action_context", None) or {}
+        # Same rule as pre_year: a context stamped with an earlier
+        # loop year describes no decision of this year (nothing
+        # executed: an ABORTED decision).
+        if action_ctx.get("year") != year:
+            action_ctx = {}
+        proposed, was_fallback = _proposed_and_fallback(action_ctx)
+        return {
+            "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
+            "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,
+            "unmet_frac": _unmet_frac(request, diversion),
+            "proposed_skill": proposed,
+            "was_fallback": was_fallback,
+            "years_farming": attrs.get("years_farming", 0),
+            "has_efficient_system": attrs.get("has_efficient_system", False),
+            "recent_decision": action_ctx.get("skill_name", ""),
+            "drought_count": getattr(agent, "drought_count", 0),
+            "cluster": attrs.get("cluster", ""),
+        }
+
+    def _batch_reflect_grounded(self, year: int, cfg: Dict[str, Any], keep_latest_only: bool,
+                                grounding: Dict[str, bool]) -> None:
+        """Year-end reflection with the grounded mechanism (spec item 45).
+
+        One agent per call. The input is the agent's retrieved outcome lines
+        (earlier reflections dropped, as before) plus (45a,
+        ``reflection.year_outcome``) the line of the year just ended, built
+        by ``_outcome_line`` from the snapshot ``post_year`` took a moment
+        ago, the same text ``pre_year`` writes to memory next year. With
+        ``reflection.year_lines`` (45b) the lines are listed one per year,
+        oldest first; the decision prompt's memory order stays by salience
+        (spec item 36l). With ``reflection.program_facts`` (45c) the program
+        writes the key years (``reflection_checks.key_years``: the year just
+        ended and the listed year with the largest shortfall) as fact lines
+        and the prompt carries the allocation rules that apply to the agent
+        (45h, ``reflection_rule_lines``); the model writes only the lesson.
+        Semantic contradictions from ``reflection_checks.check_lesson`` are
+        report-only flags with known false positives, hand-audited in the
+        pilot. Only enabled number checks, junk, overlong lessons and foreign
+        figures block storage, with one retry then a drop. Every attempt and
+        its flags are written to ``reflection_checks.jsonl``; stored flags
+        and outcomes are counted per year in the manifest. The stored line
+        reads "Consolidated Reflection (written in {Y}): {fact lines} Lesson:
+        {lesson}".
+        ``keep_latest_only`` replaces the previous reflection only when a new
+        reflection is stored. A dropped reflection leaves the previous stored
+        reflection available to the next decision prompt.
+        """
+        if cfg.get("batch_size", 10) != 1:
+            raise ValueError(
+                "The grounded reflection (reflection.year_outcome / year_lines / "
+                "program_facts / lesson_no_numbers) runs one agent per call; set "
+                f"reflection.batch_size to 1 (got {cfg.get('batch_size')!r})."
+            )
+        written_in = self.env.current_year
+        llm_call = self.runner.get_llm_invoke("irrigation_farmer")
+        log_path = (Path(self.output_dir) / "reflection_checks.jsonl") if self.output_dir else None
+        engine = self.reflection_engine
+        replaced = 0
+        candidates = []
+        for aid, agent in self.runner.agents.items():
+            if not getattr(agent, "is_active", True):
+                continue
+            items = []
+            # Item 45m reserves a separate reflection slot for decisions.
+            # Reflection input must retain its pre-45m outcome selection, so
+            # opt out for this call before filtering reflections below.
+            for m in self.runner.memory_engine.retrieve(
+                    agent, top_k=10, reflection_slot=None):
+                if _is_reflection_memory(m):
+                    continue
+                text = m.get("content", "") if isinstance(m, dict) else str(m)
+                items.append({"content": text, "year": line_year(text)})
+            outcome_item = None
+            if grounding["year_outcome"]:
+                snapshot = getattr(agent, "_last_year_outcome", None)
+                if not snapshot or snapshot.get("year") != year:
+                    raise RuntimeError(
+                        f"{aid}: _batch_reflect({year}) found no snapshot of this year; "
+                        "post_year must take it before the reflection runs."
+                    )
+                basin = self.env.get_agent_context(aid)["basin"]
+                line, _action = self._outcome_line(agent, snapshot, basin)
+                outcome_item = {"content": line, "year": snapshot["calendar_year"]}
+            items = add_year_outcome(items, outcome_item, required=grounding["year_outcome"])
+            if items:
+                candidates.append((aid, agent, items))
+        if not candidates:
+            return
+
+        print(f"  [Reflection] {len(candidates)} agents, one per call (grounded, spec item 45)...")
+        for aid, agent, items in candidates:
+            agent_ctx = self._reflection_importance_context(aid, agent, year)
+            lines = []
+            for item in items:
+                parsed = parse_outcome_line(item["content"])
+                if parsed is None:
+                    raise ValueError(f"{aid}: a reflection input line is not an outcome line: {item['content']!r}")
+                lines.append(parsed)
+            facts = rules = None
+            if grounding["program_facts"]:
+                latest = written_in if grounding["year_outcome"] else max(l.year for l in lines)
+                picked = key_years(lines, latest)
+                by_year = {l.year: l for l in lines}
+                ordered = sorted(lines, key=lambda line: line.year)
+                previous_receipt = {
+                    line.year: prior.received
+                    for prior, line in zip(ordered, ordered[1:])
+                    if line.year == prior.year + 1
+                }
+                facts = [fact_line(by_year[y], previous_receipt.get(y)) for y in picked]
+                rule_context = {**self.env.get_agent_context(aid),
+                                "ub_supply_mode": self.env.config.ub_supply_mode}
+                rules = reflection_rule_lines(rule_context)
+            prompt = engine.generate_batch_reflection_prompt(
+                [{"agent_id": aid, "memories": items, "context": agent_ctx}],
+                written_in,
+                reflection_questions=cfg.get("questions", []),
+                persona_instruction=cfg.get("persona_instruction"),
+                year_lines=grounding["year_lines"],
+                fact_lines=facts,
+                rule_lines=rules,
+            )
+            own_text = " ".join(item["content"] for item in items)
+            result = run_checked_reflection(
+                engine,
+                prompt=prompt,
+                agent_id=aid,
+                period=written_in,
+                llm_call=llm_call,
+                normalize=_normalize_reflection_text,
+                checker=lambda lesson, _lines=lines, _own=own_text: check_lesson(lesson, _lines, _own),
+                lesson_no_numbers=grounding["lesson_no_numbers"],
+                log_path=log_path,
+                # reflection_log.jsonl keeps the loop year, as before item 45
+                # (year_created + 2018 = the calendar year written in).
+                year_created=year,
+            )
+            self.reflection_tally.add(written_in, result)
+            if result.error:
+                print(f"  [Reflection:Error] {aid}: {result.error}")
+            if result.last_insight is not None:
+                if engine.adapter:
+                    result.last_insight.importance = engine.compute_dynamic_importance(agent_ctx)
+                # Every reply that parsed is in reflection_log.jsonl (the last
+                # one when the lesson was retried), stored or not, as before.
+                engine.store_insight(aid, result.last_insight)
+            if result.insight is None:
+                if result.outcome == "dropped":
+                    reasons = "; ".join(p.message for p in result.final_problems)
+                    print(f"  [reflect] {aid}: not stored after one retry ({reasons})")
+                continue
+            emotion = "major"
+            if engine.adapter:
+                emotion = engine.adapter.classify_emotion(agent_ctx.get("recent_decision", ""), agent_ctx)
+            replaced += store_reflection_memory(
+                self.runner.memory_engine,
+                aid,
+                f"{_REFLECTION_MEMORY_PREFIX} (written in {written_in}): "
+                f"{compose_lesson_with_facts(facts, result.lesson)}",
+                {
+                    "importance": result.insight.importance,
+                    "emotion": emotion,
+                    "source": "personal",
+                    "type": "reflection",
+                    "year": written_in,
+                },
+                keep_latest_only=keep_latest_only,
+            )
+        print(f"  [Reflection] Year {year} complete.")
+        print(f"  [reflect] year {year} ({written_in}): {self.reflection_tally.log_line(written_in)}; "
+              f"replaced {replaced} earlier reflection items")
+
     def _batch_reflect(self, year: int):
         """Year-end reflection (spec 4.7; L3 M8, D11; PI item 8).
 
@@ -920,50 +1122,33 @@ class IrrigationLifecycleHooks:
         (empty, foreign figure, unreadable reply, failed call) loses its
         earlier reflection too (review HIGH 1), so a prompt never shows a
         reflection older than the end of the previous year (S10).
+
+        With any of the four grounded-reflection keys on (spec item 45;
+        irrigation's own config turns all four on) the year-end reflection
+        runs ``_batch_reflect_grounded`` instead; the path below is the one
+        before item 45, unchanged.
         """
         cfg = self.runner.broker.config.get_reflection_config()
         batch_size = cfg.get("batch_size", 10)
         keep_latest_only = self.runner.broker.config.get_reflection_keep_latest_only()
+        # Spec item 45 (a)-(e): the grounded mechanism, when any of its four
+        # framework keys is on (irrigation turns all four on); the path below
+        # is the one before item 45, unchanged.
+        grounding = self.runner.broker.config.get_reflection_grounding()
+        if any(grounding.values()):
+            self._batch_reflect_grounded(year, cfg, keep_latest_only, grounding)
+            return
         written_in = self.env.current_year
         candidates = []
         for aid, agent in self.runner.agents.items():
             if not getattr(agent, "is_active", True):
                 continue
-            mems = [m for m in self.runner.memory_engine.retrieve(agent, top_k=10)
+            # Keep the pre-item-45m outcome-only reflection input unchanged.
+            mems = [m for m in self.runner.memory_engine.retrieve(
+                        agent, top_k=10, reflection_slot=None)
                     if not _is_reflection_memory(m)]
             if mems:
-                # F08+F33 (2026-09-25 audit): the adapter's importance and
-                # emotion read real, current-year values -- water_right_pct
-                # and supply_ratio from the settled state, recent_decision
-                # from the executed skill (agent._last_action_context), and
-                # drought_count from the counter post_year maintains. Rounded
-                # to 6 places so float noise cannot move a band edge.
-                # Supply-side redesign (spec M4): the adapter also reads the
-                # PROPOSED skill, the fallback flag and the unmet fraction.
-                attrs = getattr(agent, "custom_attributes", {})
-                agent_state = self.env.get_agent_state(aid)
-                water_right = agent_state.get("water_right", 0) or 0
-                request = agent_state.get("request", 0) or 0
-                diversion = agent_state.get("diversion", 0) or 0
-                action_ctx = getattr(agent, "_last_action_context", None) or {}
-                # Same rule as pre_year: a context stamped with an earlier
-                # loop year describes no decision of this year (nothing
-                # executed: an ABORTED decision).
-                if action_ctx.get("year") != year:
-                    action_ctx = {}
-                proposed, was_fallback = _proposed_and_fallback(action_ctx)
-                agent_ctx = {
-                    "water_right_pct": round(request / water_right, 6) if water_right > 0 else 0.5,
-                    "supply_ratio": round(diversion / request, 6) if request > 0 else 1.0,
-                    "unmet_frac": _unmet_frac(request, diversion),
-                    "proposed_skill": proposed,
-                    "was_fallback": was_fallback,
-                    "years_farming": attrs.get("years_farming", 0),
-                    "has_efficient_system": attrs.get("has_efficient_system", False),
-                    "recent_decision": action_ctx.get("skill_name", ""),
-                    "drought_count": getattr(agent, "drought_count", 0),
-                    "cluster": attrs.get("cluster", ""),
-                }
+                agent_ctx = self._reflection_importance_context(aid, agent, year)
                 candidates.append({
                     "agent_id": aid,
                     "memories": mems,
@@ -1344,7 +1529,7 @@ def _record_water_system_config_provenance(
 
 
 def _record_memory_options_provenance(output_dir: Path, memory_engine) -> None:
-    """Additively record the three item-36b HumanCentricMemoryEngine
+    """Additively record the resolved HumanCentricMemoryEngine
     options in this run's two provenance files (Opus review P3-2,
     2026-10-06).
 
@@ -1360,9 +1545,10 @@ def _record_memory_options_provenance(output_dir: Path, memory_engine) -> None:
             "deterministic_consolidation": memory_engine.deterministic_consolidation,
             "decay_ignore_emotion": memory_engine.decay_ignore_emotion,
             "decay_by_calendar_year": memory_engine.decay_by_calendar_year,
+            "reflection_slot": memory_engine.reflection_slot,
         }
     except AttributeError as e:
-        print(f"[Provenance] WARNING: memory_engine has no item-36b options to "
+        print(f"[Provenance] WARNING: memory_engine has no resolved memory options to "
               f"record (not a HumanCentricMemoryEngine?): {e}")
         return
 
@@ -1726,6 +1912,23 @@ def main():
 
     global_cfg = cfg_data.get("global_config", {})
 
+    # Refuse unsupported allocation rules before profiles or model setup.
+    from broker.utils.agent_config import AgentTypeConfig
+    config_kwargs: Dict[str, Any] = {}
+    if args.lb_non_ag_total_maf is not None:
+        config_kwargs["lb_non_ag_total_maf"] = args.lb_non_ag_total_maf
+    if args.lb_return_flow_fraction is not None:
+        config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
+    if args.min_utilisation_fraction is not None:
+        config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
+    config = WaterSystemConfig(seed=seed, **config_kwargs)
+    grounding = AgentTypeConfig.load(str(agent_config_path)).get_reflection_grounding()
+    if any(grounding.values()) and config.ub_supply_mode != "subbasin":
+        raise SystemExit(
+            "Grounded reflection requires ub_supply_mode == 'subbasin'; "
+            f"got {config.ub_supply_mode!r}."
+        )
+
     # --- Optional: strip magnitude_pct from schema to reduce context size ---
     if args.no_magnitude:
         shared_fields = cfg_data.get("shared", {}).get("response_format", {}).get("fields", [])
@@ -1852,14 +2055,6 @@ def main():
     ).get_coupling_context_contract()
     if coupling_contract_active:
         print("[coupling] context_contract=True — get_agent_context() fails loud on a missing field")
-    config_kwargs: Dict[str, Any] = {}
-    if args.lb_non_ag_total_maf is not None:
-        config_kwargs["lb_non_ag_total_maf"] = args.lb_non_ag_total_maf
-    if args.lb_return_flow_fraction is not None:
-        config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
-    if args.min_utilisation_fraction is not None:
-        config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
-    config = WaterSystemConfig(seed=seed, **config_kwargs)
     # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
     # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
     # runner never exposes a flag for it (test_hold_requests_fixed_
@@ -1933,11 +2128,16 @@ def main():
         deterministic_consolidation=gm.get("deterministic_consolidation", False),
         decay_ignore_emotion=gm.get("decay_ignore_emotion", False),
         decay_by_calendar_year=gm.get("decay_by_calendar_year", False),
+        # Spec item 45m: irrigation opts into a separate final reflection
+        # slot. None remains the framework default for every other case.
+        reflection_slot=gm.get("reflection_slot"),
     )
-    print(f"[Pillar 2] HumanCentricMemoryEngine (window={memory_engine.window_size}, top_k_significant={memory_engine.top_k_significant}, mode={memory_engine.ranking_mode})")
+    print(f"[Pillar 2] HumanCentricMemoryEngine (window={memory_engine.window_size}, "
+          f"top_k_significant={memory_engine.top_k_significant}, "
+          f"reflection_slot={memory_engine.reflection_slot}, mode={memory_engine.ranking_mode})")
 
     # --- Context builder ---
-    ctx_builder = TieredContextBuilder(
+    ctx_builder = IrrigationContextBuilder(
         agents=agents,
         hub=None,  # No social graph for irrigation
         skill_registry=registry,
@@ -2074,6 +2274,9 @@ def main():
         output_path=str(output_dir / "reflection_log.jsonl"),
         adapter=irrigation_adapter,
     )
+    # Runtime truth for Invariant 6. Irrigation currently wires reflection
+    # whenever this engine exists, including with the window memory engine.
+    runner.reflection_enabled = reflection_engine is not None
     print(f"[Pillar 2] ReflectionEngine (interval={reflection_engine.reflection_interval}, adapter=IrrigationAdapter)")
 
     # --- Inject lifecycle hooks ---
@@ -2128,6 +2331,15 @@ def main():
         _record_water_system_config_provenance(output_dir, env.config)
         _record_memory_options_provenance(output_dir, memory_engine)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
+        # Spec item 45e: the per-year stored / retried / dropped counts of
+        # the checked reflections (only when the grounded keys are on).
+        _grounding = runner.broker.config.get_reflection_grounding()
+        if any(_grounding.values()):
+            record_reflection_checks(output_dir, hooks.reflection_tally, {
+                **_grounding,
+                "retries": 1,
+                "domain_checker": "examples/irrigation_abm/reflection_checks.py (check_lesson)",
+            })
 
         # Finalize audit. Also already called from inside
         # ExperimentRunner._finalize_experiment's own finally (run() wraps

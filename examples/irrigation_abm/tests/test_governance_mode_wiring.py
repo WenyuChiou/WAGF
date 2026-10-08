@@ -80,6 +80,10 @@ if str(PROJECT_ROOT) not in sys.path:
 BASE = PROJECT_ROOT / "examples" / "irrigation_abm"
 CONFIG_DIR = BASE / "config"
 
+# Irrigation spec item 45: the stub runners below drive _batch_reflect's path
+# before item 45 (every grounded-reflection key off, the framework default).
+from broker.components.cognitive.reflection import GROUNDING_KEYS  # noqa: E402
+
 
 class _StopBeforeRun(Exception):
     """Raised by a monkeypatched ExperimentBuilder.build() to abort
@@ -607,7 +611,8 @@ class TestBatchReflectImportanceKey:
         runner_stub = SimpleNamespace(
             broker=SimpleNamespace(config=SimpleNamespace(
                 get_reflection_config=lambda: {},
-                get_reflection_keep_latest_only=lambda: False)),
+                get_reflection_keep_latest_only=lambda: False,
+                get_reflection_grounding=lambda: {k: False for k in GROUNDING_KEYS})),
             agents={"Agent_1": agent},
             memory_engine=engine,
             get_llm_invoke=self._fake_llm_invoke,
@@ -735,7 +740,8 @@ class TestBatchReflectImportanceKey:
         runner_stub = SimpleNamespace(
             broker=SimpleNamespace(config=SimpleNamespace(
                 get_reflection_config=lambda: {},
-                get_reflection_keep_latest_only=lambda: False)),
+                get_reflection_keep_latest_only=lambda: False,
+                get_reflection_grounding=lambda: {k: False for k in GROUNDING_KEYS})),
             agents={"Agent_drought": agent},
             memory_engine=engine,
             get_llm_invoke=self._fake_llm_invoke,
@@ -795,7 +801,8 @@ class TestBatchReflectEmptySummary:
         runner_stub = SimpleNamespace(
             broker=SimpleNamespace(config=SimpleNamespace(
                 get_reflection_config=lambda: {},
-                get_reflection_keep_latest_only=lambda: False)),
+                get_reflection_keep_latest_only=lambda: False,
+                get_reflection_grounding=lambda: {k: False for k in GROUNDING_KEYS})),
             agents={agent.id: agent},
             memory_engine=engine,
             get_llm_invoke=outer._fake_llm_invoke,

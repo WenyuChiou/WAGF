@@ -36,13 +36,14 @@ def _smart_mock_invoke(prompt: str):
     the per-year household decision call (numbered-option JSON, the
     framework's standard domain-agnostic mock) and the batch reflection
     call (JSON keyed by agent id, matching ReflectionEngine's Stage-1
-    parser) — distinguished by the reflection persona instruction text
-    baked into ``examples/irrigation_abm/config/agent_types.yaml``
-    (``global_config.reflection.persona_instruction``: "... 'Lesson
-    Learned' ..."), which never appears in the decision prompt.
+    parser), distinguished by the reflection prompt's fixed opening line
+    ("You are a Reflection Assistant", ``broker/components/cognitive/
+    reflection.py (ReflectionEngine.generate_batch_reflection_prompt)``),
+    which never appears in the decision prompt (the persona instruction no
+    longer says "Lesson Learned" since irrigation spec item 45d).
     """
     stats = LLMStats(retries=0, success=True)
-    if "Lesson Learned" in prompt:
+    if "You are a Reflection Assistant" in prompt:
         ids = sorted(set(re.findall(r"Agent_\d+", prompt)))
         payload = {
             aid: "I learned to manage water demand carefully after last year."

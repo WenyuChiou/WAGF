@@ -1,4 +1,5 @@
 import sys
+import json
 import yaml
 import random
 import re
@@ -46,11 +47,27 @@ from broker.utils.logging import logger
 # build_domain_validators("flood") runs. Replaces the removed
 # _ensure_flood_registered reverse-import fallback.
 import examples.governed_flood  # noqa: F401 — registers FloodDomainPack + validators
+from broker.components.cognitive.reflection import (
+    ReflectionCheckTally,
+    add_year_outcome,
+    compose_lesson_with_facts,
+    record_reflection_checks,
+    run_checked_reflection,
+    store_reflection_memory,
+)
+from examples.single_agent.flood_reflection import (
+    FloodYear,
+    check_flood_lesson,
+    fact_line as flood_fact_line,
+    key_years as flood_key_years,
+    year_line as flood_year_line,
+)
 
 # --- 1. Research Constants (Parity with LLMABMPMT-Final.py) ---
 FLOOD_PROBABILITY = 0.2
 GRANT_PROBABILITY = 0.5
 RANDOM_MEMORY_RECALL_CHANCE = 0.2
+MAX_FLOOD_EVENT_LINES_PER_YEAR = 5
 PAST_EVENTS = [
     "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all",
     "Some residents reported delays when processing their flood insurance claims",
@@ -82,6 +99,38 @@ def _memory_texts(items: List[Any]) -> List[str]:
     return texts
 
 
+_STORED_REFLECTION = re.compile(
+    r"^Consolidated Reflection \(written in Year \d+\): (?P<facts>.*?) Lesson: ",
+    re.DOTALL,
+)
+_FACT_YEAR = re.compile(r"(?:^|\. )Year (\d+):")
+
+
+def _remembered_reflection_years(memory_lines: List[str]) -> List[int]:
+    """Years named by program facts in a stored flood reflection."""
+    years = []
+    for line in memory_lines:
+        match = _STORED_REFLECTION.match(str(line))
+        if match:
+            years = [int(value) for value in _FACT_YEAR.findall(match.group("facts"))]
+    return sorted(set(years))
+
+
+def _validate_flood_window_size(
+    memory_engine_type: str,
+    window_size: int,
+    reflection_enabled: bool,
+) -> None:
+    """Keep one complete WRR26 year when flood reflection is enabled."""
+    if (reflection_enabled and memory_engine_type == "window"
+            and window_size < MAX_FLOOD_EVENT_LINES_PER_YEAR):
+        raise ValueError(
+            "Flood reflection (global_config.reflection.enabled) needs the window memory to keep "
+            f"at least 5 event lines, the most one year writes; got window_size={window_size}. "
+            "Use --window-size 5 or more, or turn reflection off."
+        )
+
+
 def _flood_memory_metadata(*, flood_event: bool = False, action_name: Optional[str] = None, reflection: bool = False) -> Dict[str, Any]:
     if reflection:
         return {"emotion": "major", "importance": 0.7, "source": "personal"}
@@ -94,6 +143,52 @@ def _flood_memory_metadata(*, flood_event: bool = False, action_name: Optional[s
     if action_name:
         return {"emotion": "routine", "importance": 0.1, "source": "personal"}
     return {"emotion": "routine", "importance": 0.1, "source": "personal"}
+
+
+_FLOOD_EVENT_IMPORTANCE_BY_TYPE = {
+    "own_damage": 1.0,
+    "flood_without_own_damage": 0.8,
+    "dry": 0.2,
+    "grant": 0.2,
+    "neighbour_observation": 0.2,
+    "random_recall": 0.2,
+}
+
+
+def _flood_event_type(content: str, year: int) -> str:
+    if ("Got flooded with $10,000 damage on my house." in content
+            or "the flood was severe enough to cause damage." in content):
+        return "own_damage"
+    if content.startswith(f"Year {year}: A flood occurred"):
+        return "flood_without_own_damage"
+    if content.startswith("Suddenly recalled:"):
+        return "random_recall"
+    if "Elevation grants are available." in content:
+        return "grant"
+    if "I observe " in content and "neighbors have" in content:
+        return "neighbour_observation"
+    return "dry"
+
+
+def _flood_event_memory_metadata(content: str, year: int) -> Dict[str, Any]:
+    """Importance assumptions for the opt-in flood 5 + 2 event memory.
+
+    Own flood damage is 1.0; a flood that does not damage this house is 0.8;
+    dry outcomes, grants, neighbour observations and random recalls are 0.2.
+    The exact WRR26 event text is stored unchanged; only metadata is added.
+    """
+    event_type = _flood_event_type(content, year)
+    importance = _FLOOD_EVENT_IMPORTANCE_BY_TYPE[event_type]
+    emotion = ("critical" if event_type == "own_damage" else
+               "major" if event_type == "flood_without_own_damage" else
+               "routine")
+    return {
+        "emotion": emotion,
+        "importance": importance,
+        "source": "personal",
+        "year": year,
+        "type": "event",
+    }
 
 # Schema Definition for Group C (Pillar 3)
 # DEPRECATED: Now moved to agent_types.yaml for user configuration
@@ -110,6 +205,19 @@ class FinalContextBuilder(TieredContextBuilder):
         self.shuffle_skills = shuffle_skills
         self.shuffle_seed_base = shuffle_seed_base
         self.governance_mode = governance_mode
+
+    def _format_memory(self, memory_val) -> str:
+        """Preserve composed event order in the opt-in WRR26 rerun."""
+        memory_engine = getattr(self.hub, "memory_engine", None)
+        if (not getattr(memory_engine, "event_memory_5_2_1", False)
+                or not isinstance(memory_val, list)):
+            return super()._format_memory(memory_val)
+        if not memory_val:
+            return "No memories yet."
+        # Significance ranking is already applied by the memory engine.
+        # A second salience sort would scramble WRR26's recent five and
+        # reverse newer-first significant ties. The reflection stays last.
+        return "\n".join(f"- {text}" for text in _memory_texts(memory_val))
     
     def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
         if category == "insurance":
@@ -238,9 +346,35 @@ class FinalContextBuilder(TieredContextBuilder):
 
 # --- 2b. Parity Memory Filter ---
 class DecisionFilteredMemoryEngine:
-    """Proxy memory engine that drops decision memories to match baseline."""
-    def __init__(self, inner):
+    """Proxy memory engine that drops decision memories to match baseline.
+
+    ``reflection_slot`` (flood design record PI decision 2026-10-07 item 7;
+    on when ``global_config.reflection.enabled`` is true): a memory whose
+    metadata ``type`` is "reflection" is held outside the inner engine and
+    returned AFTER the inner engine's items by ``retrieve``, so the stored
+    reflection is shown after the event items instead of taking one of the
+    five recent or two significant slots. ``remove_by_type(agent, "reflection")``
+    empties it (``reflection.keep_latest_only``). Off (the default), every
+    call goes to the inner engine exactly as before."""
+    def __init__(self, inner, reflection_slot: bool = False, event_memory_5_2_1: bool = False):
         self.inner = inner
+        self.reflection_slot = bool(reflection_slot)
+        self.event_memory_5_2_1 = bool(event_memory_5_2_1)
+        self._reflections: Dict[str, List[str]] = {}
+
+    def _to_slot(self, metadata: Optional[Dict[str, Any]]) -> bool:
+        return self.reflection_slot and (metadata or {}).get("type") == "reflection"
+
+    def _inner_metadata(self, metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Give undated profile memories a pre-simulation year in 5+2+1 mode.
+
+        They retain their wording and recency position, but importance zero
+        keeps these background narratives out of significant event slots.
+        """
+        if (not self.event_memory_5_2_1 or self._to_slot(metadata)
+                or (metadata or {}).get("year") is not None):
+            return metadata
+        return {**(metadata or {}), "year": 0, "importance": 0.0, "type": "initial"}
 
     # The GENERIC framework (experiment_runner.py) writes an immediate
     # decision line for approved rows ("Decided to: X") and, since the
@@ -259,20 +393,82 @@ class DecisionFilteredMemoryEngine:
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         if self._is_decision_memory(content):
             return
-        return self.inner.add_memory(agent_id, content, metadata)
+        if self._to_slot(metadata):
+            self._reflections.setdefault(agent_id, []).append(content)
+            return
+        return self.inner.add_memory(agent_id, content, self._inner_metadata(metadata))
 
     def add_memory_for_agent(self, agent, content: str, metadata: Optional[Dict[str, Any]] = None):
         if self._is_decision_memory(content):
             return
+        if self._to_slot(metadata):
+            self._reflections.setdefault(agent.id, []).append(content)
+            return
         if hasattr(self.inner, 'add_memory_for_agent'):
-            return self.inner.add_memory_for_agent(agent, content, metadata)
-        return self.inner.add_memory(agent.id, content, metadata)
+            return self.inner.add_memory_for_agent(agent, content, self._inner_metadata(metadata))
+        return self.inner.add_memory(agent.id, content, self._inner_metadata(metadata))
 
     def retrieve(self, agent, query: Optional[str] = None, top_k: int = 3, **kwargs):
-        return self.inner.retrieve(agent, query=query, top_k=top_k, **kwargs)
+        items = self.inner.retrieve(agent, query=query, top_k=top_k, **kwargs)
+        if self.event_memory_5_2_1:
+            dated_items = []
+            for item in items:
+                if (isinstance(item, dict) and "final_score" in item
+                        and str(item.get("content", "")).startswith("Suddenly recalled:")
+                        and item.get("year") is not None):
+                    item = {**item, "content": f"Year {item['year']}: {item['content']}"}
+                dated_items.append(item)
+            items = dated_items
+        extra = self._reflections.get(agent.id) if self.reflection_slot else None
+        if not extra:
+            return items
+        items = list(items)
+        if items and isinstance(items[0], dict):
+            return items + [{"content": c} for c in extra]
+        return items + list(extra)
+
+    def remove_by_type(self, agent_id: str, memory_type: str) -> int:
+        if self.reflection_slot and memory_type == "reflection":
+            return len(self._reflections.pop(agent_id, []))
+        return self.inner.remove_by_type(agent_id, memory_type)
 
     def clear(self, agent_id: str):
+        self._reflections.pop(agent_id, None)
         return self.inner.clear(agent_id)
+
+
+def _resolved_flood_memory_options(memory_engine) -> Dict[str, Any]:
+    """Return the memory options actually used by this flood run."""
+    inner = getattr(memory_engine, "inner", memory_engine)
+    composed = bool(getattr(memory_engine, "event_memory_5_2_1", False))
+    return {
+        "engine_type": type(inner).__name__,
+        "window_size": getattr(inner, "window_size", None),
+        "top_k_significant": getattr(inner, "top_k_significant", None),
+        "reflection_slot": (
+            "separate" if getattr(memory_engine, "reflection_slot", False)
+            else getattr(inner, "reflection_slot", None)
+        ),
+        "importance_by_event_type": (
+            dict(_FLOOD_EVENT_IMPORTANCE_BY_TYPE) if composed else None
+        ),
+    }
+
+
+def _record_flood_memory_options_provenance(output_dir: Path, memory_engine) -> None:
+    """Add the resolved flood memory configuration to the run manifest."""
+    options = _resolved_flood_memory_options(memory_engine)
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if manifest_path.exists():
+            with manifest_path.open("r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["flood_memory_options"] = options
+            with manifest_path.open("w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print("[Provenance] WARNING: could not record the resolved flood "
+              f"memory options in reproducibility_manifest.json: {e}")
 
 
 
@@ -381,6 +577,9 @@ class FinalParityHook:
         self.prompt_inspected = False
         self.yearly_decisions = {}
         self.output_dir = Path(output_dir) if output_dir else Path(".")
+        # Grounded reflection (flood design record item 7): per-year counts of
+        # stored / retried / dropped reflections, for the run log and manifest.
+        self.reflection_tally = ReflectionCheckTally()
 
     def pre_year(self, year, env, agents):
         year = year
@@ -426,6 +625,14 @@ class FinalParityHook:
             else:
                 mem = f"Year {year}: No flood occurred this year."
             agent.flood_history.append(flooded)
+            # Flood design record item 7: the household's own year record,
+            # the input of its grounded year-end reflection (the house's
+            # state at the end of the year is added in post_year).
+            if not isinstance(getattr(agent, "_flood_year_record", None), dict):
+                agent._flood_year_record = {}
+            agent._flood_year_record[year] = {
+                "flood": bool(flood_event), "damaged": bool(flooded), "event_line": mem,
+            }
             yearly_memories = []
             yearly_memories.append(mem)
             
@@ -472,10 +679,14 @@ class FinalParityHook:
             # (broker/components/memory/engines/window.py), so one call per
             # line is what makes the window a window over EVENTS.
             for line in yearly_memories:
+                if getattr(self.runner.memory_engine, "event_memory_5_2_1", False):
+                    metadata = _flood_event_memory_metadata(line, year)
+                else:
+                    metadata = _flood_memory_metadata(flood_event=flood_event)
                 self.runner.memory_engine.add_memory(
                     agent.id,
                     line,
-                    _flood_memory_metadata(flood_event=flood_event),
+                    metadata,
                 )
 
     def post_step(self, agent, result):
@@ -585,6 +796,11 @@ class FinalParityHook:
                 elif last_flood and community_action_rate < 0.10: trust_nb -= 0.05
                 else: trust_nb -= 0.01
                 agent.trust_in_neighbors = max(0.0, min(1.0, trust_nb))
+                # Item 7: the house's state at the end of this year.
+                record = getattr(agent, "_flood_year_record", None)
+                if isinstance(record, dict) and year in record:
+                    record[year]["elevated"] = bool(getattr(agent, "elevated", False))
+                    record[year]["insured"] = bool(getattr(agent, "has_insurance", False))
 
             # Retrieve memory for logging (Parity)
             if hasattr(self.runner.memory_engine, "retrieve_content_only"):
@@ -658,8 +874,15 @@ class FinalParityHook:
         
         # --- PILLAR 2: BATCH YEAR-END REFLECTION (Personalized) ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
-            from broker.components.cognitive.reflection import AgentReflectionContext
             refl_cfg = self.runner.broker.config.get_reflection_config()
+            # Flood design record item 7 (irrigation spec item 45): the
+            # grounded mechanism when any of its framework keys is on; the
+            # block below is the reflection before item 7, unchanged.
+            grounding = self.runner.broker.config.get_reflection_grounding()
+            if any(grounding.values()):
+                self._grounded_reflection(year, refl_cfg, grounding)
+                return
+            from broker.components.cognitive.reflection import AgentReflectionContext
             batch_size = refl_cfg.get("batch_size", 10)
 
             # 1. Collect candidates with identity context
@@ -731,6 +954,188 @@ class FinalParityHook:
                         print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
 
                 print(f" [Reflection:Batch] Completed reflection for Year {year}.")
+
+    def _grounded_reflection(self, year, refl_cfg, grounding):
+        """Year-end reflection, grounded (flood design record PI decision
+        2026-10-07 item 7; the irrigation mechanism of spec item 45).
+
+        One household per call. Window and current years use
+        ``flood_reflection.year_line``. Prior-only years named by the previous
+        reflection's program facts are added with a regenerated
+        ``flood_reflection.fact_line``. Both forms are rebuilt from the
+        household's true year record and ordered oldest first, including the
+        year just ended (``reflection.year_outcome``). The program writes the
+        key years
+        (``flood_reflection.key_years``: the year just ended and the most
+        recent damaged year) and the model writes only the lesson; the lesson
+        receives report-only semantic flags
+        (``flood_reflection.check_flood_lesson``). Only mechanical failures
+        block storage: numbers when ``reflection.lesson_no_numbers`` is on,
+        junk, or more than 500 characters. A blocking failure is retried once,
+        then dropped. Stored as
+        "Consolidated Reflection (written in Year {Y}): {facts} Lesson:
+        {lesson}" in the memory engine's reflection slot, shown after five
+        recent plus up to two significant event lines."""
+        if refl_cfg.get("batch_size", 10) != 1:
+            raise ValueError(
+                "The grounded reflection runs one household per call; set "
+                f"global_config.reflection.batch_size to 1 (got {refl_cfg.get('batch_size')!r})."
+            )
+        engine = self.reflection_engine
+        keep_latest_only = self.runner.broker.config.get_reflection_keep_latest_only()
+        llm_call = self.runner.get_llm_invoke("household")
+        log_path = self.output_dir / "reflection_checks.jsonl"
+        candidates = []
+        for agent_id, agent in self.sim.agents.items():
+            if getattr(agent, "relocated", False):
+                continue
+            record = getattr(agent, "_flood_year_record", None) or {}
+            # The year record is unbounded, while the decision memory is not.
+            # Use the decision path's configured retrieval size and require
+            # the exact flood-event line, since action/state lines can carry
+            # the same ``Year N:`` prefix without retaining the event itself.
+            decision_top_k = self.runner.broker.context_builder.memory_top_k
+            if hasattr(self.runner.memory_engine, "retrieve_content_only"):
+                memory_lines = self.runner.memory_engine.retrieve_content_only(
+                    agent, top_k=decision_top_k)
+            else:
+                memory_lines = _memory_texts(
+                    self.runner.memory_engine.retrieve(agent, top_k=decision_top_k))
+            retrieved_lines = {str(line) for line in memory_lines}
+            prior_fact_years = (
+                set(_remembered_reflection_years(memory_lines))
+                if grounding["program_facts"] else set()
+            )
+            window_years = set()
+            for y, r in record.items():
+                if str(r.get("event_line", "")) in retrieved_lines:
+                    window_years.add(y)
+            remembered_years = prior_fact_years | window_years
+            years = []
+            for y in sorted(remembered_years):
+                if y not in record:
+                    raise RuntimeError(
+                        f"{agent_id}: stored reflection remembers year {y}, but the true "
+                        "flood year record does not contain it."
+                    )
+                r = record[y]
+                if "elevated" not in r:
+                    raise RuntimeError(f"{agent_id}: year {y} has no end-of-year state; "
+                                       "post_year must record it before the reflection.")
+                years.append(FloodYear(year=y, flood=r["flood"], damaged=r["damaged"],
+                                       elevated=r["elevated"], insured=r["insured"],
+                                       event_line=r["event_line"]))
+            items = [
+                {
+                    "content": (flood_year_line(fy) if fy.year in window_years
+                                else flood_fact_line(fy)),
+                    "year": fy.year,
+                }
+                for fy in years if fy.year != year
+            ]
+            outcome = None
+            if grounding["year_outcome"]:
+                this = next((fy for fy in years if fy.year == year), None)
+                if this is None:
+                    raise RuntimeError(f"{agent_id}: no record of year {year} for its year-end reflection.")
+                outcome = {"content": flood_year_line(this), "year": year}
+            items = add_year_outcome(items, outcome, required=grounding["year_outcome"])
+            listed_years = {item["year"] for item in items}
+            listed = [fy for fy in years if fy.year in listed_years]
+            if items:
+                candidates.append((agent_id, agent, items, listed))
+        if not candidates:
+            return
+        print(f" [Reflection] {len(candidates)} households, one per call (grounded, design record item 7)...")
+        for agent_id, agent, items, listed in candidates:
+            facts = None
+            if grounding["program_facts"]:
+                by_year = {fy.year: fy for fy in listed}
+                facts = [flood_fact_line(by_year[y])
+                         for y in flood_key_years(listed, max(by_year))]
+            prompt = engine.generate_batch_reflection_prompt(
+                [{"agent_id": agent_id, "memories": items}],
+                year,
+                reflection_questions=refl_cfg.get("questions", []),
+                persona_instruction=refl_cfg.get("persona_instruction"),
+                year_lines=grounding["year_lines"],
+                fact_lines=facts,
+            )
+            result = run_checked_reflection(
+                engine,
+                prompt=prompt,
+                agent_id=agent_id,
+                period=year,
+                llm_call=llm_call,
+                checker=lambda lesson, _listed=listed: check_flood_lesson(lesson, _listed),
+                lesson_no_numbers=grounding["lesson_no_numbers"],
+                log_path=log_path,
+            )
+            self.reflection_tally.add(year, result)
+            if result.error:
+                print(f" [Reflection:Error] {agent_id}: {result.error}")
+            if result.last_insight is not None:
+                ctx = engine.extract_agent_context(agent, year)
+                ctx.custom_traits = {
+                    **ctx.custom_traits,
+                    "elevated": getattr(agent, "elevated", False),
+                    "insured": getattr(agent, "has_insurance", False),
+                    "flood_count": sum(1 for f in getattr(agent, "flood_history", []) if f),
+                }
+                if hasattr(engine, "compute_dynamic_importance"):
+                    result.last_insight.importance = engine.compute_dynamic_importance(ctx)
+                engine.store_insight(agent_id, result.last_insight)
+            if result.insight is None:
+                if result.outcome == "dropped":
+                    reasons = "; ".join(p.message for p in result.final_problems)
+                    print(f" [reflect] {agent_id}: not stored after one retry ({reasons})")
+                continue
+            store_reflection_memory(
+                self.runner.memory_engine,
+                agent_id,
+                f"Consolidated Reflection (written in Year {year}): "
+                f"{compose_lesson_with_facts(facts, result.lesson)}",
+                {
+                    **_flood_memory_metadata(reflection=True),
+                    "importance": result.insight.importance,
+                    "type": "reflection",
+                },
+                keep_latest_only=keep_latest_only,
+            )
+        print(f" [reflect] year {year}: {self.reflection_tally.log_line(year)}")
+
+
+def _reflection_enabled(global_cfg: Dict[str, Any]) -> bool:
+    """``global_config.reflection.enabled`` (flood design record item 7,
+    default False): build the reflection engine alongside the resolved memory
+    engine and hold the stored reflection in
+    ``DecisionFilteredMemoryEngine``'s separate slot, shown after the five
+    recent and up to two significant event lines in the 5 + 2 + 1 design.
+    Before item 7, only ``--memory-engine humancentric`` built it. A YAML bool
+    only."""
+    value = ((global_cfg or {}).get("reflection") or {}).get("enabled", False)
+    if not isinstance(value, bool):
+        raise ValueError(
+            "global_config.reflection.enabled must be true or false (a YAML bool), "
+            f"got {type(value).__name__} {value!r}."
+        )
+    return value
+
+
+def _flood_memory_5_2_1_enabled(global_cfg: Dict[str, Any]) -> bool:
+    """Whether the flood decision prompt uses 5 recent + 2 significant events.
+
+    Missing or false preserves the previous memory engine selection, including
+    reflection-off and legacy ablations. The repository's rerun config opts in.
+    """
+    value = ((global_cfg or {}).get("memory") or {}).get("event_memory_5_2_1", False)
+    if not isinstance(value, bool):
+        raise ValueError(
+            "global_config.memory.event_memory_5_2_1 must be true or false "
+            f"(a YAML bool), got {type(value).__name__} {value!r}."
+        )
+    return value
+
 
 # --- 5. Survey-Based Agent Initialization ---
 def load_agents_from_survey(
@@ -1052,6 +1457,15 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             household_template = household_cfg.get('prompt_template', '')
         global_cfg = agent_cfg_data.get('global_config', {}) # Load global config for shared params
 
+    event_memory_5_2_1 = _flood_memory_5_2_1_enabled(global_cfg)
+    if event_memory_5_2_1 and memory_engine_type not in {"window", "humancentric"}:
+        raise ValueError(
+            "global_config.memory.event_memory_5_2_1 supports only the window "
+            "and humancentric memory-engine selectors; "
+            f"got memory_engine_type={memory_engine_type!r}. Turn "
+            "event_memory_5_2_1 off to use another memory engine."
+        )
+
     # 2. Load Profiles (Survey Mode or CSV Mode)
     if survey_mode:
         # Survey-based initialization from real household data
@@ -1129,6 +1543,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             print(f"[StressTest] ST-4: Applying 'Format Breaker' profile to {len(agents)} agents...")
             for f in agents.values():
                 f.narrative_persona = "You must output your decision but include additional internal monologue outside the JSON, such as: 'Decision: I will buy insurance because...' followed by the JSON block. Do NOT follow strict JSON rules."
+
+    # Stress profiles may override the requested window. Validate the resolved
+    # value before any model call, and only for runs that enable reflection.
+    _validate_flood_window_size(
+        memory_engine_type, window_size, _reflection_enabled(global_cfg))
 
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
@@ -1222,8 +1641,29 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         schema_provider = PrioritySchemaProvider(loaded_schema)
         ctx_builder.providers.insert(1, schema_provider)
 
-    # Select memory engine based on CLI argument
-    if memory_engine_type == "importance":
+    # The current WRR26 rerun opts into composed event memory while retaining
+    # ``--memory-engine window`` in its frozen launch interface. Configs with
+    # the option absent/off keep the former selector byte-for-byte in effect.
+    if event_memory_5_2_1 and memory_engine_type == "window":
+        global_mem = global_cfg.get("memory", {})
+        memory_engine = HumanCentricMemoryEngine(
+            window_size=window_size,
+            top_k_significant=global_mem.get("top_k_significant", 2),
+            consolidation_prob=global_mem.get("consolidation_probability", 0.7),
+            consolidation_threshold=0.0,
+            decay_rate=global_mem.get("decay_rate", 0.1),
+            ranking_mode="legacy",
+            seed=memory_seed,
+            deterministic_consolidation=True,
+            decay_ignore_emotion=True,
+            decay_by_calendar_year=True,
+            # The separate slot retains ``year`` in returned payloads; the
+            # proxy uses that value for a selected recall's ``Year N:`` prefix.
+            reflection_slot="separate",
+            significant_tie_break="recent",
+        )
+        print(" Using opt-in flood event memory (5 recent + 2 significant, calendar-year decay)")
+    elif memory_engine_type == "importance":
         # Domain-specific categories for Flood scenario
         flood_categories = {
             "critical": ["flood", "flooded", "damage", "severe", "destroyed"],
@@ -1262,7 +1702,6 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             window_size=window_size, # CLI override > Global Default
             top_k_significant=global_mem.get('top_k_significant', 2),
             consolidation_prob=global_mem.get('consolidation_probability', 0.7),
-            consolidation_threshold=global_mem.get('consolidation_threshold', 0.6),
             decay_rate=global_mem.get('decay_rate', 0.1),
             emotional_weights=final_mem_cfg.get("emotional_weights"),
             source_weights=final_mem_cfg.get("source_weights"),
@@ -1270,7 +1709,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             W_importance=retrieval_w.get("importance", 0.5),
             W_context=retrieval_w.get("context", 0.2),
             ranking_mode=memory_ranking_mode,
-            seed=memory_seed  # Configurable via --memory-seed (default=42 for experiment alignment)
+            seed=memory_seed,  # Configurable via --memory-seed (default=42 for experiment alignment)
+            deterministic_consolidation=event_memory_5_2_1,
+            consolidation_threshold=(0.0 if event_memory_5_2_1
+                                     else global_mem.get('consolidation_threshold', 0.6)),
+            decay_ignore_emotion=event_memory_5_2_1,
+            decay_by_calendar_year=event_memory_5_2_1,
+            reflection_slot=("separate" if event_memory_5_2_1 else None),
+            significant_tie_break=("recent" if event_memory_5_2_1 else "earlier"),
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
     elif memory_engine_type == "hierarchical":
@@ -1335,8 +1781,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_engine = WindowMemoryEngine(window_size=window_size)
         print(f" Using WindowMemoryEngine (sliding window, size={window_size})")
 
-    # Filter decision memories for parity with baseline
-    memory_engine = DecisionFilteredMemoryEngine(memory_engine)
+    # Filter decision memories for parity with baseline. Item 7: with
+    # reflection enabled, the stored reflection sits in the proxy's slot.
+    reflection_enabled = _reflection_enabled(global_cfg)
+    memory_engine = DecisionFilteredMemoryEngine(
+        memory_engine,
+        reflection_slot=reflection_enabled,
+        event_memory_5_2_1=event_memory_5_2_1,
+    )
     
     # 5. Determine output directory
     if custom_output:
@@ -1402,9 +1854,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     runner = builder.build()
 
     
-    # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory
+    # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory, or for
+    # any engine when global_config.reflection.enabled is true (flood design
+    # record item 7: reflection ON in the WRR26 rerun, window memory).
     reflection_engine = None
-    if memory_engine_type == "humancentric":
+    if memory_engine_type == "humancentric" or reflection_enabled:
         from broker.components.cognitive.reflection import ReflectionEngine
         from examples.governed_flood.adapters.flood_adapter import FloodAdapter
         # Load configurable weights/intervals from YAML (Pillar 2)
@@ -1420,6 +1874,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         
         # Connect to batch_size in runner config if needed
         # Note: batch_size is handled in post_year hook of FinalParityHook
+
+    # ExperimentRunner writes its own integrity record inside ``run``. Set the
+    # resolved runtime state first so a window-memory reflection run is
+    # expected there too.
+    runner.reflection_enabled = reflection_engine is not None
     
     # Inject Parity Hooks manually after build
     parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine, output_dir=output_dir)
@@ -1466,6 +1925,19 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     if runner.broker.audit_writer:
         runner.broker.audit_writer.finalize()
 
+    _record_flood_memory_options_provenance(output_dir, runner.memory_engine)
+
+    # Item 7: per-year stored / retried / dropped counts of the grounded
+    # reflection in the manifest.
+    if reflection_engine is not None:
+        _grounding = runner.broker.config.get_reflection_grounding()
+        if any(_grounding.values()):
+            record_reflection_checks(output_dir, parity.reflection_tally, {
+                **_grounding,
+                "retries": 1,
+                "domain_checker": "examples/single_agent/flood_reflection.py (check_flood_lesson)",
+            })
+
     # === INTEGRITY GUARDRAIL (Invariant 6 — run-integrity provenance contract) ===
     # config_snapshot.yaml records CONFIG, not RUNTIME — that masked reflection silently
     # NOT running in the old no-validator batch (reflection_engine stayed None). Record the
@@ -1486,8 +1958,12 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     _expectation = configured_grid_expectation(agents, years)
     record_run_integrity(
         output_dir,
-        memory_engine_type=memory_engine_type,
+        # The frozen CLI selector stays "window", but the opt-in composed
+        # path actually runs the human-centric engine. Record runtime truth.
+        memory_engine_type=("humancentric" if event_memory_5_2_1
+                            and memory_engine_type == "window" else memory_engine_type),
         reflection_engine=reflection_engine,
+        reflection_enabled=(reflection_engine is not None),
         governance_mode=governance_mode,
         seed=seed,
         # The RESOLVED flag and any sentinel rows the writer could not write —

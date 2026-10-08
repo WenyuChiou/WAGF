@@ -115,10 +115,41 @@ def reset_state() -> None:
     _ATTEMPTS.clear()
 
 
+REFLECTION_LESSON = ("I learned that protecting my home before a flood matters more "
+                     "than reacting after one.")
+
+
+def _reflection_reply(prompt: str) -> str:
+    """A scripted year-end reflection (flood design record item 7): a JSON
+    object keyed by the household id, deterministic per (household, year).
+    One bucket in four names a year in its first answer and is clean on the
+    retry; bucket 2 makes a claim its own listed years contradict (the house
+    was never damaged when a listed year had damage, or a flood comes every
+    year when a listed year had none). That reply is stored with a report-only
+    flag. The rest answer a clean lesson, so a smoke run shows the outcomes
+    and flags the framework counts."""
+    agent_id = re.search(r"^(.+?) Memories:", prompt, flags=re.M).group(1)
+    year = re.search(r"\(Year (\d+)\)", prompt).group(1)
+    retry = "### Correction" in prompt
+    bucket = _bucket(f"{agent_id}|{year}", 4)
+    listed = prompt.split("### Record", 1)[0]
+    if bucket == 1 and not retry:
+        lesson = f"In Year {year} I learned to watch the river closely."
+    elif bucket == 2 and ("damage on my house" in listed or "severe enough to cause damage" in listed):
+        lesson = "I learned that my house has never been damaged, so waiting is safe."
+    elif bucket == 2:
+        lesson = "I learned that a flood comes every year, so I must always be ready."
+    else:
+        lesson = REFLECTION_LESSON
+    return json.dumps({agent_id: lesson})
+
+
 def scripted_mock_invoke(prompt: str):
     """Tuple-returning invoke callable, matching what
     ``broker.utils.llm_utils.create_llm_invoke`` returns for every model:
     ``(content: str, stats: LLMStats)``."""
+    if "You are a Reflection Assistant" in prompt:
+        return _reflection_reply(prompt), LLMStats(retries=0, success=True)
     core = _core(prompt)
     key = hashlib.sha256(core.encode("utf-8")).hexdigest()
     attempt = _ATTEMPTS.get(key, 0)
