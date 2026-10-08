@@ -15,12 +15,15 @@ Domain-agnostic via the ``DomainReflectionAdapter`` pattern and the
 - New domains define reflection questions in ``agent_types.yaml`` or via
   ``DomainPack.reflection_questions()``.
 """
-from typing import Dict, Any, List, Optional, Callable, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Union, TYPE_CHECKING
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
+import json
+import re
 
 from broker.utils.logging import setup_logger
 from .adapters import DomainReflectionAdapter
@@ -33,6 +36,432 @@ def _memory_text(m: Any) -> str:
     if isinstance(m, dict):
         return str(m.get("content", ""))
     return str(m)
+
+
+# ---------------------------------------------------------------------------
+# Grounded reflection (case-study spec item 45 (a)-(e), 2026-10-07; both
+# example domains opt in through their YAML). Every piece below is opt-in: the
+# four ``reflection`` keys read by
+# ``AgentTypeConfig.get_reflection_grounding`` all default to false, the new
+# keyword arguments of ``ReflectionEngine.generate_batch_reflection_prompt``
+# default to the shipped prompt, and a domain that calls none of the helpers
+# renders, stores and logs exactly what it did before.
+#
+# Timing contract (45a, ``reflection.year_outcome``): a domain hook that sets
+# this key promises that the reflection written at the end of a period sees
+# that period's own settled outcome. ``add_year_outcome`` is the enforcement
+# point: it raises when the key is on and the hook supplies no outcome item.
+# ---------------------------------------------------------------------------
+
+#: The ``reflection`` YAML keys of the grounded mechanism, in the order the
+#: spec lists them. Each is a YAML bool, default false.
+GROUNDING_KEYS = ("year_outcome", "year_lines", "program_facts", "lesson_no_numbers")
+
+#: Heading of the program-written record in a reflection prompt (45c).
+RECORD_HEADING = (
+    "### Record (written by the simulation and stored with your lesson; "
+    "do not restate it)"
+)
+
+#: The last line of a reflection prompt that carries a program-written
+#: record (45c): the model writes the lesson only, with no year or number.
+LESSON_ONLY_INSTRUCTION = (
+    "In the JSON value, write only the lesson: one or two sentences in the first person. "
+    "Do not write any year, amount, percentage or other number; the record "
+    "above is stored with your lesson."
+)
+
+#: Shown once, after the original prompt, when a lesson failed a check (45e).
+REFLECTION_RETRY_NOTE = (
+    "### Correction\n"
+    "Your previous answer could not be stored because {reasons}. "
+    "Answer again, following every instruction above."
+)
+
+# A four-digit calendar year (1800-2199) not inside a longer number.
+_CALENDAR_YEAR = re.compile(r"(?<![\d.,])(?:1[89]|2[01])\d{2}(?![\d.,]*\d)")
+# Any number written with digits, with its separators ("1,000", "17.5").
+_ANY_NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+@dataclass(frozen=True)
+class LessonProblem:
+    """A blocking problem or report-only semantic flag (45e).
+
+    ``code`` is a short tag, counted per year in the run log and the
+    manifest; ``message`` is a plain clause shown to the model in the one
+    retry ("it names a year (2031)")."""
+    code: str
+    message: str
+
+
+def _strip_lesson_preamble(text: str) -> str:
+    """Remove short, recognizable leading filler, preserving lesson prose.
+
+    A label is stripped only at the start or after a reflection/answer
+    preamble of at most six words. A sentence such as "One lesson: cut
+    early." is substantive text, even though it contains a lesson label.
+    "Here is ...:" openers have the same six-word bound. Short leading
+    "My lesson:", "The lesson:", "Key lesson:" and "Lesson learned:"
+    labels are also removed.
+    """
+    while True:
+        original = text
+        text = re.sub(r"^Sure\b[!.,:]\s*", "", text, count=1, flags=re.I)
+        opener = re.match(r"^(Here is\b[^.!?:]*):\s*", text, flags=re.I)
+        if opener and len(opener.group(1).split()) <= 6:
+            text = text[opener.end():]
+        text = re.sub(
+            r"^(?:(?:My|The|Key)\s+lesson|Lesson\s+learned):\s*",
+            "", text, count=1, flags=re.I,
+        )
+        label = re.match(r"^([^.!?]*?)\blesson:\s*", text, flags=re.I)
+        if label:
+            prefix = label.group(1).strip()
+            filler = re.match(r"^(?:my|your|the)\s+(?:reflection|response|answer)\b", prefix, flags=re.I)
+            if not prefix or (filler and len(prefix.split()) <= 6):
+                text = text[label.end():]
+        if text == original:
+            break
+    return text.strip()
+
+
+_LESSON_STRIP_CHARS = " \t\n\"'“”‘’,"
+
+
+def normalize_lesson_text(text: str) -> str:
+    """One clean line: internal whitespace collapsed, quotes, whitespace and
+    commas stripped from both ends (a JSON-residue copy such as '"...",'
+    reads as its text). The default ``normalize`` of
+    ``run_checked_reflection``."""
+    return " ".join((text or "").split()).strip(_LESSON_STRIP_CHARS)
+
+
+def lesson_number_problems(lesson: str) -> List[LessonProblem]:
+    """The generic safety-net check behind ``reflection.lesson_no_numbers``.
+
+    A lesson may contain no calendar year and no other number written with
+    digits, because the program writes every year and amount of a grounded
+    reflection itself (45c). Numbers spelled out in words are not checked.
+    Domain-neutral: it knows nothing about what the numbers measure."""
+    text = lesson or ""
+    problems: List[LessonProblem] = []
+    years = list(dict.fromkeys(_CALENDAR_YEAR.findall(text)))
+    if years:
+        problems.append(LessonProblem("year", f"it names a year ({', '.join(years)})"))
+    others = [n for n in dict.fromkeys(_ANY_NUMBER.findall(text)) if n not in years]
+    if others:
+        problems.append(LessonProblem("number", f"it contains a number ({', '.join(others)})"))
+    return problems
+
+
+def add_year_outcome(items: Sequence[Any], outcome_item: Any, *, required: bool) -> List[Any]:
+    """Reflection input with the settled outcome of the period just ended (45a).
+
+    ``items`` are the retrieved memories; ``outcome_item`` the domain's
+    line for the period just ended (a memory dict or a string). It is
+    appended unless the same text is already among ``items`` (a domain that
+    writes that line to memory before reflecting). ``required`` is
+    ``reflection.year_outcome``: when True, a missing ``outcome_item``
+    raises instead of letting a reflection be written without the outcome
+    of the period it reflects on."""
+    if outcome_item is None:
+        if required:
+            raise ValueError(
+                "reflection.year_outcome is on, but the domain supplied no outcome "
+                "for the period just ended; the reflection would be written without it."
+            )
+        return list(items)
+    present = {_memory_text(m).strip() for m in items}
+    if _memory_text(outcome_item).strip() in present:
+        return list(items)
+    return list(items) + [outcome_item]
+
+
+def order_by_year(items: Sequence[Any]) -> List[Any]:
+    """``items`` sorted by their ``"year"`` key, oldest first, ties kept in
+    the given order (45b). Every item must be a dict with a numeric
+    ``"year"``: the domain states the period each line is about (the
+    memory engine's payload does not carry it), and a missing one raises
+    rather than being placed by guess."""
+    for m in items:
+        year = m.get("year") if isinstance(m, dict) else None
+        if isinstance(year, bool) or not isinstance(year, (int, float)):
+            raise ValueError(
+                "reflection.year_lines needs a numeric 'year' on every reflection "
+                f"input item; got {m!r}."
+            )
+    return sorted(items, key=lambda m: m["year"])
+
+
+def compose_lesson_with_facts(fact_lines: Optional[Sequence[str]], lesson: str) -> str:
+    """The text of a grounded reflection (45c): the program-written fact
+    lines, then "Lesson: " and the model's lesson. Without fact lines it is
+    the lesson alone, as before."""
+    facts = [str(f).strip() for f in (fact_lines or []) if str(f).strip()]
+    if not facts:
+        return lesson
+    return " ".join(facts) + " Lesson: " + lesson
+
+
+def _per_agent_lines(value: Any, agent_id: str, n_agents: int, name: str) -> List[str]:
+    """Resolve a per-agent line option: None, a sequence of lines (a
+    one-agent batch only) or a mapping from agent id to lines."""
+    if value is None:
+        return []
+    if isinstance(value, Mapping):
+        return [str(v) for v in (value.get(agent_id) or [])]
+    if isinstance(value, (list, tuple)):
+        if n_agents != 1:
+            raise ValueError(
+                f"generate_batch_reflection_prompt: {name} given as a list is only "
+                f"defined for a one-agent batch; this batch has {n_agents} agents. "
+                "Pass a mapping from agent id to lines instead."
+            )
+        return [str(v) for v in value]
+    raise TypeError(f"generate_batch_reflection_prompt: {name} must be a list or a mapping, got {type(value).__name__}.")
+
+
+@dataclass
+class CheckedReflection:
+    """The result of one checked reflection call (45e).
+
+    ``outcome`` is one of ``ReflectionCheckTally.OUTCOMES``: "stored" (the
+    first lesson passed), "stored_after_retry" (it failed, the one retry
+    passed), or "dropped" (the allowed attempts failed, or the checker raised).
+    Junk and unreadable replies are drop reasons, not outcomes. ``insight`` and
+    ``lesson`` are set only for the two stored outcomes; ``last_insight``
+    is the last reply that parsed at all (stored or not), for the domain's
+    reflection log."""
+    outcome: str
+    insight: Optional["ReflectionInsight"] = None
+    last_insight: Optional["ReflectionInsight"] = None
+    lesson: str = ""
+    first_problems: List[LessonProblem] = field(default_factory=list)
+    final_problems: List[LessonProblem] = field(default_factory=list)
+    flags: List[LessonProblem] = field(default_factory=list)
+    calls: int = 0
+    error: str = ""
+
+
+class ReflectionCheckTally:
+    """Per-period counts of checked reflections (45e), for the run log and
+    the manifest. "retried" counts the lessons that needed the one retry,
+    whether it passed or not; problem codes are counted on first attempts,
+    one per code per reflection."""
+
+    OUTCOMES = ("stored", "stored_after_retry", "dropped")
+
+    def __init__(self) -> None:
+        self._counts: Dict[Any, Counter] = {}
+        self._problems: Dict[Any, Counter] = {}
+        self._retried: Counter = Counter()
+        self._dropped_problems: Counter = Counter()
+        self._flags: Dict[Any, Counter] = {}
+
+    def add(self, period: Any, result: CheckedReflection) -> None:
+        if result.outcome not in self.OUTCOMES:
+            raise ValueError(f"ReflectionCheckTally: unknown outcome {result.outcome!r}.")
+        counts = self._counts.setdefault(period, Counter())
+        counts[result.outcome] += 1
+        if result.calls > 1 or (result.calls == 0 and result.outcome in ("stored_after_retry", "dropped")):
+            self._retried[period] += 1
+        if result.outcome == "dropped":
+            self._dropped_problems.update(dict.fromkeys(p.code for p in result.final_problems).keys())
+        problems = self._problems.setdefault(period, Counter())
+        for code in dict.fromkeys(p.code for p in result.first_problems):
+            problems[code] += 1
+        if result.insight is not None:
+            flags = self._flags.setdefault(period, Counter())
+            flags.update(dict.fromkeys(p.code for p in result.flags).keys())
+
+    def counts(self, period: Any) -> Dict[str, int]:
+        c = self._counts.get(period, Counter())
+        out = {k: int(c.get(k, 0)) for k in self.OUTCOMES}
+        out["stored_total"] = out["stored"] + out["stored_after_retry"]
+        out["retried"] = int(self._retried.get(period, 0))
+        return out
+
+    def log_line(self, period: Any) -> str:
+        c = self.counts(period)
+        return (f"stored {c['stored_total']} ({c['stored_after_retry']} after one retry), "
+                f"retried {c['retried']}, dropped {c['dropped']}, "
+                f"flagged by reason {dict(sorted(self._flags.get(period, {}).items()))}")
+
+    def summary(self) -> Dict[str, Any]:
+        periods = sorted(self._counts, key=lambda p: (str(type(p)), p))
+        per_period = {str(p): {**self.counts(p),
+                               "first_attempt_problems": dict(sorted(self._problems.get(p, {}).items())),
+                               "flagged_by_reason": dict(sorted(self._flags.get(p, {}).items()))}
+                      for p in periods}
+        totals = Counter()
+        problems = Counter()
+        flags = Counter()
+        for p in periods:
+            totals.update(self.counts(p))
+            problems.update(self._problems.get(p, {}))
+            flags.update(self._flags.get(p, {}))
+        return {"per_period": per_period, "totals": dict(totals),
+                "first_attempt_problems": dict(sorted(problems.items())),
+                "dropped_by_reason": dict(sorted(self._dropped_problems.items())),
+                "flagged_by_reason": dict(sorted(flags.items()))}
+
+
+def _reply_text(raw: Any) -> str:
+    return raw[0] if isinstance(raw, tuple) else raw
+
+
+def _dedup_problems(problems: Sequence[LessonProblem]) -> List[LessonProblem]:
+    seen = set()
+    out = []
+    for p in problems:
+        if p.code not in seen:
+            seen.add(p.code)
+            out.append(p)
+    return out
+
+
+def run_checked_reflection(
+    engine: "ReflectionEngine",
+    *,
+    prompt: str,
+    agent_id: str,
+    period: Any,
+    llm_call: Callable[[str], Any],
+    normalize: Optional[Callable[[str], str]] = None,
+    checker: Optional[Callable[[str], Sequence[LessonProblem]]] = None,
+    lesson_no_numbers: bool = False,
+    retries: int = 1,
+    log_path: Optional[Union[str, Path]] = None,
+    year_created: Any = None,
+) -> CheckedReflection:
+    """Check one full lesson before storage, with one retry by default.
+
+    Numbers (when enabled), junk (no letters or fewer than three words),
+    lessons over 500 characters, and foreign figures block storage. Domain
+    semantic reasons are report-only flags, measured on every stored lesson;
+    they never cause a retry or drop. Preambles are removed before checks.
+    Checker and normalization errors are logged as ``checker_error`` drops.
+    Every attempt, including clean first attempts, is written to ``log_path``
+    when supplied. ``year_created`` defaults to ``period``.
+    """
+    if retries < 0:
+        raise ValueError("run_checked_reflection: retries must be 0 or more.")
+    norm = normalize or normalize_lesson_text
+    attempts: List[Dict[str, Any]] = []
+
+    def _problems(lesson: str):
+        found: List[LessonProblem] = []
+        if not any(c.isalpha() for c in lesson) or len(lesson.split()) < 3:
+            found.append(LessonProblem("empty", "the answer has no letters or fewer than three words"))
+        if len(lesson) > 500:
+            found.append(LessonProblem("too_long", "the lesson exceeds the 500-character limit"))
+        if lesson_no_numbers:
+            found.extend(lesson_number_problems(lesson))
+        domain = list(checker(lesson)) if checker is not None else []
+        found.extend(p for p in domain if p.code == "foreign_figure")
+        flags = [p for p in domain if p.code != "foreign_figure"]
+        return _dedup_problems(found), _dedup_problems(flags)
+
+    def _ask(text: str):
+        raw = None
+        try:
+            raw = _reply_text(llm_call(text))
+            insights = engine.parse_batch_reflection_response(
+                raw, [agent_id], period if year_created is None else year_created,
+                allow_plain_text=True)
+            return raw, insights.get(agent_id), ""
+        except Exception as e:
+            return raw, None, f"{type(e).__name__}: {e}"
+
+    result = CheckedReflection(outcome="dropped")
+    current_prompt = prompt
+    for attempt in range(retries + 1):
+        raw, insight, error = _ask(current_prompt)
+        result.calls += 1
+        if insight is not None:
+            result.last_insight = insight
+        lesson = ""
+        flags: List[LessonProblem] = []
+        try:
+            if insight is None:
+                # Trivial unstructured replies are junk; unreadable objects
+                # and failed calls use the no_reply retry path.
+                junk = isinstance(raw, str) and bool(raw.strip()) and (
+                    not any(c.isalpha() for c in raw) or
+                    (not re.search(r"[{}\[\]]", raw) and len(raw.split()) < 3))
+                problems = [LessonProblem("empty", "the answer has no letters or fewer than three words")]
+                if not junk:
+                    problems = [LessonProblem("no_reply", "no readable answer was found")]
+            else:
+                lesson = norm(_strip_lesson_preamble(norm(str(insight.summary or ""))))
+                problems, flags = _problems(lesson)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            problems = [LessonProblem("checker_error", "the lesson checker failed")]
+            flags = []
+            logger.error("[Reflection] checker failed for %s in period %s: %s",
+                         agent_id, period, error)
+        attempts.append({"attempt": attempt, "raw_reply": raw, "lesson": lesson,
+                         "problems": [{"code": p.code, "message": p.message} for p in problems],
+                         "flags": [{"code": p.code, "message": p.message} for p in flags],
+                         "error": error})
+        if attempt == 0:
+            result.first_problems = list(problems)
+        if insight is not None and not problems:
+            result.outcome = "stored" if attempt == 0 else "stored_after_retry"
+            insight.summary = lesson
+            result.insight = insight
+            result.lesson = lesson
+            result.flags = flags
+            result.final_problems = []
+            break
+        result.final_problems = list(problems)
+        result.error = error
+        if any(p.code == "checker_error" for p in problems):
+            result.outcome = "dropped"
+            break
+        if attempt < retries:
+            reasons = "; ".join(p.message for p in problems)
+            current_prompt = prompt + "\n\n" + REFLECTION_RETRY_NOTE.format(reasons=reasons)
+        else:
+            result.outcome = "dropped"
+
+    if log_path is not None:
+        try:
+            path = Path(log_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as f:
+                for a in attempts:
+                    f.write(json.dumps({"agent_id": agent_id, "period": period,
+                                        "outcome": result.outcome, **a},
+                                       ensure_ascii=False, default=str) + "\n")
+        except OSError as e:
+            logger.error(f"[Reflection] could not write the check log {log_path}: {e}")
+    return result
+
+
+def record_reflection_checks(output_dir: Union[str, Path], tally: ReflectionCheckTally,
+                             settings: Dict[str, Any]) -> None:
+    """Add the checked-reflection counts (45e) to this run's
+    ``reproducibility_manifest.json`` under ``reflection_checks``, after the
+    runner wrote it. Additive; a missing manifest or a write error is
+    printed and never fails the run (the posture of the domains' other
+    provenance patches)."""
+    try:
+        path = Path(output_dir) / "reproducibility_manifest.json"
+        if not path.exists():
+            print(f"[Provenance] WARNING: no reproducibility_manifest.json in {output_dir}; "
+                  "reflection check counts not recorded there.")
+            return
+        with open(path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        manifest["reflection_checks"] = {"settings": dict(settings), **tally.summary()}
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+    except Exception as e:
+        print(f"[Provenance] WARNING: could not record the reflection check counts "
+              f"in reproducibility_manifest.json: {e}")
 
 
 def store_reflection_memory(
@@ -615,6 +1044,10 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         reflection_questions: Optional[List[str]] = None,
         persona_instruction: Optional[str] = None,
         tick_label: str = "Year",
+        *,
+        year_lines: bool = False,
+        fact_lines: Optional[Union[Sequence[str], Mapping[str, Sequence[str]]]] = None,
+        rule_lines: Optional[Union[Sequence[str], Mapping[str, Sequence[str]]]] = None,
     ) -> str:
         """
         Generate a prompt for batch reflection across multiple agents.
@@ -629,6 +1062,23 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                 viewpoint (e.g., "Speak in first person as the agent").
             tick_label: Decision-period noun for prompt text ("Year" default —
                 byte-identical to pre-3-5; sub-annual domains pass e.g. "Day").
+            year_lines: ``reflection.year_lines`` (45b, default False): each
+                agent's memories one per line ("- " bullets), oldest first by
+                the ``"year"`` key every item must carry
+                (``order_by_year``). False keeps the shipped single
+                space-joined paragraph.
+            fact_lines: ``reflection.program_facts`` (45c, default None):
+                program-written fact lines shown under ``RECORD_HEADING``,
+                followed by ``LESSON_ONLY_INSTRUCTION`` (no years or numbers in
+                the answer). A list for a one-agent batch, or a mapping from
+                agent id to lines.
+            rule_lines: Optional rules of the simulation that apply to the
+                agent (e.g. how shared resources are allocated), shown after its
+                memories under "Rules that apply to {agent_id}:". Same shapes
+                as ``fact_lines``; default None.
+
+        With all three left at their defaults the prompt is byte-identical
+        to the one before these options existed.
         """
         if not batch_data:
             return ""
@@ -652,28 +1102,56 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         lines.append("")
 
         lines.append("### Task Data to Process")
+        n_agents = len(batch_data)
+        facts_by_agent: List[tuple] = []
         for item in batch_data:
             agent_id = item.get("agent_id", "Unknown")
             memories = item.get("memories", [])
-            mem_text = " ".join(_memory_text(m) for m in memories) if memories else "(No memories recorded)"
-            lines.append(f"{agent_id} Memories: {mem_text}")
-        
+            if year_lines and memories:
+                # 45b: one line per memory, oldest first.
+                lines.append(f"{agent_id} Memories:")
+                lines.extend(f"- {_memory_text(m)}" for m in order_by_year(memories))
+            else:
+                mem_text = " ".join(_memory_text(m) for m in memories) if memories else "(No memories recorded)"
+                lines.append(f"{agent_id} Memories: {mem_text}")
+            rules = _per_agent_lines(rule_lines, agent_id, n_agents, "rule_lines")
+            if rules:
+                lines.append(f"Rules that apply to {agent_id}:")
+                lines.extend(f"- {r}" for r in rules)
+            facts = _per_agent_lines(fact_lines, agent_id, n_agents, "fact_lines")
+            if facts:
+                facts_by_agent.append((agent_id, facts))
+
+        if facts_by_agent:
+            # 45c: the record the program writes and stores with the lesson.
+            lines.append("")
+            lines.append(RECORD_HEADING)
+            for agent_id, facts in facts_by_agent:
+                lines.append(f"{agent_id} Record:")
+                lines.extend(f"- {f}" for f in facts)
+
         lines.append("\n### Output Requirement")
         lines.append("Return ONLY the JSON object mapping Agent IDs to strings. No conversational filler.")
-        
+        if facts_by_agent:
+            lines.append(LESSON_ONLY_INSTRUCTION)
+
         return "\n".join(lines)
     
     def parse_batch_reflection_response(
         self,
         raw_response: str,
         batch_agent_ids: List[str],
-        current_year: int
+        current_year: int,
+        *,
+        allow_plain_text: bool = False,
     ) -> Dict[str, Optional[ReflectionInsight]]:
         """
         Robust multi-stage parser for batch reflections.
         Handles JSON, Markdown, and Heuristic Line-parsing. When the batch
         holds exactly one agent id, a one-key JSON reply with a non-blank
         string value is read for that agent whatever the key is called.
+        ``allow_plain_text`` is opt-in for the checked one-agent call; all
+        other callers retain the structured-reply requirement.
         """
         import json
         import re
@@ -706,7 +1184,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                     # Case-insensitive key lookup for robustness
                     found_key = next((k for k in data.keys() if k.lower() == aid.lower()), None)
                     if found_key and isinstance(data[found_key], str):
-                        results[aid] = self._create_insight(data[found_key], current_year)
+                        results[aid] = self._create_insight(data[found_key], current_year, truncate=not allow_plain_text)
 
                 # Single-agent batch (batch_size 1): small models often answer
                 # under a shortened or generic key ("Agent_1", the tail of a
@@ -717,7 +1195,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                         and len(data) == 1):
                     sole_key, sole_value = next(iter(data.items()))
                     if isinstance(sole_value, str) and sole_value.strip():
-                        results[batch_agent_ids[0]] = self._create_insight(sole_value, current_year)
+                        results[batch_agent_ids[0]] = self._create_insight(sole_value, current_year, truncate=not allow_plain_text)
                         logger.info("[Reflection:Batch] Single-id reply read under key %r for %s",
                                     sole_key, batch_agent_ids[0])
 
@@ -726,6 +1204,18 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                     logger.info("[Reflection:Batch] Stage 1 (JSON) parsing successful.")
         except Exception as e:
             logger.debug(f"[Reflection:Batch] Stage 1 failed: {e}")
+
+        # Checked one-agent replies must retain the whole value. The legacy
+        # fallback stages split on quotes/newlines and would hide later
+        # numbers or length violations. Unreadable objects use the retry.
+        if allow_plain_text and len(batch_agent_ids) == 1:
+            aid = batch_agent_ids[0]
+            if results[aid] is None and not re.search(r"[{}\[\]]", raw_response):
+                value = re.sub(
+                    rf"^\s*[\"*']?{re.escape(aid)}[\"*']?\s*[:\-]\s*",
+                    "", raw_response, count=1, flags=re.I)
+                results[aid] = self._create_insight(value, current_year, truncate=False)
+            return results
 
         # --- Stage 2: Regex Fallback (Key: Value Pattern) ---
         if not success or any(v is None for v in results.values()):
@@ -736,7 +1226,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                 pattern = rf'["\*\']?{re.escape(aid)}["\*\']?\s*[:\-]\s*["\']?([^"\'\n\r]+)["\']?'
                 match = re.search(pattern, raw_response, re.IGNORECASE)
                 if match:
-                    results[aid] = self._create_insight(match.group(1).strip(), current_year)
+                    results[aid] = self._create_insight(match.group(1).strip(), current_year, truncate=not allow_plain_text)
             
             if any(v is not None for v in results.values()):
                 success = True
@@ -752,12 +1242,18 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                         # Extract everything after the delimiter
                         parts = re.split(r'[:\-]', line, 1)
                         if len(parts) > 1 and len(parts[1].strip()) > 10:
-                            results[aid] = self._create_insight(parts[1].strip(), current_year)
+                            results[aid] = self._create_insight(parts[1].strip(), current_year, truncate=not allow_plain_text)
         
+        # A one-agent batch can use a checked plain-text lesson. Structured
+        # replies that failed the earlier stages remain unreadable.
+        if (allow_plain_text and len(batch_agent_ids) == 1 and results[batch_agent_ids[0]] is None
+                and not re.search(r"[{}\[\]]", raw_response)):
+            results[batch_agent_ids[0]] = self._create_insight(raw_response, current_year, truncate=False)
+
         return results
 
     def _create_insight(
-        self, text: str, year: int, context: Optional[Dict[str, Any]] = None
+        self, text: str, year: int, context: Optional[Dict[str, Any]] = None, *, truncate: bool = True
     ) -> ReflectionInsight:
         """Helper to create a standard insight object.
 
@@ -768,7 +1264,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             importance = self.adapter.compute_importance(context, self.importance_boost)
 
         return ReflectionInsight(
-            summary=text.strip()[:500],
+            summary=text.strip()[:500] if truncate else text.strip(),
             source_memory_count=0,
             importance=importance,
             year_created=year,

@@ -732,7 +732,7 @@ class TestManifestRecordsWaterSystemConfigProvenance:
 
 
 # ---------------------------------------------------------------------------
-# (e0) Manifest records the three item-36b memory options (Opus review P3-2)
+# (e0) Manifest records the resolved irrigation memory options (Opus review P3-2)
 # ---------------------------------------------------------------------------
 class TestManifestRecordsMemoryOptionsProvenance:
     def test_record_memory_options_provenance(self, tmp_path):
@@ -747,6 +747,7 @@ class TestManifestRecordsMemoryOptionsProvenance:
         engine = HumanCentricMemoryEngine(
             deterministic_consolidation=True, decay_ignore_emotion=True,
             decay_by_calendar_year=True,
+            reflection_slot="separate",
         )
         _record_memory_options_provenance(tmp_path, engine)
 
@@ -754,12 +755,14 @@ class TestManifestRecordsMemoryOptionsProvenance:
         assert manifest["deterministic_consolidation"] is True
         assert manifest["decay_ignore_emotion"] is True
         assert manifest["decay_by_calendar_year"] is True
+        assert manifest["reflection_slot"] == "separate"
 
         import yaml
         snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
         assert snapshot["metadata"]["deterministic_consolidation"] is True
         assert snapshot["metadata"]["decay_ignore_emotion"] is True
         assert snapshot["metadata"]["decay_by_calendar_year"] is True
+        assert snapshot["metadata"]["reflection_slot"] == "separate"
 
     def test_default_off_recorded(self, tmp_path):
         from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
@@ -774,6 +777,7 @@ class TestManifestRecordsMemoryOptionsProvenance:
         assert manifest["deterministic_consolidation"] is False
         assert manifest["decay_ignore_emotion"] is False
         assert manifest["decay_by_calendar_year"] is False
+        assert manifest["reflection_slot"] is None
 
     def test_missing_files_do_not_raise(self, tmp_path):
         from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
@@ -783,7 +787,7 @@ class TestManifestRecordsMemoryOptionsProvenance:
     def test_non_engine_object_warns_not_raises(self, tmp_path, capsys):
         from examples.irrigation_abm.run_experiment import _record_memory_options_provenance
         _record_memory_options_provenance(tmp_path, object())  # no exception
-        assert "no item-36b options" in capsys.readouterr().out
+        assert "no resolved memory options" in capsys.readouterr().out
 
     @requires_real_ref
     def test_mock_real_run_manifest_has_memory_options(self, tmp_path):

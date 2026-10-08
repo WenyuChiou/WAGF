@@ -42,6 +42,7 @@ import pytest
 import yaml
 
 import broker.utils.llm_utils as llm_utils
+from broker.components.cognitive.reflection import GROUNDING_KEYS
 from broker.utils.agent_config import AgentTypeConfig
 from broker.utils.llm_utils import LLMStats
 
@@ -119,7 +120,7 @@ class ScriptedLLM:
 
     def __call__(self, prompt: str):
         stats = LLMStats(retries=0, success=True)
-        if "Lesson Learned" in prompt:
+        if "You are a Reflection Assistant" in prompt:
             with self._lock:
                 self.reflections.append(prompt)
             ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
@@ -511,7 +512,11 @@ def test_pre_year_names_the_offered_directions_at_the_floor_and_the_cap():
     decrease), so an agent whose 2018 use is at its floor reads the
     increase-only line and one at its water right the decrease-only line."""
     nl = chr(10)
-    assert _pre_year_option_notes("WelltonMohawkIDD", 490_000.0, 49_000.0) == nl + INCREASE_NOTE
+    # Spec item 45i: at the floor, the line after the step note says why no
+    # decrease is offered (the floor is 0.10 of the water right, item 36k).
+    assert _pre_year_option_notes("WelltonMohawkIDD", 490_000.0, 49_000.0) == (
+        nl + INCREASE_NOTE + nl + "A decrease is not offered because your request is at or below "
+        "the minimum-use floor of 49,000 acre-ft (10% of your water right).")
     assert _pre_year_option_notes("WelltonMohawkIDD", 490_000.0, 490_000.0) == nl + DECREASE_NOTE
     assert _pre_year_option_notes("WelltonMohawkIDD", 490_000.0, 373_081.0) == nl + OPTION_NOTE
 
@@ -887,17 +892,23 @@ def test_dashboard_warning_edge_pins_to_full_supply_ratio():
 def test_calendar_year_memory_and_dashboard(golden_run):
     prompt = _first_prompt(golden_run, "MohaveValleyIDD", 2022)
     memory = prompt[prompt.index("Your memory includes:"):prompt.index("First, assess")]
-    for year in (2019, 2020, 2021):
+    for year in (2019, 2020):
         assert f"- Year {year}: You chose to maintain demand." in memory
+    # Spec item 45g: the keep after the short 2020 states the fall in the
+    # request (keeping asks for the amount received the year before).
+    assert ("- Year 2021: You chose to maintain demand, so your request fell from 28,295 "
+            "acre-ft to the 23,766 acre-ft you received the year before. You requested "
+            "23,766 acre-ft and received 20,155 acre-ft.") in memory
     assert re.search(r"- Year \d{1,2}:", memory) is None
     assert ("- Year 2020: You chose to maintain demand. You requested 28,295 acre-ft and received "
             "23,766 acre-ft. Shortfall: 4,529 acre-ft (16.0% unmet), because the declared Lower "
             "Basin shortage tier cut your junior-priority water by about 20%. On 1 January that "
             "year Lake Mead was lower than a year earlier.") in memory
     dashboard = prompt[prompt.index("PERFORMANCE HISTORY:"):prompt.index("Your memory includes:")]
-    assert "Year | request (AF) | supply (AF)\n" in dashboard
-    for row in ("2019 |       28,295 |      28,295", "2020 |       28,295 |      23,766",
-                "2021 |       23,766 |      20,155"):
+    # Spec item 45i: the column is what the agent received.
+    assert "Year | request (AF) | received (AF)\n" in dashboard
+    for row in ("2019 |       28,295 |        28,295", "2020 |       28,295 |        23,766",
+                "2021 |       23,766 |        20,155"):
         assert row in dashboard
     assert "shortage_" not in dashboard and "TREND" not in dashboard
     # the unmet share with one decimal, as in the memory line (review LOW 8),
@@ -925,13 +936,18 @@ def test_banned_phrases_absent(golden_run):
 @needs_ref
 def test_reflection_input_excludes_reflections_and_is_one_agent(golden_run):
     reflections = golden_run.llm.reflections
-    # none at the end of 2019: no agent has a memory line until 2020
-    assert len(reflections) == 78 * 14
+    # Spec item 45a: the reflection at the end of 2019 sees the 2019 outcome
+    # line, so every year has one reflection per agent (78 x 15; before item
+    # 45 none ran at the end of 2019, when no line was in memory yet).
+    assert len(reflections) == 78 * 15
     for prompt in reflections:
         assert re.search(r"for 1 agent in a simulation \(Year 20\d\d\)\.", prompt), prompt[:200]
         assert "Consolidated Reflection" not in prompt
-        assert len(re.findall(r"^.+? Memories: ", prompt, flags=re.M)) == 1
-    assert "Did the direction you chose (increase, keep or decrease) match the outcome?" in reflections[0]
+        assert len(re.findall(r"^.+? Memories:", prompt, flags=re.M)) == 1
+    # Spec item 45d: one lesson question; the questions that asked the model
+    # to restate facts are gone.
+    assert "What does your record teach you about choosing your request next year?" in reflections[0]
+    assert "Did the direction you chose" not in reflections[0]
 
 
 @needs_ref
@@ -940,11 +956,81 @@ def test_single_reflection_kept_from_the_previous_year(golden_run):
     the end of the previous calendar year (pilot check P6)."""
     for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
         lines = re.findall(r"^- Consolidated Reflection.*$", prompt, flags=re.M)
-        if year <= 2020:  # the first reflection is written at the end of 2020
+        if year <= 2019:  # item 45a: the first reflection is written at the end of 2019
             assert lines == []
             continue
-        assert lines == [f"- Consolidated Reflection (written in {year - 1}): {ScriptedLLM.LESSON}"], (
-            agent, year, lines)
+        # Item 45c: program-written facts (the year just ended first or
+        # last, oldest first), then the model's lesson.
+        assert len(lines) == 1, (agent, year, lines)
+        assert lines[0].startswith(f"- Consolidated Reflection (written in {year - 1}): "), (agent, year, lines)
+        assert lines[0].endswith(f" Lesson: {ScriptedLLM.LESSON}"), (agent, year, lines)
+        facts = lines[0].split("): ", 1)[1].split(" Lesson: ")[0]
+        assert re.match(r"^\d{4}: ", facts) and f"{year - 1}: " in facts, (agent, year, facts)
+
+
+@needs_ref
+def test_decision_memory_has_five_recent_two_significant_then_reflection(golden_run):
+    """Spec item 45m: a decision prompt reserves the latest reflection its
+    own final slot, after up to five recent and two significant event lines.
+
+    In every mature prompt, all five immediately preceding outcome years must
+    remain visible even when a reflection exists.  At least one prompt in the
+    full mock run must exercise the complete 5 + 2 + 1 capacity.
+    """
+    full_blocks = []
+    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+        memory = prompt[prompt.index("Your memory includes:"):
+                        prompt.index("First, assess")]
+        items = re.findall(r"^-(?: Year| Consolidated Reflection).*$", memory, flags=re.M)
+        events = [line for line in items if line.startswith("- Year ")]
+        reflections = [line for line in items if line.startswith("- Consolidated Reflection")]
+
+        assert len(events) <= 7, (agent, year, attempt, items)
+        assert len(reflections) <= 1, (agent, year, attempt, items)
+        if reflections:
+            assert items[-1] == reflections[0], (agent, year, attempt, items)
+        if year >= 2024:
+            event_years = {int(value) for value in re.findall(r"^- Year (\d{4}):", memory, flags=re.M)}
+            assert set(range(year - 5, year)) <= event_years, (agent, year, attempt, items)
+        if len(events) == 7 and len(reflections) == 1:
+            full_blocks.append((agent, year, attempt, items))
+
+    assert full_blocks, "no decision prompt exercised the complete 5 + 2 + 1 memory capacity"
+
+
+@needs_ref
+def test_memory_flow_share_is_the_number_the_decision_prompt_showed(golden_run):
+    """Spec item 45f: every Upper Basin memory line states its year's
+    sub-basin natural-flow share, the same number that year's decision
+    prompt showed ("is P% of its 1971-2018 average this year")."""
+    shown = {}
+    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+        m = re.search(r"draws on is (\d+%) of its 1971-2018 average this year\.", prompt)
+        if attempt == 0 and m:
+            shown[(agent, year)] = m.group(1)
+    checked = 0
+    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+        for m in re.finditer(r"^- Year (\d{4}): .*?draws on was (\d+%) of its 1971-2018 average that year\.$",
+                             prompt, flags=re.M):
+            assert shown[(agent, int(m.group(1)))] == m.group(2), (agent, year, m.group(0))
+            checked += 1
+    assert checked > 1000
+
+
+@needs_ref
+def test_reflection_record_names_the_year_just_ended_and_the_worst_year(golden_run):
+    """Spec item 45c on the real run: MohaveValleyIDD's reflection at the end
+    of 2021 lists 2019-2021 in order and records 2020 (16.0% unmet, the
+    largest listed shortfall) and 2021 (the year just ended)."""
+    prompt = next(p for p in golden_run.llm.reflections
+                  if "MohaveValleyIDD Memories:" in p and "(Year 2021)" in p)
+    listed = re.findall(r"^- Year (\d{4}): ", prompt, flags=re.M)
+    assert listed == ["2019", "2020", "2021"]
+    record = prompt[prompt.index("MohaveValleyIDD Record:"):prompt.index("### Output Requirement")]
+    assert re.findall(r"^- (\d{4}): ", record, flags=re.M) == ["2020", "2021"]
+    assert "(16.0% unmet)" in record and "(15.2% unmet)" in record
+    assert "Rules that apply to MohaveValleyIDD:" in prompt
+    assert "A larger request would have its junior-priority part cut by the same tier." in prompt
 
 
 # ===========================================================================
@@ -968,15 +1054,31 @@ GOLDEN = {
     # prompt was sending (confirmed: not render-only, the actual LLM
     # input). See examples/irrigation_abm/tests/test_v3_prompt.py::
     # test_no_leading_blank_lines for the regression pin.
+    # Spec item 45 (2026-10-07): the four non-2019 entries changed, and only
+    # for these reasons (diffed line by line against c7b10c05): the history
+    # column reads "received (AF)" (45i); the stored reflection line carries
+    # the program-written facts before "Lesson: " (45c), and from 2020 on
+    # every agent has one, since the reflection at the end of 2019 now sees
+    # the 2019 outcome (45a); Upper Basin memory lines add that year's
+    # sub-basin natural-flow share (45f); a keep after a short year states
+    # the fall in the request (45g, MohaveValleyIDD 2021). The 2019 prompts
+    # (no memory, no history) are unchanged.
+    # Review fix P2-3 updates only the reflection facts: requests are stated
+    # directly and compared with preceding receipts. Replacing those facts
+    # with their old wording reproduces all four previous hashes.
+    # Spec item 45m (2026-10-08) changes only the four post-2019 prompts:
+    # their latest reflection moves after the salience-ordered event lines;
+    # UT2 2033 also gains an event because reflection no longer consumes one
+    # of the five recent slots. The memory text itself is otherwise unchanged.
     (UT1, 2019): ("UB, normal year", "f7a58305f4f24325874261e0f13c019eae2895f8591e1ce8f61a2348a2ca560c"),
-    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "c1d8f051824f693e83c964ed37bde91e9469cbc886968cc8535b620893923b20"),
+    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "8e62457c7633e39a7bbd52448dc3619e2588b6d0c7745b32e18ad06458971eff"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "d9e8dc70fcaff57af6c4a1fba3a6f2f721224f951415cb64366eccf8b1c5b27b"),
     (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
-                  "8ba8618b172f80b4536f5d486007c91720e03dd303082936cbde76461d6acc2c"),
+                  "3ca236ae4faf69272d53b39620bc40ddd0d442ddea6871c9b909d1280f284f5a"),
     ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "b8984b49c172983a0e68aea9edaead391c36188c1201e804a59fba3c368cee80"),
-    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "49062ccdb7224233b7c148c9f34b96b6a434d3dc545d23ae407ca74ffcd1d699"),
+    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "ce925a4280531557a44a71955cfd3bc01d27f6eda57649e9116bab8af7789c75"),
     ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "ff5476449efe16faa5292097db715a0a952c467c60bf5436666524ff435180a3"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "a0c5373fe16ae7d3c7d09c19d4b43ebdb29e368031016a881901c16a25866f82"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "57ba7a244b00f4537b5205a99a6387bfae66dd6d6c1d01f5bdd1be54a86d8021"),
 }
 
 
@@ -1171,7 +1273,7 @@ class _UnreadableIn2020(ScriptedLLM):
     so its 2020 decision is ABORTED and nothing executes."""
 
     def __call__(self, prompt: str):
-        if ("Lesson Learned" not in prompt and "You are Agent_000," in prompt
+        if ("You are a Reflection Assistant" not in prompt and "You are Agent_000," in prompt
                 and "It is now the year 2020." in prompt):
             with self._lock:
                 attempt = self.calls[("Agent_000", 2020)]
@@ -1277,7 +1379,10 @@ def _reflect_once(summaries, memories, *, keep_latest_only=True, years=(2021,)):
     runner = SimpleNamespace(
         broker=SimpleNamespace(config=SimpleNamespace(
             get_reflection_config=lambda: {"batch_size": 1},
-            get_reflection_keep_latest_only=lambda: keep_latest_only)),
+            get_reflection_keep_latest_only=lambda: keep_latest_only,
+            # Item 45: these unit tests drive the path before item 45 (all
+            # grounding keys off, the framework default).
+            get_reflection_grounding=lambda: {k: False for k in GROUNDING_KEYS})),
         agents={"A1": agent}, memory_engine=engine, get_llm_invoke=lambda t: (lambda p: "x"))
     hooks = IrrigationLifecycleHooks(env, runner, [], _Engine(), None)
     for y in years:

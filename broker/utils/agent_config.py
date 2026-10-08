@@ -1554,6 +1554,43 @@ class AgentTypeConfig:
             )
         return value
 
+    def get_reflection_grounding(self) -> Dict[str, bool]:
+        """The grounded-reflection keys of ``reflection`` (all default False).
+
+        Case-study spec item 45 (a)-(e), 2026-10-07; the
+        mechanism lives in ``broker/components/cognitive/reflection.py``
+        (``GROUNDING_KEYS``):
+
+        - ``year_outcome``: the reflection written at the end of a period
+          sees that period's own settled outcome; the domain hook adds it
+          (``add_year_outcome`` raises when the hook supplies none).
+        - ``year_lines``: the reflection input is listed one line per
+          period, oldest first (``order_by_year``), not as one paragraph.
+        - ``program_facts``: the program writes the key periods and their
+          outcomes; the model writes only the lesson, with no years or
+          numbers (``RECORD_HEADING``, ``compose_lesson_with_facts``).
+        - ``lesson_no_numbers``: a lesson that names a calendar year or any
+          number is retried once and then not stored
+          (``lesson_number_problems``, ``run_checked_reflection``).
+
+        Each must be a YAML bool (a quoted "false" is truthy in Python).
+        Read through :meth:`get_reflection_config` (global over shared); the
+        returned dict of that method is unchanged when the keys are absent.
+        """
+        from broker.components.cognitive.reflection import GROUNDING_KEYS
+
+        cfg = self.get_reflection_config()
+        out: Dict[str, bool] = {}
+        for key in GROUNDING_KEYS:
+            value = cfg.get(key, False)
+            if not isinstance(value, bool):
+                raise ValueError(
+                    f"reflection.{key} must be true or false (a YAML bool), "
+                    f"got {type(value).__name__} {value!r}."
+                )
+            out[key] = value
+        return out
+
     def get_retrieval_config(self) -> dict:
         """Get skill-retrieval tuning (Global YAML > Shared YAML > DomainPack > Default).
 

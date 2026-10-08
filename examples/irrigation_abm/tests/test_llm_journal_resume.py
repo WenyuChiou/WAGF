@@ -469,9 +469,10 @@ class TestReflectionReplay:
                 f"{journal_counts.get(year, {}).get('decision', 0)} decision-kind "
                 f"journal records"
             )
-        # Reflection needs at least one prior year of memory (see
-        # IrrigationLifecycleHooks._batch_reflect), so it starts at year 2;
-        # with 3 years configured, at least one must have been journaled.
+        # Since irrigation spec item 45a the year-end reflection also sees
+        # the outcome of the year just ended, so it runs from year 1 (before,
+        # it needed a prior year's memory line and started at year 2); with
+        # 3 years configured, at least one must have been journaled.
         assert sum(c["reflection"] for c in journal_counts.values()) > 0
 
     def test_year_2_reflection_log_matches_after_crash_and_resume(self, tmp_path):

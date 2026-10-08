@@ -2923,12 +2923,22 @@ _R = {
     "dash_warn": re.compile(r"^WARNING: You requested ([\d,]+) AF and received ([\d,]+) AF \(([\d.]+)% unmet\)\."),
     "reflection": re.compile(r"^- Consolidated Reflection \(written in (\d{4})\): (.*)$"),
     "memory": re.compile(r"^- Year (\d{4}): "),
-    "mem_chose": re.compile(r"You chose to (increase|maintain|decrease) demand(?: \(by (\d+)%\))?\."),
+    "mem_chose": re.compile(r"You chose to (increase|maintain|decrease) demand(?: \(by (\d+)%\))?[.,]"),
     "mem_applied": re.compile(r"^- Year \d{4}: (?:no valid decision was read; |no valid proposal was made; "
                               r"|your proposal to (?:increase|maintain|decrease) demand was rejected; )?"
                               r"(increase|maintain|decrease) demand was applied"),
-    "mem_no_decision": re.compile(r"^- Year \d{4}: no valid decision was read; your request stayed at the "
-                                  r"amount you received the year before\."),
+    # Item 45g: after a short year the line states the fall in the request
+    # instead ("no valid decision was read, so your request fell from ...").
+    "mem_no_decision": re.compile(r"^- Year \d{4}: no valid decision was read(?:; your request stayed at the "
+                                  r"amount you received the year before\.|, so your request fell from )"),
+    "mem_keep_change": re.compile(r", so your request fell from ([\d,]+) acre-ft to the ([\d,]+) acre-ft you "
+                                  r"received the year before\."),
+    # Item 45f: the Upper Basin line's sub-basin natural-flow share of that year.
+    "mem_flow_share": re.compile(r"The natural flow of the rivers your sub-basin draws on was (\d+%) of its "
+                                 r"1971-2018 average that year\."),
+    # Item 45i: why no decrease is on the menu at the minimum-use floor.
+    "floor_note": re.compile(r"^A decrease is not offered because your request is at or below the minimum-use "
+                             r"floor of ([\d,]+) acre-ft \((\d+%) of your water right\)\.$"),
     "mem_req": re.compile(r"You requested ([\d,]+) acre-ft and received ([\d,]+) acre-ft\."),
     "mem_short": re.compile(r"Shortfall: ([\d,]+) acre-ft \(([\d.]+)% unmet\)"),
     "mem_ub_trend": re.compile(r"That winter's precipitation (?:in your sub-basin|in the Upper Basin) was "
@@ -3375,6 +3385,24 @@ class PromptChecker:
                            f"request {req} and base {base_k}")
             if not (mc or ma or mn):
                 line.check(False, f"{past}: names no decision")
+            # Item 45g: a keep after a short year states the fall in the
+            # request, from last year's request to last year's receipt; no
+            # other line carries the clause.
+            is_keep = bool((mc and mc.group(1) == "maintain") or (ma and ma.group(1) == "maintain") or mn)
+            prev_short = tk > 1 and supply_ratio(sim.num(agent, tk - 1, "diversion"),
+                                                 sim.num(agent, tk - 1, "request")) < FULL_SUPPLY_RATIO
+            mk = _R["mem_keep_change"].search(text)
+            if mk:
+                line.check(is_keep and prev_short,
+                           f"{past}: change-in-request clause on a line that is not a keep after a short year")
+                if tk > 1:
+                    line.expect(mk, 1, _f0(sim.num(agent, tk - 1, "request")), f"{past}: request the year before")
+                    line.expect(mk, 2, _f0(req), f"{past}: request after the keep")
+                    line.check(abs(req - sim.num(agent, tk - 1, "diversion")) <= AF_TOL,
+                               f"{past}: the keep clause says the request is last year's receipt, the log disagrees")
+                line.cover(mk)
+            else:
+                line.check(not (is_keep and prev_short), f"{past}: a keep after a short year without the change clause")
             mr = _R["mem_req"].search(text)
             if mr is None:
                 line.check(False, f"{past}: no request sentence")
@@ -3396,6 +3424,17 @@ class PromptChecker:
                 flag = sim.opt_num(agent, tk, "precipitation_flag")
                 line.check(mt is not None and flag is not None and (mt.group(1) == "above") == (flag == 1),
                            f"{past}: precipitation trend")
+                # Item 45f: the flow share the decision prompt showed that year.
+                mf = _R["mem_flow_share"].search(text)
+                sb = sim.subbasin[agent]
+                if sb is None:
+                    line.check(mf is None, f"{past}: sub-basin flow share for an agent without a sub-basin")
+                elif mf is None:
+                    line.check(False, f"{past}: no sub-basin flow share")
+                else:
+                    line.expect(mf, 1, f"{self.flow_share(sb, int(m.group(1))):.0%}", f"{past}: sub-basin flow share")
+                if mf is not None:
+                    line.cover(mf)
             else:
                 mt = _R["mem_lb_trend"].search(text)
                 line.check(mt is not None and (mt.group(1) == "higher") == (self._mead(tk) >= self._mead(tk - 1)),
@@ -3421,6 +3460,13 @@ class PromptChecker:
         m = _R["opt_keep"].match(text)
         if m:
             line.expect(m, 2, _f0(b_r), "keep request")
+            line.cover(m)
+            return
+        m = _R["floor_note"].match(text)
+        if m:
+            line.expect(m, 1, _f0(w * self.cfg.min_utilisation_fraction), "minimum-use floor")
+            line.expect(m, 2, f"{self.cfg.min_utilisation_fraction:.0%}", "floor share of the water right")
+            line.check("decrease" not in trace.menu, "floor sentence beside a decrease on the menu")
             line.cover(m)
             return
         m = _R["opt_dec"].match(text)
@@ -3456,21 +3502,63 @@ def _memory_block(prompt: str) -> List[str]:
     return out
 
 
+_REFLECTION_FACT = re.compile(
+    r"(?P<year>\d{4}): you asked for (?P<request>[\d,]+) acre-ft"
+    r"(?:, (?P<change>an increase over|a decrease from|the same as) the "
+    r"(?P<previous>[\d,]+) acre-ft you received the year before,)? and you received "
+    r"(?P<received>[\d,]+) acre-ft \((?P<outcome>fully met|(?P<unmet>[\d.]+)% unmet)\)\.")
+
+
 def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
     """P6: stored reflections quoting a figure absent from the memory they
     were written from (the non-reflection memory lines of the agent's
     prompt in the year the reflection was written, the input
     IrrigationLifecycleHooks._batch_reflect retrieves; the runner's own
     _foreign_figures rule); prompts with more than one reflection line;
-    reflection lines not written in the previous calendar year."""
+    reflection lines not written in the previous calendar year unless every
+    intervening year has a logged dropped reflection for that same agent.
+
+    Spec item 45c: a grounded reflection reads "{program facts} Lesson:
+    {lesson}". Its lesson is checked for foreign figures against the memory
+    of the year it was written; for an ordinary previous-year reflection it
+    also uses that writing year's outcome as it first appears in the next
+    year's prompt (the year-end reflection also sees the outcome line of the
+    year just ended, which enters memory only at the start of the next year).
+    A carried reflection uses prompt year W alone, never figures introduced
+    only in Y - 1 or Y. Lessons carrying any digit are counted
+    (``lessons_with_numbers``; the framework drops such a
+    lesson under reflection.lesson_no_numbers). Every program-written fact
+    is read back against the log (request, preceding receipt when stated,
+    receipt, unmet share, and the direction of the numeric change):
+    ``fact_mismatches``. The manifest's semantic ``flagged_by_reason``
+    counts are reported for pilot measurement and do not gate P6."""
     from examples.irrigation_abm.run_experiment import _REFLECTION_MEMORY_PREFIX, _foreign_figures
 
     memories = {key: _memory_block(trace.prompt or "") for key, trace in run.traces.items()}
     if any(trace.prompt is None and not trace.crashed for trace in run.traces.values()):
         raise MetricsError(f"{run.label}: reflection checks need the prompts (keep_prompts)")
+    dropped_periods = set()
+    checks_path = run.info.path / "reflection_checks.jsonl"
+    if checks_path.is_file():
+        with open(checks_path, encoding="utf-8") as fh:
+            for line_number, raw in enumerate(fh, start=1):
+                if not raw.strip():
+                    continue
+                where = f"{checks_path}:{line_number}"
+                try:
+                    row = json.loads(raw)
+                    agent_id = str(row["agent_id"])
+                    period = int(row["period"])
+                    outcome = str(row["outcome"])
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                    raise MetricsError(
+                        f"{where}: reflection check needs agent_id, integer period and outcome") from exc
+                if outcome == "dropped":
+                    dropped_periods.add((agent_id, period))
     unknown_source = 0  # the prompt a reflection was written from is an ABORTED_EXCEPTION step's
     pattern = re.compile(r"^" + re.escape(_REFLECTION_MEMORY_PREFIX) + r" \(written in (\d{4})\): (.*)$")
-    foreign = multiple = wrong_year = reflections = 0
+    foreign = multiple = wrong_year = carried_after_drop = reflections = 0
+    grounded = with_numbers = fact_mismatches = facts_read = unmatched_fact_digits = 0
     examples: List[str] = []
     for (agent, t), lines in memories.items():
         found = [pattern.match(line) for line in lines if line.startswith(_REFLECTION_MEMORY_PREFIX)]
@@ -3481,23 +3569,113 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
             multiple += 1
         year = run.sim.sim_year(t)
         for m in found:
-            if int(m.group(1)) != year - 1:
+            written = int(m.group(1))
+            carried = (
+                written < year - 1
+                and all((agent, period) in dropped_periods for period in range(written + 1, year))
+            )
+            if carried:
+                carried_after_drop += 1
+            elif written != year - 1:
                 wrong_year += 1
                 if len(examples) < 10:
                     examples.append(f"{agent} {year}: written in {m.group(1)}")
-            source = run.traces.get((agent, t - 1))
-            if source is not None and source.crashed:
-                unknown_source += 1  # no prompt to compare with: reported, not judged
-                continue
-            own = [line for line in memories.get((agent, t - 1), []) if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
-            bad = _foreign_figures(m.group(2), " ".join(own))
-            if bad:
-                foreign += 1
+            source_t = written - run.sim.sim_start_year + 1
+            source = run.traces.get((agent, source_t))
+            source_unknown = source is not None and source.crashed
+            if source_unknown:
+                unknown_source += 1  # no prompt for the foreign-figure comparison
+            own = [line for line in memories.get((agent, source_t), [])
+                   if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
+            body = m.group(2)
+            if " Lesson: " in body:
+                # Item 45c: program facts, then the model's lesson.
+                grounded += 1
+                facts_text, body = body.split(" Lesson: ", 1)
+                if not carried:
+                    own = own + [line for line in memories.get((agent, source_t + 1), [])
+                                 if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
+                if _DIGIT.search(body):
+                    with_numbers += 1
+                    if len(examples) < 10:
+                        examples.append(f"{agent} {year}: a number in the lesson: {body[:120]}")
+                unmatched = _REFLECTION_FACT.sub("", facts_text)
+                if _DIGIT.search(unmatched):
+                    unmatched_fact_digits += 1
+                    if len(examples) < 10:
+                        examples.append(f"{agent} {year}: unmatched digits in facts: {unmatched[:120]}")
+                for fm in _REFLECTION_FACT.finditer(facts_text):
+                    facts_read += 1
+                    tk = int(fm.group("year")) - run.sim.sim_start_year + 1
+                    problems = []
+                    if not 1 <= tk < t:
+                        problems.append("a year outside the run")
+                    else:
+                        req, dlv = run.sim.num(agent, tk, "request"), run.sim.num(agent, tk, "diversion")
+                        share = supply_ratio(dlv, req)
+                        if fm.group("request") != _f0(req):
+                            problems.append(f"request {fm.group('request')} vs {_f0(req)}")
+                        if fm.group("received") != _f0(dlv):
+                            problems.append(f"receipt {fm.group('received')} vs {_f0(dlv)}")
+                        if (fm.group("outcome") == "fully met") != (share >= FULL_SUPPLY_RATIO) or (
+                                fm.group("unmet") is not None
+                                and fm.group("unmet") != f"{(1.0 - share) * 100.0:.1f}"):
+                            problems.append(f"outcome {fm.group('outcome')!r} vs share {share}")
+                        if fm.group("previous") is not None:
+                            if tk <= 1:
+                                problems.append("a previous-year receipt before the run")
+                            else:
+                                prior = run.sim.num(agent, tk - 1, "diversion")
+                                if fm.group("previous") != _f0(prior):
+                                    problems.append(f"previous receipt {fm.group('previous')} vs {_f0(prior)}")
+                                printed_req = int(_f0(req).replace(",", ""))
+                                printed_prior = int(_f0(prior).replace(",", ""))
+                                expected_change = ("an increase over" if printed_req > printed_prior else
+                                                   "a decrease from" if printed_req < printed_prior else
+                                                   "the same as")
+                                if fm.group("change") != expected_change:
+                                    problems.append(f"change {fm.group('change')!r} vs {expected_change!r}")
+                    if problems:
+                        fact_mismatches += 1
+                        if len(examples) < 10:
+                            examples.append(f"{agent} {year}: fact {fm.group(0)[:80]}: {'; '.join(problems)}")
+            elif _DIGIT.search(body):
+                with_numbers += 1
                 if len(examples) < 10:
-                    examples.append(f"{agent} {year}: figures {bad} not in its memory")
+                    examples.append(f"{agent} {year}: a number in the lesson: {body[:120]}")
+            if not source_unknown:
+                bad = _foreign_figures(body, " ".join(own))
+                if bad:
+                    foreign += 1
+                    if len(examples) < 10:
+                        examples.append(f"{agent} {year}: figures {bad} not in its memory")
+    prompts_2020_plus = [
+        (key, lines) for key, lines in memories.items()
+        if run.traces[key].prompt is not None and run.sim.sim_year(key[1]) >= 2020
+    ]
+    prompts_with_reflection = sum(
+        1 for _key, lines in prompts_2020_plus
+        if any(line.startswith(_REFLECTION_MEMORY_PREFIX) for line in lines)
+    )
+    manifest_checks = run.info.manifest.get("reflection_checks", {})
     return {"reflection_lines": reflections, "foreign_figure_reflections": foreign,
             "prompts_with_several_reflections": multiple, "reflections_not_from_previous_year": wrong_year,
-            "reflections_with_no_source_prompt": unknown_source, "examples": examples}
+            "carried_after_drop": carried_after_drop,
+            "reflections_with_no_source_prompt": unknown_source,
+            "grounded_reflection_lines": grounded, "lessons_with_numbers": with_numbers,
+            "facts_read": facts_read, "fact_mismatches": fact_mismatches,
+            "fact_texts_with_unmatched_digits": unmatched_fact_digits,
+            "manifest_reflection_checks": manifest_checks,
+            "manifest_reflection_check_totals": manifest_checks.get("totals", {}),
+            "manifest_reflection_dropped_by_reason": manifest_checks.get("dropped_by_reason", {}),
+            "manifest_reflection_flagged_by_reason": manifest_checks.get("flagged_by_reason", {}),
+            "decision_prompts_2020_plus": len(prompts_2020_plus),
+            "decision_prompts_2020_plus_with_reflection": prompts_with_reflection,
+            "decision_prompts_2020_plus_reflection_share": (
+                prompts_with_reflection / len(prompts_2020_plus) if prompts_2020_plus else None),
+            "decision_prompts_2020_plus_reflection_share_pct": (
+                _pct(prompts_with_reflection, len(prompts_2020_plus)) if prompts_2020_plus else None),
+            "examples": examples}
 
 
 # =============================================================================
@@ -3764,11 +3942,28 @@ def gate_p6(runs: Sequence[LoadedRun]) -> Dict[str, Any]:
         r = reflection_checks(run)
         details[run.label] = r
         for key in ("foreign_figure_reflections", "prompts_with_several_reflections",
-                    "reflections_not_from_previous_year"):
+                    "reflections_not_from_previous_year", "fact_mismatches",
+                    "fact_texts_with_unmatched_digits"):
             if r[key]:
                 failures.append(f"{run.label}: {key} = {r[key]}")
+        settings = r["manifest_reflection_checks"].get("settings", {})
+        if settings.get("program_facts") and r["reflection_lines"] and r["facts_read"] == 0:
+            failures.append(f"{run.label}: facts_read = 0 with {r['reflection_lines']} reflection lines")
+        if r["grounded_reflection_lines"] > r["facts_read"]:
+            failures.append(
+                f"{run.label}: grounded_reflection_lines = {r['grounded_reflection_lines']} "
+                f"> facts_read = {r['facts_read']}")
+        if settings.get("lesson_no_numbers") and r["lessons_with_numbers"]:
+            failures.append(f"{run.label}: lessons_with_numbers = {r['lessons_with_numbers']}")
+    flag_totals = []
+    for run in runs:
+        flags = details[run.label]["manifest_reflection_flagged_by_reason"]
+        rendered = ", ".join(f"{reason}={flags[reason]}" for reason in sorted(flags)) or "none"
+        flag_totals.append(f"{run.label}: {rendered}")
+    reason = "0; 0; 0" if not failures else "; ".join(failures)
+    reason += "; flagged_by_reason (report-only): " + "; ".join(flag_totals)
     return _check("P6", "reflection contamination", True, not failures,
-                  "0; 0; 0" if not failures else "; ".join(failures), details)
+                  reason, details)
 
 
 def gate_p7(strict: LoadedRun, disabled: LoadedRun) -> Dict[str, Any]:
