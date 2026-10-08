@@ -96,6 +96,36 @@ def test_check_flood_lesson(lesson, years, codes):
     assert [p.code for p in check_flood_lesson(lesson, years)] == codes
 
 
+@pytest.mark.parametrize(("lesson", "years", "codes"), [
+    ("I have never experienced a floodplain.", [DRY, HIT], []),
+    ("I have never experienced a flood.", [DRY, HIT], ["no_flood_claim"]),
+    ("I have never suffered flood damageable consequences.", [DRY, HIT], []),
+    ("I have never suffered flood damage.", [DRY, HIT], ["no_damage_claim"]),
+    ("I have never suffered flood damages.", [DRY, HIT], ["no_damage_claim"]),
+    ("Every year I study floodplains.", [DRY, HIT], []),
+    ("A flood comes every year.", [DRY, HIT], ["every_year_flood_claim"]),
+    ("Every flood damagedly surprised me.", [HIT, SPARED], []),
+    ("Every flood damaged my house.", [HIT, SPARED], ["always_damage_claim"]),
+    ("I have never experienced floods.", [DRY, HIT], ["no_flood_claim"]),
+    ("I have never experienced flooding.", [DRY, HIT], ["no_flood_claim"]),
+    ("I have never experienced floodwaters.", [DRY, HIT], ["no_flood_claim"]),
+    ("Every year brought floods.", [DRY, HIT], ["every_year_flood_claim"]),
+    ("Every year brought flooding.", [DRY, HIT], ["every_year_flood_claim"]),
+    ("A flood always damages my house.", [HIT, SPARED], ["always_damage_claim"]),
+    ("Every flood hits my house.", [HIT, SPARED], ["always_damage_claim"]),
+    ("Every flood hurts my house.", [HIT, SPARED], ["always_damage_claim"]),
+    ("A flood always hits my house.", [HIT, SPARED], ["always_damage_claim"]),
+    ("A flood always hurts my house.", [HIT, SPARED], ["always_damage_claim"]),
+    ("No flooding has occurred here.", [DRY, HIT], []),
+    ("Flooding always comes in spring.", [DRY, HIT], []),
+    ("Every flooding hit my house.", [HIT, SPARED], []),
+    ("Floods always hitting my house caused repeated repairs.", [HIT, SPARED], ["always_damage_claim"]),
+    ("Every flood hurting my house caused repeated repairs.", [HIT, SPARED], ["always_damage_claim"]),
+])
+def test_semantic_patterns_do_not_match_short_words_inside_longer_words(lesson, years, codes):
+    assert [p.code for p in check_flood_lesson(lesson, years)] == codes
+
+
 def test_universal_patterns_are_reported_without_qualifier_skips():
     assert [p.code for p in check_flood_lesson(
         "Not every flood damaged my house, but one did.", [HIT, SPARED]

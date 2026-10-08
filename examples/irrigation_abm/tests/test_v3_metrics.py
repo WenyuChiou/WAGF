@@ -2262,6 +2262,41 @@ def test_p5a_counts_a_banned_phrase_in_the_retry_texts(strict_run, monkeypatch):
     assert check["details"]["a_retry_texts_scanned"] == len(vm.retry_text_samples())
 
 
+@pytest.mark.parametrize("text,gated,lesson_hits", [
+    ("- Consolidated Reflection (written in 2019): My demand was fully met. Lesson: I trust my records.", False, 1),
+    ("- Consolidated Reflection (written in 2019): records say demand was met. Lesson: I trust my demand.", True, 0),
+    ("A heading with records.", True, 0),
+    ("- Consolidated Reflection records (written in 2019): Facts. Lesson: I trust my demand.", True, 0),
+    ("- Consolidated Reflection (written in 2019): I trust my records.", False, 1),
+    ("- Consolidated Reflection (written in 2019): Facts. Lesson: I trust my demand. Lesson: I trust my records.", False, 1),
+    ("- Consolidated Reflection (written in 2019): records say demand was met. Lesson: I trust my records.", True, 1),
+])
+def test_p5a_gates_program_text_and_reports_reflection_lessons(tmp_path, text, gated, lesson_hits):
+    run = _prompt_run(tmp_path, {("UB1", 2): text})
+    review = {"prompts_reviewed": vm.P5C_MIN_PROMPTS, "sentences_without_source": 0,
+              "reviewer_wrote_code": False, "reviewer": "independent"}
+    check = vm.gate_p5([run], CFG, review, CFG.ub_subbasin_supply_variant)
+    details = check["details"]
+    assert bool(details["a_banned_hits_in_prompts"].get("records", 0)) is gated
+    assert details["a_banned_hits_in_reflection_lessons"].get("records", 0) == lesson_hits
+    assert bool(details["a_reflection_lesson_examples"]) is bool(lesson_hits)
+    assert ("(a) 0 banned-phrase hits" in check["reason"]) is not gated
+    assert check["passed"] is not gated
+
+
+def test_p5a_gates_grounded_reflection_without_lesson_separator(tmp_path):
+    text = "- Consolidated Reflection (written in 2019): records say demand was met."
+    run = _prompt_run(tmp_path, {("UB1", 2): text})
+    run.info.manifest["reflection_checks"] = {"settings": {"program_facts": True}}
+    review = {"prompts_reviewed": vm.P5C_MIN_PROMPTS, "sentences_without_source": 0,
+              "reviewer_wrote_code": False, "reviewer": "independent"}
+    check = vm.gate_p5([run], CFG, review, CFG.ub_subbasin_supply_variant)
+    assert check["passed"] is False
+    assert check["details"]["a_banned_hits_in_prompts"]["records"] == 1
+    assert check["details"]["a_banned_hits_in_reflection_lines"]["records"] == 1
+    assert check["details"]["a_banned_hits_in_reflection_lessons"] == {}
+
+
 def test_pilot_pair_must_be_seed_42(tmp_path):
     strict = fixture_run(tmp_path, "strict", STRICT_DECISIONS, seed=43)
     disabled = fixture_run(tmp_path, "disabled", DISABLED_DECISIONS, seed=43)

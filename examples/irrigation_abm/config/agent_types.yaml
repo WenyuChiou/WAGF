@@ -66,7 +66,7 @@ global_config:
     # facts are one lesson question (literature scan 2026-10-07, A2). The
     # framework adds the closing "no years or numbers" line
     # (LESSON_ONLY_INSTRUCTION) because program_facts is on.
-    persona_instruction: "Speak in the first person (for example, 'I learned that ...') and base your lesson only on the years listed below. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
+    persona_instruction: "Speak in the first person and base your lesson only on the years listed below. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
     questions:
       - "What does your record teach you about choosing your request next year?"
     # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's

@@ -211,6 +211,114 @@ def test_lesson_number_problems(lesson, codes):
 # the checked call
 # ---------------------------------------------------------------------------
 
+@pytest.mark.parametrize("raw", [
+    '{"AgentID": "TunnelDiversionBelowCrystalForAg_1971CompStudyAg": "I learned to watch demand."}',
+    '{"AgentID": "Agent": "I learned to watch demand."}',
+    '{"agent_id": "Bostwick", "lesson": "I learned to watch demand."}',
+])
+def test_single_agent_lenient_forms_recover_and_record(raw, tmp_path):
+    log = tmp_path / "reflection_checks.jsonl"
+    result = run_checked_reflection(
+        ReflectionEngine(), prompt="PROMPT", agent_id="X", period=2031,
+        llm_call=lambda _: raw, log_path=log, lesson_no_numbers=True)
+    assert result.outcome == "stored" and result.lesson == "I learned to watch demand."
+    assert json.loads(log.read_text())["parse"] == "lenient"
+    tally = ReflectionCheckTally()
+    tally.add(2031, result)
+    assert tally.summary()["per_period"]["2031"]["recovered_lenient"] == 1
+    assert tally.summary()["totals"]["recovered_lenient"] == 1
+    assert "recovered lenient 1" in tally.log_line(2031)
+    ids = (["AgentID", "TunnelDiversionBelowCrystalForAg_1971CompStudyAg"]
+           if "TunnelDiversion" in raw else
+           ["AgentID", "Agent"] if '"Agent"' in raw else
+           ["Bostwick", "agent_id"])
+    multi = ReflectionEngine().parse_batch_reflection_response(raw, ids, 2031)
+    assert multi[ids[0]] is None or multi[ids[0]].summary != "I learned to watch demand."
+    assert all(insight is None or insight.parse == "strict" for insight in multi.values())
+
+
+@pytest.mark.parametrize("agent_id", ["X", "Bostwick", "Bostwick Park Water Conservancy"])
+@pytest.mark.parametrize("allow_plain_text", [False, True])
+def test_lenient_chained_form_rejects_lesson_as_middle(agent_id, allow_plain_text):
+    raw = '{"lesson": "I learned to watch demand.": "Bostwick Park Water Conservancy"}'
+    assert ReflectionEngine().parse_batch_reflection_response(
+        raw, [agent_id], 2031, allow_plain_text=allow_plain_text) == {agent_id: None}
+
+
+@pytest.mark.parametrize("raw", [
+    '{"AgentID": "odd!": "I learned to watch demand carefully."}',
+    '{"lesson": "I learned to keep demand steady": "Fort Mohave Ind Res AZ"}',
+    '{"lesson": "I learned a lot.": "Fort Mohave Ind Res AZ"}',
+])
+def test_lenient_chained_form_requires_id_like_and_shorter_middle(raw):
+    assert ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031) == {"X": None}
+
+
+def test_lenient_chained_form_rejects_long_non_id_middle():
+    raw = '{"AgentID": "one two three four five six seven": "Short lesson"}'
+    assert ReflectionEngine().parse_batch_reflection_response(
+        raw, ["TargetAgent"], 2031) == {"TargetAgent": None}
+
+
+@pytest.mark.parametrize("raw", [
+    '{"lesson": ""}',
+    '{"agent_id": "X", "lesson": "  "}',
+])
+def test_lenient_blank_lesson_stays_no_reply(raw):
+    assert ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031) == {"X": None}
+
+
+def test_lenient_lesson_uses_stage1_repaired_object():
+    raw = '{"agent_id": "X1", "lesson": "I learned to watch demand.",}'
+    insight = ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031)["X"]
+    assert insight is not None
+    assert insight.summary == "I learned to watch demand."
+    assert insight.parse == "lenient"
+
+
+@pytest.mark.parametrize("lesson,code", [
+    ("In 2030 I learned to watch.", "year"),
+    ("I learned to watch " + "demand " * 80, "too_long"),
+    ("... ... ...", "empty"),  # three words, no letters: longer than the middle, still junk
+])
+def test_lenient_lesson_retains_blocking_checks(lesson, code, tmp_path):
+    raw = '{"AgentID": "Agent": ' + json.dumps(lesson) + '}'
+    replies = iter([raw, '{"X": "I learned to watch demand."}'])
+    log = tmp_path / "reflection_checks.jsonl"
+    result = run_checked_reflection(
+        ReflectionEngine(), prompt="PROMPT", agent_id="X", period=2031,
+        llm_call=lambda _: next(replies), log_path=log, lesson_no_numbers=True)
+    assert result.outcome == "stored_after_retry"
+    assert code in [p.code for p in result.first_problems]
+    rows = [json.loads(line) for line in log.read_text().splitlines()]
+    assert rows[0]["parse"] == "lenient" and rows[1].get("parse", "strict") == "strict"
+    tally = ReflectionCheckTally()
+    tally.add(2031, result)
+    assert tally.counts(2031)["recovered_lenient"] == 0  # stored lesson was strict
+
+
+def test_lenient_parser_preserves_escapes_strict_precedence_and_no_reply():
+    engine = ReflectionEngine()
+    lesson = 'I learned to watch "demand" and my own needs.'
+    raw = '{"AgentID": "Agent": ' + json.dumps(lesson) + '}'
+    assert engine.parse_batch_reflection_response(raw, ["X"], 1)["X"].summary == lesson
+    raw = json.dumps({"X": lesson, "lesson": "Other lesson stays unused."})
+    insight = engine.parse_batch_reflection_response(raw, ["X"], 1)["X"]
+    assert insight.summary == lesson and insight.parse == "strict"
+    for raw in ('{"garbage": null}', '{"AgentID": "Agent": null}', '{"lesson": null}'):
+        result = run_checked_reflection(
+            engine, prompt="PROMPT", agent_id="X", period=1,
+            llm_call=lambda _: raw, retries=0)
+        assert result.outcome == "dropped"
+        assert [p.code for p in result.first_problems] == ["no_reply"]
+
+
+def test_lenient_invalid_escape_stays_no_reply():
+    raw = r'{"AgentID":"Agent":"I learned to avoid \q replies."}'
+    assert ReflectionEngine().parse_batch_reflection_response(
+        raw, ["X"], 1, allow_plain_text=True) == {"X": None}
+
+
 class _Model:
     """Answers in turn from ``replies``: a string is the lesson (wrapped as
     the one-key JSON the parser reads), None an unreadable reply, an
@@ -459,7 +567,7 @@ def test_tally_and_manifest(tmp_path, capsys):
     c = tally.counts(2031)
     assert (c["stored_total"], c["retried"], c["dropped"]) == (2, 2, 1)
     assert "empty" not in c and "no_reply" not in c
-    assert tally.log_line(2031) == ("stored 2 (1 after one retry), retried 2, dropped 1, "
+    assert tally.log_line(2031) == ("stored 2 (1 after one retry), retried 2, dropped 1, recovered lenient 0, "
                                     "flagged by reason {}")
     summary = tally.summary()
     assert summary["per_period"]["2031"]["first_attempt_problems"] == {"year": 2}

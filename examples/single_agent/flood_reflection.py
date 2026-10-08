@@ -96,23 +96,23 @@ def fact_line(fy: FloodYear) -> str:
 # for the state claims, which are about the present.
 
 _NO_FLOOD = re.compile(
-    r"\bno floods? (?:has|have|had) (?:ever )?(?:occurred|happened|hit|come)"
-    r"|\bthere (?:has|have) (?:never )?been no floods?"
-    r"|\b(?:have|has|had)? ?never (?:experienced|faced|seen|had|lived through) (?:a |any )?flood", re.I)
+    r"\bno floods? (?:has|have|had) (?:ever )?(?:occurred|happened|hit|come)\b"
+    r"|\bthere (?:has|have) (?:never )?been no flood(?:s|ed|ing|waters?)?\b"
+    r"|\b(?:have|has|had)? ?never (?:experienced|faced|seen|had|lived through) (?:a |any )?flood(?:s|ed|ing|waters?)?\b", re.I)
 _NO_DAMAGE = re.compile(
-    r"\b(?:has|have|had)? ?never (?:been )?(?:flooded|damaged)"
-    r"|\bnever (?:suffered|had|experienced|sustained|taken) (?:any )?(?:flood )?damage"
-    r"|\b(?:has|have) not (?:yet )?been (?:flooded|damaged)"
-    r"|\bI (?:have )?had no (?:flood )?damage", re.I)
-_FLOOD_VERB = r"(?:comes?|came|occurs?|occurred|hits?|happens?|happened|strikes?|struck)"
+    r"\b(?:has|have|had)? ?never (?:been )?(?:flooded|damaged)\b"
+    r"|\bnever (?:suffered|had|experienced|sustained|taken) (?:any )?(?:flood )?damages?\b"
+    r"|\b(?:has|have) not (?:yet )?been (?:flooded|damaged)\b"
+    r"|\bI (?:have )?had no (?:flood )?damages?\b", re.I)
+_FLOOD_VERB = r"(?:comes?|came|occurs?|occurred|hit(?:s|ting)?|happens?|happened|strikes?|struck)"
 _EVERY_YEAR_FLOOD = re.compile(
-    r"\bflood(?:s|ed|ing)? (?:" + _FLOOD_VERB + r" )?(?:every|each) (?:single )?year"
-    r"|\b(?:every|each) (?:single )?year[\w\s,'-]{0,20}\bflood"
-    r"|\bfloods? (?:always|constantly) " + _FLOOD_VERB, re.I)
+    r"\bflood(?:s|ed|ing)? (?:" + _FLOOD_VERB + r" )?(?:every|each) (?:single )?year\b"
+    r"|\b(?:every|each) (?:single )?year[\w\s,'-]{0,20}\bflood(?:s|ed|ing|waters?)?\b"
+    r"|\bfloods? (?:always|constantly) " + _FLOOD_VERB + r"\b", re.I)
 _ALWAYS_DAMAGE = re.compile(
-    r"\b(?:every|each) flood (?:has )?(?:damaged|hit|hurt|harmed)"
-    r"|\b(?:always|every time) (?:been )?damaged"
-    r"|\bfloods? (?:always|each time|every time) (?:damaged|damage|hit|hurt)", re.I)
+    r"\b(?:every|each) flood (?:has )?(?:damaged|hit(?:s|ting)?|hurt(?:s|ing)?|harmed)\b"
+    r"|\b(?:always|every time) (?:been )?damaged\b"
+    r"|\bfloods? (?:always|each time|every time) (?:damaged|damages?|hit(?:s|ting)?|hurt(?:s|ing)?)\b", re.I)
 _HYPOTHETICAL = re.compile(r"\b(?:if|would|could|should|might|may|unless|consider\w*|plan\w*|want\w*|need\w*)\b", re.I)
 _ELEVATED_CLAIM = re.compile(
     r"\bmy (?:house|home) is (?:already |now |still )?elevated\b"
