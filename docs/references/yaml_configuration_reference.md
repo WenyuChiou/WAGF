@@ -964,6 +964,7 @@ There are two syntax variants:
 | `level` | string | No | `"ERROR"` | Enforcement level. Valid values: `ERROR` (block + retry), `WARNING` (log only) |
 | `message` | string | No | "" | Human-readable explanation included in `InterventionReport` |
 | `grounding` | string | No | (inferred) | `world` or `self_report`. Override the inference. See "Grounding" below. |
+| `exception_precondition` | string | No | -- | Agent-state flag that bypasses the rule only when its value is the boolean `true`; otherwise a matching rule blocks. The domain decides what the excepted action does. |
 
 **Condition sub-fields** (`thinking_rules[].conditions[]`) -- a condition reads
 EITHER a construct label the model emitted, OR a world variable it cannot author:

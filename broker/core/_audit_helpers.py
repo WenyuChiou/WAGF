@@ -114,6 +114,8 @@ def _safe_triggered_rules(all_validation_history) -> List[str]:
                 if not hasattr(r, "metadata"):
                     continue
                 meta = r.metadata or {}
+                if meta.get("exception_used") is True:
+                    continue
                 rid = meta.get("rule_id")
                 if rid:
                     rule_ids.add(str(rid))
@@ -143,6 +145,8 @@ def _safe_rules_by_grounding(all_validation_history):
             results = batch if isinstance(batch, list) else [batch]
             for r in results:
                 meta = getattr(r, "metadata", None) or {}
+                if meta.get("exception_used") is True:
+                    continue
                 ids = set()
                 if meta.get("rule_id"):
                     ids.add(str(meta["rule_id"]))

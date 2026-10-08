@@ -58,7 +58,7 @@ import statistics
 import subprocess
 import sys
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
@@ -94,6 +94,7 @@ from examples.irrigation_abm.irrigation_personas import (  # noqa: E402
 from examples.irrigation_abm.validators.irrigation_validators import (  # noqa: E402
     SUPPLY_RULE_FIELDS,
 )
+from examples.irrigation_abm.junior_restore import tr1_violation, TR1_HIGH_WSA
 
 # =============================================================================
 # Pre-registered definitions (spec WP6; PI items 9, 16, 19, 21, 28)
@@ -124,7 +125,7 @@ LEVELS = ("VL", "L", "M", "H", "VH")
 # Low with a decrease. Cross-checked against the strict profile of
 # config/agent_types.yaml on every metrics and gate run
 # (``assert_thinking_rules_match_config``), so the post hoc rule is the live one.
-TR1_WSA = frozenset({"H", "VH"})
+TR1_WSA = TR1_HIGH_WSA
 TR3_WSA = frozenset({"VL", "L"})
 HIGH_LEVELS = frozenset({"H", "VH"})  # R2: TR2 reads WSA and ACA High or Very High
 
@@ -340,6 +341,9 @@ def assert_thinking_rules_match_config(config_path: Path = CONFIG_PATH) -> None:
             f"{config_path}: strict thinking rules {found} differ from the pre-registered "
             f"TR1/TR3 definitions {expected} (item 9)."
         )
+    tr1 = next(rule for rule in rules if rule['id'] == RULE_TR1)
+    if tr1.get('exception_precondition') != 'tier_cut_restore_available':
+        raise MetricsError(f"{config_path}: TR1 differs from the pre-registered tier-only exception (item 45p)")
 
 
 def assert_short_year_window_matches_config(config_path: Path = CONFIG_PATH) -> None:
@@ -964,6 +968,16 @@ class Decision:
     error_messages: str
     timestamp: str
     crashed: bool = False                  # the ABORTED_EXCEPTION sentinel
+    previous_gap_reason: Optional[str] = None
+    previous_request_af: Optional[float] = None
+    tier_cut_restore_enabled: bool = False
+
+    def tr1(self, skill: Optional[str], wsa: Optional[str], *, executed: bool = False) -> bool:
+        if not self.tier_cut_restore_enabled:
+            return skill == INCREASE and wsa in TR1_WSA
+        return tr1_violation(skill, wsa, previous_gap_reason=self.previous_gap_reason,
+                             previous_request_af=self.previous_request_af,
+                             base_af=self.keep_request_af)
 
     @property
     def aborted(self) -> bool:
@@ -1033,7 +1047,7 @@ class Decision:
         if rule == RULE_SUPPLY:
             return self.supply_condition
         if rule == RULE_TR1:
-            return self.first_wsa in TR1_WSA
+            return self.tr1(INCREASE, self.first_wsa)
         if rule == RULE_TR3:
             return self.first_wsa in TR3_WSA
         if rule == RULE_CAP:
@@ -1217,6 +1231,7 @@ class TraceRecord:
     menu: Tuple[str, ...]
     prompt: Optional[str] = field(default=None, repr=False)
     crashed: bool = False           # ABORTED_EXCEPTION sentinel: no prompt was logged
+    expected_gap_reason: Optional[str] = None
 
 
 def load_traces(run_dir: Path, keep_prompts: bool = False) -> Dict[Tuple[str, int], TraceRecord]:
@@ -1264,7 +1279,8 @@ def load_traces(run_dir: Path, keep_prompts: bool = False) -> Dict[Tuple[str, in
                 water_right = float(state["water_right"])
             out[key] = TraceRecord(key[0], key[1], at_cap, at_floor, base, water_right,
                                    () if prompt is None else parse_menu(prompt, where),
-                                   prompt if keep_prompts else None, crashed=crashed)
+                                   prompt if keep_prompts else None, crashed=crashed,
+                                   expected_gap_reason=state.get('gap_reason') if state else None)
     if not out:
         raise MetricsError(f"{path}: no traces")
     return out
@@ -1290,7 +1306,25 @@ class LoadedRun:
         return [self.decisions[k] for k in sorted(self.decisions, key=lambda k: (k[1], k[0]))]
 
 
-def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = None) -> LoadedRun:
+def _restore_context(run: LoadedRun, d: Decision, enabled: bool) -> Decision:
+    """Bind post hoc TR1 to the previous committed settlement.
+
+    Prior context is retained on every run for reviewer scripts. The 45p/45q
+    definition is enabled only by manifest provenance or an explicit analysis
+    override; older runs otherwise retain their recorded TR1 definition.
+    """
+    if d.aborted or d.year == 1:
+        return replace(d, tier_cut_restore_enabled=enabled)
+    sim = run.sim
+    previous = sim.rows[(d.agent_id, d.year - 1)]
+    cause = previous.get('gap_reason')
+    last_request = sim.num(d.agent_id, d.year - 1, 'request')
+    return replace(d, previous_gap_reason=cause, previous_request_af=last_request,
+                   tier_cut_restore_enabled=enabled)
+
+
+def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = None,
+             apply_tier_cut_restore: bool = False) -> LoadedRun:
     info = info or read_run_info(path)
     sim = load_sim_log(info.path)
     run = LoadedRun(info, sim)
@@ -1318,6 +1352,22 @@ def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = N
                                        "keep request")
             if (trace.at_cap is None) != decision.aborted:
                 raise MetricsError(f"{info.path} {key}: a state_before is missing on a decision that ran")
+        if 'tier_cut_restore' not in info.manifest:
+            # Spec 45q: these audit columns exist only in runs that enforce the
+            # tier-cut exception. A lost manifest write must not score such a
+            # run under the old TR1 definition without a word.
+            with open(info.path / AUDIT_CSV, encoding="utf-8-sig", newline="") as fh:
+                header = next(csv.reader(fh), [])
+            marked = [c for c in ("rule_exceptions_used", "state_tier_cut_restore_available")
+                      if c in header]
+            if marked:
+                raise MetricsError(
+                    f"{info.path}: the audit CSV has {marked} (a spec 45q run) but "
+                    "reproducibility_manifest.json lacks 'tier_cut_restore'; the TR1 "
+                    "definition of this run cannot be chosen from its manifest")
+        restore_enabled = 'tier_cut_restore' in info.manifest or apply_tier_cut_restore
+        run.decisions = {key: _restore_context(run, d, restore_enabled)
+                         for key, d in run.decisions.items()}
     elif info.kind == "replay":
         rows = _read_csv(info.path / REPLAY_CONDITION_CSV, ("agent_id", "year", "supply_condition"))
         for n, row in enumerate(rows, start=2):
@@ -1416,7 +1466,7 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
             no_wsa += 1
         elif d.first_wsa not in LEVELS:
             off_scale += 1
-        v1 = judged == INCREASE and d.first_wsa in TR1_WSA
+        v1 = d.tr1(judged, d.first_wsa)
         v3 = judged == DECREASE and d.first_wsa in TR3_WSA
         if v1 and v3:
             raise MetricsError(f"{d.agent_id} {d.year}: violates TR1 and TR3 at once")
@@ -1424,13 +1474,13 @@ def ibr_metrics(decisions: Sequence[Decision]) -> Dict[str, Any]:
         tr3 += v3
         if stepped_back and (v1 or v3):
             ibr_stepback_violations_n += 1
-        tr1_first_proposal += d.first_proposal == INCREASE and d.first_wsa in TR1_WSA
+        tr1_first_proposal += d.tr1(d.first_proposal, d.first_wsa)
         tr3_first_proposal += d.first_proposal == DECREASE and d.first_wsa in TR3_WSA
-        tr1_executed += d.executed_skill == INCREASE and d.first_wsa in TR1_WSA
+        tr1_executed += d.tr1(d.executed_skill, d.first_wsa, executed=True)
         tr3_executed += d.executed_skill == DECREASE and d.first_wsa in TR3_WSA
         if final is not None and d.final_wsa is None:
             final_wsa_missing += 1
-        tr1_final += final == INCREASE and d.final_wsa in TR1_WSA
+        tr1_final += d.tr1(final, d.final_wsa)
         tr3_final += final == DECREASE and d.final_wsa in TR3_WSA
         if d.retried:
             retried += 1
@@ -1520,7 +1570,7 @@ def attempt_predicates(d: Decision, trace: TraceRecord) -> List[Optional[Dict[st
         live = set(attempt.failed_rules or ())
         predicate = {
             RULE_SUPPLY: attempt.skill == INCREASE and d.supply_condition,
-            RULE_TR1: attempt.skill == INCREASE and frozen in TR1_WSA,
+            RULE_TR1: d.tr1(attempt.skill, frozen),
             RULE_TR3: attempt.skill == DECREASE and frozen in TR3_WSA,
             RULE_CAP: attempt.skill == INCREASE and bool(trace.at_cap),
             RULE_FLOOR: attempt.skill == DECREASE and bool(trace.at_floor),
@@ -1581,9 +1631,9 @@ def rule_census(run: LoadedRun) -> List[Dict[str, Any]]:
             if not condition:
                 continue
             held += 1
-            first += d.first_proposal == blocked
-            final += d.last_parsed_proposal == blocked
-            executed += d.executed_skill == blocked
+            first += d.tr1(d.first_proposal, d.first_wsa) if rule == RULE_TR1 else d.first_proposal == blocked
+            final += d.tr1(d.last_parsed_proposal, d.first_wsa) if rule == RULE_TR1 else d.last_parsed_proposal == blocked
+            executed += d.tr1(d.executed_skill, d.first_wsa, executed=True) if rule == RULE_TR1 else d.executed_skill == blocked
         rows.append({
             "run": run.label, "arm": run.info.arm, "seed": run.info.seed, "rule": rule,
             "family": "feasibility" if rule in FEASIBILITY_RULES else "thinking",
@@ -2404,7 +2454,7 @@ def _r5d_population(run: LoadedRun, basin_filter: Optional[str] = None,
         if condition is None:
             raise MetricsError(f"{run.label} {agent} {y}: supply_condition is unknown on a "
                               "decision that was not aborted")
-        if d.first_wsa in TR1_WSA or condition:
+        if d.tr1(INCREASE, d.first_wsa) or condition:
             continue  # TR1 or the supply rule could act: not an R5d decision
         eligible += 1
         increases += d.first_proposal == INCREASE
@@ -2743,7 +2793,8 @@ def benchmark_tables(reference: Reference) -> Tuple[List[Dict[str, Any]], List[D
 
 
 def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir: Optional[str] = None,
-                    allow_mixed_provenance: bool = False, allow_dirty: bool = False) -> MetricsResult:
+                    allow_mixed_provenance: bool = False, allow_dirty: bool = False,
+                    apply_tier_cut_restore: bool = False) -> MetricsResult:
     """Every WP6 metric over a corpus of LLM runs, read against the FQL
     reference (and the fixed-demand replays, when given)."""
     assert_thinking_rules_match_config()
@@ -2753,6 +2804,7 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
     fql_infos = _infos_of(fql_dirs, "fql")
     replay_infos = _replay_infos(Path(replay_dir) if replay_dir else None)
     provenance = check_provenance(llm_infos + fql_infos + replay_infos, allow_mixed_provenance, allow_dirty)
+    provenance["apply_tier_cut_restore"] = bool(apply_tier_cut_restore)
     notes: List[str] = []
 
     fql_runs = [load_run(i.path, info=i) for i in fql_infos]
@@ -2797,7 +2849,7 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
     per_run, census, exposure, agreement, lb_agent_rows = [], [], [], [], []
     r5a, r5b, r5c, r5d, r5d_little_spare = [], [], [], [], []
     for info in sorted(llm_infos, key=lambda i: (ARMS.index(i.arm), i.seed)):
-        run = load_run(info.path, info=info)
+        run = load_run(info.path, info=info, apply_tier_cut_restore=apply_tier_cut_restore)
         result = run_metrics(run, reference, cfg)
         per_run.append(result["row"])
         census.extend(result["census"])
@@ -2911,6 +2963,13 @@ _R = {
     "tier": re.compile(r"^A Tier (\d) Lower Basin shortage applies this year \(Lake Mead was below ([\d,]+) feet on 1 January\): "),
     "tier_volume": re.compile(r"by ([\d,]+) acre-ft in total"),
     "senior": re.compile(r"above ([\d,]+) acre-ft by about"),
+    "restore": re.compile(
+        r"^(?P<tense>The tier cut is|Last year's tier cut was) a fixed share of the junior-priority "
+        r"(?P<part>water you (?P<verb>request|requested)|part of your request, the part above "
+        r"(?P<senior>[\d,]+) acre-ft); it (?P<right>does not|did not) change your water right\. "
+        r"If you choose to keep your request, you ask for the reduced (?P<base>[\d,]+) acre-ft "
+        r"you received last year\. To return toward the (?P<request>[\d,]+) acre-ft you requested "
+        r"last year, choose to increase your request\.$"),
     "about_pct": re.compile(r"by about (\d+%)"),
     "capacity": re.compile(r"limited to the ([\d.]+) million acre-ft delivery capacity"),
     "last_year": re.compile(r"^Last year you requested ([\d,]+) acre-ft and received ([\d,]+) acre-ft \(([\d.]+%) delivered\)"),
@@ -3223,6 +3282,38 @@ class PromptChecker:
         persona text, a reason phrase) are never covered: a digit there is
         unchecked unless a sub-pattern verifies it."""
         sim, cfg, text = self.run.sim, self.cfg, line.text
+        m = _R['restore'].match(text)
+        if m:
+            line.cover(m)
+            if t == 1:
+                line.check(False, 'tier-restoration sentence in the first year')
+                return
+            previous = sim.rows[(agent, t - 1)]
+            req, dlv = sim.num(agent, t - 1, 'request'), sim.num(agent, t - 1, 'diversion')
+            entry = self.priority.get(agent)
+            line.check(not upper and entry is not None and entry['junior_entitlement_af'] > 0,
+                       'tier-restoration sentence for an agent without junior water')
+            line.check(previous.get('gap_reason') == 'lb_junior_tier_cut' and req > dlv,
+                       'tier-restoration sentence without a prior tier-only cut')
+            line.check('lb_mead_availability' not in (trace.expected_gap_reason or ''),
+                       'tier-restoration sentence during a Lake Mead physical shortage')
+            line.check(_f0(req) != _f0(dlv),
+                       'tier-restoration sentence whose formatted request and receipt are equal')
+            line.check(trace.at_cap is False,
+                       'tier-restoration sentence when increase is not on the menu')
+            line.expect(m, 'base', _f0(dlv), "restoration base (last year's delivery)")
+            line.expect(m, 'request', _f0(req), "restoration target (last year's request)")
+            senior = self.senior_entitlement(agent)
+            partly = senior is not None and senior > 0
+            line.check((m.group('senior') is not None) == partly, 'fully/partly junior restoration wording')
+            if m.group('senior') is not None:
+                line.expect(m, 'senior', _f0(senior) if senior is not None else '(none)', 'senior entitlement')
+            present = int(system['shortage_tier']) > 0
+            line.check((m.group('tense') == 'The tier cut is') == present, 'restoration tier tense')
+            line.check(m.group('right') == ('does not' if present else 'did not'), 'restoration right tense')
+            if not partly:
+                line.check(m.group('verb') == ('request' if present else 'requested'), 'restoration request tense')
+            return
         m = _R["persona"].match(text)
         if m:
             line.cover(m, "agent")
@@ -4231,7 +4322,8 @@ def pilot_infos(strict_dir: str, disabled_dir: str) -> Tuple[RunInfo, RunInfo]:
 
 def pilot_gate(strict_dir: str, disabled_dir: str, fql_dirs: Sequence[str], replay_dir: Optional[str] = None,
                p5c_review: Optional[str] = None, allow_mixed_provenance: bool = False,
-               allow_dirty: bool = False, expected_rows: Optional[int] = None) -> Dict[str, Any]:
+               allow_dirty: bool = False, expected_rows: Optional[int] = None,
+               apply_tier_cut_restore: bool = False) -> Dict[str, Any]:
     """Spec section 4: the gated checks P1-P10 (P3 reported) and R1-R4.
     ``passed`` is True only if every gated check passes and no provenance
     override is in force: a gate run under ``allow_mixed_provenance`` or
@@ -4245,9 +4337,12 @@ def pilot_gate(strict_dir: str, disabled_dir: str, fql_dirs: Sequence[str], repl
     replay_infos = _replay_infos(Path(replay_dir) if replay_dir else None)
     provenance = check_provenance([strict_info, disabled_info] + fql_infos + replay_infos,
                                   allow_mixed_provenance, allow_dirty)
+    provenance["apply_tier_cut_restore"] = bool(apply_tier_cut_restore)
     review_record = read_p5c_review(p5c_review)
-    strict = load_run(strict_info.path, keep_prompts=True, info=strict_info)
-    disabled = load_run(disabled_info.path, keep_prompts=True, info=disabled_info)
+    strict = load_run(strict_info.path, keep_prompts=True, info=strict_info,
+                      apply_tier_cut_restore=apply_tier_cut_restore)
+    disabled = load_run(disabled_info.path, keep_prompts=True, info=disabled_info,
+                        apply_tier_cut_restore=apply_tier_cut_restore)
     review = None if review_record is None else check_p5c_review(review_record, [strict, disabled])
     fql_runs = [load_run(i.path, info=i) for i in fql_infos]
     replays = [load_run(i.path, info=i) for i in replay_infos]
@@ -4267,7 +4362,8 @@ def pilot_gate(strict_dir: str, disabled_dir: str, fql_dirs: Sequence[str], repl
                 report_r4([strict, disabled], fql_runs, cfg)]
     gated_passed = all(c["passed"] for c in checks if c["gated"])
     overrides = [flag for flag, on in (("--allow-mixed-provenance", allow_mixed_provenance),
-                                       ("--allow-dirty", allow_dirty)) if on]
+                                       ("--allow-dirty", allow_dirty),
+                                       ("--apply-tier-cut-restore", apply_tier_cut_restore)) if on]
     return _jsonable({
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "spec": ".research/design_specs/irrigation_v3_spec_2026-09-28.md section 4",
@@ -4275,6 +4371,7 @@ def pilot_gate(strict_dir: str, disabled_dir: str, fql_dirs: Sequence[str], repl
                  "fql": [str(i.path) for i in fql_infos], "replays": [str(i.path) for i in replay_infos]},
         "pilot_seeds": [strict_info.seed, disabled_info.seed], "required_rows": expected,
         "provenance": provenance, "provenance_overrides": overrides, "checks": checks, "reported": reported,
+        "apply_tier_cut_restore": bool(apply_tier_cut_restore),
         "gated_checks_passed": gated_passed, "passed": gated_passed and not overrides,
         "metrics": rows,
     })
@@ -4914,9 +5011,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pool runs whose manifests differ; every difference is written to the output")
     m.add_argument("--allow-dirty", action="store_true",
                    help="pool runs from a dirty tree; the override is written to the output")
+    m.add_argument("--apply-tier-cut-restore", action="store_true",
+                   help="apply the 45q TR1 definition to historical runs without its manifest field")
     s = sub.add_parser("p5c-sample", help="write the P5(c) review template and the sampled prompt texts")
     s.add_argument("--runs", nargs=2, required=True, metavar=("STRICT", "DISABLED"))
     s.add_argument("--out", required=True)
+    s.add_argument("--apply-tier-cut-restore", action="store_true",
+                   help="apply the 45q TR1 definition to historical runs without its manifest field")
     g = sub.add_parser("pilot-gate", help="spec section 4: exit 0 only if every gated check passes and no "
                                           "provenance override is given")
     g.add_argument("--runs", nargs=2, required=True, metavar=("STRICT", "DISABLED"))
@@ -4927,6 +5028,8 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--out", required=True)
     g.add_argument("--allow-mixed-provenance", action="store_true", help="never exits 0")
     g.add_argument("--allow-dirty", action="store_true", help="never exits 0")
+    g.add_argument("--apply-tier-cut-restore", action="store_true",
+                   help="apply the 45q TR1 definition to historical runs without its manifest field")
     r = sub.add_parser("replay", help="write the fixed-demand replays A and B (item 21)")
     source = r.add_mutually_exclusive_group(required=True)
     source.add_argument("--real", action="store_true", help="the 78 CRSS agents")
@@ -4942,22 +5045,25 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "metrics":
-        result = compute_metrics(args.runs, args.fql, args.replays, args.allow_mixed_provenance, args.allow_dirty)
+        result = compute_metrics(args.runs, args.fql, args.replays, args.allow_mixed_provenance,
+                                 args.allow_dirty, args.apply_tier_cut_restore)
         for path in write_metrics(result, Path(args.out)):
             print(f"[v3_metrics] wrote {path}")
         return 0
     if args.command == "p5c-sample":
         infos = pilot_infos(args.runs[0], args.runs[1])
-        runs = [load_run(info.path, keep_prompts=True, info=info) for info in infos]
+        runs = [load_run(info.path, keep_prompts=True, info=info,
+                         apply_tier_cut_restore=args.apply_tier_cut_restore) for info in infos]
         path = write_p5c_sample(runs, Path(args.out))
         print(f"[v3_metrics] wrote the P5(c) review template {path}")
         return 0
     if args.command == "pilot-gate":
         report = pilot_gate(args.runs[0], args.runs[1], args.fql, args.replays, args.p5c_review,
-                            args.allow_mixed_provenance, args.allow_dirty)
+                            args.allow_mixed_provenance, args.allow_dirty,
+                            apply_tier_cut_restore=args.apply_tier_cut_restore)
         sample = {}
         for path in args.runs:
-            run = load_run(Path(path))
+            run = load_run(Path(path), apply_tier_cut_restore=args.apply_tier_cut_restore)
             sample[run.label] = select_p5c_sample(run)
         path = write_pilot_gate(report, Path(args.out), sample)
         print(f"[v3_metrics] pilot gate {'PASSED' if report['passed'] else 'FAILED'}: {path}")

@@ -403,6 +403,71 @@ def test_ibr_disabled_hand_computed_with_the_first_label_fallback(disabled_run):
     assert d4.first_wsa == "VH" and d4.attempts[0].labels == {"ACA_LABEL": "M"}
 
 
+def _set_ub1_2019_tier_cut(path: Path, *, manifest_field: bool = False) -> Path:
+    rows = list(csv.DictReader(open(path / vm.SIM_LOG, encoding="utf-8")))
+    for row in rows:
+        if (row["agent_id"], row["year"]) == ("UB1", "1"):
+            row.update(request="1200", diversion="1000", gap_reason="lb_junior_tier_cut")
+    vm.write_csv(path / vm.SIM_LOG, rows)
+    if manifest_field:
+        manifest = json.loads((path / vm.MANIFEST).read_text(encoding="utf-8"))
+        manifest["tier_cut_restore"] = {"spec": "45p/45q"}
+        (path / vm.MANIFEST).write_text(json.dumps(manifest), encoding="utf-8")
+    return path
+
+
+def test_historical_run_keeps_old_tr1_unless_analysis_override_is_explicit(tmp_path):
+    path = _set_ub1_2019_tier_cut(
+        fixture_run(tmp_path, "disabled", DISABLED_DECISIONS, name="historical"))
+    historical = vm.load_run(path)
+    overridden = vm.load_run(path, apply_tier_cut_restore=True)
+    old_d, new_d = historical.decisions[("UB1", 2)], overridden.decisions[("UB1", 2)]
+    assert (old_d.previous_gap_reason, old_d.previous_request_af) == ("lb_junior_tier_cut", 1200.0)
+    assert old_d.tier_cut_restore_enabled is False
+    assert new_d.tier_cut_restore_enabled is True
+    assert vm.ibr_metrics(historical.ordered())["ibr_tr1_count"] == 3
+    assert vm.ibr_metrics(overridden.ordered())["ibr_tr1_count"] == 2
+
+
+@pytest.mark.parametrize("column", ["rule_exceptions_used", "state_tier_cut_restore_available"])
+def test_45q_audit_columns_without_manifest_field_fail_loudly(tmp_path, column):
+    path = _set_ub1_2019_tier_cut(
+        fixture_run(tmp_path, "strict", STRICT_DECISIONS, name="lost_manifest_write"))
+    audit = path / vm.AUDIT_CSV
+    with open(audit, encoding="utf-8-sig", newline="") as fh:
+        rows = list(csv.reader(fh))
+    rows[0].append(column)
+    for row in rows[1:]:
+        row.append("")
+    with open(audit, "w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows(rows)
+    with pytest.raises(vm.MetricsError, match="lacks 'tier_cut_restore'"):
+        vm.load_run(path)
+
+
+def test_manifest_field_enables_45p_and_45q_tr1_without_random_step_reconstruction(tmp_path):
+    path = _set_ub1_2019_tier_cut(
+        fixture_run(tmp_path, "disabled", DISABLED_DECISIONS, name="recorded"),
+        manifest_field=True,
+    )
+    run = vm.load_run(path)
+    decision = run.decisions[("UB1", 2)]
+    assert decision.tier_cut_restore_enabled is True
+    assert decision.tr1(INC, "VH") is False
+    census = {row["rule"]: row for row in vm.rule_census(run)}
+    assert census[TR1]["condition_held"] == 2
+
+
+def test_historical_p7_agreement_changes_only_under_explicit_override(tmp_path):
+    path = _set_ub1_2019_tier_cut(
+        fixture_run(tmp_path, "strict", STRICT_DECISIONS, name="historical_strict"))
+    base = vm.rule_agreement(vm.load_run(path))[TR1]
+    overridden = vm.rule_agreement(
+        vm.load_run(path, apply_tier_cut_restore=True))[TR1]
+    assert base["disagreements"] == 0
+    assert overridden["disagreements"] == 1
+
+
 def test_first_stated_wsa_skips_a_blank(strict_run):
     d4 = strict_run.decisions[("UB1", 2)]
     assert d4.attempts[0].labels["WSA_LABEL"] == ""
@@ -1953,6 +2018,68 @@ def _ub1_memory_2021(checker: vm.PromptChecker, share_2020: Optional[str] = None
             "acre-ft. Demand fully met. That winter's precipitation in your sub-basin was above the previous "
             f"winter's. The natural flow of the rivers your sub-basin draws on was {p20} of its 1971-2018 "
             "average that year.\n")
+
+
+@pytest.mark.parametrize('senior', [0., 5940.])
+@pytest.mark.parametrize('tier', [0, 1])
+def test_p5b_reads_every_restoration_sentence_number(tmp_path, senior, tier):
+    run = _prompt_run(tmp_path, {})
+    key = ('LB1', 2)
+    run.sim.rows[('LB1', 1)].update(request='4798', diversion='3826', gap_reason='lb_junior_tier_cut')
+    run.sim.system[2]['shortage_tier'] = tier
+    run.traces[key] = dataclasses.replace(run.traces[key], at_cap=False)
+    checker = vm.PromptChecker(run, CFG, CFG.ub_subbasin_supply_variant)
+    checker.priority = dict(checker.priority)
+    checker.priority['LB1'] = {'senior_entitlement_af': senior, 'junior_entitlement_af': 10000.}
+    start = 'The tier cut is' if tier else "Last year's tier cut was"
+    part = (f'part of your request, the part above {senior:,.0f} acre-ft' if senior
+            else ('water you request' if tier else 'water you requested'))
+    right = 'does not' if tier else 'did not'
+    text = (f'{start} a fixed share of the junior-priority {part}; it {right} change your water right. '
+            'If you choose to keep your request, you ask for the reduced 3,826 acre-ft you received last year. '
+            'To return toward the 4,798 acre-ft you requested last year, choose to increase your request.')
+    good = vm.PromptAudit()
+    checker.audit(key, text, good)
+    assert not good.mismatches and not good.unchecked
+    replacements = [('3,826', '3,825'), ('4,798', '4,799')]
+    if senior:
+        replacements.append(('5,940', '5,941'))
+    for correct, wrong in replacements:
+        bad = vm.PromptAudit()
+        checker.audit(key, text.replace(correct, wrong), bad)
+        assert bad.mismatches, (correct, wrong)
+
+
+@pytest.mark.parametrize("reason,previous_request,diversion,at_cap,expected", [
+    ("lb_mead_availability", "4798", "3826", False, "Lake Mead physical shortage"),
+    ("", "4798", "3826", False, "prior tier-only cut"),
+    ("lb_junior_tier_cut", "2.19", "1.75", False, "formatted request and receipt are equal"),
+    ("lb_junior_tier_cut", "4798", "3826", True, "increase is not on the menu"),
+])
+def test_p5b_restoration_sentence_uses_prompt_hiding_eligibility(
+        tmp_path, reason, previous_request, diversion, at_cap, expected):
+    run = _prompt_run(tmp_path, {})
+    key = ("LB1", 2)
+    run.sim.rows[("LB1", 1)].update(
+        request=previous_request, diversion=diversion, gap_reason=reason or "other_shortfall")
+    trace = run.traces[key]
+    run.traces[key] = dataclasses.replace(
+        trace, at_cap=at_cap,
+        expected_gap_reason="lb_mead_availability" if reason == "lb_mead_availability" else "")
+    if reason == "lb_mead_availability":
+        # A current physical ratio in [FULL_SUPPLY_RATIO, 1) does not fire the
+        # supply rule, but the physical shortage cause still hides P.
+        run.decisions[key] = dataclasses.replace(run.decisions[key], physical_ratio=0.9995)
+    checker = vm.PromptChecker(run, CFG, CFG.ub_subbasin_supply_variant)
+    checker.priority = dict(checker.priority)
+    checker.priority["LB1"] = {"senior_entitlement_af": 0.0, "junior_entitlement_af": 10000.0}
+    text = ("Last year's tier cut was a fixed share of the junior-priority water you requested; "
+            "it did not change your water right. If you choose to keep your request, you ask for "
+            f"the reduced {float(diversion):,.0f} acre-ft you received last year. To return toward "
+            f"the {float(previous_request):,.0f} acre-ft you requested last year, choose to increase your request.")
+    audit = vm.PromptAudit()
+    checker.audit(key, text, audit)
+    assert any(expected in message for message in audit.mismatches), audit.mismatches
 
 
 def test_p5b_reads_the_item_45_memory_and_floor_sentences(tmp_path):

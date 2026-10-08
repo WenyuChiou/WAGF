@@ -57,11 +57,13 @@ class Settlement:
 class WorldDelta:
     """The committed effect of one approved, already-governed action.
     ``agent_state_changes`` flows back to the agent; ``audited_summary`` +
-    ``contention_rule`` flow to the audit trace (E4)."""
+    ``contention_rule`` flow to the audit trace (E4). ``action_context``
+    preserves domain execution audit fields through the adapter."""
 
     agent_state_changes: Dict[str, Any] = field(default_factory=dict)
     world_changes: Dict[str, Any] = field(default_factory=dict)
     contention_rule: str = "none"
+    action_context: Dict[str, Any] = field(default_factory=dict)
 
     def audited_summary(self) -> Dict[str, Any]:
         return {"world_changes": dict(self.world_changes), "contention_rule": self.contention_rule}

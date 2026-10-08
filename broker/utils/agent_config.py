@@ -405,6 +405,28 @@ class AgentTypeConfig:
             logger.warning(f"[Config] Failed to load config from {yaml_path}: {e}")
             self._config = {}
             self._yaml_path = None
+
+        # Validate outside the tolerant file-read block: an unsupported option
+        # is a configuration error, never an empty-config fallback.
+        self._validate_rule_exceptions(self._config)
+
+    @staticmethod
+    def _validate_rule_exceptions(node, rule_type: Optional[str] = None) -> None:
+        """Reject exception flags on rule types whose evaluator ignores them."""
+        if isinstance(node, dict):
+            if "exception_precondition" in node:
+                if rule_type not in ("thinking_rules", "coherence_rules"):
+                    raise ValueError("exception_precondition is supported only on thinking_rules "
+                                     "(or the legacy coherence_rules alias)")
+                flag = node["exception_precondition"]
+                if not isinstance(flag, str) or not flag.strip():
+                    raise ValueError("exception_precondition must name a non-empty state flag")
+            for key, value in node.items():
+                AgentTypeConfig._validate_rule_exceptions(
+                    value, key if key.endswith("_rules") else rule_type)
+        elif isinstance(node, list):
+            for value in node:
+                AgentTypeConfig._validate_rule_exceptions(value, rule_type)
     
     def get_base_type(self, agent_type: str) -> str:
         """Map a specific agent type/subtype to a base type defined in config."""
@@ -2202,8 +2224,10 @@ class AgentTypeConfig:
                     # A rule without the key gets exactly the {} it always
                     # had, so its results carry no new metadata key.
                     metadata=(
-                        {"suggestion": str(rule["suggestion"])}
-                        if rule.get("suggestion") else {}
+                        ({"suggestion": str(rule["suggestion"])}
+                         if rule.get("suggestion") else {})
+                        | ({"exception_precondition": str(rule["exception_precondition"])}
+                           if rule.get("exception_precondition") else {})
                     ),
                     grounding=resolve_rule_grounding(rule),
                 )
