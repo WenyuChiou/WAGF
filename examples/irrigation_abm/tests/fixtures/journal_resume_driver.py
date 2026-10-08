@@ -79,8 +79,11 @@ _OPTION_RE = re.compile(r"(\d+)\.\s+([^\n]+)")
 # (one match is enough for that); every agent_id in the batch is then
 # pulled separately via _REFLECTION_AGENT_LINE_RE, since one batch can
 # (and typically does) carry more than one agent line.
-_REFLECTION_MARKER_RE = re.compile(r"### Task Data to Process\n(.+?) Memories: ", re.DOTALL)
-_REFLECTION_AGENT_LINE_RE = re.compile(r"^(\S+) Memories: ", re.MULTILINE)
+# Irrigation spec item 45b: with reflection.year_lines the memories follow
+# "<agent_id> Memories:" on their own lines, so no space is required after
+# the colon (the paragraph form, "Memories: ...", still matches).
+_REFLECTION_MARKER_RE = re.compile(r"### Task Data to Process\n(.+?) Memories:", re.DOTALL)
+_REFLECTION_AGENT_LINE_RE = re.compile(r"^(\S+) Memories:", re.MULTILINE)
 
 _LETTERS = "abcdefghijklmnop"
 

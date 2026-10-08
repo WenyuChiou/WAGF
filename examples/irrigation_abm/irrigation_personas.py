@@ -832,10 +832,21 @@ KEEP_ASKS_RECEIVED_NOTE = (
     "If you received less than you requested last year, keeping your request asks only "
     "for the amount you received; an increase is the only option that asks for more."
 )
+# Spec item 45i (P5(c) claim map 1.3 f): why no decrease is on the menu. The
+# identity rule hides a decrease exactly when the keep request is at or below
+# the minimum-use floor (within the 1 percent tolerance of
+# ``IrrigationEnvironment``'s ``below_minimum_utilisation``); the floor is
+# ``min_utilisation_fraction`` x the water right (item 36k).
+FLOOR_NO_DECREASE_NOTE = (
+    "A decrease is not offered because your request is at or below the minimum-use "
+    "floor of {floor:,.0f} acre-ft ({share:.0%} of your water right)."
+)
 
 
 def build_option_notes(increase_offered: bool, decrease_offered: bool,
-                       last_year: Optional[Dict[str, Any]]) -> str:
+                       last_year: Optional[Dict[str, Any]],
+                       floor_af: Optional[float] = None,
+                       floor_share: Optional[float] = None) -> str:
     """``{option_notes}``, the text right after ``{options_text}`` (spec 2.6,
     item 23, item 29e).
 
@@ -849,7 +860,13 @@ def build_option_notes(increase_offered: bool, decrease_offered: bool,
     ``IrrigationLifecycleHooks.post_year`` took; None in the first year,
     which has no last-year request). "Below" uses FULL_SUPPLY_RATIO, the
     edge at which the memory line says "Demand fully met." Each line starts
-    with a newline, so an empty result leaves the template unchanged."""
+    with a newline, so an empty result leaves the template unchanged.
+
+    Spec item 45i: when no decrease is offered and ``floor_af`` (the
+    minimum-use floor, acre-ft) and ``floor_share`` (its share of the water
+    right) are given, FLOOR_NO_DECREASE_NOTE follows the random-step line
+    and says why. ``IrrigationLifecycleHooks.pre_year`` always passes both;
+    a direct caller that passes neither gets the notes as before."""
     lines = []
     if increase_offered and decrease_offered:
         lines.append(OPTION_STEP_NOTE)
@@ -857,13 +874,18 @@ def build_option_notes(increase_offered: bool, decrease_offered: bool,
         lines.append(INCREASE_STEP_NOTE)
     elif decrease_offered:
         lines.append(DECREASE_STEP_NOTE)
+    if not decrease_offered and floor_af is not None:
+        if floor_share is None:
+            raise ValueError("build_option_notes: floor_af given without floor_share.")
+        lines.append(FLOOR_NO_DECREASE_NOTE.format(floor=floor_af, share=floor_share))
     if increase_offered and last_year is not None and supply_ratio(
             float(last_year["diversion"]), float(last_year["request"])) < FULL_SUPPLY_RATIO:
         lines.append(KEEP_ASKS_RECEIVED_NOTE)
     return "".join("\n" + line for line in lines)
 
 
-def _build_trend_text(basin: str, preceding_factor: int, subbasin: bool = True) -> str:
+def _build_trend_text(basin: str, preceding_factor: int, subbasin: bool = True,
+                      flow_share: Optional[float] = None) -> str:
     """The water-information sentence that ends a memory line (spec 4.5).
 
     Upper Basin: the agent's own sub-basin winter precipitation flag
@@ -871,11 +893,21 @@ def _build_trend_text(basin: str, preceding_factor: int, subbasin: bool = True) 
     sub-basin (``subbasin=False``) reads the basin-level legacy value,
     named as such. Lower Basin: Lake Mead's 1 January level against the
     year before (F15: the Lower Basin has no precipitation signal).
+
+    Spec item 45f: an Upper Basin agent with a sub-basin also reads that
+    year's natural flow of its sub-basin's rivers as a share of the
+    1971-2018 average (``flow_share``, the same number its decision prompt
+    showed that year, ``build_water_situation_text``), the flow that sets
+    its supply; precipitation was the only water signal on the line before.
     """
     if basin == "upper_basin":
         where = "in your sub-basin" if subbasin else "in the Upper Basin"
-        return (f"That winter's precipitation {where} was "
+        text = (f"That winter's precipitation {where} was "
                 f"{'above' if preceding_factor else 'below'} the previous winter's.")
+        if subbasin and flow_share is not None:
+            text += (" The natural flow of the rivers your sub-basin draws on was "
+                     f"{flow_share:.0%} of its 1971-2018 average that year.")
+        return text
     if basin == "lower_basin":
         return (f"On 1 January that year Lake Mead was "
                 f"{'higher' if preceding_factor else 'lower'} than a year earlier.")
@@ -884,6 +916,82 @@ def _build_trend_text(basin: str, preceding_factor: int, subbasin: bool = True) 
     raise ValueError(
         f"_build_trend_text: basin {basin!r} is neither 'upper_basin' nor 'lower_basin'."
     )
+
+
+# Spec item 45h: the allocation rules a reflection prompt carries, in the
+# words the decision prompt states them (the feedback-dashboard warnings of
+# config/agent_types.yaml, irrigation_farmer.feedback.assertions; the
+# diagnosis F5: the reflection prompt had no allocation rule, so a reflection
+# could read a tier cut as caused by the request's size). Each text is pinned
+# as a substring of its YAML warning by test_v3_prompt.py
+# (test_reflection_rules_are_the_decision_prompt_words), so the two cannot drift.
+ALLOCATION_RULES = {
+    "lower_basin_junior": (
+        "Part or all of your water right is junior-priority, and the declared shortage "
+        "tier cuts that part directly. A larger request would have its junior-priority "
+        "part cut by the same tier.",
+        "If Lake Mead is also physically short, the rest is shared in proportion to "
+        "requests, and a larger request would raise your share only by lowering the "
+        "deliveries of other users in the Lower Basin; it would not add water to the "
+        "Lower Basin.",
+    ),
+    "lower_basin": (
+        "A declared shortage does not by itself reduce your delivery; only Lake Mead's "
+        "physical availability does.",
+        "When water is short it is shared in proportion to requests, so a larger request "
+        "would raise your share only by lowering the deliveries of other users in the "
+        "Lower Basin; it would not add water to the Lower Basin.",
+    ),
+    "subbasin": (
+        "When water is short it is shared in proportion to requests, so a larger request "
+        "would raise your share only by lowering the deliveries of other users in your "
+        "sub-basin; it would not add water to your sub-basin.",
+    ),
+    "alone": (
+        "When water is short, a larger request would not add water.",
+    ),
+    "upper_basin": (
+        "When water is short it is shared in proportion to requests, so a larger request "
+        "would raise your share only by lowering the deliveries of other users in the "
+        "Upper Basin; it would not add water to the Upper Basin.",
+    ),
+}
+
+
+def reflection_rule_lines(agent_context: Dict[str, Any]) -> List[str]:
+    """The allocation rules that apply to this agent (spec item 45h), from
+    ``IrrigationEnvironment.get_agent_context``: a Lower Basin agent holding
+    junior-priority water (``lb_junior_entitlement_af`` above 0) reads that
+    the tier cuts its junior part whatever the request; any other Lower
+    Basin agent, that a declared shortage alone does not cut it; an Upper
+    Basin agent, that a shortage is shared in proportion to requests within
+    its sub-basin (no one to share with for the only member; the basin-wide
+    pool for a synthetic agent without a sub-basin)."""
+    supply_mode = agent_context.get("ub_supply_mode")
+    if supply_mode != "subbasin":
+        raise ValueError(
+            "reflection_rule_lines: ub_supply_mode must be 'subbasin' because the "
+            f"reflection rules describe sub-basin allocation, got {supply_mode!r}."
+        )
+    basin = agent_context.get("basin")
+    if basin == "lower_basin":
+        if "lb_junior_entitlement_af" not in agent_context:
+            raise ValueError("reflection_rule_lines: a Lower Basin context lacks "
+                             "lb_junior_entitlement_af; refusing to guess its priority.")
+        junior = agent_context["lb_junior_entitlement_af"]
+        key = "lower_basin_junior" if junior is not None and junior > 1e-6 else "lower_basin"
+    elif basin == "upper_basin":
+        if agent_context.get("supply_group") is None:
+            key = "upper_basin"
+        else:
+            members = agent_context.get("ub_subbasin_member_count")
+            if members is None:
+                raise ValueError("reflection_rule_lines: an Upper Basin agent with a "
+                                 "sub-basin has no ub_subbasin_member_count.")
+            key = "alone" if members <= 1 else "subbasin"
+    else:
+        raise ValueError(f"reflection_rule_lines: basin {basin!r} is neither Upper nor Lower Basin.")
+    return list(ALLOCATION_RULES[key])
 
 
 def dashboard_sharing_flags(agent_state: Dict[str, Any]) -> Dict[str, float]:
@@ -987,6 +1095,27 @@ def _precondition_violation_label(rule_id: str, proposed_skill: str) -> str:
     return _RULE_LABELS.get(rule_id, "a governance rule")
 
 
+def _keep_change_clause(request: float, previous_request: Optional[float],
+                        previous_diversion: Optional[float]) -> str:
+    """Spec item 45g: ", so your request fell from R0 acre-ft to the R acre-ft
+    you received the year before" when the year before was short, else "".
+
+    A keep sets the request to last year's receipt (spec 2.1), so the stated
+    request must equal ``previous_diversion``; a mismatch (more than half an
+    acre-foot) means the line would state something false, and raises."""
+    if previous_request is None or previous_diversion is None:
+        return ""
+    if supply_ratio(float(previous_diversion), float(previous_request)) >= FULL_SUPPLY_RATIO:
+        return ""
+    if abs(float(request) - float(previous_diversion)) > 0.5:
+        raise ValueError(
+            f"build_action_outcome_feedback: a keep line's request {request} is not "
+            f"the {previous_diversion} received the year before; refusing to say it is."
+        )
+    return (f", so your request fell from {float(previous_request):,.0f} acre-ft to the "
+            f"{float(request):,.0f} acre-ft you received the year before")
+
+
 def build_action_outcome_feedback(
     action_ctx: Optional[Dict[str, Any]],
     year: int,
@@ -999,6 +1128,9 @@ def build_action_outcome_feedback(
     name_rule: bool = True,
     subbasin: bool = True,
     decision_read: bool = True,
+    flow_share: Optional[float] = None,
+    previous_request: Optional[float] = None,
+    previous_diversion: Optional[float] = None,
 ) -> str:
     """One memory line for one past year (spec 4.5):
 
@@ -1029,6 +1161,20 @@ def build_action_outcome_feedback(
     was read; your request stayed at the amount you received the year
     before." and names no action (WP6 P5(b) finding: the line used to repeat
     the action of an earlier year).
+
+    Spec item 45f: ``flow_share`` (Upper Basin with a sub-basin) adds that
+    year's sub-basin natural-flow share to the water information
+    (``_build_trend_text``).
+
+    Spec item 45g (P5(c) claim map 1.3 g): keeping a request asks for the
+    amount received the year before (spec 2.1), so after a short year a
+    keep LOWERS the request, while the line used to read only "You chose
+    to maintain demand". When ``previous_request`` and ``previous_diversion``
+    (the year before this one) are given and that year was short (below
+    FULL_SUPPLY_RATIO, the edge of "Demand fully met."), a keep line (chosen,
+    applied under a rule, or a year with no decision read) states the
+    change: ", so your request fell from {previous request} acre-ft to the
+    {request} acre-ft you received the year before".
     """
     share = supply_ratio(diversion, request)
     if share >= FULL_SUPPLY_RATIO:
@@ -1042,16 +1188,23 @@ def build_action_outcome_feedback(
     outcome = (
         f"You requested {request:,.0f} acre-ft and received "
         f"{diversion:,.0f} acre-ft. {shortfall} "
-        f"{_build_trend_text(basin, preceding_factor, subbasin)}"
+        f"{_build_trend_text(basin, preceding_factor, subbasin, flow_share)}"
     )
 
     if not decision_read:
+        keep_change = _keep_change_clause(request, previous_request, previous_diversion)
+        if keep_change:
+            return f"Year {year}: no valid decision was read{keep_change}. {outcome}"
         return (f"Year {year}: no valid decision was read; your request stayed at the "
                 f"amount you received the year before. {outcome}")
 
     # Action portion (from _last_action_context stored by framework)
     if action_ctx and action_ctx.get("skill_name"):
         skill = action_ctx["skill_name"].replace("_", " ")
+        # 45g: only a keep (the executed skill, approved or applied) states
+        # the change in the request.
+        change = (_keep_change_clause(request, previous_request, previous_diversion)
+                  if action_ctx["skill_name"] == "maintain_demand" else "")
         if action_ctx.get("was_fallback") and rejection_line_style == "neutral":
             # Neutral style (memory.rejection_line_style): names the rule and
             # the action that was applied, not the rejected proposal.
@@ -1064,7 +1217,7 @@ def build_action_outcome_feedback(
                 lead = f"Year {year}: {skill} was applied under a governance rule"
             else:
                 lead = f"Year {year}: no valid decision was read; {skill} was applied"
-            return lead + ". " + outcome
+            return lead + change + ". " + outcome
         if action_ctx.get("was_fallback"):
             # Governance rejected the proposal and the registry default skill
             # was executed in its place; "You chose" would be false here.
@@ -1076,12 +1229,12 @@ def build_action_outcome_feedback(
             else:
                 lead = (f"Year {year}: no valid proposal was made; "
                         f"{skill} was applied")
-            return lead + ". " + outcome
+            return lead + change + ". " + outcome
         parts = [f"Year {year}: You chose to {skill}"]
         mag = action_ctx.get("magnitude_pct")
         if mag is not None:
             parts.append(f"(by {mag:.0f}%)")
-        return " ".join(parts) + ". " + outcome
+        return " ".join(parts) + change + ". " + outcome
 
     # Fallback: outcome-only (year 1 or missing context)
     return f"Year {year}: {outcome}"

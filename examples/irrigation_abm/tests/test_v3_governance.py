@@ -817,7 +817,7 @@ class ScriptedIrrigationLLM:
 
     def __call__(self, prompt: str):
         stats = LLMStats(retries=0, success=True)
-        if "Lesson Learned" in prompt:
+        if "You are a Reflection Assistant" in prompt:
             ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
             return json.dumps({aid: "I learned to watch my supply before changing my request."
                                for aid in ids}), stats

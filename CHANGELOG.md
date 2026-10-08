@@ -8,6 +8,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Separate decision reflection slot (opt-in, default off).**
+  `broker/components/memory/engines/humancentric.py`
+  (`HumanCentricMemoryEngine`) accepts `reflection_slot: separate`: only the
+  latest stored reflection is appended after the recent and significant
+  memories, without consuming either kind of slot. A call-local
+  `reflection_slot=None` preserves the existing year-end input selection.
+  `significant_tie_break: recent` optionally ranks newer items first when
+  decayed importance ties; the default retains earlier-first ties. Both
+  options pass through the existing memory factory. Other domains retain
+  their prior payload bytes, stored state and random state.
+- **Grounded year-end reflection (framework options, all default off).**
+  Irrigation v3 spec item 45 (a)-(e); flood design record PI decision
+  2026-10-07 item 7. Four `reflection` YAML keys, read by
+  `AgentTypeConfig.get_reflection_grounding` (YAML bools, default false):
+  `year_outcome` (the reflection written at the end of a period sees that
+  period's own outcome; `add_year_outcome` raises when the domain hook
+  supplies none), `year_lines` (the reflection input is listed one line per
+  period, oldest first, `order_by_year`), `program_facts` (the program writes
+  the key periods under a "Record" heading and the model writes only the
+  lesson, stored as "{facts} Lesson: {lesson}", `compose_lesson_with_facts`)
+  and `lesson_no_numbers` (a lesson with a calendar year or any number is
+  retried once, then not stored, `lesson_number_problems`).
+  `ReflectionEngine.generate_batch_reflection_prompt` gains the keyword
+  options `year_lines`, `fact_lines` and `rule_lines`; at their defaults the
+  prompt is byte-identical to before (pinned in
+  `broker/tests/test_reflection_grounding.py`). `run_checked_reflection` runs
+  one checked reflection with a domain checker. Mechanical problems are
+  retried once with the reasons and otherwise dropped; semantic contradictions
+  are report-only flags and never trigger a retry or drop. A JSONL log keeps
+  every attempt's raw reply and flags. `ReflectionCheckTally` /
+  `record_reflection_checks` count stored, retried and dropped reflections and
+  flags by reason per period for the run log and
+  `reproducibility_manifest.json` (`reflection_checks`). No other domain sets
+  any of the keys, so their prompts, memories and logs are unchanged.
+- **Resolved reflection expectation in run integrity.**
+  `record_run_integrity(reflection_enabled=...)` records whether reflection
+  is expected independently of the memory engine. The flood runner sets
+  `runner.reflection_enabled` before execution so the runner's integrity
+  check uses the same resolved flag. A missing reflection log is diagnosed
+  against that expectation, including runs using window memory.
+- **Feedback dashboard column `label`** (optional, per tracked metric): the
+  table heading reads the label instead of the metric's name, while
+  assertions and messages keep the name. Absent, the heading is the name, as
+  before.
+
 ### Fixed
 
 - **Batch reflection with one agent per batch reads replies filed under
@@ -24,6 +71,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fallback read is logged.
 
 ### Changed
+
+- **Decision memory is 5 + 2 + 1 in irrigation and the flood rerun.**
+  Irrigation spec item 45m and flood design record item 9: five recent event
+  memories, up to two older memories with the highest decayed importance,
+  and one separate latest reflection. Irrigation keeps the salience order
+  for its event memories, then appends the reflection; its outcome-only
+  year-end reflection input is unchanged. Golden prompt hashes change for
+  this memory composition only. Flood retains WRR26's five recent lines
+  verbatim and adds older event lines with their original years, using the
+  existing human-centric engine with deterministic consolidation and bare
+  calendar-year decay at rate 0.1; equal scores rank newer lines first.
+  Flood's event-type importance is a stated modeling assumption, documented
+  in `examples/single_agent/docs/flood_wrr_rerun_runbook.md` (item 17).
+  This makes decision memory longer than WRR26. The `nonudge` configuration
+  is re-synced.
+- **Irrigation v3 (spec item 45; prompts and stored reflections change, a
+  new pilot is needed).** Reflection uses the grounded mechanism above with
+  the irrigation checker `examples/irrigation_abm/reflection_checks.py`
+  (`check_lesson`: a year, any number, junk, an overlong lesson or a figure
+  foreign to the agent's memory blocks storage; a precipitation rule with a
+  counterexample among the listed years, an "always met/short" claim the
+  listed years contradict and a contradicted Lake Mead direction are
+  report-only flags from the diagnosis's regular expressions). The
+  key years are the year just ended and the listed year with the largest
+  shortfall; the reflection prompt carries the allocation rules the decision
+  prompt states; the instruction asks for the listed years only,
+  precipitation only against the previous winter (never "average") and a
+  rule only when no listed year contradicts it. The first reflection is
+  written at the end of 2019. Upper Basin memory lines state the sub-basin
+  natural-flow share; a keep after a short year states the fall in the
+  request; the history column reads "received (AF)"; a floor sentence says
+  why no decrease is offered; caveat 7 says precipitation and flow come from
+  the same resampled year with a weak same-year correlation. The pilot gate
+  reads the new sentences (`v3_metrics.py`: P5(b) the flow share, keep clause
+  and floor sentence; P6 the program facts against the log). Golden prompt
+  hashes updated for these reasons only.
+- **Flood (`examples/single_agent`): reflection ON for the WRR26 rerun**
+  (`global_config.reflection.enabled: true`, with the grounded mechanism and
+  the flood checker `examples/single_agent/flood_reflection.py`). The stored
+  reflection is shown after the five recent and two significant event lines
+  (`DecisionFilteredMemoryEngine`'s reflection slot). Its program-written
+  facts carry forward the most recent damaged remembered year, including
+  years retrieved through significant event slots. With reflection on, window
+  memory must hold at least five event lines; reflection-off ablations and
+  the goldfish stress profile can use smaller windows. A dropped reflection
+  keeps the previous stored one; only a successfully stored replacement
+  removes it. With the reflection
+  block and the composed event-memory addition reverted, every decision and retry prompt and the simulation log are
+  byte-identical to c7b10c05 (scripted mock, 20 households, 10 years). The
+  `nonudge` variant is re-synced; runbook section 1a carries the
+  difference-table row and the limitation text.
 
 - **`examples/single_agent` (flood): HEAD no longer reproduces the
   `83fa97e1` corpus.** The WRR26-fidelity rerun (flood design record,

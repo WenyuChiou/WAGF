@@ -130,6 +130,7 @@ def _register_builtins():
                 # Item 36b: generic, opt-in memory options (default off).
                 "deterministic_consolidation", "decay_ignore_emotion",
                 "decay_by_calendar_year",
+                "reflection_slot", "significant_tie_break",
             ) if k in kwargs
         }
         return HumanCentricMemoryEngine(

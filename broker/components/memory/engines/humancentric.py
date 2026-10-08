@@ -110,6 +110,13 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # age if one is missing. When False (default), the pre-existing
         # item-count age is unchanged.
         decay_by_calendar_year: bool = False,
+        # Opt-in composed decision memory: latest reflection appended after
+        # event slots, excluded from both recent and significant selection.
+        # None preserves the existing retrieval and payload bytes.
+        reflection_slot: Optional[str] = None,
+        # Equal decayed importance keeps earlier items by default. Domains
+        # may opt into newer timestamps first without changing the score.
+        significant_tie_break: str = "earlier",
     ):
         """
         Args:
@@ -150,6 +157,12 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.ranking_mode = ranking_mode
         self.forgetting_threshold = forgetting_threshold
         self.reserve_types = self._normalise_reserve_types(reserve_types)
+        if reflection_slot not in (None, "separate"):
+            raise ValueError(f"reflection_slot must be None or 'separate', got {reflection_slot!r}")
+        if significant_tie_break not in ("earlier", "recent"):
+            raise ValueError(f"significant_tie_break must be 'earlier' or 'recent', got {significant_tie_break!r}")
+        self.reflection_slot = reflection_slot
+        self.significant_tie_break = significant_tie_break
         # Item 36b: see the three parameters' docstrings above. Opus
         # review P3-2 (2026-10-06): type-checked here, not left to raise
         # downstream on a string like "true" or "false" read straight
@@ -605,6 +618,11 @@ class HumanCentricMemoryEngine(MemoryEngine):
         timestamp-ordered store). ``top_k`` is ignored in this mode.
         ``window_size`` / ``top_k_significant`` override the constructor
         values for this call when given (None = constructor value).
+        With ``reflection_slot='separate'``, reflections never consume event
+        slots and only the latest stored reflection is appended. A call-local
+        ``reflection_slot=None`` restores the original selection for readers
+        that require it. ``significant_tie_break='recent'`` chooses newer
+        timestamps for equal decayed importance; both options default off.
         """
         
         if agent.id not in self.working:
@@ -638,6 +656,28 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # decay_by_calendar_year is on.
         current_year = self._current_year_for_decay(working, longterm)
 
+        reflection_slot = kwargs.get("reflection_slot", self.reflection_slot)
+        if reflection_slot not in (None, "separate"):
+            raise ValueError(f"reflection_slot must be None or 'separate', got {reflection_slot!r}")
+        separate_reflection = reflection_slot == "separate"
+        latest_reflection = None
+        if separate_reflection:
+            reflections = [m for m in working + longterm if m.get("type") == "reflection"]
+            latest_reflection = max(reflections, key=lambda m: m["timestamp"], default=None)
+            working = [m for m in working if m.get("type") != "reflection"]
+            longterm = [m for m in longterm if m.get("type") != "reflection"]
+
+        def payload(memory, score=None):
+            item = self._memory_payload(memory, score)
+            if separate_reflection:
+                item.update({key: memory[key] for key in ("type", "year") if key in memory})
+            return item
+
+        def finish(items):
+            if latest_reflection is not None:
+                items.append(payload(latest_reflection))
+            return items
+
         # --- MODE 1: LEGACY (v1 Parity for Groups A/B) ---
         if self.ranking_mode == "legacy":
              _window = self.window_size if window_size is None else int(window_size)
@@ -649,11 +689,17 @@ class HumanCentricMemoryEngine(MemoryEngine):
              
              # Contextual Boosters are IGNORED in legacy mode
              # Use generic significance key
-             top_significant = heapq.nlargest(
-                 _n_sig + len(recent_texts) + 2,
-                 decayed_longterm,
-                 key=lambda x: x.get("decayed_importance", 0)
-             )
+             if self.significant_tie_break == "recent":
+                 significance_key = lambda m: (m.get("decayed_importance", 0), m["timestamp"])
+             else:
+                 significance_key = lambda m: m.get("decayed_importance", 0)
+             # Opt-in composition scans the whole pool so duplicate content
+             # cannot leave a slot empty while a distinct eligible item exists.
+             candidate_count = (len(decayed_longterm) if separate_reflection
+                                else _n_sig + len(recent_texts) + 2)
+             top_significant = heapq.nlargest(candidate_count, decayed_longterm, key=significance_key)
+             if separate_reflection and _n_sig <= 0:
+                 top_significant = []
              
              # Content-level dedup (2026-09-26): two stored long-term items
              # can carry visually-identical text that differs only in
@@ -673,13 +719,13 @@ class HumanCentricMemoryEngine(MemoryEngine):
                  content_normalized = m["content"].strip()
                  if (content_normalized not in recent_texts_normalized
                          and content_normalized not in seen_significant):
-                     significant.append(self._memory_payload(m, round(float(m.get("decayed_importance", m.get("importance", 0.0))), 4)))
+                     significant.append(payload(m, round(float(m.get("decayed_importance", m.get("importance", 0.0))), 4)))
                      seen_significant.add(content_normalized)
                  if len(significant) >= _n_sig:
                      break
 
-             recent_payload = [self._memory_payload(m) for m in recent]
-             return significant + recent_payload
+             recent_payload = [payload(m) for m in recent]
+             return finish(significant + recent_payload)
 
         # --- MODE 2: WEIGHTED (v2 Model for Stress Test) ---
         else:
@@ -740,15 +786,15 @@ class HumanCentricMemoryEngine(MemoryEngine):
             
             top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
             if not self.reserve_types or top_k <= 0:
-                return [self._memory_payload(mem, round(float(score), 4)) for mem, score in top_k_memories]
+                return finish([payload(mem, round(float(score), 4)) for mem, score in top_k_memories])
             top_k_memories, swapped = self._apply_reserved_slots(scored_memories, top_k_memories)
             out = []
             for mem, score in top_k_memories:
-                payload = self._memory_payload(mem, round(float(score), 4))
+                item = payload(mem, round(float(score), 4))
                 if id(mem) in swapped:
-                    payload["reserved"] = True
-                out.append(payload)
-            return out
+                    item["reserved"] = True
+                out.append(item)
+            return finish(out)
 
     def retrieve_stratified(
         self,

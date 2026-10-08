@@ -339,13 +339,21 @@ def test_reflection_and_placebo_closer_still_differentiate_flood_and_irrigation(
     the domains' own original differentiator (unrelated to the flood
     rerun); see test_appraisal_freeze.py::
     test_shipped_flood_config_resolved_option_set_2026_10 for flood's full
-    resolved option set."""
+    resolved option set.
+
+    2026-10-07 (flood design record PI decision item 7): reflection is ON
+    in the flood rerun with irrigation's mechanism and settings, so flood
+    now keeps only the latest reflection too and both domains turn the
+    grounded-reflection keys on; the placebo closer is the remaining
+    differentiator."""
     flood = AgentTypeConfig.load(str(FLOOD_CONFIG))
-    assert flood.get_reflection_keep_latest_only() is False
+    assert flood.get_reflection_keep_latest_only() is True
+    assert all(flood.get_reflection_grounding().values())
     assert flood.get_governance_plain_action_names() is True
     assert flood.get_governance_placebo_closer() is None
     irr = AgentTypeConfig.load(str(IRRIGATION_CONFIG))
     assert irr.get_reflection_keep_latest_only() is True
+    assert all(irr.get_reflection_grounding().values())
     assert irr.get_governance_plain_action_names() is True
     assert irr.get_governance_placebo_closer() == "Please reconsider your decision."
 

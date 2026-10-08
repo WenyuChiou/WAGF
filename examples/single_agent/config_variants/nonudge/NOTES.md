@@ -38,7 +38,12 @@ Re-copied and re-verified (`diff` reports no difference, 2026-10). Anyone
 editing the base `agent_types.yaml` going forward MUST re-copy it here in
 the same change -- this is the second time a `--config-root` variant has
 needed this (see `wagf-main-runs/examples/single_agent/config_variants/
-defaults_nonudge/NOTES.md` for the first, 2026-09-23).
+defaults_nonudge/NOTES.md` for the first, 2026-09-23). Re-copied again
+2026-10-07 in the same change that turned reflection on in the base
+`agent_types.yaml` (design record PI decision 2026-10-07 item 7; the
+`global_config.reflection` block), as that rule requires.
+Re-copied again 2026-10-08 for flood design record item 9: the base and
+nonudge configs both opt into the 5 + 2 + 1 decision-memory composition.
 
 ## Commit note (P2-c / P3-11, opus review): `*.csv` is gitignored repo-wide, now negated
 

@@ -1853,6 +1853,355 @@ def test_p6_reflection_checks(tmp_path):
     assert r["reflections_not_from_previous_year"] == 1
 
 
+def _write_reflection_check_rows(run: vm.LoadedRun, rows: List[Dict[str, Any]]) -> None:
+    (run.info.path / "reflection_checks.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+
+def test_p6_carries_only_after_same_agent_drop_and_uses_writing_year_figures(tmp_path):
+    writing_prompt = "Your memory includes:\n- Year 2018: You requested 1,111 acre-ft.\n"
+    middle_prompt = "Your memory includes:\n- Year 2019: You requested 6,666 acre-ft.\n"
+    shown_prompt = (
+        "Your memory includes:\n"
+        "- Consolidated Reflection (written in 2019): I learned from 1,111 acre-ft.\n"
+        "- Year 2020: You requested 7,777 acre-ft.\n"
+    )
+    run = _prompt_run(tmp_path / "carried", {
+        ("UB1", 1): writing_prompt, ("UB1", 2): middle_prompt, ("UB1", 3): shown_prompt,
+    })
+    _write_reflection_check_rows(run, [{"agent_id": "UB1", "period": 2020, "outcome": "dropped"}])
+
+    result = vm.reflection_checks(run)
+    assert result["carried_after_drop"] == 1
+    assert result["reflections_not_from_previous_year"] == 0
+    assert result["foreign_figure_reflections"] == 0
+    assert vm.gate_p6([run])["passed"] is True
+
+    later_only = _prompt_run(
+        tmp_path / "later_only",
+        {("UB1", 1): writing_prompt, ("UB1", 2): middle_prompt,
+         ("UB1", 3): shown_prompt.replace("from 1,111", "from 6,666")},
+    )
+    _write_reflection_check_rows(later_only, [
+        {"agent_id": "UB1", "period": 2020, "outcome": "dropped"},
+    ])
+    later_result = vm.reflection_checks(later_only)
+    assert later_result["carried_after_drop"] == 1
+    assert later_result["foreign_figure_reflections"] == 1
+    assert vm.gate_p6([later_only])["passed"] is False
+
+
+@pytest.mark.parametrize("rows", [
+    [],
+    [{"agent_id": "UB2", "period": 2020, "outcome": "dropped"}],
+])
+def test_p6_two_year_old_reflection_without_its_agents_drop_stays_gated(tmp_path, rows):
+    reflected = ("Your memory includes:\n- Consolidated Reflection (written in 2019): "
+                 "I learned to keep my request steady.\n")
+    run = _prompt_run(tmp_path, {("UB1", 3): reflected})
+    _write_reflection_check_rows(run, rows)
+    result = vm.reflection_checks(run)
+    assert result["carried_after_drop"] == 0
+    assert result["reflections_not_from_previous_year"] == 1
+    assert vm.gate_p6([run])["passed"] is False
+
+
+def _item45_run(tmp_path, prompts: Dict[Tuple[str, int], str], floor_menu: bool = False) -> vm.LoadedRun:
+    """The strict fixture with UB1 short in 2019 (900 of 1,000 received) and
+    its 2020 keep request at that receipt, so the 2020 memory line carries
+    the item-45g clause; ``floor_menu`` drops LB1's decrease in 2021."""
+    decisions = {k: dict(v) for k, v in STRICT_DECISIONS.items()}
+    decisions[("UB1", 1)]["physical"] = 0.9
+    decisions[("UB1", 2)]["keep"] = 900.0  # the logged keep request is that receipt
+
+    def prompt_for(a, t):
+        hidden = (a, t) in AT_CAP
+        options = ["keep"] if hidden else ["increase", "keep"]
+        if not (floor_menu and (a, t) == ("LB1", 3)) and not hidden:
+            options.append("decrease")
+        elif hidden:
+            options = ["keep", "decrease"]
+        return prompts.get((a, t), "") + "\n" + menu_prompt(a, t, options)
+
+    path = fixture_run(tmp_path, "strict", decisions, prompt_for=prompt_for)
+    rows = list(csv.DictReader(open(path / vm.SIM_LOG, encoding="utf-8")))
+    for row in rows:
+        if (row["agent_id"], row["year"]) == ("UB1", "2"):
+            row["request"] = row["diversion"] = row["base_af"] = "900.0"
+    vm.write_csv(path / vm.SIM_LOG, rows)
+    lines = (path / vm.TRACES).read_text(encoding="utf-8").splitlines()
+    for i, line in enumerate(lines[1:], start=1):
+        rec = json.loads(line)
+        if (rec["agent_id"], rec["year"]) == ("UB1", 2):
+            rec["state_before"]["current_request"] = 900.0
+            lines[i] = json.dumps(rec)
+    (path / vm.TRACES).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return vm.load_run(path, keep_prompts=True)
+
+
+def _ub1_memory_2021(checker: vm.PromptChecker, share_2020: Optional[str] = None, clause: bool = True) -> str:
+    p19 = f"{checker.flow_share('UT1', 2019):.0%}"
+    p20 = share_2020 or f"{checker.flow_share('UT1', 2020):.0%}"
+    keep = (", so your request fell from 1,000 acre-ft to the 900 acre-ft you received the year before"
+            if clause else "")
+    return ("Your memory includes:\n"
+            "- Year 2019: You chose to maintain demand. You requested 1,000 acre-ft and received 900 acre-ft. "
+            "Shortfall: 100 acre-ft (10.0% unmet), because a stated reason. That winter's precipitation in "
+            "your sub-basin was above the previous winter's. The natural flow of the rivers your sub-basin "
+            f"draws on was {p19} of its 1971-2018 average that year.\n"
+            f"- Year 2020: You chose to maintain demand{keep}. You requested 900 acre-ft and received 900 "
+            "acre-ft. Demand fully met. That winter's precipitation in your sub-basin was above the previous "
+            f"winter's. The natural flow of the rivers your sub-basin draws on was {p20} of its 1971-2018 "
+            "average that year.\n")
+
+
+def test_p5b_reads_the_item_45_memory_and_floor_sentences(tmp_path):
+    """Spec item 45f/g/i: the flow share of a memory line, the keep clause
+    and the floor sentence are read back against the log; a wrong share, a
+    missing clause, a clause on a line that is not a keep after a short year
+    and a floor sentence beside a decrease are each a mismatch."""
+    probe = vm.PromptChecker(_item45_run(tmp_path / "probe", {}), CFG, CFG.ub_subbasin_supply_variant)
+    floor = "A decrease is not offered because your request is at or below the minimum-use floor of 400 acre-ft (10% of your water right)."
+
+    def audit(prompts, floor_menu=False, sub="x"):
+        run = _item45_run(tmp_path / sub, prompts, floor_menu)
+        out = vm.PromptAudit()
+        checker = vm.PromptChecker(run, CFG, CFG.ub_subbasin_supply_variant)
+        for key in sorted(run.traces):
+            checker.audit(key, run.traces[key].prompt, out)
+        return out
+
+    good = audit({("UB1", 3): _ub1_memory_2021(probe), ("LB1", 3): floor}, floor_menu=True, sub="good")
+    # (the fixture's menu text keeps base 1,000 for UB1 in 2020; only the
+    # 2021 lines under test are judged here)
+    mine = [m for m in good.mismatches if "UB1 2021" in m or "LB1 2021" in m]
+    assert not mine, mine
+    assert not any("UB1 2021" in u or "LB1 2021" in u for u in good.unchecked), good.unchecked
+    bad = audit({("UB1", 3): _ub1_memory_2021(probe, share_2020="1%", clause=False),
+                 ("UB2", 3): _ub1_memory_2021(probe).replace("UB1", "UB2"),
+                 ("LB1", 3): floor.replace("400", "500")}, sub="bad")
+    joined = "\n".join(bad.mismatches)
+    assert "memory line for 2020: sub-basin flow share" in joined
+    assert "UB1 2021" in joined and "a keep after a short year without the change clause" in joined
+    assert "UB2 2021" in joined and "change-in-request clause on a line that is not a keep after a short year" in joined
+    assert "minimum-use floor: prompt '500'" in joined
+    assert "floor sentence beside a decrease on the menu" in joined
+
+
+def test_p6_reads_back_the_program_facts_of_a_grounded_reflection(tmp_path):
+    """Spec item 45c: a grounded reflection's facts are checked against the
+    log and its lesson for digits; the lesson's figures are checked against
+    the memory of the year it was written and the next year's prompt."""
+    memory_2020 = ("Your memory includes:\n- Year 2019: You chose to maintain demand. You requested 1,000 acre-ft "
+                   "and received 1,000 acre-ft. Demand fully met.\n")
+    fact = ("2020: you asked for 1,000 acre-ft, the same as the 1,000 acre-ft you received the year before, "
+            "and you received 900 acre-ft (10.0% unmet).")
+    good = ("Your memory includes:\n- Consolidated Reflection (written in 2020): " + fact
+            + " Lesson: I learned to keep my request.\n- Year 2020: You chose to maintain demand. You requested "
+              "1,000 acre-ft and received 900 acre-ft. Shortfall: 100 acre-ft (10.0% unmet).\n")
+    r = vm.reflection_checks(_prompt_run(tmp_path / "good", {("UB2", 2): memory_2020, ("UB2", 3): good}))
+    assert (r["grounded_reflection_lines"], r["facts_read"], r["fact_mismatches"], r["lessons_with_numbers"],
+            r["foreign_figure_reflections"]) == (1, 1, 0, 0, 0), r
+    wrong = good.replace("received 900 acre-ft (10.0%", "received 950 acre-ft (10.0%").replace(
+        "I learned to keep my request.", "I learned that 1,000 acre-ft and 7,777 acre-ft differ.")
+    r = vm.reflection_checks(_prompt_run(tmp_path / "bad", {("UB2", 2): memory_2020, ("UB2", 3): wrong}))
+    assert (r["fact_mismatches"], r["lessons_with_numbers"], r["foreign_figure_reflections"]) == (1, 1, 1), r
+    assert vm.gate_p6([_prompt_run(tmp_path / "gate", {("UB2", 2): memory_2020, ("UB2", 3): wrong})])["passed"] is False
+
+
+def test_p6_rejects_unmatched_fact_digits_and_zero_parsed_facts(tmp_path):
+    memory = "Your memory includes:\n- Year 2019: You requested 1,000 acre-ft and received 1,000 acre-ft.\n"
+    unmatched = ("Your memory includes:\n- Consolidated Reflection (written in 2020): note 42; "
+                 "Lesson: I learned to keep my request.\n")
+    run = _prompt_run(tmp_path / "unmatched", {("UB1", 2): memory, ("UB1", 3): unmatched})
+    result = vm.reflection_checks(run)
+    assert result["facts_read"] == 0
+    assert result["fact_texts_with_unmatched_digits"] == 1
+    assert vm.gate_p6([run])["passed"] is False
+
+
+def test_p6_old_style_reflection_without_program_facts_still_passes(tmp_path):
+    old_style = ("Your memory includes:\n- Consolidated Reflection (written in 2020): "
+                 "I learned to keep my request close to what I received.\n")
+    run = _prompt_run(tmp_path, {("UB1", 3): old_style})
+    result = vm.reflection_checks(run)
+    assert (result["reflection_lines"], result["grounded_reflection_lines"], result["facts_read"]) == (1, 0, 0)
+    assert vm.gate_p6([run])["passed"] is True
+
+
+def test_p6_rejects_more_grounded_reflection_lines_than_parsed_facts(tmp_path):
+    fact = "2020: you asked for 1,000 acre-ft and you received 1,000 acre-ft (fully met)."
+    reflected = ("Your memory includes:\n"
+                 f"- Consolidated Reflection (written in 2020): {fact} Lesson: I learned to keep my request.\n"
+                 "- Consolidated Reflection (written in 2020): facts unavailable Lesson: "
+                 "I learned to watch what I received.\n")
+    run = _prompt_run(tmp_path, {("UB1", 3): reflected})
+    run.info.manifest["reflection_checks"] = {"settings": {"program_facts": True}}
+    result = vm.reflection_checks(run)
+    assert (result["grounded_reflection_lines"], result["facts_read"]) == (2, 1)
+    check = vm.gate_p6([run])
+    assert check["passed"] is False
+    assert "grounded_reflection_lines = 2 > facts_read = 1" in check["reason"]
+
+
+def test_p6_reports_manifest_tallies_and_2020_plus_reflection_share(tmp_path):
+    memory = "Your memory includes:\n- Year 2019: You requested 1,000 acre-ft and received 1,000 acre-ft.\n"
+    fact = ("2020: you asked for 1,000 acre-ft, the same as the 1,000 acre-ft you received the year before, "
+            "and you received 1,000 acre-ft (fully met).")
+    reflected = ("Your memory includes:\n- Consolidated Reflection (written in 2020): " + fact
+                 + " Lesson: I learned to keep my request.\n")
+    path = fixture_run(tmp_path, "strict", STRICT_DECISIONS,
+                       prompt_for=lambda a, t: ({("UB1", 2): memory, ("UB1", 3): reflected}.get((a, t), "")
+                                                + "\n" + menu_prompt(a, t, ["increase", "keep", "decrease"])))
+    manifest_path = path / vm.MANIFEST
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["reflection_checks"] = {
+        "settings": {"lesson_no_numbers": True},
+        "totals": {"stored": 2, "stored_after_retry": 1, "dropped": 1, "retried": 2},
+        "dropped_by_reason": {"number": 1},
+        "flagged_by_reason": {"precipitation_rule": 2, "always_full": 1},
+        "per_period": {"2020": {"flagged_by_reason": {"precipitation_rule": 2, "always_full": 1}}},
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    loaded = vm.load_run(path, keep_prompts=True)
+    report = vm.reflection_checks(loaded)
+    assert report["manifest_reflection_checks"] == manifest["reflection_checks"]
+    assert report["manifest_reflection_check_totals"] == manifest["reflection_checks"]["totals"]
+    assert report["manifest_reflection_dropped_by_reason"] == {"number": 1}
+    assert report["manifest_reflection_flagged_by_reason"] == {"precipitation_rule": 2, "always_full": 1}
+    assert report["decision_prompts_2020_plus"] == 6
+    assert report["decision_prompts_2020_plus_with_reflection"] == 1
+    assert report["decision_prompts_2020_plus_reflection_share"] == pytest.approx(1 / 6)
+    assert report["decision_prompts_2020_plus_reflection_share_pct"] == pytest.approx(100 / 6)
+    gate = vm.gate_p6([loaded])
+    gate_details = gate["details"][loaded.label]
+    assert gate_details["manifest_reflection_check_totals"] == manifest["reflection_checks"]["totals"]
+    assert gate_details["manifest_reflection_dropped_by_reason"] == {"number": 1}
+    assert gate_details["manifest_reflection_flagged_by_reason"] == {"precipitation_rule": 2, "always_full": 1}
+    assert gate_details["manifest_reflection_checks"]["per_period"]["2020"]["flagged_by_reason"] == {
+        "precipitation_rule": 2, "always_full": 1}
+    vm.write_pilot_gate(
+        {"passed": True, "checks": [gate], "reported": []},
+        tmp_path / "gate_report",
+        {},
+    )
+    markdown = (tmp_path / "gate_report" / "v3_pilot_gate_report.md").read_text(encoding="utf-8")
+    assert (f"flagged_by_reason (report-only): {loaded.label}: "
+            "always_full=1, precipitation_rule=2") in markdown
+
+
+def test_p6_clean_grounded_three_agent_four_year_mock_run_passes_end_to_end(tmp_path):
+    decisions = {
+        (agent, t): dict(attempts=[(KEEP, {"WSA_LABEL": "M", "ACA_LABEL": "M"}, [])], executed=KEEP)
+        for agent in AGENTS for t in range(1, 5)
+    }
+    system = system_years(4, (13.0, 12.0, 11.5, 11.0), (11.0, 10.0, 9.0, 8.0), (0, 0, 1, 1))
+    agent_years = {(agent, t): {} for agent in AGENTS for t in range(1, 5)}
+
+    def prompt(agent, t):
+        if t == 1:
+            return menu_prompt(agent, t, ["increase", "keep", "decrease"])
+        written = CFG.sim_start_year + t - 2
+        fact = (f"{written}: you asked for 1,000 acre-ft and you received 1,000 acre-ft (fully met).")
+        return ("Your memory includes:\n"
+                f"- Consolidated Reflection (written in {written}): {fact} "
+                "Lesson: I learned to keep my request close to what I received.\n"
+                + menu_prompt(agent, t, ["increase", "keep", "decrease"]))
+
+    manifest = llm_manifest("strict", grid=12, agents=sorted(AGENTS))
+    manifest["reflection_checks"] = {
+        "settings": {"program_facts": True, "lesson_no_numbers": True},
+        "totals": {"stored": 9, "stored_after_retry": 0, "retried": 0, "dropped": 0},
+        "dropped_by_reason": {},
+        # Semantic flags are measurements. A nonzero total cannot fail P6.
+        "flagged_by_reason": {"precipitation_rule": 2},
+        "per_period": {"2020": {"flagged_by_reason": {"precipitation_rule": 2}}},
+    }
+    path = write_run(
+        tmp_path / "grounded_mock",
+        manifest,
+        sim_rows(system, agent_years),
+        [audit_row(agent, t, **spec) for (agent, t), spec in decisions.items()],
+        [trace(agent, t, prompt=prompt(agent, t)) for agent in AGENTS for t in range(1, 5)],
+    )
+    run = vm.load_run(path, keep_prompts=True)
+    check = vm.gate_p6([run])
+    details = check["details"][run.label]
+    assert check["passed"] is True, check
+    assert (details["reflection_lines"], details["grounded_reflection_lines"], details["facts_read"]) == (9, 9, 9)
+    assert details["decision_prompts_2020_plus_reflection_share"] == 1.0
+    assert details["manifest_reflection_flagged_by_reason"] == {"precipitation_rule": 2}
+
+
+def test_p6_actual_grounded_mock_run_passes_end_to_end(tmp_path, monkeypatch):
+    from examples.irrigation_abm.tests.test_v3_prompt import ScriptedLLM, _run
+
+    llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
+    out = _run(monkeypatch, tmp_path / "actual_grounded_mock", llm,
+               "--agents", "3", "--years", "4", "--seed", "7")
+    run = vm.load_run(out, keep_prompts=True)
+    check = vm.gate_p6([run])
+    details = check["details"][run.label]
+    assert details["manifest_reflection_checks"]["settings"]["program_facts"] is True
+    assert details["facts_read"] > 0
+    assert details["grounded_reflection_lines"] == details["facts_read"]
+    assert check["passed"] is True, check
+
+
+def test_p6_lesson_digits_fail_only_when_the_manifest_enables_the_check(tmp_path):
+    memory = "Your memory includes:\n- Year 2019: You requested 1,000 acre-ft and received 1,000 acre-ft.\n"
+    fact = ("2020: you asked for 1,000 acre-ft, the same as the 1,000 acre-ft you received the year before, "
+            "and you received 1,000 acre-ft (fully met).")
+    reflected = ("Your memory includes:\n- Consolidated Reflection (written in 2020): " + fact
+                 + " Lesson: I learned 2 useful habits.\n")
+    run = _prompt_run(tmp_path / "digits", {("UB1", 2): memory, ("UB1", 3): reflected})
+    run.info.manifest["reflection_checks"] = {"settings": {"lesson_no_numbers": True}, "totals": {},
+                                               "dropped_by_reason": {}}
+    assert vm.gate_p6([run])["passed"] is False
+    run.info.manifest["reflection_checks"]["settings"]["lesson_no_numbers"] = False
+    assert vm.gate_p6([run])["passed"] is True
+
+
+def test_p6_scans_facts_and_lesson_when_the_source_prompt_crashed(tmp_path):
+    fact = ("2020: you asked for 1,000 acre-ft, the same as the 1,000 acre-ft you received the year before, "
+            "and you received 1,000 acre-ft (fully met).")
+    reflected = ("Your memory includes:\n- Consolidated Reflection (written in 2020): " + fact
+                 + " Lesson: I learned 2 useful habits.\n")
+    run = _prompt_run(tmp_path, {("UB1", 3): reflected})
+    run.traces[("UB1", 2)] = dataclasses.replace(run.traces[("UB1", 2)], prompt=None, crashed=True)
+    run.info.manifest["reflection_checks"] = {"settings": {"lesson_no_numbers": True}, "totals": {},
+                                               "dropped_by_reason": {}}
+    result = vm.reflection_checks(run)
+    assert result["reflections_with_no_source_prompt"] == 1
+    assert result["facts_read"] == 1
+    assert result["lessons_with_numbers"] == 1
+    assert vm.gate_p6([run])["passed"] is False
+
+
+def test_p6_change_direction_uses_printed_integer_amounts(tmp_path):
+    fact = ("2020: you asked for 1,000 acre-ft, the same as the 1,000 acre-ft you received the year before, "
+            "and you received 1,000 acre-ft (fully met).")
+    reflected = ("Your memory includes:\n- Consolidated Reflection (written in 2020): " + fact
+                 + " Lesson: I learned to keep my request steady.\n")
+    path = fixture_run(
+        tmp_path, "strict", STRICT_DECISIONS,
+        prompt_for=lambda a, t: ((reflected + "\n") if (a, t) == ("UB1", 3) else "")
+        + menu_prompt(a, t, ["keep"]),
+    )
+    rows = list(csv.DictReader(open(path / vm.SIM_LOG, encoding="utf-8")))
+    for row in rows:
+        if (row["agent_id"], row["year"]) == ("UB1", "1"):
+            row["diversion"] = "1000.4"
+        elif (row["agent_id"], row["year"]) == ("UB1", "2"):
+            row["request"] = row["diversion"] = "1000.45"
+    vm.write_csv(path / vm.SIM_LOG, rows)
+    run = vm.load_run(path, keep_prompts=True)
+    result = vm.reflection_checks(run)
+    assert result["facts_read"] == 1
+    assert result["fact_mismatches"] == 0
+    assert vm.gate_p6([run])["passed"] is True
+
+
 def _filled_review(template: Dict[str, Any], wrote_code: bool = False) -> Dict[str, Any]:
     review = json.loads(json.dumps(template))
     review.update(reviewer="someone else", reviewer_wrote_code=wrote_code)
@@ -1987,7 +2336,7 @@ class ScriptedModel:
     def __call__(self, prompt: str):
         from broker.utils.llm_utils import LLMStats
         stats = LLMStats(retries=0, success=True)
-        if "Lesson Learned" in prompt:
+        if "You are a Reflection Assistant" in prompt:
             ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
             return json.dumps({a: "I learned to watch my supply before changing my request." for a in ids}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
