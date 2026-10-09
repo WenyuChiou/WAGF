@@ -12,6 +12,7 @@ from typing import Any, Dict
 import httpx
 
 from providers.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from broker.utils.llm_utils import apply_ollama_thinking
 
 
 class OllamaProvider(LLMProvider):
@@ -50,6 +51,8 @@ class OllamaProvider(LLMProvider):
         
         # Add any extra params
         payload["options"].update(self.config.extra_params)
+        apply_ollama_thinking(payload, base_url=self.base_url,
+                              thinking_mode=kwargs.get("thinking_mode"))
         
         response = self._client.post(url, json=payload)
         response.raise_for_status()
@@ -88,6 +91,10 @@ class OllamaProvider(LLMProvider):
         }
         
         payload["options"].update(self.config.extra_params)
+        # The shared capability cache uses a synchronous HTTP lookup. Offload
+        # its first lookup so the async provider does not block the event loop.
+        await asyncio.to_thread(apply_ollama_thinking, payload, base_url=self.base_url,
+                                thinking_mode=kwargs.get("thinking_mode"))
         
         response = await self._async_client.post(url, json=payload)
         response.raise_for_status()

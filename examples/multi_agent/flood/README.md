@@ -54,6 +54,15 @@ If you are an ABM developer, use this order:
 python examples/multi_agent/flood/run_unified_experiment.py --mode random --agents 10 --years 3
 ```
 
+The framework disables Ollama thinking by default when the model advertises
+that capability. Use `--thinking-mode enabled` to opt in for one run, or
+`--thinking-mode auto` to defer to the model. The reproducibility manifest
+records the resolved mode and observed top-level `think` field per model.
+Use `auto` to reproduce an older omitted-flag run, which used the model default.
+When a model advertises thinking levels without `false`, disabled mode cannot
+be enforced; WAGF omits the field, warns once, and records
+`think_enforceable: false` in the manifest.
+
 Default outputs stay inside this workspace:
 
 - `examples/multi_agent/flood/results_unified/`

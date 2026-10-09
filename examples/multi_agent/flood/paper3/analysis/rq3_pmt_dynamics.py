@@ -524,7 +524,7 @@ def section6_pmt_action_heatmap(traces):
             grid_protective[(tp_c, cp_c)] += 1
 
     safe_print(f"\nProtective action rate (%) by TP x CP:")
-    safe_print(f"{'TP\\CP':<8}", end="")
+    safe_print("TP\\CP".ljust(8), end="")
     for cp in cp_labels:
         safe_print(f"{'CP='+cp:<12}", end="")
     safe_print()

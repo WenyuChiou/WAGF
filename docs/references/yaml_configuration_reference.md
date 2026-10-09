@@ -165,6 +165,7 @@ via `llm_params`).
 | `num_ctx` | int | No | 4096 | Context window size in tokens |
 | `num_predict` | int | No | 1024 | Maximum tokens to generate |
 | `max_retries` | int | No | 2 | Maximum raw LLM invocation retries on malformed output |
+| `thinking_mode` | string | No | `"disabled"` | Ollama reasoning policy: `disabled`, `auto`, or `enabled` |
 
 **Example:**
 
@@ -175,7 +176,63 @@ global_config:
     num_ctx: 8192
     num_predict: 4096
     max_retries: 2
+    thinking_mode: "disabled"
 ```
+
+`thinking_mode` is capability-aware. When Ollama `/api/show` advertises
+`thinking` and supplies no level metadata, `disabled` sends top-level
+`think: false`, `enabled` sends `think: true`, and `auto` omits the field. The
+same applies when the advertised levels include the requested boolean
+(`false`/`true`, represented as booleans or strings). If a model advertises
+thinking levels that do not include `false`, WAGF cannot enforce disabled mode: it omits
+`think`, logs one warning for that model, and records `think_enforceable: false`
+in the manifest. Unknown level metadata preserves the capability-based policy;
+WAGF does not guess that a non-boolean level disables reasoning. Models with a
+successful non-thinking capability response receive no `think` field.
+
+If capability data is unknown, `disabled` sends `think: false` only for the
+case-insensitive fallback families Gemma 4 (`gemma4`, `gemma-4`), Qwen 3 and
+3.5, DeepSeek V3.1 and R1, Phi-4 Reasoning, GPT-OSS, and Magistral. Hugging
+Face-style model names containing `gemma-4`, `gemma4`, or `qwen3` also match.
+`enabled` and `auto` omit the field when support is unknown. Successful
+capability responses are cached per Ollama endpoint and model, including a
+successful response with no capability data, which is cached as unknown.
+Connection errors, timeouts, and HTTP 5xx responses are not cached, so a later
+call retries the lookup; each model emits at most one warning for these lookup
+failures.
+
+Only the strings `auto`, `disabled`, and `enabled` are valid. Invalid values
+fail during configuration loading. Quote the value in YAML: YAML parses
+unquoted `off` as the boolean `false`, which is invalid here.
+
+Run manifests record the resolved mode and observed per-model field.
+At each `run()` start, the runner refreshes its observation-sequence marker and
+clears its run-owned request records. Each invocation records through that
+run's capture context, so earlier and concurrent runs in the same process do
+not leak observations into its manifest. For a local Ollama model with no
+request observed for that run, `think_sent` and `think_value` are `null`;
+`model_supports_thinking` reuses a cached capability when one exists and
+otherwise reads `"unknown"`. Observed capability failures also record
+`model_supports_thinking: "unknown"`.
+
+The default changed from `auto` to `disabled`. Runs made before this change
+that omitted the option used the model default, including thinking-on defaults
+for Gemma 4 and Qwen 3. Select `auto` to reproduce that policy. For a
+non-thinking model, this changes the manifest's mode but not the request body.
+The former explicit `disabled` behavior sent `think: false` even to such a
+model; the current request omits it, with equivalent model behavior.
+
+For Qwen models, disabled mode also appends `/no_think` to the prompt. Enabled
+mode does not append the suffix and preserves inline `<think>` tags. Ollama's
+separate response `thinking` field is not currently retained in the audit.
+
+Every Python entrypoint under `examples/` that exposes an LLM `--model`
+option also accepts `--thinking-mode {auto,disabled,enabled}`. This includes
+the irrigation, governed/single/multi-agent flood, vaccination, reservoir,
+catastrophe-model, and archetype-C runners, plus the paper-3 ICC, PA,
+persona-sensitivity, and prompt-sensitivity probes. Deprecated wrappers pass
+the option through to their canonical runner. Omitting the flag inherits the
+framework setting.
 
 #### 2.1.5 global_config.governance
 

@@ -76,6 +76,8 @@ def _build_contract() -> CouplingContract:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Catastrophe-model coupling experiment")
     ap.add_argument("--model", default="llama3.1:8b", help="LLM (ollama) or 'mock'")
+    ap.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                    default=None, help="Ollama thinking policy (default: framework setting)")
     ap.add_argument("--years", type=int, default=3)
     ap.add_argument("--pool", type=float, default=50_000.0, help="shared pool budget")
     ap.add_argument("--lapsed-policy", action="store_true",
@@ -84,6 +86,10 @@ def main(argv=None) -> int:
     ap.add_argument("--output", default=str(HERE / "results"))
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args(argv)
+
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     # --- agent: a single insurer ---
     insurer_cfg = AgentConfig(

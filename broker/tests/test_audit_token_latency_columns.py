@@ -158,7 +158,13 @@ def ollama_invoke(monkeypatch):
     from broker.utils import llm_utils
 
     _install_fake_ollama(monkeypatch)
-    monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResponse())
+    capabilities = MagicMock(status_code=200)
+    capabilities.json.return_value = {"capabilities": ["completion"]}
+
+    def post(url, **kwargs):
+        return capabilities if url.endswith("/api/show") else _FakeResponse()
+
+    monkeypatch.setattr(requests, "post", post)
     # Pin the context window so the recorded num_ctx is predictable.
     monkeypatch.setattr(llm_utils.LLM_CONFIG, "num_ctx", 4096)
     return llm_utils.create_llm_invoke("gemma3:4b")

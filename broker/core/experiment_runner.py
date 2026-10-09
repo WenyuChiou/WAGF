@@ -196,6 +196,9 @@ class ExperimentRunner:
         # llm_params_resolved block). Populated lazily, same lifecycle as
         # _llm_cache: an agent type never invoked never appears here.
         self._llm_resolved_params: Dict[str, Dict[str, Any]] = {}
+        from broker.utils.llm_utils import ollama_thinking_sequence
+        self._llm_thinking_started = ollama_thinking_sequence()
+        self._llm_thinking_observations = {}
 
         # PR-8: per-agent-type decider declarations, read once from config.
         # The CALLABLE is not cached for non-default deciders — see
@@ -321,6 +324,18 @@ class ExperimentRunner:
                 verbose=self.config.verbose,
                 overrides=overrides
             )
+            # Scope wire observations to this runner, even when other runners
+            # use the same model concurrently. Enter inside the callable so
+            # every worker thread gets its own context; journal replay skips it.
+            from broker.utils.llm_utils import capture_ollama_thinking
+            observations = getattr(self, "_llm_thinking_observations", None)
+            if observations is None:
+                observations = self._llm_thinking_observations = {}
+
+            def observed_invoke(*args, **kwargs):
+                with capture_ollama_thinking(observations):
+                    return raw_invoke(*args, **kwargs)
+
             # Spec item 24 (audit gap F42): backoff on a transient provider
             # failure, wired HERE because this is the one choke point every
             # LLM call in the framework passes through (the format-retry
@@ -331,7 +346,7 @@ class ExperimentRunner:
             # which is what keeps every domain that has not opted in
             # byte-identical.
             backoff_wrapped = wrap_llm_invoke_with_backoff(
-                raw_invoke, self._resolve_llm_safeguard_config(),
+                observed_invoke, self._resolve_llm_safeguard_config(),
             )
             # Crash-resume journal (broker/utils/llm_journal.py), wired
             # OUTSIDE (on top of) the backoff wrapper so a replayed call
@@ -719,6 +734,13 @@ class ExperimentRunner:
         # attribute at all, and that must not turn into an AttributeError
         # here.
         from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
+        from broker.utils.llm_utils import ollama_thinking_sequence
+        self._llm_thinking_started = ollama_thinking_sequence()
+        observations = getattr(self, "_llm_thinking_observations", None)
+        if observations is None:
+            self._llm_thinking_observations = {}
+        else:
+            observations.clear()
         if getattr(self, "_llm_journal", None) is None:
             self._llm_journal = self._build_llm_journal_manager()
         if llm_invoke is not None and llm_invoke is not self.llm_invoke:
@@ -1289,6 +1311,26 @@ class ExperimentRunner:
             metadata["llm_timeout_env_rejected"] = _rejected
         except Exception:
             pass
+
+        # Thinking metadata is derived from a separate observation snapshot.
+        # Keep it isolated from the scalar config fields above: an observation
+        # bookkeeping failure must not erase independently available sampling,
+        # context, or timeout provenance from the manifest.
+        try:
+            from broker.utils.llm_utils import get_llm_thinking_metadata
+            thinking_models = [self.config.model]
+            resolved = getattr(self, "_llm_resolved_params", {})
+            if isinstance(resolved, dict):
+                thinking_models.extend(
+                    p.get("model") for p in resolved.values() if isinstance(p, dict)
+                )
+            metadata["llm_thinking"] = get_llm_thinking_metadata(
+                thinking_models,
+                since_sequence=getattr(self, "_llm_thinking_started", None),
+                observations=getattr(self, "_llm_thinking_observations", None),
+            )
+        except Exception as exc:
+            logger.debug(f"[Integrity] llm_thinking skipped: {exc}")
 
         # 3b. Red-team objection 3 ablation (default "full"; see
         # AgentTypeConfig.get_governance_retry_feedback_mode and

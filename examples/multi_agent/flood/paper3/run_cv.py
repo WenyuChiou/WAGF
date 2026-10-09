@@ -57,6 +57,7 @@ from broker.domains.water.calibration.psychometric_battery import (
     ProbeResponse,
     Scenario,
 )
+from broker.utils.llm_utils import apply_ollama_thinking
 # Backward compatibility
 Vignette = Scenario
 
@@ -197,6 +198,7 @@ def create_probe_invoke(
                 "num_ctx": 4096,
             },
         }
+        apply_ollama_thinking(data, base_url="http://localhost:11434")
         try:
             resp = requests.post(url, json=data, timeout=90)
             if resp.status_code == 200:
@@ -801,6 +803,12 @@ def main():
         help=f"Ollama model for ICC probing (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
+        "--thinking-mode",
+        choices=["auto", "disabled", "enabled"],
+        default=None,
+        help="Ollama thinking policy (default: framework setting)",
+    )
+    parser.add_argument(
         "--replicates",
         type=int,
         default=DEFAULT_REPLICATES,
@@ -835,6 +843,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     if args.mode == "icc":
         run_icc_probing(
