@@ -258,6 +258,8 @@ def _make_institutional_agent(aid: str, agent_type: str, skills: list[Skill]) ->
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Multi-agent catastrophe-model coupling experiment")
     ap.add_argument("--model", default="mock", help="LLM model or 'mock'")
+    ap.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                    default=None, help="Ollama thinking policy (default: framework setting)")
     ap.add_argument("--years", type=int, default=2)
     ap.add_argument("--pool", type=float, default=60_000.0)
     ap.add_argument("--gov-budget", type=float, default=30_000.0)
@@ -268,6 +270,10 @@ def main(argv=None) -> int:
     ap.add_argument("--output", default=str(HERE / "results_ma"))
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args(argv)
+
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     exposures = _parse_mapping(args.exposures, {})
     depths = _parse_mapping(args.depths, {})

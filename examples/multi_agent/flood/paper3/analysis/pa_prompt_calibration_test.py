@@ -15,8 +15,13 @@ import pandas as pd
 import requests
 import yaml
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from broker.utils.llm_utils import apply_ollama_thinking
+
+
 FLOOD_ROOT = Path(__file__).resolve().parents[2]
 DATA_PATH = FLOOD_ROOT / "data" / "agent_profiles_balanced.csv"
 CONFIG_PATH = FLOOD_ROOT / "config" / "ma_agent_types.yaml"
@@ -345,7 +350,6 @@ def _invoke_ollama(prompt: str, model: str, timeout: int) -> Dict[str, Any]:
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "think": False,
         "options": {
             "num_ctx": 16384,
             "num_predict": 512,
@@ -354,6 +358,7 @@ def _invoke_ollama(prompt: str, model: str, timeout: int) -> Dict[str, Any]:
             "top_k": 40,
         },
     }
+    apply_ollama_thinking(payload, base_url=OLLAMA_URL.rsplit("/api/", 1)[0])
     response = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
     response.raise_for_status()
     return response.json()
@@ -487,7 +492,10 @@ def _write_markdown(
     lines: List[str] = []
     lines.append("# PA Prompt Calibration Results")
     lines.append("")
-    lines.append(f"Model: `{model}` via direct Ollama API with top-level `think=false`.")
+    lines.append(
+        f"Model: `{model}` via direct Ollama API with the framework's "
+        "capability-aware thinking policy."
+    )
     lines.append("")
     lines.append("## Summary")
     lines.append("")
@@ -652,9 +660,14 @@ def run(model: str, timeout: int, sleep_s: float) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run PA prompt calibration against Ollama.")
     parser.add_argument("--model", default=MODEL_DEFAULT)
+    parser.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                        default=None, help="Ollama thinking policy (default: framework setting)")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--sleep-s", type=float, default=0.0)
     args = parser.parse_args()
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
     run(model=args.model, timeout=args.timeout, sleep_s=args.sleep_s)
 
 

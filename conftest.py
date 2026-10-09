@@ -587,6 +587,31 @@ def _ollama_guard_installed_for_session():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_ollama_thinking_cache():
+    """Successful capability answers and warnings belong to one test only."""
+    # Guard self-tests copy this conftest into a standalone pytester sandbox.
+    # That sandbox has no broker source and may resolve an unrelated editable
+    # checkout. Its guard must remain self-contained and needs no model cache.
+    if not (Path(__file__).resolve().parent / "broker/utils/llm_utils.py").is_file():
+        yield
+        return
+    from broker.utils import llm_utils
+
+    def clear():
+        with llm_utils._OLLAMA_THINKING_LOCK:
+            llm_utils._OLLAMA_THINKING_CAPABILITIES.clear()
+            llm_utils._OLLAMA_THINKING_LEVELS.clear()
+            llm_utils._OLLAMA_THINKING_WARNED.clear()
+            llm_utils._OLLAMA_THINKING_LEVEL_WARNED.clear()
+            llm_utils._OLLAMA_THINKING_REQUESTS.clear()
+            llm_utils._OLLAMA_THINKING_SEQUENCE = 0
+
+    clear()
+    yield
+    clear()
+
+
+@pytest.fixture(autouse=True)
 def _fail_if_ollama_guard_blocked_during_test(request):
     """Fail THIS test if the audit hook recorded a block while it ran.
 

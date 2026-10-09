@@ -432,7 +432,13 @@ class TestBackoffWrapper:
             raw_invoke, _enabled_config(backoff_max_retries=3, backoff_initial_seconds=1),
         )
 
-        with patch("requests.post", post_mock), \
+        capabilities = MagicMock(status_code=200)
+        capabilities.json.return_value = {"capabilities": ["completion"]}
+
+        def post(url, **kwargs):
+            return capabilities if url.endswith("/api/show") else post_mock(url, **kwargs)
+
+        with patch("requests.post", post), \
                 patch("broker.utils.llm_safeguard.time.sleep") as sleep_mock:
             content, stats = wrapped("PROMPT")
 

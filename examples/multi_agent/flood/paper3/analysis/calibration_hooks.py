@@ -45,6 +45,8 @@ from typing import Any, Callable, Dict, Tuple
 
 import pandas as pd
 
+from broker.utils.llm_utils import apply_ollama_thinking
+
 
 # ---------------------------------------------------------------------------
 # Metric computation (SimulateFn callback)
@@ -283,17 +285,19 @@ def create_calibration_invoke(
         try:
             import requests
 
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                    "num_ctx": num_ctx,
+                },
+            }
+            apply_ollama_thinking(payload, base_url="http://localhost:11434")
             response = requests.post(
                 "http://localhost:11434/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_ctx": num_ctx,
-                    },
-                },
+                json=payload,
                 timeout=120,
             )
 

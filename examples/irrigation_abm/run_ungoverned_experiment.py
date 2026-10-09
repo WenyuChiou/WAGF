@@ -60,6 +60,8 @@ def _parse_legacy_args(argv):
                      "run_experiment.py --governance-mode disabled."
     )
     p.add_argument("--model", default="gemma3:4b")
+    p.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                   default=None, help="Forwarded to run_experiment.py")
     p.add_argument("--years", type=int, default=42)
     p.add_argument("--agents", type=int, default=5, help="Synthetic agents (ignored with --real)")
     p.add_argument("--real", action="store_true", help="Use real 78-agent CRSS data")
@@ -119,6 +121,8 @@ def _build_forwarding_argv(args) -> list:
         forwarded += ["--num-ctx", str(args.num_ctx)]
     if args.num_predict is not None:
         forwarded += ["--num-predict", str(args.num_predict)]
+    if args.thinking_mode is not None:
+        forwarded += ["--thinking-mode", args.thinking_mode]
     return forwarded
 
 

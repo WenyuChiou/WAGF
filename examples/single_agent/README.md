@@ -47,6 +47,15 @@ If you are an ABM developer, use this order:
 python examples/single_agent/run_flood.py --model gemma3:4b --agents 5 --years 3
 ```
 
+Thinking is disabled by default for Ollama models that advertise the
+capability. Pass `--thinking-mode enabled` to opt in for a run, or
+`--thinking-mode auto` to defer to the model. The run manifest records the
+resolved mode and whether a top-level `think` field was sent per model.
+Use `auto` when reproducing an older run that omitted the option and therefore
+used the model default. If the model exposes thinking levels without `false`,
+disabled mode is not enforceable; WAGF omits the field, warns once, and marks
+`think_enforceable: false` in the manifest.
+
 Default outputs stay inside this workspace under:
 
 - `examples/single_agent/results/`
