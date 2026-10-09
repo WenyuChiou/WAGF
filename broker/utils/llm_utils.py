@@ -13,10 +13,14 @@ v2.1: Added global LLM_CONFIG for configurable parameters.
 import logging
 import math
 import os
+import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Callable, Dict, Set, Tuple, Union, Optional, Any
 from dataclasses import dataclass, field
+from contextlib import contextmanager
+from contextvars import ContextVar
 from urllib.parse import urlparse, urlunparse
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,6 +122,20 @@ def timeout_env_status() -> Tuple[Optional[str], bool]:
 # =============================================================================
 # Global LLM Configuration (can be modified before creating invoke functions)
 # =============================================================================
+class InvalidThinkingMode(ValueError):
+    """Invalid run configuration; must fail before any model invocation."""
+
+
+def validate_thinking_mode(mode: Any) -> str:
+    """Reject invalid values, including YAML's unquoted ``off`` boolean."""
+    if not isinstance(mode, str) or mode not in ("auto", "disabled", "enabled"):
+        raise InvalidThinkingMode(
+            f"thinking_mode must be one of 'auto', 'disabled', 'enabled'; got {mode!r}. "
+            "Use a quoted mode string in YAML."
+        )
+    return mode
+
+
 @dataclass
 class LLMConfig:
     """
@@ -160,11 +178,14 @@ class LLMConfig:
     })
 
     # Thinking mode control for reasoning models (Gemma 4, DeepSeek R1, Qwen3, etc.)
-    #   "auto"     = don't modify LLM call, strip <think> tags from output (default, backward compat)
-    #   "disabled" = actively disable thinking (set think=false in Ollama options + strip tags)
-    #   "enabled"  = keep thinking tokens in output for audit/analysis
-    thinking_mode: str = "auto"
+    #   "auto"     = use the model default, strip <think> tags from output
+    #   "disabled" = disable supported thinking with top-level think=false + strip tags (default)
+    #   "enabled"  = preserve inline <think> tags; separate Ollama thinking is not audited
+    thinking_mode: str = "disabled"
     thinking_budget_tokens: Optional[int] = None  # Optional: limit thinking token count
+
+    def __post_init__(self) -> None:
+        validate_thinking_mode(self.thinking_mode)
 
     def to_ollama_params(self) -> Dict[str, Any]:
         """Convert config to Ollama parameter dict, excluding None values."""
@@ -226,6 +247,8 @@ class LLMConfig:
                 if "min_retries" in quirks:
                     max_retries = max(max_retries, quirks["min_retries"])
                 suffix = quirks.get("append_suffix", "")
+                if suffix == "/no_think" and self.thinking_mode != "disabled":
+                    suffix = ""
                 if suffix and suffix not in prompt:
                     prompt = prompt + "\n" + suffix
         return prompt, max_retries
@@ -235,25 +258,31 @@ class LLMConfig:
         return self.thinking_mode in ("auto", "disabled")
 
     def apply_thinking_control(self, model: str, options: dict) -> dict:
-        """Deprecated shim: kept for backward compatibility. Use get_think_flag() instead.
+        """Deprecated shim: use apply_ollama_thinking() on the request instead.
 
         Note: Ollama's `think` parameter is a TOP-LEVEL request field, NOT inside
         options. This method historically put it in options (a no-op). Use
-        get_think_flag() to retrieve the top-level flag, and add it to the request
-        dict at the call site.
+        apply_ollama_thinking(), which checks capabilities before adding the top-level flag.
         """
         if self.thinking_mode == "enabled" and self.thinking_budget_tokens:
             options["think_budget"] = self.thinking_budget_tokens
         return options
 
     def get_think_flag(self) -> Optional[bool]:
-        """Return the value for Ollama's top-level `think` request field.
+        """Deprecated: use capability-aware :func:`apply_ollama_thinking` instead.
+
+        This legacy mode-only value does not establish model support.
 
         Returns:
             True  → enable thinking
             False → disable thinking
             None  → leave unset (use Ollama default)
         """
+        warnings.warn(
+            "LLMConfig.get_think_flag() is deprecated; use apply_ollama_thinking() "
+            "on the request body for capability-aware control.",
+            DeprecationWarning, stacklevel=2,
+        )
         if self.thinking_mode == "enabled":
             return True
         if self.thinking_mode == "disabled":
@@ -308,9 +337,11 @@ def _load_global_config() -> LLMConfig:
             timeout_large_model=global_llm.get("timeout_large_model", 600),
             large_model_patterns=patterns,
             model_quirks=quirks,
-            thinking_mode=global_llm.get("thinking_mode", "auto"),
+            thinking_mode=global_llm.get("thinking_mode", "disabled"),
             thinking_budget_tokens=global_llm.get("thinking_budget_tokens"),
         )
+    except InvalidThinkingMode:
+        raise
     except Exception as e:
         _LOGGER.warning(f"Could not load global LLM config: {e}. Using defaults.")
         return LLMConfig()
@@ -877,6 +908,198 @@ def get_ollama_base_url() -> str:
     return f"http://{host}:{port}"
 
 
+# Cache successful answers (including a successful response without capabilities).
+# Failed requests remain retryable on later calls. Include the endpoint so switching
+# OLLAMA_HOST cannot reuse a different daemon's model metadata.
+_OLLAMA_THINKING_CAPABILITIES: Dict[Tuple[str, str], Optional[bool]] = {}
+_OLLAMA_THINKING_LEVELS: Dict[Tuple[str, str], tuple] = {}
+_OLLAMA_THINKING_WARNED: Set[Tuple[str, str]] = set()
+_OLLAMA_THINKING_LEVEL_WARNED: Set[Tuple[str, str, str]] = set()
+_OLLAMA_THINKING_LOCK = threading.RLock()
+_OLLAMA_THINKING_REQUESTS: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_OLLAMA_THINKING_SEQUENCE = 0
+_OLLAMA_THINKING_OBSERVER: ContextVar = ContextVar("ollama_thinking_observer", default=None)
+
+# Conservative fallback ONLY when capabilities are unknown and mode is disabled.
+# Hugging Face names may wrap a family in an arbitrary quantization/repository name.
+# A successful capabilities lookup always overrides this fallback.
+KNOWN_THINKING_FAMILIES = (
+    "gemma4", "gemma-4", "qwen3", "qwen3.5", "deepseek-v3.1",
+    "deepseek-r1", "phi4-reasoning", "gpt-oss", "magistral",
+)
+
+
+def get_ollama_model_supports_thinking(model: str, *, base_url: Optional[str] = None) -> Optional[bool]:
+    """Cache successful /api/show answers; retry failures once on later calls.
+
+    None means unknown. Missing capabilities in a successful response are cached;
+    connection errors, timeouts, HTTP errors and malformed responses are not.
+    Exposed ``thinking.levels`` or ``thinking_levels`` are retained without inferring
+    a boolean control from a model name.
+    """
+    import requests
+
+    endpoint = (base_url or get_ollama_base_url()).rstrip("/")
+    key = (endpoint, model)
+    # Serialize lookups, including concurrent agent workers. Each caller makes
+    # at most one request; successful answers prevent further lookups.
+    with _OLLAMA_THINKING_LOCK:
+        if key not in _OLLAMA_THINKING_CAPABILITIES:
+            support = None
+            cache_answer = False
+            levels = None
+            try:
+                response = requests.post(f"{endpoint}/api/show", json={"model": model}, timeout=5)
+                response.raise_for_status()
+                info = response.json()
+                if not isinstance(info, dict):
+                    raise ValueError("/api/show response is not an object")
+                thinking = info.get("thinking")
+                levels = thinking.get("levels") if isinstance(thinking, dict) else None
+                if levels is None:
+                    levels = info.get("thinking_levels")
+                if "capabilities" not in info:
+                    cache_answer = True
+                    raise ValueError("/api/show has no capabilities field")
+                capabilities = info["capabilities"]
+                if not isinstance(capabilities, list) or not all(isinstance(c, str) for c in capabilities):
+                    raise ValueError("/api/show has no valid capabilities list")
+                support = "thinking" in capabilities
+                cache_answer = True
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                if key not in _OLLAMA_THINKING_WARNED:
+                    _OLLAMA_THINKING_WARNED.add(key)
+                    _LOGGER.warning(
+                        "Ollama thinking capabilities unknown for %s at %s: %s. "
+                        "Disabled mode uses the documented known-family fallback; "
+                        "other modes omit think. Failed lookups retry on later calls.",
+                        model, endpoint, exc,
+                    )
+            if cache_answer:
+                _OLLAMA_THINKING_CAPABILITIES[key] = support
+                if isinstance(levels, list):
+                    _OLLAMA_THINKING_LEVELS[key] = tuple(levels)
+            return support
+        return _OLLAMA_THINKING_CAPABILITIES[key]
+
+
+def _known_thinking_family(model: str) -> bool:
+    lower = model.lower()
+    name = lower.rsplit("/", 1)[-1].split(":", 1)[0]
+    if "/" in lower and any(family in name for family in ("gemma-4", "gemma4", "qwen3")):
+        return True
+    return any(name == family or name.startswith(family + "-")
+               for family in KNOWN_THINKING_FAMILIES)
+
+
+def apply_ollama_thinking(payload: Dict[str, Any], *, base_url: Optional[str] = None,
+                          thinking_mode: Optional[str] = None) -> Dict[str, Any]:
+    """Apply the single capability-aware top-level think policy to an Ollama body.
+
+    Does not change options, prompts, sampling or any other request field.
+    Unknown capabilities allow false only for KNOWN_THINKING_FAMILIES in disabled
+    mode; enabled/auto never assume support. Mock/cloud models never query Ollama.
+    """
+    global _OLLAMA_THINKING_SEQUENCE
+    model = payload["model"]
+    mode = validate_thinking_mode(LLM_CONFIG.thinking_mode if thinking_mode is None else thinking_mode)
+    endpoint = (base_url or get_ollama_base_url()).rstrip("/")
+    applicable = not (is_mock_model(model) or is_cloud_provider_model(model))
+    support = get_ollama_model_supports_thinking(model, base_url=endpoint) if applicable else None
+    flag = None
+    if support is True and mode != "auto":
+        flag = mode == "enabled"
+    elif applicable and support is None and mode == "disabled" and _known_thinking_family(model):
+        flag = False
+    enforceable = None
+    with _OLLAMA_THINKING_LOCK:
+        levels = _OLLAMA_THINKING_LEVELS.get((endpoint, model))
+        if applicable and levels is not None and mode != "auto":
+            wanted = mode == "enabled"
+            supported = any(
+                value is wanted or isinstance(value, str) and value.lower() == str(wanted).lower()
+                for value in levels
+            )
+            if not supported:
+                flag = None
+                enforceable = False
+                warning_key = (endpoint, model, mode)
+                if warning_key not in _OLLAMA_THINKING_LEVEL_WARNED:
+                    _OLLAMA_THINKING_LEVEL_WARNED.add(warning_key)
+                    _LOGGER.warning(
+                        "Ollama cannot enforce %s thinking for %s: exposed levels %r "
+                        "do not include %s; omitting think and retaining the model default.",
+                        mode, model, levels, wanted,
+                    )
+    payload.pop("think", None)
+    if flag is not None:
+        payload["think"] = flag
+    with _OLLAMA_THINKING_LOCK:
+        _OLLAMA_THINKING_SEQUENCE += 1
+        _OLLAMA_THINKING_REQUESTS[(endpoint, model)] = {
+            "mode": mode, "think_sent": flag is not None, "think_value": flag,
+            "model_supports_thinking": support if support is not None else "unknown",
+            "sequence": _OLLAMA_THINKING_SEQUENCE,
+        }
+        if enforceable is False:
+            _OLLAMA_THINKING_REQUESTS[(endpoint, model)]["think_enforceable"] = False
+        observer = _OLLAMA_THINKING_OBSERVER.get()
+        if observer is not None:
+            observer[(endpoint, model)] = dict(_OLLAMA_THINKING_REQUESTS[(endpoint, model)])
+    return payload
+
+
+@contextmanager
+def capture_ollama_thinking(observations):
+    """Attribute requests to this invocation's run, including worker threads.
+
+    ExperimentRunner enters this scope inside its callable on each worker.
+    Async provider to_thread also carries this context into its lookup worker.
+    """
+    token = _OLLAMA_THINKING_OBSERVER.set(observations)
+    try:
+        yield
+    finally:
+        _OLLAMA_THINKING_OBSERVER.reset(token)
+
+
+def ollama_thinking_sequence() -> int:
+    """Construction-time marker to exclude observations from earlier runs."""
+    with _OLLAMA_THINKING_LOCK:
+        return _OLLAMA_THINKING_SEQUENCE
+
+
+def get_llm_thinking_metadata(models, *, since_sequence: Optional[int] = None,
+                              observations=None) -> Dict[str, Any]:
+    """Network-free manifest snapshot; null means no observed request this run.
+
+    models can be a model name or iterable of names. Per-model values describe
+    the last constructed request. Mock/cloud models have no Ollama think field.
+    """
+    if isinstance(models, str):
+        models = [models]
+    endpoint = get_ollama_base_url().rstrip("/")
+    result = {"mode": LLM_CONFIG.thinking_mode, "models": {}}
+    with _OLLAMA_THINKING_LOCK:
+        for model in models:
+            if not isinstance(model, str):
+                continue
+            records = _OLLAMA_THINKING_REQUESTS if observations is None else observations
+            observed = records.get((endpoint, model))
+            if observed is not None and (since_sequence is None or observed["sequence"] > since_sequence):
+                entry = {k: v for k, v in observed.items() if k != "sequence"}
+            else:
+                support = _OLLAMA_THINKING_CAPABILITIES.get((endpoint, model))
+                entry = {
+                    "mode": LLM_CONFIG.thinking_mode,
+                    "think_sent": False if is_mock_model(model) or is_cloud_provider_model(model) else None,
+                    "think_value": None,
+                    "model_supports_thinking": support if support is not None else "unknown",
+                }
+            result["models"][model] = entry
+    return result
+
+
 def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbose: bool) -> Tuple[str, LLMStats]:
     """
     Phase 46: Invoke Ollama direct via API to avoid LangChain/Python 3.14 issues
@@ -900,12 +1123,7 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         "options": options,
     }
 
-    # Ollama's `think` parameter is a TOP-LEVEL request field, not inside options.
-    think_flag = LLM_CONFIG.get_think_flag()
-    if think_flag is not None:
-        data["think"] = think_flag
-        if verbose:
-            _LOGGER.debug(f" [LLM:Direct] Setting top-level think={think_flag} for model '{model}'")
+    apply_ollama_thinking(data)
     
     # Wall clock around the request itself, so the recorded latency is the cost
     # the run actually paid for this call (queueing at the server included) and

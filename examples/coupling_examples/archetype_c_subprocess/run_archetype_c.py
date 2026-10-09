@@ -169,10 +169,16 @@ def _make_agent() -> BaseAgent:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Archetype-C (subprocess) coupling worked example")
     ap.add_argument("--model", default="mock", help="LLM model or 'mock'")
+    ap.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                    default=None, help="Ollama thinking policy (default: framework setting)")
     ap.add_argument("--years", type=int, default=4)
     ap.add_argument("--output", default=str(HERE / "results"))
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args(argv)
+
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     contract = _build_contract()
     connector = SubprocessModelConnector(

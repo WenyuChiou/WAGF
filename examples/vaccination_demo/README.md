@@ -82,6 +82,15 @@ python examples/vaccination_demo/run_experiment.py \
     --output examples/vaccination_demo/results/smoke
 ```
 
+Thinking-capable Ollama models run with thinking disabled by default. Pass
+`--thinking-mode enabled` to opt in, or `--thinking-mode auto` to defer to the
+model. The reproducibility manifest records the resolved mode and whether the
+top-level `think` field was sent.
+Use `auto` to reproduce an older omitted-flag run, which used the model default.
+If the model advertises thinking levels without `false`, disabled mode cannot
+be enforced; WAGF omits the field, warns once, and records
+`think_enforceable: false` in the manifest.
+
 After completion, inspect:
 
 - `results/smoke/individual_governance_audit.csv` — per-decision trace

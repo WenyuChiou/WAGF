@@ -385,6 +385,8 @@ def run_persona_sensitivity(
 def main():
     parser = argparse.ArgumentParser(description="Persona Sensitivity Analysis")
     parser.add_argument("--model", default="gemma3:4b")
+    parser.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                        default=None, help="Ollama thinking policy (default: framework setting)")
     parser.add_argument("--replicates", type=int, default=10)
     parser.add_argument("--output-dir", default="paper3/results/cv")
     parser.add_argument(
@@ -392,6 +394,9 @@ def main():
         default=str(Path(__file__).parent.parent / "configs" / "icc_archetypes.yaml"),
     )
     args = parser.parse_args()
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     run_persona_sensitivity(
         archetypes_path=args.archetypes,

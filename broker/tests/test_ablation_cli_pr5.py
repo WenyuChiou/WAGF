@@ -947,3 +947,98 @@ class TestCli:
                      "--factor", "insurance_trust"])
         assert code == 2
         assert "not a directory" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("source_mode", ["disabled", "auto", "enabled"])
+    def test_replay_uses_source_manifest_thinking_mode_and_restores_global(
+        self, run_dir, tmp_path, monkeypatch, source_mode,
+    ):
+        from broker.tools import ablate_factor
+        from broker.utils import llm_utils
+
+        manifest_path = run_dir / "reproducibility_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["thinking_mode"] = source_mode
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        original_mode = "enabled" if source_mode != "enabled" else "disabled"
+        monkeypatch.setattr(llm_utils.LLM_CONFIG, "thinking_mode", original_mode)
+        observed = []
+
+        monkeypatch.setattr(ablate_factor, "build_replay_decider", lambda *a, **k: object())
+        monkeypatch.setattr(ablate_factor, "_print_report", lambda result: None)
+
+        def fake_run(*args, **kwargs):
+            observed.append(llm_utils.LLM_CONFIG.thinking_mode)
+            return types.SimpleNamespace(summary={}, samples=[], determinism={})
+
+        monkeypatch.setattr(ablate_factor, "run_ablation", fake_run)
+
+        code = ablate_factor.main([
+            str(run_dir), "--masks", MASKS, "--factor", "insurance_trust",
+            "--model", "mock", "--out", str(tmp_path / "out"),
+        ])
+
+        assert code == 0
+        assert observed == [source_mode]
+        assert llm_utils.LLM_CONFIG.thinking_mode == original_mode
+        summary = json.loads(
+            (tmp_path / "out" / "ablation_summary.json").read_text(encoding="utf-8")
+        )
+        assert summary["cli"]["thinking_mode"] == source_mode
+
+    def test_legacy_manifest_without_thinking_mode_replays_as_auto(
+        self, run_dir, tmp_path, monkeypatch,
+    ):
+        from broker.tools import ablate_factor
+        from broker.utils import llm_utils
+
+        monkeypatch.setattr(llm_utils.LLM_CONFIG, "thinking_mode", "disabled")
+        observed = []
+        monkeypatch.setattr(ablate_factor, "build_replay_decider", lambda *a, **k: object())
+        monkeypatch.setattr(ablate_factor, "_print_report", lambda result: None)
+
+        def fake_run(*args, **kwargs):
+            observed.append(llm_utils.LLM_CONFIG.thinking_mode)
+            return types.SimpleNamespace(summary={}, samples=[], determinism={})
+
+        monkeypatch.setattr(ablate_factor, "run_ablation", fake_run)
+
+        code = ablate_factor.main([
+            str(run_dir), "--masks", MASKS, "--factor", "insurance_trust",
+            "--model", "mock", "--out", str(tmp_path / "out"),
+        ])
+
+        assert code == 0
+        assert observed == ["auto"]
+        assert llm_utils.LLM_CONFIG.thinking_mode == "disabled"
+        summary = json.loads(
+            (tmp_path / "out" / "ablation_summary.json").read_text(encoding="utf-8")
+        )
+        assert summary["cli"]["thinking_mode"] == "auto"
+
+    @pytest.mark.parametrize("invalid_mode", [False, "off", "sometimes", None])
+    def test_invalid_source_manifest_thinking_mode_is_refused(
+        self, run_dir, monkeypatch, capsys, invalid_mode,
+    ):
+        from broker.tools import ablate_factor
+
+        manifest_path = run_dir / "reproducibility_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["thinking_mode"] = invalid_mode
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        run_spy = types.SimpleNamespace(called=False)
+
+        def fake_run(*args, **kwargs):
+            run_spy.called = True
+
+        monkeypatch.setattr(ablate_factor, "run_ablation", fake_run)
+
+        code = ablate_factor.main([
+            str(run_dir), "--masks", MASKS, "--factor", "insurance_trust",
+            "--model", "mock",
+        ])
+
+        assert code == 2
+        assert run_spy.called is False
+        error = capsys.readouterr().err
+        assert "thinking_mode" in error
+        assert "auto, disabled, enabled" in error

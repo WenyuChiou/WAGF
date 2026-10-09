@@ -117,6 +117,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Ollama thinking is disabled by default with a per-run override.** Request
+  builders inspect each model's advertised capability and levels before adding
+  a top-level `think` field. Thinking-capable models receive `think: false` by
+  default when their advertised levels are absent or include boolean `false`;
+  `auto` defers to the model and `enabled` opts in. A model that advertises
+  levels but no `false` level cannot be forced off: WAGF omits `think`, warns
+  once, and records
+  `think_enforceable: false` in the manifest. Successful capability responses
+  are cached per endpoint and model, including successful responses without
+  capability data; connection, timeout, and server errors are not cached and
+  can be retried on a later call, with one warning per model. When capability
+  data is unknown, disabled mode uses a case-insensitive fallback for Gemma 4,
+  Qwen 3/3.5, DeepSeek V3.1/R1, Phi-4 Reasoning, GPT-OSS, Magistral, and
+  Hugging Face-style Gemma 4 or Qwen 3 names.
+
+  Before this change, omitting the setting used the model default, which means
+  thinking was on for models such as Gemma 4. To reproduce those runs, pass
+  `--thinking-mode auto`; this includes runs launched through
+  `examples/irrigation_abm/run_gemma4_{e2b,e4b}_batch.bat` and
+  `run_gemma4_irrigation_all.bat`. For a non-thinking model, the default value
+  recorded in the manifest changes, but the generated request body does not.
+  Older runs that explicitly selected `disabled` sent `think: false` even to a
+  non-thinking model; WAGF now omits the field, which is equivalent for that
+  model. Invalid configuration values fail at startup, so quote YAML modes
+  such as `"disabled"`; unquoted `off` is parsed as boolean `false` and rejected.
+  Qwen's `/no_think` prompt suffix is now added only in disabled mode; before
+  this change it was also added under the old `auto` default, so older Qwen 3
+  runs had thinking turned off by that suffix and are reproduced by the new
+  default, not by `--thinking-mode auto`. Enabled
+  mode preserves inline thinking tags, although Ollama's separate response
+  `thinking` field is not currently retained in the audit.
 - **Decision memory is 5 + 2 + 1 in irrigation and the flood rerun.**
   Irrigation spec item 45m and flood design record item 9: five recent event
   memories, up to two older memories with the highest decayed importance,

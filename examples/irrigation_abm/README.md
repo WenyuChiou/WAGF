@@ -29,8 +29,17 @@ python run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx
 | `--real` | disabled | Use 78 real CRSS agents instead of synthetic |
 | `--seed` | `42` | Random seed for reproducibility |
 | `--workers` | `1` | Parallel LLM workers |
+| `--thinking-mode` | framework default (`disabled`) | Ollama reasoning policy: `auto`, `disabled`, or `enabled` |
 
 Run `python run_experiment.py --help` for all flags (memory, magnitude, context window, etc.).
+
+The default changed from `auto` to `disabled`. Older runs that omitted this
+flag used the model's default, including thinking-on defaults for Gemma 4 and
+Qwen 3. Pass `--thinking-mode auto` to reproduce them, including runs from
+`run_gemma4_{e2b,e4b}_batch.bat` and `run_gemma4_irrigation_all.bat`.
+If a model advertises thinking levels without `false`, disabled mode cannot be
+enforced; WAGF omits the field, warns once, and records
+`think_enforceable: false` in the run manifest.
 
 ### Project Structure
 
