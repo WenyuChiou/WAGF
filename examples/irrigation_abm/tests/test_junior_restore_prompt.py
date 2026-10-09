@@ -1,4 +1,4 @@
-"""Regression tests for the spec-45p junior-tier recovery prompt."""
+"""Regression tests for removing the superseded spec-45p recovery prompt."""
 
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ def _context(*, tier: int = 2, current_gap: str = "lb_junior_tier_cut",
         "lb_shortage_volume_maf": {0: 0.0, 2: 0.417}[tier],
         "shortage_tier_threshold_ft": {0: None, 2: 1050.0}[tier],
         "current_request": request,
-        "current_diversion": 2_857.0 if tier else 3_826.0,
+        "current_diversion": (request if current_gap == "none" or not junior
+                              else (2_857.0 if tier else 3_826.0)),
         "water_right": senior + junior,
         "gap_reason": current_gap,
         "at_allocation_cap": at_allocation_cap,
@@ -27,6 +28,10 @@ def _context(*, tier: int = 2, current_gap: str = "lb_junior_tier_cut",
         "lb_junior_tier_cut_fraction": 0.2532 if tier else 0.0,
         "lb_senior_entitlement_af": senior,
         "lb_junior_entitlement_af": junior,
+        "lb_junior_ceiling_af": junior * (1.0 - (0.2532 if tier else 0.0)),
+        "lb_tier_ceiling_af": senior + junior * (1.0 - (0.2532 if tier else 0.0)),
+        "lb_p56_entitlement_af": 0.0,
+        "lb_p56_in_tier": "zero",
     }
 
 
@@ -37,60 +42,40 @@ def _last_year(*, gap: str = "lb_junior_tier_cut", request: float = 4_798.0,
         "diversion": diversion,
         "gap_reason": gap,
         "lb_junior_tier_cut_fraction": 0.2026,
+        "lb_junior_ceiling_af": 7_974.0,
+        "lb_junior_entitlement_af": 10_000.0,
     }
 
 
-def test_fully_junior_restore_sentence_is_exact_and_follows_tier_line():
+def test_restore_sentence_is_absent_after_a_fully_junior_tier_cut():
     text = build_water_situation_text(_context(), _last_year())
-    lines = text.splitlines()
-    tier_index = next(i for i, line in enumerate(lines)
-                      if line.startswith("A Tier 2 Lower Basin shortage"))
-    assert lines[tier_index + 1] == (
-        "The tier cut is a fixed share of the junior-priority water you request; it does "
-        "not change your water right. If you choose to keep your request, you ask for the reduced "
-        "3,826 acre-ft you received last year. To return toward the 4,798 acre-ft you "
-        "requested last year, choose to increase your request."
-    )
+    assert "To return toward" not in text
+    assert "choose to increase your request" not in text
 
 
-def test_partly_junior_restore_sentence_names_senior_entitlement():
+def test_restore_sentence_is_absent_after_a_partly_junior_tier_cut():
     text = build_water_situation_text(
         _context(senior=5_940.0, junior=35_060.0), _last_year(request=28_295.0)
     )
-    assert (
-        "The tier cut is a fixed share of the junior-priority part of your request, the "
-        "part above 5,940 acre-ft; it does not change your water right. If you choose "
-        "to keep your request, you ask for the reduced 3,826 acre-ft you received last year. "
-        "To return toward the 28,295 acre-ft you requested last year, choose to increase "
-        "your request."
-    ) in text
+    assert "To return toward" not in text
+    assert "choose to increase your request" not in text
 
 
-def test_restore_sentence_uses_past_tense_when_no_tier_is_declared():
+def test_restore_sentence_is_absent_when_no_tier_is_declared():
     text = build_water_situation_text(
         _context(tier=0, current_gap="none"), _last_year()
     )
-    assert (
-        "Last year's tier cut was a fixed share of the junior-priority water you requested; "
-        "it did not change your water right. If you choose to keep your request, you ask for the reduced "
-        "3,826 acre-ft you received last year. To return toward the 4,798 acre-ft you "
-        "requested last year, choose to increase your request."
-    ) in text
-    assert "The tier cut is a fixed share of the junior-priority water you request" not in text
+    assert "To return toward" not in text
+    assert "tier cut was a fixed share" not in text
 
 
-def test_partly_junior_restore_sentence_uses_past_tense_without_a_tier():
+def test_partly_junior_restore_sentence_is_absent_without_a_tier():
     text = build_water_situation_text(
         _context(tier=0, current_gap="none", senior=5_940.0, junior=35_060.0),
         _last_year(request=28_295.0),
     )
-    assert (
-        "Last year's tier cut was a fixed share of the junior-priority part of your request, "
-        "the part above 5,940 acre-ft; it did not change your water right. If you choose "
-        "to keep your request, you ask for the reduced 3,826 acre-ft you received last year. "
-        "To return toward the 28,295 acre-ft you requested last year, choose to increase "
-        "your request."
-    ) in text
+    assert "To return toward" not in text
+    assert "tier cut was a fixed share" not in text
 
 
 @pytest.mark.parametrize(
@@ -98,7 +83,7 @@ def test_partly_junior_restore_sentence_uses_past_tense_without_a_tier():
     [
         (_context(), _last_year(gap="lb_junior_tier_cut+lb_mead_availability")),
         (_context(current_gap="lb_junior_tier_cut+lb_mead_availability"), _last_year()),
-        (_context(senior=10_000.0, junior=0.0), _last_year()),
+        (_context(senior=10_000.0, junior=0.0, current_gap="none"), _last_year()),
         (_context(), _last_year(request=3_826.0, diversion=3_826.0)),
     ],
     ids=("physical-shortage-last-year", "physical-shortage-this-year",

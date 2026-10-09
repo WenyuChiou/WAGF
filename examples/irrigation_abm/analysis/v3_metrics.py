@@ -94,8 +94,6 @@ from examples.irrigation_abm.irrigation_personas import (  # noqa: E402
 from examples.irrigation_abm.validators.irrigation_validators import (  # noqa: E402
     SUPPLY_RULE_FIELDS,
 )
-from examples.irrigation_abm.junior_restore import tr1_violation, TR1_HIGH_WSA
-
 # =============================================================================
 # Pre-registered definitions (spec WP6; PI items 9, 16, 19, 21, 28)
 # =============================================================================
@@ -109,6 +107,7 @@ RULE_CAP = "water_right_cap"
 RULE_FLOOR = "minimum_utilisation_floor"
 RULE_TR1 = "high_scarcity_no_increase"
 RULE_TR3 = "low_scarcity_no_decrease"
+TR1_HIGH_WSA = frozenset({'H', 'VH'})
 FEASIBILITY_RULES = (RULE_SUPPLY, RULE_CAP, RULE_FLOOR)
 THINKING_RULES = (RULE_TR1, RULE_TR3)
 ALL_RULES = FEASIBILITY_RULES + THINKING_RULES
@@ -117,6 +116,24 @@ BLOCKED_SKILL = {
     RULE_SUPPLY: INCREASE, RULE_CAP: INCREASE, RULE_FLOOR: DECREASE,
     RULE_TR1: INCREASE, RULE_TR3: DECREASE,
 }
+
+
+def restoration_available(previous_gap_reason: Optional[str],
+                          previous_request_af: Optional[float],
+                          base_af: Optional[float]) -> bool:
+    """Legacy spec-45p eligibility, retained only to score recorded runs."""
+    return bool(previous_gap_reason == 'lb_junior_tier_cut'
+                and previous_request_af is not None and base_af is not None
+                and previous_request_af > base_af)
+
+
+def tr1_violation(skill: Optional[str], wsa: Optional[str], *,
+                  previous_gap_reason: Optional[str] = None,
+                  previous_request_af: Optional[float] = None,
+                  base_af: Optional[float] = None) -> bool:
+    """Historical TR1 with the 45q exception; new runs leave it disabled."""
+    return (skill == 'increase_demand' and wsa in TR1_HIGH_WSA
+            and not restoration_available(previous_gap_reason, previous_request_af, base_af))
 
 WSA_KEY = "WSA_LABEL"
 ACA_KEY = "ACA_LABEL"
@@ -342,8 +359,8 @@ def assert_thinking_rules_match_config(config_path: Path = CONFIG_PATH) -> None:
             f"TR1/TR3 definitions {expected} (item 9)."
         )
     tr1 = next(rule for rule in rules if rule['id'] == RULE_TR1)
-    if tr1.get('exception_precondition') != 'tier_cut_restore_available':
-        raise MetricsError(f"{config_path}: TR1 differs from the pre-registered tier-only exception (item 45p)")
+    if tr1.get('exception_precondition') is not None:
+        raise MetricsError(f"{config_path}: live TR1 still carries the retired tier-cut exception")
 
 
 def assert_short_year_window_matches_config(config_path: Path = CONFIG_PATH) -> None:
@@ -462,6 +479,8 @@ _LLM_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     # pooled with the default reference, through the same "differs from
     # this analysis" check every other water-system key already uses.
     "lb_return_flow_fraction": ("lb_return_flow_fraction",),
+    # Item 46 sensitivity: recorded flat by the LLM runner.
+    "lb_p56_in_tier": ("lb_p56_in_tier",),
     # 2026-10-06 CPU rerun finding: same treatment as lb_return_flow_fraction
     # just above -- 0.10 by default (every existing run); a 0 or 0.05 x W
     # CPU-sensitivity run is refused when pooled with the default
@@ -486,6 +505,8 @@ _FQL_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     "powell_post2026_equalization": ("powell_post2026_equalization",),
     "lb_non_ag_total_maf": ("lb_non_ag_total_maf",),
     "lb_return_flow_fraction": ("water_system_config", "lb_return_flow_fraction"),
+    # Item 46 sensitivity: read from the FQL runner's full config record.
+    "lb_p56_in_tier": ("water_system_config", "lb_p56_in_tier"),
     "min_utilisation_fraction": ("water_system_config", "min_utilisation_fraction"),
     "paper_water_margin": ("paper_water_margin",),
     "lb_tributary_source": ("water_system_config", "lb_tributary_source"),
@@ -500,6 +521,15 @@ _FQL_WATER_KEYS: Dict[str, Tuple[str, ...]] = {
     "ub_subbasin_variant_means_sha256": ("pinned_v3_data_checksums", "ub_subbasin_variant_means_v3_csv"),
 }
 
+# Runs made with the pre-item-46 entitlement table could not record the new
+# P5/P6 ceiling mode because it did not exist.  The old table checksum is the
+# provenance evidence for that historical behavior; current-table manifests
+# must record the mode explicitly.
+_PRE_TIER_CEILING_LB_PRIORITY_SPLIT_SHA256 = (
+    "0b4462d7ea5a3364f433bc84847232d1a42a17e36329e8dbfa2143b6d195d165"
+)
+_PRE_TIER_CEILING_P56_MODE = "legacy_request_proportional"
+
 
 def water_system_signature(info: RunInfo) -> Dict[str, Any]:
     """The water-system keys this run's runner records (see the two maps)."""
@@ -508,6 +538,12 @@ def water_system_signature(info: RunInfo) -> Dict[str, Any]:
     for key, path in mapping.items():
         value = _dig(info.manifest, path)
         if value is _MISSING:
+            if key == "lb_p56_in_tier":
+                split_path = mapping["lb_priority_split_sha256"]
+                split_sha = _dig(info.manifest, split_path)
+                if split_sha == _PRE_TIER_CEILING_LB_PRIORITY_SPLIT_SHA256:
+                    signature[key] = _PRE_TIER_CEILING_P56_MODE
+                    continue
             raise MetricsError(
                 f"{info.path}: manifest has no {'.'.join(path)}; cannot verify its water system")
         signature[key] = value
@@ -522,6 +558,7 @@ def _analysis_water_expectations() -> Dict[str, Any]:
         "powell_post2026_equalization": cfg.powell_post2026_equalization,
         "lb_non_ag_total_maf": cfg.lb_non_ag_total_maf,
         "lb_return_flow_fraction": cfg.lb_return_flow_fraction,
+        "lb_p56_in_tier": cfg.lb_p56_in_tier,
         "min_utilisation_fraction": cfg.min_utilisation_fraction,
         "lb_tributary_source": cfg.lb_tributary_source,
         "lb_priority_mode": cfg.lb_priority_mode,
@@ -1353,13 +1390,25 @@ def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = N
             if (trace.at_cap is None) != decision.aborted:
                 raise MetricsError(f"{info.path} {key}: a state_before is missing on a decision that ran")
         if 'tier_cut_restore' not in info.manifest:
-            # Spec 45q: these audit columns exist only in runs that enforce the
-            # tier-cut exception. A lost manifest write must not score such a
-            # run under the old TR1 definition without a word.
+            # Spec 45q: fail loudly when the audit contains actual evidence of
+            # the retired tier-cut exception.  The generic exception-list
+            # column remains valid in current runs and may be blank; its mere
+            # presence therefore says nothing about the TR1 definition.
             with open(info.path / AUDIT_CSV, encoding="utf-8-sig", newline="") as fh:
-                header = next(csv.reader(fh), [])
-            marked = [c for c in ("rule_exceptions_used", "state_tier_cut_restore_available")
-                      if c in header]
+                audit_rows = list(csv.DictReader(fh))
+            marked = []
+            if any((row.get("state_tier_cut_restore_available") or "").strip()
+                   for row in audit_rows):
+                marked.append("state_tier_cut_restore_available")
+            # The native audit serializer writes pipe-delimited rule IDs.
+            # Retain the old precondition spelling as a defensive marker,
+            # but never mistake a prefix/substring for an actual rule ID.
+            retired_markers = {RULE_TR1, "tier_cut_restore_available"}
+            if any(retired_markers.intersection(
+                    token.strip() for token in
+                    (row.get("rule_exceptions_used") or "").split("|"))
+                   for row in audit_rows):
+                marked.append("rule_exceptions_used")
             if marked:
                 raise MetricsError(
                     f"{info.path}: the audit CSV has {marked} (a spec 45q run) but "
@@ -2963,6 +3012,17 @@ _R = {
     "tier": re.compile(r"^A Tier (\d) Lower Basin shortage applies this year \(Lake Mead was below ([\d,]+) feet on 1 January\): "),
     "tier_volume": re.compile(r"by ([\d,]+) acre-ft in total"),
     "senior": re.compile(r"above ([\d,]+) acre-ft by about"),
+    "junior_ceiling": re.compile(
+        r"limits your junior-priority water this year to about ([\d,]+) acre-ft "
+        r"\(([\d.]+%) of your ([\d,]+) acre-ft junior-priority entitlement\)"),
+    "tier_ceiling": re.compile(r"at or below your ([\d,]+) acre-ft tier ceiling"),
+    "p56_zero": re.compile(r"your ([\d,]+) acre-ft priority-5/6 entitlement adds no water"),
+    "p56_proportional": re.compile(
+        r"[Aa]bout ([\d,]+) acre-ft of your ([\d,]+) acre-ft priority-5/6 entitlement is included"),
+    "p56_label": re.compile(r"[Pp]riority-5/6"),
+    "ceiling_reason": re.compile(
+        r"limit(?:s|ed)? your junior-priority water (?:this|that) year to about ([\d,]+) acre-ft "
+        r"\(([\d.]+%) of your junior-priority entitlement\)"),
     "restore": re.compile(
         r"^(?P<tense>The tier cut is|Last year's tier cut was) a fixed share of the junior-priority "
         r"(?P<part>water you (?P<verb>request|requested)|part of your request, the part above "
@@ -3214,9 +3274,30 @@ class PromptChecker:
     def _mead(self, year: int) -> float:
         return self.run.sim.system[year]["lake_mead_level"] if year >= 1 else MEAD_JAN1_2018_FT
 
-    def _reason(self, line: _Line, frac: Optional[float]) -> None:
-        for m in _R["about_pct"].finditer(line.text):
-            line.expect(m, 1, f"{frac:.0%}" if frac is not None else "(no fraction logged)", "junior-priority cut share")
+    def _new_ceiling_format(self, agent: str, t: int) -> bool:
+        row = self.run.sim.rows[(agent, t)]
+        return (any(key in self.run.info.manifest for key in (
+                    "lb_p56_in_tier", "water_system_lb_p56_in_tier"))
+                or any(key in row for key in (
+                    "lb_junior_ceiling_af", "lb_tier_ceiling_af",
+                    "lb_p56_entitlement_af", "lb_p56_in_tier")))
+
+    def _reason(self, line: _Line, agent: str, t: int) -> None:
+        sim = self.run.sim
+        if self._new_ceiling_format(agent, t):
+            ceiling = sim.opt_num(agent, t, "lb_junior_ceiling_af")
+            entitlement = sim.opt_num(agent, t, "lb_junior_entitlement_af")
+            for m in _R["ceiling_reason"].finditer(line.text):
+                line.expect(m, 1, _f0(ceiling) if ceiling is not None else "(none)",
+                            "junior-priority ceiling")
+                share = None if ceiling is None or entitlement in (None, 0) else ceiling / entitlement
+                line.expect(m, 2, f"{share:.0%}" if share is not None else "(none)",
+                            "junior-priority ceiling share")
+        else:
+            frac = sim.opt_num(agent, t, "lb_junior_tier_cut_fraction")
+            for m in _R["about_pct"].finditer(line.text):
+                line.expect(m, 1, f"{frac:.0%}" if frac is not None else "(no fraction logged)",
+                            "junior-priority cut share")
         for m in _R["capacity"].finditer(line.text):
             line.expect(m, 1, f"{self.cfg.ub_infrastructure_cap_maf:.1f}", "Upper Basin delivery capacity")
 
@@ -3285,6 +3366,9 @@ class PromptChecker:
         m = _R['restore'].match(text)
         if m:
             line.cover(m)
+            if self._new_ceiling_format(agent, t):
+                line.check(False, 'removed tier-restoration sentence in a ceiling-format run')
+                return
             if t == 1:
                 line.check(False, 'tier-restoration sentence in the first year')
                 return
@@ -3379,7 +3463,93 @@ class PromptChecker:
                 senior = self.senior_entitlement(agent)
                 line.expect(ms, 1, _f0(senior) if senior is not None else "(none)", "senior entitlement")
                 line.cover(ms)
-            self._reason(line, sim.opt_num(agent, t, "lb_junior_tier_cut_fraction"))
+            if self._new_ceiling_format(agent, t):
+                junior_entitlement = sim.opt_num(agent, t, "lb_junior_entitlement_af")
+                p56_entitlement = sim.opt_num(agent, t, "lb_p56_entitlement_af")
+                row = sim.rows[(agent, t)]
+                mode = _cell(row, "lb_p56_in_tier", f"{sim.path} [{agent}, year {t}]").strip()
+                manifest_mode = self.run.info.manifest.get(
+                    "lb_p56_in_tier",
+                    self.run.info.manifest.get("water_system_lb_p56_in_tier"),
+                )
+                line.check(mode in ("zero", "proportional"),
+                           f"invalid or missing lb_p56_in_tier {mode!r}")
+                if manifest_mode is not None:
+                    line.check(mode == manifest_mode,
+                               f"lb_p56_in_tier log {mode!r} differs from manifest {manifest_mode!r}")
+                mc = _R["junior_ceiling"].search(text)
+                mt = _R["tier_ceiling"].search(text)
+                frac = sim.opt_num(agent, t, "lb_junior_tier_cut_fraction")
+                holder = (frac is not None and frac > 0.0
+                          and junior_entitlement is not None
+                          and junior_entitlement > 1e-6)
+                line.check((mc is not None) == holder, "junior ceiling sentence holder eligibility")
+                line.check((mt is not None) == holder, "total tier ceiling sentence holder eligibility")
+                ceiling = sim.opt_num(agent, t, "lb_junior_ceiling_af")
+                tier_ceiling = sim.opt_num(agent, t, "lb_tier_ceiling_af")
+                if holder:
+                    entry = self.priority.get(agent)
+                    line.check(entry is not None, "tiered junior holder absent from pinned entitlement table")
+                    line.check(frac is not None and 0.0 < frac <= 1.0,
+                               f"invalid or missing lb_junior_tier_cut_fraction {frac!r}")
+                    if entry is not None:
+                        table_junior = float(entry["junior_entitlement_af"])
+                        table_p56 = float(entry["p56_entitlement_af"])
+                        table_senior = float(entry["senior_entitlement_af"])
+                        line.check(abs(float(junior_entitlement) - table_junior) <= AF_TOL,
+                                   "logged junior entitlement disagrees with pinned table")
+                        line.check(p56_entitlement is not None
+                                   and abs(float(p56_entitlement) - table_p56) <= AF_TOL,
+                                   "logged priority-5/6 entitlement disagrees with pinned table")
+                        if frac is not None and mode in ("zero", "proportional"):
+                            p4 = table_junior - table_p56
+                            expected_junior = p4 * (1.0 - frac)
+                            if mode == "proportional":
+                                expected_junior += table_p56 * (1.0 - frac)
+                            expected_total = table_senior + expected_junior
+                            line.check(ceiling is not None
+                                       and abs(ceiling - expected_junior) <= AF_TOL,
+                                       "logged junior-priority ceiling disagrees with entitlements, f, and mode")
+                            line.check(tier_ceiling is not None
+                                       and abs(tier_ceiling - expected_total) <= AF_TOL,
+                                       "logged total tier ceiling disagrees with senior plus junior ceiling")
+                if mc is not None:
+                    line.expect(mc, 1, _f0(ceiling) if ceiling is not None else "(none)",
+                                "junior-priority ceiling")
+                    share = None if ceiling is None or not junior_entitlement else ceiling / junior_entitlement
+                    line.expect(mc, 2, f"{share:.0%}" if share is not None else "(none)",
+                                "junior-priority ceiling share")
+                    line.expect(mc, 3, _f0(junior_entitlement) if junior_entitlement is not None else "(none)",
+                                "junior-priority entitlement")
+                    line.cover(mc)
+                if mt is not None:
+                    line.expect(mt, 1, _f0(tier_ceiling) if tier_ceiling is not None else "(none)",
+                                "total tier ceiling")
+                    line.cover(mt)
+                mz = _R["p56_zero"].search(text)
+                mp = _R["p56_proportional"].search(text)
+                p56_holder = (holder and p56_entitlement is not None
+                              and p56_entitlement > 1e-6)
+                line.check(bool(mz or mp) == p56_holder, "priority-5/6 sentence holder eligibility")
+                line.check(not (mz and mp), "both priority-5/6 modes stated")
+                if mz is not None:
+                    line.check(mode == "zero", "zero priority-5/6 sentence under another mode")
+                    line.expect(mz, 1, _f0(p56_entitlement) if p56_entitlement is not None else "(none)",
+                                "priority-5/6 entitlement")
+                    line.cover(mz)
+                if mp is not None:
+                    line.check(mode == "proportional", "proportional priority-5/6 sentence under another mode")
+                    frac = sim.opt_num(agent, t, "lb_junior_tier_cut_fraction")
+                    included = (None if p56_entitlement is None or frac is None
+                                else p56_entitlement * (1.0 - frac))
+                    line.expect(mp, 1, _f0(included) if included is not None else "(none)",
+                                "priority-5/6 amount included")
+                    line.expect(mp, 2, _f0(p56_entitlement) if p56_entitlement is not None else "(none)",
+                                "priority-5/6 entitlement")
+                    line.cover(mp)
+                for label in _R["p56_label"].finditer(text):
+                    line.cover(label)
+            self._reason(line, agent, t)
             return
         m = _R["last_year"].match(text)
         if m:
@@ -3391,7 +3561,7 @@ class PromptChecker:
             line.expect(m, 1, _f0(req), "last year's request")
             line.expect(m, 2, _f0(dlv), "last year's delivery")
             line.expect(m, 3, format_share(supply_ratio(dlv, req)), "last year's delivered share")
-            self._reason(line, sim.opt_num(agent, t - 1, "lb_junior_tier_cut_fraction"))
+            self._reason(line, agent, t - 1)
             return
         m = _R["first_year"].match(text)
         if m:
@@ -3414,7 +3584,7 @@ class PromptChecker:
             line.expect(m, 3, format_share(d.supply_ratio), "expected share r")
             line.check(d.supply_ratio < FULL_SUPPLY_RATIO, "a shortfall stated while r >= FULL_SUPPLY_RATIO")
             line.cover(m)
-            self._reason(line, sim.opt_num(agent, t, "lb_junior_tier_cut_fraction"))
+            self._reason(line, agent, t)
             return
         m = _R["right"].match(text)
         if m:
@@ -3525,7 +3695,7 @@ class PromptChecker:
                 line.cover(ms)
             line.check(("Demand fully met." in text) == (share >= FULL_SUPPLY_RATIO)
                        and (ms is not None) == (share < FULL_SUPPLY_RATIO), f"{past}: full/short wording")
-            self._reason(line, sim.opt_num(agent, tk, "lb_junior_tier_cut_fraction"))
+            self._reason(line, agent, tk)
             if upper:
                 mt = _R["mem_ub_trend"].search(text)
                 flag = sim.opt_num(agent, tk, "precipitation_flag")

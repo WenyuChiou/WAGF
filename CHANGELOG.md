@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opts in. The supply rule and H&Y step size remain unchanged. Audit rows and
   manifests record execution uses. Thinking rules gain a generic opt-in
   `exception_precondition`; other domains retain their previous behavior.
+- **Lower Basin entitlement ceilings (irrigation item 46).** In shortage tiers,
+  the six modeled junior-right holders are capped at senior rights plus the
+  uncurtailed share of their P4 entitlement. P5/P6 contributes no tier-year
+  water by default (`lb_p56_in_tier: zero`); `proportional` is retained as an
+  SI mode. Exact holder entitlements are source-linked in the physics notes,
+  and the selected mode is recorded in run manifests and coupling metadata.
+  Prompts, logs, and P5(b) now report and validate the limit, entitlement,
+  percentage, P5/P6 amount, and mode. Item 46 supersedes 45p/45q for new runs:
+  current TR1 is the plain H/VH no-increase rule, while the 45p/45q restoration
+  interpretation remains available only for
+  provenance-marked historical analysis or an explicit analysis override, and
+  the generic broker exception mechanism remains default-off. FQL and the
+  fixed-decision strict, disabled, and feasibility-only replays now use the
+  entitlement ceiling, so their agricultural and non-agricultural outputs
+  change while their stored decisions remain fixed. The pinned table's
+  informational `water_right_af` values were also resynchronized to the
+  request ceilings (for example, CibolaValleyIDD 43,236.2 -> 46,000 AF and
+  CRIR CA 19,664.4 -> 40,000 AF); no runtime reader uses that column.
 - **Separate decision reflection slot (opt-in, default off).**
   `broker/components/memory/engines/humancentric.py`
   (`HumanCentricMemoryEngine`) accepts `reflection_slot: separate`: only the

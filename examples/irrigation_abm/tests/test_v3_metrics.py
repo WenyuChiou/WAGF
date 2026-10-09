@@ -48,6 +48,9 @@ INC, KEEP, DEC = vm.INCREASE, vm.KEEP, vm.DECREASE
 TR1, TR3, SUP, CAP, FLOOR = vm.RULE_TR1, vm.RULE_TR3, vm.RULE_SUPPLY, vm.RULE_CAP, vm.RULE_FLOOR
 CFG = WaterSystemConfig()
 COMMIT = "c" * 40
+OLD_LB_PRIORITY_SPLIT_SHA256 = (
+    "0b4462d7ea5a3364f433bc84847232d1a42a17e36329e8dbfa2143b6d195d165"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +76,7 @@ def llm_manifest(arm: str, seed: int = 42, commit: str = COMMIT, model: str = "m
         "lb_non_ag_total_maf": CFG.lb_non_ag_total_maf,
         # Item 36e (2026-10-05); Opus review P2-2: 0.0 by default.
         "lb_return_flow_fraction": CFG.lb_return_flow_fraction,
+        "lb_p56_in_tier": CFG.lb_p56_in_tier,
         # 2026-10-06 CPU rerun finding: 0.10 by default.
         "min_utilisation_fraction": CFG.min_utilisation_fraction,
         "paper_water_margin": 0.4,
@@ -105,6 +109,7 @@ def fql_manifest(seed: int, commit: str = COMMIT, agents: Sequence[str] = ()) ->
         "paper_water_margin": 0.4, "cluster_method": "hy2021", "step_bin_source": {a: None for a in agents},
         "pinned_v3_data_checksums": _pinned_v3_data_checksums(CFG.ub_subbasin_supply_variant),
         "water_system_config": dataclasses.asdict(WaterSystemConfig(seed=seed)),
+        "lb_p56_in_tier": CFG.lb_p56_in_tier,
     }
 
 
@@ -152,7 +157,10 @@ def sim_rows(system: Dict[int, Dict[str, float]], agent_years: Dict[Tuple[str, i
                "ub_subbasin": sb or "", "ub_subbasin_ratio": 1.0 if sb else "",
                "precipitation_mm": 100.0 if basin == "upper_basin" else "",
                "precipitation_flag": 1 if basin == "upper_basin" else "",
-               "typical_step_af": 100.0, "magnitude_pct": "", "lb_junior_tier_cut_fraction": "" if sb else 0.0}
+               "typical_step_af": 100.0, "magnitude_pct": "", "lb_junior_tier_cut_fraction": "" if sb else 0.0,
+               "lb_junior_ceiling_af": "", "lb_tier_ceiling_af": "",
+               "lb_junior_entitlement_af": "", "lb_p56_entitlement_af": "",
+               "lb_p56_in_tier": CFG.lb_p56_in_tier}
         row.update({k: v for k, v in values.items() if not k.startswith("_")})
         row.update(system[t])
         rows.append(row)
@@ -429,20 +437,44 @@ def test_historical_run_keeps_old_tr1_unless_analysis_override_is_explicit(tmp_p
     assert vm.ibr_metrics(overridden.ordered())["ibr_tr1_count"] == 2
 
 
-@pytest.mark.parametrize("column", ["rule_exceptions_used", "state_tier_cut_restore_available"])
-def test_45q_audit_columns_without_manifest_field_fail_loudly(tmp_path, column):
+@pytest.mark.parametrize(
+    ("column", "value"),
+    [
+        # Native broker payloads are pipe-delimited rule IDs, not the
+        # retired exception precondition. No state flag column is present.
+        ("rule_exceptions_used", "high_scarcity_no_increase"),
+        ("rule_exceptions_used", "water_right_cap|high_scarcity_no_increase"),
+        ("rule_exceptions_used", "tier_cut_restore_available"),
+        ("state_tier_cut_restore_available", "False"),
+    ],
+)
+def test_45q_audit_columns_without_manifest_field_fail_loudly(tmp_path, column, value):
     path = _set_ub1_2019_tier_cut(
         fixture_run(tmp_path, "strict", STRICT_DECISIONS, name="lost_manifest_write"))
     audit = path / vm.AUDIT_CSV
     with open(audit, encoding="utf-8-sig", newline="") as fh:
         rows = list(csv.reader(fh))
     rows[0].append(column)
-    for row in rows[1:]:
-        row.append("")
+    for n, row in enumerate(rows[1:]):
+        row.append(value if n == 0 else "")
     with open(audit, "w", encoding="utf-8", newline="") as fh:
         csv.writer(fh).writerows(rows)
     with pytest.raises(vm.MetricsError, match="lacks 'tier_cut_restore'"):
         vm.load_run(path)
+
+
+@pytest.mark.parametrize("payload", ["", "high_scarcity_no_increase_other"])
+def test_blank_generic_rule_exception_column_is_valid_for_current_runs(tmp_path, payload):
+    path = fixture_run(tmp_path, "strict", STRICT_DECISIONS, name="blank_generic_exceptions")
+    audit = path / vm.AUDIT_CSV
+    with open(audit, encoding="utf-8-sig", newline="") as fh:
+        rows = list(csv.reader(fh))
+    rows[0].append("rule_exceptions_used")
+    for row in rows[1:]:
+        row.append(payload)
+    with open(audit, "w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows(rows)
+    vm.load_run(path)
 
 
 def test_manifest_field_enables_45p_and_45q_tr1_without_random_step_reconstruction(tmp_path):
@@ -1076,6 +1108,49 @@ def test_fql_nonzero_min_utilisation_fraction_refused_against_the_default_refere
     info = vm.read_run_info(write_run(tmp_path / "fql", fql, sims))
     with pytest.raises(vm.ProvenanceError, match="min_utilisation_fraction"):
         vm.check_provenance([run, info])
+
+
+def test_p56_tier_sensitivity_cannot_be_pooled_with_the_default(tmp_path):
+    run = vm.read_run_info(fixture_run(tmp_path, "strict", STRICT_DECISIONS))
+    fql = fql_manifest(42, agents=sorted(AGENTS))
+    fql["lb_p56_in_tier"] = "proportional"
+    fql["water_system_config"]["lb_p56_in_tier"] = "proportional"
+    sims = sim_rows(system_years(3, (13.0, 12.0, 11.5), (11.0, 10.0, 9.0), (0, 0, 1)),
+                    {(a, t): {} for a in AGENTS for t in (1, 2, 3)})
+    info = vm.read_run_info(write_run(tmp_path / "fql_p56", fql, sims))
+    with pytest.raises(vm.ProvenanceError, match="lb_p56_in_tier"):
+        vm.check_provenance([run, info])
+
+
+@pytest.mark.parametrize("kind", ["llm", "fql"])
+def test_pre_ceiling_manifests_get_checksum_gated_historical_p56_marker(tmp_path, kind):
+    if kind == "llm":
+        manifest = llm_manifest("strict", agents=sorted(AGENTS))
+        manifest.pop("lb_p56_in_tier")
+        manifest["coupling_retrofit_metadata"]["water_system_lb_priority_split_sha256"] = (
+            OLD_LB_PRIORITY_SPLIT_SHA256)
+    else:
+        manifest = fql_manifest(42, agents=sorted(AGENTS))
+        manifest.pop("lb_p56_in_tier")
+        manifest["water_system_config"].pop("lb_p56_in_tier")
+        manifest["pinned_v3_data_checksums"]["lb_priority_split_v3_csv"] = (
+            OLD_LB_PRIORITY_SPLIT_SHA256)
+    info = vm.read_run_info(write_run(tmp_path / kind, manifest, []))
+    assert vm.water_system_signature(info)["lb_p56_in_tier"] == "legacy_request_proportional"
+
+
+@pytest.mark.parametrize("kind", ["llm", "fql"])
+def test_current_split_manifest_missing_p56_mode_fails_loudly(tmp_path, kind):
+    if kind == "llm":
+        manifest = llm_manifest("strict", agents=sorted(AGENTS))
+        manifest.pop("lb_p56_in_tier")
+    else:
+        manifest = fql_manifest(42, agents=sorted(AGENTS))
+        manifest.pop("lb_p56_in_tier")
+        manifest["water_system_config"].pop("lb_p56_in_tier")
+    info = vm.read_run_info(write_run(tmp_path / kind, manifest, []))
+    with pytest.raises(vm.MetricsError, match="lb_p56_in_tier"):
+        vm.water_system_signature(info)
 
 
 def test_missing_manifest_is_refused(tmp_path):
@@ -2020,66 +2095,156 @@ def _ub1_memory_2021(checker: vm.PromptChecker, share_2020: Optional[str] = None
             "average that year.\n")
 
 
-@pytest.mark.parametrize('senior', [0., 5940.])
-@pytest.mark.parametrize('tier', [0, 1])
-def test_p5b_reads_every_restoration_sentence_number(tmp_path, senior, tier):
+@pytest.mark.parametrize(
+    ("mode", "p56_included", "p56_sentence"),
+    [
+        ("zero", 0.0,
+         "Priority-5/6 water is not available in a tier year; your 20,000 acre-ft "
+         "priority-5/6 entitlement adds no water to the tier ceiling."),
+        ("proportional", 14_936.0,
+         "About 14,936 acre-ft of your 20,000 acre-ft "
+         "priority-5/6 entitlement is included in the tier ceiling."),
+    ],
+)
+def test_p5b_reads_every_ceiling_and_p56_sentence_number(tmp_path, mode, p56_included, p56_sentence):
     run = _prompt_run(tmp_path, {})
     key = ('LB1', 2)
-    run.sim.rows[('LB1', 1)].update(request='4798', diversion='3826', gap_reason='lb_junior_tier_cut')
-    run.sim.system[2]['shortage_tier'] = tier
-    run.traces[key] = dataclasses.replace(run.traces[key], at_cap=False)
+    junior_ceiling = 59_744.0 + p56_included
+    tier_ceiling = 5_940.0 + junior_ceiling
+    run.sim.rows[key].update(
+        lb_junior_tier_cut_fraction='0.2532',
+        lb_senior_entitlement_af='5940',
+        lb_junior_entitlement_af='100000',
+        lb_junior_ceiling_af=str(junior_ceiling),
+        lb_tier_ceiling_af=str(tier_ceiling),
+        lb_p56_entitlement_af='20000',
+        lb_p56_in_tier=mode,
+    )
+    run.sim.system[2].update(shortage_tier=2, lb_shortage_volume_maf=0.417)
+    run.info.manifest['lb_p56_in_tier'] = mode
+    run.info.manifest['water_system_lb_p56_in_tier'] = mode
     checker = vm.PromptChecker(run, CFG, CFG.ub_subbasin_supply_variant)
     checker.priority = dict(checker.priority)
-    checker.priority['LB1'] = {'senior_entitlement_af': senior, 'junior_entitlement_af': 10000.}
-    start = 'The tier cut is' if tier else "Last year's tier cut was"
-    part = (f'part of your request, the part above {senior:,.0f} acre-ft' if senior
-            else ('water you request' if tier else 'water you requested'))
-    right = 'does not' if tier else 'did not'
-    text = (f'{start} a fixed share of the junior-priority {part}; it {right} change your water right. '
-            'If you choose to keep your request, you ask for the reduced 3,826 acre-ft you received last year. '
-            'To return toward the 4,798 acre-ft you requested last year, choose to increase your request.')
+    checker.priority['LB1'] = {
+        'senior_entitlement_af': 5_940.0,
+        'junior_entitlement_af': 100_000.0,
+        'p56_entitlement_af': 20_000.0,
+    }
+    text = (
+        "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below 1,050 feet on "
+        "1 January): it reduces Lower Basin deliveries by 417,000 acre-ft in total, taken "
+        "from non-agricultural users and from junior-priority agricultural water. "
+        f"This tier limits your junior-priority water this year to about {junior_ceiling:,.0f} "
+        "acre-ft "
+        f"({junior_ceiling / 100_000:.0%} of your 100,000 acre-ft junior-priority entitlement). "
+        f"A request at or below your {tier_ceiling:,.0f} acre-ft tier ceiling is not reduced by "
+        f"the tier. {p56_sentence} The delivery available under that ceiling is reduced only if "
+        "Lake Mead cannot supply all Lower Basin withdrawals this year."
+    )
     good = vm.PromptAudit()
     checker.audit(key, text, good)
     assert not good.mismatches and not good.unchecked
-    replacements = [('3,826', '3,825'), ('4,798', '4,799')]
-    if senior:
-        replacements.append(('5,940', '5,941'))
+    replacements = [
+        (f'{junior_ceiling:,.0f}', f'{junior_ceiling - 1:,.0f}'),
+        (f'{tier_ceiling:,.0f}', f'{tier_ceiling - 1:,.0f}'),
+        (f'{junior_ceiling / 100_000:.0%}', '1%'),
+        ('100,000', '100,001'),
+        ('20,000', '20,001'),
+    ]
+    if mode == 'proportional':
+        replacements.append(('14,936', '14,935'))
     for correct, wrong in replacements:
         bad = vm.PromptAudit()
         checker.audit(key, text.replace(correct, wrong), bad)
         assert bad.mismatches, (correct, wrong)
 
+    # Corrupt prompt and log together: P5 must still reject them against the
+    # pinned entitlement row, f, and mode rather than trusting the CSV.
+    for column, correct, wrong, message in [
+        ("lb_junior_ceiling_af", f"{junior_ceiling:,.0f}", f"{junior_ceiling - 100:,.0f}",
+         "logged junior-priority ceiling disagrees"),
+        ("lb_tier_ceiling_af", f"{tier_ceiling:,.0f}", f"{tier_ceiling - 100:,.0f}",
+         "logged total tier ceiling disagrees"),
+    ]:
+        original = run.sim.rows[key][column]
+        run.sim.rows[key][column] = str(float(original) - 100.0)
+        bad = vm.PromptAudit()
+        checker.audit(key, text.replace(correct, wrong), bad)
+        assert any(message in item for item in bad.mismatches), bad.mismatches
+        run.sim.rows[key][column] = original
 
-@pytest.mark.parametrize("reason,previous_request,diversion,at_cap,expected", [
-    ("lb_mead_availability", "4798", "3826", False, "Lake Mead physical shortage"),
-    ("", "4798", "3826", False, "prior tier-only cut"),
-    ("lb_junior_tier_cut", "2.19", "1.75", False, "formatted request and receipt are equal"),
-    ("lb_junior_tier_cut", "4798", "3826", True, "increase is not on the menu"),
+    original_entitlement = run.sim.rows[key]["lb_junior_entitlement_af"]
+    run.sim.rows[key]["lb_junior_entitlement_af"] = "100001"
+    bad = vm.PromptAudit()
+    checker.audit(key, text.replace("100,000", "100,001"), bad)
+    assert any("logged junior entitlement disagrees" in item for item in bad.mismatches)
+    run.sim.rows[key]["lb_junior_entitlement_af"] = original_entitlement
+
+    original_mode = run.sim.rows[key]["lb_p56_in_tier"]
+    run.sim.rows[key]["lb_p56_in_tier"] = "invented"
+    bad = vm.PromptAudit()
+    checker.audit(key, text, bad)
+    assert any("invalid or missing lb_p56_in_tier" in item for item in bad.mismatches)
+    run.sim.rows[key]["lb_p56_in_tier"] = original_mode
+
+    # A non-holder row (f=0) must not carry the holder-only ceiling sentence,
+    # even when a synthetic row happens to retain a positive entitlement.
+    original_fraction = run.sim.rows[key]["lb_junior_tier_cut_fraction"]
+    run.sim.rows[key]["lb_junior_tier_cut_fraction"] = "0"
+    bad = vm.PromptAudit()
+    checker.audit(key, text, bad)
+    assert any("junior ceiling sentence holder eligibility" in item
+               for item in bad.mismatches)
+    assert any("priority-5/6 sentence holder eligibility" in item
+               for item in bad.mismatches)
+    run.sim.rows[key]["lb_junior_tier_cut_fraction"] = original_fraction
+
+
+@pytest.mark.parametrize("column", [
+    "lb_junior_ceiling_af", "lb_tier_ceiling_af", "lb_junior_entitlement_af",
+    "lb_p56_entitlement_af", "lb_p56_in_tier",
 ])
-def test_p5b_restoration_sentence_uses_prompt_hiding_eligibility(
-        tmp_path, reason, previous_request, diversion, at_cap, expected):
+def test_p5b_new_ceiling_log_fields_fail_loud_when_missing(tmp_path, column):
     run = _prompt_run(tmp_path, {})
     key = ("LB1", 2)
-    run.sim.rows[("LB1", 1)].update(
-        request=previous_request, diversion=diversion, gap_reason=reason or "other_shortfall")
-    trace = run.traces[key]
-    run.traces[key] = dataclasses.replace(
-        trace, at_cap=at_cap,
-        expected_gap_reason="lb_mead_availability" if reason == "lb_mead_availability" else "")
-    if reason == "lb_mead_availability":
-        # A current physical ratio in [FULL_SUPPLY_RATIO, 1) does not fire the
-        # supply rule, but the physical shortage cause still hides P.
-        run.decisions[key] = dataclasses.replace(run.decisions[key], physical_ratio=0.9995)
+    run.info.manifest["lb_p56_in_tier"] = "zero"
+    run.sim.rows[key].update(
+        lb_junior_tier_cut_fraction="0.2532", lb_junior_ceiling_af="74680",
+        lb_tier_ceiling_af="80620", lb_junior_entitlement_af="100000",
+        lb_p56_entitlement_af="0", lb_p56_in_tier="zero",
+    )
+    del run.sim.rows[key][column]
     checker = vm.PromptChecker(run, CFG, CFG.ub_subbasin_supply_variant)
     checker.priority = dict(checker.priority)
-    checker.priority["LB1"] = {"senior_entitlement_af": 0.0, "junior_entitlement_af": 10000.0}
+    checker.priority["LB1"] = {
+        "senior_entitlement_af": 5_940.0,
+        "junior_entitlement_af": 100_000.0,
+        "p56_entitlement_af": 0.0,
+    }
+    text = (
+        "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below 1,050 feet on "
+        "1 January): it reduces Lower Basin deliveries by 417,000 acre-ft in total, taken "
+        "from non-agricultural users and from junior-priority agricultural water. This tier "
+        "limits your junior-priority water this year to about 74,680 acre-ft (75% of your "
+        "100,000 acre-ft junior-priority entitlement). A request at or below your 80,620 "
+        "acre-ft tier ceiling is not reduced by the tier."
+    )
+    with pytest.raises(vm.MetricsError, match=column):
+        checker.audit(key, text, vm.PromptAudit())
+
+
+def test_p5b_rejects_the_removed_restoration_sentence(tmp_path):
+    run = _prompt_run(tmp_path, {})
+    run.info.manifest['water_system_lb_p56_in_tier'] = 'zero'
+    key = ("LB1", 2)
+    checker = vm.PromptChecker(run, CFG, CFG.ub_subbasin_supply_variant)
     text = ("Last year's tier cut was a fixed share of the junior-priority water you requested; "
             "it did not change your water right. If you choose to keep your request, you ask for "
-            f"the reduced {float(diversion):,.0f} acre-ft you received last year. To return toward "
-            f"the {float(previous_request):,.0f} acre-ft you requested last year, choose to increase your request.")
+            "the reduced 3,826 acre-ft you received last year. To return toward the 4,798 acre-ft "
+            "you requested last year, choose to increase your request.")
     audit = vm.PromptAudit()
     checker.audit(key, text, audit)
-    assert any(expected in message for message in audit.mismatches), audit.mismatches
+    assert any("removed tier-restoration sentence" in message for message in audit.mismatches)
 
 
 def test_p5b_reads_the_item_45_memory_and_floor_sentences(tmp_path):

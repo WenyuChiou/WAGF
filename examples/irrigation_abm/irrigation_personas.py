@@ -368,15 +368,20 @@ _REASON_TEXT = {
     "lb_mead_availability": {
         "present": ("Lake Mead cannot meet all Lower Basin withdrawals without falling "
                     "below its minimum pool, so all Lower Basin deliveries are reduced "
-                    "in proportion to requests"),
+                    "in proportion to requests after any tier ceiling is applied"),
         "past": ("Lake Mead could not meet all Lower Basin withdrawals without falling "
                  "below its minimum pool, so all Lower Basin deliveries were reduced "
-                 "in proportion to requests"),
+                 "in proportion to requests after any tier ceiling was applied"),
     },
-    # Item 22 (WP1c): the declared tier cuts this agent's junior-priority part.
+    # Item 46: a declared tier is a reduced-entitlement ceiling, not a cut
+    # applied to the requested junior amount.
     "lb_junior_tier_cut": {
-        "present": "the declared Lower Basin shortage tier cuts your junior-priority water by about {frac:.0%}",
-        "past": "the declared Lower Basin shortage tier cut your junior-priority water by about {frac:.0%}",
+        "present": ("the declared Lower Basin shortage tier limits your junior-priority "
+                    "water this year to about {ceiling:,.0f} acre-ft "
+                    "({share:.0%} of your junior-priority entitlement)"),
+        "past": ("the declared Lower Basin shortage tier limited your junior-priority "
+                 "water that year to about {ceiling:,.0f} acre-ft "
+                 "({share:.0%} of your junior-priority entitlement)"),
     },
 }
 
@@ -389,7 +394,8 @@ def describe_gap_reason(agent_state: Dict[str, Any], tense: str) -> str:
     ``agent_state`` carries ``gap_reason`` (a code from
     ``IrrigationEnvironment._settle``; two codes join with "+"), plus
     ``ub_subbasin_member_count`` for ``ub_subbasin_supply`` and
-    ``lb_junior_tier_cut_fraction`` for ``lb_junior_tier_cut``. ``tense``
+    ``lb_junior_ceiling_af`` and ``lb_junior_entitlement_af`` for
+    ``lb_junior_tier_cut``. ``tense``
     is "present" (this year's expected delivery, the supply rule) or
     "past" (last year's outcome, the memory line).
 
@@ -422,16 +428,23 @@ def describe_gap_reason(agent_state: Dict[str, Any], tense: str) -> str:
             cap = float(agent_state.get("ub_capacity_maf", 5.0) or 5.0)
             parts.append(_REASON_TEXT[c][tense].format(cap=cap))
         elif c == "lb_junior_tier_cut":
-            # The percentage is the state's OWN f_g, never hand-copied, so
-            # the phrase and _settle's actual cut cannot disagree.
-            frac = agent_state.get("lb_junior_tier_cut_fraction")
-            if not frac:
+            missing = [key for key in ("lb_junior_ceiling_af", "lb_junior_entitlement_af")
+                       if key not in agent_state or agent_state[key] is None]
+            if missing:
                 raise ValueError(
                     "describe_gap_reason: gap_reason names lb_junior_tier_cut but "
-                    "lb_junior_tier_cut_fraction is missing or 0 in agent_state; "
-                    "refusing to silently guess the cut percentage."
+                    f"{missing} is missing from agent_state; refusing to silently "
+                    "guess the entitlement ceiling."
                 )
-            parts.append(_REASON_TEXT[c][tense].format(frac=frac))
+            ceiling = float(agent_state["lb_junior_ceiling_af"])
+            entitlement = float(agent_state["lb_junior_entitlement_af"])
+            if entitlement <= 0:
+                raise ValueError(
+                    "describe_gap_reason: gap_reason names lb_junior_tier_cut but "
+                    f"lb_junior_entitlement_af={entitlement!r} is not positive."
+                )
+            parts.append(_REASON_TEXT[c][tense].format(
+                ceiling=ceiling, share=ceiling / entitlement))
         elif c in _REASON_TEXT:
             parts.append(_REASON_TEXT[c][tense])
         else:
@@ -583,9 +596,6 @@ def build_water_situation_text(
             f"from last year)."
         )
         lines.append(_lower_basin_tier_text(env_context))
-        junior_restore_text = _junior_restore_prompt_text(env_context, last_year)
-        if junior_restore_text is not None:
-            lines.append(junior_restore_text)
 
     # Last year's outcome (final settlement); in the first year, the 2018 use.
     if last_year is not None:
@@ -623,84 +633,17 @@ def build_water_situation_text(
     return "\n".join(lines)
 
 
-def _junior_restore_prompt_text(
-    env_context: Dict[str, Any],
-    last_year: Optional[Dict[str, Any]],
-) -> Optional[str]:
-    """Return spec-45p recovery guidance after a tier-only cut, if eligible."""
-    if last_year is None or last_year.get("gap_reason") != "lb_junior_tier_cut":
-        return None
-    current_gap_codes = set(str(env_context.get("gap_reason") or "none").split("+"))
-    if "lb_mead_availability" in current_gap_codes:
-        return None
-    junior_entitlement = env_context.get("lb_junior_entitlement_af")
-    if junior_entitlement is None or float(junior_entitlement) <= 1e-6:
-        return None
-    if env_context.get("at_allocation_cap", False):
-        return None
-    last_request = float(last_year["request"])
-    last_delivery = float(last_year["diversion"])
-    if last_request <= last_delivery:
-        return None
-
-    base = float(env_context["current_request"])
-    if f"{last_request:,.0f}" == f"{base:,.0f}":
-        return None
-    senior_entitlement = float(env_context["lb_senior_entitlement_af"])
-    if int(env_context["shortage_tier"]) > 0:
-        if senior_entitlement <= 1e-6:
-            opening = (
-                "The tier cut is a fixed share of the junior-priority water you request; "
-                "it does not change your water right."
-            )
-        else:
-            opening = (
-                "The tier cut is a fixed share of the junior-priority part of your request, "
-                f"the part above {senior_entitlement:,.0f} acre-ft; it does not change your "
-                "water right."
-            )
-    elif senior_entitlement <= 1e-6:
-        opening = (
-            "Last year's tier cut was a fixed share of the junior-priority water you "
-            "requested; it did not change your water right."
-        )
-    else:
-        opening = (
-            "Last year's tier cut was a fixed share of the junior-priority part of your "
-            f"request, the part above {senior_entitlement:,.0f} acre-ft; it did not change "
-            "your water right."
-        )
-    return (
-        f"{opening} If you choose to keep your request, you ask for the reduced "
-        f"{base:,.0f} acre-ft "
-        f"you received last year. To return toward the {last_request:,.0f} acre-ft you "
-        "requested last year, choose to increase your request."
-    )
-
-
 def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
-    """The Lower Basin declared-shortage sentence (spec 4.3, items 14, 22).
+    """Describe a declared Lower Basin tier and its fixed entitlement ceiling.
 
-    The declared tier's volume V (2007 ROD, 333/417/500 kaf) is borne by the
-    non-agricultural aggregate (item 14) less whatever the tier cuts from
-    junior-priority agricultural water (item 22, ``lb_priority_mode="split"``,
-    the v3 default); the two together remove exactly V. So the sentence names
-    both takers in split mode, and the non-agricultural users alone in
-    ``senior_all`` mode, where no junior cut exists. An agent whose request at
-    the keep request has a junior-priority part is told its own cut; every
-    other agent is told that its delivery is reduced only if Lake Mead cannot
-    supply all withdrawals, which is true for it in both modes (spec 4.3's
-    "Agricultural deliveries, including yours, are reduced only if ..." is
-    false in split mode for the junior-priority water of six agents, so it is
-    stated per agent). No agency is named (L3 D3).
-
-    Spec item 29f: an agent that holds junior-priority water but whose keep
-    request lies within its senior entitlement (no junior part to cut this
-    year) is told that the tier would cut any part of a request above that
-    entitlement, since an increase beyond it would be junior-priority water
-    (``_settle`` fills the senior entitlement first). An agent outside the
-    priority table (``lb_junior_entitlement_af`` None, a synthetic mock
-    agent the environment treats as fully senior) reads the senior sentence.
+    In split mode, each of the six junior holders receives a ceiling equal to
+    senior entitlement plus retained priority-4 entitlement; priority-5/6 is
+    excluded by default and retained proportionally only in the named
+    sensitivity. The tier volume is shared between those agricultural
+    entitlement reductions and the residual non-agricultural reduction.
+    Other agricultural agents, and every agent in ``senior_all`` mode, have no
+    agricultural tier ceiling. Physical Mead sharing is applied afterward to
+    requests already capped by any tier ceiling. No agency is named (L3 D3).
     """
     # Direct index (review LOW 10): get_agent_context always sets the tier.
     tier = int(env_context["shortage_tier"])
@@ -714,8 +657,12 @@ def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
             "'lb_shortage_volume_maf' or 'shortage_tier_threshold_ft' is missing "
             "from env_context; refusing to state a tier without its volume and level."
         )
-    missing = [k for k in ("lb_junior_request_af", "lb_junior_tier_cut_fraction",
-                           "lb_junior_entitlement_af") if k not in env_context]
+    missing = [k for k in (
+        "lb_junior_request_af", "lb_junior_tier_cut_fraction",
+        "lb_senior_entitlement_af", "lb_junior_entitlement_af",
+        "lb_junior_ceiling_af", "lb_tier_ceiling_af",
+        "lb_p56_entitlement_af", "lb_p56_in_tier",
+    ) if k not in env_context]
     if missing:
         raise ValueError(
             f"build_water_situation_text: shortage_tier={tier} is declared for a "
@@ -723,8 +670,13 @@ def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
             "to silently treat a real value as 0."
         )
     junior_fraction = env_context["lb_junior_tier_cut_fraction"] or 0.0
-    junior_request_af = env_context["lb_junior_request_af"] or 0.0
     junior_entitlement_af = env_context["lb_junior_entitlement_af"]
+    p56_mode = env_context["lb_p56_in_tier"]
+    if p56_mode not in ("zero", "proportional"):
+        raise ValueError(
+            "build_water_situation_text: lb_p56_in_tier must be 'zero' or "
+            f"'proportional', got {p56_mode!r}."
+        )
     opening = (
         f"A Tier {tier} Lower Basin shortage applies this year (Lake Mead was below "
         f"{threshold_ft:,.0f} feet on 1 January): "
@@ -740,48 +692,51 @@ def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
             f"it reduces deliveries to Lower Basin non-agricultural users by "
             f"{volume_maf * 1e6:,.0f} acre-ft in total."
         )
-    if junior_request_af > 1e-6 and junior_fraction > 0:
-        # WP1c review round 2 (MEDIUM 2): the three agents with no senior
-        # entitlement (Cibola Valley IDD, Hopi Tribe, North Baja LLC) hold
-        # junior-priority water only.
-        senior_ent = env_context.get("lb_senior_entitlement_af")
-        if senior_ent is None:
-            raise ValueError(
-                "build_water_situation_text: this decision has a positive "
-                "lb_junior_request_af but 'lb_senior_entitlement_af' is missing "
-                "from env_context; refusing to guess whether this agent holds "
-                "any senior water at all."
-            )
-        share_word = "All" if senior_ent <= 1e-6 else "Part"
-        return (
-            f"{opening} {share_word} of your water right is junior-priority, and this "
-            f"tier cuts your junior-priority water by about {junior_fraction:.0%}. The "
-            "rest of your delivery is reduced only if Lake Mead cannot supply all "
-            "Lower Basin withdrawals this year."
-        )
     if junior_fraction > 0 and junior_entitlement_af is not None and junior_entitlement_af > 1e-6:
-        # Item 29f: junior-priority water held, none requested at the keep
-        # request; an increase beyond the senior entitlement would be cut.
-        senior_ent = env_context.get("lb_senior_entitlement_af")
-        if senior_ent is None:
+        senior_ent = env_context["lb_senior_entitlement_af"]
+        junior_ceiling = env_context["lb_junior_ceiling_af"]
+        tier_ceiling = env_context["lb_tier_ceiling_af"]
+        p56_entitlement = env_context["lb_p56_entitlement_af"]
+        valued = {
+            "lb_senior_entitlement_af": senior_ent,
+            "lb_junior_ceiling_af": junior_ceiling,
+            "lb_tier_ceiling_af": tier_ceiling,
+            "lb_p56_entitlement_af": p56_entitlement,
+        }
+        absent = [key for key, value in valued.items() if value is None]
+        if absent:
             raise ValueError(
-                "build_water_situation_text: this agent holds junior-priority water "
-                "but 'lb_senior_entitlement_af' is missing from env_context; refusing "
-                "to state where its junior-priority part begins."
+                f"build_water_situation_text: tiered junior holder has {absent} missing "
+                "from env_context; refusing to guess its entitlement ceiling."
             )
-        if senior_ent <= 1e-6:
-            return (
-                f"{opening} All of your water right is junior-priority: this tier would "
-                f"cut any request by about {junior_fraction:.0%}. The rest of your "
-                "delivery is reduced only if Lake Mead cannot supply all Lower Basin "
-                "withdrawals this year."
-            )
-        return (
-            f"{opening} Part of your water right is junior-priority: this tier would cut "
-            f"any part of a request above {senior_ent:,.0f} acre-ft by about "
-            f"{junior_fraction:.0%}. Up to that amount, your delivery is reduced only if "
-            "Lake Mead cannot supply all Lower Basin withdrawals this year."
+        junior_ceiling = float(junior_ceiling)
+        tier_ceiling = float(tier_ceiling)
+        p56_entitlement = float(p56_entitlement)
+        sentences = [
+            f"{opening} This tier limits your junior-priority water this year to about "
+            f"{junior_ceiling:,.0f} acre-ft ({junior_ceiling / junior_entitlement_af:.0%} "
+            f"of your {junior_entitlement_af:,.0f} acre-ft junior-priority entitlement).",
+            f"A request at or below your {tier_ceiling:,.0f} acre-ft tier ceiling is not "
+            "reduced by the tier.",
+        ]
+        if p56_entitlement > 1e-6:
+            if p56_mode == "zero":
+                sentences.append(
+                    "Priority-5/6 water is not available in a tier year; your "
+                    f"{p56_entitlement:,.0f} acre-ft priority-5/6 entitlement adds no "
+                    "water to the tier ceiling."
+                )
+            else:
+                sentences.append(
+                    f"About {p56_entitlement * (1.0 - junior_fraction):,.0f} acre-ft of your "
+                    f"{p56_entitlement:,.0f} acre-ft priority-5/6 entitlement is included "
+                    "in the tier ceiling."
+                )
+        sentences.append(
+            "The delivery available under that ceiling is reduced only if Lake Mead "
+            "cannot supply all Lower Basin withdrawals this year."
         )
+        return " ".join(sentences)
     return (
         f"{opening} Your delivery is reduced only if Lake Mead cannot supply all "
         "Lower Basin withdrawals this year."
@@ -985,13 +940,14 @@ def _build_trend_text(basin: str, preceding_factor: int, subbasin: bool = True,
 # (test_reflection_rules_are_the_decision_prompt_words), so the two cannot drift.
 ALLOCATION_RULES = {
     "lower_basin_junior": (
-        "Part or all of your water right is junior-priority, and the declared shortage "
-        "tier cuts that part directly. A larger request would have its junior-priority "
-        "part cut by the same tier.",
-        "If Lake Mead is also physically short, the rest is shared in proportion to "
-        "requests, and a larger request would raise your share only by lowering the "
-        "deliveries of other users in the Lower Basin; it would not add water to the "
-        "Lower Basin.",
+        "In a year with a declared shortage tier, your junior-priority water is limited "
+        "to a fixed share of your entitlement. A request at or below the tier ceiling is "
+        "not reduced by the tier that year. Above the tier ceiling, a larger request adds "
+        "no deliverable water.",
+        "When water is physically short, it is shared in proportion to requests capped "
+        "by the tier ceiling, so within that ceiling a larger request would raise your "
+        "share only by lowering the deliveries of other users in the Lower Basin; it "
+        "would not add water to the Lower Basin.",
     ),
     "lower_basin": (
         "A declared shortage does not by itself reduce your delivery; only Lake Mead's "
@@ -1020,11 +976,12 @@ def reflection_rule_lines(agent_context: Dict[str, Any]) -> List[str]:
     """The allocation rules that apply to this agent (spec item 45h), from
     ``IrrigationEnvironment.get_agent_context``: a Lower Basin agent holding
     junior-priority water (``lb_junior_entitlement_af`` above 0) reads that
-    the tier cuts its junior part whatever the request; any other Lower
-    Basin agent, that a declared shortage alone does not cut it; an Upper
-    Basin agent, that a shortage is shared in proportion to requests within
-    its sub-basin (no one to share with for the only member; the basin-wide
-    pool for a synthetic agent without a sub-basin)."""
+    a declared tier caps junior water at a fixed entitlement share and that
+    physical shortage sharing uses requests capped by that tier ceiling; any
+    other Lower Basin agent reads that a declared shortage alone does not cut
+    it. An Upper Basin agent reads that a shortage is shared in proportion to
+    requests within its sub-basin (no one to share with for the only member;
+    the basin-wide pool for a synthetic agent without a sub-basin)."""
     supply_mode = agent_context.get("ub_supply_mode")
     if supply_mode != "subbasin":
         raise ValueError(
@@ -1056,14 +1013,14 @@ def dashboard_sharing_flags(agent_state: Dict[str, Any]) -> Dict[str, float]:
     """0/1 flags that pick the feedback-dashboard warning naming who shares a
     shortage (spec 4.6), decided from the settled ``gap_reason`` the way the
     supply rule's sharing sentence decides it
-    (``validators/irrigation_validators.py (_sharing_sentence)``): the tier's
-    cut of the agent's own junior-priority water; Lake Mead's availability
-    (other Lower Basin users), split by whether the agent holds any
-    junior-priority water (spec item 29f: for such an agent a declared
-    shortage DOES cut the part of a request above its senior entitlement, so
-    its warning cannot say a declared shortage never reduces its delivery);
-    the agent's own sub-basin (other users in it, or nobody for the only
-    member); the basin-wide Upper Basin backstop (other Upper Basin users).
+    (``validators/irrigation_validators.py (_sharing_sentence)``): the tier
+    ceiling that limits the agent's own junior-priority water; Lake Mead's
+    availability (other Lower Basin users), split by whether the agent holds
+    any junior-priority water (spec item 46: for such an agent a declared tier
+    can cap a request above its tier ceiling, so its warning cannot say that a
+    declared shortage never reduces its delivery); the agent's own sub-basin
+    (other users in it, or nobody for the only member); the basin-wide Upper
+    Basin backstop (other Upper Basin users).
     At most one flag is 1; all are 0 in a year with no shortfall. Numbers,
     not strings, because the dashboard's assertion evaluator compares numbers
     only; ``display: false`` in the YAML keeps them out of the table.
@@ -1540,6 +1497,14 @@ def build_simulation_log_row(
         "lb_junior_af": agent_state.get("lb_junior_af"),
         "lb_junior_cut_af": agent_state.get("lb_junior_cut_af"),
         "lb_junior_tier_cut_fraction": agent_state.get("lb_junior_tier_cut_fraction"),
+        # Item 46: fixed reduced-entitlement ceilings and the P5/P6
+        # sensitivity. These keys are present on every row; Upper Basin
+        # values are blank except for the run-wide mode.
+        "lb_junior_ceiling_af": agent_state.get("lb_junior_ceiling_af"),
+        "lb_tier_ceiling_af": agent_state.get("lb_tier_ceiling_af"),
+        "lb_junior_entitlement_af": agent_state.get("lb_junior_entitlement_af"),
+        "lb_p56_entitlement_af": agent_state.get("lb_p56_entitlement_af"),
+        "lb_p56_in_tier": agent_state.get("lb_p56_in_tier"),
     }
 
 
