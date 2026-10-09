@@ -423,7 +423,7 @@ class AgentTypeConfig:
                     raise ValueError("exception_precondition must name a non-empty state flag")
             for key, value in node.items():
                 AgentTypeConfig._validate_rule_exceptions(
-                    value, key if key.endswith("_rules") else rule_type)
+                    value, key if isinstance(key, str) and key.endswith("_rules") else rule_type)
         elif isinstance(node, list):
             for value in node:
                 AgentTypeConfig._validate_rule_exceptions(value, rule_type)

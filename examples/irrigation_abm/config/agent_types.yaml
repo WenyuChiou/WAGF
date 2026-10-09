@@ -47,6 +47,7 @@ global_config:
     # and the 2 significant event slots; year-end reflection explicitly opts
     # out so its outcome-only input remains byte-for-byte unchanged.
     reflection_slot: separate
+    recall_skip_key: "routine"
 
   reflection:
     interval: 1
@@ -321,6 +322,8 @@ shared:
 # IRRIGATION FARMER AGENT TYPE
 # =============================================================================
 irrigation_farmer:
+  # PI decision/spec item 47; identical in strict and disabled.
+  keepfix_package: {spec_item: 47, MB: true, table: true, S1: true, L: true, K6: true, routine_tier_scope: affects_agent}  # affects_agent: spec item 48 (2026-10-09, PI, after T15)
   description: >
     Agricultural water user in the Colorado River Basin making annual
     irrigation demand decisions.  Three behavioral clusters from Hung & Yang
@@ -533,6 +536,19 @@ irrigation_farmer:
         # analytics/feedback.py); the metric keeps its name, which the
         # assertions below and their {supply_fmt} placeholders read.
         label: "received"
+      - {name: "ub_flow_share", source: "ub_flow_share", label: "sub-basin river flow", unit: "% of 1971-2018 average", format: ".0%", only_if_recorded: true}
+      - name: "ub_winter_trend"
+        source: "ub_winter_trend"
+        label: "sub-basin winter precipitation"
+        unit: "vs previous winter"
+        only_if_recorded: true
+        value_labels: {0: "below", 1: "above"}
+      - name: "lb_mead_trend"
+        source: "lb_mead_trend"
+        label: "Lake Mead on 1 January"
+        unit: "vs a year earlier"
+        only_if_recorded: true
+        value_labels: {0: "lower", 1: "higher"}
       # v3 (WP4, spec 4.6): 0/1 flags that pick the warning below naming WHO
       # shares a shortage, decided from last year's settled gap_reason the
       # way the supply rule's sharing sentence decides it

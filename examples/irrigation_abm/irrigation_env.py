@@ -2113,6 +2113,22 @@ class IrrigationEnvironment:
         self._pending_settlement = None
         provisional = self._settle(self._snapshot)
         self._write_agent_deliveries(provisional)
+        if getattr(self, "keepfix_s1", False):
+            for aid, agent in self._agents.items():
+                agent["increase_expectation"] = None
+                if agent["at_allocation_cap"]:
+                    continue
+                step_bin = resolve_step_bin_af(agent.get("step_bin_af"), agent.get("bin_size_af"), agent["water_right"])
+                step = hy_threshold_af(agent["mu"], agent["sigma"], step_bin)
+                # build_option_texts rounds each displayed component once,
+                # then adds those integers.  S1 names the menu's own target,
+                # so settle that exact target rather than the raw-float sum.
+                target = min(
+                    round(agent["request"]) + round(step),
+                    round(agent["water_right"]),
+                )
+                increased = self._settle(self._snapshot, requests={aid: target})["agents"][aid]
+                agent["increase_expectation"] = (target, increased)
         # spec 1.5: curtailment_ratio is written from each settlement,
         # provisional (here) then final (settle_year) -- see _apply_curtailment.
         self._apply_curtailment(provisional["lb_cut"])
@@ -2346,6 +2362,10 @@ class IrrigationEnvironment:
             "at_allocation_cap": agent.get("at_allocation_cap", False),
             "has_efficient_system": agent.get("has_efficient_system", False),
             "below_minimum_utilisation": agent.get("below_minimum_utilisation", False),
+            "keepfix_s1": getattr(self, "keepfix_s1", False),
+            "increase_request_af": (agent["increase_expectation"][0] if agent.get("increase_expectation") else None),
+            "increase_delivery_af": (agent["increase_expectation"][1]["delivered"] if agent.get("increase_expectation") else None),
+            "increase_settlement": (agent["increase_expectation"][1] if agent.get("increase_expectation") else None),
             "cluster": agent.get("cluster", "unknown"),
             # WP1b (item 20): this agent's sub-basin (None for Lower Basin
             # / no-sub-basin agents), its member count, its own sub-basin

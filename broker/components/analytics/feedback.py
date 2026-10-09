@@ -90,13 +90,27 @@ class AgentMetricsTracker:
         self._history: Dict[str, List[Dict[str, Any]]] = {}
         self._metric_names = list(metric_names)
         self._window = window
+        self._optional_metrics = set()
 
     # -- public API -------------------------------------------------------
+
+    def set_optional_metrics(self, metric_names: List[str]) -> None:
+        """Mark metrics whose missing samples must remain absent.
+
+        Call before recording snapshots. Missing optional values are omitted
+        from storage and trend calculations rather than treated as zeros.
+        """
+        unknown = set(metric_names) - set(self._metric_names)
+        if unknown:
+            raise ValueError(f"Unknown optional metrics: {sorted(unknown)}")
+        self._optional_metrics.update(metric_names)
 
     def record(self, agent_id: str, year: int, metrics: Dict[str, float]) -> None:
         """Record a metrics snapshot for *agent_id* at *year*."""
         entry: Dict[str, Any] = {"year": year}
         for name in self._metric_names:
+            if name in self._optional_metrics and name not in metrics:
+                continue
             entry[name] = metrics.get(name, 0.0)
         self._history.setdefault(agent_id, []).append(entry)
 
@@ -117,12 +131,16 @@ class AgentMetricsTracker:
         the window to the average of the second half (±5 % tolerance).
         """
         history = self.get_history(agent_id)
-        if len(history) < 2:
-            return {m: "insufficient_data" for m in self._metric_names}
-
         trends: Dict[str, str] = {}
         for metric in self._metric_names:
-            values = [h.get(metric, 0.0) for h in history]
+            optional = metric in self._optional_metrics
+            values = [h.get(metric, 0.0) for h in history
+                      if not optional or metric in h]
+            if optional and not values:
+                continue
+            if len(values) < 2:
+                trends[metric] = "insufficient_data"
+                continue
             mid = len(values) // 2
             first_half = values[:mid] or values[:1]
             second_half = values[mid:]
@@ -243,6 +261,13 @@ class FeedbackDashboardProvider(ContextProvider):
                 f"{type(self._show_trend).__name__} {self._show_trend!r}."
             )
         for cfg in self._metrics_cfg:
+            if not isinstance(cfg.get("only_if_recorded", False), bool):
+                raise ValueError("only_if_recorded must be a bool")
+            labels = cfg.get("value_labels", {})
+            if not isinstance(labels, dict) or any(not isinstance(v, str) for v in labels.values()):
+                raise ValueError("value_labels must map coded values to strings")
+            if cfg.get("only_if_recorded", False):
+                self.tracker.set_optional_metrics([cfg["name"]])
             if not isinstance(cfg.get("display", True), bool):
                 raise ValueError(
                     f"feedback.tracked_metrics[{cfg.get('name')!r}].display must be "
@@ -323,6 +348,7 @@ class FeedbackDashboardProvider(ContextProvider):
                 return {
                     cfg["name"]: float(entry.get(cfg["name"], 0))
                     for cfg in self._metrics_cfg
+                    if not cfg.get("only_if_recorded", False) or cfg["name"] in entry
                 }
 
         # Fallback: resolve from env_context
@@ -330,6 +356,8 @@ class FeedbackDashboardProvider(ContextProvider):
         for cfg in self._metrics_cfg:
             name = cfg["name"]
             source = cfg.get("source", name)
+            if cfg.get("only_if_recorded", False) and source not in env_context:
+                continue
             result[name] = float(env_context.get(source, 0))
         return result
 
@@ -369,16 +397,27 @@ class FeedbackDashboardProvider(ContextProvider):
             return ""
 
         # Column headers from config (``display: false`` metrics hidden)
+        shown = [cfg for cfg in self._shown_cfg if not cfg.get("only_if_recorded", False)
+                 or any(cfg["name"] in entry for entry in history)]
         headers = ["Year"] + [
-            f"{cfg.get('label', cfg['name'])} ({cfg.get('unit', '')})" for cfg in self._shown_cfg
+            f"{cfg.get('label', cfg['name'])} ({cfg.get('unit', '')})" for cfg in shown
         ]
 
         # Build rows from history
         rows: List[List[str]] = []
         for entry in history:
             row = [str(entry.get("year", "?"))]
-            for cfg in self._shown_cfg:
+            for cfg in shown:
+                if cfg.get("only_if_recorded", False) and cfg["name"] not in entry:
+                    row.append("")
+                    continue
                 val = entry.get(cfg["name"], 0)
+                labels = cfg.get("value_labels", {})
+                if labels:
+                    if val not in labels:
+                        raise ValueError(f"{cfg['name']}: no value label for {val!r}")
+                    row.append(labels[val])
+                    continue
                 fmt_spec = cfg.get("format", "")
                 try:
                     row.append(format(val, fmt_spec) if fmt_spec else str(val))
@@ -414,6 +453,8 @@ class FeedbackDashboardProvider(ContextProvider):
         parts = []
         for cfg in self._shown_cfg:
             name = cfg["name"]
+            if cfg.get("only_if_recorded", False) and name not in trends:
+                continue
             direction = trends.get(name, "N/A")
             arrow = _TREND_ARROWS.get(direction, direction)
             parts.append(f"{name} {arrow}")

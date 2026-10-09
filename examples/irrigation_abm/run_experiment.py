@@ -43,6 +43,7 @@ from examples.irrigation_abm.irrigation_personas import (
     build_narrative_persona,
     build_water_situation_text,
     build_action_outcome_feedback,
+    is_routine_outcome, K6_SENIOR_TIER_TEXT,
     build_option_notes,
     build_option_texts,
     build_simulation_log_row,
@@ -520,6 +521,9 @@ class IrrigationLifecycleHooks:
             if profile is None:
                 continue
 
+            ctx["keepfix_land_need"] = bool(getattr(self.env, "keepfix_land_need", False) and profile.peak_obs_af is not None)
+            ctx["peak_obs_af"] = profile.peak_obs_af
+            ctx.update(supply_rule_fields(ctx, self.env.get_agent_state(aid)))
             # Build dynamic context attributes for prompt template. The F05
             # snapshot (last year's settled request / delivery / reason) feeds
             # the "Last year you requested ..." sentence (spec 4.3); in the
@@ -701,6 +705,11 @@ class IrrigationLifecycleHooks:
                     # HumanCentricMemoryEngine's decay_by_calendar_year
                     # option (default off elsewhere; on in irrigation).
                     "year": snapshot["calendar_year"],
+                    "routine": is_routine_outcome(
+                        action_ctx, snapshot, ctx["basin"],
+                        routine_tier_scope=getattr(self.env, "routine_tier_scope", "any_tier"),
+                        tier_affects_agent=aid in getattr(self.env, "tier_affected_agents", set()),
+                    ),
                 })
 
     # -- post_step: record each agent's decision --
@@ -819,6 +828,7 @@ class IrrigationLifecycleHooks:
                 "ub_subbasin_flow_share": agent_context.get("ub_subbasin_flow_share"),
                 # Spec item 45g.
                 "previous_request": previous["request"] if previous else None,
+                "initial_request": agent_state["base_af"] if year == 1 else None,
                 "previous_diversion": previous["diversion"] if previous else None,
             }
 
@@ -853,10 +863,20 @@ class IrrigationLifecycleHooks:
                         "lb_junior_entitlement_af": agent_context["lb_junior_entitlement_af"],
                     }),
                 }
+                if agent_context["basin"] == "upper_basin":
+                    if agent_context["ub_subbasin_flow_share"] is not None:
+                        settled["ub_flow_share"] = agent_context["ub_subbasin_flow_share"]
+                        settled["ub_winter_trend"] = agent_context["preceding_factor"]
+                else:
+                    settled["lb_mead_trend"] = agent_context["preceding_factor"]
                 fb_metrics = {}
                 for m_cfg in self.feedback_config.get("tracked_metrics", []):
                     src = m_cfg["source"]
-                    fb_metrics[m_cfg["name"]] = float(settled.get(src, agent_state.get(src, 0)) or 0)
+                    if m_cfg.get("only_if_recorded", False):
+                        if src in settled and settled[src] is not None:
+                            fb_metrics[m_cfg["name"]] = float(settled[src])
+                    else:
+                        fb_metrics[m_cfg["name"]] = float(settled.get(src, agent_state.get(src, 0)) or 0)
                 self.metrics_tracker.record(aid, self.env.current_year, fb_metrics)
 
             dec = self.yearly_decisions.get((aid, year), {})
@@ -865,7 +885,10 @@ class IrrigationLifecycleHooks:
 
             # Retrieve memory for logging (memory_engine.retrieve returns List[Dict]
             # with content/timestamp/importance/emotion; coerce to string before join)
-            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
+            # The CSV is an offline record of unfiltered retrieval, not the
+            # MB-filtered decision prompt. Keep routine outcomes available to
+            # offline counts; the reflection-slot setting remains unchanged.
+            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5, recall_skip_key=None)
             if isinstance(mem_items, list):
                 mem_str = " | ".join(
                     (m.get("content", "") if isinstance(m, dict) else str(m))
@@ -1004,7 +1027,7 @@ class IrrigationLifecycleHooks:
             # Reflection input must retain its pre-45m outcome selection, so
             # opt out for this call before filtering reflections below.
             for m in self.runner.memory_engine.retrieve(
-                    agent, top_k=10, reflection_slot=None):
+                    agent, top_k=10, reflection_slot=None, recall_skip_key=None):
                 if _is_reflection_memory(m):
                     continue
                 text = m.get("content", "") if isinstance(m, dict) else str(m)
@@ -1155,7 +1178,7 @@ class IrrigationLifecycleHooks:
                 continue
             # Keep the pre-item-45m outcome-only reflection input unchanged.
             mems = [m for m in self.runner.memory_engine.retrieve(
-                        agent, top_k=10, reflection_slot=None)
+                        agent, top_k=10, reflection_slot=None, recall_skip_key=None)
                     if not _is_reflection_memory(m)]
             if mems:
                 agent_ctx = self._reflection_importance_context(aid, agent, year)
@@ -1566,6 +1589,7 @@ def _record_memory_options_provenance(output_dir: Path, memory_engine) -> None:
             "decay_ignore_emotion": memory_engine.decay_ignore_emotion,
             "decay_by_calendar_year": memory_engine.decay_by_calendar_year,
             "reflection_slot": memory_engine.reflection_slot,
+            "recall_skip_key": memory_engine.recall_skip_key,
         }
     except AttributeError as e:
         print(f"[Provenance] WARNING: memory_engine has no resolved memory options to "
@@ -1779,6 +1803,75 @@ def _git_state_at_launch():
         return "unavailable", None, None
 
 
+def _validate_keepfix_config(cfg_data):
+    """Resolve item 47 options and reject a silently ineffective MB filter."""
+    package = cfg_data.get("irrigation_farmer", {}).get("keepfix_package", {})
+    if not isinstance(package, dict):
+        raise ValueError("keepfix_package must be a mapping")
+    allowed = {"spec_item", "MB", "table", "S1", "L", "K6", "routine_tier_scope"}
+    unknown = set(package) - allowed
+    if unknown:
+        raise ValueError(f"Unknown keepfix_package keys: {sorted(unknown)}")
+    if "spec_item" in package and (type(package["spec_item"]) is not int or package["spec_item"] != 47):
+        raise ValueError("keepfix_package.spec_item must be 47")
+    for element in ("MB", "table", "S1", "L", "K6"):
+        if not isinstance(package.get(element, False), bool):
+            raise ValueError(f"keepfix_package.{element} must be a bool")
+    scope = package.get("routine_tier_scope", "any_tier")
+    if scope not in ("any_tier", "affects_agent"):
+        raise ValueError("keepfix_package.routine_tier_scope must be any_tier or affects_agent")
+    skip_key = cfg_data.get("global_config", {}).get("memory", {}).get("recall_skip_key")
+    if package.get("MB", False) and skip_key != "routine":
+        raise ValueError('MB requires global_config.memory.recall_skip_key == "routine"')
+    return {**package, "routine_tier_scope": scope}
+
+
+def _read_ollama_server_version(model):
+    """Read once at launch; mock and cloud models never contact Ollama."""
+    from broker.utils.llm_utils import is_mock_model, is_cloud_provider_model, get_ollama_base_url
+    if is_mock_model(model) or is_cloud_provider_model(model):
+        return None
+    import http.client
+    import urllib.request
+    try:
+        url = get_ollama_base_url().rstrip("/") + "/api/version"
+        with urllib.request.urlopen(url, timeout=3) as response:
+            return json.load(response).get("version")
+    except (OSError, ValueError, http.client.HTTPException):
+        # A non-Ollama reply on OLLAMA_HOST (e.g. BadStatusLine) records null.
+        return None
+
+
+def _record_keepfix_provenance(output_dir, package, server_version):
+    """Record resolved item 47 options and the launch-time server version.
+
+    Each provenance writer is guarded independently so a write failure cannot
+    mask an in-flight simulation abort or prevent the other file being updated.
+    """
+    fields = {
+        "keepfix_package": {"spec_item": 47, **{
+            element: package.get(element, False) for element in ("MB", "table", "S1", "L", "K6")},
+            "routine_tier_scope": package.get("routine_tier_scope", "any_tier")},
+        "ollama_server_version": server_version,
+    }
+    try:
+        path = Path(output_dir) / "reproducibility_manifest.json"
+        if path.exists():
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            manifest.update(fields)
+            path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    except Exception as exc:
+        print(f"[Provenance] WARNING: could not record keepfix in reproducibility_manifest.json: {exc}")
+    try:
+        path = Path(output_dir) / "config_snapshot.yaml"
+        if path.exists():
+            snapshot = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            snapshot.setdefault("metadata", {}).update(fields)
+            path.write_text(yaml.safe_dump(snapshot, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    except Exception as exc:
+        print(f"[Provenance] WARNING: could not record keepfix in config_snapshot.yaml: {exc}")
+
+
 def main():
     args = parse_args()
     # v3 (WP3, spec 3.2): the pilot phases and the ablation mode switched
@@ -1909,6 +2002,8 @@ def main():
 
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
+    package = _validate_keepfix_config(cfg_data)
+    ollama_server_version = _read_ollama_server_version(args.model)
     # PR-6 review P1-e: refuse a profile this config does not declare. This
     # runner takes `--governance-mode` as a FREE STRING (any custom profile the
     # YAML defines), so there is no `choices=` list to catch a typo, and
@@ -2091,6 +2186,23 @@ def main():
         "diagnostics only"
     )
     env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
+    env.keepfix_s1 = package.get("S1", False)
+    env.keepfix_land_need = package.get("L", False)
+    env.routine_tier_scope = package["routine_tier_scope"]
+    from examples.irrigation_abm.irrigation_env import _load_lb_priority_split_table
+    priority = _load_lb_priority_split_table()
+    env.tier_affected_agents = {aid for aid, row in priority.items()
+                               if config.lb_priority_mode == "split" and row["junior_entitlement_af"] > 0}
+    for profile in profiles:
+        if package.get("L", False):
+            if args.real and not profile.peak_obs_af:
+                raise ValueError(f"{profile.agent_id}: item 47 L requires peak_obs_af")
+            if profile.peak_obs_af is not None:
+                profile.narrative_persona = profile.narrative_persona.replace(
+                    "The more water you receive, the more you can produce.",
+                    "The more water you receive, up to what your fields can use, the more you can produce.")
+        if package.get("K6", False) and config.lb_priority_mode == "split" and profile.basin == "lower_basin" and profile.agent_id in priority and priority[profile.agent_id]["junior_entitlement_af"] == 0:
+            profile.narrative_persona += "\n" + K6_SENIOR_TIER_TEXT
     env.initialize_from_profiles(profiles)
 
     # Load real CRSS precipitation projections when available
@@ -2155,6 +2267,7 @@ def main():
         # Spec item 45m: irrigation opts into a separate final reflection
         # slot. None remains the framework default for every other case.
         reflection_slot=gm.get("reflection_slot"),
+        recall_skip_key=gm.get("recall_skip_key") if package.get("MB", False) else None,
     )
     print(f"[Pillar 2] HumanCentricMemoryEngine (window={memory_engine.window_size}, "
           f"top_k_significant={memory_engine.top_k_significant}, "
@@ -2175,6 +2288,9 @@ def main():
 
     # --- Feedback dashboard (config-driven env feedback for agents) ---
     feedback_cfg = irr_cfg.get("feedback", {})
+    if not package.get("table", False):
+        feedback_cfg = {**feedback_cfg, "tracked_metrics": [m for m in feedback_cfg.get("tracked_metrics", [])
+                       if m["name"] not in ("ub_flow_share", "ub_winter_trend", "lb_mead_trend")]}
     _metrics_tracker = None  # set below if feedback is configured
     if feedback_cfg.get("tracked_metrics"):
         from broker.components.analytics.feedback import (
@@ -2354,6 +2470,7 @@ def main():
         _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
         _record_water_system_config_provenance(output_dir, env.config)
         _record_memory_options_provenance(output_dir, memory_engine)
+        _record_keepfix_provenance(output_dir, package, ollama_server_version)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
         # Spec item 45e: the per-year stored / retried / dropped counts of
         # the checked reflections (only when the grounded keys are on).

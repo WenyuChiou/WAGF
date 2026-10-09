@@ -118,7 +118,8 @@ def test_outcome_line_metadata_is_banded_not_keyword(tmp_path):
     meta = _hooks_with_snapshot(tmp_path, {"skill_name": "increase_small", "year": 1},
                                 100_000.0, 95_000.0)
     assert meta == {"importance": 0.45, "emotion": "strategic_choice",
-                    "source": "personal", "type": "outcome", "year": 2019}
+                    "source": "personal", "type": "outcome", "year": 2019,
+                    "routine": False}
 
 
 def test_fallback_outcome_line_gets_same_band_as_approved(tmp_path):
