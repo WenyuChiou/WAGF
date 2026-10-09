@@ -357,10 +357,9 @@ class TestSplitArithmetic:
         rec = st["agents"]["MohaveValleyIDD"]
         assert rec["lb_senior_af"] == pytest.approx(5_940.0)
         assert rec["lb_junior_af"] == pytest.approx(20_000.0 - 5_940.0)
-        assert rec["lb_junior_cut_af"] == pytest.approx((20_000.0 - 5_940.0) * f_2)
-        expected_delivered = 5_940.0 + (20_000.0 - 5_940.0) * (1 - f_2)
-        assert rec["delivered"] == pytest.approx(expected_delivered)
-        assert rec["gap_reason"] == "lb_junior_tier_cut"
+        assert rec["lb_junior_cut_af"] == 0.0
+        assert rec["delivered"] == 20_000.0
+        assert rec["gap_reason"] == "none"  # item 46: below the entitlement ceiling
 
     def test_request_above_published_total_is_entirely_junior_beyond_it(self):
         """A request of 45,000 AF -- above the 41,000 AF PUBLISHED total
@@ -558,10 +557,22 @@ def _load_head_irrigation_env(tmp_path: Path, commit: str = _HEAD_COMMIT):
         Path(__file__).resolve().parents[1] / "irrigation_env_HEAD_SHADOW_not_a_real_file.py"
     )
     spec.loader.exec_module(head_mod)
+    if hasattr(head_mod, 'LB_PRIORITY_SPLIT_PATH'):
+        # Item 46 adds a P5/P6 column; historical modules must read their
+        # own pinned historical table, never the new schema/hash.
+        table = subprocess.check_output(['git', 'show',
+            f'{commit}:examples/irrigation_abm/data/lb_priority_split_v3.csv'],
+            cwd=Path(__file__).resolve().parents[3])
+        historical_csv = tmp_path / f'lb_priority_{commit}.csv'
+        historical_csv.write_bytes(table)
+        head_mod.LB_PRIORITY_SPLIT_PATH = historical_csv
     return head_mod
 
 
-def _dump_replay(env_cls, cfg_cls, target: str, *, extra_cfg=None, seed=7, years=42):
+def _dump_replay(
+    env_cls, cfg_cls, target: str, *, extra_cfg=None, seed=7, years=42,
+    include_ub_subbasin=False,
+):
     rng = np.random.default_rng(seed)
     from examples.irrigation_abm.irrigation_personas import create_profiles_from_data
     profiles = create_profiles_from_data(str(CRSS_PARAMS_CSV), str(CRSS_DB_DIR), rng=rng)
@@ -581,6 +592,10 @@ def _dump_replay(env_cls, cfg_cls, target: str, *, extra_cfg=None, seed=7, years
         st = env.settle_year()
         row = {k: v for k, v in st.items() if k not in ("agents", "ub_subbasin")}
         row["agents"] = {aid: dict(rec) for aid, rec in st["agents"].items()}
+        if include_ub_subbasin:
+            row["ub_subbasin"] = {
+                subbasin: dict(rec) for subbasin, rec in st["ub_subbasin"].items()
+            }
         dump.append(row)
     return dump
 
@@ -711,39 +726,59 @@ class TestSeniorAllBitIdenticalToHead:
 
 
 @pytest.mark.skipif(not _REAL_REF_AVAILABLE, reason="CRSS reference data not found under ref/")
-class TestSplitDefaultBitIdenticalTo58a1d0ea:
-    """Re-review 2026-09-29 round 4 (LOW 7): the EXACT check named in the
-    items-25-27 review -- the v3-DEFAULT settlement (``lb_priority_mode=
-    "split"``, unlike TestSeniorAllBitIdenticalToHead above, which
-    exercises "senior_all") stays bit-identical to a LIVE git extraction
-    of irrigation_env.py at 58a1d0ea (the commit immediately before items
-    25-27 landed) once BOTH new defaults are pinned back
-    (lb_non_ag_total_maf=5.0, powell_release_mode="storage_balancing" --
-    58a1d0ea has no ``powell_release_mode`` field at all, so the HEAD side
-    is built with no override, relying on its own only rule).
-    ``_assert_dumps_bit_identical`` compares EVERY settlement field and
-    EVERY per-agent field 58a1d0ea's own record has, not a hand-picked
-    subset -- so a drift in, say, ``lb_senior_af`` or
-    ``ub_subbasin_ratio`` (WP1c/WP1b fields that already existed at
-    58a1d0ea) would be caught, not silently skipped."""
+class TestCeilingDiffersFromLegacyRequestCut:
+    """Item 46 deliberately changes split-mode replay and keep delivery.
 
-    def test_replay_a_2018_fixed_demand(self, tmp_path):
+    The senior_all historical identity tests above continue to require
+    every field to match. Split now compares to the actual historical
+    source/table and requires the documented agricultural change.
+    """
+    @pytest.mark.parametrize('target', ['2018', 'keep'])
+    def test_entitlement_ceiling_changes_legacy_split_deliveries(self, tmp_path, target):
         head_mod = _load_head_irrigation_env(tmp_path, commit=_PRE_ITEMS_25_27_COMMIT)
-        dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "2018")
-        dump_new = _dump_replay(
-            IrrigationEnvironment, WaterSystemConfig, "2018",
-            extra_cfg={"lb_non_ag_total_maf": 5.0, "powell_release_mode": "storage_balancing"},
+        include_ub_subbasin = target == '2018'
+        old = _dump_replay(
+            head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, target,
+            include_ub_subbasin=include_ub_subbasin,
         )
-        _assert_dumps_bit_identical(dump_head, dump_new, "split-vs-58a1d0ea-replay-A")
-
-    def test_keep_every_year(self, tmp_path):
-        head_mod = _load_head_irrigation_env(tmp_path, commit=_PRE_ITEMS_25_27_COMMIT)
-        dump_head = _dump_replay(head_mod.IrrigationEnvironment, head_mod.WaterSystemConfig, "keep")
-        dump_new = _dump_replay(
-            IrrigationEnvironment, WaterSystemConfig, "keep",
-            extra_cfg={"lb_non_ag_total_maf": 5.0, "powell_release_mode": "storage_balancing"},
-        )
-        _assert_dumps_bit_identical(dump_head, dump_new, "split-vs-58a1d0ea-keep-every-year")
+        new = _dump_replay(IrrigationEnvironment, WaterSystemConfig, target,
+            extra_cfg={'lb_non_ag_total_maf': 5.0, 'powell_release_mode': 'storage_balancing'},
+            include_ub_subbasin=include_ub_subbasin)
+        assert len(old) == len(new) == 42
+        assert any(o['agents']['HopiTribe']['delivered'] != n['agents']['HopiTribe']['delivered']
+                   for o, n in zip(old, new))
+        # Under held requests, V redistribution preserves the reservoir
+        # trajectory even though the junior deliveries change. It also leaves
+        # every historical field exactly unchanged for the 16 senior-only
+        # Lower Basin agents and every Upper Basin agent.
+        if target == '2018':
+            assert [r['mead_storage_end_maf'] for r in new] == pytest.approx(
+                [r['mead_storage_end_maf'] for r in old], abs=1e-9)
+            profiles = _real_profiles(seed=7)
+            senior_lb_ids = set(_load_lb_priority_split_table()) - set(_SIX_JUNIOR_AGENTS)
+            upper_basin_ids = {p.agent_id for p in profiles if p.basin == 'upper_basin'}
+            pinned_ids = senior_lb_ids | upper_basin_ids
+            assert len(senior_lb_ids) == 16
+            assert upper_basin_ids
+            mismatches = []
+            for yi, (old_year, new_year) in enumerate(zip(old, new), start=1):
+                for field, old_value in old_year.items():
+                    if field.startswith('ub_') and old_value != new_year.get(field):
+                        mismatches.append(
+                            f'year {yi} field {field}: '
+                            f'legacy={old_value!r} ceiling={new_year.get(field)!r}'
+                        )
+                for aid in sorted(pinned_ids):
+                    old_agent = old_year['agents'][aid]
+                    new_agent = new_year['agents'][aid]
+                    for field, old_value in old_agent.items():
+                        new_value = new_agent.get(field)
+                        if old_value != new_value:
+                            mismatches.append(
+                                f'year {yi} agent {aid} field {field}: '
+                                f'legacy={old_value!r} ceiling={new_value!r}'
+                            )
+            assert not mismatches, '\n'.join(mismatches[:20])
 
 
 class TestSplitMatchesSeniorAllAggregate:
@@ -924,10 +959,10 @@ class TestHoldRequestsFixedReplay:
         assert mead_min_maf == pytest.approx(7.0652, abs=1e-3)
         assert not dead_pool_reached
 
-        assert junior_short_years_total == 175
+        assert junior_short_years_total == 70  # item 46: only Hopi and Cibola bind
         assert junior_short_years_by_agent == {
-            "MohaveValleyIDD": 35, "CibolaValleyIDD": 35, "GilaMonsterFarms": 35,
-            "HopiTribe": 35, "NorthBajaLLC": 35, "CocopahIndRes": 0,
+            "MohaveValleyIDD": 0, "CibolaValleyIDD": 35, "GilaMonsterFarms": 0,
+            "HopiTribe": 35, "NorthBajaLLC": 0, "CocopahIndRes": 0,
         }
 
 
@@ -936,187 +971,52 @@ class TestHoldRequestsFixedReplay:
 # ===========================================================================
 
 class TestAgentFacingText:
-    def _ctx(self, *, basin="lower_basin", shortage_tier, lb_shortage_volume_maf,
-              current_request, current_diversion, delivery_ratio,
-              gap_reason, lb_junior_request_af, lb_junior_tier_cut_fraction,
-              lb_senior_entitlement_af, lake_mead_level=1060.0, preceding_factor=1,
-              lb_junior_entitlement_af=0.0):
-        # lb_junior_entitlement_af (WP4 review, spec item 29f): the agent's
-        # published junior entitlement, 0 for a senior-only agent.
-        return {
-            "year": 2030, "basin": basin, "drought_index": 0.3, "precipitation": 0,
-            "lake_mead_level": lake_mead_level, "shortage_tier": shortage_tier,
-            "lb_shortage_volume_maf": lb_shortage_volume_maf,
-            "current_request": current_request, "current_diversion": current_diversion,
-            "delivery_ratio": delivery_ratio, "water_right": current_request,
-            "gap_reason": gap_reason, "preceding_factor": preceding_factor,
-            "lb_junior_request_af": lb_junior_request_af,
-            "lb_junior_tier_cut_fraction": lb_junior_tier_cut_fraction,
-            "lb_senior_entitlement_af": lb_senior_entitlement_af,
-            "lb_junior_entitlement_af": lb_junior_entitlement_af,
-            "shortage_tier_threshold_ft": {1: 1075.0, 2: 1050.0, 3: 1025.0}.get(shortage_tier),
-        }
+    @staticmethod
+    def _ctx(aid, tier, request):
+        from examples.irrigation_abm.irrigation_env import _lb_entitlement_ceiling
+        row = _load_lb_priority_split_table()[aid]
+        junior, total = (_lb_entitlement_ceiling(row, tier, 'zero')
+                         if row['junior_entitlement_af'] > 0 else (None, None))
+        delivered = min(request, total) if total is not None else request
+        return dict(year=2030, basin='lower_basin', drought_index=.3, precipitation=0,
+            lake_mead_level=1060., preceding_factor=1, water_right=1000000.,
+            shortage_tier=tier, lb_shortage_volume_maf={1:.333,2:.417,3:.5}[tier],
+            shortage_tier_threshold_ft={1:1075.,2:1050.,3:1025.}[tier],
+            current_request=request, current_diversion=delivered, delivery_ratio=delivered/request,
+            gap_reason='lb_junior_tier_cut' if delivered < request else 'none',
+            lb_senior_entitlement_af=row['senior_entitlement_af'],
+            lb_junior_entitlement_af=row['junior_entitlement_af'],
+            lb_junior_request_af=max(0.,request-(row['senior_entitlement_af'] or request)),
+            lb_junior_tier_cut_fraction=_lb_junior_tier_fraction(tier),
+            lb_junior_ceiling_af=junior, lb_tier_ceiling_af=total,
+            lb_p56_entitlement_af=row['p56_entitlement_af'],lb_p56_in_tier='zero')
 
-    def test_tier_sentence_names_both_takers_of_the_volume(self):
-        """MEDIUM 2, reworded in WP4 (spec 4.3, no agency named): part of V
-        falls on junior farm water in split mode (item 22), so the opening
-        sentence names both takers; in senior_all mode (a zero junior
-        fraction) the whole volume falls on the non-agricultural users.
-        Checked on a SENIOR agent (untouched by any junior cut this year)."""
-        split = self._ctx(
-            shortage_tier=2, lb_shortage_volume_maf=0.417,
-            current_request=880_000.0, current_diversion=880_000.0,
-            delivery_ratio=1.0, gap_reason="none",
-            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=_lb_junior_tier_fraction(2),
-            lb_senior_entitlement_af=662_402.0,
-        )
-        assert (
-            "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below "
-            "1,050 feet on 1 January): it reduces Lower Basin deliveries by 417,000 "
-            "acre-ft in total, taken from non-agricultural users and from "
-            "junior-priority agricultural water. Your delivery is reduced only if "
-            "Lake Mead cannot supply all Lower Basin withdrawals this year."
-        ) in build_water_situation_text(split)
-        senior_all = dict(split, lb_junior_tier_cut_fraction=0.0)
-        assert (
-            "it reduces deliveries to Lower Basin non-agricultural users by 417,000 "
-            "acre-ft in total. Your delivery is reduced only if"
-        ) in build_water_situation_text(senior_all)
-        for text in (build_water_situation_text(split), build_water_situation_text(senior_all)):
-            assert "Bureau of Reclamation" not in text and "Arizona and Nevada" not in text
-
-    def test_fully_junior_agent_reads_all_not_part(self):
-        """MEDIUM 2: HopiTribe (published senior 0 -- 100% junior) must
-        read "All of your water right is junior-priority", not "Part"."""
-        f_1 = _lb_junior_tier_fraction(1)
-        request = 5_900.0
-        junior_cut = request * f_1
-        delivered = request - junior_cut
-        ctx = self._ctx(
-            shortage_tier=1, lb_shortage_volume_maf=0.333,
-            current_request=request, current_diversion=delivered,
-            delivery_ratio=delivered / request, gap_reason="lb_junior_tier_cut",
-            lb_junior_request_af=request, lb_junior_tier_cut_fraction=f_1,
-            lb_senior_entitlement_af=0.0, lb_junior_entitlement_af=_FULLY_JUNIOR["HopiTribe"][1],
-        )
+    @pytest.mark.parametrize('aid', sorted(_SIX_JUNIOR_AGENTS))
+    def test_junior_holders_read_sourced_ceiling_numbers(self, aid):
+        ctx = self._ctx(aid,3,100000.)
         text = build_water_situation_text(ctx)
-        assert "All of your water right is junior-priority" in text
-        assert "Part of your water right" not in text
-        assert f"about {f_1:.0%}" in text
-        assert "Your delivery is reduced only if Lake Mead" not in text
-        assert describe_gap_reason(ctx, "present") == (
-            "because the declared Lower Basin shortage tier cuts your "
-            f"junior-priority water by about {f_1:.0%}"
-        )
+        assert f"about {ctx['lb_junior_ceiling_af']:,.0f} acre-ft" in text
+        assert f"your {ctx['lb_tier_ceiling_af']:,.0f} acre-ft tier ceiling" in text
+        assert 'at or below' in text
+        assert ('Priority-5/6 water is not available' in text) == (ctx['lb_p56_entitlement_af']>0)
+        assert 'cuts your junior-priority water by' not in text
 
-    def test_partly_junior_agent_reads_part_not_all(self):
-        """MEDIUM 2: MohaveValleyIDD (published senior 5,940 AF > 0) must
-        read "Part of your water right is junior-priority", not "All"."""
-        f_2 = _lb_junior_tier_fraction(2)
-        request, senior = 20_000.0, 5_940.0
-        junior = request - senior
-        junior_cut = junior * f_2
-        delivered = senior + junior - junior_cut
-        ctx = self._ctx(
-            shortage_tier=2, lb_shortage_volume_maf=0.417,
-            current_request=request, current_diversion=delivered,
-            delivery_ratio=delivered / request, gap_reason="lb_junior_tier_cut",
-            lb_junior_request_af=junior, lb_junior_tier_cut_fraction=f_2,
-            lb_senior_entitlement_af=senior,
-            lb_junior_entitlement_af=_PARTLY_JUNIOR["MohaveValleyIDD"][1],
-        )
+    def test_request_within_senior_part_still_reads_junior_ceiling(self):
+        ctx = self._ctx('GilaMonsterFarms',1,6000.)
         text = build_water_situation_text(ctx)
-        assert "Part of your water right is junior-priority" in text
-        assert "All of your water right" not in text
+        assert 'you can expect full delivery' in text
+        assert 'This tier limits your junior-priority water' in text
 
     def test_senior_agent_is_told_only_physical_shortage_cuts_it(self):
-        """CRIR AZ (senior-only), senior_all mode (zero junior fraction):
-        the second sentence says only a physical Lake Mead shortage reduces
-        its delivery, with no junior mention at all."""
-        ctx = self._ctx(
-            shortage_tier=2, lb_shortage_volume_maf=0.417,
-            current_request=880_000.0, current_diversion=880_000.0,
-            delivery_ratio=1.0, gap_reason="none",
-            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=0.0,
-            lb_senior_entitlement_af=662_402.0,
-        )
-        text = build_water_situation_text(ctx)
-        assert (
-            "Your delivery is reduced only if Lake Mead cannot supply all Lower "
-            "Basin withdrawals this year."
-        ) in text
-        assert "junior" not in text.lower()
+        text = build_water_situation_text(self._ctx('CRIR AZ',2,880000.))
+        assert 'Your delivery is reduced only if Lake Mead cannot supply' in text
+        assert 'your junior-priority' not in text
 
-    def test_six_agents_all_render_the_junior_sentence_when_cut(self):
-        """Every one of the six agents, not just HopiTribe, gets the
-        truthful sentence when ITS junior water is actually cut this
-        year, with the correct All/Part wording for each."""
-        f_3 = _lb_junior_tier_fraction(3)
-        for aid, (senior, junior_ent) in {**_FULLY_JUNIOR, **_PARTLY_JUNIOR}.items():
-            ctx = self._ctx(
-                shortage_tier=3, lb_shortage_volume_maf=0.500,
-                current_request=10_000.0, current_diversion=9_000.0,
-                delivery_ratio=0.9, gap_reason="lb_junior_tier_cut",
-                lb_junior_request_af=4_000.0, lb_junior_tier_cut_fraction=f_3,
-                lb_senior_entitlement_af=senior, lb_junior_entitlement_af=junior_ent,
-            )
-            text = build_water_situation_text(ctx)
-            assert f"about {f_3:.0%}" in text, aid
-            expected_word = "All" if senior <= 1e-6 else "Part"
-            assert f"{expected_word} of your water right is junior-priority" in text, aid
-
-    def test_junior_agent_with_no_junior_request_this_year_is_told_about_an_increase(self):
-        """One of the six (GilaMonsterFarms) in a declared-tier year where
-        its OWN request has not exceeded its senior entitlement this year
-        (lb_junior_request_af == 0): no junior cut applies at the keep
-        request, but an increase beyond the 7,065 AF senior entitlement
-        would be junior-priority water that the tier cuts, and the agent is
-        told so (WP4 review, spec item 29f; before it read the senior-only
-        sentence, which is false for such an increase)."""
-        f_1 = _lb_junior_tier_fraction(1)
-        ctx = self._ctx(
-            shortage_tier=1, lb_shortage_volume_maf=0.333,
-            current_request=6_000.0, current_diversion=6_000.0,
-            delivery_ratio=1.0, gap_reason="none",
-            lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=f_1,
-            lb_senior_entitlement_af=7_065.0,
-            lb_junior_entitlement_af=_PARTLY_JUNIOR["GilaMonsterFarms"][1],
-        )
-        text = build_water_situation_text(ctx)
-        assert (f"Part of your water right is junior-priority: this tier would cut any part "
-                f"of a request above 7,065 acre-ft by about {f_1:.0%}. Up to that amount, "
-                "your delivery is reduced only if Lake Mead cannot supply all Lower Basin "
-                "withdrawals this year.") in text
-        assert "Your delivery is reduced only if Lake Mead cannot supply" not in text
-
-    def test_missing_junior_context_keys_raise(self):
-        """LOW 6: a Lower Basin context with a declared tier and no
-        lb_junior_request_af / lb_junior_tier_cut_fraction is a real
-        wiring defect -- raise, never silently treat as 0."""
-        ctx = self._ctx(
-            shortage_tier=1, lb_shortage_volume_maf=0.333,
-            current_request=100.0, current_diversion=100.0, delivery_ratio=1.0,
-            gap_reason="none", lb_junior_request_af=0.0, lb_junior_tier_cut_fraction=0.0,
-            lb_senior_entitlement_af=100.0,
-        )
-        del ctx["lb_junior_request_af"]
-        with pytest.raises(ValueError, match="lb_junior_request_af"):
-            build_water_situation_text(ctx)
-
-    def test_missing_senior_entitlement_raises_when_junior_cut_active(self):
-        """LOW 6: once a real junior cut is present this decision,
-        'lb_senior_entitlement_af' must be there too (to pick All vs
-        Part) -- raise rather than silently guess."""
-        f_1 = _lb_junior_tier_fraction(1)
-        ctx = self._ctx(
-            shortage_tier=1, lb_shortage_volume_maf=0.333,
-            current_request=5_900.0, current_diversion=5_900.0 * (1 - f_1),
-            delivery_ratio=1 - f_1, gap_reason="lb_junior_tier_cut",
-            lb_junior_request_af=5_900.0, lb_junior_tier_cut_fraction=f_1,
-            lb_senior_entitlement_af=0.0,
-        )
-        del ctx["lb_senior_entitlement_af"]
-        with pytest.raises(ValueError, match="lb_senior_entitlement_af"):
+    @pytest.mark.parametrize('key', ['lb_junior_request_af','lb_junior_ceiling_af','lb_tier_ceiling_af','lb_senior_entitlement_af'])
+    def test_missing_junior_context_keys_raise(self,key):
+        ctx=self._ctx('HopiTribe',1,5900.)
+        del ctx[key]
+        with pytest.raises(ValueError,match=key):
             build_water_situation_text(ctx)
 
 
@@ -1180,6 +1080,7 @@ class TestSupplyRuleJuniorVsSenior:
                  "current_diversion": state["diversion"]}, state)
             return {"basin": "lower_basin", "gap_reason": state["gap_reason"],
                     "lb_junior_tier_cut_fraction": state["lb_junior_tier_cut_fraction"],
+                    **{k: state[k] for k in ("lb_junior_ceiling_af", "lb_junior_entitlement_af", "lb_tier_ceiling_af")},
                     **fields}
 
         hopi_ctx, crir_ctx = ctx("HopiTribe"), ctx(_SENIOR_AGENT)
@@ -1187,6 +1088,6 @@ class TestSupplyRuleJuniorVsSenior:
         assert hopi_ctx["supply_ratio"] < crir_ctx["supply_ratio"]  # the junior cut on top
         hopi_msg = supply_gap_block_increase("increase_demand", [], hopi_ctx)[0].errors[0]
         crir_msg = supply_gap_block_increase("increase_demand", [], crir_ctx)[0].errors[0]
-        assert "cuts your junior-priority water by about" in hopi_msg
-        assert "any increase would be junior-priority water" in hopi_msg
+        assert "limits your junior-priority water" in hopi_msg
+        assert "tier ceiling would add no deliverable water" in hopi_msg
         assert "junior-priority" not in crir_msg

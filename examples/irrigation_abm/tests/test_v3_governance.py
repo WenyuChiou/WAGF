@@ -167,7 +167,7 @@ def test_profile_rule_sets(monkeypatch):
                      r.message, r.metadata) for r in thinking] == [
                 (TR1, [{"construct": "WSA_LABEL", "values": ["H", "VH"]}],
                  ["increase_demand"], "ERROR", "self_report", TR1_MESSAGE,
-                 {"suggestion": TR1_SUGGESTION, "exception_precondition": "tier_cut_restore_available"}),
+                 {"suggestion": TR1_SUGGESTION}),
                 (TR3, [{"construct": "WSA_LABEL", "values": ["VL", "L"]}],
                  ["decrease_demand"], "ERROR", "self_report", TR3_MESSAGE,
                  {"suggestion": TR3_SUGGESTION}),
@@ -401,6 +401,9 @@ def _supply_ctx(*, basin: str, keep: float = 100_000.0, expected: Optional[float
         "basin": basin, "gap_reason": gap_reason,
         "ub_subbasin_member_count": member_count,
         "lb_junior_tier_cut_fraction": junior_fraction,
+        "lb_junior_entitlement_af": 100_000.0 if junior_fraction is not None else None,
+        "lb_junior_ceiling_af": 100_000.0 * (1-junior_fraction) if junior_fraction is not None else None,
+        "lb_tier_ceiling_af": 100_000.0 * (1-junior_fraction) if junior_fraction is not None else None,
         "supply_keep_request_af": keep, "supply_expected_at_keep_af": expected,
         "supply_ratio": ratio, "supply_physical_ratio": phys,
         "full_supply_ratio": FULL_SUPPLY_RATIO,
@@ -487,8 +490,7 @@ def test_supply_rule_fields_single_source_and_refusals():
                             "current_diversion": 1.0}, {"lb_phys_ratio": None})
     # the YAML's state_columns are exactly these fields, in this order
     raw = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-    assert tuple(raw["global_config"]["audit"]["state_columns"]) == (
-        *SUPPLY_RULE_FIELDS, 'previous_gap_reason', 'previous_request_af', 'tier_cut_restore_available')
+    assert tuple(raw["global_config"]["audit"]["state_columns"]) == SUPPLY_RULE_FIELDS
 
 
 def test_full_supply_ratio_single_source():
@@ -568,20 +570,21 @@ def _rule_context(env: IrrigationEnvironment, aid: str) -> Dict[str, Any]:
                      "current_request": state["request"], "current_diversion": state["diversion"]}
     return {"basin": "lower_basin", "gap_reason": state["gap_reason"],
             "lb_junior_tier_cut_fraction": state["lb_junior_tier_cut_fraction"],
+            **{key: state[key] for key in ("lb_junior_ceiling_af", "lb_tier_ceiling_af", "lb_junior_entitlement_af")},
             **supply_rule_fields(agent_context, state)}
 
 
 def test_supply_rule_ignores_declared_tier_and_junior_cut():
     """Tier 2 declared, Lake Mead physically full (phi = 1): the senior
-    agent is untouched and the 100-percent-junior agent is cut by f_2 --
-    r < FULL_SUPPLY_RATIO -- yet neither is blocked, because a larger
-    request still adds (1 - f) of the increase (no ratchet)."""
+    agent is untouched and the junior agent binds its entitlement ceiling.
+    Neither is blocked by this physical-supply rule: phi remains one.
+    Plain TR1 separately blocks high-scarcity increases (item 46)."""
     env = _lb_env({_HOPI: 5_900.0, _CRIR: 880_000.0})
     settlement = _settle(env, tier=2, short=False)
     assert settlement["lb_phys_ratio"] == 1.0
     hopi, crir = _rule_context(env, _HOPI), _rule_context(env, _CRIR)
     assert hopi["gap_reason"] == "lb_junior_tier_cut"
-    assert hopi["supply_ratio"] == pytest.approx(1 - _lb_junior_tier_fraction(2), abs=1e-6)
+    assert hopi["supply_ratio"] == pytest.approx(0.541479, abs=1e-6)  # 3,194.723 AF ceiling / 5,900 AF request
     assert hopi["supply_ratio"] < FULL_SUPPLY_RATIO <= hopi["supply_physical_ratio"] == 1.0
     assert crir["supply_ratio"] == crir["supply_physical_ratio"] == 1.0
     assert supply_gap_block_increase("increase_demand", [], hopi) == []
@@ -606,24 +609,28 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
         f"{880_000.0 * crir['supply_ratio']:,.0f} acre-ft this year "
         f"({crir['supply_ratio']:.1%}), because Lake Mead cannot meet all Lower "
         "Basin withdrawals without falling below its minimum pool, so all Lower "
-        "Basin deliveries are reduced in proportion to requests. When water is short it "
+        "Basin deliveries are reduced in proportion to requests after any tier ceiling is applied. When water is short it "
         "is shared in proportion to requests, so a larger request would raise your "
         "share only by lowering the deliveries of other users in the Lower Basin; it "
         "would not add water to the Lower Basin."
     )
-    f_1 = _lb_junior_tier_fraction(1)
+    ceiling = hopi["lb_junior_ceiling_af"]
+    entitlement = hopi["lb_junior_entitlement_af"]
     assert hopi_msg == (
         "Demand increase blocked under the shortage-sharing rule: if you request "
         f"the 5,900 acre-ft you received last year, you can expect "
         f"{hopi['supply_expected_at_keep_af']:,.0f} acre-ft this year "
         f"({hopi['supply_ratio']:.1%}), because the declared Lower Basin shortage "
-        f"tier cuts your junior-priority water by about {f_1:.0%} and Lake Mead "
+        f"tier limits your junior-priority water this year to about {ceiling:,.0f} acre-ft "
+        f"({ceiling/entitlement:.0%} of your junior-priority entitlement) and Lake Mead "
         "cannot meet all Lower Basin withdrawals without falling below "
-        "its minimum pool, so all Lower Basin deliveries are reduced in proportion to requests. "
-        "When water is short it is shared in proportion to requests: any increase "
-        f"would be junior-priority water, about {f_1:.0%} of which the declared "
-        "shortage tier cuts, and the rest would raise your share only by lowering "
-        "the deliveries of other users in the Lower Basin; it would not add water "
+        "its minimum pool, so all Lower Basin deliveries are reduced in proportion to requests after any tier ceiling is applied. "
+        "Lake Mead's physical shortage applies after the tier ceiling and is "
+        "shared in proportion to requests capped by that ceiling: any increase "
+        f"above your {hopi['lb_tier_ceiling_af']:,.0f} acre-ft tier ceiling would add no "
+        "deliverable water; within the ceiling, a larger request would raise "
+        "your share only by lowering the deliveries of other users in the Lower "
+        "Basin; it would not add water "
         "to the Lower Basin."
     )
 
@@ -633,21 +640,21 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
 # ===========================================================================
 
 def test_sharing_sentence_golden_junior_priority():
-    """WP3 review round 1 (MEDIUM 3, orchestrator sign-off): the tier cuts a
-    SHARE of the junior increase, not all of it -- the sentence states that
-    share. Refuses a junior-cut code without a positive share."""
+    """Item 46: an increase above the tier ceiling adds no water.
+    Refuse a junior-cut code without the ceiling that the warning names."""
     ctx = {"basin": "lower_basin", "gap_reason": "lb_junior_tier_cut+lb_mead_availability",
-           "lb_junior_tier_cut_fraction": 0.2527}
+           "lb_tier_ceiling_af": 3_194.723430}
     assert iv._sharing_sentence(ctx) == (
-        "When water is short it is shared in proportion to requests: any increase "
-        "would be junior-priority water, about 25% of which the declared shortage "
-        "tier cuts, and the rest would raise your share only by lowering the "
-        "deliveries of other users in the Lower Basin; it would not add water to "
+        "Lake Mead's physical shortage applies after the tier ceiling and is "
+        "shared in proportion to requests capped by that ceiling: any increase "
+        "above your 3,195 acre-ft tier ceiling would add no deliverable water; "
+        "within the ceiling, a larger request would raise your share only by "
+        "lowering the deliveries of other users in the Lower Basin; it would not add water to "
         "the Lower Basin."
     )
-    for bad in (0.0, None):
-        with pytest.raises(ValueError, match="lb_junior_tier_cut_fraction"):
-            iv._sharing_sentence({**ctx, "lb_junior_tier_cut_fraction": bad})
+    for bad in ({**ctx, "lb_tier_ceiling_af": None}, {"basin": "lower_basin", "gap_reason": ctx["gap_reason"]}):
+        with pytest.raises(ValueError, match="lb_tier_ceiling_af"):
+            iv._sharing_sentence(bad)
 
 def test_retry_texts_golden_upper_basin_variants():
     base = dict(basin="upper_basin", keep=20_000.0, physical=0.674)
@@ -688,7 +695,7 @@ def test_retry_text_golden_zero_delivery():
         "the 100,000 acre-ft you received last year, you can expect 0 acre-ft this "
         "year (0.0%), because Lake Mead cannot meet all Lower Basin withdrawals "
         "without falling below its minimum pool, so all Lower Basin deliveries "
-        "are reduced in proportion to requests. When water is short, a larger request would not add water."
+        "are reduced in proportion to requests after any tier ceiling is applied. When water is short, a larger request would not add water."
     )
 
 

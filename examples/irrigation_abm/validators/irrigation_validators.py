@@ -81,10 +81,11 @@ def _sharing_sentence(context: Dict[str, Any]) -> str:
     WP3 (spec 3.7): the spec wording ("shared in proportion to requests",
     "would not add water"), plus a junior-priority variant for a Lower Basin
     agent whose OWN junior water the declared tier cuts this year (gap code
-    ``lb_junior_tier_cut``, item 22, the same fact the WP1c dashboard warning
-    states): its keep request already exceeds its senior entitlement, so any
-    increase would be junior water, cut by the tier before the rest is
-    shared. The supply rule only reaches this sentence when a PHYSICAL limit
+    ``lb_junior_tier_cut``, item 46, the same fact the dashboard warning
+    states): its keep request reaches the tier ceiling, so an increase above
+    that ceiling adds no deliverable water. Below it, a larger capped request
+    can raise its share only by lowering other users' deliveries. The supply
+    rule only reaches this sentence when a PHYSICAL limit
     binds (Lake Mead's phi below 1 for the Lower Basin), so "shared in
     proportion to requests" is true for that agent too.
     """
@@ -97,26 +98,20 @@ def _sharing_sentence(context: Dict[str, Any]) -> str:
     if basin == "lower_basin":
         gap_codes = str(context.get("gap_reason") or "").split("+")
         if "lb_junior_tier_cut" in gap_codes:
-            # The tier cuts a SHARE f of the junior part, not all of it: the
-            # increase adds (1 - f) of itself to the shared pool (orchestrator
-            # sign-off of the reviewer's wording, WP3 review round 1).
-            # Direct index: pre_year always copies the fraction, and a code
-            # of lb_junior_tier_cut with no positive fraction is a wiring
-            # defect, never a state to phrase around.
-            fraction = context["lb_junior_tier_cut_fraction"]
-            if not fraction or fraction <= 0:
+            ceiling = context.get("lb_tier_ceiling_af")
+            if ceiling is None:
                 raise ValueError(
                     "_sharing_sentence: gap_reason names lb_junior_tier_cut but "
-                    f"lb_junior_tier_cut_fraction is {fraction!r}; refusing to "
-                    "state a junior-priority cut without its share."
+                    "lb_tier_ceiling_af is missing; refusing to state a tier "
+                    "ceiling without its value."
                 )
             return (
-                "When water is short it is shared in proportion to requests: "
-                "any increase would be junior-priority water, about "
-                f"{fraction:.0%} of which the declared shortage tier cuts, and "
-                "the rest would raise your share only by lowering the "
-                "deliveries of other users in the Lower Basin; it would not "
-                "add water to the Lower Basin."
+                "Lake Mead's physical shortage applies after the tier ceiling and is "
+                "shared in proportion to requests capped by that ceiling: any increase "
+                f"above your {float(ceiling):,.0f} acre-ft tier ceiling would add no "
+                "deliverable water; within the ceiling, a larger request would raise "
+                "your share only by lowering the deliveries of other users in the Lower "
+                "Basin; it would not add water to the Lower Basin."
             )
         pool = "the Lower Basin"
     else:
@@ -843,11 +838,10 @@ def supply_gap_block_increase(
 
     It responds ONLY to physical supply limits: an Upper Basin sub-basin's
     own supply, the basin-wide Upper Basin backstop, and Lake Mead's physical
-    availability (phi). A declared tier's proportional cut of a junior-
-    priority part (item 22) is NOT one: a larger request still adds
-    (1 - f) of the increase to the agent's own delivery, so blocking on the
-    cut alone would ratchet the agent down under the WP2 base
-    (request = last delivery). A declared tier alone never triggers it.
+    availability (phi). A declared tier's fixed entitlement ceiling
+    (item 46) is separate: a request at or below it is not reduced by the
+    tier, and an increase above it adds no deliverable water. A declared
+    tier alone never triggers this physical-supply rule.
 
     The message states the numbers and the reason in plain words (spec
     3.7): the keep request, the expected delivery and r as a share, the

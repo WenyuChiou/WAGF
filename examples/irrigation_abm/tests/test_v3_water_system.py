@@ -693,14 +693,14 @@ class TestLbNonAgTotalMafValidation:
                 WaterSystemConfig(lb_non_ag_total_maf=bad)
 
     def test_rejects_non_positive_and_too_large_values(self):
-        for bad in (0.0, -1.0, -5.2, 20.0, 25.0, 1_000_000.0):
+        for bad in (0.0, -1.0, -5.2, 0.01, 0.49, 20.0, 25.0, 1_000_000.0):
             with pytest.raises(ValueError, match="lb_non_ag_total_maf"):
                 WaterSystemConfig(lb_non_ag_total_maf=bad)
 
     def test_accepts_the_default_and_other_plausible_values(self):
         WaterSystemConfig()  # 5.2, the record-implied default
         WaterSystemConfig(lb_non_ag_total_maf=5.0)
-        WaterSystemConfig(lb_non_ag_total_maf=0.01)
+        WaterSystemConfig(lb_non_ag_total_maf=0.5)
         WaterSystemConfig(lb_non_ag_total_maf=19.99)
 
 
@@ -936,8 +936,11 @@ class TestKeepEveryYear42Years:
                 "subbasin", hold_requests_fixed=False,
             )
         )
-        assert tier_counts == {0: 14, 1: 15, 2: 8, 3: 5}
-        assert mead_min_maf == pytest.approx(7.1028, abs=1e-3)
+        # Item 46 stops repeated request-based junior cuts. Keep requests
+        # therefore stay higher, feeding back into the 42-year trajectory.
+        # Observed with the same fixed hydrology and all other defaults.
+        assert tier_counts == {0: 12, 1: 16, 2: 9, 3: 5}
+        assert mead_min_maf == pytest.approx(7.074042588, abs=1e-3)
 
 
 # ===========================================================================

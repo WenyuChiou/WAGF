@@ -258,6 +258,11 @@ IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     "lb_junior_request_af", "lb_junior_tier_cut_fraction",
     # WP4 (spec 4.3)
     "shortage_tier_threshold_ft",
+    # Item 46: derived from the checksum-verified entitlement table and
+    # validated WaterSystemConfig, rather than an external model source.
+    # Ceiling amounts are None where no junior entitlement applies.
+    "lb_junior_ceiling_af", "lb_tier_ceiling_af",
+    "lb_p56_entitlement_af", "lb_p56_in_tier",
 )
 
 

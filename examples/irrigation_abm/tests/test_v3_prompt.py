@@ -549,9 +549,10 @@ def test_option_notes_rendered(golden_run):
     nl = chr(10)
     mohave = _first_prompt(golden_run, "MohaveValleyIDD", 2022)
     options_end = mohave.index(nl, mohave.index("3. Decrease your request"))
-    assert mohave[options_end + 1:].startswith(OPTION_NOTE + nl + MAINTAIN_SENTENCE + nl + nl)
-    # MohaveValleyIDD's 2021 request was cut: keep asks for what it received.
-    assert "2. Keep your request at 20,155 acre-ft, the amount you received last year." in mohave
+    assert mohave[options_end + 1:].startswith(OPTION_NOTE + nl + nl)
+    assert MAINTAIN_SENTENCE not in _after_menu(mohave)
+    # Item 46: its request stayed below the entitlement ceiling in 2021.
+    assert "2. Keep your request at 28,295 acre-ft, the amount you received last year." in mohave
     wellton = _first_prompt(golden_run, "WelltonMohawkIDD", 2022)
     options_end = wellton.index(nl, wellton.index("3. Decrease your request"))
     assert wellton[options_end + 1:].startswith(OPTION_NOTE + nl + nl)
@@ -607,7 +608,9 @@ def _lb_ctx(ratio: float, *, drought_index: float = 0.3, tier: int = 0,
            "current_request": request, "current_diversion": request * ratio,
            "delivery_ratio": ratio, "water_right": 200_000.0, "gap_reason": gap,
            "lb_junior_request_af": 0.0, "lb_junior_tier_cut_fraction": 0.0,
-           "lb_senior_entitlement_af": 200_000.0, "lb_junior_entitlement_af": 0.0}
+           "lb_senior_entitlement_af": 200_000.0, "lb_junior_entitlement_af": 0.0,
+           "lb_junior_ceiling_af": 0.0, "lb_tier_ceiling_af": 200_000.0,
+           "lb_p56_entitlement_af": 0.0, "lb_p56_in_tier": "zero"}
     ctx.update(extra)
     return ctx
 
@@ -714,10 +717,13 @@ def test_lb_shortage_line_item14_and_22():
     junior = build_water_situation_text(_lb_ctx(
         0.7468, tier=2, gap="lb_junior_tier_cut", lb_junior_tier_cut_fraction=0.2532,
         lb_junior_request_af=100_000.0, lb_senior_entitlement_af=0.0,
-        lb_junior_entitlement_af=100_000.0))
-    assert ("All of your water right is junior-priority, and this tier cuts your "
-            "junior-priority water by about 25%. The rest of your delivery is reduced only if "
-            "Lake Mead cannot supply all Lower Basin withdrawals this year.") in junior
+        lb_junior_entitlement_af=100_000.0, lb_junior_ceiling_af=74_680.0,
+        lb_tier_ceiling_af=74_680.0))
+    assert ("This tier limits your junior-priority water this year to about 74,680 acre-ft "
+            "(75% of your 100,000 acre-ft junior-priority entitlement). A request at or below "
+            "your 74,680 acre-ft tier ceiling is not reduced by the tier. The delivery available "
+            "under that ceiling is reduced only if Lake Mead cannot supply all Lower Basin "
+            "withdrawals this year.") in junior
     assert "No Lower Basin shortage applies this year." in build_water_situation_text(_lb_ctx(1.0))
     for text in (senior, senior_all, junior):
         assert "Bureau of Reclamation" not in text and "has declared" not in text
@@ -725,7 +731,7 @@ def test_lb_shortage_line_item14_and_22():
         build_water_situation_text(_lb_ctx(1.0, tier=2, shortage_tier_threshold_ft=None))
 
 
-def test_lb_partly_junior_within_senior_is_told_about_an_increase():
+def test_lb_partly_junior_within_tier_ceiling_is_not_told_it_will_be_cut():
     """Spec item 29f: an agent holding junior-priority water whose keep
     request lies within its senior entitlement has no junior part cut this
     year, but an increase beyond the entitlement would be junior-priority
@@ -733,11 +739,13 @@ def test_lb_partly_junior_within_senior_is_told_about_an_increase():
     published 5,940 AF senior entitlement). In senior_all mode (no junior
     cut) it reads the senior sentence."""
     within = dict(tier=1, lb_junior_tier_cut_fraction=0.2026, request=5_000.0,
-                  lb_senior_entitlement_af=5_940.0, lb_junior_entitlement_af=35_060.0)
+                  lb_senior_entitlement_af=5_940.0, lb_junior_entitlement_af=35_060.0,
+                  lb_junior_ceiling_af=27_958.844, lb_tier_ceiling_af=33_898.844)
     text = build_water_situation_text(_lb_ctx(1.0, **within))
-    assert ("Part of your water right is junior-priority: this tier would cut any part of a "
-            "request above 5,940 acre-ft by about 20%. Up to that amount, your delivery is "
-            "reduced only if Lake Mead cannot supply all Lower Basin withdrawals this year.") in text
+    assert ("This tier limits your junior-priority water this year to about 27,959 acre-ft "
+            "(80% of your 35,060 acre-ft junior-priority entitlement). A request at or below "
+            "your 33,899 acre-ft tier ceiling is not reduced by the tier.") in text
+    assert "would cut any part of a request" not in text
     assert "Your delivery is reduced only if" not in text
     senior_all = build_water_situation_text(_lb_ctx(1.0, **dict(within, lb_junior_tier_cut_fraction=0.0)))
     assert "Your delivery is reduced only if Lake Mead cannot supply" in senior_all
@@ -745,6 +753,48 @@ def test_lb_partly_junior_within_senior_is_told_about_an_increase():
     ctx = _lb_ctx(1.0, **within)
     del ctx["lb_junior_entitlement_af"]
     with pytest.raises(ValueError, match="lb_junior_entitlement_af"):
+        build_water_situation_text(ctx)
+
+
+@pytest.mark.parametrize(
+    ("mode", "included", "sentence"),
+    [
+        ("zero", 0.0,
+         "Priority-5/6 water is not available in a tier year; your 20,000 acre-ft "
+         "priority-5/6 entitlement adds no water to the tier ceiling."),
+        ("proportional", 14_936.0,
+         "About 14,936 acre-ft of your 20,000 acre-ft "
+         "priority-5/6 entitlement is included in the tier ceiling."),
+    ],
+)
+def test_lb_p56_sentence_is_holder_only_and_reads_the_configured_mode(mode, included, sentence):
+    holder = build_water_situation_text(_lb_ctx(
+        1.0, tier=2, lb_junior_tier_cut_fraction=0.2532,
+        lb_senior_entitlement_af=0.0, lb_junior_entitlement_af=100_000.0,
+        lb_junior_ceiling_af=59_744.0 + included, lb_tier_ceiling_af=59_744.0 + included,
+        lb_p56_entitlement_af=20_000.0, lb_p56_in_tier=mode,
+    ))
+    assert sentence in holder
+    assert "proportional sensitivity" not in holder
+    nonholder = build_water_situation_text(_lb_ctx(
+        1.0, tier=2, lb_junior_tier_cut_fraction=0.2532,
+        lb_junior_entitlement_af=80_000.0, lb_junior_ceiling_af=59_744.0,
+        lb_tier_ceiling_af=59_744.0, lb_p56_entitlement_af=0.0, lb_p56_in_tier=mode,
+    ))
+    assert "priority-5/6 entitlement" not in nonholder
+
+
+@pytest.mark.parametrize("missing", [
+    "lb_junior_ceiling_af", "lb_tier_ceiling_af", "lb_p56_entitlement_af", "lb_p56_in_tier",
+])
+def test_tier_text_fails_loudly_when_a_new_ceiling_field_is_missing(missing):
+    ctx = _lb_ctx(
+        1.0, tier=2, lb_junior_tier_cut_fraction=0.2532,
+        lb_junior_entitlement_af=100_000.0, lb_junior_ceiling_af=74_680.0,
+        lb_tier_ceiling_af=74_680.0,
+    )
+    del ctx[missing]
+    with pytest.raises(ValueError, match=missing):
         build_water_situation_text(ctx)
 
 
@@ -810,7 +860,21 @@ def test_past_and_present_reasons():
         "after Upper Basin non-farm use, and shared in proportion to requests")
     assert describe_gap_reason({"gap_reason": "lb_mead_availability"}, "present") == (
         "because Lake Mead cannot meet all Lower Basin withdrawals without falling below its "
-        "minimum pool, so all Lower Basin deliveries are reduced in proportion to requests")
+        "minimum pool, so all Lower Basin deliveries are reduced in proportion to requests "
+        "after any tier ceiling is applied")
+    tier = {"gap_reason": "lb_junior_tier_cut", "lb_junior_ceiling_af": 74_680.0,
+            "lb_junior_entitlement_af": 100_000.0}
+    assert describe_gap_reason(tier, "present") == (
+        "because the declared Lower Basin shortage tier limits your junior-priority water "
+        "this year to about 74,680 acre-ft (75% of your junior-priority entitlement)")
+    assert describe_gap_reason(tier, "past") == (
+        "because the declared Lower Basin shortage tier limited your junior-priority water "
+        "that year to about 74,680 acre-ft (75% of your junior-priority entitlement)")
+    for missing in ("lb_junior_ceiling_af", "lb_junior_entitlement_af"):
+        bad = dict(tier)
+        del bad[missing]
+        with pytest.raises(ValueError, match=missing):
+            describe_gap_reason(bad, "past")
     # the situation text: present for this year, past for last year
     text = build_water_situation_text(_ub_ctx(), last_year={
         "request": 91_435.0, "diversion": 80_000.0, "gap_reason": "ub_subbasin_supply",
@@ -852,8 +916,9 @@ def test_dashboard_sharing_flags_match_the_supply_rule_sentence():
          "shortage_lower_basin",
          "other users in the Lower Basin; it would not add water to the Lower Basin."),
         (dict(lb, gap_reason="lb_junior_tier_cut+lb_mead_availability",
-              lb_junior_tier_cut_fraction=0.25, lb_junior_entitlement_af=35_060.0),
-         "shortage_junior", "about 25% of which the declared shortage tier cuts"),
+              lb_junior_tier_cut_fraction=0.25, lb_junior_entitlement_af=35_060.0,
+              lb_tier_ceiling_af=32_235.0),
+         "shortage_junior", "above your 32,235 acre-ft tier ceiling would add no deliverable water"),
     ]
     for state, flag, words in cases:
         flags = dashboard_sharing_flags(state)
@@ -894,31 +959,23 @@ def test_calendar_year_memory_and_dashboard(golden_run):
     memory = prompt[prompt.index("Your memory includes:"):prompt.index("First, assess")]
     for year in (2019, 2020):
         assert f"- Year {year}: You chose to maintain demand." in memory
-    # Spec item 45g: the keep after the short 2020 states the fall in the
-    # request (keeping asks for the amount received the year before).
-    assert ("- Year 2021: You chose to maintain demand, so your request fell from 28,295 "
-            "acre-ft to the 23,766 acre-ft you received the year before. You requested "
-            "23,766 acre-ft and received 20,155 acre-ft.") in memory
+    # Item 46: the 28,295 AF request is below Mohave Valley IDD's entitlement
+    # ceiling in both tier years, so keeping it does not ratchet the request.
+    assert ("- Year 2021: You chose to maintain demand. You requested 28,295 acre-ft and "
+            "received 28,295 acre-ft. Demand fully met.") in memory
     assert re.search(r"- Year \d{1,2}:", memory) is None
     assert ("- Year 2020: You chose to maintain demand. You requested 28,295 acre-ft and received "
-            "23,766 acre-ft. Shortfall: 4,529 acre-ft (16.0% unmet), because the declared Lower "
-            "Basin shortage tier cut your junior-priority water by about 20%. On 1 January that "
-            "year Lake Mead was lower than a year earlier.") in memory
+            "28,295 acre-ft. Demand fully met. On 1 January that year Lake Mead was lower than "
+            "a year earlier.") in memory
     dashboard = prompt[prompt.index("PERFORMANCE HISTORY:"):prompt.index("Your memory includes:")]
     # Spec item 45i: the column is what the agent received.
     assert "Year | request (AF) | received (AF)\n" in dashboard
-    for row in ("2019 |       28,295 |        28,295", "2020 |       28,295 |        23,766",
-                "2021 |       23,766 |        20,155"):
+    for row in ("2019 |       28,295 |        28,295", "2020 |       28,295 |        28,295",
+                "2021 |       28,295 |        28,295"):
         assert row in dashboard
     assert "shortage_" not in dashboard and "TREND" not in dashboard
-    # the unmet share with one decimal, as in the memory line (review LOW 8),
-    # and the item 29c sharing clause
-    assert "You requested 23,766 AF and received 20,155 AF (15.2% unmet)." in dashboard
-    assert ("If Lake Mead is also physically short, the rest is shared in proportion to "
-            "requests, and a larger request would raise your share only by lowering the "
-            "deliveries of other users in the Lower Basin; it would not add water to the "
-            "Lower Basin.") in " ".join(dashboard.split())
-    assert "Shortfall: 3,611 acre-ft (15.2% unmet)" in memory
+    assert "WARNING:" not in dashboard
+    assert "Shortfall:" not in memory
 
 
 @needs_ref
@@ -977,7 +1034,7 @@ def test_decision_memory_has_five_recent_two_significant_then_reflection(golden_
     remain visible even when a reflection exists.  At least one prompt in the
     full mock run must exercise the complete 5 + 2 + 1 capacity.
     """
-    full_blocks = []
+    mature_blocks = []
     for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
         memory = prompt[prompt.index("Your memory includes:"):
                         prompt.index("First, assess")]
@@ -992,10 +1049,13 @@ def test_decision_memory_has_five_recent_two_significant_then_reflection(golden_
         if year >= 2024:
             event_years = {int(value) for value in re.findall(r"^- Year (\d{4}):", memory, flags=re.M)}
             assert set(range(year - 5, year)) <= event_years, (agent, year, attempt, items)
-        if len(events) == 7 and len(reflections) == 1:
-            full_blocks.append((agent, year, attempt, items))
+            if len(events) >= 5 and len(reflections) == 1:
+                mature_blocks.append((agent, year, attempt, items))
 
-    assert full_blocks, "no decision prompt exercised the complete 5 + 2 + 1 memory capacity"
+    # Under the ceiling run no Lower Basin tier shortfall creates the two
+    # extra salient events, but the five recent events plus reflection still
+    # exercise the reserved-slot behavior.
+    assert mature_blocks, "no mature prompt exercised five recent events plus a reflection"
 
 
 @needs_ref
@@ -1019,18 +1079,183 @@ def test_memory_flow_share_is_the_number_the_decision_prompt_showed(golden_run):
 
 @needs_ref
 def test_reflection_record_names_the_year_just_ended_and_the_worst_year(golden_run):
-    """Spec item 45c on the real run: MohaveValleyIDD's reflection at the end
-    of 2021 lists 2019-2021 in order and records 2020 (16.0% unmet, the
-    largest listed shortfall) and 2021 (the year just ended)."""
+    """Item 46: MohaveValleyIDD has no tier shortfall through 2021, so its
+    reflection record contains only the year just ended."""
     prompt = next(p for p in golden_run.llm.reflections
                   if "MohaveValleyIDD Memories:" in p and "(Year 2021)" in p)
     listed = re.findall(r"^- Year (\d{4}): ", prompt, flags=re.M)
     assert listed == ["2019", "2020", "2021"]
     record = prompt[prompt.index("MohaveValleyIDD Record:"):prompt.index("### Output Requirement")]
-    assert re.findall(r"^- (\d{4}): ", record, flags=re.M) == ["2020", "2021"]
-    assert "(16.0% unmet)" in record and "(15.2% unmet)" in record
+    assert re.findall(r"^- (\d{4}): ", record, flags=re.M) == ["2021"]
+    assert "(fully met)" in record and "% unmet" not in record
     assert "Rules that apply to MohaveValleyIDD:" in prompt
-    assert "A larger request would have its junior-priority part cut by the same tier." in prompt
+    assert "Above the tier ceiling, a larger request adds no deliverable water." in prompt
+
+
+@needs_ref
+def test_cibola_tier2_to_tier0_prompts_keep_the_junior_rule_conditional(golden_run):
+    """Round-2 P1-1: the actual 2028 Tier 2 -> 2029 Tier 0 transition for
+    CibolaValleyIDD contains no cut because its keep request is below the
+    ceiling. Separately settle its real 2028 request above the ceiling and
+    carry the resulting dashboard warning through the production provider
+    and prompt formatter into a 2029 Tier 0 prompt.
+    """
+    from broker.agents import AgentConfig, BaseAgent
+    from broker.components.analytics.feedback import (
+        AgentMetricsTracker,
+        FeedbackDashboardProvider,
+    )
+    from examples.irrigation_abm.run_experiment import IrrigationContextBuilder
+    from examples.irrigation_abm.tests.test_v3_lb_priority import (
+        _ample_supply_snapshot,
+        _lb_env,
+    )
+
+    tier2 = _first_prompt(golden_run, "CibolaValleyIDD", 2028)
+    tier0 = _first_prompt(golden_run, "CibolaValleyIDD", 2029)
+    reflection = next(
+        prompt for prompt in golden_run.llm.reflections
+        if "CibolaValleyIDD Memories:" in prompt and "(Year 2029)" in prompt
+    )
+
+    assert "A Tier 2 Lower Basin shortage applies this year" in tier2
+    assert "No Lower Basin shortage applies this year." in tier0
+    conditional = (
+        "In a year with a declared shortage tier, your junior-priority water is limited "
+        "to a fixed share of your entitlement"
+    )
+    tier0_words = " ".join(tier0.split())
+    reflection_words = " ".join(reflection.split())
+    assert conditional in reflection_words
+    false_present_tense = (
+        "The declared shortage tier limits your junior-priority entitlement this year"
+    )
+    assert false_present_tense not in tier0_words
+    assert false_present_tense not in reflection_words
+
+    # The keep-only golden fixture is correctly uncut in 2028. Exercise the
+    # warning path with Cibola's real 46,000 AF model right, priority split,
+    # Tier 2 ceiling and settlement instead of fabricating warning text.
+    aid = "CibolaValleyIDD"
+    env = _lb_env({aid: 46_000.0})
+    env._current_year = 2028
+    settled_2028 = env._settle(_ample_supply_snapshot(env, 2))["agents"][aid]
+    assert settled_2028["request"] > settled_2028["lb_tier_ceiling_af"]
+    assert settled_2028["gap_reason"] == "lb_junior_tier_cut"
+
+    cfg = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    feedback_cfg = cfg["irrigation_farmer"]["feedback"]
+    tracker = AgentMetricsTracker(
+        [metric["name"] for metric in feedback_cfg["tracked_metrics"]], window=5
+    )
+    flags = dashboard_sharing_flags({
+        **settled_2028,
+        "basin": "lower_basin",
+        "lb_junior_entitlement_af": settled_2028["lb_junior_entitlement_af"],
+    })
+    tracker.record(aid, 2028, {
+        "request": settled_2028["request"],
+        "supply": settled_2028["delivered"],
+        **flags,
+    })
+
+    # Move the same real Cibola state to Tier 0 for the next prompt. The
+    # situation text comes from the production helper and the prior outcome
+    # comes from the real Tier 2 settlement above.
+    env._current_year = 2029
+    env._basins["lower_basin"].update(lake_mead_level=1105.0, preceding_factor=1)
+    env._agents[aid].update(
+        request=settled_2028["delivered"],
+        diversion=settled_2028["delivered"],
+        delivery_ratio=1.0,
+        gap_reason="none",
+        lb_junior_af=settled_2028["delivered"],
+    )
+    tier0_context = env.get_agent_context(aid)
+    assert tier0_context["shortage_tier"] == 0
+    last_year = {
+        **settled_2028,
+        "diversion": settled_2028["delivered"],
+        "preceding_factor": 1,
+    }
+    water_situation = build_water_situation_text(tier0_context, last_year=last_year)
+
+    agent = BaseAgent(AgentConfig(
+        name=aid,
+        agent_type="irrigation_farmer",
+        state_params=[],
+        objectives=[],
+        constraints=[],
+        skills=[],
+    ))
+    agent.custom_attributes = {
+        "narrative_persona": tier0[:tier0.index("It is now the year 2029.")],
+        "water_situation_text": water_situation,
+        "option_notes": "",
+        "options_text": "",
+        "valid_choices_text": "1, 2, or 3",
+    }
+    builder = IrrigationContextBuilder(
+        agents={aid: agent},
+        prompt_templates={
+            "irrigation_farmer": TEMPLATE.read_text(encoding="utf-8"),
+            "default": TEMPLATE.read_text(encoding="utf-8"),
+        },
+        yaml_path=str(CONFIG),
+        extend_providers=[FeedbackDashboardProvider(tracker, feedback_cfg)],
+    )
+    prompt_2029 = builder.format_prompt(builder.build(aid, env_context=tier0_context))
+    prompt_2029_words = " ".join(prompt_2029.split())
+    assert "No Lower Basin shortage applies this year." in prompt_2029_words
+    assert conditional in prompt_2029_words
+    assert false_present_tense not in prompt_2029_words
+    assert "your total limit" not in prompt_2029_words
+
+
+@needs_ref
+def test_every_tier0_decision_and_reflection_avoids_a_current_tier_claim(golden_run):
+    """Round-2 P1-1: classify Tier 0 from each Lower Basin decision prompt,
+    then check every such decision and same-year reflection. The reviewer's
+    15-year run contains 36 Tier 0 reflections for the six junior holders.
+    """
+    tier0_decisions = {}
+    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+        words = " ".join(prompt.split())
+        if "No Lower Basin shortage applies this year." in words:
+            tier0_decisions[(agent, year, attempt)] = words
+
+    assert tier0_decisions
+    banned = (
+        "The declared shortage tier limits your junior-priority entitlement this year",
+        "A declared shortage limits your junior-priority entitlement",
+        "This tier limits your junior-priority water this year",
+        "your total limit",
+    )
+    for key, words in tier0_decisions.items():
+        assert not any(phrase in words for phrase in banned), (key, words)
+
+    tier0_reflections = []
+    junior_tier0_reflections = []
+    conditional = (
+        "In a year with a declared shortage tier, your junior-priority water is limited "
+        "to a fixed share of your entitlement"
+    )
+    for prompt in golden_run.llm.reflections:
+        year_match = re.search(r"\(Year (\d{4})\)\.", prompt)
+        agent_match = re.search(r"^(.+?) Memories:$", prompt, flags=re.M)
+        assert year_match and agent_match, prompt[:300]
+        key = (agent_match.group(1), int(year_match.group(1)), 0)
+        if key not in tier0_decisions:
+            continue
+        words = " ".join(prompt.split())
+        tier0_reflections.append((key, words))
+        if conditional in words:
+            junior_tier0_reflections.append((key, words))
+
+    assert tier0_reflections
+    assert len(junior_tier0_reflections) == 36
+    for key, words in tier0_reflections:
+        assert not any(phrase in words for phrase in banned), (key, words)
 
 
 # ===========================================================================
@@ -1070,11 +1295,15 @@ GOLDEN = {
     # their latest reflection moves after the salience-ordered event lines;
     # UT2 2033 also gains an event because reflection no longer consumes one
     # of the five recent slots. The memory text itself is otherwise unchanged.
-    # Spec items 45p/45q change only MohaveValleyIDD 2022: it is the sole
-    # golden prompt eligible for the junior-tier recovery guidance. The 45q
-    # hash below replaces "choose maintain/request" and "choose increase"
-    # with the exact menu-aligned D3 wording; all other golden hashes remain
-    # byte-identical.
+    # Spec item 46 changes only MohaveValleyIDD 2022: the tier sentence now
+    # gives its fixed junior and total entitlement ceilings, and its 2020-21
+    # deliveries remain at the 28,295 AF request instead of compounding a
+    # request-based cut. This also removes the 45p recovery sentence and
+    # changes the memory/reflection lines; all other hashes remain identical.
+    # Round-2 P1-1/P2-1 requires no digest replacement: the parent's actual
+    # golden-fixture run kept all eight hashes below. Those selected decision
+    # snapshots do not render the changed junior warning; the Cibola 2028 ->
+    # 2029 regression above separately pins its Tier 0 decision/reflection.
     (UT1, 2019): ("UB, normal year", "f7a58305f4f24325874261e0f13c019eae2895f8591e1ce8f61a2348a2ca560c"),
     (UT1, 2020): ("UB, own sub-basin short at 2018 use", "8e62457c7633e39a7bbd52448dc3619e2588b6d0c7745b32e18ad06458971eff"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "d9e8dc70fcaff57af6c4a1fba3a6f2f721224f951415cb64366eccf8b1c5b27b"),
@@ -1083,7 +1312,7 @@ GOLDEN = {
     ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "b8984b49c172983a0e68aea9edaead391c36188c1201e804a59fba3c368cee80"),
     ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "ce925a4280531557a44a71955cfd3bc01d27f6eda57649e9116bab8af7789c75"),
     ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "ff5476449efe16faa5292097db715a0a952c467c60bf5436666524ff435180a3"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 cuts its junior water", "c870f3f1e9e4d4e55f41890b48e28ff25e5ee49f7537bb6e6bda1cb274201f44"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "257978e9d221f5760a4c8a84bc0f097082fa49c0d0ab233be55f353d5ad7bce9"),
 }
 
 

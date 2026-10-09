@@ -1557,6 +1557,8 @@ def main():
     config_kwargs: Dict[str, Any] = {}
     if args.lb_non_ag_total_maf is not None:
         config_kwargs["lb_non_ag_total_maf"] = args.lb_non_ag_total_maf
+    if args.lb_p56_in_tier is not None:
+        config_kwargs["lb_p56_in_tier"] = args.lb_p56_in_tier
     if args.lb_return_flow_fraction is not None:
         config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
     if args.min_utilisation_fraction is not None:
@@ -1750,6 +1752,7 @@ def main():
         "ub_supply_mode": env.config.ub_supply_mode,
         "ub_subbasin_supply_variant": env.config.ub_subbasin_supply_variant,
         "lb_priority_mode": env.config.lb_priority_mode,
+        "lb_p56_in_tier": env.config.lb_p56_in_tier,
         "fql_init": args.fql_init,
         "fql_init_dir": args.fql_init_dir if args.fql_init == "calibrated" else None,
         # Cheap reproducibility provenance (2026-09-27 review): numpy's
@@ -1855,6 +1858,9 @@ def parse_args():
                         "pairing a non-zero f with the f=0.0 constant double-counts "
                         "water the fraction already credits back to Mead. Recorded in "
                         "reproducibility_manifest.json.")
+    p.add_argument("--lb-p56-in-tier", choices=["zero", "proportional"], default=None,
+                   help="Item 46: P5/P6 availability in tier years; zero by default, "
+                        "proportional for an SI sensitivity, recorded in the manifest.")
     p.add_argument("--lb-return-flow-fraction", type=float, default=None,
                    help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
                         "agricultural draw treated as reused downstream (e.g. "
