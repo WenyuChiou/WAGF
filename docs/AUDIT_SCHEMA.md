@@ -75,7 +75,7 @@ trace covers the standard audit projection.
 | `construct_THREAT_LABEL` | constructs | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `rules_evaluated_count` | triggered rules | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `rules_triggered` | triggered rules | `broker/components/analytics/audit.py:trace_to_csv_row` |
-| `rule_exceptions_used` | rule ids whose `exception_precondition` let execution through (`|`-joined; empty when none); present only when the domain sets the key, which irrigation does on every row since spec 45q | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `rule_exceptions_used` | rule ids whose `exception_precondition` let execution through (`|`-joined; empty when none); present only when the domain sets the key. Historical irrigation spec-45q runs set it on every row; new spec-46 irrigation runs omit it | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `mem_retrieved_count` | memory | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `mem_cognitive_system` | memory | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `mem_surprise` | memory | `broker/components/analytics/audit.py:trace_to_csv_row` |

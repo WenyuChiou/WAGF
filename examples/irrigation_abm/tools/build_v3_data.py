@@ -178,7 +178,7 @@ LB_PRIORITY_SPLIT_CSV = DATA_DIR / "lb_priority_split_v3.csv"
 # Filled in after the first --target lb_priority run verifies the freshly
 # built bytes (same bootstrap procedure as every other *_SHA256 constant
 # in this module).
-LB_PRIORITY_SPLIT_SHA256 = "0b4462d7ea5a3364f433bc84847232d1a42a17e36329e8dbfa2143b6d195d165"
+LB_PRIORITY_SPLIT_SHA256 = "0a19f14349a74e992811b2ac883e6bdbd2c4759bd4b4ed3e6ebb92d04deb1fe6"
 
 # Arizona's Fourth Priority (USBR, "Water Priorities Within the State of
 # Arizona", https://www.usbr.gov/lc/region/g4000/contracts/entitlements/AZpriorities.pdf,
@@ -870,6 +870,11 @@ def build_mead_capacity_csv() -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
+# Item 46, USBR Entitlements_AZ_Priority_5_and_6.pdf p.1, August 2024.
+# Combined conditional supply; Gila's sourced 656 AF is Priority 5.
+_LB_P56_SOURCE_AF = {"CibolaValleyIDD": 3500.0, "HopiTribe": 1750.0,
+                     "GilaMonsterFarms": 656.0}
+
 def build_lb_priority_split_csv(
     params_csv: Path = DEFAULT_PARAMS_CSV,
     crss_db_dir: Path = DEFAULT_CRSS_DB_DIR,
@@ -985,7 +990,7 @@ def build_lb_priority_split_csv(
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow([
         "agent_id", "water_right_af", "senior_entitlement_af", "junior_entitlement_af",
-        "basis", "priority_classes", "source",
+        "p56_entitlement_af", "basis", "priority_classes", "source",
     ])
     for agent_id in sorted(_LB_PRIORITY_SOURCE_TABLE):
         senior_af, junior_af, basis, priority_classes, source = _LB_PRIORITY_SOURCE_TABLE[agent_id]
@@ -995,12 +1000,16 @@ def build_lb_priority_split_csv(
                 f"junior_entitlement_af={junior_af!r} must both be >= 0; check "
                 "_LB_PRIORITY_SOURCE_TABLE."
             )
+        if agent_id in _LB_P56_SOURCE_AF:
+            component = "P5" if agent_id == "GilaMonsterFarms" else "P5/P6"
+            source += f"; {component} split: USBR Entitlements_AZ_Priority_5_and_6.pdf p.1 (August 2024)"
         water_right_af = float(lb_profiles[agent_id].water_right)
         writer.writerow([
             agent_id,
             f"{water_right_af:.2f}",
             "" if senior_af is None else f"{senior_af:.2f}",
             f"{junior_af:.2f}",
+            f"{_LB_P56_SOURCE_AF.get(agent_id, 0.0):.2f}",
             basis,
             priority_classes,
             source,

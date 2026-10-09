@@ -10,9 +10,9 @@ Sources: `.research/design_specs/irrigation_v3_spec_2026-09-28.md` (WP6, section
 - First-stated WSA (item 28): `WSA_LABEL` in `initial_labels` when it is non-blank there, otherwise the first non-blank `WSA_LABEL` in `attempt_labels`, in attempt order. A blank (`WSA_LABEL=`) or an omitted label is not a statement. ACA is read the same way (R2 only).
 - Final proposal: the skill of the last attempt. A decision whose last attempt did not parse, or an ABORTED row, has no readable final proposal (P8, final-label IBR); the primary IBR judges its last parsed attempt instead (section 2, item 37d).
 - Final-attempt WSA: `WSA_LABEL` in `final_labels`.
-- Supply-rule condition: `state_supply_physical_ratio < FULL_SUPPLY_RATIO` (0.999, imported from `irrigation_personas`, the same object the live rule reads). `state_supply_physical_ratio` is the expected delivery at the keep request (last year's receipt) as a share of it, net of a declared junior-priority cut, logged for every decision in every arm.
+- Supply-rule condition: `state_supply_physical_ratio < FULL_SUPPLY_RATIO` (0.999, imported from `irrigation_personas`, the same object the live rule reads). `state_supply_physical_ratio` factors out the Lower Basin entitlement ceiling and therefore measures physical availability at the keep request; it is logged for every decision in every arm.
 - Cap and floor conditions: `at_allocation_cap` and `below_minimum_utilisation` in the decision's `state_before` (`raw/irrigation_farmer_traces.jsonl`), the flags the identity rules read. An ABORTED row has no `state_before`; its cap and floor conditions are unknown and counted apart.
-- TR1: first-stated WSA in {H, VH} and the skill is `increase_demand`, except when the previous shortfall cause is exactly `lb_junior_tier_cut` and the previous request exceeded the previous delivery (items 45p/45q). The excepted action uses the ordinary uncapped H&Y step; only the water-right cap still applies. TR3: first-stated WSA in {VL, L} and the skill is `decrease_demand` (item 9). The module checks these sets and TR1's exception against the strict profile of `config/agent_types.yaml` on every run.
+- Current TR1: first-stated WSA in {H, VH} and the skill is `increase_demand`; there is no irrigation exception in new runs. TR3: first-stated WSA in {VL, L} and the skill is `decrease_demand` (item 9). For historical 45p/45q runs only, the analysis can apply the restoration exception recorded by manifest provenance as described below. The module checks the current sets against the strict profile of `config/agent_types.yaml` on every run.
 - Rates are percentages of N unless stated.
 
 ## 2. IBR (primary, item 37a, 2026-10-06 -- 37a is what DECIDES the primary is the FINAL proposal, i.e. the last attempt; supersedes item 19's wording, not its arithmetic, since item 19 already counted the final proposal against the first-stated WSA; item 37d, 2026-10-07, then refines "the last attempt" to mean the last PARSED one)
@@ -24,10 +24,7 @@ Sources: `.research/design_specs/irrigation_v3_spec_2026-09-28.md` (WP6, section
                (`Decision.last_parsed_proposal`); still undefined when no attempt parsed at all (ABORTED,
                or, unreachably on real data since a non-ABORTED row's first attempt always parses, every
                attempt unparsed)
-    restore(d) = previous gap_reason is exactly lb_junior_tier_cut and
-                 previous year's request > previous year's delivery
-    IBR_TR1  = 100 x #{d : lp(d) = increase_demand and WSA_first(d) in {H, VH}
-                          and not restore(d)} / N
+    IBR_TR1  = 100 x #{d : lp(d) = increase_demand and WSA_first(d) in {H, VH}} / N
     IBR_TR3  = 100 x #{d : lp(d) = decrease_demand and WSA_first(d) in {VL, L}} / N
     IBR      = IBR_TR1 + IBR_TR3
 
@@ -35,18 +32,19 @@ The same rules in every arm: live in strict, placebo and silent; post hoc in dis
 
 Beside the primary number:
 
-Items 45p/45q apply the same restoration exception to every IBR companion below,
-including the step-back proposal of items 37d/37e. `junior_restore.tr1_violation`
-is shared with enforcement. Eligibility depends only on the prior settlement,
-so analysis never reconstructs a random H&Y step or tests the resulting request.
-A run whose manifest contains `tier_cut_restore` uses this definition (including
-manifests naming 45p or 45q). Older corpora retain the historical TR1 definition
-by default. Use `load_run(..., apply_tier_cut_restore=True)` or the CLI flag
-`--apply-tier-cut-restore` only for an explicit counterfactual reanalysis of such
-an older run; the output provenance records the override, and a pilot gate run
-under it cannot pass as an unchanged historical-run validation. Audit
-`rule_exceptions_used` records actual restoring executions, and manifest
-`tier_cut_restore.uses_per_year` counts them by calendar year.
+The formula above is the current, plain TR1. For historical 45p/45q runs, a
+manifest containing `tier_cut_restore` activates their recorded definition:
+an otherwise violating increase is excepted when the previous gap reason is
+exactly `lb_junior_tier_cut` and the previous request exceeded the previous
+delivery. The same historical exception applies to every IBR companion,
+including the step-back proposal of items 37d/37e. An analyst can request that
+counterfactual explicitly with `load_run(..., apply_tier_cut_restore=True)` or
+`--apply-tier-cut-restore`; output provenance records the override, and a pilot
+gate under it cannot pass as an unchanged historical-run validation. Analysis
+fails loudly when audit `rule_exceptions_used` records a restoration but the
+manifest does not authorize the historical interpretation. Historical manifest
+`tier_cut_restore.uses_per_year` counts uses by calendar year. New runs omit the
+field and use the plain formula above.
 
 - Executed share (`ibr_executed_pct`, `_tr1_pct`, `_tr3_pct`; item 37/37a: "the executed action is reported separately" / "reported separately for feasibility"): the identical formula with `lp(d)` replaced by `executed_skill`, the action that actually reached the water system. With `on_retry_exhausted` at its `default` setting (item 37b: irrigation `maintain_demand`), a blocked proposal's retries end in the registry default, which violates neither TR1 nor TR3, so this is ~0 in strict, placebo and silent. In disabled and feasibility_only, TR1 and TR3 never retry, so `lp(d)` and `executed_skill` often agree there too -- BUT the water-right cap, the minimum-use floor and the supply rule still act in EVERY arm (menu filter and environment clip, spec 3.1), so an executed increase or decrease can still be blocked or clipped by one of those feasibility rules even where TR1/TR3 do nothing; this can pull the executed share below the final-proposal share in disabled and feasibility_only too, not only in strict/placebo/silent.
 - First-proposal share (`ibr_first_proposal_pct`, `_tr1_pct`, `_tr3_pct`; this companion is NOT from item 37 -- it is `paper_scope_2026-10-06.md` C2's analogy to flood's own first-proposal/final-proposal/executed figures, 8.5% / 0.5% / 0.5%): the identical formula with `lp(d)` replaced by the FIRST attempt's proposal (`attempt_skills`' first entry) -- the share before any retry had a chance to change or block it.
@@ -69,7 +67,7 @@ A blocked proposal ends in keep, so the rate is zero by construction in strict, 
 
 ## 4. Rule census (SI) and live-against-post-hoc agreement
 
-Per rule and run: decisions on which the condition held (supply: the physical ratio; cap and floor: the `state_before` flags; TR1: first-stated WSA H/VH without an eligible tier-cut restoration; TR3: the first-stated WSA), first-attempt violations (condition and attempt 0 proposes the blocked skill), final-proposal violations, executed violations, and live blocks (decisions and attempts whose `attempt_failed_rules` group names the rule id). When 45p/45q analysis is enabled, an eligible restoration moves out of TR1's `condition_held` count as well as its violation counts. Rule families are counted by rule id; `rules_self_report` and `rules_world_grounded` are not read (an off-menu row files the registry backstops `precondition_violation` and `output_schema_violation` under self-report).
+Per rule and run: decisions on which the condition held (supply: the physical ratio; cap and floor: the `state_before` flags; TR1: first-stated WSA H/VH; TR3: the first-stated WSA), first-attempt violations (condition and attempt 0 proposes the blocked skill), final-proposal violations, executed violations, and live blocks (decisions and attempts whose `attempt_failed_rules` group names the rule id). For a historical 45p/45q analysis only, an eligible restoration moves out of TR1's `condition_held` count as well as its violation counts. Rule families are counted by rule id; `rules_self_report` and `rules_world_grounded` are not read (an off-menu row files the registry backstops `precondition_violation` and `output_schema_violation` under self-report).
 
 Item 37d (2026-10-07): "final-proposal violations" reads `lp(d)`, the agent's last PARSED attempt (`last_parsed_proposal`), not the literal last attempt -- the same step-back the primary IBR uses, applied here to every rule in `ALL_RULES` (the two identity rules and the supply rule included, not only TR1 and TR3).
 
@@ -132,6 +130,26 @@ Gated, on the strict and disabled runs, both seed 42 (any other pair is refused)
 - P2: delivered <= request <= W per agent-year (1e-6 AF); storages within [dead pool, capacity]; `natural_flow_maf` equals the hydrology table; Lake Mead on 1 January 2019 = 1,081.46 ft.
 - P4: 2019 request totals, UB in [2.6, 3.6] MAF, LB in [2.4, 3.0] MAF.
 - P5: (a) the 13 banned phrases of spec WP4 in program-written text of every first-attempt prompt, including reflection headings and program facts. Model-written reflection lessons are scanned separately as `a_banned_hits_in_reflection_lessons` (counts per phrase with `a_reflection_lesson_examples`) and do not fail (a). The lesson is the text after the first " Lesson: " of a reflection line; in a run with `program_facts` on, a reflection line without that separator is gated whole. In a run without program facts (old-style reflections) the whole reflection text is the lesson. The gate still scans every logged rule text (`error_messages`), and the retry texts, which are not logged: the full and placebo retry wrappers with every configured rule message and suggestion, and the feasible-action lines for every menu and outcome, rendered by the broker's own code with the settings of `config/agent_types.yaml` and `skill_registry.yaml` (`retry_text_samples`; a silent retry repeats the first-attempt prompt, and the supply rule's text is built per decision and read from `error_messages`). (b) every number in every first-attempt prompt against the logs: each v3 sentence of `irrigation_personas` is read back (year, precipitation, sub-basin flow share against the pinned tables, Powell, Mead and its trend, tier, volume, threshold and junior-priority shares, last year's request, delivery and share, the keep request, expected delivery and r, the water right, the options, dashboard rows and warnings, and each memory line's year, action, request, delivery, shortfall and trend against the audit and log of that year; a year in which nothing executed must read "no valid decision was read; your request stayed at the amount you received the year before", with the logged request equal to its base, and a memory line that names no decision fails; since spec item 45, an Upper Basin memory line's sub-basin flow share is read against the pinned tables for its year (45f), a keep after a short year must carry ", so your request fell from R0 acre-ft to the R acre-ft you received the year before" with R0 the year before's request and R its receipt, and no other line may carry it (45g), and the floor sentence "A decrease is not offered because ..." must state the floor and its share of the water right and stand beside a menu with no decrease (45i)); a digit outside every verified sentence is an unchecked number and fails the check; reflection text is the model's own and goes to P6. (c) the reading sample: 5 UB and 5 LB prompts per run in 2019, 2028, 2034, 2048 and 2060, LB picks rotating through the three clusters. `p5c-sample` writes the review template, tied to the pilot: both run labels with their `git_commit`, and for each sampled prompt its agent, year and the sha256 of the logged prompt text, plus the texts themselves under `p5c_prompts/`. The reviewer fills in `reviewer`, `reviewer_wrote_code` and, per prompt, `sentences_without_source`. The gate refuses a record whose labels, commits, (agent, year) list or hashes differ from the runs, or with a count left blank; it passes (c) with at least 20 prompts reviewed, 0 sentences without a source and `reviewer_wrote_code` false.
+  Item 46 extends P5(b) for new-format Lower Basin prompts: the reader checks
+  `lb_junior_ceiling_af`, `lb_junior_entitlement_af`, their stated percentage,
+  `lb_p56_entitlement_af`, and the configured P5/P6 mode against the log and
+  manifest. In `zero` mode the wording must say P5/P6 adds no tier-year water;
+  in `proportional` mode it must state the included `(1-f) P5/P6` amount.
+  The reader also recomputes junior and total ceilings from the pinned
+  senior/P4/P5-P6 entitlements, the logged tier fraction, and the mode;
+  changing a log and prompt together cannot hide an incorrect ceiling.
+  Historical logs without the new ceiling fields keep the legacy percentage,
+  request-fraction, and restoration readers. A restoration sentence in a
+  new-format prompt fails P5(b).
+
+  A missing `lb_p56_in_tier` is accepted only with the exact pre-item-46
+  priority-table checksum, and is labeled `legacy_request_proportional`.
+  This keeps recorded 92d4227b runs readable while keeping their physics
+  distinct from current `zero` and `proportional` runs. Comparing that
+  historical corpus with current analysis constants requires the recorded
+  `--allow-mixed-provenance` override. A current table with a missing mode
+  is refused. A retired exception state or use without its historical
+  manifest field is refused even when a ceiling marker is present.
 - P6: stored reflections quoting a figure absent from the memory they were written from (the non-reflection memory lines of the prompt of the year it was written; the runner's own `_foreign_figures` rule); prompts with more than one reflection line; reflection lines not written in the previous calendar year. A reflection written in W and shown in Y with W < Y - 1 is reported as `carried_after_drop`, rather than gated as a wrong-year reflection, only when `reflection_checks.jsonl` has a `dropped` row for that same agent in every intervening year W + 1 through Y - 1. A missing year or another agent's drop remains a gated wrong-year failure. Since spec item 45 a stored reflection reads "{program facts} Lesson: {lesson}": only the lesson is checked for foreign figures. An ordinary previous-year reflection uses the writing-year prompt plus that year's outcome when it first appears in the following prompt. A carried reflection uses only prompt year W, so figures that appear only in Y - 1 or Y cannot ground it. Every program-written fact is read back against the log (request, receipt, unmet share, and the direction of the numeric change). A fact that disagrees (`fact_mismatches`), a digit outside a matched fact, or more grounded reflection lines than parsed facts fails P6. Zero parsed facts fails only when `reflection_checks.settings.program_facts` is true, so an old-style run without program-written facts remains admissible. A lesson digit fails only when `reflection_checks.settings.lesson_no_numbers` is true. The report preserves the manifest's stored, retried, dropped, dropped-by-reason and `flagged_by_reason` totals, plus the share of 2020-and-later decision prompts carrying a reflection. Semantic `flagged_by_reason` counts are informative and never gated: their regexes have known false positives and must be hand-audited on the pilot.
 - P7: strict share of decisions with `retry_count > 0` <= 50 percent; disabled <= 0.5 percent; each run's share with a parse retry (`format_retries > 0`, or a governance retry that did not parse: an empty group in the `attempt_*` columns) <= 5 percent; 0 disagreements for the supply rule, TR1 and TR3 in strict (section 4).
 - P8: no `llm_success` False; each CSV holds 3,276 rows (78 agents x 42 years), counted on the files, with every agent in every year (the run's own `run_integrity.configured_grid_rows` is reported, never used); decisions with no readable final proposal <= 0.5 percent.

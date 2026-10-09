@@ -34,9 +34,9 @@ Lower Basin shortage tier's volume is borne by the 5.2 MAF non-agricultural
 bucket, MINUS a small senior/
 junior refinement (item 22, WaterSystemConfig.lb_priority_mode="split",
 the v3 default): six of the 22 Lower Basin agricultural agents hold some
-Arizona 4th/5th/6th-priority ("junior") water and have that junior part
-of their request cut by the same proportion CAP itself bears at that tier
-(lb_priority_split_v3.csv, USBR entitlement listings); the other 16, and
+Arizona 4th/5th/6th-priority ("junior") water. A tier limits their delivery
+to senior entitlement plus reduced P4 entitlement, with P5/P6 unavailable
+by default (lb_priority_split_v3.csv, USBR entitlement listings); the other 16, and
 every agent's senior part, are cut only when Mead cannot physically supply
 all Lower Basin withdrawals, pro-rata to what is available above the dead
 pool -- as are ALL 22 under "senior_all" mode (item 14 as committed at
@@ -461,8 +461,8 @@ class WaterSystemConfig:
     # WP1c (item 22, PI-approved 2026-09-29): "split" (v3 default) fills
     # each Lower Basin agent's senior entitlement first, then its junior
     # entitlement (examples/irrigation_abm/data/lb_priority_split_v3.csv),
-    # and cuts only the junior part in a declared tier, by f_g =
-    # _lb_junior_tier_fraction(tier); the non-agricultural bucket absorbs
+    # and caps delivery in a declared tier at senior + (1-f_g)*P4,
+    # with P5/P6 governed by lb_p56_in_tier. The non-agricultural bucket absorbs
     # the rest of the declared volume, so the volume itself (V) is
     # unchanged (see _settle). "senior_all" is item 14 AS COMMITTED at this
     # repo's HEAD 38e5c34b -- every one of the 22 Lower Basin agricultural
@@ -472,6 +472,9 @@ class WaterSystemConfig:
     # Either way, all 22 are still cut by phi exactly as before (item 22
     # only refines WHICH agents a declared tier itself reaches).
     lb_priority_mode: str = "split"
+    # Item 46: USBR AZpriorities.pdf p.2 makes P5/P6 supply conditional
+    # on availability. The proportional option treats it as P4 for the SI.
+    lb_p56_in_tier: str = "zero"
 
     # WP2 review round 1, HIGH 1 (2026-09-29): a "held-fixed" replay (every
     # agent's request set once, at initialisation, to a target such as
@@ -670,6 +673,9 @@ class WaterSystemConfig:
                 "lb_priority_mode must be 'split' or 'senior_all', "
                 f"got {self.lb_priority_mode!r}"
             )
+        if self.lb_p56_in_tier not in ("zero", "proportional"):
+            raise ValueError("lb_p56_in_tier must be 'zero' or 'proportional', "
+                             f"got {self.lb_p56_in_tier!r}")
         if self.powell_release_mode not in ("ig2007_tiers", "storage_balancing"):
             raise ValueError(
                 "powell_release_mode must be 'ig2007_tiers' or "
@@ -713,6 +719,15 @@ class WaterSystemConfig:
                 "lb_non_ag_total_maf must be > 0 and < 20 MAF (a Lower Basin "
                 "non-farm withdrawal outside this range is not physically "
                 f"plausible), got {self.lb_non_ag_total_maf!r}"
+            )
+        # Spec item 46: the bucket must be able to absorb the largest declared
+        # Lower Basin tier volume (0.5 MAF, 2007 ROD Section 2.D.1), so a run
+        # fails at setup rather than at its first tier year.
+        if self.lb_non_ag_total_maf < 0.5:
+            raise ValueError(
+                "lb_non_ag_total_maf must be at least 0.5 MAF, the largest "
+                "declared Lower Basin tier volume (2007 ROD Section 2.D.1), "
+                f"got {self.lb_non_ag_total_maf!r}"
             )
 
     # Number of Monte Carlo runs
@@ -816,7 +831,7 @@ _MEAD_DEAD_STORAGE_AF = 2_547_000.0
 LB_PRIORITY_SPLIT_PATH = os.path.join(_DATA_DIR, "lb_priority_split_v3.csv")
 # 22-row table (senior/junior entitlement AF per Lower Basin agent, plus
 # the published figures and citation each split is derived from).
-LB_PRIORITY_SPLIT_SHA256 = "0b4462d7ea5a3364f433bc84847232d1a42a17e36329e8dbfa2143b6d195d165"
+LB_PRIORITY_SPLIT_SHA256 = "0a19f14349a74e992811b2ac883e6bdbd2c4759bd4b4ed3e6ebb92d04deb1fe6"
 
 # Arizona's Fourth Priority (USBR, "Water Priorities Within the State of
 # Arizona") is legally two coequal components: (i) on-river contracts,
@@ -853,10 +868,12 @@ _LB_SHORTAGE_VOLUME_TO_TIER = {0.0: 0, 0.333: 1, 0.417: 2, 0.500: 3}
 
 
 def _lb_junior_tier_fraction(tier: int) -> float:
-    """f_g (spec item 22) = AZ tier volume / AZ priority-4 total, the
-    SAME proportional cut CAP itself bears at that tier (AZpriorities.pdf:
-    every fourth-priority entitlement holder is reduced "in the same
-    proportion as its Entitlement"). 0 at tier 0 (no declared shortage)."""
+    """Retained model f_g = AZ tier volume / AZ priority-4 total.
+
+    USBR specifies proportional P4 entitlement reductions; this numerical
+    fraction is not independently verified (item 46 source check).
+    Zero at tier 0 (no declared shortage).
+    """
     return _AZ_LB_TIER_VOLUME_AF[tier] / AZ_PRIORITY_4_TOTAL_AF
 
 
@@ -1042,7 +1059,8 @@ def _load_ub_subbasin_variant_means() -> Dict[str, Dict[str, float]]:
 @functools.lru_cache(maxsize=1)
 def _load_lb_priority_split_table() -> Dict[str, Dict[str, Optional[float]]]:
     """The committed 22-row Lower Basin priority-split table (WP1c, item
-    22), keyed by agent id: ``senior_entitlement_af``, ``junior_entitlement_af``
+    22/46), keyed by agent id: ``senior_entitlement_af``, ``junior_entitlement_af``
+    and its conditional ``p56_entitlement_af`` subset
     (both the PUBLISHED USBR figures, WP1c review round 2 MEDIUM 4 -- see
     ``build_v3_data.py (_LB_PRIORITY_SOURCE_TABLE)`` for the full per-agent
     citation) and ``water_right_af`` (informational; no longer used to
@@ -1066,13 +1084,38 @@ def _load_lb_priority_split_table() -> Dict[str, Dict[str, Optional[float]]]:
         table[row["agent_id"]] = {
             "senior_entitlement_af": float(senior_raw) if senior_raw else None,
             "junior_entitlement_af": float(row["junior_entitlement_af"]),
+            "p56_entitlement_af": float(row["p56_entitlement_af"]),
             "water_right_af": float(row["water_right_af"]),
         }
+        entry = table[row["agent_id"]]
+        if (not math.isfinite(entry["p56_entitlement_af"])
+                or not 0 <= entry["p56_entitlement_af"] <= entry["junior_entitlement_af"]):
+            raise ValueError(f"{row['agent_id']}: invalid sourced P5/P6 entitlement")
     if len(table) != 22:
         raise ValueError(
             f"{LB_PRIORITY_SPLIT_PATH} has {len(table)} rows after parsing, expected 22"
         )
     return table
+
+
+def _lb_entitlement_ceiling(row: Dict[str, Optional[float]], tier: int,
+                            p56_mode: str) -> Tuple[Optional[float], Optional[float]]:
+    """Item 46 junior and total tier ceilings in AF, from pinned rights.
+
+    Called only for a holder with positive junior entitlement. No tier
+    means no delivery cap, so both logged ceiling fields are empty.
+    """
+    if tier == 0:
+        return None, None
+    junior = row["junior_entitlement_af"]
+    p56 = row["p56_entitlement_af"]
+    senior = row["senior_entitlement_af"]
+    if senior is None:
+        raise ValueError("Junior holder has no sourced senior entitlement")
+    f = _lb_junior_tier_fraction(tier)
+    junior_limit = (1-f)*(junior-p56) + (
+        (1-f)*p56 if p56_mode == "proportional" else 0.0)
+    return junior_limit, senior + junior_limit
 
 
 # Hung and Yang (2021) action model, used for synthetic (mock) agents that
@@ -2128,14 +2171,6 @@ class IrrigationEnvironment:
         for agent in self._agents.values():
             base_af = float(agent["diversion"])
             wr = float(agent["water_right"])
-            # Preserve the committed cause/request before the provisional
-            # settlement replaces gap_reason with this year's expectation.
-            from examples.irrigation_abm.junior_restore import restoration_available
-            agent["previous_gap_reason"] = agent.get("gap_reason", "none")
-            agent["previous_request_af"] = float(agent["request"])
-            agent["tier_cut_restore_available"] = restoration_available(
-                agent["previous_gap_reason"], agent["previous_request_af"], base_af)
-            agent["tier_cut_restore_used"] = False
             agent["base_af"] = base_af
             agent["request"] = base_af
             agent["at_allocation_cap"] = base_af >= 0.99 * wr
@@ -2282,7 +2317,20 @@ class IrrigationEnvironment:
                 )
             ub_subbasin_flow_share = supply_row[f"q_{supply_group}_af"] / q_s_mean
 
+        priority_row = (_load_lb_priority_split_table().get(agent_id)
+                        if basin_key == "lower_basin" else None)
+        junior_ceiling = tier_ceiling = None
+        if (priority_row is not None and priority_row["junior_entitlement_af"] > 0
+                and self.config.lb_priority_mode == "split"):
+            junior_ceiling, tier_ceiling = _lb_entitlement_ceiling(
+                priority_row, self._compute_shortage_tier(), self.config.lb_p56_in_tier)
         return {
+            # Item 46: fixed reduced-entitlement ceilings in acre-feet.
+            "lb_junior_ceiling_af": junior_ceiling,
+            "lb_tier_ceiling_af": tier_ceiling,
+            "lb_p56_entitlement_af": (priority_row["p56_entitlement_af"]
+                                      if priority_row is not None else None),
+            "lb_p56_in_tier": self.config.lb_p56_in_tier,
             # Agent state
             "agent_id": agent_id,
             "basin": basin_key,
@@ -2553,24 +2601,12 @@ class IrrigationEnvironment:
         # actually samples a magnitude, so build_action_outcome_feedback's
         # "(by N%)" reflects the Gaussian-sampled value the environment used,
         # not the LLM's discrete request.
-        action_context: Dict[str, Any] = {"rule_exceptions_used": []}
+        action_context: Dict[str, Any] = {}
 
         if skill in ("increase_large", "increase_small", "increase_demand"):
             # H&Y step added to the request, capped at the water right;
             # deliveries are limited by _settle, not here.
             new_req = min(current + step_af, wr)
-            from examples.irrigation_abm.junior_restore import TR1_RULE, restoration_available
-            restore_used = any(
-                result.valid and result.metadata.get("rule_id") == TR1_RULE
-                and result.metadata.get("exception_used") is True
-                for result in (getattr(approved_skill, "validation_results", None) or [])
-            )
-            if restore_used:
-                if not restoration_available(agent.get("previous_gap_reason"),
-                                             agent.get("previous_request_af"), agent.get("base_af")):
-                    raise ValueError(f"{aid}: TR1 exception without a committed tier-only cut")
-                agent["tier_cut_restore_used"] = True
-                action_context["rule_exceptions_used"] = [TR1_RULE]
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             _set_realised_magnitude(state_changes, action_context, step_af, size_class,
@@ -3443,10 +3479,10 @@ class IrrigationEnvironment:
            (filled first, up to its senior entitlement,
            ``lb_priority_split_v3.csv``) and a junior part (the remainder);
            the six agents that hold any Arizona 4th/5th/6th-priority water
-           have their junior part cut by f_g = AZ tier volume / AZ
-           priority-4 total (``_lb_junior_tier_fraction``), the same
-           proportion CAP itself bears (AZpriorities.pdf: fourth-priority
-           reductions are "in the same proportion as its Entitlement"); the
+           are capped at senior + (1-f_g)*P4 entitlement, plus P5/P6
+           according to ``lb_p56_in_tier`` (zero by default). The retained
+           f_g = AZ tier volume / AZ priority-4 total is a model assumption,
+           not an independently verified legal reduction fraction; the
            other 16 have no junior entitlement, so f_g never touches them.
            junior_cuts is unaffected by phi (below) -- it is a declared-tier
            cut, decided before physical availability is checked, exactly
@@ -3491,8 +3527,8 @@ class IrrigationEnvironment:
         ``none``, ``lb_junior_tier_cut`` (item 22, WP1c: this agent's own
         junior water was cut by the declared tier this year -- only ever
         produced in ``lb_priority_mode="split"``, for one of the six
-        junior-holding agents, and only when its junior part is actually
-        positive this decision), ``lb_mead_availability``, or the two
+        junior-holding agents, and only when its request exceeds its
+        entitlement ceiling), ``lb_mead_availability``, or the two
         joined with "+" when both bind the same agent-year.
         ``lb_shortage_tier`` never occurs for an agricultural agent (PI
         decision 2026-09-28: the declared tier itself never reduces a
@@ -3706,13 +3742,12 @@ class IrrigationEnvironment:
             ub_subbasin_ratio_by_agent = {aid: None for aid in ub_ids}
         inflow_p = nf_net - d_u
 
-        # WP1c (item 22, refining PI decision 2026-09-28 / item 14): each
+        # Items 22/46: each
         # Lower Basin agent's request splits into a senior part (filled
         # first, up to its senior entitlement) and a junior part (the
-        # remainder, including anything above its total entitlement --
-        # the water-right cap upstream keeps that from happening in
-        # practice). In "split" mode (v3 default), a declared tier's f_g
-        # (_lb_junior_tier_fraction) cuts ONLY the junior part, for the six
+        # remainder). Model water-right caps can exceed legal entitlements.
+        # In "split" mode (v3 default), a declared tier caps delivery at
+        # senior + (1-f_g)*P4 + conditional P5/P6 entitlement, for the six
         # agents that hold any Arizona 4th/5th/6th-priority water
         # (lb_priority_split_v3.csv); the other 16 have no junior
         # entitlement, so their junior part is always 0 and this cut never
@@ -3729,7 +3764,7 @@ class IrrigationEnvironment:
         # are acre-feet too, so every per-agent line below stays in acre-
         # feet and only the AGGREGATE junior_cuts_total is converted to MAF
         # at the end, for use in the MAF-scale non_ag formula.
-        lb_split_by_agent: Dict[str, Dict[str, float]] = {}
+        lb_split_by_agent: Dict[str, Dict[str, Optional[float]]] = {}
         junior_cuts_total_af = 0.0
         if cfg.lb_priority_mode == "split":
             f_g = _lb_junior_tier_fraction(lb_tier)
@@ -3768,13 +3803,24 @@ class IrrigationEnvironment:
                 else:
                     senior_i_af = req[aid]
                     junior_i_af = 0.0
-                junior_cut_i_af = junior_i_af * f_g
+                # A tier reduces entitlement, never a fraction of this
+                # year's order. Below the fixed ceiling the tier takes
+                # nothing; this prevents a keep from compounding its cut.
+                junior_ceiling_af = tier_ceiling_af = None
+                if junior_ent_af > 0.0:
+                    junior_ceiling_af, tier_ceiling_af = _lb_entitlement_ceiling(
+                        row, lb_tier, cfg.lb_p56_in_tier)
+                junior_cut_i_af = (
+                    max(0.0, req[aid] - tier_ceiling_af)
+                    if lb_tier > 0 and tier_ceiling_af is not None else 0.0)
                 junior_cuts_total_af += junior_cut_i_af
                 lb_split_by_agent[aid] = {
                     "senior_af": senior_i_af,
                     "junior_af": junior_i_af,
                     "junior_cut_af": junior_cut_i_af,
                     "pre_phi_delivery": senior_i_af + junior_i_af - junior_cut_i_af,
+                    "junior_ceiling_af": junior_ceiling_af,
+                    "tier_ceiling_af": tier_ceiling_af,
                 }
         else:
             f_g = 0.0
@@ -3784,6 +3830,8 @@ class IrrigationEnvironment:
                     "junior_af": 0.0,
                     "junior_cut_af": 0.0,
                     "pre_phi_delivery": req[aid],
+                    "junior_ceiling_af": None,
+                    "tier_ceiling_af": None,
                 }
         junior_cuts_total_maf = junior_cuts_total_af / 1e6
 
@@ -3794,7 +3842,13 @@ class IrrigationEnvironment:
         # more or less (computed here, needing only the ALREADY-frozen
         # shortage_volume and the junior cuts just computed, so the actual
         # Lake Mead settlement further down has it).
-        non_ag = max(0.0, cfg.lb_non_ag_total_maf - (shortage_volume - junior_cuts_total_maf))
+        non_ag_reduction = shortage_volume - junior_cuts_total_maf
+        if not 0.0 <= non_ag_reduction <= cfg.lb_non_ag_total_maf:
+            raise ValueError(
+                "non-agricultural reduction must stay within [0, N]: "
+                f"V={shortage_volume!r}, agricultural cuts={junior_cuts_total_maf!r}, "
+                f"N={cfg.lb_non_ag_total_maf!r} MAF")
+        non_ag = max(0.0, cfg.lb_non_ag_total_maf - non_ag_reduction)
 
         # --- P: Lake Powell (apply the PRE-PLANNED release) ---
         # Re-review 2026-09-29 (HIGH A round 3): the release target itself
@@ -3950,6 +4004,15 @@ class IrrigationEnvironment:
                 "lb_junior_af": split["junior_af"],
                 "lb_junior_cut_af": split["junior_cut_af"],
                 "lb_junior_tier_cut_fraction": f_g,
+                "lb_junior_ceiling_af": split["junior_ceiling_af"],
+                "lb_tier_ceiling_af": split["tier_ceiling_af"],
+                "lb_p56_in_tier": cfg.lb_p56_in_tier,
+                "lb_junior_entitlement_af": (
+                    split_table.get(aid, {}).get("junior_entitlement_af")
+                    if cfg.lb_priority_mode == "split" else 0.0),
+                "lb_p56_entitlement_af": (
+                    split_table.get(aid, {}).get("p56_entitlement_af")
+                    if cfg.lb_priority_mode == "split" else 0.0),
             }
 
         result = {
@@ -4060,6 +4123,9 @@ class IrrigationEnvironment:
             agent["lb_junior_af"] = rec.get("lb_junior_af")
             agent["lb_junior_cut_af"] = rec.get("lb_junior_cut_af")
             agent["lb_junior_tier_cut_fraction"] = rec.get("lb_junior_tier_cut_fraction")
+            for key in ("lb_junior_ceiling_af", "lb_tier_ceiling_af", "lb_p56_in_tier",
+                        "lb_junior_entitlement_af", "lb_p56_entitlement_af"):
+                agent[key] = rec.get(key)
             # WP1c review round 2 (HIGH 1): a derived 0/1 flag, the SAME
             # pattern as ub_subbasin_sole_bound below (a per-agent metric
             # the YAML feedback dashboard's SafeExpressionEvaluator can
@@ -4357,6 +4423,7 @@ class IrrigationEnvironment:
             "water_system_mead_capacity_sha256": MEAD_CAPACITY_SHA256,
             # WP1c (item 22)
             "water_system_lb_priority_mode": self.config.lb_priority_mode,
+            "water_system_lb_p56_in_tier": self.config.lb_p56_in_tier,
             "water_system_lb_priority_split_sha256": LB_PRIORITY_SPLIT_SHA256,
         }
 

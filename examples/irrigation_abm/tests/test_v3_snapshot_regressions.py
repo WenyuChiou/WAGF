@@ -57,24 +57,26 @@ def _two_years(profile: IrrigationAgentProfile, config: WaterSystemConfig, *, be
     return situation_2019, agent.water_situation_text, memory
 
 
-def test_junior_tier_cut_year_is_followed_by_a_true_memory_line():
+def test_request_below_junior_tier_ceiling_is_followed_by_a_full_delivery_memory_line():
     """Lake Mead below 1,075 ft on 1 January 2019 declares Tier 1; the keep
     request (the 2018 use, 28,295 AF) is above the 5,940 AF senior
-    entitlement, so the tier cuts the junior part. The 2020 memory line and
-    "Last year" sentence state that cut with its share (about 20%)."""
+    entitlement but below the Tier 1 ceiling. The tier sentence states the
+    entitlement ceiling and the 2020 memory records a full delivery."""
     profile = IrrigationAgentProfile(
         agent_id="MohaveValleyIDD", basin="lower_basin", cluster="myopic_conservative",
         water_right=50_000.0, actual_2018_diversion=28_295.0)
     config = WaterSystemConfig(seed=42, mead_initial_elevation=1_060.0)
     situation_2019, situation_2020, memory = _two_years(profile, config)
     assert "A Tier 1 Lower Basin shortage applies this year" in situation_2019
-    assert "this tier cuts your junior-priority water by about 20%" in situation_2019
+    assert ("limits your junior-priority water this year to about 27,958 acre-ft "
+            "(80% of your 35,060 acre-ft junior-priority entitlement)") in situation_2019
+    assert "your 33,898 acre-ft tier ceiling is not reduced by the tier" in situation_2019
     (line,) = [m for m in memory if m.startswith("Year ")]
     assert line.startswith("Year 2019:")
-    assert "cut your junior-priority water by about 20%" in line
-    assert "Shortfall:" in line
-    assert ("because the declared Lower Basin shortage tier cut your junior-priority water by "
-            "about 20%") in situation_2020
+    assert "You requested 28,295 acre-ft and received 28,295 acre-ft. Demand fully met." in line
+    assert "Shortfall:" not in line
+    assert ("Last year you requested 28,295 acre-ft and received 28,295 acre-ft "
+            "(100% delivered).") in situation_2020
 
 
 @pytest.mark.parametrize("own_flag,basin_flag", [(1, 0), (0, 1)])

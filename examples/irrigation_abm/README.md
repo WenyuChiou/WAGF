@@ -345,7 +345,7 @@ flowchart TD
 
 ## 4. Water System Model
 
-Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: the Upper Basin has PRIORITY and is never cut to protect Powell's release; Lake Powell's release follows `powell_release_mode` -- the actual 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages (`ig2007_tiers`, v3 default; unbounded above in the Equalization tier), or a one-rule simplification equalizing Powell's and Mead's live-storage fractions, always bounded to [7.0, 9.5] MAF (`storage_balancing`, kept for the SI) -- and never more than physically available either way; Lake Mead withdrawals are cut by the declared Lower Basin shortage tier (borne by the non-agricultural bucket, not by agricultural requests) and never exceed the water above its dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
+Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolution. As in Hung & Yang (2021), what an agent receives is limited on the supply side: the Upper Basin has PRIORITY and is never cut to protect Powell's release; Lake Powell's release follows `powell_release_mode` -- the actual 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages (`ig2007_tiers`, v3 default; unbounded above in the Equalization tier), or a one-rule simplification equalizing Powell's and Mead's live-storage fractions, always bounded to [7.0, 9.5] MAF (`storage_balancing`, kept for the SI) -- and never more than physically available either way. In a declared Lower Basin shortage tier, each of the six modeled junior-right holders is capped by its tier entitlement ceiling; remaining declared shortage is assigned to the non-agricultural bucket, and the common physical factor is applied afterward. Lake Mead withdrawals never exceed the water above dead pool plus inflow. **[Full equations and derivations](docs/irrigation_physics.md)**.
 
 ### Key Parameters
 
@@ -362,12 +362,20 @@ Simplified two-reservoir (Lake Powell, Lake Mead) water balance at annual resolu
 
 ### Shortage Tiers
 
-| 1 January Mead Elevation | Tier | Lower Basin cut | Governance Effect |
-| :------------- | :--- | :---------- | :---------------- |
-| ≥ 1075 ft | 0 (Normal) | 0% | WARNING only |
-| 1050-1075 ft | 1 | 5% | WARNING only |
-| 1025-1050 ft | 2 | 10% | ERROR: blocks increase |
-| < 1025 ft | 3 | 20% | ERROR: blocks increase |
+| 1 January Mead elevation | Tier | Declared volume V | Six-holder entitlement factor f | Governance effect |
+| :------------- | :--- | :---------- | :---------------- | :---------------- |
+| >= 1075 ft | 0 (Normal) | 0 | no ceiling | Tier information only; TR1 is evaluated independently |
+| 1050 to < 1075 ft | 1 | 0.333 MAF | 320,000 / 1,579,652 | No direct tier-based governance block |
+| 1025 to < 1050 ft | 2 | 0.417 MAF | 400,000 / 1,579,652 | No direct tier-based governance block |
+| < 1025 ft | 3 | 0.500 MAF | 480,000 / 1,579,652 | No direct tier-based governance block |
+
+The declared volumes V are the 2007 Interim Guidelines volumes. The 320,000,
+400,000, and 480,000 AF numerators are Arizona's share of V under the 2007 ROD,
+Section 2.D.1. For the six holders, the default `lb_p56_in_tier:
+zero` gives the tier ceiling `senior + (1-f) P4`; SI mode `proportional` adds
+`(1-f) P5/P6`. The other 16 Lower Basin agricultural agents retain their
+senior-only rights. The manifest records `lb_p56_in_tier`, and coupling metadata
+records `water_system_lb_p56_in_tier`.
 
 ---
 
@@ -416,21 +424,24 @@ v3 governance (WP3, `irrigation_v3_spec_2026-09-28.md` section 3; equations and 
 
 | Rule (id) | Blocks | Where it acts | Grounding |
 | :-------- | :----- | :------------ | :-------- |
-| supply rule (`supply_gap_block_increase`) | an increase when the expected delivery at the keep request (last year's receipt), net of a declared junior-priority cut, is below `FULL_SUPPLY_RATIO` (0.999) of it | Python check (`ALL_IRRIGATION_CHECKS`), in strict, placebo, silent and feasibility_only; post hoc in disabled | world |
+| supply rule (`supply_gap_block_increase`) | an increase when physical availability at the keep request (last year's receipt), after factoring out any entitlement ceiling, is below `FULL_SUPPLY_RATIO` (0.999) | Python check (`ALL_IRRIGATION_CHECKS`), in strict, placebo, silent and feasibility_only; post hoc in disabled | world |
 | water-right cap (`water_right_cap`) | an increase once the base is at 0.99 W | YAML identity rule: menu filter and block, every profile | world |
 | minimum-use floor (`minimum_utilisation_floor`) | a decrease once the base is at 1.01 F (F = 0.10 W) | YAML identity rule: menu filter and block, every profile | world |
-| TR1 (`high_scarcity_no_increase`) | an increase when the first-stated water-scarcity appraisal is High or Very High, unless last year's tier-only junior cut reduced delivery below the request | YAML thinking rule in strict, placebo and silent; post hoc in feasibility_only and disabled; an excepted increase uses the ordinary uncapped H&Y step, subject to the existing water-right cap | self-report |
+| TR1 (`high_scarcity_no_increase`) | an increase when the first-stated water-scarcity appraisal is High or Very High | YAML thinking rule in strict, placebo and silent; post hoc in feasibility_only and disabled | self-report |
 | TR3 (`low_scarcity_no_decrease`) | a decrease when the first-stated water-scarcity appraisal is Very Low or Low | as TR1 | self-report |
 
 Profiles (`--governance-mode`): `strict`; `feasibility_only` (strict without TR1 and TR3, one run); `disabled` (the two identity rules only, no custom validators). The placebo and silent arms are strict run with `--retry-feedback-mode placebo|silent`. The appraisal freeze (`global_config.governance.appraisal_freeze`) makes TR1, TR3 and the feasible-action line of a retry read the appraisal as first stated in the decision (the first parsed attempt's, unless that attempt gave none), so relabelling cannot pass a rule. An off-menu answer blocked by an identity rule gets a retry text with that rule's message only (`hide_registry_backstop_reports`); the registry backstop stays in the audit. Retry texts carry no rule id (`rule_id_prefix: false`) and no appraisal label code.
 
-The 45p/45q TR1 exception is a run-provenance change. Historical runs whose
-manifest lacks `tier_cut_restore` retain the earlier TR1 definition by default;
-analysis must opt in explicitly before applying the exception to those runs.
+Current runs use the plain TR1 definition above and omit `tier_cut_restore`.
+Historical 45p/45q runs preserve their recorded restoration interpretation only
+when their manifest contains `tier_cut_restore`; analysts can also request that
+counterfactual explicitly with `--apply-tier-cut-restore`. Analysis fails loudly
+if audit evidence records a restoration but the manifest does not authorize it.
+The generic broker exception mechanism remains default-off.
 
 Retired with the pre-v3 rule set (functions kept only where tests or replays of older corpora call them, each marked "not dispatched in v3"): `curtailment_awareness_check` (merged into the supply rule, with its Tier 1 differential and its years 1-3 grace), the 0.70 supply-gap cutoff and its Tier 2+ skip, `water_right_cap_check` and `minimum_utilisation_check` (now the identity rules), `non_negative_diversion_check`, `consecutive_increase_cap_check` and `zero_escape_check` (with `--pilot-phase` and `--ablation-mode`, which the runner now refuses), the old thinking rules R1, R2 and R4, and the `relaxed` and `grounded_v1` profiles. Out of dispatch since 2026-09-25 (F04 and the supply-side redesign): `drought_severity_check`, `compact_allocation_check`, `magnitude_cap_check`, `demand_floor_stabilizer`, `demand_ceiling_stabilizer`.
 
-Audit columns for the metrics (governance audit CSV): `initial_skill`, `initial_labels`, `attempt_skills`, `final_labels`, `appraisal_drift`, `attempt_labels`, `attempt_failed_rules`, `appraisal_relabeled`, `executed_skill`, `execution_path`, `rules_world_grounded` / `rules_self_report`, and the supply rule's inputs as `state_supply_keep_request_af`, `state_supply_expected_at_keep_af`, `state_supply_ratio`, `state_supply_physical_ratio`, `state_full_supply_ratio`, and the TR1 tier-cut exception's inputs and use (spec 45q) as `state_previous_gap_reason`, `state_previous_request_af`, `state_tier_cut_restore_available` and `rule_exceptions_used`.
+Audit columns for the metrics (governance audit CSV): `initial_skill`, `initial_labels`, `attempt_skills`, `final_labels`, `appraisal_drift`, `attempt_labels`, `attempt_failed_rules`, `appraisal_relabeled`, `executed_skill`, `execution_path`, `rules_world_grounded` / `rules_self_report`, and the supply rule's inputs as `state_supply_keep_request_af`, `state_supply_expected_at_keep_af`, `state_supply_ratio`, `state_supply_physical_ratio`, and `state_full_supply_ratio`. Historical 45p/45q audits may also contain `state_previous_gap_reason`, `state_previous_request_af`, `state_tier_cut_restore_available`, and `rule_exceptions_used`; current runs do not use those fields to relax TR1.
 
 ---
 
