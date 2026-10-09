@@ -432,7 +432,6 @@ class IrrigationLifecycleHooks:
         # retried, dropped), printed each year and written to the manifest
         # by main() when the grounded reflection keys are on.
         self.reflection_tally = ReflectionCheckTally()
-        self.tier_cut_restore_uses = {}
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -596,6 +595,8 @@ class IrrigationLifecycleHooks:
                 # for an Upper Basin agent. Direct index: get_agent_context
                 # always sets it.
                 "lb_junior_tier_cut_fraction": ctx["lb_junior_tier_cut_fraction"],
+                **{key: ctx[key] for key in ("lb_junior_ceiling_af", "lb_tier_ceiling_af",
+                    "lb_junior_entitlement_af", "lb_p56_entitlement_af", "lb_p56_in_tier")},
                 # WP3 (spec 3.3): the supply rule's inputs, computed once from
                 # this year's provisional settlement at every agent's keep
                 # request (irrigation_validators.supply_rule_fields). The
@@ -604,9 +605,6 @@ class IrrigationLifecycleHooks:
                 # EVERY arm, so the disabled arm can be scored post hoc on
                 # the same numbers.
                 **supply_rule_fields(ctx, agent_state),
-                "previous_gap_reason": agent_state["previous_gap_reason"],
-                "previous_request_af": agent_state["previous_request_af"],
-                "tier_cut_restore_available": agent_state["tier_cut_restore_available"],
             }
             # The supply rule's text says "the {keep} acre-ft you received
             # last year": WP2 (spec 2.1) resets every request to last year's
@@ -809,6 +807,8 @@ class IrrigationLifecycleHooks:
                 # the settled cut share (item 22). It was missing here, so a
                 # --real run raised in the year after the first tier year.
                 "lb_junior_tier_cut_fraction": agent_state.get("lb_junior_tier_cut_fraction"),
+                **{key: agent_context[key] for key in ("lb_junior_ceiling_af", "lb_tier_ceiling_af",
+                    "lb_junior_entitlement_af", "lb_p56_entitlement_af", "lb_p56_in_tier")},
                 # WP4: whether the Upper Basin memory line may say "your
                 # sub-basin" (None for a synthetic mock agent).
                 "supply_group": agent_context.get("supply_group"),
@@ -907,8 +907,6 @@ class IrrigationLifecycleHooks:
 
         # Print yearly summary
         n_agents = len(agents)
-        self.tier_cut_restore_uses[str(self.env.config.sim_start_year + year - 1)] = sum(
-            bool(self.env.get_agent_state(aid).get("tier_cut_restore_used")) for aid in agents)
         decisions = [
             self.yearly_decisions.get((aid, year), {}).get("skill", "N/A")
             for aid in agents
@@ -1419,22 +1417,6 @@ def _validate_exception_state_fields(config, state: Dict[str, Any]) -> None:
                              "by the irrigation domain")
 
 
-def _record_tier_cut_restore_provenance(output_dir: Path, uses_per_year: Dict[str, int]) -> None:
-    """Record execution uses without turning a provenance failure into a run failure."""
-    try:
-        manifest_path = output_dir / "reproducibility_manifest.json"
-        if manifest_path.exists():
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest["tier_cut_restore"] = {
-                "spec": "45p/45q", "uses_per_year": dict(uses_per_year),
-                "total_uses": sum(uses_per_year.values()),
-            }
-            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    except Exception as exc:
-        print(f"[Provenance] WARNING: could not record tier_cut_restore in "
-              f"reproducibility_manifest.json: {exc}")
-
-
 def _record_governance_dispatch_provenance(
     output_dir: Path, dispatched_checks: List[str]
 ) -> None:
@@ -1511,6 +1493,7 @@ def _record_water_system_config_provenance(
             "powell_release_mode": config.powell_release_mode,
             "powell_post2026_equalization": config.powell_post2026_equalization,
             "lb_non_ag_total_maf": config.lb_non_ag_total_maf,
+            "lb_p56_in_tier": config.lb_p56_in_tier,
             "ub_supply_mode": config.ub_supply_mode,
             "ub_subbasin_supply_variant": config.ub_subbasin_supply_variant,
             # Item 36e: 0.0 (default, byte-identical) unless a CPU
@@ -1954,6 +1937,8 @@ def main():
     config_kwargs: Dict[str, Any] = {}
     if args.lb_non_ag_total_maf is not None:
         config_kwargs["lb_non_ag_total_maf"] = args.lb_non_ag_total_maf
+    if args.lb_p56_in_tier is not None:
+        config_kwargs["lb_p56_in_tier"] = args.lb_p56_in_tier
     if args.lb_return_flow_fraction is not None:
         config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
     if args.min_utilisation_fraction is not None:
@@ -2368,7 +2353,6 @@ def main():
         _record_water_system_config_provenance(output_dir, env.config)
         _record_memory_options_provenance(output_dir, memory_engine)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
-        _record_tier_cut_restore_provenance(output_dir, hooks.tier_cut_restore_uses)
         # Spec item 45e: the per-year stored / retried / dropped counts of
         # the checked reflections (only when the grounded keys are on).
         _grounding = runner.broker.config.get_reflection_grounding()
@@ -2446,6 +2430,9 @@ def parse_args():
                         "pairing a non-zero f with the f=0.0 constant double-counts "
                         "water the fraction already credits back to Mead. Recorded via "
                         "_record_water_system_config_provenance.")
+    p.add_argument("--lb-p56-in-tier", choices=["zero", "proportional"], default=None,
+                   help="Item 46: conditional P5/P6 supply in tier years; zero by default, "
+                        "or proportional as a sensitivity. Recorded in the manifest.")
     p.add_argument("--lb-return-flow-fraction", type=float, default=None,
                    help="Item 36e (2026-10-05) CPU sensitivity: the share of the LB "
                         "agricultural draw treated as reused downstream (e.g. "

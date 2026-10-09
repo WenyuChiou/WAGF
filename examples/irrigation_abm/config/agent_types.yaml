@@ -258,9 +258,6 @@ global_config:
       - supply_ratio
       - supply_physical_ratio
       - full_supply_ratio
-      - previous_gap_reason
-      - previous_request_af
-      - tier_cut_restore_available
 
   coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
 
@@ -567,20 +564,19 @@ irrigation_farmer:
       # Basin tier cuts only junior-priority water (item 22) and the
       # non-agricultural aggregate (item 14): a fully senior Lower Basin
       # agent's shortfall is always Lake Mead's physical availability, and an
-      # agent holding junior-priority water is told that a declared shortage
-      # can cut the part of a request above its senior entitlement (item 29f).
+      # junior holder is told that the tier caps delivery at its reduced
+      # entitlement ceiling (item 46), before physical Mead availability.
       - when: "supply / request < 0.999 and supply >= 1 and shortage_junior >= 1"
         severity: "warning"
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
           ({unmet_pct:.1f}% unmet). The reason is stated in your water
-          situation above. Part or all of your water right is junior-priority,
-          and the declared shortage tier cuts that part directly. A larger
-          request would have its junior-priority part cut by the same tier.
-          If Lake Mead is also physically short, the rest is shared in
-          proportion to requests, and a larger request would raise your share
-          only by lowering the deliveries of other users in the Lower Basin;
-          it would not add water to the Lower Basin.
+          situation above. In a year with a declared shortage tier, your
+          junior-priority water is limited to a fixed share of your entitlement.
+          A request at or below the tier ceiling is not reduced by the tier
+          that year. Above the tier ceiling, a larger request adds no
+          deliverable water. Lake Mead's physical
+          availability can reduce your delivery further.
       - when: "supply / request < 0.999 and supply >= 1 and shortage_lower_basin >= 1"
         severity: "warning"
         message: >-
@@ -596,13 +592,15 @@ irrigation_farmer:
         message: >-
           You requested {request_fmt} AF and received {supply_fmt} AF
           ({unmet_pct:.1f}% unmet). The reason is stated in your water
-          situation above. A declared shortage can cut only the
-          junior-priority part of a request, the part above your
-          senior-priority entitlement; the rest of your delivery is reduced
-          only by Lake Mead's physical availability. When water is short it is
-          shared in proportion to requests, so a larger request would raise
-          your share only by lowering the deliveries of other users in the
-          Lower Basin; it would not add water to the Lower Basin.
+          situation above. In a year with a declared shortage tier, your
+          junior-priority water is limited to a fixed share of your entitlement.
+          A request at or below the tier ceiling is not reduced by the tier
+          that year; Lake Mead's physical availability can still reduce it.
+          When water is physically short, it is shared in proportion to
+          requests capped by the tier ceiling, so within that ceiling a
+          larger request would raise your share only by lowering the
+          deliveries of other users in the Lower Basin; it would not add
+          water to the Lower Basin.
       - when: "supply / request < 0.999 and supply >= 1 and shortage_subbasin >= 1"
         severity: "warning"
         message: >-
@@ -715,7 +713,6 @@ irrigation_farmer:
           blocked_skills: ["increase_demand"]
           level: ERROR
           grounding: self_report
-          exception_precondition: tier_cut_restore_available
           message: "Demand increase blocked under the rule on increases under scarcity: at the start of this decision you judged water to be scarce this year, and a larger request when water is scarce draws more from a supply you share with other users."
           suggestion: "Under this rule an increase is not available in this decision."
         # TR3: a cut when the agent itself judges water not to be scarce

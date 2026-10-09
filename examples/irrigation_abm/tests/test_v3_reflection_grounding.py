@@ -55,7 +55,11 @@ from examples.irrigation_abm.reflection_checks import (
 from examples.irrigation_abm.tests.test_v3_prompt import CONFIG, ScriptedLLM, _run
 
 UBS_PAST = describe_gap_reason({"gap_reason": "ub_subbasin_supply", "ub_subbasin_member_count": 11}, "past")
-TIER_PAST = describe_gap_reason({"gap_reason": "lb_junior_tier_cut", "lb_junior_tier_cut_fraction": 0.2532}, "past")
+TIER_PAST = describe_gap_reason({
+    "gap_reason": "lb_junior_tier_cut",
+    "lb_junior_ceiling_af": 74_680.0,
+    "lb_junior_entitlement_af": 100_000.0,
+}, "past")
 
 # The cbb74f73 pilot's line format (diagnosis section 3, C1: strict,
 # AgAboveRandlette_NonIndian, written in 2027), verbatim apart from the reason.
@@ -343,6 +347,26 @@ def test_reflection_rules_are_the_decision_prompt_words():
 ])
 def test_reflection_rule_lines_pick_the_agents_rules(ctx, key):
     assert reflection_rule_lines(ctx) == list(ALLOCATION_RULES[key])
+
+
+def test_junior_reflection_rules_are_tenseless_and_use_the_tier_ceiling():
+    """Round-2 P1-1/P2-1: these rules appear in tier and Tier 0 years, so
+    the tier rule is conditional and the physical-shortage rule preserves
+    the full opportunity-cost clause for requests capped by the ceiling.
+    """
+    rules = reflection_rule_lines({
+        "basin": "lower_basin",
+        "lb_junior_entitlement_af": 1_000.0,
+        "ub_supply_mode": "subbasin",
+    })
+    assert rules[0].startswith("In a year with a declared shortage tier")
+    assert "this year" not in rules[0]
+    assert "that year" in rules[0]
+    assert "tier ceiling" in rules[0]
+    assert "total limit" not in rules[0]
+    assert "shared in proportion to requests capped by the tier ceiling" in rules[1]
+    assert "would raise your share only by lowering the deliveries of other users" in rules[1]
+    assert "would not add water to the Lower Basin" in rules[1]
 
 
 def test_reflection_rule_lines_refuse_to_guess():

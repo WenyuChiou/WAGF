@@ -61,6 +61,8 @@ def _lb_tier2_state():
             "shortage_tier_threshold_ft": _TIER_THRESHOLD_FT[2],
             "lb_junior_request_af": 0.0, "lb_junior_tier_cut_fraction": 0.253220,
             "lb_senior_entitlement_af": 200_000.0, "lb_junior_entitlement_af": 0.0,
+            "lb_junior_ceiling_af": None, "lb_tier_ceiling_af": None,
+            "lb_p56_entitlement_af": 0.0, "lb_p56_in_tier": "zero",
             "loop_year": 5}
 
 
@@ -81,13 +83,18 @@ def test_describe_gap_reason_codes():
         "because Upper Basin deliveries were limited by that year's natural flow "
         "at Lees Ferry, after Upper Basin non-farm use, and shared in proportion "
         "to requests")
-    combined = describe_gap_reason({"gap_reason": "lb_junior_tier_cut+lb_mead_availability",
-                                    "lb_junior_tier_cut_fraction": 0.2532}, "past")
+    combined = describe_gap_reason({
+        "gap_reason": "lb_junior_tier_cut+lb_mead_availability",
+        "lb_junior_ceiling_af": 74_680.0,
+        "lb_junior_entitlement_af": 100_000.0,
+    }, "past")
     assert combined == (
-        "because the declared Lower Basin shortage tier cut your junior-priority "
-        "water by about 25% and Lake Mead could not meet all Lower Basin "
+        "because the declared Lower Basin shortage tier limited your junior-priority "
+        "water that year to about 74,680 acre-ft (75% of your junior-priority "
+        "entitlement) and Lake Mead could not meet all Lower Basin "
         "withdrawals without falling below its minimum pool, so all Lower Basin "
-        "deliveries were reduced in proportion to requests")
+        "deliveries were reduced in proportion to requests after any tier ceiling "
+        "was applied")
     for retired in ("ub_powell_release", "lb_shortage_tier",
                     "lb_shortage_tier+lb_mead_availability"):
         with pytest.raises(ValueError, match="unknown gap_reason code"):
@@ -331,8 +338,8 @@ def test_dashboard_warnings_name_who_shares():
     hid that the share does rise); UT2, alone in its sub-basin, keeps "a
     larger request would not add water". A declared tier alone never
     reduces a fully senior Lower Basin delivery (items 14, 22); for an agent
-    holding junior-priority water it can cut the part of a request above
-    the senior entitlement (item 29f), so that agent gets its own warning.
+    holding junior-priority water it imposes a fixed entitlement ceiling,
+    so that agent gets its own warning.
     The unmet share has one decimal, as in the memory line (review LOW 8)."""
     import yaml
     from pathlib import Path
@@ -352,17 +359,24 @@ def test_dashboard_warnings_name_who_shares():
     for msg in by_flag.values():
         assert "({unmet_pct:.1f}% unmet). The reason is stated in your water situation above." in msg
         assert "not delivered" not in msg and "pro-rata" not in msg
-    assert "your water right is junior-priority" in by_flag["shortage_junior"]
-    assert "declared shortage tier cuts that part directly" in by_flag["shortage_junior"]
+    assert ("In a year with a declared shortage tier, your junior-priority water is limited "
+            "to a fixed share of your entitlement. A request at or below the tier ceiling is "
+            "not reduced by the tier that year. Above the tier ceiling, a larger request adds "
+            "no deliverable water. Lake Mead's physical "
+            "availability can reduce your delivery further.") in by_flag["shortage_junior"]
     assert ("A declared shortage does not by itself reduce your delivery; only Lake "
             "Mead's physical availability does.") in by_flag["shortage_lower_basin"]
-    assert ("A declared shortage can cut only the junior-priority part of a request, the "
-            "part above your senior-priority entitlement; the rest of your delivery is "
-            "reduced only by Lake Mead's physical availability.") in by_flag[
-                "shortage_lower_basin_junior_holder"]
+    assert ("In a year with a declared shortage tier, your junior-priority water is limited "
+            "to a fixed share of your entitlement. A request at or below the tier ceiling is "
+            "not reduced by the tier that year; Lake Mead's physical availability can still "
+            "reduce it. "
+            "When water is physically short, it is shared in proportion to requests capped "
+            "by the tier ceiling, so within that ceiling a larger request would raise your "
+            "share only by lowering the deliveries of other users in the Lower Basin; it "
+            "would not add water to the Lower Basin.") in (
+                by_flag["shortage_lower_basin_junior_holder"])
     assert "does not by itself reduce" not in by_flag["shortage_lower_basin_junior_holder"]
-    for flag, pool in (("shortage_junior", "the Lower Basin"),
-                       ("shortage_lower_basin", "the Lower Basin"),
+    for flag, pool in (("shortage_lower_basin", "the Lower Basin"),
                        ("shortage_lower_basin_junior_holder", "the Lower Basin"),
                        ("shortage_subbasin", "your sub-basin"),
                        ("shortage_upper_basin", "the Upper Basin")):
@@ -377,7 +391,9 @@ def test_dashboard_warnings_name_who_shares():
 @pytest.mark.parametrize("code,needle", [
     ("ub_capacity", "5.0 million acre-ft delivery capacity"),
     ("lb_mead_availability", "without falling below its minimum pool"),
-    ("lb_junior_tier_cut+lb_mead_availability", "cuts your junior-priority water by about 30%"),
+    ("lb_junior_tier_cut+lb_mead_availability",
+     "limits your junior-priority water this year to about 69,610 acre-ft "
+     "(70% of your junior-priority entitlement)"),
 ])
 def test_situation_text_carries_each_reason(code, needle):
     st = dict(_lb_tier2_state(), gap_reason=code, curtailment_ratio=0.20, shortage_tier=3,
@@ -386,6 +402,17 @@ def test_situation_text_carries_each_reason(code, needle):
     if code == "ub_capacity":
         st.update(basin="upper_basin", curtailment_ratio=0.0, natural_flow_maf=12.0,
                   powell_storage_maf=12.0, precipitation=80.0)
+    elif "lb_junior_tier_cut" in code:
+        st.update(
+            water_right=100_000.0,
+            lb_junior_request_af=100_000.0,
+            lb_senior_entitlement_af=0.0,
+            lb_junior_entitlement_af=100_000.0,
+            lb_junior_ceiling_af=69_610.0,
+            lb_tier_ceiling_af=69_610.0,
+            lb_p56_entitlement_af=0.0,
+            lb_p56_in_tier="zero",
+        )
     text = build_water_situation_text(st)
     assert needle in text
     assert "you can expect full delivery" not in text

@@ -1041,6 +1041,8 @@ class TestManifestProvenance:
         assert isinstance(config, dict)
         assert "ub_supply_mode" in config
         assert "lb_priority_mode" in config
+        assert config["lb_p56_in_tier"] == "zero"
+        assert manifest["lb_p56_in_tier"] == "zero"
 
         assert manifest["crss_db_input_checksums"] == {}
 
@@ -1135,6 +1137,8 @@ class TestRealShortRun:
             "request", "diversion", "water_right", "base_af",
             "fql_raw_skill", "fql_action", "fql_action_precap", "fql_blocked",
             "natural_flow_maf", "mead_storage_maf", "lake_mead_level",
+            "lb_junior_ceiling_af", "lb_tier_ceiling_af",
+            "lb_p56_entitlement_af", "lb_p56_in_tier",
         }
         missing = required_cols - set(df.columns)
         assert not missing, f"missing log columns: {missing}"
@@ -1149,7 +1153,8 @@ class TestRealShortRun:
             "fql_init", "fql_init_dir", "fql_init_dir_name",
             "hold_requests_fixed", "powell_release_mode",
             "lb_non_ag_total_maf", "ub_supply_mode",
-            "ub_subbasin_supply_variant", "lb_priority_mode", "seed",
+            "ub_subbasin_supply_variant", "lb_priority_mode",
+            "lb_p56_in_tier", "seed",
             "fql_init_per_agent",
             # WP5 review (item 3, round 3, 2026-09-30): the round-2/3
             # provenance additions, checked here too since this is a real
@@ -1158,6 +1163,9 @@ class TestRealShortRun:
             "pinned_v3_data_checksums", "water_system_config",
         ):
             assert field in manifest, f"manifest missing field: {field}"
+        assert manifest["lb_p56_in_tier"] == "zero"
+        assert manifest["water_system_config"]["lb_p56_in_tier"] == "zero"
+        assert set(df["lb_p56_in_tier"].dropna()) == {"zero"}
         for key in (
             "prism_winter_precip_csv", "ub_discrete_states_csv",
             "lb_discrete_states_csv", "ub_historical_annual_depletion_csv",

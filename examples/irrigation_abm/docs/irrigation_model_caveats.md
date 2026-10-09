@@ -2,21 +2,22 @@
 
 The model is a stated simplification of Hung & Yang (2021) RL-ABM-CRSS, not a reproduction.
 
-**Spec 45p/45q junior restoration (2026-10-08):** after a tier-only junior shortfall, the decision prompt
-explains that the fixed proportional cut leaves the water right unchanged and
-that keeping carries forward the reduced receipt. Under an H/VH first-stated
-scarcity appraisal, TR1 permits an increase after that tier-only cut. The
-increase uses the ordinary uncapped H&Y step and remains subject to the existing
-water-right cap; it may exceed last year's request by up to one step. Repeated
-tier cuts can therefore still ratchet down the request base (item 45o). Prompt
-guidance is omitted after or in anticipation of a Lake Mead physical shortage,
-even when physical delivery ratio $\phi$ is in [0.999, 1) and the general supply
-headline rounds that year to full supply; the TR1 exception still applies from
-the exact prior-year cause. The prompt is also omitted when its two displayed
-amounts round to the same acre-foot or increase is absent at the allocation cap.
-Every arm's post hoc TR1 uses the same exception when manifest key
-`tier_cut_restore` is present; historical runs without it retain the old definition unless
-analysis explicitly opts in. Exception uses are audited.
+**Current tier-ceiling and TR1 behavior (spec item 46, 2026-10-09):** a
+declared Lower Basin tier sets a fixed reduced-entitlement ceiling rather than
+removing a fraction of the current request. A keep at that ceiling does not
+ratchet lower in another identical tier year. New runs use plain TR1: an
+`increase_demand` proposal with first-stated WSA H or VH is blocked, with no
+irrigation restoration prompt or exception. The broker's generic
+`exception_precondition` capability remains available to other configurations
+and remains off unless configured.
+
+**Historical 45p/45q behavior only:** runs produced with the former
+request-fraction cut could include a tier-cut restoration prompt and TR1
+exception. `v3_metrics.py` preserves that definition when the manifest contains
+`tier_cut_restore`, or when an analyst explicitly requests the
+`--apply-tier-cut-restore` counterfactual. It fails loudly if audit evidence
+records a restoration exception but the manifest does not authorize that
+historical interpretation. New runs omit the manifest field and use plain TR1.
 
 ## Methods/SI Caveats
 
@@ -29,6 +30,51 @@ selections and therefore never consumes recent capacity. Event lines retain
 the salience ordering of item 36l, including earlier-first importance ties.
 The year-end reflection opts out of the separate slot, preserving its previous
 outcome-only retrieval selection.
+
+**Spec item 46 Lower Basin entitlement ceiling (current):** in a tier year,
+each of the six junior-water holders is limited before physical Lake Mead
+scarcity to `senior + (1-f) * P4 + P56_term`, where `P56_term` is zero by
+default and `(1-f) * P56` in the `lb_p56_in_tier="proportional"` SI mode. A
+request below the limit is not cut. The exact senior/P4/P5-P6 values and their
+row-level Reclamation citations are pinned in `data/lb_priority_split_v3.csv`;
+P5/P6 is 3,500 AF for CibolaValleyIDD, 1,750 AF for HopiTribe, and 656 AF for
+GilaMonsterFarms. The other 16 Lower Basin agents are unchanged. Declared
+volume accounting remains `non_ag = max(0, N - (V - agricultural_cuts))`, and
+the physical Lake Mead ratio is applied to agricultural, non-agricultural, and
+Mexico withdrawals after the ceiling.
+
+The legal/administrative basis is Reclamation's [Arizona priority statement](https://www.usbr.gov/lc/region/g4000/contracts/entitlements/AZpriorities.pdf),
+pp. 1-2; the [2014 Joint Recovery Plan](https://library.cap-az.com/documents/meetings/04-17-2014/2.%20Joint_Recovery_Plan_04_14_14%20with%20track%20changes%20accepted.pdf),
+p. 28; its [2021 update](https://library.cap-az.com/documents/departments/planning/recovery/joint-recovery-plan-update-2021.pdf),
+p. 17; and the Post-2026 Final EIS [Appendix C](https://www.usbr.gov/ColoradoRiverBasin/post2026/final-eis/docs/Vol-II/P26-FEIS_Appendix_C_ShortageAllocationModel_wAtts_508.pdf.pdf),
+pp. C-32-C-33. The implementation is still a deliberate simplification:
+
+- $f=320/400/480$ kaf divided by 1,579,652 AF is retained from the existing
+  model and has not been independently verified as the operative per-user
+  reduction. The 2006 and 2009 Arizona recommendations and the January 2021
+  pool letter were not available for direct verification, and H&Y's RiverWare
+  ruleset is absent from the repository.
+- Applying one ceiling per modeled agent is stricter than the real pool-sharing
+  descriptions, under which unused on-river entitlement can leave CAP bearing
+  most or all of the reduction. The model request is also a behavioral demand
+  proxy, while the cited documents regulate legal entitlement and use.
+- Because the modeled tier cut is `request - ceiling`, any requested amount
+  above the legal entitlement is credited toward the declared volume V. At the
+  six holders' `water_right_af` request ceilings the total agricultural cut
+  credited to V is about 72--77
+  kaf across tiers 1--3. The corresponding non-agricultural reduction is
+  explicitly bounded to `[0, N]`; this keeps the accounting finite but does not
+  turn the above-entitlement request into a legal entitlement.
+- Appendix C's smaller P4(i)-pool formula is an SI sensitivity target, not new
+  production physics implemented by item 46.
+- The common post-ceiling physical factor $\phi$ remains an approximation; a
+  real priority system would not necessarily reduce senior, junior,
+  non-agricultural, and Mexico withdrawals proportionally once water is
+  physically scarce.
+
+The former caveats 2 and 16 below describe the historical item-22
+request-fraction implementation. They are retained only to interpret older
+corpora and are superseded for new runs by the item-46 ceiling above.
 
 1. "Lake Powell and Lake Mead are two annual storage stocks in a closed-form surrogate water balance, not RiverWare/CRSS as in Hung & Yang (2021). Natural flow at Lees Ferry is the USBR calendar-year naturalized flow of the historical year Hung and Yang's own resample maps to (2019-2046 from 1988-2015, 2047-2060 from 1934-1947), not derived from precipitation, and the same 42-row trace drives every arm and seed. Upper Basin non-farm consumptive use (min(NF, 1.2213) MAF/yr, USBR 2016-2020 Consumptive Uses and Losses) is removed from natural flow before Upper Basin agriculture and Lake Powell, held constant and never curtailed. The Upper Basin has PRIORITY and is never cut to protect Powell's release (PI decision 2026-09-28): it is bounded only by the 5.0 MAF delivery capacity and the non-farm-net natural flow itself; a NEW gap code, `ub_natural_flow`, names which of the two actually bound. Lake Powell releases R, planned once (in `advance_year`, before agents decide) from that year's PROJECTED end-of-year contents for BOTH basins (re-review 2026-09-29, HIGH 1 froze the Lower Basin projection; HIGH A, same day round 3, moved the whole planning step into its own method and froze the Upper Basin projection too, after the reviewer found the release still moved up to 0.237 MAF in 16 of 42 years when only the Lower Basin side was frozen), by EITHER of two rules (`WaterSystemConfig.powell_release_mode`, items 26-27, 2026-09-29): the ACTUAL 2007 Interim Guidelines Equalization / Upper Elevation Balancing / Mid-Elevation Release / Lower Elevation Balancing tiers, chosen from the 1 January storages (`"ig2007_tiers"`, the v3 default -- see caveat 17; ONLY its Lower Elevation Balancing tier, and the April escalations that happen to land inside that band, are bounded to [7.0, 9.5] MAF -- the Equalization tier's own release has NO upper bound and can exceed it, e.g. 14.63 MAF in the 2011 hindcast year, 13.95 MAF in a 2028 replay-A year, 5 of 42 replay-A years above 9.5 MAF in total), or a one-rule simplification equalizing Powell's and Mead's end-of-year LIVE-storage fractions after that year's projected Lower Basin withdrawals, bounded to the Guidelines' own Lower Elevation Balancing Tier band [7.0, 9.5] MAF ALWAYS (`"storage_balancing"`, PI decision 2026-09-28, now the SI mode). Either way R is never more than physically available (pass-through at dead pool, applied in `_settle` from THAT call's own actual inflow/storage, which may legitimately differ from the plan). Lake Mead's storage-elevation relation is the USBR 2009 area-capacity survey (`data/mead_capacity_usbr2009_1ft.csv`); storage above the conservation-pool top (28.647 MAF total, not the curve's 30.167 MAF flood-control endpoint) is treated as spill. Diversions are treated as fully consumptive (no return flow)." (v3 water-system rewrite and same-day review round, 2026-09-28/29, `irrigation_v3_spec_2026-09-28.md` WP1, closing L2 H1, H2, H4, D1, D5, D6; before it, natural flow was `12.0 x (precipitation / 100)` clamped to [6, 17] MAF, the Upper Basin was cut pro-rata whenever Powell's storage could not sustain a 7.0 MAF release, and the Mead curve was a 10-point approximation that did not match the cited USBR table. The pre-v3 fixed-2018-demand trajectory reported here before this rewrite -- Tier 2/3 in 6 of 42 years, mean 1 January Mead 1081 ft -- no longer describes the current physics; see the WP1 implementation's own verification output for the current trajectory. Supply-side redesign, 2026-09-25, before which the balance tracked Lake Mead only with a +/-3.5 MAF clamp on its annual storage change, still applies structurally: two storage stocks, one idempotent settlement per year from a frozen 1 January snapshot.) Item 36e (2026-10-05 design-basis audit + fix proposals, spec item 36e, X1): "Diversions are treated as fully consumptive" above is a per-basin disclosure, not a uniform rule -- the Upper Basin already uses H&Y's 50 percent depletion convention (`demand_per_grid_unit=0.5`); only the Lower Basin's agricultural draw is fully consumptive. `WaterSystemConfig.lb_return_flow_fraction` (default 0.0, byte-identical, range [0, 0.5] -- Opus review P2-3, 2026-10-06: capped at the Upper Basin's own 50 percent depletion convention, the only diversion-to-consumptive-use anchor this model has) is a new, opt-in CPU sensitivity on that same units gap: the share of the Lower Basin's agricultural draw (net of any junior-tier cut) treated as reused downstream (e.g. credited toward the Mexico delivery) rather than lost to the system, so Mead releases LESS this year by that share -- NOT water physically returned to the river below Mead, and NOT water credited back into Mead's own storage -- tested FIRST as a sensitivity before any default change (`irrigation_env.py (IrrigationEnvironment._settle)`, logged as `lb_return_flow_maf`).
 2. "The declared shortage tier (1 January Lake Mead elevation per the 2007 Colorado River Interim Guidelines, Section 2.D.1: 0 / 0.333 / 0.417 / 0.500 MAF by tier) is borne by the 5.2 MAF Lower Basin non-agricultural bucket (`WaterSystemConfig.lb_non_ag_total_maf`; 5.0 MAF before item 25, 2026-09-29 -- see caveat 18 for the 5.2 MAF derivation) -- the model's stand-in for CAP and Southern Nevada, the Guidelines' actual juniors (ROD Section 2.D, p. 36-37: shortages reduce Arizona and Nevada, California stays at 4.4 MAF; Colorado River Compact Decree Art. II(B)(3) priority order) -- MINUS a senior/junior refinement (item 22, WP1c, PI-approved 2026-09-29, `WaterSystemConfig.lb_priority_mode="split"`, the v3 default): 16 of the 22 Lower Basin agricultural agents are modelled as senior mainstem or California entitlement holders and are NOT reduced by the declared tier at all, but SIX of them (MohaveValleyIDD, CibolaValleyIDD, GilaMonsterFarms, CocopahIndRes, HopiTribe, NorthBajaLLC) hold some Arizona 4th/5th/6th-priority ("junior") water and have that junior part of their request cut by the SAME proportion CAP itself bears at that tier (`data/lb_priority_split_v3.csv`, cited per agent from USBR's individual entitlement listings; the split restores Hung and Yang's/CRSS's own senior-then-junior fill order, `ref/RL-ABM-CRSS/ABM_CRSS_coupling.py`) -- a simplification either way: in reality a few Arizona fourth-priority mainstem contracts share shortages with CAP through CAP's own internal sub-priority system, which this model does not reproduce; `lb_priority_mode="senior_all"` (item 14 exactly as committed at this repo's HEAD 38e5c34b) keeps all 22 senior, for the SI. Every agent's senior part, and all 22 under `senior_all`, are reduced only by physical Mead availability (`lb_mead_availability`), the same mechanism that can also reduce the non-agricultural bucket and Mexico's delivery; a junior-cut agent's gap reason is `lb_junior_tier_cut`, `lb_mead_availability`, or both joined with `+`. The declared tier's total volume is unchanged either way -- the junior cuts and the non-agricultural bucket's own reduction always sum to exactly the declared volume, never more or less (`test_v3_lb_priority.py`). The declared tier stays visible to agents as information (`shortage_tier`, `curtailment_ratio` = declared volume / non-agricultural bucket, UNCHANGED by item 22) without implying it reduced their own delivery -- except that six agents' prompt text now states their own junior-priority cut, in a year it actually applies to them (spec item 22 rule 6). Upper Basin agents are limited by the 5.0 MAF delivery capacity and the non-farm-net natural flow only -- never by Lake Powell's own release needs (see item 1)." (PI decision 2026-09-28, superseding a same-day WP1 version that shared the declared volume pro rata across ALL Lower Basin use including agricultural requests, and before that the pre-v3 flat 0/5/10/20 percent cut, `irrigation_v3_spec_2026-09-28.md` WP1, closing L2 D2; refined by item 22, WP1c, 2026-09-29. Consequence for governance counts (rewritten for WP3, 2026-09-29): no dispatched rule reads `curtailment_ratio` any more. The supply rule `supply_gap_block_increase` responds only to physical limits (Lake Mead's phi for the Lower Basin; a sub-basin's own supply or the basin-wide backstop for the Upper Basin), and `curtailment_awareness_check`, with its Tier 1 differential and its dead "small increase" warning branch, is not dispatched (spec 3.2, PI item 2). A declared tier alone blocks no increase, and neither does a junior agent's own junior-priority cut (item 22): a larger request still adds (1 - f) of the increase to that agent's delivery, so blocking on the cut would ratchet it down. Before WP3 both rules read `curtailment_ratio`, nonzero for every Lower Basin agent exactly when a tier is declared.)
