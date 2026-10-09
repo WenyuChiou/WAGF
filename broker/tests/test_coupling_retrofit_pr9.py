@@ -316,7 +316,8 @@ class TestCouplingRetrofitMetadata:
         # WP4 (spec 4.3) adds shortage_tier_threshold_ft, uncovered for the
         # reason IRRIGATION_CONTEXT_UNCOVERED_KEYS's comment gives: 12 -> 13.
         # Item 46 adds four derived entitlement-ceiling/config fields.
-        assert len(covered) == 22 and len(uncovered) == 17
+        # Item 47 adds a prompt toggle and three pure settlement outputs.
+        assert len(covered) == 22 and len(uncovered) == 21
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never

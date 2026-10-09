@@ -25,6 +25,7 @@ exist).
 """
 from __future__ import annotations
 
+import csv
 import json
 import re
 from pathlib import Path
@@ -42,6 +43,7 @@ from examples.irrigation_abm.irrigation_personas import (
     build_action_outcome_feedback,
     build_option_notes,
     describe_gap_reason,
+    is_routine_outcome,
     reflection_rule_lines,
 )
 from examples.irrigation_abm.reflection_checks import (
@@ -428,8 +430,11 @@ def _memory_lines(prompt: str) -> List[str]:
 
 def test_year_end_reflection_sees_the_years_own_outcome_line(reflecting_run):
     """(a) and (b): the reflection written at the end of Y lists Y's line
-    last, the same text the Y+1 decision prompt shows; lines in year order."""
+    last, unchanged by item 47's decision-only routine filter; year order."""
     llm = reflecting_run.llm
+    start_year = min(c['year'] for c in llm.reflection_calls)
+    with (reflecting_run.out / 'simulation_log.csv').open(encoding='utf-8') as stream:
+        rows = {(r['agent_id'], start_year + int(r['year']) - 1): r for r in csv.DictReader(stream)}
     firsts = [c for c in llm.reflection_calls if not c["retry"]]
     assert {(c["agent"], c["year"]) for c in firsts} == {(f"Agent_00{i}", y) for i in range(3) for y in (2019, 2020, 2021)}
     for c in firsts:
@@ -438,7 +443,19 @@ def test_year_end_reflection_sees_the_years_own_outcome_line(reflecting_run):
         assert years == sorted(years) and years[-1] == c["year"], (c["agent"], c["year"], years)
         nxt = llm.decisions.get((c["agent"], c["year"] + 1, 0))
         if nxt is not None:
-            assert listed[-1] in _memory_lines(nxt)
+            next_lines = _memory_lines(nxt)
+            if listed[-1] not in next_lines:
+                row = rows[(c['agent'], c['year'])]
+                previous = rows.get((c['agent'], c['year'] - 1))
+                tick = int(row['year'])
+                snapshot = dict(year=tick, request=float(row['request']),
+                                diversion=float(row['diversion']),
+                                previous_request=float(previous['request']) if previous else None,
+                                initial_request=float(row['base_af']) if not previous else None,
+                                shortage_tier=int(row['shortage_tier']))
+                assert is_routine_outcome(dict(year=tick, skill_name=row['yearly_decision']),
+                                          snapshot, row['basin'])
+                assert any(l.startswith('Consolidated Reflection') for l in next_lines)
 
 
 def test_reflection_prompt_carries_record_rules_and_the_lesson_only_line(reflecting_run):

@@ -64,87 +64,7 @@ from examples.irrigation_abm.irrigation_personas import (
 # only when that sub-basin has more than one member -- H&Y's UT2 is alone
 # in its sub-basin, so a larger UT2 request when UT2's own supply is short
 # has no one else's delivery to lower (memo section 9).
-def _sharing_sentence(context: Dict[str, Any]) -> str:
-    """The sharing sentence that ends the supply rule's block message
-    (spec 3.7; see the comment above for who shares with whom).
-
-    WP1b re-review (HIGH 1, 2026-09-29): a real UB agent with gap_reason
-    ``ub_subbasin_supply`` ALWAYS has a known ``ub_subbasin_member_count``
-    (IrrigationEnvironment._settle only ever produces that code for an
-    agent in one of the nine real sub-basins, and initialize_from_profiles
-    computes the count for every such agent) -- a missing count reaching
-    here is a wiring defect (the found bug: IrrigationLifecycleHooks.
-    pre_year not copying it into validator_fields), never a legitimate
-    state. Raise rather than silently falling back to "other Upper Basin
-    users", which names the wrong users.
-
-    WP3 (spec 3.7): the spec wording ("shared in proportion to requests",
-    "would not add water"), plus a junior-priority variant for a Lower Basin
-    agent whose OWN junior water the declared tier cuts this year (gap code
-    ``lb_junior_tier_cut``, item 46, the same fact the dashboard warning
-    states): its keep request reaches the tier ceiling, so an increase above
-    that ceiling adds no deliverable water. Below it, a larger capped request
-    can raise its share only by lowering other users' deliveries. The supply
-    rule only reaches this sentence when a PHYSICAL limit
-    binds (Lake Mead's phi below 1 for the Lower Basin), so "shared in
-    proportion to requests" is true for that agent too.
-    """
-    basin = context.get("basin")
-    if basin not in ("upper_basin", "lower_basin"):
-        raise ValueError(
-            f"_sharing_sentence: basin={basin!r} is neither 'upper_basin' nor "
-            "'lower_basin'; refusing to guess which users share this shortage."
-        )
-    if basin == "lower_basin":
-        gap_codes = str(context.get("gap_reason") or "").split("+")
-        if "lb_junior_tier_cut" in gap_codes:
-            ceiling = context.get("lb_tier_ceiling_af")
-            if ceiling is None:
-                raise ValueError(
-                    "_sharing_sentence: gap_reason names lb_junior_tier_cut but "
-                    "lb_tier_ceiling_af is missing; refusing to state a tier "
-                    "ceiling without its value."
-                )
-            return (
-                "Lake Mead's physical shortage applies after the tier ceiling and is "
-                "shared in proportion to requests capped by that ceiling: any increase "
-                f"above your {float(ceiling):,.0f} acre-ft tier ceiling would add no "
-                "deliverable water; within the ceiling, a larger request would raise "
-                "your share only by lowering the deliveries of other users in the Lower "
-                "Basin; it would not add water to the Lower Basin."
-            )
-        pool = "the Lower Basin"
-    else:
-        gap_codes = str(context.get("gap_reason") or "").split("+")
-        member_count = context.get("ub_subbasin_member_count")
-        if "ub_subbasin_supply" in gap_codes:
-            if member_count is None:
-                raise ValueError(
-                    "_sharing_sentence: gap_reason names ub_subbasin_supply "
-                    "but ub_subbasin_member_count is missing from context -- "
-                    "IrrigationLifecycleHooks.pre_year must copy it into "
-                    "validator_fields (HIGH 1, 2026-09-29 re-review); "
-                    "refusing to silently fall back to basin-wide wording "
-                    "that would name the wrong users."
-                )
-            if member_count <= 1:
-                return "When water is short, a larger request would not add water."
-            pool = "your sub-basin"
-        else:
-            # The basin-wide backstop bound (ub_natural_flow / ub_capacity),
-            # lees_ferry_pool mode, or no shortfall at all: the whole Upper
-            # Basin shares here regardless of member_count, so a missing
-            # count is not a defect in this branch.
-            pool = "the Upper Basin"
-    # Spec item 29c: under sharing in proportion to requests a larger request
-    # DOES raise this agent's share, by lowering the others' deliveries; it
-    # adds no water to the pool they share.
-    return (
-        "When water is short it is shared in proportion to requests, so a "
-        "larger request would raise your share only by lowering the "
-        f"deliveries of other users in {pool}; it would not add water to "
-        f"{pool}."
-    )
+from examples.irrigation_abm.irrigation_personas import _sharing_sentence
 
 
 def _tier_reason(context: Dict[str, Any]) -> str:
@@ -879,10 +799,7 @@ def supply_gap_block_increase(
     # then lower no one's delivery, and only "would not add water" is true.
     # A wording case only -- the trigger is the one condition above (the
     # pre-v3 separate zero-delivery TRIGGER branch is gone, spec 3.3).
-    sharing = (
-        "When water is short, a larger request would not add water."
-        if expected_af <= 0 else _sharing_sentence(context)
-    )
+    sharing = _sharing_sentence(context)
     message = (
         "Demand increase blocked under the shortage-sharing rule: if you "
         f"request the {keep_af:,.0f} acre-ft you received last year, you can "

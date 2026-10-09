@@ -263,6 +263,10 @@ IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     # Ceiling amounts are None where no junior entitlement applies.
     "lb_junior_ceiling_af", "lb_tier_ceiling_af",
     "lb_p56_entitlement_af", "lb_p56_in_tier",
+    # Item 47: prompt toggle and pure counterfactual settlement outputs,
+    # computed locally from the already guarded state; not model-source reads.
+    # Increase values are None when S1 is off or increase is not offered.
+    "keepfix_s1", "increase_request_af", "increase_delivery_af", "increase_settlement",
 )
 
 
