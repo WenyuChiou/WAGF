@@ -10,6 +10,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Irrigation keep-fix package (spec item 47: MB, S1, L, K6).** Routine
+  outcomes move from decision-memory lines into basin-specific performance
+  columns; reflection inputs and lessons retain their original bytes. Prompts
+  show the current-rule delivery at a typical increase, the observed-peak
+  land-use assumption, and the senior-only tier explanation. Generic memory
+  filtering and dashboard label/column options default off. P5(b) verifies
+  new text against logs, priority data and profiles; manifests record enabled
+  elements and Ollama server version (null for mock or unreachable).
+
+- **Irrigation keep-fix round-2 corrections.** S1 settles at the menu's exact
+  rounded increase target. MB's `routine_tier_scope` defaults to `any_tier`;
+  `affects_agent` treats fully senior tier-year keeps like tier-0 keeps.
+  Startup rejects unknown package keys or MB without `recall_skip_key: routine`.
+  Provenance records the resolved skip key, tier scope and launch-time server
+  version in both files; mock and cloud models skip the server query.
+  Unfiltered post-year memory remains in the simulation CSV. P5(b) verifies
+  both presence and absence of package text and outcome-memory visibility.
+  Optional dashboard trends use only recorded samples. K6 requires split
+  priority mode.
+- **Supply-rule retry wording at junior tier ceilings.** A junior holder at
+  or below its tier ceiling during a physical Lake Mead shortage is told
+  that requests above that ceiling add no deliverable water. This corrects
+  the retry message regardless of keep-fix package flags, including with
+  every element off; it is the intended package-off difference from main.
+
 - **Junior tier-cut restoration (irrigation specs 45p/45q, P + R').** The prompt
   explains recovery after a tier-only cut using the agent's own amounts.
   TR1 permits an H/VH restoring increase using the ordinary uncapped H&Y

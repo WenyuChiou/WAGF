@@ -117,6 +117,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # Equal decayed importance keeps earlier items by default. Domains
         # may opt into newer timestamps first without changing the score.
         significant_tie_break: str = "earlier",
+        recall_skip_key: Optional[str] = None,
     ):
         """
         Args:
@@ -163,6 +164,11 @@ class HumanCentricMemoryEngine(MemoryEngine):
             raise ValueError(f"significant_tie_break must be 'earlier' or 'recent', got {significant_tie_break!r}")
         self.reflection_slot = reflection_slot
         self.significant_tie_break = significant_tie_break
+        if recall_skip_key is not None and (not isinstance(recall_skip_key, str) or not recall_skip_key):
+            raise ValueError("recall_skip_key must be None or a non-empty metadata key")
+        if recall_skip_key is not None and ranking_mode != "legacy":
+            raise ValueError("recall_skip_key is unsupported in weighted mode; use legacy retrieval")
+        self.recall_skip_key = recall_skip_key
         # Item 36b: see the three parameters' docstrings above. Opus
         # review P3-2 (2026-10-06): type-checked here, not left to raise
         # downstream on a string like "true" or "false" read straight
@@ -660,6 +666,11 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if reflection_slot not in (None, "separate"):
             raise ValueError(f"reflection_slot must be None or 'separate', got {reflection_slot!r}")
         separate_reflection = reflection_slot == "separate"
+        skip_key = kwargs.get("recall_skip_key", self.recall_skip_key)
+        if skip_key is not None and (not isinstance(skip_key, str) or not skip_key):
+            raise ValueError("recall_skip_key must be None or a non-empty metadata key")
+        if skip_key is not None and self.ranking_mode != "legacy":
+            raise ValueError("recall_skip_key is unsupported in weighted mode")
         latest_reflection = None
         if separate_reflection:
             reflections = [m for m in working + longterm if m.get("type") == "reflection"]
@@ -683,6 +694,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
              _window = self.window_size if window_size is None else int(window_size)
              _n_sig = self.top_k_significant if top_k_significant is None else int(top_k_significant)
              recent = working[-_window:] if _window > 0 else []
+             original_window = recent
+             if skip_key is not None:
+                 recent = [m for m in recent if not m.get(skip_key)]
+                 longterm = [m for m in longterm if not m.get(skip_key)]
              recent_texts = [m["content"] for m in recent]
 
              decayed_longterm = self._apply_decay(longterm, current_time, current_year)
@@ -725,6 +740,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
                      break
 
              recent_payload = [payload(m) for m in recent]
+             # A stored record must not render as "No memories yet.".
+             if skip_key is not None and not significant and not recent_payload and latest_reflection is None:
+                 recent_payload = [payload(m) for m in original_window]
              return finish(significant + recent_payload)
 
         # --- MODE 2: WEIGHTED (v2 Model for Stress Test) ---

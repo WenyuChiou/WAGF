@@ -90,6 +90,8 @@ from examples.irrigation_abm.irrigation_personas import (  # noqa: E402
     FULL_SUPPLY_RATIO,
     format_share,
     supply_ratio,
+    K6_SENIOR_TIER_TEXT, land_need_text, increase_expectation_text,
+    is_routine_outcome,
 )
 from examples.irrigation_abm.validators.irrigation_validators import (  # noqa: E402
     SUPPLY_RULE_FIELDS,
@@ -3038,7 +3040,9 @@ _R = {
     "expect_short": re.compile(r"^If you request the ([\d,]+) acre-ft you received last year, you can expect ([\d,]+) acre-ft "
                                r"\(([\d.]+%)\) this year, because "),
     "right": re.compile(r"^Your water right is ([\d,]+) acre-ft/year; last year's delivery was (\d+%) of it\.$"),
-    "dash_row": re.compile(r"^\s*(\d{4}) \|\s+([\d,]+) \|\s+([\d,]+)\s*$"),
+    "dash_row": re.compile(r"^\s*(\d{4}) \|\s+([\d,]+) \|\s+([\d,]+)(?:\s*\|\s*(.*?))?\s*$"),
+    "increase": re.compile(r"^If you increase your request to about .*"),
+    "land_need": re.compile(r"^Your fields can use about .*"),
     "dash_warn": re.compile(r"^WARNING: You requested ([\d,]+) AF and received ([\d,]+) AF \(([\d.]+)% unmet\)\."),
     "reflection": re.compile(r"^- Consolidated Reflection \(written in (\d{4})\): (.*)$"),
     "memory": re.compile(r"^- Year (\d{4}): "),
@@ -3073,6 +3077,131 @@ _R = {
     "choices_a": re.compile(r'"decision" MUST be the NUMERIC ID \(([^)]*)\) from the options list'),
     "choices_b": re.compile(r'choose ONE from: ([^>"]*)>'),
 }
+
+_MENU_INCREASE = re.compile(
+    r"^1\. Increase your request to about ([\d,]+) acre-ft(?::|\.)", re.MULTILINE)
+_S1_INCREASE = re.compile(
+    r"^If you increase your request to about ([\d,]+) acre-ft,", re.MULTILINE)
+_OUTCOME_MEMORY_YEAR = re.compile(r"^Year (\d{4}): ")
+_LAND_BOUND_PERSONA = (
+    "The more water you receive, up to what your fields can use, the more you can produce.")
+_ITEM47_TABLE_SUFFIXES = (
+    "sub-basin river flow (% of 1971-2018 average) | "
+    "sub-basin winter precipitation (vs previous winter)",
+    "Lake Mead on 1 January (vs a year earlier)",
+)
+
+
+def _menu_increase_target(prompt: str) -> Optional[int]:
+    """Return the integer X printed by menu option 1, when it is Increase."""
+    match = _MENU_INCREASE.search(prompt)
+    return None if match is None else int(match.group(1).replace(",", ""))
+
+
+def _s1_increase_target(prompt: str) -> Optional[int]:
+    """Return the integer X printed by item 47 S1, when present."""
+    match = _S1_INCREASE.search(prompt)
+    return None if match is None else int(match.group(1).replace(",", ""))
+
+
+def _disabled_keepfix_text(prompt: str, package: Mapping[str, Any]) -> List[str]:
+    """Item-47 text that leaked into a prompt while its recorded flag is off."""
+    problems: List[str] = []
+    for text in prompt.splitlines():
+        stripped = text.strip()
+        if not package.get("L", False) and stripped == _LAND_BOUND_PERSONA:
+            problems.append("land-bound persona clause while L is off")
+        if not package.get("L", False) and _R["land_need"].match(stripped):
+            problems.append("land-need numeric line while L is off")
+        if not package.get("K6", False) and stripped == K6_SENIOR_TIER_TEXT:
+            problems.append("K6 while K6 is off")
+        if not package.get("table", False):
+            if (stripped.startswith("Year | request (AF) | received (AF) |")
+                    and any(stripped.endswith(suffix) for suffix in _ITEM47_TABLE_SUFFIXES)):
+                problems.append("item-47 table heading while table is off")
+            row = _R["dash_row"].match(text)
+            if row is not None and row.group(4) is not None:
+                problems.append("item-47 table cell while table is off")
+    return problems
+
+
+def _memory_visibility_mismatches(
+        run: "LoadedRun", agent: str, t: int, prompt: str,
+        priority: Mapping[str, Mapping[str, Any]]) -> List[str]:
+    """Compare MB's exact hidden/kept outcome lines with the unfiltered CSV memory.
+
+    The simulation log records the same retrieval with ``recall_skip_key=None``.
+    Each outcome is classified from its own logged settlement and audited action
+    through the runtime ``is_routine_outcome`` predicate.
+    """
+    package = run.info.manifest.get("keepfix_package", {})
+    if not package.get("MB", False):
+        return []
+    row = run.sim.rows[(agent, t)]
+    if "memory" not in row:
+        return ["simulation_log.csv has no memory column for MB read-back"]
+    logged = [item for item in str(row.get("memory") or "").split(" | ") if item]
+    logged_outcomes = [item for item in logged if _OUTCOME_MEMORY_YEAR.match(item)]
+    prompt_items = _memory_block(prompt)
+    prompt_outcomes = [item for item in prompt_items if _OUTCOME_MEMORY_YEAR.match(item)]
+    scope = package.get("routine_tier_scope", "any_tier")
+    priority_mode = run.info.manifest.get("coupling_retrofit_metadata", {}).get(
+        "water_system_lb_priority_mode")
+    entry = priority.get(agent, {})
+    tier_affects_agent = (
+        priority_mode == "split" and float(entry.get("junior_entitlement_af", 0)) > 0)
+    routine: List[str] = []
+    eventful: List[str] = []
+    for item in logged_outcomes:
+        memory_year = int(_OUTCOME_MEMORY_YEAR.match(item).group(1))
+        tick = memory_year - run.sim.sim_start_year + 1
+        key = (agent, tick)
+        decision = run.decisions.get(key)
+        if decision is None:
+            return [f"logged outcome {memory_year} has no audit decision"]
+        action_ctx = None if decision.aborted else {
+            "year": tick,
+            "skill_name": decision.executed_skill,
+            # The runner marks both a REJECTED row that executes the registry
+            # default (rejected_default) and REJECTED_FALLBACK (fallback) as
+            # executed_via_fallback in the deferred action context.
+            "was_fallback": decision.execution_path in ("rejected_default", "fallback"),
+            "magnitude_pct": run.sim.opt_num(agent, tick, "magnitude_pct"),
+        }
+        snapshot = {
+            "year": tick,
+            "request": run.sim.num(agent, tick, "request"),
+            "diversion": run.sim.num(agent, tick, "diversion"),
+            "previous_request": (
+                run.sim.num(agent, tick - 1, "request") if tick > 1 else None),
+            "initial_request": run.sim.opt_num(agent, tick, "base_af") if tick == 1 else None,
+            "shortage_tier": int(run.sim.num(agent, tick, "shortage_tier")),
+        }
+        target = routine if is_routine_outcome(
+            action_ctx, snapshot, run.sim.basin[agent],
+            routine_tier_scope=scope,
+            tier_affects_agent=tier_affects_agent,
+        ) else eventful
+        target.append(item)
+
+    # The memory engine deliberately restores the unfiltered window if hiding
+    # would otherwise render "No memories yet.". A recorded reflection or any
+    # eventful outcome prevents that fallback.
+    non_outcome_logged = [item for item in logged if not _OUTCOME_MEMORY_YEAR.match(item)]
+    fallback = bool(logged_outcomes) and not eventful and not non_outcome_logged
+    problems: List[str] = []
+    if not fallback:
+        for item in routine:
+            if item in prompt_outcomes:
+                problems.append(f"routine outcome is visible: {item}")
+    for item in eventful:
+        if item not in prompt_outcomes:
+            problems.append(f"eventful outcome is missing: {item}")
+    expected = logged_outcomes if fallback else eventful
+    for item in prompt_outcomes:
+        if item not in expected:
+            problems.append(f"prompt outcome is absent from the unfiltered log: {item}")
+    return problems
 NO_TIER_SENTENCE = "No Lower Basin shortage applies this year."
 POWELL_DEAD_POOL_SENTENCE = "Lake Powell is at its dead-pool floor on 1 January; releases are limited to inflow."
 
@@ -3262,6 +3391,47 @@ class PromptChecker:
         self.run, self.cfg, self.variant = run, cfg, variant
         self.fragments = static_fragments()
         self.priority = _load_lb_priority_split_table()
+        self.package = run.info.manifest.get("keepfix_package", {})
+        self._contexts = {}
+        self.profiles = {}
+        if any(self.package.get(k, False) for k in ("S1", "L", "K6")):
+            profiles = make_profiles(bool(run.info.manifest.get("paper_water_margin_applied")),
+                                     len(run.sim.agents), int(run.info.manifest["seed"]),
+                                     run.info.manifest.get("paper_water_margin", 0.4),
+                                     run.info.manifest.get("cluster_method", "hy2021"))
+            self.profiles = {p.agent_id: p for p in profiles}
+
+    def _keepfix_context(self, agent: str, t: int) -> Dict[str, Any]:
+        """Rebuild the provisional settlement from logged start storages/bases."""
+        if t not in self._contexts:
+            env = IrrigationEnvironment(dataclasses.replace(self.cfg, seed=int(self.run.info.manifest["seed"])))
+            env.initialize_from_profiles(list(self.profiles.values()))
+            system = self.run.sim.system[t]
+            env._powell_storage = system["powell_storage_maf"]
+            env._mead_storage[-1] = system["mead_storage_maf"]
+            for aid in env.agent_ids:
+                env._agents[aid]["diversion"] = self.run.decisions[(aid, t)].keep_request_af
+            env._year_index = t - 1
+            env.advance_year()
+            contexts = {}
+            from examples.irrigation_abm.validators.irrigation_validators import supply_rule_fields
+            for aid in env.agent_ids:
+                ctx = env.get_agent_context(aid)
+                ctx.update(supply_rule_fields(ctx, env.get_agent_state(aid)))
+                ctx["increase_request_af"] = None
+                if "increase" in self.run.traces[(aid, t)].menu:
+                    # build_option_texts prints integer AF components first;
+                    # report 2.3 defines S1's X as that menu target.
+                    target = min(
+                        round(ctx["current_request"])
+                        + round(self.run.sim.num(aid, t, "typical_step_af")),
+                        round(ctx["water_right"]),
+                    )
+                    rec = env._settle(env._snapshot, requests={aid: target})["agents"][aid]
+                    ctx.update(increase_request_af=target, increase_delivery_af=rec["delivered"], increase_settlement=rec)
+                contexts[aid] = ctx
+            self._contexts[t] = contexts
+        return self._contexts[t][agent]
 
     def flow_share(self, subbasin: str, sim_year: int) -> float:
         q = _load_ub_subbasin_supply_table(self.variant)[sim_year][f"q_{subbasin}_af"]
@@ -3312,6 +3482,39 @@ class PromptChecker:
         w = sim.num(agent, t, "water_right")
         base = d.keep_request_af
         out.prompts += 1
+        for problem in _disabled_keepfix_text(prompt, self.package):
+            out.mismatches.append(f"{run.label} {agent} {year}: {problem}")
+        for problem in _memory_visibility_mismatches(run, agent, t, prompt, self.priority):
+            out.mismatches.append(f"{run.label} {agent} {year}: {problem}")
+        profile = self.profiles.get(agent)
+        land = (land_need_text(sim.basin[agent], profile.peak_obs_af, base)
+                if self.package.get("L") and profile is not None and profile.peak_obs_af is not None else None)
+        if land is not None and land not in prompt.splitlines():
+            out.mismatches.append(f"{run.label} {agent} {year}: missing or altered item 47 land-need line")
+        if land is not None and "The more water you receive, up to what your fields can use, the more you can produce." not in prompt:
+            out.mismatches.append(f"{run.label} {agent} {year}: missing land-bound persona clause")
+        if self.package.get("K6"):
+            priority_mode = run.info.manifest.get("coupling_retrofit_metadata", {}).get(
+                "water_system_lb_priority_mode")
+            senior = (priority_mode == "split" and not upper and agent in self.priority
+                      and self.priority[agent]["junior_entitlement_af"] == 0)
+            if (K6_SENIOR_TIER_TEXT in prompt.splitlines()) != senior:
+                out.mismatches.append(f"{run.label} {agent} {year}: missing or misplaced K6")
+        if self.package.get("S1"):
+            expected_s1 = increase_expectation_text(self._keepfix_context(agent, t))
+            if expected_s1 and expected_s1 not in prompt.splitlines():
+                out.mismatches.append(f"{run.label} {agent} {year}: missing or altered S1")
+            menu_x = _menu_increase_target(prompt)
+            s1_x = _s1_increase_target(prompt)
+            if s1_x is not None and s1_x != menu_x:
+                out.mismatches.append(
+                    f"{run.label} {agent} {year}: S1 increase target {s1_x:,} differs "
+                    f"from same-prompt option-1 target {menu_x!r}")
+        if self.package.get("table") and t > 1 and (not upper or sim.subbasin[agent] is not None):
+            suffix = ("sub-basin river flow (% of 1971-2018 average) | sub-basin winter precipitation (vs previous winter)"
+                      if upper else "Lake Mead on 1 January (vs a year earlier)")
+            if "Year | request (AF) | received (AF) | " + suffix not in prompt.splitlines():
+                out.mismatches.append(f"{run.label} {agent} {year}: missing or altered MB dashboard headings")
         program_facts = run.info.manifest.get("reflection_checks", {}).get("settings", {}).get("program_facts", False)
         for i, raw in enumerate(prompt.split("\n")):
             text = raw.rstrip()
@@ -3327,6 +3530,9 @@ class PromptChecker:
                         lesson = reflection.group(2)
                         program_text = text[:len(text) - len(lesson)]
             for phrase in P5_BANNED_PHRASES:
+                # Item 47 explicitly sources the UB land line's "records".
+                if phrase == "records" and text == land:
+                    continue
                 if phrase in lesson:
                     out.banned_hits_in_reflection_lessons[phrase] += 1
                     if len(out.reflection_lesson_examples) < 10:
@@ -3363,6 +3569,32 @@ class PromptChecker:
         persona text, a reason phrase) are never covered: a digit there is
         unchecked unless a sub-pattern verifies it."""
         sim, cfg, text = self.run.sim, self.cfg, line.text
+        if text.startswith("Year | request (AF) | received (AF) |"):
+            suffix = ("sub-basin river flow (% of 1971-2018 average) | sub-basin winter precipitation (vs previous winter)"
+                      if upper else "Lake Mead on 1 January (vs a year earlier)")
+            line.check(text == "Year | request (AF) | received (AF) | " + suffix, "MB dashboard headings")
+            line.spans.append((0, len(text)))
+            return
+        m = _R["land_need"].match(text)
+        if m:
+            profile = self.profiles.get(agent)
+            line.check(self.package.get("L", False)
+                       and profile is not None and profile.peak_obs_af is not None
+                       and text == land_need_text(sim.basin[agent], profile.peak_obs_af, base),
+                       "land-need text is disabled or peak X/share P differs from the profile/log")
+            line.cover(m)
+            return
+        if text == K6_SENIOR_TIER_TEXT:
+            line.check(not upper and agent in self.priority and self.priority[agent]["junior_entitlement_af"] == 0,
+                       "K6 for an agent that is not fully senior Lower Basin")
+            line.spans.append((0, len(text)))
+            return
+        m = _R["increase"].match(text)
+        if m:
+            line.check(self.package.get("S1", False) and text == increase_expectation_text(self._keepfix_context(agent, t)),
+                       "S1 differs from the current pure settlement")
+            line.cover(m)
+            return
         m = _R['restore'].match(text)
         if m:
             line.cover(m)
@@ -3601,6 +3833,19 @@ class PromptChecker:
                 return
             line.expect(m, 2, _f0(sim.num(agent, tk, "request")), "dashboard request")
             line.expect(m, 3, _f0(sim.num(agent, tk, "diversion")), "dashboard supply")
+            if m.group(4) is not None:
+                cells = [c.strip() for c in m.group(4).split("|")]
+                sb = sim.subbasin[agent]
+                if upper and sb is not None:
+                    expected = [f"{self.flow_share(sb, sim.sim_year(tk)):.0%}",
+                                "above" if sim.num(agent, tk, "precipitation_flag") >= 1 else "below"]
+                elif not upper:
+                    expected = ["higher" if self._mead(tk) >= self._mead(tk - 1) else "lower"]
+                else:
+                    expected = []
+                line.check(cells == expected, f"MB dashboard cells {cells!r}, log {expected!r}")
+            elif self.package.get("table") and (not upper or sim.subbasin[agent] is not None):
+                line.check(False, "missing MB dashboard cells")
             return
         m = _R["dash_warn"].match(text)
         if m:
@@ -3786,12 +4031,72 @@ _REFLECTION_FACT = re.compile(
     r"(?P<received>[\d,]+) acre-ft \((?P<outcome>fully met|(?P<unmet>[\d.]+)% unmet)\)\.")
 
 
+def _reflection_input_lines(row: Mapping[str, Any]) -> Optional[List[str]]:
+    """Return explicitly logged reflection-input memories, if this record has them."""
+    for key in ("reflection_input", "input_memories", "source_memories", "memory_input"):
+        value = row.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            lines = []
+            for item in value:
+                if isinstance(item, str):
+                    lines.append(item)
+                elif isinstance(item, Mapping) and isinstance(item.get("content"), str):
+                    lines.append(item["content"])
+                else:
+                    return None
+            return lines
+    return None
+
+
+def _load_reflection_inputs(run: LoadedRun) -> Tuple[Dict[Tuple[str, int], List[str]], List[str]]:
+    """Read reflection inputs from the reflection log/check log when recorded."""
+    inputs: Dict[Tuple[str, int], List[str]] = {}
+    sources: List[str] = []
+    for filename in ("reflection_log.jsonl", "reflection_checks.jsonl"):
+        path = run.info.path / filename
+        if not path.is_file():
+            continue
+        found = False
+        with open(path, encoding="utf-8") as fh:
+            for line_number, raw in enumerate(fh, start=1):
+                if not raw.strip():
+                    continue
+                try:
+                    row = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise MetricsError(f"{path}:{line_number}: invalid JSON") from exc
+                lines = _reflection_input_lines(row)
+                if lines is None:
+                    continue
+                agent = row.get("agent_id")
+                period = row.get("period", row.get("year_created"))
+                if agent is None or isinstance(period, bool):
+                    raise MetricsError(
+                        f"{path}:{line_number}: logged reflection input needs agent_id and period")
+                try:
+                    key = (str(agent), int(period))
+                except (TypeError, ValueError) as exc:
+                    raise MetricsError(
+                        f"{path}:{line_number}: reflection-input period is not an integer") from exc
+                inputs[key] = lines
+                found = True
+        if found:
+            sources.append(filename)
+    return inputs, sources
+
+
 def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
-    """P6: stored reflections quoting a figure absent from the memory they
-    were written from (the non-reflection memory lines of the agent's
-    prompt in the year the reflection was written, the input
-    IrrigationLifecycleHooks._batch_reflect retrieves; the runner's own
-    _foreign_figures rule); prompts with more than one reflection line;
+    """P6: stored reflections quoting a figure absent from their recorded
+    reflection-log input (the runner's own ``_foreign_figures`` rule). When
+    an item-47 MB run has no recorded reflection input, that comparison is
+    explicitly skipped and counted: MB can hide decision-memory lines, so a
+    decision prompt is not independent evidence of the reflection input.
+    Pre-MB runs retain the historical prompt-memory fallback. Also checks
+    prompts with more than one reflection line;
     reflection lines not written in the previous calendar year unless every
     intervening year has a logged dropped reflection for that same agent.
 
@@ -3814,6 +4119,8 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
     memories = {key: _memory_block(trace.prompt or "") for key, trace in run.traces.items()}
     if any(trace.prompt is None and not trace.crashed for trace in run.traces.values()):
         raise MetricsError(f"{run.label}: reflection checks need the prompts (keep_prompts)")
+    recorded_inputs, reflection_input_sources = _load_reflection_inputs(run)
+    mb_enabled = bool(run.info.manifest.get("keepfix_package", {}).get("MB", False))
     dropped_periods = set()
     checks_path = run.info.path / "reflection_checks.jsonl"
     if checks_path.is_file():
@@ -3832,10 +4139,11 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
                         f"{where}: reflection check needs agent_id, integer period and outcome") from exc
                 if outcome == "dropped":
                     dropped_periods.add((agent_id, period))
-    unknown_source = 0  # the prompt a reflection was written from is an ABORTED_EXCEPTION step's
+    unknown_source = 0  # the prompt fallback source is an ABORTED_EXCEPTION step's
     pattern = re.compile(r"^" + re.escape(_REFLECTION_MEMORY_PREFIX) + r" \(written in (\d{4})\): (.*)$")
     foreign = multiple = wrong_year = carried_after_drop = reflections = 0
     grounded = with_numbers = fact_mismatches = facts_read = unmatched_fact_digits = 0
+    reflection_inputs_read = reflection_input_skipped = 0
     examples: List[str] = []
     for (agent, t), lines in memories.items():
         found = [pattern.match(line) for line in lines if line.startswith(_REFLECTION_MEMORY_PREFIX)]
@@ -3860,16 +4168,25 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
             source_t = written - run.sim.sim_start_year + 1
             source = run.traces.get((agent, source_t))
             source_unknown = source is not None and source.crashed
-            if source_unknown:
+            recorded_input = recorded_inputs.get((agent, written))
+            skip_input_check = recorded_input is None and mb_enabled
+            if recorded_input is not None:
+                own = list(recorded_input)
+                reflection_inputs_read += 1
+            elif skip_input_check:
+                own = []
+                reflection_input_skipped += 1
+            else:
+                own = [line for line in memories.get((agent, source_t), [])
+                       if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
+            if source_unknown and recorded_input is None and not skip_input_check:
                 unknown_source += 1  # no prompt for the foreign-figure comparison
-            own = [line for line in memories.get((agent, source_t), [])
-                   if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
             body = m.group(2)
             if " Lesson: " in body:
                 # Item 45c: program facts, then the model's lesson.
                 grounded += 1
                 facts_text, body = body.split(" Lesson: ", 1)
-                if not carried:
+                if recorded_input is None and not skip_input_check and not carried:
                     own = own + [line for line in memories.get((agent, source_t + 1), [])
                                  if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
                 if _DIGIT.search(body):
@@ -3920,7 +4237,7 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
                 with_numbers += 1
                 if len(examples) < 10:
                     examples.append(f"{agent} {year}: a number in the lesson: {body[:120]}")
-            if not source_unknown:
+            if not skip_input_check and (recorded_input is not None or not source_unknown):
                 bad = _foreign_figures(body, " ".join(own))
                 if bad:
                     foreign += 1
@@ -3942,6 +4259,12 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
             "grounded_reflection_lines": grounded, "lessons_with_numbers": with_numbers,
             "facts_read": facts_read, "fact_mismatches": fact_mismatches,
             "fact_texts_with_unmatched_digits": unmatched_fact_digits,
+            "reflection_inputs_read": reflection_inputs_read,
+            "reflection_input_sources": reflection_input_sources,
+            "reflection_input_check_skipped": reflection_input_skipped,
+            "reflection_input_skip_reason": (
+                "MB hides decision-memory lines and no reflection input was recorded"
+                if reflection_input_skipped else None),
             "manifest_reflection_checks": manifest_checks,
             "manifest_reflection_check_totals": manifest_checks.get("totals", {}),
             "manifest_reflection_dropped_by_reason": manifest_checks.get("dropped_by_reason", {}),

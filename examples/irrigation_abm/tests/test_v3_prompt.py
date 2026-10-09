@@ -205,6 +205,18 @@ def golden_run(tmp_path_factory):
     return SimpleNamespace(llm=llm, out=out)
 
 
+@pytest.fixture(scope="module")
+def memory_stress_run(tmp_path_factory):
+    """Fifteen mock years with increases across all agents exercise event recall."""
+    if not _REAL_REF_AVAILABLE:
+        pytest.skip("CRSS reference data not found under ref/")
+    llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Increase"))
+    with pytest.MonkeyPatch.context() as mp:
+        out = _run(mp, tmp_path_factory.mktemp("memory_stress") / "run", llm,
+                   "--real", "--years", "15", "--seed", "42", "--memory-seed", "42")
+    return SimpleNamespace(llm=llm, out=out)
+
+
 def _first_prompt(run, agent: str, year: int) -> str:
     return run.llm.decisions[(agent, year, 0)]
 
@@ -957,8 +969,9 @@ def test_dashboard_warning_edge_pins_to_full_supply_ratio():
 def test_calendar_year_memory_and_dashboard(golden_run):
     prompt = _first_prompt(golden_run, "MohaveValleyIDD", 2022)
     memory = prompt[prompt.index("Your memory includes:"):prompt.index("First, assess")]
-    for year in (2019, 2020):
-        assert f"- Year {year}: You chose to maintain demand." in memory
+    # Item 47: the tier-0 unchanged keep is routine, while tier years remain.
+    assert "- Year 2019:" not in memory
+    assert "- Year 2020: You chose to maintain demand." in memory
     # Item 46: the 28,295 AF request is below Mohave Valley IDD's entitlement
     # ceiling in both tier years, so keeping it does not ratchet the request.
     assert ("- Year 2021: You chose to maintain demand. You requested 28,295 acre-ft and "
@@ -969,7 +982,7 @@ def test_calendar_year_memory_and_dashboard(golden_run):
             "a year earlier.") in memory
     dashboard = prompt[prompt.index("PERFORMANCE HISTORY:"):prompt.index("Your memory includes:")]
     # Spec item 45i: the column is what the agent received.
-    assert "Year | request (AF) | received (AF)\n" in dashboard
+    assert "Year | request (AF) | received (AF) | Lake Mead on 1 January (vs a year earlier)\n" in dashboard
     for row in ("2019 |       28,295 |        28,295", "2020 |       28,295 |        28,295",
                 "2021 |       28,295 |        28,295"):
         assert row in dashboard
@@ -986,6 +999,9 @@ def test_banned_phrases_absent(golden_run):
     prompts = list(golden_run.llm.decisions.values()) + golden_run.llm.reflections
     assert len(golden_run.llm.decisions) >= 78 * 15
     for prompt in prompts:
+        # Only the sourced L phrase is exempt; the rest of that line must
+        # still be checked for every banned word and punctuation mark.
+        prompt = prompt.replace("estimated from your sub-basin's records", "estimated from your sub-basin's")
         for phrase in BANNED_PHRASES:
             assert phrase not in prompt, (phrase, prompt[:300])
 
@@ -1026,16 +1042,38 @@ def test_single_reflection_kept_from_the_previous_year(golden_run):
 
 
 @needs_ref
-def test_decision_memory_has_five_recent_two_significant_then_reflection(golden_run):
+def test_decision_memory_keeps_nonroutine_recent_and_reflection(memory_stress_run):
     """Spec item 45m: a decision prompt reserves the latest reflection its
     own final slot, after up to five recent and two significant event lines.
 
-    In every mature prompt, all five immediately preceding outcome years must
-    remain visible even when a reflection exists.  At least one prompt in the
-    full mock run must exercise the complete 5 + 2 + 1 capacity.
+    Item 47 hides routine outcomes; every nonroutine outcome in the recent
+    five-year window remains visible, followed by the latest reflection.
+    The all-increase fixture creates two older high-shortfall outcomes,
+    which the keep-heavy golden fixture cannot supply after item 46.
     """
     mature_blocks = []
-    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+    start_year = min(year for _, year, _ in memory_stress_run.llm.decisions)
+    with (memory_stress_run.out / "simulation_log.csv").open(encoding="utf-8") as stream:
+        rows = {(r["agent_id"], start_year + int(r["year"]) - 1): r for r in csv.DictReader(stream)}
+    # Spec item 48: under ``affects_agent`` a Lower Basin tier year makes a
+    # keep line eventful only for agents whose delivery the tier can reduce
+    # (junior entitlement in split priority mode), as the run recorded it.
+    manifest = json.loads((memory_stress_run.out / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+    scope = manifest["keepfix_package"]["routine_tier_scope"]
+    from examples.irrigation_abm.irrigation_env import _load_lb_priority_split_table
+    tier_affected = {aid for aid, row in _load_lb_priority_split_table().items()
+                     if row["junior_entitlement_af"] > 0}
+    def routine(agent, year):
+        row = rows[(agent, year)]
+        prior = rows.get((agent, year - 1))
+        previous_request = float(prior["request"]) if prior else float(row["base_af"])
+        tier_counts = scope == "any_tier" or agent in tier_affected
+        return (row["yearly_decision"] == "maintain_demand"
+                and float(row["request"]) == previous_request
+                and float(row["delivery_ratio"]) >= FULL_SUPPLY_RATIO
+                and (row["basin"] != "lower_basin" or int(row["shortage_tier"]) == 0
+                     or not tier_counts))
+    for (agent, year, attempt), prompt in memory_stress_run.llm.decisions.items():
         memory = prompt[prompt.index("Your memory includes:"):
                         prompt.index("First, assess")]
         items = re.findall(r"^-(?: Year| Consolidated Reflection).*$", memory, flags=re.M)
@@ -1048,32 +1086,33 @@ def test_decision_memory_has_five_recent_two_significant_then_reflection(golden_
             assert items[-1] == reflections[0], (agent, year, attempt, items)
         if year >= 2024:
             event_years = {int(value) for value in re.findall(r"^- Year (\d{4}):", memory, flags=re.M)}
-            assert set(range(year - 5, year)) <= event_years, (agent, year, attempt, items)
-            if len(events) >= 5 and len(reflections) == 1:
+            required = {y for y in range(year - 5, year) if not routine(agent, y)}
+            assert required <= event_years, (agent, year, attempt, items)
+            if len(required) == 5 and len(events) == 7 and len(reflections) == 1:
+                assert len(event_years - required) == 2
                 mature_blocks.append((agent, year, attempt, items))
 
-    # Under the ceiling run no Lower Basin tier shortfall creates the two
-    # extra salient events, but the five recent events plus reflection still
-    # exercise the reserved-slot behavior.
-    assert mature_blocks, "no mature prompt exercised five recent events plus a reflection"
+    assert mature_blocks, "no prompt exercised the full 5 recent + 2 significant + 1 reflection capacity"
 
 
 @needs_ref
-def test_memory_flow_share_is_the_number_the_decision_prompt_showed(golden_run):
+def test_memory_flow_share_is_the_number_the_decision_prompt_showed(memory_stress_run):
     """Spec item 45f: every Upper Basin memory line states its year's
     sub-basin natural-flow share, the same number that year's decision
     prompt showed ("is P% of its 1971-2018 average this year")."""
     shown = {}
-    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+    for (agent, year, attempt), prompt in memory_stress_run.llm.decisions.items():
         m = re.search(r"draws on is (\d+%) of its 1971-2018 average this year\.", prompt)
         if attempt == 0 and m:
             shown[(agent, year)] = m.group(1)
     checked = 0
-    for (agent, year, attempt), prompt in golden_run.llm.decisions.items():
+    for (agent, year, attempt), prompt in memory_stress_run.llm.decisions.items():
         for m in re.finditer(r"^- Year (\d{4}): .*?draws on was (\d+%) of its 1971-2018 average that year\.$",
                              prompt, flags=re.M):
             assert shown[(agent, int(m.group(1)))] == m.group(2), (agent, year, m.group(0))
             checked += 1
+    # The all-increase run preserves enough eventful lines under MB to
+    # retain the original meaningful coverage threshold.
     assert checked > 1000
 
 
@@ -1304,15 +1343,20 @@ GOLDEN = {
     # golden-fixture run kept all eight hashes below. Those selected decision
     # snapshots do not render the changed junior warning; the Cibola 2028 ->
     # 2029 regression above separately pins its Tier 0 decision/reflection.
-    (UT1, 2019): ("UB, normal year", "f7a58305f4f24325874261e0f13c019eae2895f8591e1ce8f61a2348a2ca560c"),
-    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "8e62457c7633e39a7bbd52448dc3619e2588b6d0c7745b32e18ad06458971eff"),
-    (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "d9e8dc70fcaff57af6c4a1fba3a6f2f721224f951415cb64366eccf8b1c5b27b"),
+    # Item 47 updates these hashes for MB, basin tables, S1, L and K6.
+    # First-year unchanged keeps are routine too; reflection inputs retain
+    # their full outcome records. Digests come from the recorded mock fixture.
+    (UT1, 2019): ("UB, normal year", "7393e4cff97b235a24274f48f7d50dbf40cd3870bb9d4d03c689ab5f96f86baf"),
+    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "ff2ec19679e817ed56d0dc4fae841c47331b07b5abba6a3d245b062a505c0657"),
+    (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "fa0603bafd40b59f0e3828c960f9671c20cbd716095e92721caebfcdaac8f3b6"),
     (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
-                  "3ca236ae4faf69272d53b39620bc40ddd0d442ddea6871c9b909d1280f284f5a"),
-    ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "b8984b49c172983a0e68aea9edaead391c36188c1201e804a59fba3c368cee80"),
-    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "ce925a4280531557a44a71955cfd3bc01d27f6eda57649e9116bab8af7789c75"),
-    ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "ff5476449efe16faa5292097db715a0a952c467c60bf5436666524ff435180a3"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "257978e9d221f5760a4c8a84bc0f097082fa49c0d0ab233be55f353d5ad7bce9"),
+                  "314bad46e711074342f12e0eafd8f0a537861d3bed5fa0ff1bf095c490f87dff"),
+    ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "4735a59100b3da0f6d4df7625fc610548958a1cb66d9bc0b9449c71c8d177708"),
+    # Spec item 48 (affects_agent): the senior's 2020 and 2021 keep-and-fully-met
+    # tier-year lines are hidden; under any_tier the prompt hashes to 9b4c68b1...
+    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "76509036abcce8542ee8003943cfb1a921ed5b4765f86b389211d4a40a489f07"),
+    ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "46390930fb4b283f252d6dc366cbe8d77bc17fc352506b9fe8eb21ab50d674a8"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "453e87e183ad3aaab245005f292800b71908279671a865862f22ab8b316f08fb"),
 }
 
 
@@ -1540,8 +1584,9 @@ def test_aborted_year_memory_line_states_no_decision(tmp_path):
         assert memory["- Year 2020:"].startswith(
             f"- Year 2020: {NO_DECISION_LEAD} You requested {request_2020:,.0f} acre-ft and received ")
         assert "You chose to" not in memory["- Year 2020:"]
-    # a later year with a decision reads normally again
-    assert "- Year 2021: You chose to maintain demand." in llm.decisions[("Agent_000", 2022, 0)]
+    # The later unchanged, fully delivered keep is routine; the unreadable
+    # decision above stays visible because it is never routine.
+    assert "- Year 2021:" not in llm.decisions[("Agent_000", 2022, 0)]
 
 
 # ===========================================================================
