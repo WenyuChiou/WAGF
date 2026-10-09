@@ -390,6 +390,49 @@ records `water_system_lb_p56_in_tier`.
 
 ## 5. Agent Design
 
+### Prompt keep-fix package (spec item 47)
+
+`irrigation_farmer.keepfix_package` in `config/agent_types.yaml` enables `MB`,
+`table`, `S1`, `L`, and `K6` independently. MB marks unchanged, fully delivered,
+executed keeps as routine. `keepfix_package.routine_tier_scope: any_tier`
+(default) makes every Lower Basin tier year eventful; `affects_agent` makes
+only holders of junior-priority water eventful in split mode. Fully senior
+agents then use the same routine rule as tier-0 years. Membership comes
+from the priority data, and the selected scope is recorded in the manifest.
+The shipped irrigation config uses `affects_agent` (spec item 48, PI decision
+2026-10-09 after re-ask T15).
+Then
+`global_config.memory.recall_skip_key: routine` hides those decision-memory
+lines; MB requires this key to equal `routine` at startup. Unknown package
+keys raise. Other outcome lines remain eligible. Reflection retrieval overrides
+the skip locally, preserving its input and lesson. The performance table
+adds Upper Basin sub-basin flow/precipitation or Lower Basin Lake Mead
+trends, only where recorded.
+
+S1 states the delivery from a pure settlement at the menu's typical increase
+under the current tier ceiling, using the menu's rounded target exactly,
+with the supply rule's sharing sentence when
+the keep is physically short. L uses the profile's observed 1971–2018 peak
+(`peak_obs_af`) as a stated field-use assumption; this departs from H&Y's
+unbounded reward and does not change settlement or the action cap. Synthetic
+profiles without an observed peak omit L. K6 appears every year for the 16
+fully senior Lower Basin profiles in `lb_priority_mode: split`, identified
+from the priority data; it is omitted in `senior_all` mode.
+Both governance arms receive identical text in identical states.
+
+P5(b) reads the new cells, S1, L and K6 back against logs and profiles.
+Manifests record `keepfix_package.spec_item: 47`, enabled elements, and
+`ollama_server_version` (one `/api/version` read at launch for local models,
+null for mock, cloud, or an unreachable server). These fields and the resolved
+`recall_skip_key` also appear in `config_snapshot.yaml` metadata.
+`simulation_log.csv`'s `memory` column contains unfiltered post-year retrieval
+(`top_k=5`, `recall_skip_key=None`), retaining routine outcomes for offline
+counts; decision prompts use the MB filter and reflection inputs override it.
+P5(b) checks memory visibility against the log and recorded tier scope;
+reflection checks use their actual input log when available.
+Framework options default off; memory
+skipping raises explicitly in weighted mode.
+
 ### Behavioral Clusters
 
 Three clusters from Hung & Yang (2021, Figure 7; `--cluster-method hy2021`, the default), each with one fixed persona text (v3, WP4, `irrigation_personas.py (_CLUSTER_PERSONAS)`) stating the cluster's tendencies (Table 1, p. 13) about the agent's group ("Users in your group tend to ..."), as comparisons with the other clusters, without superlatives, and only where the cluster ordering holds in the calibrated parameter file (spec item 29d: concern about a shortfall, how quickly expectations are revised, weight on future years; exploration is left out because its ordering does not hold):

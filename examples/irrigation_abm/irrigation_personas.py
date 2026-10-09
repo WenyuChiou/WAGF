@@ -472,6 +472,189 @@ def _shortfall_reason(state: Dict[str, Any], tense: str, where: str) -> str:
     return reason
 
 
+def _sharing_sentence(context: Dict[str, Any]) -> str:
+    """The sharing sentence that ends the supply rule's block message
+    (spec 3.7; see the comment above for who shares with whom).
+
+    WP1b re-review (HIGH 1, 2026-09-29): a real UB agent with gap_reason
+    ``ub_subbasin_supply`` ALWAYS has a known ``ub_subbasin_member_count``
+    (IrrigationEnvironment._settle only ever produces that code for an
+    agent in one of the nine real sub-basins, and initialize_from_profiles
+    computes the count for every such agent) -- a missing count reaching
+    here is a wiring defect (the found bug: IrrigationLifecycleHooks.
+    pre_year not copying it into validator_fields), never a legitimate
+    state. Raise rather than silently falling back to "other Upper Basin
+    users", which names the wrong users.
+
+    WP3 (spec 3.7): the spec wording ("shared in proportion to requests",
+    "would not add water"), plus a junior-priority variant for a Lower Basin
+    agent whose OWN junior water the declared tier cuts this year (gap code
+    ``lb_junior_tier_cut``, item 46, the same fact the dashboard warning
+    states): its keep request reaches the tier ceiling, so an increase above
+    that ceiling adds no deliverable water. Below it, a larger capped request
+    can raise its share only by lowering other users' deliveries. The supply
+    rule only reaches this sentence when a PHYSICAL limit
+    binds (Lake Mead's phi below 1 for the Lower Basin), so "shared in
+    proportion to requests" is true for that agent too.
+
+    Item 47 round-2 clarification: the tier-ceiling wording applies whenever
+    a junior holder is at or below its current ceiling and Lake Mead is also
+    physically short.  Because the validator imports this helper, that true
+    wording intentionally appears in its retry message even when every
+    keep-fix package flag is off.
+    """
+    basin = context.get("basin")
+    if basin not in ("upper_basin", "lower_basin"):
+        raise ValueError(
+            f"_sharing_sentence: basin={basin!r} is neither 'upper_basin' nor "
+            "'lower_basin'; refusing to guess which users share this shortage."
+        )
+    expected = context.get("supply_expected_at_keep_af")
+    if expected is not None and expected <= 0:
+        return "When water is short, a larger request would not add water."
+    if basin == "lower_basin":
+        gap_codes = str(context.get("gap_reason") or "").split("+")
+        if "lb_junior_tier_cut" in gap_codes or context.get("lb_tier_ceiling_af") is not None:
+            ceiling = context.get("lb_tier_ceiling_af")
+            if ceiling is None:
+                raise ValueError(
+                    "_sharing_sentence: gap_reason names lb_junior_tier_cut but "
+                    "lb_tier_ceiling_af is missing; refusing to state a tier "
+                    "ceiling without its value."
+                )
+            return (
+                "Lake Mead's physical shortage applies after the tier ceiling and is "
+                "shared in proportion to requests capped by that ceiling: any increase "
+                f"above your {float(ceiling):,.0f} acre-ft tier ceiling would add no "
+                "deliverable water; within the ceiling, a larger request would raise "
+                "your share only by lowering the deliveries of other users in the Lower "
+                "Basin; it would not add water to the Lower Basin."
+            )
+        pool = "the Lower Basin"
+    else:
+        gap_codes = str(context.get("gap_reason") or "").split("+")
+        member_count = context.get("ub_subbasin_member_count")
+        if "ub_subbasin_supply" in gap_codes:
+            if member_count is None:
+                raise ValueError(
+                    "_sharing_sentence: gap_reason names ub_subbasin_supply "
+                    "but ub_subbasin_member_count is missing from context -- "
+                    "IrrigationLifecycleHooks.pre_year must copy it into "
+                    "validator_fields (HIGH 1, 2026-09-29 re-review); "
+                    "refusing to silently fall back to basin-wide wording "
+                    "that would name the wrong users."
+                )
+            if member_count <= 1:
+                return "When water is short, a larger request would not add water."
+            pool = "your sub-basin"
+        else:
+            # The basin-wide backstop bound (ub_natural_flow / ub_capacity),
+            # lees_ferry_pool mode, or no shortfall at all: the whole Upper
+            # Basin shares here regardless of member_count, so a missing
+            # count is not a defect in this branch.
+            pool = "the Upper Basin"
+    # Spec item 29c: under sharing in proportion to requests a larger request
+    # DOES raise this agent's share, by lowering the others' deliveries; it
+    # adds no water to the pool they share.
+    return (
+        "When water is short it is shared in proportion to requests, so a "
+        "larger request would raise your share only by lowering the "
+        f"deliveries of other users in {pool}; it would not add water to "
+        f"{pool}."
+    )
+
+
+# Spec item 47; exact V3 wording in the knowledge-tests report, section 2.2.
+K6_SENIOR_TIER_TEXT = (
+    "A shortage tier is set from Lake Mead's level on 1 January, before anyone's "
+    "request for the year is known. It takes water only from non-agricultural users "
+    "and from junior-priority farm water. Your water right is senior, so a tier "
+    "does not reduce what you receive."
+)
+
+
+def is_routine_outcome(
+    action_ctx,
+    snapshot,
+    basin,
+    *,
+    routine_tier_scope="any_tier",
+    tier_affects_agent=True,
+):
+    """Classify the existing outcome text without changing its bytes (MB).
+
+    ``any_tier`` preserves the tested item-47 rule: every declared Lower
+    Basin tier makes a line eventful.  ``affects_agent`` makes it eventful
+    only when the caller has established from the split-priority table and
+    active priority mode that this tier can reduce the agent's delivery.
+    """
+    if routine_tier_scope not in ("any_tier", "affects_agent"):
+        raise ValueError(
+            "routine_tier_scope must be 'any_tier' or 'affects_agent', "
+            f"got {routine_tier_scope!r}"
+        )
+    previous = snapshot.get("previous_request")
+    if previous is None:
+        previous = snapshot.get("initial_request")
+    return bool(action_ctx and action_ctx.get("year") == snapshot["year"]
+                and action_ctx.get("skill_name") == "maintain_demand"
+                and not action_ctx.get("was_fallback")
+                and action_ctx.get("magnitude_pct") is None
+                and previous is not None
+                and snapshot["request"] == previous
+                and supply_ratio(snapshot["diversion"], snapshot["request"]) >= FULL_SUPPLY_RATIO
+                and not (basin == "lower_basin"
+                         and snapshot["shortage_tier"] != 0
+                         and (routine_tier_scope == "any_tier" or bool(tier_affects_agent))))
+
+
+def land_need_text(basin, peak_obs_af, last_delivery):
+    """T12 P3 assumption, with the profile's recorded peak and delivery."""
+    if peak_obs_af is None or peak_obs_af <= 0:
+        raise ValueError("land-need text requires a positive profile peak_obs_af")
+    if basin == "upper_basin":
+        history = ("about the most water you have used in any year from 1971 to 2018, "
+                   "estimated from your sub-basin's records")
+    elif basin == "lower_basin":
+        history = "the most water you have diverted in any year from 1971 to 2018"
+    else:
+        raise ValueError(f"unknown basin {basin!r}")
+    return (f"Your fields can use about {peak_obs_af:,.0f} acre-ft of water a year: "
+            f"that is {history}. Water beyond that would have no fields to irrigate. "
+            f"Last year's delivery was {round(100 * last_delivery / peak_obs_af)}% of that amount.")
+
+
+def increase_expectation_text(context):
+    """S1 at the menu's typical step, from one pure current-rule settlement."""
+    target = context.get("increase_request_af")
+    if target is None:
+        return ""
+    delivered = context["increase_delivery_af"]
+    ratio = supply_ratio(delivered, target)
+    prefix = f"If you increase your request to about {target:,.0f} acre-ft, you can expect "
+    if ratio >= FULL_SUPPLY_RATIO:
+        result = prefix + "full delivery this year."
+    else:
+        increased = {**context, **context["increase_settlement"]}
+        keep_short = supply_ratio(context["current_diversion"], context["current_request"]) < FULL_SUPPLY_RATIO
+        if keep_short and increased["gap_reason"] == context["gap_reason"]:
+            reason = "for the same reason"
+        elif context["basin"] == "upper_basin" and increased["gap_reason"] == "ub_subbasin_supply":
+            users = ("your request" if context["ub_subbasin_member_count"] <= 1
+                     else "the combined requests of its users")
+            reason = f"because the water your sub-basin can draw this year would then be below {users}"
+        else:
+            # Item 46 supersedes the old request-fraction reason. Never state
+            # a delivery that contradicts the current entitlement ceiling.
+            reason = describe_gap_reason(increased, "present")
+            if not reason.startswith("because "):
+                reason = "because " + reason
+        result = prefix + f"{delivered:,.0f} acre-ft ({format_share(ratio)}) this year, {reason}."
+    if context["supply_physical_ratio"] < FULL_SUPPLY_RATIO:
+        result += " " + _sharing_sentence(context)
+    return result
+
+
 def build_water_situation_text(
     env_context: Dict[str, Any],
     last_year: Optional[Dict[str, Any]] = None,
@@ -625,11 +808,17 @@ def build_water_situation_text(
             f"{_shortfall_reason(env_context, 'present', 'build_water_situation_text')}."
         )
 
+    if env_context.get("keepfix_s1", False):
+        s1 = increase_expectation_text(env_context)
+        if s1:
+            lines.append(s1)
     share_of_right = base / water_right if water_right > 0 else 0.0
     lines.append(
         f"Your water right is {water_right:,.0f} acre-ft/year; last year's delivery "
         f"was {share_of_right:.0%} of it."
     )
+    if env_context.get("keepfix_land_need", False):
+        lines.append(land_need_text(basin, env_context["peak_obs_af"], base))
     return "\n".join(lines)
 
 
