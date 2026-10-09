@@ -1901,6 +1901,8 @@ def main():
         LLM_CONFIG.num_ctx = args.num_ctx
     if args.num_predict:
         LLM_CONFIG.num_predict = args.num_predict
+    if args.thinking_mode is not None:
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     # --- Load config YAML ---
     agent_config_path = config_dir / "agent_types.yaml"
@@ -2470,6 +2472,11 @@ def parse_args():
     p.add_argument("--output", type=str, default=None)
     p.add_argument("--num-ctx", type=int, default=None)
     p.add_argument("--num-predict", type=int, default=None)
+    p.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                   default=None,
+                   help="Ollama thinking policy. Omit to inherit the framework "
+                        "default (disabled); auto defers to the model, and enabled "
+                        "opts in for thinking-capable models.")
     p.add_argument("--rebalance-clusters", action="store_true",
                    help="Rebalance cluster assignment so each cluster has >=15%% of agents")
     p.add_argument("--no-magnitude", action="store_true",

@@ -13,6 +13,10 @@ import sys
 import time
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 def stop_other_models(target_model: str):
     """Stop all Ollama models except target."""
     try:
@@ -33,17 +37,21 @@ def stop_other_models(target_model: str):
 def preload_model(model: str):
     """Pre-load target model into GPU memory."""
     import requests
+    from broker.utils.llm_utils import apply_ollama_thinking
+
     print(f"Pre-loading {model}...")
     try:
+        payload = {
+            "model": model,
+            "prompt": "Say hello.",
+            "stream": False,
+            "keep_alive": "120m",
+            "options": {"num_predict": 5},
+        }
+        apply_ollama_thinking(payload, base_url="http://localhost:11434")
         resp = requests.post(
             "http://localhost:11434/api/generate",
-            json={
-                "model": model,
-                "prompt": "Say hello.",
-                "stream": False,
-                "keep_alive": "120m",
-                "options": {"num_predict": 5},
-            },
+            json=payload,
             timeout=120,
         )
         if resp.status_code == 200:
@@ -57,8 +65,14 @@ def preload_model(model: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="gemma3:4b")
+    parser.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                        default=None, help="Ollama thinking policy (default: framework setting)")
     parser.add_argument("--replicates", type=int, default=30)
     args = parser.parse_args()
+
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     # Setup paths
     flood_dir = Path(__file__).resolve().parent.parent

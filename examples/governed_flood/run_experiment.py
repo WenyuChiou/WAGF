@@ -332,6 +332,9 @@ class LifecycleHooks:
 # ---------------------------------------------------------------------------
 def main():
     args = parse_args()
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
     base = Path(__file__).parent
     config_dir = base / "config"
     data_dir = base / "data"
@@ -512,6 +515,8 @@ def main():
 def parse_args():
     p = argparse.ArgumentParser(description="Governed Flood Adaptation Experiment (Group C)")
     p.add_argument("--model", default="gemma3:1b")
+    p.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                   default=None, help="Ollama thinking policy (default: framework setting)")
     p.add_argument("--years", type=int, default=10)
     p.add_argument("--agents", type=int, default=100)
     p.add_argument("--workers", type=int, default=1)

@@ -51,6 +51,7 @@ parse-only replay produces no post-governance action to compare against.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import csv
 import dataclasses
 import importlib
@@ -72,6 +73,48 @@ from broker.experiments.replay import (
     load_snapshots,
     resolve_model,
 )
+
+
+_THINKING_MODES = ("auto", "disabled", "enabled")
+
+
+def _load_source_thinking_mode(run_dir: Path) -> str:
+    """Return the source run's mode; pre-field manifests historically used auto."""
+    manifest_path = run_dir / "reproducibility_manifest.json"
+    if not manifest_path.is_file():
+        return "auto"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            f"could not read {manifest_path} to recover thinking_mode: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise ValueError(
+            f"{manifest_path} must contain a JSON object to recover thinking_mode"
+        )
+    if "thinking_mode" not in manifest:
+        return "auto"
+    mode = manifest["thinking_mode"]
+    if not isinstance(mode, str) or mode not in _THINKING_MODES:
+        raise ValueError(
+            f"source manifest thinking_mode must be one of "
+            f"{', '.join(_THINKING_MODES)}; got {mode!r}"
+        )
+    return mode
+
+
+@contextmanager
+def _temporary_thinking_mode(mode: str):
+    """Scope replay request behavior without leaking into later runs."""
+    from broker.utils.llm_utils import LLM_CONFIG
+
+    previous = LLM_CONFIG.thinking_mode
+    LLM_CONFIG.thinking_mode = mode
+    try:
+        yield
+    finally:
+        LLM_CONFIG.thinking_mode = previous
 
 
 def _load_masks(spec: str) -> FactorMap:
@@ -341,26 +384,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     try:
-        # Residual (code-reviewer): snapshots are already loaded above, so
-        # the missing-available_skills refusal can fire here, before the
-        # adapter and the registry load, instead of only on the first
-        # replay later in the run.
-        decider = build_replay_decider(
-            run_dir, model=model, agent_config=args.agent_config,
-            with_governance=args.with_governance,
-            validators_module=args.validators_module,
-            snapshot=snapshots[0],
-        )
-    except FileNotFoundError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
-    except (ValueError, AttributeError, TypeError, ImportError) as exc:
+        source_thinking_mode = _load_source_thinking_mode(run_dir)
+    except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-
-    from broker.utils.llm_utils import create_llm_invoke
-
-    llm_invoke = create_llm_invoke(model)
 
     design = AblationDesign(
         factors=factors,
@@ -373,21 +400,45 @@ def main(argv: Optional[List[str]] = None) -> int:
                                else args.determinism_snapshots),
     )
 
-    try:
-        result = run_ablation(
-            snapshots, design, llm_invoke,
-            decider=decider, factor_map=factor_map,
-            load_report=load_report,
-        )
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
+    with _temporary_thinking_mode(source_thinking_mode):
+        try:
+            # Residual (code-reviewer): snapshots are already loaded above, so
+            # the missing-available_skills refusal can fire here, before the
+            # adapter and the registry load, instead of only on the first
+            # replay later in the run.
+            decider = build_replay_decider(
+                run_dir, model=model, agent_config=args.agent_config,
+                with_governance=args.with_governance,
+                validators_module=args.validators_module,
+                snapshot=snapshots[0],
+            )
+        except FileNotFoundError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        except (ValueError, AttributeError, TypeError, ImportError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+
+        from broker.utils.llm_utils import create_llm_invoke
+
+        llm_invoke = create_llm_invoke(model)
+
+        try:
+            result = run_ablation(
+                snapshots, design, llm_invoke,
+                decider=decider, factor_map=factor_map,
+                load_report=load_report,
+            )
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
     result.summary["factor_specs"] = {
         name: factor_map[name].to_dict() for name in factors
     }
     result.summary["cli"] = {
         "model": model,
         "model_source": model_source,
+        "thinking_mode": source_thinking_mode,
         "control": args.control,
         "with_governance": bool(args.with_governance),
         "validators_module": args.validators_module,

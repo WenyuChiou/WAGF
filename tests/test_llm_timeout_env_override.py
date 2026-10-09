@@ -176,6 +176,15 @@ def test_the_ollama_call_uses_the_floored_timeout(config, monkeypatch):
             return {"response": "ok", "prompt_eval_count": 1, "eval_count": 1}
 
     def fake_post(url, json=None, timeout=None):
+        if url.endswith("/api/show"):
+            class _Capabilities:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {"capabilities": ["completion"]}
+
+            return _Capabilities()
         seen["timeout"] = timeout
         return _Resp()
 

@@ -278,7 +278,7 @@ class VaccinationEnvironment:
 # ─────────────────────────────────────────────────────────────────────
 
 
-def main() -> None:
+def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Vaccination demo PoC")
     p.add_argument("--model", default="gemma3:1b")
     p.add_argument("--years", type=int, default=3)
@@ -290,8 +290,20 @@ def main() -> None:
     )
     p.add_argument("--num-ctx", type=int, default=4096)
     p.add_argument("--num-predict", type=int, default=1024)
+    p.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
+                   default=None,
+                   help="Ollama thinking policy. Omit to inherit the framework "
+                        "default (disabled).")
     p.add_argument("--verbose", action="store_true", help="Print full prompt to stderr (debug)")
-    args = p.parse_args()
+    return p.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
 
     script_dir = Path(__file__).resolve().parent
     agents = build_synthetic_individuals(args.agents, args.seed)

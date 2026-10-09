@@ -453,6 +453,115 @@ class TestSamplingSeeded:
         assert metadata["llm_sampling_seeded"] is None
 
 
+class TestLLMThinkingManifest:
+    """The manifest reports observed wire behavior without doing HTTP I/O."""
+
+    def test_reused_runner_without_new_requests_does_not_report_previous_run(
+        self, tmp_path, monkeypatch,
+    ):
+        from broker.core.experiment_runner import ExperimentConfig
+
+        def raw_invoke(prompt):
+            llm_utils.apply_ollama_thinking({"model": "gemma4:12b", "options": {}})
+            return "ok", llm_utils.LLMStats(success=True)
+
+        monkeypatch.setattr(llm_utils, "create_llm_invoke", lambda *a, **k: raw_invoke)
+        monkeypatch.setattr(llm_utils, "get_ollama_model_supports_thinking", lambda *a, **k: True)
+        broker = MagicMock()
+        broker.config = None
+        broker.model_adapter.agent_config = None
+        runner = ExperimentRunner(
+            broker=broker, sim_engine=None, agents={},
+            config=ExperimentConfig(model="gemma4:12b", num_years=1, output_dir=tmp_path),
+        )
+        snapshots = []
+        runner._finalize_step = lambda *_: None
+        runner._finalize_experiment = lambda *_: snapshots.append(
+            llm_utils.get_llm_thinking_metadata(
+                "gemma4:12b", observations=runner._llm_thinking_observations,
+                since_sequence=runner._llm_thinking_started,
+            )
+        )
+        runner.hooks = {"pre_year": lambda *_: runner.get_llm_invoke("default")("PROMPT")}
+        runner.run()
+        runner.hooks = {}
+        runner.run()
+
+        first, second = [s["models"]["gemma4:12b"] for s in snapshots]
+        assert first["think_sent"] is True and first["think_value"] is False
+        assert second["think_sent"] is None and second["think_value"] is None
+        assert runner._llm_thinking_observations == {}
+
+    def test_observed_thinking_request_records_mode_support_and_wire_flag(
+        self, tmp_path, monkeypatch,
+    ):
+        runner = _make_finalize_runner(tmp_path, model="gemma4:12b")
+        monkeypatch.setattr(llm_utils.LLM_CONFIG, "thinking_mode", "disabled")
+        monkeypatch.setattr(
+            llm_utils, "get_ollama_model_supports_thinking", lambda *a, **k: True,
+        )
+        with llm_utils._OLLAMA_THINKING_LOCK:
+            llm_utils._OLLAMA_THINKING_REQUESTS.clear()
+        llm_utils.apply_ollama_thinking({"model": "gemma4:12b", "options": {}})
+
+        with patch(
+            "broker.utils.llm_utils.capture_ollama_modelfile_defaults",
+            return_value=(None, "mocked in unit test"),
+        ):
+            metadata = runner._collect_reproducibility_metadata()
+
+        assert metadata["llm_thinking"] == {
+            "mode": "disabled",
+            "models": {
+                "gemma4:12b": {
+                    "mode": "disabled",
+                    "think_sent": True,
+                    "think_value": False,
+                    "model_supports_thinking": True,
+                },
+            },
+        }
+
+    @pytest.mark.parametrize("model", ["mock", "gemini:pro"])
+    def test_mock_and_cloud_models_report_no_ollama_think_request(self, tmp_path, model):
+        runner = _make_finalize_runner(tmp_path, model=model)
+
+        with patch("requests.post") as post_spy:
+            metadata = runner._collect_reproducibility_metadata()
+
+        post_spy.assert_not_called()
+        assert metadata["llm_thinking"]["models"][model] == {
+            "mode": "disabled",
+            "think_sent": False,
+            "think_value": None,
+            "model_supports_thinking": "unknown",
+        }
+
+    def test_unobserved_real_model_reports_unknown_without_capability_lookup(
+        self, tmp_path, monkeypatch,
+    ):
+        runner = _make_finalize_runner(tmp_path, model="unseen-model:latest")
+        with llm_utils._OLLAMA_THINKING_LOCK:
+            llm_utils._OLLAMA_THINKING_CAPABILITIES.clear()
+            llm_utils._OLLAMA_THINKING_REQUESTS.clear()
+        capability_spy = MagicMock(side_effect=AssertionError("manifest must be network-free"))
+        monkeypatch.setattr(llm_utils, "get_ollama_model_supports_thinking", capability_spy)
+
+        with patch(
+            "broker.utils.llm_utils.capture_ollama_modelfile_defaults",
+            return_value=(None, "mocked in unit test"),
+        ):
+            metadata = runner._collect_reproducibility_metadata()
+
+        capability_spy.assert_not_called()
+        assert metadata["llm_thinking"]["models"]["unseen-model:latest"] == {
+            "mode": "disabled",
+            "think_sent": None,
+            "think_value": None,
+            "model_supports_thinking": "unknown",
+        }
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Backward compatibility: existing top-level temperature/top_p keys unchanged
 # ─────────────────────────────────────────────────────────────────────
@@ -470,6 +579,31 @@ class TestBackwardCompatibleTopLevelFields:
         assert "top_p" in metadata
         assert metadata["temperature"] == llm_utils.LLM_CONFIG.temperature
         assert metadata["top_p"] == llm_utils.LLM_CONFIG.top_p
+
+    def test_thinking_metadata_failure_preserves_scalar_llm_fields(
+        self, tmp_path, monkeypatch,
+    ):
+        """A thinking snapshot failure must not erase independent config fields."""
+        runner = _make_finalize_runner(tmp_path, model="mock")
+        monkeypatch.setattr(
+            llm_utils,
+            "get_llm_thinking_metadata",
+            MagicMock(side_effect=RuntimeError("broken thinking snapshot")),
+        )
+
+        metadata = runner._collect_reproducibility_metadata()
+
+        assert "llm_thinking" not in metadata
+        assert metadata["thinking_mode"] == llm_utils.LLM_CONFIG.thinking_mode
+        assert metadata["temperature"] == llm_utils.LLM_CONFIG.temperature
+        assert metadata["top_p"] == llm_utils.LLM_CONFIG.top_p
+        assert metadata["num_ctx"] == llm_utils.LLM_CONFIG.num_ctx
+        assert metadata["num_predict"] == llm_utils.LLM_CONFIG.num_predict
+        assert metadata["llm_timeout_seconds_effective"] == (
+            llm_utils.LLM_CONFIG.get_timeout("mock")
+        )
+        assert "llm_timeout_env_raw" in metadata
+        assert "llm_timeout_env_rejected" in metadata
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -561,7 +695,12 @@ class TestOllamaRequestBodyCharacterization:
             "response": "ok", "prompt_eval_count": 1, "eval_count": 1,
         }
 
-        with patch("requests.post", return_value=fake_response) as post_spy:
+        # This synthetic model is explicitly thinking-capable. Capability
+        # gating is covered separately; this characterization freezes the
+        # generate payload once the capability decision is known.
+        with patch.object(
+            llm_utils, "get_ollama_model_supports_thinking", return_value=True,
+        ), patch("requests.post", return_value=fake_response) as post_spy:
             llm_utils._invoke_ollama_direct(self._MODEL, "PROMPT", params, False)
 
         assert post_spy.called
