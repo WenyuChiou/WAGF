@@ -142,7 +142,9 @@ def test_routine_tier_scope_controls_visible_lines_and_csv_stays_unfiltered(tmp_
     import re
     import shutil
     import yaml
-    from examples.irrigation_abm.tests.test_v3_prompt import CONFIG, ScriptedLLM, _run
+    from examples.irrigation_abm.tests.test_v3_prompt import CONFIG, ScriptedLLM, _run, _REAL_REF_AVAILABLE
+    if not _REAL_REF_AVAILABLE:  # CI has no CRSS data under ref/ (same skip as test_v3_prompt's needs_ref)
+        pytest.skip("CRSS reference data not found under ref/")
     runs = {}
     for scope in ('any_tier', 'affects_agent'):
         config = tmp_path / scope / 'config'
