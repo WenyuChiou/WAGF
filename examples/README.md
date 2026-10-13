@@ -98,7 +98,7 @@ is useful for first contact with a real water-sector run, but it is not the
 main paper-grade validation suite.
 
 ```bash
-python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10
 ```
 
 ### 2. Full Benchmark: Single Agent Flood
@@ -129,7 +129,7 @@ picking a starting point.
 | `irrigation_abm/` | Primary single-agent irrigation reference (Colorado River / CRSS) | see `irrigation_abm/README.md` |
 | `multi_agent/` | Container directory for multi-agent domains; today holds one (`flood/`) | see `multi_agent/README.md` |
 | `multi_agent/flood/` | Primary multi-agent reference (institutional + household flood ABM) | `python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b` |
-| `governed_flood/` | Compact flood teaching demo; also a load-bearing fixture imported by 17 `broker/tests/` files | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10` |
+| `governed_flood/` | Compact flood teaching demo; also a load-bearing fixture imported by 17 `broker/tests/` files | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10` |
 | `vaccination_demo/` | Non-water Tier-2 showcase — HBM-driven vaccination decisions | see `vaccination_demo/README.md` |
 | `cat_model/` | Catastrophe-model coupling worked example (insurer solvency governance) | `python examples/cat_model/run_cat.py --model mock --years 3` |
 | `reservoir_control/` | Reservoir continuous-control worked example (single setpoint) | `python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4` |

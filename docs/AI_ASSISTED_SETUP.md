@@ -69,21 +69,22 @@ the AGENTS.md convention. Point your tool at it:
 - **Aider**: pass `--read AGENTS.md` (or `/read AGENTS.md` inside
   the chat) so the rules are in context.
 
-The WAGF-specific skill catalogue inside `AGENTS.md` mirrors the
-Claude Code skill set above. Your agent will see the same skill
-names + trigger conditions, just expressed in OpenSkills schema.
+`AGENTS.md` does not list the WAGF skills. For the skill names and
+trigger conditions, point your agent at `docs/skills/wagf-skills.md`;
+each skill's full instructions are in `.claude/skills/<skill>/SKILL.md`.
 
 ### Minimal first prompts (works for any of the above)
 
 ```
-I just cloned WAGF. Walk me through the quickstart per `AGENTS.md`.
+I just cloned WAGF. Read `.claude/skills/wagf-quickstart/SKILL.md` and
+walk me through the quickstart.
 
-Then: I want to build a domain for <my topic>. Walk me through
-wagf-domain-builder.
+Then: I want to build a domain for <my topic>. Read
+`.claude/skills/wagf-domain-builder/SKILL.md` and walk me through it.
 ```
 
-The agent will pick up the skill descriptions from AGENTS.md and
-follow the same S0–S7 interview path.
+The agent reads the skill file you name and follows the same S0–S7
+interview path.
 
 ---
 
@@ -136,9 +137,7 @@ an issue — it's a skill bug, not user error.
   AI help*, across 3 different AI tooling stacks.
 - `ARCHITECTURE.md` is the deep dive into broker internals (for after
   you've onboarded and want to extend).
-- `AGENTS.md` is the machine-readable agent catalogue (skill schema +
-  refusal protocols).
+- `AGENTS.md` is the machine-readable agent catalogue (skill schema).
 
-For maintenance / contribution conventions for AI agents *acting on
-the repo* (commit-style, branch policy, gate triggers), see
-`AGENTS.md` directly.
+- For contribution conventions (commit messages, branch workflow, tests),
+  see `CONTRIBUTING.md`.

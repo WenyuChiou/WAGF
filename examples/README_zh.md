@@ -36,7 +36,7 @@
 governed_flood 範例是一個獨立的 Group C 實驗，含完整治理和以人為本記憶。無需額外配置。
 
 ```bash
-python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10
 ```
 
 ### 2. 完整基準測試：單代理人（JOH 論文）
