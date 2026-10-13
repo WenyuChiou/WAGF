@@ -230,20 +230,3 @@ Usage notes:
 <!-- SKILLS_TABLE_END -->
 
 </skills_system>
-
-## WAGF skills (project-bundled)
-
-This repository ships **8 WAGF-specific skills** in `.claude/skills/`
-that load automatically when an AI agent opens a session here. Prefer
-these over generic skills when the user's question matches.
-
-Each skill carries a Refusal Protocol that forbids inventing metric
-formulas, model tags, or domain assumptions. Honour these refusals
-when relaying skill output.
-
-For Claude Code specifically, `CLAUDE.md` at the repo root holds the
-routing-precedence rules (when to prefer a WAGF skill over a generic
-one). Other AI agents should treat this AGENTS.md section as the
-canonical routing guide.
-
-Full chooser table: [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md).

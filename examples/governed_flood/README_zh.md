@@ -14,14 +14,16 @@
 
 ```bash
 # 完整實驗（預設：gemma3:4b、10 年、100 名代理）
-python run_experiment.py
+python examples/governed_flood/run_experiment.py --model gemma3:4b
 
 # 小型測試
-python run_experiment.py --model gemma3:4b --years 2 --agents 10
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10
 
 # 自訂模型與輸出路徑
-python run_experiment.py --model gemma3:4b --years 10 --agents 100 --output results/my_run
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 10 --agents 100 --output results/my_run
 ```
+
+預設輸入來自追蹤的 `examples/single_agent/agent_initial_profiles.csv` 與 `examples/single_agent/flood_years.csv`，相對於腳本解析；若存在既有私有的 `data/agent_initial_profiles.csv` 與 `config/flood_years.csv` 則優先使用。
 
 ## 治理規則（v22，嚴格模式）
 
