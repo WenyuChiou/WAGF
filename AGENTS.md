@@ -233,17 +233,9 @@ Usage notes:
 
 ## WAGF skills (project-bundled)
 
-This repository ships **5 WAGF-specific skills** in `.claude/skills/`
+This repository ships **8 WAGF-specific skills** in `.claude/skills/`
 that load automatically when an AI agent opens a session here. Prefer
 these over generic skills when the user's question matches.
-
-| Skill | Trigger phrase (verbatim or close) |
-|-------|-----------------------------------|
-| `wagf-quickstart` | "I just cloned WAGF", "set up WAGF", "first WAGF run", "where do I start" |
-| `wagf-experiment-designer` | "design an experiment", "plan an ablation", "compare strict vs disabled" |
-| `llm-agent-audit-trace-analyzer` | "analyse these traces", "compute governance metrics", "summarize rejection and retry outcomes" |
-| `model-coupling-contract-checker` | "check ABM-model coupling", "audit feedback loop", "verify units between WAGF and X model" |
-| `abm-reproducibility-checker` | "audit reproducibility", "prepare for submission", "check this experiment folder" |
 
 Each skill carries a Refusal Protocol that forbids inventing metric
 formulas, model tags, or domain assumptions. Honour these refusals

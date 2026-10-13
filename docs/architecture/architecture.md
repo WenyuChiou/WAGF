@@ -2,7 +2,7 @@
 
 > Read this after [`ARCHITECTURE.md`](../../ARCHITECTURE.md) — that document is the strategic overview; this one is the operational three-layer view. For where things live in the repo, see [`docs/REPO_MAP.md`](../REPO_MAP.md).
 
-![Water Agent Governance Architecture](governed_broker_architecture_v3_1.png)
+![Water Agent Governance Architecture](../architecture.png)
 
 ## Overview
 
@@ -203,8 +203,6 @@ it has real production importers (survey loading for the flood domain).
 ---
 
 ## v3.3 Visualization
-
-![Water Agent Governance Framework architecture](../architecture.png)
 
 Our architecture is designed for transparency and governance. Below is the **Governed Loop** diagram, which can be imported directly into tools like **Draw.io** (via `Arrange > Insert > Advanced > Mermaid`).
 

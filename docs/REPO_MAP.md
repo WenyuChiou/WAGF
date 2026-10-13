@@ -110,7 +110,7 @@ this.
 |---|---|---|---|---|---|
 | `quickstart/` | yes | no | `01_barebone.py`, `02_governance.py` (numbered tutorial) | no | `python examples/quickstart/02_governance.py` |
 | `single_agent/` | yes | no | `run_flood.py` + 11 `.bat` launchers | yes | `python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100` |
-| `irrigation_abm/` | yes | yes | 3 run scripts + 6 `.bat` launchers | yes | see `examples/irrigation_abm/README.md` |
+| `irrigation_abm/` | yes | yes | 3 run scripts + 5 `.bat` launchers | yes | see `examples/irrigation_abm/README.md` |
 | `multi_agent/flood/` | yes (`README.md`, `README_research.md`, `README_zh.md`) | yes | `run_unified_experiment.py`; `paper3/` has its own 6 `.bat` launchers | yes | `python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b` |
 | `governed_flood/` | yes | no | `run_experiment.py` | yes | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10` — also the fixture source imported by 17 `broker/tests/` files (`grep -rl "import examples.governed_flood\|from examples.governed_flood" broker/tests/`), do not delete |
 | `vaccination_demo/` | yes | yes | run scripts + `run_vaccination_batch.bat` | yes | see `examples/vaccination_demo/README.md` |
@@ -149,17 +149,16 @@ example directory.
 
 ## 6. `.bat` launcher index
 
-24 launchers exist today (the pre-audit estimate for this PR was 18;
+23 launchers exist today (the pre-audit estimate for this PR was 18;
 verified count is higher because `single_agent/` has 11, not 6, and
 `vaccination_demo/` has one that wasn't in the original count). Not
 moved in this PR — indexed only.
 
-### `examples/irrigation_abm/` (6)
+### `examples/irrigation_abm/` (5)
 
 | File | Purpose (from its own header) |
 |---|---|
 | `check_e4b_status.bat` | One-shot status check of the e4b seed46 recovery run. |
-| `run_ensemble.bat` | SUPERSEDED 2026-08-20 — does not run; kept only as a record of the old v20 ensemble. |
 | `run_gemma12b_batch.bat` | Gemma-3 12B cross-model batch: 6 runs (3 seeds × governed/ungoverned). |
 | `run_gemma4_e2b_batch.bat` | Gemma-4 e2b cross-model batch: 10 runs (5 seeds × governed/ungoverned). |
 | `run_gemma4_e4b_batch.bat` | Gemma-4 e4b cross-model batch: 10 runs (5 seeds × governed/ungoverned). |
@@ -197,6 +196,40 @@ moved in this PR — indexed only.
 | File | Purpose |
 |---|---|
 | `run_vaccination_batch.bat` | Tier-2 showcase batch: 3 seeds × 2 models = 6 runs; Windows companion to `run_vaccination_batch.sh`. |
+
+### Removed launchers
+
+The following obsolete, unreferenced one-off schedulers were removed on
+2026-10-12. They were last present at commit `252b3f60`; recover any with
+`git show 252b3f60:<path>`.
+
+- Ensemble: `examples/irrigation_abm/run_ensemble.bat`.
+- Missing-only: `examples/single_agent/run_wrr_missing_only.ps1`.
+- Repair: `examples/single_agent/run_wrr_repair_run3_and_run45.ps1`.
+- Run-3 queue: `examples/single_agent/run_wrr_run3_full_queue.ps1`.
+
+The three flood scripts write under `examples/single_agent/results/JOH_FINAL`
+and pass these seeds: `Run_1 = 42`, `Run_2 = 4202`, `Run_3 = 4203`,
+`Run_4 = 4204`, and `Run_5 = 4205`. Missing-only states Runs 1-3; Repair
+states Runs 3-5; Run-3 queue uses 4203. This is what the scripts pass, not a
+record of which seeds the stored runs hold; for those see
+`.claude/skills/llm-agent-audit-trace-analyzer/references/metrics_definitions.md`.
+
+The scripts pass these explicit model options. The flood entries apply to
+Group_B/Group_C; their Group_A baseline commands do not pass these options.
+
+| Model | `num-ctx` | `num-predict` | Launcher(s) |
+|---|---|---|---|
+| `ministral-3:3b` | 8192 | 1536 | Missing-only |
+| `ministral-3:3b` | 4096 | 1024 | Repair |
+| `ministral-3:8b` | 8192 | 1536 | Missing-only |
+| `ministral-3:8b` | 4096 | 1024 | Repair, Run-3 queue |
+| `ministral-3:14b` | 8192 | 1536 | Missing-only, Repair, Run-3 queue |
+| `gemma3:4b` | 8192 | 1536 | Missing-only |
+| `gemma3:4b` | 4096 | 1024 | Repair |
+| `gemma3:4b` | 8192 | 4096 | Ensemble |
+| `gemma3:12b` | 8192 | 1536 | Missing-only, Repair |
+| `gemma3:27b` | 8192 | 1536 | Missing-only, Repair, Run-3 queue |
 
 ---
 

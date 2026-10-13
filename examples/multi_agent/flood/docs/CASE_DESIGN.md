@@ -563,6 +563,4 @@ assert isinstance(agent, AgentProtocol)
 
 ## Related Documentation
 
-- [SDK README](../../cognitive_governance/README.md) - SDK architecture
-- [Integration Tests](../../tests/integration/README.md) - Test coverage
-- [SA Case Design](../single_agent/CASE_DESIGN.md) - Single-agent variant
+- [Integration Tests](../../../../tests/integration/README.md) - Test coverage

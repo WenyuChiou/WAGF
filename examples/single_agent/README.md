@@ -26,7 +26,7 @@ Core runtime surfaces live here:
 - [skill_registry.yaml](skill_registry.yaml): available flood adaptation skills
 - [config/prompts/](config/prompts/): prompt templates
 - [analysis/](analysis/): post-run metrics and paper-side analysis helpers
-- [results/](results/): experiment outputs
+- `results/`: experiment outputs
 
 ---
 
@@ -101,7 +101,7 @@ workspace. Related locations:
 
 - Single-agent irrigation reference: [examples/irrigation_abm/](../irrigation_abm/)
 - Multi-agent flood reference: [examples/multi_agent/flood/](../multi_agent/flood/)
-- Nature Water manuscript workspace: [paper/nature_water/](../../paper/nature_water/)
+- Nature Water manuscript workspace: `paper/nature_water/`
 
 ---
 
