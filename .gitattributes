@@ -28,3 +28,7 @@ examples/irrigation_abm/data/lb_priority_split_v3.csv text eol=lf
 # alongside it, so it travels with the same LF convention.
 examples/irrigation_abm/data/hindcast_observed_v3.csv text eol=lf
 examples/irrigation_abm/data/hindcast_observed_v3_sources.csv text eol=lf
+# Agent hindcast, 2000-2018: the winter precipitation the hindcast agents
+# and FQL read, sha256-checked at load by hindcast_env.py -- same
+# LF-forcing rationale as above.
+examples/irrigation_abm/data/hindcast_precip_v3.csv text eol=lf
