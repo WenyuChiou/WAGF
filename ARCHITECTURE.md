@@ -770,9 +770,9 @@ handling, and cross-domain integration guidelines are documented in
 
 ## Related Documents
 
-- [Reflection Taxonomy Design](.ai/reflection_taxonomy_design_2026-04-19.md) — current + V2 extension spec
+- Reflection Taxonomy Design: `.ai/reflection_taxonomy_design_2026-04-19.md` — current + V2 extension spec
 - [Framework Invariants](broker/INVARIANTS.md) — architectural contracts
-- [Task-029 Migration Guide](.tasks/handoff/task-029-migration-guide.md)
-- [Task-029 Audit Report](.tasks/handoff/task-029-audit-report.md)
+- Task-029 Migration Guide: `.tasks/handoff/task-029-migration-guide.md`
+- Task-029 Audit Report: `.tasks/handoff/task-029-audit-report.md`
 - [MA Experiment Guide](examples/multi_agent/README.md)
 - [Mixed Populations](docs/guides/mixed_populations.md) — declaring rule-based, hybrid and LLM deciders per agent type, and how to read the resulting audit rows

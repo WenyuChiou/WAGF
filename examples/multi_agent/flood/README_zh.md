@@ -13,7 +13,6 @@
 這份文件是給開發者看的入口 README。較長的研究敘事與 Passaic River Basin 研究包裝保留在：
 
 - [README_research.md](README_research.md)
-- [paper3/README.md](paper3/README.md)
 
 ---
 
@@ -84,7 +83,7 @@ runner 目前支援多種初始化模式：
 
 `balanced` 與論文級工作流還會依賴以下支援資產：
 
-- [paper3/output/](paper3/output/)
+- `paper3/output/`
 - [data/](data/)
 
 ---
@@ -95,8 +94,7 @@ runner 目前支援多種初始化模式：
 
 它不是 `Nature Water` 稿件 workspace，也不是單代理洪水基準案例。相關位置如下：
 
-- 單代理洪水基準案例：[examples/single_agent/](../single_agent/)
-- Nature Water 稿件 workspace：[paper/nature_water/](../../../paper/nature_water/)
+- 單代理洪水基準案例：[examples/single_agent/](../../single_agent/)
 - 多代理洪水論文 workspace：[paper3/](paper3/)
 
 ---

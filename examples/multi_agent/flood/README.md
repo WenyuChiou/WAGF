@@ -15,7 +15,6 @@ This is a developer-facing entry README. The longer research-oriented
 description of the Passaic River Basin study is preserved in:
 
 - [README_research.md](README_research.md)
-- [paper3/README.md](paper3/README.md)
 
 ---
 
@@ -96,7 +95,7 @@ The runner supports multiple initialization modes:
 
 Balanced and paper-grade workflows depend on supporting assets under:
 
-- [paper3/output/](paper3/output/)
+- `paper3/output/`
 - [data/](data/)
 
 ---
@@ -108,8 +107,7 @@ This directory is a reusable water-sector multi-agent pack.
 It is not the Nature Water manuscript workspace, and it is not the single-agent
 flood benchmark. Related locations:
 
-- Single-agent flood benchmark: [examples/single_agent/](../single_agent/)
-- Nature Water manuscript workspace: [paper/nature_water/](../../../paper/nature_water/)
+- Single-agent flood benchmark: [examples/single_agent/](../../single_agent/)
 - MA flood paper workspace: [paper3/](paper3/)
 
 ---
