@@ -14,6 +14,34 @@ below that touches the GPU or edits a Windows scheduled task is still a
 step a person runs and confirms, never something this page or the
 launcher automates on its own.
 
+## Agent hindcast, 2000 to 2018
+
+The opt-in hindcast starts from recorded 1999 requests and reservoir state.
+`hindcast_env.py (HindcastAgentEnvironment)` supplies the observed hydrology;
+the decision, memory, reflection and governance text stays unchanged. The
+window is defined by `hindcast_env.py (HINDCAST_FIRST_YEAR, HINDCAST_LAST_YEAR)`;
+`--years` must match its length. Coupling, cluster rebalancing and FQL
+`--from-logs` are refused. FQL requires the calibrated starting tables.
+
+```powershell
+python examples/irrigation_abm/run_experiment.py --hindcast --real --model <model> --years 19 --seed 42 --memory-seed 42 --paper-water-margin 0.4 --cluster-method hy2021 --governance-mode strict --output .ai/hindcast_checks/llm_strict
+python examples/irrigation_abm/run_fql_baseline.py --hindcast --real --no-governance --fql-init calibrated --years 19 --seed 42 --paper-water-margin 0.4 --cluster-method hy2021 --output .ai/hindcast_checks/fql_seed42
+python examples/irrigation_abm/analysis/hindcast_v3_agents_score.py --llm .ai/hindcast_checks/llm_strict --fql .ai/hindcast_checks/fql_seed42 --out .ai/hindcast_checks/scores
+```
+
+Replace `<model>` with the real model used for the run.
+`--allow-mock` is only for checking that the scoring script runs.
+All runs must record the same code commit and explicit tree status; modified
+trees require `--allow-dirty` and are labelled "run from a modified tree".
+Use disabled for the second LLM arm and FQL seeds 42 to 51 for the benchmark.
+The scorer writes per-run KGE and its parts, with requests primary and
+deliveries secondary, UB sub-basins and LB agents, persistence and constant
+1999 benchmarks. One LLM seed is labelled n=1 with no uncertainty estimate.
+Mock scores only check execution. Each series has 19 annual points; B=X,
+the sub-basin envelope and the calibrated FQL tables contain this window.
+Upper Basin KGE is not independent of that envelope. Agent text still names
+the full 1971 to 2018 record and shortage rules in the pre-2008 years.
+
 ## 0. Before you start
 
 - `python examples/irrigation_abm/tools/v3_corpus_launcher.py plan --tag <tag>`
