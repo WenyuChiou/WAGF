@@ -279,16 +279,14 @@ re-deriving each check from memory under time pressure.
 1. **Model present and its digest recorded.** `ollama list` shows the
    model tag and an ID column (`gemma3:4b`, the model `_llm_command`
    always requests); copy that ID BY HAND into the campaign's own notes
-   before the pilot. Do not trust `reproducibility_manifest.json`'s own
-   `model_digest` field for this: `broker/core/experiment_runner.py`
-   queries Ollama's `/api/show` endpoint, which does not return a
-   `digest` key at all, so `metadata["model_digest"]` always falls
-   through to `/api/show`'s `modified_at` -- a timestamp, not a content
-   digest (Opus review P3-3, 2026-10-07). A `modified_at` string still
-   catches SOME re-pulls (it changes when the local image is replaced),
-   but it is not the same guarantee as a real digest, and the local tag
-   `gemma3:4b` can point at a different pulled image after an
-   `ollama pull` on this shared machine between campaigns. If the ID on
+   before the pilot. `reproducibility_manifest.json` now records the real
+   `model_digest` once at launch, using `/api/show` when it supplies a digest
+   and otherwise the matching `/api/tags` entry. It never uses the
+   `modified_at` timestamp. Mock and cloud runs record null; an unavailable
+   digest for a local model records null with one launch warning. Check the
+   recorded digest against the current model: the local tag `gemma3:4b` can
+   point at a different image after an `ollama pull` between campaigns.
+   If the ID on
    hand does not match whatever was recorded for an earlier pilot or
    CPU-free check, treat it as a new model until confirmed otherwise.
 2. **`OLLAMA_NUM_PARALLEL` and a throughput probe.** Covered already in
@@ -421,6 +419,9 @@ be) and refuses with a clear message naming whichever is not. It writes
 `v3_pilot_gate_report.md`, prints PASS or FAIL with the per-check
 detail `pilot-gate` itself prints, and records the pass/fail and the
 exit code in the launcher's state file, keyed to this commit's sha8.
+
+When old corpora are re-analysed, runs without logged reflection inputs
+explicitly skip the P6 lesson-against-input check; partial logging fails P6.
 
 If it fails: per spec section 4, there is no automatic retry, and a
 failed gate restarts from **section 1**, not section 4. Fix the problem

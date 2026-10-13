@@ -414,7 +414,7 @@ under the current tier ceiling, using the menu's rounded target exactly,
 with the supply rule's sharing sentence when
 the keep is physically short. L uses the profile's observed 1971–2018 peak
 (`peak_obs_af`) as a stated field-use assumption; this departs from H&Y's
-unbounded reward and does not change settlement or the action cap. Synthetic
+unbounded reward. Spec item 49 now enforces the stated field-use bound. Synthetic
 profiles without an observed peak omit L. K6 appears every year for the 16
 fully senior Lower Basin profiles in `lb_priority_mode: split`, identified
 from the priority data; it is omitted in `senior_all` mode.
@@ -430,8 +430,43 @@ null for mock, cloud, or an unreachable server). These fields and the resolved
 counts; decision prompts use the MB filter and reflection inputs override it.
 P5(b) checks memory visibility against the log and recorded tier scope;
 reflection checks use their actual input log when available.
+Each irrigation reflection-log entry includes `reflection_input`, the exact
+agent text used to build that prompt. P6 checks the lesson against this input;
+older runs without the field explicitly skip that part of P6.
 Framework options default off; memory
 skipping raises explicitly in weighted mode.
+
+The shipped `irrigation_farmer.beneficial_use_limit` config enables spec item
+49 with `beneficial_use_margin: 0.0`. Its limit is
+`B = min(water_right, (1 + beneficial_use_margin) * peak_obs_af)`; margins
+must be finite and in [0, 1], with 0.1 the mock/CPU sensitivity only (spec item
+49). An enabled limit with a positive margin refuses every non-mock model at
+startup, because the land-need sentence still states the unscaled observed
+peak. Mock runs allow positive margins. Startup also requires the selected
+profile's beneficial-use identity rule and the registry precondition.
+A real run without
+a positive observed peak fails before its first year. Set `enabled: false`
+to reproduce the prior action cap and menu; direct environment callers and
+the raw FQL baseline keep this feature off unless explicitly configured.
+Every governance profile shares the menu filter at 0.99 B, the neutral
+off-menu block, and the execution clamp. An increase that passes B names its
+stopping point in the option, and S1 settles at that same rounded target.
+When W binds first (Wellton-Mohawk IDD and Quechan Res Unit), the existing
+water-right rule and clause retain priority. The decrease floor, supply
+rule, TR1 and TR3 retain their conditions. The observed peak is a model
+assumption, not a legal determination; it assumes no new irrigated land or
+higher water need and departs from H&Y and raw FQL.
+
+The manifest and snapshot record `beneficial_use_limit` and its margin.
+Enabled runs add `beneficial_use_limit_af`, `at_beneficial_use_limit`,
+`beneficial_use_clamped`, and `beneficial_use_clamp_cut_af` to simulation
+rows, with the first two in audit state columns. The flag describes the
+decision base; the clamp reports only water removed by B after W's own cap.
+`analysis/v3_metrics.py` reports exposure, off-menu attempts, clamped
+increases, removed acre-feet and behavior at/below the limit per arm. P5(b)
+independently checks the menu and stopping clause against profiles and logs.
+Model digests use actual launch metadata (null for mock/cloud/unreachable),
+and the performance-tuner context line uses the effective invocation value.
 
 ### Behavioral Clusters
 
@@ -478,11 +513,12 @@ v3 governance (WP3, `irrigation_v3_spec_2026-09-28.md` section 3; equations and 
 | :-------- | :----- | :------------ | :-------- |
 | supply rule (`supply_gap_block_increase`) | an increase when physical availability at the keep request (last year's receipt), after factoring out any entitlement ceiling, is below `FULL_SUPPLY_RATIO` (0.999) | Python check (`ALL_IRRIGATION_CHECKS`), in strict, placebo, silent and feasibility_only; post hoc in disabled | world |
 | water-right cap (`water_right_cap`) | an increase once the base is at 0.99 W | YAML identity rule: menu filter and block, every profile | world |
+| beneficial-use limit (`beneficial_use_limit`) | an increase once the base is at 0.99 B and B < W | YAML identity rule: menu filter and block, plus clamp at B, every profile | world |
 | minimum-use floor (`minimum_utilisation_floor`) | a decrease once the base is at 1.01 F (F = 0.10 W) | YAML identity rule: menu filter and block, every profile | world |
 | TR1 (`high_scarcity_no_increase`) | an increase when the first-stated water-scarcity appraisal is High or Very High | YAML thinking rule in strict, placebo and silent; post hoc in feasibility_only and disabled | self-report |
 | TR3 (`low_scarcity_no_decrease`) | a decrease when the first-stated water-scarcity appraisal is Very Low or Low | as TR1 | self-report |
 
-Profiles (`--governance-mode`): `strict`; `feasibility_only` (strict without TR1 and TR3, one run); `disabled` (the two identity rules only, no custom validators). The placebo and silent arms are strict run with `--retry-feedback-mode placebo|silent`. The appraisal freeze (`global_config.governance.appraisal_freeze`) makes TR1, TR3 and the feasible-action line of a retry read the appraisal as first stated in the decision (the first parsed attempt's, unless that attempt gave none), so relabelling cannot pass a rule. An off-menu answer blocked by an identity rule gets a retry text with that rule's message only (`hide_registry_backstop_reports`); the registry backstop stays in the audit. Retry texts carry no rule id (`rule_id_prefix: false`) and no appraisal label code.
+Profiles (`--governance-mode`): `strict`; `feasibility_only` (strict without TR1 and TR3, one run); `disabled` (the three identity rules only, no custom validators). The placebo and silent arms are strict run with `--retry-feedback-mode placebo|silent`. The appraisal freeze (`global_config.governance.appraisal_freeze`) makes TR1, TR3 and the feasible-action line of a retry read the appraisal as first stated in the decision (the first parsed attempt's, unless that attempt gave none), so relabelling cannot pass a rule. An off-menu answer blocked by an identity rule gets a retry text with that rule's message only (`hide_registry_backstop_reports`); the registry backstop stays in the audit. Retry texts carry no rule id (`rule_id_prefix: false`) and no appraisal label code.
 
 Current runs use the plain TR1 definition above and omit `tier_cut_restore`.
 Historical 45p/45q runs preserve their recorded restoration interpretation only

@@ -599,6 +599,7 @@ def _isolate_ollama_thinking_cache():
 
     def clear():
         with llm_utils._OLLAMA_THINKING_LOCK:
+            llm_utils._OLLAMA_SHOW_METADATA.clear()
             llm_utils._OLLAMA_THINKING_CAPABILITIES.clear()
             llm_utils._OLLAMA_THINKING_LEVELS.clear()
             llm_utils._OLLAMA_THINKING_WARNED.clear()

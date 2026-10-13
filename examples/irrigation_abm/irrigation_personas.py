@@ -937,6 +937,7 @@ def build_option_texts(
     base: float,
     water_right: float,
     floor: float,
+    *, beneficial_use_limit_af: Optional[float] = None,
 ) -> Dict[str, str]:
     """WP2 spec 2.6: ``{skill_id: option text}`` for the v3 skills, each
     stating the request that RESULTS, relative to ``base`` (the amount
@@ -987,13 +988,17 @@ def build_option_texts(
     w_r = round(water_right)
     f_r = round(floor)
 
-    increase_to = min(base_r + s_r, w_r)
+    beneficial_binds = beneficial_use_limit_af is not None and beneficial_use_limit_af < water_right
+    b_r = round(beneficial_use_limit_af) if beneficial_binds else w_r
+    increase_to = min(base_r + s_r, b_r)
     text_increase = (
         f"Increase your request to about {increase_to:,.0f} acre-ft: the "
         f"{base_r:,.0f} acre-ft you received last year plus your typical "
         f"step of about {s_r:,.0f} acre-ft"
     )
-    if base_r + s_r > w_r:
+    if beneficial_binds and base_r + s_r > b_r:
+        text_increase += f" (it stops at {b_r:,.0f} acre-ft, about the most water your fields can use)"
+    elif base_r + s_r > w_r:
         text_increase += f" (your water right stops it at {w_r:,.0f} acre-ft)"
     text_increase += "."
 
@@ -1264,16 +1269,16 @@ def dashboard_sharing_flags(agent_state: Dict[str, Any]) -> Dict[str, float]:
 
 # Plain-language label (with its article) for the first blocking rule in the
 # neutral memory line of an overruled year. v3 (WP3, spec 3.6): exactly the
-# five v3 rules -- the three feasibility rules (the supply rule and the two
-# identity rules) and the two thinking rules (TR1, TR3). The registry
-# backstop `precondition_violation` is not a sixth rule: it is the cap or the
-# floor enforced a second time, and _precondition_violation_label names it
-# by the direction of the blocked skill. Every entry of the retired rule set
+# six v3 rules -- the supply rule, three identity rules (including item 49),
+# and two thinking rules (TR1, TR3). The registry backstop enforces the
+# increase limits or decrease floor a second time. Its generic rule id does
+# not distinguish the two increase preconditions. Every entry of the retired rule set
 # (curtailment_awareness, the old R1/R2/R4 and observed-scarcity rules, the
 # zero-escape, consecutive-increase and zero-delivery checks) is gone.
 _RULE_LABELS = {
     "supply_gap_block_increase": "the shortage-sharing rule",
     "water_right_cap": "the water-right cap",
+    "beneficial_use_limit": "the beneficial-use limit",
     "minimum_utilisation_floor": "the minimum-use floor",
     "high_scarcity_no_increase": "the rule on increases under scarcity",
     "low_scarcity_no_decrease": "the rule on decreases without scarcity",
@@ -1281,19 +1286,16 @@ _RULE_LABELS = {
 
 
 def _precondition_violation_label(rule_id: str, proposed_skill: str) -> str:
-    """Disambiguate the generic ``precondition_violation`` rule id (any
-    registry ``preconditions:`` failure, ``broker/core/skill_broker_engine.py``)
-    by the DIRECTION of the proposed skill it was raised against (WP2, spec
-    2.2): an increase can only have failed ``not at_allocation_cap`` (the
-    water-right cap); a decrease can only have failed ``not
-    below_minimum_utilisation`` (the minimum-use floor) -- the registry's
-    only two preconditions, one per direction. Any other rule id is looked
-    up in ``_RULE_LABELS``; an id that is not there (or a
-    ``precondition_violation`` raised against a skill of neither direction,
-    which the registry cannot produce) reads "a governance rule"."""
+    """Name a registry backstop by direction without inventing its cause.
+
+    An increase may fail ``not at_allocation_cap`` or item 49's ``not
+    at_beneficial_use_limit``. The generic id does not say which failed,
+    so it names their shared request-increase limit. A decrease names the
+    minimum-use floor; specific rule ids retain their exact labels.
+    """
     if rule_id == "precondition_violation":
         if proposed_skill.startswith("increase"):
-            return _RULE_LABELS["water_right_cap"]
+            return "the request-increase limit"
         if proposed_skill.startswith("decrease"):
             return _RULE_LABELS["minimum_utilisation_floor"]
     return _RULE_LABELS.get(rule_id, "a governance rule")
@@ -1694,6 +1696,15 @@ def build_simulation_log_row(
         "lb_junior_entitlement_af": agent_state.get("lb_junior_entitlement_af"),
         "lb_p56_entitlement_af": agent_state.get("lb_p56_entitlement_af"),
         "lb_p56_in_tier": agent_state.get("lb_p56_in_tier"),
+        # Item 49 stays absent for off-config runs and the raw FQL baseline.
+        **({
+            "beneficial_use_limit_af": agent_state["beneficial_use_limit_af"],
+            "at_beneficial_use_limit": bool(
+                agent_state["beneficial_use_limit_af"] < water_right
+                and base_af is not None and base_af >= .99 * agent_state["beneficial_use_limit_af"]),
+            "beneficial_use_clamp_cut_af": agent_state.get("beneficial_use_clamp_cut_af", 0.0),
+            "beneficial_use_clamped": agent_state.get("beneficial_use_clamped", False),
+        } if "beneficial_use_limit_af" in agent_state else {}),
     }
 
 

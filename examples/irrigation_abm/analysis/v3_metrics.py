@@ -15,6 +15,7 @@ Inputs
     ``simulation_log.csv``.
     Fixed-demand replay (this module's ``replay`` command, item 21): the manifest,
     ``simulation_log.csv`` and ``supply_rule_condition.csv``.
+    Legacy runs without logged reflection inputs skip the P6 lesson-against-input check.
 
 Fail-loud contract
     A missing file or column, a blank cell where a number is required, or two
@@ -106,16 +107,18 @@ DECREASE = "decrease_demand"
 
 RULE_SUPPLY = "supply_gap_block_increase"
 RULE_CAP = "water_right_cap"
+RULE_BENEFICIAL_USE = "beneficial_use_limit"
 RULE_FLOOR = "minimum_utilisation_floor"
 RULE_TR1 = "high_scarcity_no_increase"
 RULE_TR3 = "low_scarcity_no_decrease"
 TR1_HIGH_WSA = frozenset({'H', 'VH'})
-FEASIBILITY_RULES = (RULE_SUPPLY, RULE_CAP, RULE_FLOOR)
+FEASIBILITY_RULES = (RULE_SUPPLY, RULE_CAP, RULE_BENEFICIAL_USE, RULE_FLOOR)
 THINKING_RULES = (RULE_TR1, RULE_TR3)
 ALL_RULES = FEASIBILITY_RULES + THINKING_RULES
 # The skill each rule blocks (spec 3.1, 3.3, 3.4).
 BLOCKED_SKILL = {
-    RULE_SUPPLY: INCREASE, RULE_CAP: INCREASE, RULE_FLOOR: DECREASE,
+    RULE_SUPPLY: INCREASE, RULE_CAP: INCREASE, RULE_BENEFICIAL_USE: INCREASE,
+    RULE_FLOOR: DECREASE,
     RULE_TR1: INCREASE, RULE_TR3: DECREASE,
 }
 
@@ -161,8 +164,46 @@ LIVE_RULES = {
     "placebo": frozenset(ALL_RULES),
     "silent": frozenset(ALL_RULES),
     "feasibility_only": frozenset(FEASIBILITY_RULES),
-    "disabled": frozenset({RULE_CAP, RULE_FLOOR}),
+    "disabled": frozenset({RULE_CAP, RULE_BENEFICIAL_USE, RULE_FLOOR}),
 }
+
+
+def beneficial_use_config(manifest: Mapping[str, Any]) -> Dict[str, Any]:
+    """Return and validate the item-49 manifest switch.
+
+    A missing field is a legacy/item-49-off run. Enabled runs must identify
+    the decision and record the sensitivity margin used to derive
+    ``B = min(W, (1 + margin) * peak_obs_af)``.
+    """
+    raw = manifest.get("beneficial_use_limit")
+    if raw is None:
+        return {"spec_item": 49, "enabled": False, "beneficial_use_margin": 0.0}
+    if not isinstance(raw, Mapping):
+        raise MetricsError("manifest beneficial_use_limit must be a mapping")
+    enabled = raw.get("enabled")
+    if not isinstance(enabled, bool):
+        raise MetricsError("manifest beneficial_use_limit.enabled must be a bool")
+    if enabled and raw.get("spec_item") != 49:
+        raise MetricsError("enabled beneficial_use_limit.spec_item must be 49")
+    margin = raw.get("beneficial_use_margin", 0.0)
+    if isinstance(margin, bool) or not isinstance(margin, (int, float)):
+        raise MetricsError("manifest beneficial_use_limit.beneficial_use_margin must be numeric")
+    margin = float(margin)
+    if not 0.0 <= margin <= 1.0:
+        raise MetricsError("beneficial_use_margin must be in [0, 1]")
+    return {"spec_item": raw.get("spec_item", 49), "enabled": enabled,
+            "beneficial_use_margin": margin}
+
+
+def _rules_for_run(run: "LoadedRun") -> Tuple[str, ...]:
+    rules = ALL_RULES
+    if not beneficial_use_config(run.info.manifest)["enabled"]:
+        rules = tuple(rule for rule in rules if rule != RULE_BENEFICIAL_USE)
+    return rules
+
+
+def _live_rules_for_run(run: "LoadedRun") -> frozenset[str]:
+    return frozenset(rule for rule in LIVE_RULES[run.info.arm] if rule in _rules_for_run(run))
 
 AUDIT_CSV = "irrigation_farmer_governance_audit.csv"
 # Decisions with no decision: ABORTED (nothing parsed) and the runner's
@@ -788,6 +829,14 @@ def check_provenance(infos: Sequence[RunInfo], allow_mixed: bool = False,
         values = {json.dumps(_jsonable(i.manifest.get(key)), sort_keys=True) for i in infos}
         if len(values) > 1:
             problems.append(f"{key} differs across runs")
+    benefit_values = {
+        json.dumps(beneficial_use_config(i.manifest), sort_keys=True) for i in llm
+    }
+    if len(benefit_values) > 1:
+        problems.append("beneficial_use_limit differs across LLM runs")
+    record["beneficial_use_limit"] = [
+        json.loads(value) for value in sorted(benefit_values)
+    ]
 
     # Water system: every recorded key equal across all runs (replays aside
     # for hold_requests_fixed, checked above), and equal to the analysis
@@ -1080,7 +1129,8 @@ class Decision:
             return None
         return self.physical_ratio < FULL_SUPPLY_RATIO
 
-    def condition(self, rule: str, at_cap: Optional[bool], at_floor: Optional[bool]) -> Optional[bool]:
+    def condition(self, rule: str, at_cap: Optional[bool], at_floor: Optional[bool],
+                  at_beneficial: Optional[bool] = None) -> Optional[bool]:
         """Whether ``rule``'s condition held for this decision (None: unknown,
         an ABORTED row has no ``state_before`` for the cap and floor)."""
         if rule == RULE_SUPPLY:
@@ -1091,6 +1141,8 @@ class Decision:
             return self.first_wsa in TR3_WSA
         if rule == RULE_CAP:
             return at_cap
+        if rule == RULE_BENEFICIAL_USE:
+            return at_beneficial
         if rule == RULE_FLOOR:
             return at_floor
         raise MetricsError(f"unknown rule {rule!r}")
@@ -1271,6 +1323,7 @@ class TraceRecord:
     prompt: Optional[str] = field(default=None, repr=False)
     crashed: bool = False           # ABORTED_EXCEPTION sentinel: no prompt was logged
     expected_gap_reason: Optional[str] = None
+    at_beneficial_use_limit: Optional[bool] = None
 
 
 def load_traces(run_dir: Path, keep_prompts: bool = False) -> Dict[Tuple[str, int], TraceRecord]:
@@ -1304,7 +1357,7 @@ def load_traces(run_dir: Path, keep_prompts: bool = False) -> Dict[Tuple[str, in
             if not state:
                 if not aborted:
                     raise MetricsError(f"{where}: no state_before on a decision that was not aborted")
-                at_cap = at_floor = None
+                at_cap = at_floor = at_beneficial = None
                 base = water_right = None
             else:
                 for k in ("at_allocation_cap", "below_minimum_utilisation", "current_request", "water_right"):
@@ -1316,10 +1369,20 @@ def load_traces(run_dir: Path, keep_prompts: bool = False) -> Dict[Tuple[str, in
                     raise MetricsError(f"{where}: cap or floor flag is not a bool")
                 base = float(state["current_request"])
                 water_right = float(state["water_right"])
-            out[key] = TraceRecord(key[0], key[1], at_cap, at_floor, base, water_right,
-                                   () if prompt is None else parse_menu(prompt, where),
-                                   prompt if keep_prompts else None, crashed=crashed,
-                                   expected_gap_reason=state.get('gap_reason') if state else None)
+                benefit_flags = [state.get("at_beneficial_use_limit"),
+                                 state.get("at_beneficial_use_limit_ub"),
+                                 state.get("at_beneficial_use_limit_lb")]
+                stated_flags = [flag for flag in benefit_flags if flag is not None]
+                if any(not isinstance(flag, bool) for flag in stated_flags):
+                    raise MetricsError(f"{where}: beneficial-use limit flag is not a bool")
+                at_beneficial = any(stated_flags) if stated_flags else None
+            out[key] = TraceRecord(
+                key[0], key[1], at_cap, at_floor, base, water_right,
+                () if prompt is None else parse_menu(prompt, where),
+                prompt if keep_prompts else None, crashed=crashed,
+                expected_gap_reason=state.get('gap_reason') if state else None,
+                at_beneficial_use_limit=at_beneficial,
+            )
     if not out:
         raise MetricsError(f"{path}: no traces")
     return out
@@ -1368,6 +1431,7 @@ def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = N
     sim = load_sim_log(info.path)
     run = LoadedRun(info, sim)
     if info.kind == "llm":
+        benefit_cfg = beneficial_use_config(info.manifest)
         run.decisions = load_decisions(info.path)
         run.traces = load_traces(info.path, keep_prompts=keep_prompts)
         grid = set(sim.rows)
@@ -1391,6 +1455,20 @@ def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = N
                                        "keep request")
             if (trace.at_cap is None) != decision.aborted:
                 raise MetricsError(f"{info.path} {key}: a state_before is missing on a decision that ran")
+            if benefit_cfg["enabled"] and not decision.aborted:
+                if trace.at_beneficial_use_limit is None:
+                    raise MetricsError(
+                        f"{info.path} {key}: item-49 run has no beneficial-use state flag")
+                row = sim.rows[key]
+                for column in ("beneficial_use_limit_af", "at_beneficial_use_limit",
+                               "beneficial_use_clamp_cut_af", "beneficial_use_clamped"):
+                    if column not in row:
+                        raise MetricsError(f"{sim.path}: item-49 run is missing column {column!r}")
+                logged_at = _bool_cell(row, "at_beneficial_use_limit",
+                                       f"{sim.path} [{key[0]}, year {key[1]}]")
+                if logged_at != trace.at_beneficial_use_limit:
+                    raise MetricsError(
+                        f"{info.path} {key}: trace and simulation log disagree on beneficial-use limit")
         if 'tier_cut_restore' not in info.manifest:
             # Spec 45q: fail loudly when the audit contains actual evidence of
             # the retired tier-cut exception.  The generic exception-list
@@ -1428,6 +1506,62 @@ def load_run(path: Path, keep_prompts: bool = False, info: Optional[RunInfo] = N
         if set(run.replay_condition) != set(sim.rows):
             raise MetricsError(f"{info.path}: supply_rule_condition.csv and the log differ in agent-years")
     return run
+
+
+def beneficial_use_metrics(run: LoadedRun) -> Dict[str, Any]:
+    """Item-49 exposure, attempted violations, clamp effects and behavior.
+
+    The limit flag and clamp quantities are the runner's per-agent-year audit
+    columns. Off-menu attempts count every parsed increase attempt while the
+    independently logged state says the beneficial-use limit (rather than the
+    water right) binds. Behavior shares use executed actions.
+    """
+    cfg = beneficial_use_config(run.info.manifest)
+    if not cfg["enabled"]:
+        return {}
+    at_limit = attempts = clamped = 0
+    removed = 0.0
+    increases_at = increases_below = below = 0
+    for key, decision in run.decisions.items():
+        row = run.sim.rows[key]
+        where = f"{run.sim.path} [{key[0]}, year {key[1]}]"
+        limit = _num(row, "beneficial_use_limit_af", where)
+        water_right = _num(row, "water_right", where)
+        base = _opt_num(row, "base_af", where)
+        logged_at = _bool_cell(row, "at_beneficial_use_limit", where)
+        cut = _num(row, "beneficial_use_clamp_cut_af", where)
+        logged_clamped = _bool_cell(row, "beneficial_use_clamped", where)
+        if limit <= 0 or limit > water_right + AF_TOL:
+            raise MetricsError(f"{where}: beneficial-use limit {limit} is outside (0, water right]")
+        if base is not None:
+            expected_at = base >= 0.99 * limit and limit < water_right
+            if logged_at != expected_at:
+                raise MetricsError(
+                    f"{where}: at_beneficial_use_limit={logged_at}, expected {expected_at} "
+                    f"from base={base}, B={limit}, W={water_right}")
+        if cut < 0 or logged_clamped != (cut > 0):
+            raise MetricsError(
+                f"{where}: beneficial_use_clamped={logged_clamped} disagrees with cut {cut}")
+        at_limit += logged_at
+        below += not logged_at
+        attempts += sum(
+            attempt.skill == INCREASE for attempt in decision.attempts
+            if attempt.parsed and logged_at)
+        clamped += logged_clamped
+        removed += cut
+        increases_at += decision.executed_skill == INCREASE and logged_at
+        increases_below += decision.executed_skill == INCREASE and not logged_at
+    return {
+        "beneficial_use_at_limit_agent_years": at_limit,
+        "beneficial_use_off_menu_increase_attempts": attempts,
+        "beneficial_use_clamped_increases": clamped,
+        "beneficial_use_clamp_removed_af": removed,
+        "beneficial_use_below_limit_agent_years": below,
+        "beneficial_use_executed_increases_at_limit": increases_at,
+        "beneficial_use_executed_increases_below_limit": increases_below,
+        "beneficial_use_executed_increase_at_limit_pct": _pct(increases_at, at_limit),
+        "beneficial_use_executed_increase_below_limit_pct": _pct(increases_below, below),
+    }
 
 
 # =============================================================================
@@ -1579,7 +1713,9 @@ def executed_violations(run: LoadedRun) -> Dict[str, Any]:
     the logged state_supply_* inputs and FULL_SUPPLY_RATIO), the water-right
     cap or the minimum-use floor (flags read from state_before), over all
     decisions; and the union of the three."""
-    counts = {RULE_SUPPLY: 0, RULE_CAP: 0, RULE_FLOOR: 0, "total": 0}
+    enabled = beneficial_use_config(run.info.manifest)["enabled"]
+    counts = {RULE_SUPPLY: 0, RULE_CAP: 0, RULE_BENEFICIAL_USE: 0,
+              RULE_FLOOR: 0, "total": 0}
     for key, d in run.decisions.items():
         trace = run.traces[key]
         e = d.executed_skill
@@ -1587,18 +1723,26 @@ def executed_violations(run: LoadedRun) -> Dict[str, Any]:
             raise MetricsError(f"{run.label} {key}: executed {e!r} without a state_before")
         sup = e == INCREASE and d.supply_condition
         cap = e == INCREASE and bool(trace.at_cap)
+        beneficial = e == INCREASE and enabled and bool(trace.at_beneficial_use_limit)
         flo = e == DECREASE and bool(trace.at_floor)
         counts[RULE_SUPPLY] += sup
         counts[RULE_CAP] += cap
+        counts[RULE_BENEFICIAL_USE] += beneficial
         counts[RULE_FLOOR] += flo
-        counts["total"] += sup or cap or flo
+        counts["total"] += sup or cap or beneficial or flo
     n = len(run.decisions)
-    return {
+    result = {
         "exec_supply_count": counts[RULE_SUPPLY], "exec_cap_count": counts[RULE_CAP],
         "exec_floor_count": counts[RULE_FLOOR], "exec_total_count": counts["total"],
         "exec_supply_pct": _pct(counts[RULE_SUPPLY], n), "exec_cap_pct": _pct(counts[RULE_CAP], n),
         "exec_floor_pct": _pct(counts[RULE_FLOOR], n), "exec_total_pct": _pct(counts["total"], n),
     }
+    if enabled:
+        result.update(
+            exec_beneficial_use_count=counts[RULE_BENEFICIAL_USE],
+            exec_beneficial_use_pct=_pct(counts[RULE_BENEFICIAL_USE], n),
+        )
+    return result
 
 
 # =============================================================================
@@ -1624,6 +1768,8 @@ def attempt_predicates(d: Decision, trace: TraceRecord) -> List[Optional[Dict[st
             RULE_TR1: d.tr1(attempt.skill, frozen),
             RULE_TR3: attempt.skill == DECREASE and frozen in TR3_WSA,
             RULE_CAP: attempt.skill == INCREASE and bool(trace.at_cap),
+            RULE_BENEFICIAL_USE: (
+                attempt.skill == INCREASE and bool(trace.at_beneficial_use_limit)),
             RULE_FLOOR: attempt.skill == DECREASE and bool(trace.at_floor),
         }
         out.append({rule: (predicate[rule], rule in live) for rule in ALL_RULES})
@@ -1635,9 +1781,9 @@ def rule_agreement(run: LoadedRun) -> Dict[str, Dict[str, Any]]:
     live blocks and disagreements (P7 requires 0 for the supply rule, TR1 and
     TR3 in strict). Rules scored post hoc in the arm are not compared: they
     cannot fire."""
-    live_rules = LIVE_RULES[run.info.arm]
+    live_rules = _live_rules_for_run(run)
     out = {rule: {"attempts": 0, "predicate": 0, "live": 0, "disagreements": 0, "examples": []}
-           for rule in ALL_RULES if rule in live_rules}
+           for rule in _rules_for_run(run) if rule in live_rules}
     for key, d in run.decisions.items():
         for k, preds in enumerate(attempt_predicates(d, run.traces[key])):
             if preds is None:
@@ -1667,12 +1813,13 @@ def rule_census(run: LoadedRun) -> List[Dict[str, Any]]:
     blocks (decisions and attempts). Cap and floor conditions are unknown
     on ABORTED rows and counted apart."""
     rows = []
-    for rule in ALL_RULES:
+    for rule in _rules_for_run(run):
         blocked = BLOCKED_SKILL[rule]
         held = unknown = first = final = executed = live_decisions = live_attempts = 0
         for key, d in run.decisions.items():
             trace = run.traces[key]
-            condition = d.condition(rule, trace.at_cap, trace.at_floor)
+            condition = d.condition(rule, trace.at_cap, trace.at_floor,
+                                    trace.at_beneficial_use_limit)
             fired = [rule in (a.failed_rules or ()) for a in d.attempts]
             live_decisions += any(fired)
             live_attempts += sum(fired)
@@ -1688,7 +1835,7 @@ def rule_census(run: LoadedRun) -> List[Dict[str, Any]]:
         rows.append({
             "run": run.label, "arm": run.info.arm, "seed": run.info.seed, "rule": rule,
             "family": "feasibility" if rule in FEASIBILITY_RULES else "thinking",
-            "enforcement": "live" if rule in LIVE_RULES[run.info.arm] else "post hoc",
+            "enforcement": "live" if rule in _live_rules_for_run(run) else "post hoc",
             "decisions": len(run.decisions), "condition_held": held, "condition_unknown": unknown,
             "first_attempt_violations": first, "final_proposal_violations": final,
             "executed_violations": executed, "live_blocked_decisions": live_decisions,
@@ -2670,6 +2817,7 @@ def run_metrics(run: LoadedRun, reference: Reference, cfg: WaterSystemConfig) ->
                            "path": str(run.info.path)}
     row.update(ibr_metrics(decisions))
     row.update(executed_violations(run))
+    row.update(beneficial_use_metrics(run))
     exposure = supply_exposure(run, cfg)
     for e in exposure:
         if e["period"] == "all":
@@ -2721,7 +2869,11 @@ SUMMARY_METRICS = (
     # reported beside the primary (final-proposal) IBR above.
     "ibr_first_proposal_pct", "ibr_first_proposal_tr1_pct", "ibr_first_proposal_tr3_pct",
     "ibr_executed_pct", "ibr_executed_tr1_pct", "ibr_executed_tr3_pct",
-    "exec_supply_pct", "exec_cap_pct", "exec_floor_pct", "exec_total_pct",
+    "exec_supply_pct", "exec_cap_pct", "exec_beneficial_use_pct", "exec_floor_pct", "exec_total_pct",
+    "beneficial_use_at_limit_agent_years", "beneficial_use_off_menu_increase_attempts",
+    "beneficial_use_clamped_increases", "beneficial_use_clamp_removed_af",
+    "beneficial_use_below_limit_agent_years", "beneficial_use_executed_increase_at_limit_pct",
+    "beneficial_use_executed_increase_below_limit_pct",
     "supply_condition_pct", "supply_condition_ub_pct", "supply_condition_lb_pct",
     "supply_live_blocked_decisions", "mead_min_ft", "mead_min_jan1_year", "tier0_years",
     "tier1_years", "tier2_years", "tier3_years", "mead_dead_pool_count", "powell_dead_pool_count",
@@ -2932,7 +3084,11 @@ def compute_metrics(run_dirs: Sequence[str], fql_dirs: Sequence[str], replay_dir
         if not rows:
             continue
         for metric in SUMMARY_METRICS:
-            arm_summary.append({"arm": arm, "metric": metric, **describe([r.get(metric) for r in rows])})
+            values = [r.get(metric) for r in rows]
+            if (metric == "exec_beneficial_use_pct" or metric.startswith("beneficial_use_")) \
+                    and all(value is None for value in values):
+                continue
+            arm_summary.append({"arm": arm, "metric": metric, **describe(values)})
     for metric in SUMMARY_METRICS:
         key = metric.replace("kge_", "bench_kge_") if metric.startswith("kge_") else metric
         values = [r.get(key) for r in fql_per_seed if key in r]
@@ -3069,7 +3225,8 @@ _R = {
     "mem_lb_trend": re.compile(r"On 1 January that year Lake Mead was (higher|lower) than a year earlier\."),
     "opt_inc": re.compile(r"^(\d+)\. Increase your request to about ([\d,]+) acre-ft: the ([\d,]+) acre-ft you received "
                           r"last year plus your typical step of about ([\d,]+) acre-ft"
-                          r"(?: \(your water right stops it at ([\d,]+) acre-ft\))?\.$"),
+                          r"(?: \(your water right stops it at ([\d,]+) acre-ft\)"
+                          r"| \(it stops at ([\d,]+) acre-ft, about the most water your fields can use\))?\.$"),
     "opt_keep": re.compile(r"^(\d+)\. Keep your request at ([\d,]+) acre-ft, the amount you received last year\.$"),
     "opt_dec": re.compile(r"^(\d+)\. Decrease your request to about ([\d,]+) acre-ft: the ([\d,]+) acre-ft you received "
                           r"last year minus your typical step of about ([\d,]+) acre-ft"
@@ -3392,14 +3549,28 @@ class PromptChecker:
         self.fragments = static_fragments()
         self.priority = _load_lb_priority_split_table()
         self.package = run.info.manifest.get("keepfix_package", {})
+        self.beneficial_use = beneficial_use_config(run.info.manifest)
         self._contexts = {}
         self.profiles = {}
-        if any(self.package.get(k, False) for k in ("S1", "L", "K6")):
+        if (self.beneficial_use["enabled"]
+                or any(self.package.get(k, False) for k in ("S1", "L", "K6"))):
             profiles = make_profiles(bool(run.info.manifest.get("paper_water_margin_applied")),
                                      len(run.sim.agents), int(run.info.manifest["seed"]),
                                      run.info.manifest.get("paper_water_margin", 0.4),
                                      run.info.manifest.get("cluster_method", "hy2021"))
             self.profiles = {p.agent_id: p for p in profiles}
+
+    def _beneficial_use_limit(self, agent: str, water_right: float) -> Optional[float]:
+        setting = getattr(self, "beneficial_use", {"enabled": False})
+        if not setting["enabled"]:
+            return None
+        profile = self.profiles.get(agent)
+        peak = None if profile is None else profile.peak_obs_af
+        if peak is None or peak <= 0:
+            if not self.run.info.manifest.get("paper_water_margin_applied"):
+                return water_right  # explicitly synthetic, same fallback as the runner
+            raise MetricsError(f"{self.run.label} {agent}: item 49 needs a positive profile peak_obs_af")
+        return min(water_right, (1.0 + setting["beneficial_use_margin"]) * peak)
 
     def _keepfix_context(self, agent: str, t: int) -> Dict[str, Any]:
         """Rebuild the provisional settlement from logged start storages/bases."""
@@ -3422,10 +3593,12 @@ class PromptChecker:
                 if "increase" in self.run.traces[(aid, t)].menu:
                     # build_option_texts prints integer AF components first;
                     # report 2.3 defines S1's X as that menu target.
+                    benefit = self._beneficial_use_limit(aid, ctx["water_right"])
                     target = min(
                         round(ctx["current_request"])
                         + round(self.run.sim.num(aid, t, "typical_step_af")),
                         round(ctx["water_right"]),
+                        round(benefit) if benefit is not None else round(ctx["water_right"]),
                     )
                     rec = env._settle(env._snapshot, requests={aid: target})["agents"][aid]
                     ctx.update(increase_request_af=target, increase_delivery_af=rec["delivered"], increase_settlement=rec)
@@ -3487,6 +3660,33 @@ class PromptChecker:
         for problem in _memory_visibility_mismatches(run, agent, t, prompt, self.priority):
             out.mismatches.append(f"{run.label} {agent} {year}: {problem}")
         profile = self.profiles.get(agent)
+        benefit = self._beneficial_use_limit(agent, w)
+        if benefit is not None:
+            expected_increase = base < 0.99 * benefit
+            if ("increase" in trace.menu) != expected_increase:
+                out.mismatches.append(
+                    f"{run.label} {agent} {year}: increase menu presence "
+                    f"{('present' if 'increase' in trace.menu else 'absent')}, expected "
+                    f"{('present' if expected_increase else 'absent')} from base={base}, B={benefit}, W={w}")
+            logged_b = sim.opt_num(agent, t, "beneficial_use_limit_af")
+            if logged_b is None or abs(logged_b - benefit) > AF_TOL:
+                out.mismatches.append(
+                    f"{run.label} {agent} {year}: logged beneficial-use limit {logged_b!r} "
+                    f"differs from profile-derived {benefit}")
+            b_r = round(benefit)
+            clause = f"(it stops at {b_r:,.0f} acre-ft, about the most water your fields can use)"
+            should_have_clause = (
+                expected_increase and round(base) + round(sim.num(agent, t, "typical_step_af")) > b_r
+                and benefit < w)
+            if (clause in prompt) != should_have_clause:
+                out.mismatches.append(
+                    f"{run.label} {agent} {year}: beneficial-use option clause "
+                    f"{('present' if clause in prompt else 'missing or altered')}, expected "
+                    f"{('present' if should_have_clause else 'absent')}")
+            generic_clause = "about the most water your fields can use)"
+            if generic_clause in prompt and not should_have_clause:
+                out.mismatches.append(
+                    f"{run.label} {agent} {year}: unexpected beneficial-use option clause")
         land = (land_need_text(sim.basin[agent], profile.peak_obs_af, base)
                 if self.package.get("L") and profile is not None and profile.peak_obs_af is not None else None)
         if land is not None and land not in prompt.splitlines():
@@ -3965,18 +4165,26 @@ class PromptChecker:
                 line.cover(mt)
             return
         typical = sim.num(agent, t, "typical_step_af")
+        benefit = self._beneficial_use_limit(agent, w)
         b_r, s_r, w_r, f_r = round(base), round(typical), round(w), round(w * self.cfg.min_utilisation_fraction)
+        benefit_r = round(benefit) if benefit is not None else w_r
         m = _R["opt_inc"].match(text)
         if m:
-            line.expect(m, 2, _f0(min(b_r + s_r, w_r)), "increase target")
+            line.expect(m, 2, _f0(min(b_r + s_r, w_r, benefit_r)), "increase target")
             line.expect(m, 3, _f0(b_r), "increase base")
             line.expect(m, 4, _f0(s_r), "typical step")
-            if b_r + s_r > w_r:
+            if benefit is not None and benefit < w and b_r + s_r > benefit_r:
+                line.check(m.group(6) is not None and m.group(5) is None,
+                           "increase capped without the beneficial-use clause")
+                if m.group(6) is not None:
+                    line.expect(m, 6, _f0(benefit_r), "beneficial-use limit in the increase option")
+            elif b_r + s_r > w_r:
                 line.check(m.group(5) is not None, "increase capped without the water-right clause")
                 if m.group(5) is not None:
                     line.expect(m, 5, _f0(w_r), "water right in the increase option")
             else:
-                line.check(m.group(5) is None, "water-right clause on an uncapped increase")
+                line.check(m.group(5) is None and m.group(6) is None,
+                           "cap clause on an uncapped increase")
             line.cover(m)
             return
         m = _R["opt_keep"].match(text)
@@ -4078,7 +4286,12 @@ def _load_reflection_inputs(run: LoadedRun) -> Tuple[Dict[Tuple[str, int], List[
                     raise MetricsError(
                         f"{path}:{line_number}: logged reflection input needs agent_id and period")
                 try:
-                    key = (str(agent), int(period))
+                    period = int(period)
+                    if "period" not in row:
+                        # ReflectionInsight.year_created uses the loop year;
+                        # prompt memories name its calendar year instead.
+                        period = run.sim.sim_year(period)
+                    key = (str(agent), period)
                 except (TypeError, ValueError) as exc:
                     raise MetricsError(
                         f"{path}:{line_number}: reflection-input period is not an integer") from exc
@@ -4091,23 +4304,18 @@ def _load_reflection_inputs(run: LoadedRun) -> Tuple[Dict[Tuple[str, int], List[
 
 def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
     """P6: stored reflections quoting a figure absent from their recorded
-    reflection-log input (the runner's own ``_foreign_figures`` rule). When
-    an item-47 MB run has no recorded reflection input, that comparison is
-    explicitly skipped and counted: MB can hide decision-memory lines, so a
-    decision prompt is not independent evidence of the reflection input.
-    Pre-MB runs retain the historical prompt-memory fallback. Also checks
+    reflection-log input (the runner's own ``_foreign_figures`` rule). A
+    legacy reflection without ``reflection_input`` is explicitly skipped
+    and counted: a decision prompt is not independent evidence of the text
+    used to build a reflection. Also checks
     prompts with more than one reflection line;
     reflection lines not written in the previous calendar year unless every
     intervening year has a logged dropped reflection for that same agent.
 
     Spec item 45c: a grounded reflection reads "{program facts} Lesson:
-    {lesson}". Its lesson is checked for foreign figures against the memory
-    of the year it was written; for an ordinary previous-year reflection it
-    also uses that writing year's outcome as it first appears in the next
-    year's prompt (the year-end reflection also sees the outcome line of the
-    year just ended, which enters memory only at the start of the next year).
-    A carried reflection uses prompt year W alone, never figures introduced
-    only in Y - 1 or Y. Lessons carrying any digit are counted
+    {lesson}". Its lesson is checked against the recorded input of its
+    writing year, including the outcome just ended. A carried reflection
+    uses that same input, never later outcomes. Lessons carrying any digit are counted
     (``lessons_with_numbers``; the framework drops such a
     lesson under reflection.lesson_no_numbers). Every program-written fact
     is read back against the log (request, preceding receipt when stated,
@@ -4120,7 +4328,6 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
     if any(trace.prompt is None and not trace.crashed for trace in run.traces.values()):
         raise MetricsError(f"{run.label}: reflection checks need the prompts (keep_prompts)")
     recorded_inputs, reflection_input_sources = _load_reflection_inputs(run)
-    mb_enabled = bool(run.info.manifest.get("keepfix_package", {}).get("MB", False))
     dropped_periods = set()
     checks_path = run.info.path / "reflection_checks.jsonl"
     if checks_path.is_file():
@@ -4165,30 +4372,19 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
                 wrong_year += 1
                 if len(examples) < 10:
                     examples.append(f"{agent} {year}: written in {m.group(1)}")
-            source_t = written - run.sim.sim_start_year + 1
-            source = run.traces.get((agent, source_t))
-            source_unknown = source is not None and source.crashed
             recorded_input = recorded_inputs.get((agent, written))
-            skip_input_check = recorded_input is None and mb_enabled
+            skip_input_check = recorded_input is None
             if recorded_input is not None:
                 own = list(recorded_input)
                 reflection_inputs_read += 1
             elif skip_input_check:
                 own = []
                 reflection_input_skipped += 1
-            else:
-                own = [line for line in memories.get((agent, source_t), [])
-                       if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
-            if source_unknown and recorded_input is None and not skip_input_check:
-                unknown_source += 1  # no prompt for the foreign-figure comparison
             body = m.group(2)
             if " Lesson: " in body:
                 # Item 45c: program facts, then the model's lesson.
                 grounded += 1
                 facts_text, body = body.split(" Lesson: ", 1)
-                if recorded_input is None and not skip_input_check and not carried:
-                    own = own + [line for line in memories.get((agent, source_t + 1), [])
-                                 if not line.startswith(_REFLECTION_MEMORY_PREFIX)]
                 if _DIGIT.search(body):
                     with_numbers += 1
                     if len(examples) < 10:
@@ -4263,7 +4459,7 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
             "reflection_input_sources": reflection_input_sources,
             "reflection_input_check_skipped": reflection_input_skipped,
             "reflection_input_skip_reason": (
-                "MB hides decision-memory lines and no reflection input was recorded"
+                "legacy reflection record has no reflection_input"
                 if reflection_input_skipped else None),
             "manifest_reflection_checks": manifest_checks,
             "manifest_reflection_check_totals": manifest_checks.get("totals", {}),
@@ -4332,6 +4528,10 @@ def gate_p2(runs: Sequence[LoadedRun], cfg: WaterSystemConfig) -> Dict[str, Any]
             req, dlv, w = sim.num(agent, y, "request"), sim.num(agent, y, "diversion"), sim.num(agent, y, "water_right")
             if not (dlv <= req + AF_TOL and req <= w + AF_TOL):
                 failures.append(f"{run.label} {agent} {sim.sim_year(y)}: delivered {dlv}, request {req}, right {w}")
+            if beneficial_use_config(run.info.manifest)["enabled"]:
+                b = sim.num(agent, y, "beneficial_use_limit_af")
+                if req > b + AF_TOL:
+                    failures.append(f"{run.label} {agent} {sim.sim_year(y)}: request {req} above beneficial-use limit {b}")
         for y in sim.years:
             s = sim.system[y]
             for name, lo, hi in (("powell_storage_maf", cfg.powell_dead_pool_maf, cfg.powell_capacity_maf),
@@ -4559,12 +4759,22 @@ def gate_p6(runs: Sequence[LoadedRun]) -> Dict[str, Any]:
                 f"> facts_read = {r['facts_read']}")
         if settings.get("lesson_no_numbers") and r["lessons_with_numbers"]:
             failures.append(f"{run.label}: lessons_with_numbers = {r['lessons_with_numbers']}")
+        inputs_read = r["reflection_inputs_read"]
+        inputs_skipped = r["reflection_input_check_skipped"]
+        if inputs_read and inputs_skipped:
+            failures.append(
+                f"{run.label}: reflection_input_check_skipped = {inputs_skipped} "
+                f"of {r['reflection_lines']} reflection lines")
     flag_totals = []
     for run in runs:
         flags = details[run.label]["manifest_reflection_flagged_by_reason"]
         rendered = ", ".join(f"{reason}={flags[reason]}" for reason in sorted(flags)) or "none"
         flag_totals.append(f"{run.label}: {rendered}")
     reason = "0; 0; 0" if not failures else "; ".join(failures)
+    skipped = "; ".join(
+        f"{run.label}={details[run.label]['reflection_input_check_skipped']}"
+        for run in runs)
+    reason += "; reflection_input_check_skipped: " + skipped
     reason += "; flagged_by_reason (report-only): " + "; ".join(flag_totals)
     return _check("P6", "reflection contamination", True, not failures,
                   reason, details)
@@ -4642,10 +4852,17 @@ def gate_p9(strict: LoadedRun, disabled: LoadedRun) -> Dict[str, Any]:
             if trace.at_cap is None:
                 unclassified += 1
                 continue
-            cls = "cap" if trace.at_cap else ("floor" if trace.at_floor else "neither")
+            edges = []
+            if trace.at_cap:
+                edges.append("cap")
+            if trace.at_beneficial_use_limit:
+                edges.append("beneficial")
+            if trace.at_floor:
+                edges.append("floor")
+            cls = "+".join(edges) if edges else "neither"
             if trace.at_cap and trace.at_floor:
                 cls = "cap_and_floor"
-            if trace.at_cap and "increase" in trace.menu:
+            if (trace.at_cap or trace.at_beneficial_use_limit) and "increase" in trace.menu:
                 forbidden += 1
             if trace.at_floor and "decrease" in trace.menu:
                 forbidden += 1
@@ -4723,15 +4940,19 @@ def gate_p10(rows: Mapping[str, Mapping[str, Any]], strict_label: str, runs: Seq
             if value is None or not math.isfinite(value):
                 failures.append(f"{run.label}: KGE {name} is not finite ({value})")
     s = rows[strict_label]
-    for key in ("exec_supply_pct", "exec_cap_pct", "exec_floor_pct"):
+    strict_exec_keys = ["exec_supply_pct", "exec_cap_pct", "exec_floor_pct"]
+    if "exec_beneficial_use_pct" in s:
+        strict_exec_keys.append("exec_beneficial_use_pct")
+    for key in strict_exec_keys:
         if s[key] != 0.0:
             failures.append(f"strict {key} = {s[key]}")
     return _check("P10", "metric sanity", True, not failures,
                   "all hold" if not failures else "; ".join(failures[:8]),
-                  {label: {k: rows[label][k] for k in ("ibr_pct", "ibr_tr1_pct", "ibr_tr3_pct",
+                  {label: {k: rows[label].get(k) for k in ("ibr_pct", "ibr_tr1_pct", "ibr_tr3_pct",
                                                         "ibr_first_proposal_pct", "ibr_executed_pct",
                                                         "ibr_final_label_pct", "relabel_rate_pct",
-                                                        "exec_supply_pct", "exec_cap_pct", "exec_floor_pct",
+                                                        "exec_supply_pct", "exec_cap_pct",
+                                                        "exec_beneficial_use_pct", "exec_floor_pct",
                                                         "mead_min_ft", "tier3_years", "kge_mead_jan1_ft",
                                                         "kge_ub_request_maf", "kge_lb_request_maf")}
                    for label in rows})
@@ -5163,8 +5384,22 @@ def metrics_markdown(result: MetricsResult) -> str:
               summary_table(("ibr_first_proposal_pct", "ibr_pct", "ibr_executed_pct",
                              "ibr_first_proposal_tr1_pct", "ibr_first_proposal_tr3_pct",
                              "ibr_executed_tr1_pct", "ibr_executed_tr3_pct")), ""]
+    benefit_reported = any(
+        r.get("beneficial_use_at_limit_agent_years") is not None for r in result.per_run)
+    executed_metrics = ["exec_supply_pct", "exec_cap_pct"]
+    if benefit_reported:
+        executed_metrics.append("exec_beneficial_use_pct")
+    executed_metrics.extend(("exec_floor_pct", "exec_total_pct"))
     lines += ["## Executed feasibility violation rate (items 10, 19)", "",
-              summary_table(("exec_supply_pct", "exec_cap_pct", "exec_floor_pct", "exec_total_pct")), ""]
+              summary_table(executed_metrics), ""]
+    if benefit_reported:
+        lines += ["## Beneficial-use limit (item 49)", "",
+                  summary_table(("beneficial_use_at_limit_agent_years",
+                                 "beneficial_use_off_menu_increase_attempts",
+                                 "beneficial_use_clamped_increases",
+                                 "beneficial_use_clamp_removed_af",
+                                 "beneficial_use_executed_increase_at_limit_pct",
+                                 "beneficial_use_executed_increase_below_limit_pct")), ""]
     lines += ["## Supply-rule exposure", "", summary_table(("supply_condition_pct", "supply_condition_ub_pct",
                                                            "supply_condition_lb_pct",
                                                            "supply_live_blocked_decisions")), ""]
