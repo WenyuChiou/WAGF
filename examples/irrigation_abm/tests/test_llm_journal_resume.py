@@ -118,6 +118,25 @@ def _overwrite_header_field(journal_path: Path, key: str, value) -> None:
     journal_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def test_item49_off_derived_config_resumes_with_source_config_hash(tmp_path):
+    """Derived item-49 wiring must preserve its own journal's resume identity."""
+    import yaml
+
+    config_dir = _make_isolated_config_dir(tmp_path / "config")
+    config_path = config_dir / "agent_types.yaml"
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    data["irrigation_farmer"]["beneficial_use_limit"]["enabled"] = False
+    config_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    crashed = tmp_path / "crashed"
+    result = _run(crashed, years=2, crash_at_step=2, config_dir=config_dir)
+    assert result.returncode != 0
+    assert (crashed / "resolved_agent_types.yaml").is_file()
+    journal = crashed / "llm_journal.jsonl"
+    assert journal.is_file(), result.stdout[-4000:] + result.stderr[-4000:]
+    resumed = _run(tmp_path / "resumed", years=2, resume_from=journal, config_dir=config_dir)
+    assert resumed.returncode == 0, resumed.stdout[-4000:] + resumed.stderr[-4000:]
+
+
 class TestCrashResumeDeterministicMock:
     """Run A completes uninterrupted; run B crashes mid-year-3 and is
     resumed into a fresh directory. A and resumed-B must be byte-identical

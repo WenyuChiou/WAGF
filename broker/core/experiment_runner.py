@@ -153,6 +153,7 @@ class ExperimentRunner:
         self.sim_engine = sim_engine
         self.agents = agents
         self.config = config
+        self._capture_model_metadata_at_launch()
         self.step_counter = 0
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
@@ -229,6 +230,71 @@ class ExperimentRunner:
             self.efficiency = CognitiveCache(persistence_path=persistence_path)
         else:
             self.efficiency = None
+
+    def _capture_model_metadata_at_launch(self) -> None:
+        """Capture a real model digest once, before the experiment starts.
+
+        Mock and cloud-provider runs never contact Ollama.  A successful
+        ``/api/show`` response is retained by ``llm_utils`` for thinking-mode
+        capability resolution.  Ollama versions whose show response omits a
+        digest use the matching entry in ``/api/tags``; ``modified_at`` is
+        deliberately never accepted as a digest.
+        """
+        model_metadata: Dict[str, Any] = {"model_digest": None}
+        try:
+            import http.client
+            import requests
+            from broker.utils.llm_utils import (
+                get_ollama_base_url,
+                get_ollama_show_metadata,
+                is_cloud_provider_model,
+                is_mock_model,
+            )
+
+            model = getattr(self.config, "model", None)
+            if not isinstance(model, str) or is_mock_model(model) or is_cloud_provider_model(model):
+                self._model_metadata_at_launch = model_metadata
+                return
+
+            endpoint = get_ollama_base_url().rstrip("/")
+            info = get_ollama_show_metadata(model, base_url=endpoint, refresh=True)
+            details = info.get("details") if isinstance(info.get("details"), dict) else {}
+            model_metadata.update({
+                "model_family": details.get("family", "unknown"),
+                "model_parameter_size": details.get("parameter_size", "unknown"),
+                "model_quantization": details.get("quantization_level", "unknown"),
+            })
+            digest = info.get("digest")
+            if not isinstance(digest, str) or not digest.strip():
+                tags_response = requests.get(f"{endpoint}/api/tags", timeout=5)
+                tags_response.raise_for_status()
+                tags = tags_response.json()
+                models = tags.get("models", []) if isinstance(tags, dict) else []
+                match = next((
+                    item for item in models
+                    if isinstance(item, dict)
+                    and item.get("name", item.get("model")) in (
+                        model, model if ":" in model else f"{model}:latest")
+                ), None)
+                digest = match.get("digest") if match is not None else None
+            model_metadata["model_digest"] = (
+                digest.strip() if isinstance(digest, str) and digest.strip() else None
+            )
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            requests.RequestException,
+            http.client.HTTPException,
+        ):
+            model_metadata["model_digest"] = None
+        if model_metadata["model_digest"] is None:
+            logger.warning(
+                "[Reproducibility] Local model digest is unavailable at launch "
+                "for %r; the manifest will record model_digest=null.",
+                model,
+            )
+        self._model_metadata_at_launch = model_metadata
 
     @property
     def hooks(self) -> Dict[str, Callable]:
@@ -1192,52 +1258,12 @@ class ExperimentRunner:
         """Collect model digest, git state, and config hashes for reproducibility."""
         metadata = {}
 
-        # 1. Query Ollama for model digest.
-        #
-        # Skipped entirely for a mock or cloud-provider model: this used to
-        # fire unconditionally, on every mock run and every test that
-        # reached finalize, regardless of what model (if any) the run
-        # actually used. A mock run has no Ollama model at all, so it still
-        # sent `POST /api/show` for model "mock" to whatever real Ollama
-        # daemon happened to be reachable on the machine -- a live request a
-        # mock run has no business making. The mock-prefix / cloud-provider
-        # checks mirror the SAME gate block 3d below already uses for the
-        # modelfile-defaults call (single source of truth, not a second,
-        # possibly-drifting copy), and `get_ollama_base_url` is the same
-        # OLLAMA_HOST-aware helper `_invoke_ollama_direct` uses for the run's
-        # real requests, so this manifest query targets the SAME daemon the
-        # run's own LLM calls went to, never a hardcoded localhost.
-        #
-        # A non-string model (no model identity at all -- e.g. a partially
-        # built test double) is a DIFFERENT case from "known to be mock": it
-        # records "unavailable", the same catch-all this field already uses
-        # when a real query fails, rather than claiming "not_applicable_mock"
-        # about a model this code never actually identified as mock.
-        try:
-            from broker.utils.llm_utils import is_mock_model, is_cloud_provider_model, get_ollama_base_url
-            model = getattr(self.config, "model", None)
-            if not isinstance(model, str):
-                metadata["model_digest"] = "unavailable"
-            elif is_mock_model(model):
-                metadata["model_digest"] = "not_applicable_mock"
-            elif is_cloud_provider_model(model):
-                metadata["model_digest"] = "not_applicable_cloud_provider"
-            else:
-                import requests
-                r = requests.post(
-                    f"{get_ollama_base_url()}/api/show",
-                    json={"name": model},
-                    timeout=5,
-                )
-                if r.status_code == 200:
-                    info = r.json()
-                    metadata["model_digest"] = info.get("digest") or info.get("modified_at", "unknown")
-                    details = info.get("details", {})
-                    metadata["model_family"] = details.get("family", "unknown")
-                    metadata["model_parameter_size"] = details.get("parameter_size", "unknown")
-                    metadata["model_quantization"] = details.get("quantization_level", "unknown")
-        except Exception:
-            metadata["model_digest"] = "unavailable"
+        # 1. Model identity captured at launch.  A runner made with __new__
+        # in a focused unit test has no launch cache, so populate it lazily;
+        # normal runs never perform model I/O during finalization.
+        if not hasattr(self, "_model_metadata_at_launch"):
+            self._capture_model_metadata_at_launch()
+        metadata.update(dict(self._model_metadata_at_launch))
 
         # 2. Git state, sampled at CONSTRUCTION rather than here.
         #

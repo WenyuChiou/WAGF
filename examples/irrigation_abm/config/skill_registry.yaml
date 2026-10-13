@@ -26,6 +26,7 @@ skills:
     eligible_agent_types: ["irrigation_farmer"]
     preconditions:
       - "not at_allocation_cap"
+      - "not at_beneficial_use_limit"
     institutional_constraints:
       annual: true
     allowed_state_changes:

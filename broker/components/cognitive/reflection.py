@@ -338,6 +338,7 @@ def run_checked_reflection(
     retries: int = 1,
     log_path: Optional[Union[str, Path]] = None,
     year_created: Any = None,
+    reflection_input: Optional[Sequence[Any]] = None,
 ) -> CheckedReflection:
     """Check one full lesson before storage, with one retry by default.
 
@@ -352,6 +353,10 @@ def run_checked_reflection(
     if retries < 0:
         raise ValueError("run_checked_reflection: retries must be 0 or more.")
     norm = normalize or normalize_lesson_text
+    input_text = (
+        [_memory_text(item) for item in reflection_input]
+        if reflection_input is not None else None
+    )
     attempts: List[Dict[str, Any]] = []
 
     def _problems(lesson: str):
@@ -384,6 +389,7 @@ def run_checked_reflection(
         raw, insight, error = _ask(current_prompt)
         result.calls += 1
         if insight is not None:
+            insight.reflection_input = input_text
             result.last_insight = insight
         lesson = ""
         flags: List[LessonProblem] = []
@@ -438,8 +444,11 @@ def run_checked_reflection(
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as f:
                 for a in attempts:
-                    f.write(json.dumps({"agent_id": agent_id, "period": period,
-                                        "outcome": result.outcome, **a},
+                    row = {"agent_id": agent_id, "period": period,
+                           "outcome": result.outcome, **a}
+                    if input_text is not None:
+                        row["reflection_input"] = input_text
+                    f.write(json.dumps(row,
                                        ensure_ascii=False, default=str) + "\n")
         except OSError as e:
             logger.error(f"[Reflection] could not write the check log {log_path}: {e}")
@@ -1014,6 +1023,9 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             import json
             from dataclasses import asdict
             entry = asdict(insight)
+            reflection_input = getattr(insight, "reflection_input", None)
+            if reflection_input is not None:
+                entry["reflection_input"] = list(reflection_input)
             entry["agent_id"] = agent_id
             entry["timestamp"] = datetime.now().isoformat()
             try:

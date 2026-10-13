@@ -2116,7 +2116,7 @@ class IrrigationEnvironment:
         if getattr(self, "keepfix_s1", False):
             for aid, agent in self._agents.items():
                 agent["increase_expectation"] = None
-                if agent["at_allocation_cap"]:
+                if agent["at_allocation_cap"] or agent.get("at_beneficial_use_limit", False):
                     continue
                 step_bin = resolve_step_bin_af(agent.get("step_bin_af"), agent.get("bin_size_af"), agent["water_right"])
                 step = hy_threshold_af(agent["mu"], agent["sigma"], step_bin)
@@ -2125,7 +2125,7 @@ class IrrigationEnvironment:
                 # so settle that exact target rather than the raw-float sum.
                 target = min(
                     round(agent["request"]) + round(step),
-                    round(agent["water_right"]),
+                    round(agent.get("beneficial_use_limit_af", agent["water_right"])),
                 )
                 increased = self._settle(self._snapshot, requests={aid: target})["agents"][aid]
                 agent["increase_expectation"] = (target, increased)
@@ -2150,6 +2150,50 @@ class IrrigationEnvironment:
         )
 
         return self._global.copy()
+
+    def configure_beneficial_use_limit(self, profiles, *, enabled: bool,
+                                      margin: float = 0.0, require_peak: bool = False) -> None:
+        """Item 49, opt-in here so raw FQL and historical replays retain their contract.
+
+        Synthetic profiles without X retain W. Real runs require a positive,
+        finite peak before the first year; the runner supplies require_peak.
+        """
+        import math
+        if (isinstance(margin, bool) or not isinstance(margin, (int, float))
+                or not math.isfinite(margin) or not 0 <= margin <= 1):
+            raise ValueError("beneficial_use_margin must be finite and in [0, 1]")
+        limits = {}
+        if enabled:
+            for profile in profiles:
+                peak = profile.peak_obs_af
+                if peak is None:
+                    if require_peak:
+                        raise ValueError(f"{profile.agent_id}: item 49 requires peak_obs_af")
+                    limit = profile.water_right
+                else:
+                    if not math.isfinite(peak) or peak <= 0:
+                        raise ValueError(f"{profile.agent_id}: item 49 requires positive finite peak_obs_af")
+                    limit = min(profile.water_right, (1 + margin) * peak)
+                limits[profile.agent_id] = limit
+        # Validate all profiles before changing any state.
+        self.beneficial_use_limit_enabled = enabled
+        self.beneficial_use_margin = margin
+        for aid, agent in self._agents.items():
+            for key in ("beneficial_use_limit_af", "at_beneficial_use_limit",
+                        "beneficial_use_clamp_cut_af", "beneficial_use_clamped"):
+                agent.pop(key, None)
+            if enabled:
+                agent["beneficial_use_limit_af"] = limits[aid]
+                agent["beneficial_use_clamp_cut_af"] = 0.0
+                agent["beneficial_use_clamped"] = False
+                self._set_beneficial_use_flag(agent, agent["request"])
+
+    @staticmethod
+    def _set_beneficial_use_flag(agent, request):
+        if "beneficial_use_limit_af" in agent:
+            b = agent["beneficial_use_limit_af"]
+            # A water right that binds first owns the block and its message.
+            agent["at_beneficial_use_limit"] = bool(b < agent["water_right"] and request >= 0.99 * b)
 
     def _reset_requests_to_base(self) -> None:
         """WP2 spec 2.1: reset every agent's request to its BASE -- the
@@ -2190,6 +2234,10 @@ class IrrigationEnvironment:
             agent["base_af"] = base_af
             agent["request"] = base_af
             agent["at_allocation_cap"] = base_af >= 0.99 * wr
+            self._set_beneficial_use_flag(agent, base_af)
+            if "beneficial_use_limit_af" in agent:
+                agent["beneficial_use_clamp_cut_af"] = 0.0
+                agent["beneficial_use_clamped"] = False
             agent["below_minimum_utilisation"] = base_af <= 1.01 * wr * self.config.min_utilisation_fraction
 
     def get_agent_context(self, agent_id: str) -> Dict[str, Any]:
@@ -2360,6 +2408,9 @@ class IrrigationEnvironment:
             "delivery_ratio": agent.get("delivery_ratio", 1.0),
             "gap_reason": agent.get("gap_reason", "none"),
             "at_allocation_cap": agent.get("at_allocation_cap", False),
+            **({"beneficial_use_limit_af": agent["beneficial_use_limit_af"],
+                "at_beneficial_use_limit": agent["at_beneficial_use_limit"]}
+               if "beneficial_use_limit_af" in agent else {}),
             "has_efficient_system": agent.get("has_efficient_system", False),
             "below_minimum_utilisation": agent.get("below_minimum_utilisation", False),
             "keepfix_s1": getattr(self, "keepfix_s1", False),
@@ -2459,9 +2510,10 @@ class IrrigationEnvironment:
 
         agent = self._agents[agent_id]
         # Cap at water right
-        new_request = max(0.0, min(new_request, agent["water_right"]))
+        new_request = max(0.0, min(new_request, agent.get("beneficial_use_limit_af", agent["water_right"])))
         agent["request"] = new_request
         agent["at_allocation_cap"] = new_request >= agent["water_right"] * 0.99
+        self._set_beneficial_use_flag(agent, new_request)
         # WP2 spec 2.1/C7: "at the floor" uses the SAME 1-percent tolerance
         # as the cap (<= 1.01 F, not < F) -- so a request within 1 percent
         # of the floor is treated as AT it, matching execute_skill's own
@@ -2626,7 +2678,13 @@ class IrrigationEnvironment:
         if skill in ("increase_large", "increase_small", "increase_demand"):
             # H&Y step added to the request, capped at the water right;
             # deliveries are limited by _settle, not here.
-            new_req = min(current + step_af, wr)
+            new_req = min(current + step_af, agent.get("beneficial_use_limit_af", wr))
+            if "beneficial_use_limit_af" in agent:
+                cut = max(0.0, min(current + step_af, wr) - new_req)
+                agent["beneficial_use_clamp_cut_af"] = cut
+                agent["beneficial_use_clamped"] = cut > 0
+                state_changes["beneficial_use_clamp_cut_af"] = cut
+                state_changes["beneficial_use_clamped"] = cut > 0
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
             _set_realised_magnitude(state_changes, action_context, step_af, size_class,

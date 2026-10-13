@@ -302,8 +302,15 @@ class TestCouplingRetrofitMetadata:
         source-dict read, and None/0 only in legitimate "not applicable"
         cases) -- moving this pin's uncovered count from 8 to 12; covered
         stays 22, since none of the four new keys is added to the coupling
-        contract itself."""
+        contract itself. Item 49 adds two optional derived context keys;
+        enable it here to check the complete context against the metadata."""
         env = _minimal_synthetic_env(coupling_contract_active=True)
+        from types import SimpleNamespace
+        env.configure_beneficial_use_limit([
+            SimpleNamespace(agent_id=aid, water_right=agent["water_right"],
+                            peak_obs_af=0.8 * agent["water_right"])
+            for aid, agent in env._agents.items()
+        ], enabled=True, require_peak=True)
         env.advance_year()
         meta = env.get_coupling_retrofit_metadata()
         assert meta["coupling_contract_uncovered_keys"] == list(IRRIGATION_CONTEXT_UNCOVERED_KEYS)
@@ -317,7 +324,8 @@ class TestCouplingRetrofitMetadata:
         # reason IRRIGATION_CONTEXT_UNCOVERED_KEYS's comment gives: 12 -> 13.
         # Item 46 adds four derived entitlement-ceiling/config fields.
         # Item 47 adds a prompt toggle and three pure settlement outputs.
-        assert len(covered) == 22 and len(uncovered) == 21
+        # Item 49 adds the derived beneficial-use amount and at-limit flag.
+        assert len(covered) == 22 and len(uncovered) == 23
 
     def test_guard_calls_separate_intent_from_evidence(self):
         """Review P2: flag ON with zero guard calls is a run the guard never

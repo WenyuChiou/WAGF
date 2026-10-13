@@ -153,6 +153,8 @@ def test_profile_rule_sets(monkeypatch):
     expected_identity = [
         ("water_right_cap", "at_allocation_cap", ["increase_demand"], "ERROR",
          "world", CAP_MESSAGE),
+        ("beneficial_use_limit", "at_beneficial_use_limit", ["increase_demand"], "ERROR",
+         "world", "Increase not available: your request is already at about the most water your fields can use."),
         ("minimum_utilisation_floor", "below_minimum_utilisation",
          ["decrease_demand"], "ERROR", "world", FLOOR_MESSAGE),
     ]
@@ -287,15 +289,16 @@ def test_dispatch_list_exact():
     assert irrigation_governance_validator(proposal, ctx) == []
 
 
-def test_rule_labels_five_entries():
+def test_rule_labels_six_entries():
     assert _RULE_LABELS == {
         SUPPLY: "the shortage-sharing rule",
         "water_right_cap": "the water-right cap",
+        "beneficial_use_limit": "the beneficial-use limit",
         "minimum_utilisation_floor": "the minimum-use floor",
         TR1: "the rule on increases under scarcity",
         TR3: "the rule on decreases without scarcity",
     }
-    assert _precondition_violation_label("precondition_violation", "increase_demand") == "the water-right cap"
+    assert _precondition_violation_label("precondition_violation", "increase_demand") == "the request-increase limit"
     assert _precondition_violation_label("precondition_violation", "decrease_demand") == "the minimum-use floor"
     assert _precondition_violation_label("curtailment_awareness", "increase_demand") == "a governance rule"
 
@@ -490,7 +493,8 @@ def test_supply_rule_fields_single_source_and_refusals():
                             "current_diversion": 1.0}, {"lb_phys_ratio": None})
     # the YAML's state_columns are exactly these fields, in this order
     raw = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-    assert tuple(raw["global_config"]["audit"]["state_columns"]) == SUPPLY_RULE_FIELDS
+    assert tuple(raw["global_config"]["audit"]["state_columns"]) == SUPPLY_RULE_FIELDS + (
+        "beneficial_use_limit_af", "at_beneficial_use_limit")
 
 
 def test_full_supply_ratio_single_source():
@@ -1089,7 +1093,7 @@ def _arm_script(agent, year, attempt, menu):
 def test_e2e_every_arm_completes_with_its_resolved_rules(monkeypatch, tmp_path, arm, args,
                                                          thinking, dispatched):
     """Spec 3.1 acceptance: each arm's manifest shows its thinking rules
-    (2, 2, 2, 0, 0), the two identity rules, the dispatched checks and the
+    (2, 2, 2, 0, 0), the three identity rules, the dispatched checks and the
     freeze; the audit columns are filled in every arm, and the thinking
     rules fire only where they are enforced."""
     llm = ScriptedIrrigationLLM(_arm_script)
@@ -1099,7 +1103,7 @@ def test_e2e_every_arm_completes_with_its_resolved_rules(monkeypatch, tmp_path, 
     assert manifest["thinking_rules_resolved"] == {AGENT_TYPE: thinking}
     assert manifest["thinking_rules_resolved_counts"] == {AGENT_TYPE: len(thinking)}
     assert manifest["identity_rules_resolved"] == {
-        AGENT_TYPE: ["water_right_cap", "minimum_utilisation_floor"]}
+        AGENT_TYPE: ["water_right_cap", "beneficial_use_limit", "minimum_utilisation_floor"]}
     assert manifest["irrigation_dispatched_checks"] == dispatched
     assert manifest["appraisal_freeze_resolved"] is True
     rows = _audit_rows(out)
@@ -1124,9 +1128,9 @@ def test_e2e_live_supply_rule_agrees_with_post_hoc_predicate(monkeypatch, tmp_pa
     llm = ScriptedIrrigationLLM(lambda a, y, attempt, menu: (
         "M", "M", "Increase" if attempt == 0 else "Keep"))
     out = _run_main(monkeypatch, tmp_path / "real", llm,
-                    "--real", "--years", "2", "--seed", "42")
+                    "--real", "--years", "42", "--seed", "42")
     rows = _audit_rows(out)
-    assert len(rows) == 156
+    assert len(rows) == 3276
     disagreements, blocks = [], 0
     for row in rows:
         predicate = (row["initial_skill"] == "increase_demand"

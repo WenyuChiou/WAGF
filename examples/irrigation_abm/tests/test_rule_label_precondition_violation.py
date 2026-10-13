@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+import pytest
 
 from examples.irrigation_abm.irrigation_personas import (
     _RULE_LABELS,
@@ -21,18 +22,18 @@ _CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 
 
 def test_precondition_violation_has_a_label():
-    """WP3 (spec 3.6): ``_RULE_LABELS`` keeps exactly the five v3 rules; the
+    """WP3 (spec 3.6): ``_RULE_LABELS`` keeps exactly the six v3 rules; the
     registry backstop ``precondition_violation`` is named by the direction
     of the blocked skill (the cap for an increase, the floor for a
     decrease), never by a fixed entry of its own."""
     assert "precondition_violation" not in _RULE_LABELS
     assert _precondition_violation_label(
-        "precondition_violation", "increase_demand") == _RULE_LABELS["water_right_cap"]
+        "precondition_violation", "increase_demand") == "the request-increase limit"
     assert _precondition_violation_label(
         "precondition_violation", "decrease_demand") == _RULE_LABELS["minimum_utilisation_floor"]
 
 
-def test_neutral_feedback_names_water_right_cap_for_precondition_violation():
+def test_neutral_feedback_names_shared_increase_limit_for_precondition_violation():
     action_ctx = {
         "skill_name": "maintain_demand",
         "was_fallback": True,
@@ -49,7 +50,7 @@ def test_neutral_feedback_names_water_right_cap_for_precondition_violation():
         rejection_line_style="neutral",
     )
     assert feedback.startswith(
-        "Year 5: maintain demand was applied under the water-right cap"
+        "Year 5: maintain demand was applied under the request-increase limit"
     )
     assert "a governance rule" not in feedback
 
@@ -87,7 +88,7 @@ def test_skill_registry_preconditions_are_exactly_the_two_wp2_preconditions():
     all_preconditions = set()
     for skill in data.get("skills", []):
         all_preconditions.update(skill.get("preconditions") or [])
-    assert all_preconditions == {"not at_allocation_cap", "not below_minimum_utilisation"}
+    assert all_preconditions == {"not at_allocation_cap", "not at_beneficial_use_limit", "not below_minimum_utilisation"}
 
 
 def test_precondition_violation_label_matches_the_two_registry_preconditions():
@@ -97,14 +98,14 @@ def test_precondition_violation_label_matches_the_two_registry_preconditions():
     preconditions (guarded by the test above), one per direction."""
     assert _precondition_violation_label(
         "precondition_violation", "increase_demand"
-    ) == "the water-right cap"
+    ) == "the request-increase limit"
     assert _precondition_violation_label(
         "precondition_violation", "decrease_demand"
     ) == "the minimum-use floor"
     # Legacy five-skill names still resolve by the same direction prefix.
     assert _precondition_violation_label(
         "precondition_violation", "increase_large"
-    ) == "the water-right cap"
+    ) == "the request-increase limit"
     assert _precondition_violation_label(
         "precondition_violation", "decrease_small"
     ) == "the minimum-use floor"
@@ -112,6 +113,20 @@ def test_precondition_violation_label_matches_the_two_registry_preconditions():
     assert _precondition_violation_label(
         "water_right_cap", "increase_demand"
     ) == _RULE_LABELS["water_right_cap"]
+
+
+@pytest.mark.parametrize("basin", ["upper_basin", "lower_basin"])
+def test_beneficial_precondition_feedback_does_not_claim_water_right_cap(basin):
+    feedback = build_action_outcome_feedback(
+        action_ctx={"skill_name": "maintain_demand", "was_fallback": True,
+                    "proposed_skill": "increase_demand",
+                    "blocking_rules": ["precondition_violation"]},
+        year=5, request=100_000., diversion=100_000., preceding_factor=1,
+        basin=basin, rejection_line_style="neutral")
+    assert "under the request-increase limit" in feedback
+    assert "the water-right cap" not in feedback
+    assert _precondition_violation_label(
+        "beneficial_use_limit", "increase_demand") == "the beneficial-use limit"
 
 
 def test_neutral_feedback_names_minimum_use_floor_for_a_blocked_decrease():

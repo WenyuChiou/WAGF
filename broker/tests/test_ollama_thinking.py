@@ -258,6 +258,16 @@ def test_transient_capability_failure_retries_later_and_warns_once(monkeypatch, 
     assert sum("capabilities unknown" in r.getMessage() for r in caplog.records) == 1
 
 
+def test_malformed_capabilities_retry_instead_of_reusing_metadata(monkeypatch):
+    malformed = _show_response(["thinking"])
+    malformed.json.return_value["capabilities"] = 123
+    post = MagicMock(side_effect=[malformed, _show_response(["thinking"])])
+    monkeypatch.setattr(requests, "post", post)
+    assert llm_utils.get_ollama_model_supports_thinking("custom-reasoner", base_url=BASE_URL) is None
+    assert llm_utils.get_ollama_model_supports_thinking("custom-reasoner", base_url=BASE_URL) is True
+    assert post.call_count == 2
+
+
 def test_transient_failure_then_success_second_request_disables_thinking(monkeypatch):
     post = MagicMock(side_effect=[requests.ConnectionError("starting"), _show_response(["thinking"])])
     monkeypatch.setattr(requests, "post", post)

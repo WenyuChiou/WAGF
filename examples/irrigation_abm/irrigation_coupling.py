@@ -267,6 +267,8 @@ IRRIGATION_CONTEXT_UNCOVERED_KEYS: Tuple[str, ...] = (
     # computed locally from the already guarded state; not model-source reads.
     # Increase values are None when S1 is off or increase is not offered.
     "keepfix_s1", "increase_request_af", "increase_delivery_af", "increase_settlement",
+    # Item 49: feasibility limit and flag computed from the observed peak.
+    "beneficial_use_limit_af", "at_beneficial_use_limit",
 )
 
 
