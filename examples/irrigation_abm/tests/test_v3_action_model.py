@@ -388,7 +388,7 @@ def test_three_skill_registry_and_map():
     for s in reg["skills"]:
         assert s["output_schema"]["properties"]["decision"]["enum"] == [1, 2, 3]
     increase = next(s for s in reg["skills"] if s["skill_id"] == "increase_demand")
-    assert increase["preconditions"] == ["not at_allocation_cap"]
+    assert increase["preconditions"] == ["not at_allocation_cap", "not at_beneficial_use_limit"]
     decrease = next(s for s in reg["skills"] if s["skill_id"] == "decrease_demand")
     assert decrease["preconditions"] == ["not below_minimum_utilisation"]
 

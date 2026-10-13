@@ -832,7 +832,8 @@ def test_supply_exposure_by_basin_and_period(tmp_path):
 
 def test_agreement_zero_on_the_fixture_and_a_planted_disagreement(tmp_path, strict_run):
     agreement = vm.rule_agreement(strict_run)
-    assert {rule: a["disagreements"] for rule, a in agreement.items()} == {r: 0 for r in vm.ALL_RULES}
+    assert {rule: a["disagreements"] for rule, a in agreement.items()} == {
+        r: 0 for r in vm.ALL_RULES if r != vm.RULE_BENEFICIAL_USE}  # legacy fixture
     # TR1 on d4's retry reads the WSA frozen at that attempt (VH, first stated there)
     assert agreement[TR1]["live"] == 2 + 1 + 4
     # plant a supply block where the condition does not hold
@@ -1952,7 +1953,14 @@ def _prompt_run(tmp_path, prompts: Dict[Tuple[str, int], str]) -> vm.LoadedRun:
     def prompt_for(a, t):
         menu = menu_prompt(a, t, ["keep", "decrease"] if (a, t) in AT_CAP else ["increase", "keep", "decrease"])
         return prompts.get((a, t), "") + "\n" + menu
-    return vm.load_run(fixture_run(tmp_path, "strict", STRICT_DECISIONS, prompt_for=prompt_for), keep_prompts=True)
+    path = fixture_run(tmp_path, "strict", STRICT_DECISIONS, prompt_for=prompt_for)
+    # P6 uses the actual recorded input. These fixtures explicitly supply it;
+    # legacy missing-input skip behavior has a separate regression test.
+    (path / "reflection_log.jsonl").write_text("".join(
+        json.dumps({"agent_id": a, "period": 2018 + t,
+                    "reflection_input": text}) + "\n"
+        for (a, t), text in prompts.items()), encoding="utf-8")
+    return vm.load_run(path, keep_prompts=True)
 
 
 def test_p5b_checks_numbers_and_flags_unknown_lines(tmp_path):
@@ -2464,7 +2472,7 @@ def test_p6_scans_facts_and_lesson_when_the_source_prompt_crashed(tmp_path):
     run.info.manifest["reflection_checks"] = {"settings": {"lesson_no_numbers": True}, "totals": {},
                                                "dropped_by_reason": {}}
     result = vm.reflection_checks(run)
-    assert result["reflections_with_no_source_prompt"] == 1
+    assert result["reflection_input_check_skipped"] == 1
     assert result["facts_read"] == 1
     assert result["lessons_with_numbers"] == 1
     assert vm.gate_p6([run])["passed"] is False
@@ -2985,7 +2993,10 @@ def test_e2e_real_pilot_pair_passes_only_clean_and_without_an_override(real_pilo
     assert code == 0 and report["passed"] is True, {k: c["reason"] for k, c in checks.items()}
     assert checks["P5"]["details"]["b_prompts"] == 2 * 78 * 3
     assert checks["P5"]["details"]["c_review"]["prompts_reviewed"] == 4
-    assert checks["P7"]["details"]["strict_agreement"][SUP]["live"] > 0
+    # The three-year item-49 fixture has no supply-rule blocks: requests
+    # stay below that predicate after the beneficial-use clamp.  The separate
+    # 42-year governance test exercises live supply blocks and agreement.
+    assert checks["P7"]["details"]["strict_agreement"][SUP]["live"] == 0
     # the same runs under an override never pass
     for flag in ("--allow-dirty", "--allow-mixed-provenance"):
         code, report = _gate(root, tmp_path / f"gate{flag}", review=review, flags=(flag,))

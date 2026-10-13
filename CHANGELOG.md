@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Irrigation beneficial-use limit (spec item 49).** Every profile, including
+  disabled, hides and blocks increases at 0.99 B and clamps drawn increases
+  at B = min(W, (1 + m) peak_obs_af). The shipped config enables it with
+  m = 0; m = 0.1 is the sensitivity. Option text and S1 share the stopped
+  target. Water-right-first cases retain their existing message. Manifests,
+  audit state, simulation rows, P5(b), and per-arm metrics record the limit.
+- **Pilot logging corrections.** Irrigation reflection traces retain their
+  exact input for P6; legacy traces without it explicitly skip that check.
+  Partially logged reflection inputs fail P6. The tuner prints the effective
+  context window sent by the merged irrigation configuration; the manifest's
+  `num_predict` changes from 2048 to 4096, the value actually sent.
+
 - **Irrigation keep-fix package (spec item 47: MB, S1, L, K6).** Routine
   outcomes move from decision-memory lines into basin-specific performance
   columns; reflection inputs and lessons retain their original bytes. Prompts
@@ -108,6 +120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before.
 
 ### Fixed
+
+- **Framework model provenance (all domains).** Capture the real model digest
+  once at launch; mock manifests change `model_digest` from
+  `not_applicable_mock` to null. Cloud and unavailable local digests are also
+  null; a non-mock, non-cloud model with a null digest prints one launch
+  warning. Timestamps are never recorded as model digests.
 
 - **Coupled runs keep the environment's action context.** `broker/coupling/adapter.py`
   and `broker/coupling/interfaces.py` (`WorldDelta.action_context`) pass the

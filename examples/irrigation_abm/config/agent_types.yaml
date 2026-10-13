@@ -259,6 +259,8 @@ global_config:
       - supply_ratio
       - supply_physical_ratio
       - full_supply_ratio
+      - beneficial_use_limit_af
+      - at_beneficial_use_limit
 
   coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
 
@@ -323,6 +325,7 @@ shared:
 # =============================================================================
 irrigation_farmer:
   # PI decision/spec item 47; identical in strict and disabled.
+  beneficial_use_limit: {spec_item: 49, enabled: true, beneficial_use_margin: 0.0}
   keepfix_package: {spec_item: 47, MB: true, table: true, S1: true, L: true, K6: true, routine_tier_scope: affects_agent}  # affects_agent: spec item 48 (2026-10-09, PI, after T15)
   description: >
     Agricultural water user in the Colorado River Basin making annual
@@ -765,6 +768,12 @@ irrigation_farmer:
         # set multi-year non-use periods, not an annual fraction); the
         # source model (Hung and Yang 2021) has no floor at all. CPU
         # sensitivities at 0 and 0.05 x W (provenance C6b).
+        - id: beneficial_use_limit
+          precondition: at_beneficial_use_limit
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at about the most water your fields can use."
         - id: minimum_utilisation_floor
           precondition: below_minimum_utilisation
           blocked_skills: ["decrease_demand"]
@@ -785,6 +794,12 @@ irrigation_farmer:
           level: ERROR
           grounding: world
           message: "Increase not available: your request is already at your water right."
+        - id: beneficial_use_limit
+          precondition: at_beneficial_use_limit
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at about the most water your fields can use."
         - id: minimum_utilisation_floor
           precondition: below_minimum_utilisation
           blocked_skills: ["decrease_demand"]
@@ -803,6 +818,12 @@ irrigation_farmer:
           level: ERROR
           grounding: world
           message: "Increase not available: your request is already at your water right."
+        - id: beneficial_use_limit
+          precondition: at_beneficial_use_limit
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at about the most water your fields can use."
         - id: minimum_utilisation_floor
           precondition: below_minimum_utilisation
           blocked_skills: ["decrease_demand"]
