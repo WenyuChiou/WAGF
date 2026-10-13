@@ -121,6 +121,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Governed flood example runs from a fresh clone.** The runner
+  (`examples/governed_flood/run_experiment.py`) falls back to the tracked
+  single-agent inputs (`examples/single_agent/agent_initial_profiles.csv`,
+  `flood_years.csv`) when no local `data/` or `config/` copy exists, and
+  accepts `--initial-agents` / `--flood-years` overrides; a missing input
+  stops at startup naming the file. `--agents N` now takes effect (first N
+  households in ID order; it was printed but ignored) and exits with an
+  error when N is zero, negative or above the number of profiles. A full
+  100-household mock run is unchanged. The run prints which input files
+  it used.
+
 - **Framework model provenance (all domains).** Capture the real model digest
   once at launch; mock manifests change `model_digest` from
   `not_applicable_mock` to null. Cloud and unavailable local digests are also

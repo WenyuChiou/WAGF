@@ -37,13 +37,13 @@ Governance rules enforce behavioral coherence between appraisals and actions.  F
 
 ```bash
 # Smoke test (10 agents, 2 years)
-python run_experiment.py --model gemma3:4b --years 2 --agents 10
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10
 
 # Validation run (100 agents, 10 years, fixed seed)
-python run_experiment.py --model gemma3:4b --years 10 --agents 100 --seed 42
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 10 --agents 100 --seed 42
 
 # Custom model with extended context
-python run_experiment.py --model gemma3:12b --years 10 --agents 100 --seed 42 --num-ctx 8192 --num-predict 1536
+python examples/governed_flood/run_experiment.py --model gemma3:12b --years 10 --agents 100 --seed 42 --num-ctx 8192 --num-predict 1536
 ```
 
 ## CLI Arguments
@@ -52,7 +52,9 @@ python run_experiment.py --model gemma3:12b --years 10 --agents 100 --seed 42 --
 |------|---------|-------------|
 | `--model` | `gemma3:1b` | Ollama model name |
 | `--years` | `10` | Simulation years |
-| `--agents` | `100` | Number of household agents |
+| `--agents` | all profiles (100) | Run the first N households in ID order; N above the number of profiles stops with an error |
+| `--initial-agents` | see Inputs | Household profile CSV to use instead of the default |
+| `--flood-years` | see Inputs | Flood schedule CSV to use instead of the default |
 | `--workers` | `1` | Parallel LLM workers |
 | `--seed` | random | Random seed for reproducibility |
 | `--memory-seed` | `42` | Memory engine seed |
@@ -247,9 +249,9 @@ This enables causal learning through the reflection loop.
 3. Write output files and governance summary
 ```
 
-### Flood Schedule
+### Inputs and flood schedule
 
-Floods occur on a fixed schedule defined in `config/flood_years.csv` (default: years 3, 4, 9).
+The run reads the household profiles and flood schedule that ship with the single-agent example: `examples/single_agent/agent_initial_profiles.csv` (100 households) and `examples/single_agent/flood_years.csv` (floods in years 3, 4 and 9). Both are found from the script's location, so the working directory does not matter. If you keep your own `examples/governed_flood/data/agent_initial_profiles.csv` or `examples/governed_flood/config/flood_years.csv`, that file is used instead. `--initial-agents` and `--flood-years` override both.
 
 ## Output Files
 
@@ -301,7 +303,7 @@ governed_flood/
   config/
     agent_types.yaml             # Agent config, governance rules, memory
     skill_registry.yaml          # Available flood adaptation skills
-    flood_years.csv              # Flood event schedule
+    flood_years.csv              # Optional private copy (default: ../single_agent/flood_years.csv)
     prompts/
       household.txt              # PMT prompt template
   adapters/
@@ -309,7 +311,7 @@ governed_flood/
   validators/
     flood_validators.py          # 8 custom governance validators
   data/
-    agent_initial_profiles.csv   # Agent initialization profiles
+    agent_initial_profiles.csv   # Optional private copy (default: ../single_agent/agent_initial_profiles.csv)
 ```
 
 ## References
