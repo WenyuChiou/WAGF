@@ -1,152 +1,48 @@
-# WAGF: governed LLM agents for water simulations
+# Water Agent Governance Framework (WAGF)
+
+A framework for checking language-model decisions before they enter a water simulation.
+
+[![Tests](https://github.com/WenyuChiou/WAGF/actions/workflows/test.yml/badge.svg)](https://github.com/WenyuChiou/WAGF/actions/workflows/test.yml)
+[![Python tested: 3.10–3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue)](.github/workflows/test.yml)
+[![Licence: MIT](https://img.shields.io/badge/Licence-MIT-blue)](LICENSE)
+
+<p align="center"><img src="docs/architecture.png" alt="WAGF loop: Context Builder, LLM, Governance layer with Parser, Validator and Auditor, Environment and Execution layer, Memory and Retrieval, and Reflection" width="640"></p>
+
+The Context Builder assembles a prompt, the information and instructions given to the language model (LLM). The Governance layer uses the Parser to read the model's proposed water action, a Validator (a rule checker) to check it, and the Auditor to record the checks. If no valid action is found the model is re-asked; if a rule rejects the action, it is asked to revise with rule feedback. The Environment and Execution layer applies the final action; Memory and Retrieval and optional Reflection carry experience into the next decision.
 
 [English](README.md) | [繁體中文](README_zh.md)
 
 ## What WAGF is
 
-WAGF (Water Agent Governance Framework) is a governance layer between
-language-model agents and a water or agent-based simulation.
-An agent proposes an action. Before the simulation executes it, validators
-check physical and institutional limits and compare the action with the
-agent's stated appraisal. A blocking violation sends the agent back to decide
-again, with a reason when rule feedback is enabled.
+An agent is a simulated water user or operator whose decisions come from a language model. WAGF checks each proposed decision against physical limits and institutional rules, such as available water or a water right, before it reaches the water model.
 
-For example, an irrigation agent may request more water than the simulated
-allocation allows. A flood agent may describe a high threat but choose an
-action that conflicts with the study's behavioural theory.
-WAGF makes these checks explicit in rules supplied by the researcher.
+It also checks that the action fits what the agent said about its situation. For example, an agent that reports severe water scarcity and then increases its demand can be blocked, under the behavioural theory the study uses.
 
-The simulation applies the resulting action and updates its state.
-An audit trail records decisions, validation findings, and retry outcomes.
-Optional attempt columns and a call journal provide more detail about retries.
+Researchers supply the rules and water model. WAGF connects them and records each decision. It is intended for socio-hydrology and agent-based modelling of coupled natural-human systems. The examples demonstrate the framework; their assumptions still need validation for a study.
 
-## Why it exists
+## When should you use WAGF?
 
-**Appraisal-action inconsistency.** An LLM agent can describe a situation one
-way and act another way. It may report high water scarcity and still increase
-its demand. Theory rules check whether the action agrees with the appraisal
-the agent stated, under the behavioural theory chosen for the study.
+- You have a water model (river basin, reservoir or flood model) and want the human decisions in it, such as irrigation demand, flood protection or reservoir release, to come from language-model agents instead of fixed decision rules.
+- You want each proposed decision checked against physical limits and institutional rules, such as water rights, available water or household funds, before it changes the model.
+- You want to compare runs under different rule sets, for example all rules on against behavioural rules off, and see which proposals were rejected and why.
+- You want shortages, deliveries or flood damage computed by the water model to feed back into the agents' later decisions.
+- You want a record of each decision (the final action, the rules that fired and the number of retries), so that a run can be inspected afterwards.
 
-**Actions outside the model's limits.** An agent can propose an action that
-the water system or an institution does not permit, such as exceeding an
-allocation or paying for an unaffordable measure. In a model with two-way
-coupling, that action changes the shared resource and the conditions other
-agents face. Feasibility rules check the proposal before it affects the world.
+## Feature highlights
 
-## How it works
+- **Governance rules and profiles:** a governance profile is a named set of rules for a run, such as `strict`; each rule either blocks a proposal or only records a warning. See [governance](docs/guides/governance_layers.md).
+- **Memory and reflection:** agents recall earlier events, such as last year's shortage, and can optionally write a short summary of what they learned. See [memory](docs/modules/memory_components.md) and [reflection](docs/modules/reflection_engine.md).
+- **DomainPack:** a domain is WAGF's word for one application (its agents, actions, rules and prompt), not the model's spatial extent. A DomainPack is the settings and Python functions that describe it to WAGF. See [DomainPack](docs/guides/domain_pack_guide.md).
+- **External-model coupling:** pass model results, such as storage or shortage, to the agents and their actions back to your model, declaring the unit and allowed range of each value. See [coupling](docs/COUPLING_CONNECTORS.md).
+- **Audit and reproducibility:** audit traces record each decision, the rules that fired and the retries; optional columns add every attempt; a manifest records code, model, seed and configuration. See the [audit schema](docs/AUDIT_SCHEMA.md) and [run-integrity contract](broker/INVARIANTS.md#invariant-6--run-integrity-provenance-contract).
 
-One decision follows this path. The retry branch shown here uses full feedback.
+## Getting started
 
-```mermaid
-flowchart TD
-  C["Context and prompt"] --> L["LLM proposal"]
-  L --> P["Parse action and appraisal"]
-  P --> V{"Validators"}
-  V -->|"blocking violation"| R["Retry with reasons"]
-  R -->|"retries remain"| L
-  R -->|"retries exhausted"| F["Domain fallback policy"]
-  V -->|"passes, possibly with warnings"| E["Execute action"]
-  F --> E
-  E --> U["Environment update"]
-  U --> M["Memory for later decisions"]
-  M --> A["Audit trail"]
-  A -.->|"next decision"| C
-```
+Steps 1–4 need Python and a laptop, with no GPU, no language-model download and no API key. Run commands from the repository root.
 
-The diagram shows the decision sequence; a run also records rejections and
-parse failures. In a multi-agent run, the environment can apply the combined
-actions at the end of a period.
+### 1. Install
 
-### Governance rules and modes
-
-Researchers define rules for their domain. Feasibility rules read model state,
-such as available water or household funds; theory rules read the agent's
-appraisal labels. Either kind can be configured as a blocking error or a warning.
-
-| Setting | What it does |
-|---|---|
-| `level: ERROR` | Blocks the proposal and starts a retry, up to `max_retries`. |
-| `level: WARNING` | Records a finding without blocking execution. |
-| `strict` | Applies the domain's configured governance rules. |
-| `disabled` | Uses the domain's comparison profile; the checks retained depend on that domain. |
-| `retry_feedback_mode: full` | Returns the rejection reason in the retry prompt. |
-| `retry_feedback_mode: silent` | Reuses the original prompt without the rejection reason; validation still runs. |
-
-A profile named `disabled` does not guarantee that all feasibility checks are
-removed. For example, irrigation v3 retains its identity rules in this profile.
-Domains can declare further profiles (irrigation v3 also has `feasibility_only`).
-
-When retries run out, `on_retry_exhausted: default` executes the registry's
-default action. The opt-in `keep_proposal` policy can retain a registered
-rejected proposal, but the broker runs the default action instead when any
-blocker is marked as a hard constraint, and refuses the setting outright when
-coupling is enabled. Domain authors must classify these constraints correctly.
-
-Warnings reach the agent only if a separate advice channel is enabled.
-See the [governance guide](docs/guides/governance_layers.md) for rule levels,
-feedback settings, and their interpretation.
-
-### Memory
-
-Memory stores experiences for later prompts, with options for a recent window
-or selective retrieval and reflection. Researchers choose the engine and its
-settings for the domain in the [memory guide](docs/modules/memory_components.md).
-
-### DomainPack
-
-A `DomainPack` supplies domain hooks and registrations, alongside action
-definitions, prompts, governance rules, and the chosen behavioural framework.
-It lets a new domain use the broker without adding domain logic to its core;
-see the [DomainPack guide](docs/guides/domain_pack_guide.md).
-
-### Coupling to an external model
-
-A connector exchanges observations and actions with a model; a
-`CouplingContract` declares units, ranges, types, direction, and cadence.
-The [coupling guide](docs/COUPLING_CONNECTORS.md) covers in-process solvers,
-file replay patterns, subprocess models, and exchange with another ABM.
-
-Runtime adapter checks cover declared values, but they do not verify unit
-conversion. The irrigation example implements its water balance inside the
-domain rather than through this generic contract adapter.
-
-### Audit and reproducibility
-
-Runs write traces and metadata so researchers can inspect what was proposed,
-which rules fired, and what happened after a retry. The default decision trace
-does not retain every retry's complete prompt and response.
-
-| Record | Purpose |
-|---|---|
-| Raw JSONL traces and governance audit CSVs | Decision records with validation findings and retry outcomes. |
-| `reproducibility_manifest.json` | Code revision, model information, seeds, and configuration provenance. |
-| `config_snapshot.yaml` | Agent-type configuration used for the run (rules and settings, with command-line overrides). Prompt template files are referenced by path, not copied. |
-| `run_integrity.json` | Audit coverage and integrity checks, including coupling provenance. |
-| Optional attempt columns | Attempt actions, labels, and blocking rules when enabled. |
-| Optional LLM call journal | Recorded calls for replay of completed steps after a crash. |
-
-The builder supports `with_llm_journal(...)` and `with_resume_journal(...)`.
-Resume rebuilds state by replaying recorded responses; a call with no matching
-record raises an error instead of calling the model live. A recorded seed alone
-does not guarantee identical live LLM responses.
-
-The audit comparison tool checks normalized content for byte identity after
-removing timestamp and timing differences and sorting set representations.
-The recovery tool rebuilds audit CSVs from JSONL traces. Inspect their usage with:
-
-```bash
-python -m broker.tools.compare_audit_csv --help
-python -m broker.tools.recover_csv_from_jsonl --help
-```
-
-Read the [audit schema](docs/AUDIT_SCHEMA.md) before analysing a run, especially
-its column limitations and distinctions between proposed and executed actions.
-
-## How to use it
-
-### Install
-
-Use Python 3.10 or later (`pyproject.toml` requires `>=3.10`):
+Use Python 3.10 or later; the automated tests run on Python 3.10, 3.11 and 3.12. On macOS or Linux use `python3`, or create a virtual environment first.
 
 ```bash
 git clone https://github.com/WenyuChiou/WAGF.git
@@ -154,136 +50,183 @@ cd WAGF
 python -m pip install -e .
 ```
 
-The core installation is enough for the mock runs below.
-They use scripted responses and require no model download or API key.
+If you already downloaded the repository, enter that folder and run only the install command. pip should end with `Successfully installed ... water-agent-governance-framework-<version>`.
 
-### Run the smoke test
+If it fails: check [required packages](pyproject.toml). Use the same Python for installation and subsequent steps.
 
-From the repository root:
+### 2. Check your environment
+
+Confirm that Python can load WAGF and its required packages; expect `WAGF imports OK`:
+
+```bash
+python -c "import broker, numpy, pandas, pydantic, requests, yaml; print('WAGF imports OK')"
+```
+
+If it fails: for missing modules, repeat step 1 with this Python; see [required packages](pyproject.toml).
+
+### 3. Run the mock smoke test
+
+A mock model supplies scripted decisions instead of calling a language model. This short test checks that a decision passes through every stage of WAGF on your computer:
 
 ```bash
 python examples/quickstart/02_governance.py
 ```
 
-This script uses the mock model. It first allows a protective action, then
-blocks repeating it after the agent is already protected and retries the
-decision. It writes audit files and traces under
-`examples/quickstart/results/` (created by the run).
+- Expect `take_action (APPROVED)` in year 1 and `do_nothing (APPROVED) [retried 1x]` in years 2–4.
+- The rule stops the agent from taking protection it already has. Lines saying `Validation FAILED ... already_protected` are this rule at work.
+- Files appear in `examples/quickstart/results/`, including an audit CSV and `raw/simple_agent_traces.jsonl`.
+- A message starting `[AuditInvariant]` is expected: this small example leaves some optional columns at default values.
 
-See the [quickstart tutorial](examples/quickstart/README.md) for the companion
-barebone example and a description of the pipeline.
+If it fails: move any finished `examples/quickstart/results/` run aside first; for other errors, see the [tutorial](examples/quickstart/README.md) and [troubleshooting guide](docs/guides/troubleshooting_guide.md).
 
-### Run a coupled example
+### 4. Read the output
 
-The catastrophe example shows an insurer's claim decision coupled to a hazard
-and loss model, with a solvency check before payment:
+Print the main decision columns; expect four rows, one per simulated year:
 
 ```bash
-python examples/cat_model/run_cat.py --model mock --years 3
+python -c "import pandas as pd; print(pd.read_csv('examples/quickstart/results/simple_agent_governance_audit.csv')[['year','agent_id','final_skill','status','retry_count']].to_string(index=False))"
 ```
 
-Outputs go to `examples/cat_model/results/` (created by the run).
-A mock run checks the wiring; it does not validate a behavioural theory or
-establish that the physical model represents a real basin.
+| Column | Meaning in this example |
+|---|---|
+| `year`, `agent_id` | Decision year and the simulated decision-maker. |
+| `final_skill` | Final selected action: take protection or do nothing. |
+| `status` | Whether the final decision was approved. |
+| `retry_count` | Extra attempts after a rule blocked a proposal: 0, then 1 in each later year. |
 
-### Run with a real model
+`raw/simple_agent_traces.jsonl` holds the full record of each decision, one per line. These checks confirm the connection works; they do not calibrate or validate a water model.
 
-With local Ollama installed and running, download the model and run the flood
-example:
+If it fails: check that step 3 finished; see the [audit schema](docs/AUDIT_SCHEMA.md) for column limitations.
+
+### 5. Run a water example with a local model
+
+Install the optional model and analysis packages. Install and start Ollama, a free program that runs language models on your own computer (https://ollama.com), then download a model:
 
 ```bash
+python -m pip install -e ".[llm,analysis]"
 ollama pull gemma3:4b
-python examples/single_agent/run_flood.py --model gemma3:4b --years 3 --agents 10
+python examples/single_agent/run_flood.py --model gemma3:4b --years 3 --agents 10 --output results/flood_first_run
 ```
 
-For cloud models, use `--model anthropic:<id>`, `--model openai:<id>`, or
-`--model gemini:<id>`; the providers read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-or `GOOGLE_API_KEY`, respectively, from the environment.
-See the [troubleshooting guide](docs/guides/troubleshooting_guide.md) for setup
-and connection problems.
+Expect yearly household decisions and `results/flood_first_run/simulation_log.csv`, `household_governance_audit.csv` and `raw/household_traces.jsonl`. Use a new output folder for each run. Speed and memory needs depend on your computer.
 
-### Run the tests
+Thinking (extra reasoning output from models that support it) is off by default; add `--thinking-mode enabled` to request it. A few models cannot turn thinking off; WAGF notes this in the run manifest. See the [model configuration reference](docs/references/yaml_configuration_reference.md#214-global_configllm).
 
-CI uses this command to exclude tests named `real_llm`:
+See the [flood manual](examples/single_agent/README.md) for inputs and outputs. Cloud models use `--model anthropic:<id>`, `openai:<id>` or `gemini:<id>`. Set `ANTHROPIC_API_KEY` for Anthropic, `OPENAI_API_KEY` for OpenAI or `GOOGLE_API_KEY` for Gemini. Cloud models also need the provider's own package: `python -m pip install anthropic`, `python -m pip install openai` or `python -m pip install google-generativeai`.
 
-```bash
-python -m pytest tests/ broker/ -ra --tb=short --continue-on-collection-errors -k "not real_llm"
-```
+If it fails: see [Ollama troubleshooting](docs/guides/troubleshooting_guide.md#3-ollama-connection-issues); for a finished output folder, choose a new one.
 
-### Build your own domain
+### 6. Start your own domain or connect your water model
 
-Start with an action skeleton, then add the model state, prompts, rule basis,
-and execution logic for your research question:
+Generate a folder for your own decision model:
 
 ```bash
 python -m broker.tools.scaffold_domain my_domain --framework generic --skills "action_a,action_b"
+```
+
+Expect `Scaffolded` and `examples/my_domain_demo/` with configuration, a prompt and a runner. `--skills` lists the actions an agent can choose; WAGF calls actions skills.
+
+Replace the placeholder actions with your water decisions, then follow [Build your own domain](#build-your-own-domain) below. To connect an existing hydrological or water-system model, follow the [coupling guide](docs/COUPLING_CONNECTORS.md).
+
+If it fails: for name errors, use lowercase letters and underscores; for an existing folder, choose another name.
+
+## Core concepts
+
+| Figure stage | What it does | Read more |
+|---|---|---|
+| Context Builder | Collects the agent's attributes, current water conditions, available actions and recalled experience. | [Context system](docs/modules/context_system.md) |
+| LLM | Reads the prompt and proposes an action, with its assessment of the situation, such as how severe the shortage is. | [Configuration](docs/references/yaml_configuration_reference.md) |
+| Governance: Parser | Reads the response into the action fields required by the domain. | [Governance core](docs/modules/governance_core.md) |
+| Governance: Validator | Checks that the action is feasible and fits the assessment; if a blocking rule fails, the model is asked again. | [Governance guide](docs/guides/governance_layers.md) |
+| Governance: Auditor | Records parsing, validation and retry outcomes. | [Audit schema](docs/AUDIT_SCHEMA.md) |
+| Environment and Execution | Applies the final action and updates water conditions and agent state. | [Simulation engine](docs/modules/simulation_engine.md) |
+| Memory and Retrieval | Stores experience and selects it for later prompts. | [Memory guide](docs/modules/memory_components.md) |
+| Reflection | Optionally summarises past experience into lessons. | [Reflection guide](docs/modules/reflection_engine.md) |
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and [broker/INVARIANTS.md](broker/INVARIANTS.md) for required behaviour.
+
+- The `strict` profile applies the domain's configured rules. A profile named `disabled` can still retain checks; irrigation keeps its water-right, minimum-use and beneficial-use limits (its `identity_rules`) under `disabled`.
+- ERROR findings block a proposal; WARNING findings do not. A rejected proposal is retried up to the configured limit; see [configuration](docs/references/yaml_configuration_reference.md) for retry feedback.
+- When retries run out, the domain's default action runs without a further check. The opt-in `keep_proposal` setting runs the rejected proposal itself instead, unless a rule that blocked it is marked as a hard limit, in which case the default action runs. The setting is refused when a coupled model is enabled; see [invariants](broker/INVARIANTS.md).
+- A `CouplingContract` lists each value exchanged with your model, with its unit, allowed range and timing. WAGF checks values against the declared range; it does not convert units or check a conversion.
+- The irrigation example implements its water balance within its domain. Its model is a simplified stand-in for CRSS, the Bureau of Reclamation's Colorado River Simulation System, not CRSS itself.
+
+## Examples
+
+The [examples index](examples/README.md) covers inputs and setup. Run commands from the repository root.
+
+| Domain | What it shows | Path | How to run |
+|---|---|---|---|
+| Quickstart | Scripted execution, memory and rule checks. | [quickstart](examples/quickstart/) | Step 3 above. |
+| Household flood | Flood conditions inform protection decisions. | [single_agent](examples/single_agent/) | Step 5 above. |
+| Irrigation | Water demand, water rights, delivery and shortage feed back through a basin model. | [irrigation_abm](examples/irrigation_abm/README.md#1-quick-start) | `python examples/irrigation_abm/run_experiment.py --model gemma3:4b --years 5 --agents 5` (needs step 5's Ollama setup). |
+| Governed flood | Compact teaching example with domain rules. | [governed_flood](examples/governed_flood/README.md) | Not runnable from a fresh clone: its input files `data/agent_initial_profiles.csv` and `config/flood_years.csv` are not in the repository. Use step 5 for a flood run. |
+| Multi-agent flood | Households, government and an insurer share a flood environment. | [multi_agent/flood](examples/multi_agent/flood/) | [Run instructions](examples/multi_agent/flood/README.md). |
+| Catastrophe model | Hazard and loss estimates inform governed insurer payments. | [cat_model](examples/cat_model/) | `python examples/cat_model/run_cat.py --model mock --years 3` |
+| Reservoir control | A numeric release proposal reaches a toy reservoir solver. | [reservoir_control](examples/reservoir_control/) | `python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4` |
+| Reservoir with multiple setpoints | Release, hydropower and flood-pool proposals. | [reservoir_control_multidim](examples/reservoir_control_multidim/) | `python examples/reservoir_control_multidim/run_reservoir_multidim.py --model mock --years 4` |
+| External process | Runs a separate toy model as its own program and exchanges values with it as JSON. | [coupling_examples](examples/coupling_examples/) | `python examples/coupling_examples/archetype_c_subprocess/run_archetype_c.py --model mock --years 4` |
+| Vaccination | A non-water DomainPack using the Health Belief Model. | [vaccination_demo](examples/vaccination_demo/) | [Run instructions](examples/vaccination_demo/README.md). |
+| Traffic test case | Checks that the framework accepts a non-water domain. | [_test_fixtures](examples/_test_fixtures/) | Integration tests; no standalone runner. |
+
+To rerun an example, add `--output <new folder>`. The quickstart script in step 3 has no `--output` option: move `examples/quickstart/results/` aside first. The traffic test case runs through the [tests below](#testing-and-reproducibility), rather than a standalone command.
+
+## Build your own domain
+
+After step 6, check the prompt and run the generated model with scripted responses:
+
+```bash
 python -m broker.tools.validate_prompt examples/my_domain_demo/config/agent_types.yaml
 python examples/my_domain_demo/run_experiment.py --model mock --years 1 --agents 1
 ```
 
-The first command creates `examples/my_domain_demo/`; the next two use files
-it generates. `generic` starts without selecting a named behavioural theory.
-The skeleton's mock response can trigger missing-field warnings and fallback;
-a completed run with audit output checks that its pipeline is connected.
-Replace the placeholder actions and connect the domain hooks to your simulation
-before treating the skeleton as a research model.
+The first command reports configuration errors and warnings. The second writes audit output under `examples/my_domain_demo/results/smoke/`. The generated example is incomplete on purpose, so the run prints `Validation FAILED` and `Max retries (3) reached`. It worked if it ends with `Done. Audit + traces under: ...`.
 
-The generator is [broker/tools/scaffold_domain.py](broker/tools/scaffold_domain.py).
-Follow the [new-domain guide](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md) for the
-configuration and Python hooks needed beyond the skeleton.
+To run it again, add `--output results/smoke2` (relative to `examples/my_domain_demo/`) or delete `results/smoke/` first; WAGF refuses to overwrite a finished run.
 
-Claude Code users can use the bundled [WAGF skills](docs/skills/wagf-skills.md)
-in [.claude/skills/](.claude/skills/). Start with `wagf-domain-builder`,
-use `wagf-coupling-designer` for an external model, and check the result with
-`wagf-verification-ladder`. The
-[AI-assisted setup guide](docs/AI_ASSISTED_SETUP.md) explains this workflow.
+Use the [new-domain guide](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md) to supply model state, prompts, rules and action execution. Follow the [verification ladder](.claude/skills/wagf-verification-ladder/SKILL.md): environment, configuration, mock run, domain tests, real-model pilot, then acceptance before a larger study.
 
-## Examples
+If you use an AI coding assistant such as Claude Code, the repository includes step-by-step guides for it, called skills; see [WAGF skills](docs/skills/wagf-skills.md) and [AI-assisted setup](docs/AI_ASSISTED_SETUP.md).
 
-The two main water cases are marked below. The other runnable examples are
-demonstrations of individual parts of the framework; the fixture is test-only.
-
-| Example | What it shows |
-|---|---|
-| **Main water case: [single-agent flood](examples/single_agent/)** | Adapted from Yang and Chiou (2026, WRR): one-way coupling from flood conditions to household decisions, with appraisal-action coherence under Protection Motivation Theory (PMT). |
-| **Main water case: [irrigation v3](examples/irrigation_abm/)** | Re-implements the irrigation decision setup of Hung and Yang (2021, WRR) with 78 water users and a simplified CRSS-style Colorado River model: two-way feedback through Lake Mead and feasibility checks. |
-| [Quickstart](examples/quickstart/) | Scripted mock decisions that introduce execution, memory, and governance. |
-| [Governed flood](examples/governed_flood/) | A compact flood teaching example with domain rules. |
-| [Multi-agent flood](examples/multi_agent/flood/) | Households, government, and an insurer sharing a flood environment in a declared phase order. |
-| [Catastrophe model](examples/cat_model/) | Hazard-to-loss coupling and governed insurer payouts, including a shared-pool variant. |
-| [Reservoir control](examples/reservoir_control/) | A governed numeric release setpoint passed to a toy reservoir solver. |
-| [Reservoir control with multiple setpoints](examples/reservoir_control_multidim/) | Joint release, hydropower, and flood-pool proposals checked before execution. |
-| [Coupling examples](examples/coupling_examples/) | A subprocess connector exchanging JSON with an external toy model. |
-| [Vaccination](examples/vaccination_demo/) | A non-water domain registering the Health Belief Model (HBM). |
-| [Test fixtures](examples/_test_fixtures/) | A non-water traffic DomainPack used by integration tests, without a standalone runner. |
-
-The irrigation model is a simplified surrogate, not the full CRSS model.
-Consult its [README](examples/irrigation_abm/README.md) for assumptions and data
-requirements. The [examples index](examples/README.md) describes the remaining
-directories and entry points.
-
-## Where to go next
+## Documentation
 
 | You want to | Read |
 |---|---|
-| Find files and entry points | [Repository map](docs/REPO_MAP.md) |
-| Understand the runtime | [Architecture overview](ARCHITECTURE.md) and [runtime architecture](docs/architecture/architecture.md) |
-| Choose rules and feedback settings | [Governance guide](docs/guides/governance_layers.md) |
-| Design an experiment | [Experiment design guide](docs/guides/experiment_design_guide.md) |
-| Add a domain | [New-domain guide](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md) and [DomainPack guide](docs/guides/domain_pack_guide.md) |
-| Connect a simulator | [Coupling guide](docs/COUPLING_CONNECTORS.md) |
-| Analyse a run | [Reproduction and analysis guide](reproduction/README.md) |
-| Interpret traces | [Audit schema](docs/AUDIT_SCHEMA.md) |
-| Diagnose a setup problem | [Troubleshooting guide](docs/guides/troubleshooting_guide.md) |
+| Understand the design and find files | [Architecture](ARCHITECTURE.md), [runtime architecture](docs/architecture/architecture.md), [repository map](docs/REPO_MAP.md) |
 | Check framework constraints | [Broker invariants](broker/INVARIANTS.md) |
+| Configure rules, prompts and model settings | [Configuration reference](docs/references/yaml_configuration_reference.md), [governance guide](docs/guides/governance_layers.md) |
+| Design and validate a study | [Experiment design](docs/guides/experiment_design_guide.md), [calibration guide](docs/guides/calibration_guide.md) |
+| Connect a model or add a domain | [Coupling](docs/COUPLING_CONNECTORS.md), [DomainPack](docs/guides/domain_pack_guide.md) |
+| Use an AI coding assistant such as Claude Code with step-by-step guides, called skills | [Skills index](docs/skills/wagf-skills.md), [AI-assisted setup](docs/AI_ASSISTED_SETUP.md) |
+| Analyse or recover a run | [Audit schema](docs/AUDIT_SCHEMA.md), [reproduction guide](reproduction/README.md), [irrigation replay runbook](examples/irrigation_abm/README.md#resuming-a-crashed-run) |
+| Resolve errors or check changes | [Troubleshooting](docs/guides/troubleshooting_guide.md), [CHANGELOG](CHANGELOG.md) |
 
-For known limitations, read the [audit schema](docs/AUDIT_SCHEMA.md) and
-[broker invariants](broker/INVARIANTS.md).
+## Testing and reproducibility
 
-### How to cite
+Install the test dependencies and run the automated tests, excluding tests named `real_llm`. The automated tests also check the generated-domain workflow; see [.github/workflows/test.yml](.github/workflows/test.yml).
 
-The framework paper is in preparation. Cite Yang and Chiou (2026) and this
-repository until it appears.
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e ".[dev,web,analysis]"
+python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm"
+```
+
+Runs write `reproducibility_manifest.json`, `config_snapshot.yaml` and `run_integrity.json` alongside the traces. Prompt files are referenced by path, not copied into the configuration snapshot; keep them with your run inputs. Record the code revision and retain the inputs: a seed alone does not make live language-model responses identical.
+
+Optional columns record every attempt of a decision. WAGF can also save each model call to a file and replay it to resume a crashed run; see the [irrigation replay runbook](examples/irrigation_abm/README.md#resuming-a-crashed-run).
+
+Default traces do not retain every retry's complete prompt and response. The [audit schema](docs/AUDIT_SCHEMA.md) explains placeholders and proposed versus executed actions.
+
+The comparison tool ignores timestamps, run times and the order of unordered lists; the recovery tool rebuilds CSVs from JSONL. Inspect their usage:
+
+```bash
+python -m broker.tools.compare_audit_csv --help
+python -m broker.tools.recover_csv_from_jsonl --help
+```
+
+## Related publications
+
+The household flood example builds on Yang and Chiou (2026):
 
 ```bibtex
 @article{yang2026wrr,
@@ -296,19 +239,31 @@ repository until it appears.
   pages   = {e2025WR042111},
   doi     = {10.1029/2025WR042111}
 }
+```
 
-@misc{wagf,
-  author = {Chiou, Wenyu and Yang, Y. C. Ethan},
-  title  = {{WAGF}: a governance layer for language-model agents in coupled
-            human-water models},
-  year   = {2026},
-  note   = {Framework paper in preparation}
+The irrigation example re-implements the irrigation decision setup of Hung and Yang (2021):
+
+Hung, F., & Yang, Y. C. E. (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments — A multi-agent reinforcement learning approach. *Water Resources Research*, 57, e2020WR029262. <https://doi.org/10.1029/2020WR029262>
+
+## How to cite
+
+Cite this repository and record the version and commit used in your study. The package version is 0.6.0.
+
+```bibtex
+@software{wagf,
+  author  = {Chiou, Wenyu and Yang, Y. C. Ethan},
+  title   = {Water Agent Governance Framework (WAGF)},
+  year    = {2026},
+  version = {0.6.0},
+  url     = {https://github.com/WenyuChiou/WAGF}
 }
 ```
 
-The irrigation testbed follows the CRSS setup of Hung, C.-L. J., & Yang,
-Y. C. E. (2021), *Water Resources Research* 57(7), e2020WR029262.
+## Contributing
 
-### Licence
+For changes to code or documentation, read [CONTRIBUTING.md](CONTRIBUTING.md) and the [broker invariants](broker/INVARIANTS.md). [AGENTS.md](AGENTS.md) holds the instructions for AI coding assistants.
+Use the tests above to check changes; report bugs with the command, configuration and error output needed to reproduce them.
+
+## Licence
 
 MIT. See [LICENSE](LICENSE).

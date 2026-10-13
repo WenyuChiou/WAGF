@@ -15,10 +15,10 @@ submit changes, and follow project conventions.
 ### Setup
 
 ```bash
-git clone https://github.com/<your-fork>/water-agent-governance-framework.git
-cd water-agent-governance-framework
+git clone https://github.com/<your-fork>/WAGF.git
+cd WAGF
 pip install -r requirements.txt
-pip install -e .
+pip install -e ".[dev,web,analysis]"
 ```
 
 ### Verify Installation
@@ -28,7 +28,7 @@ pip install -e .
 python examples/quickstart/01_barebone.py
 
 # Run tests
-pytest tests/core/ -v
+python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm"
 ```
 
 ### Enable the repo-tracked pre-commit hook
@@ -55,7 +55,7 @@ does not block the working tree or git history — only what's staged.
 3. **Make your changes** — see [Code Conventions](#code-conventions) below
 4. **Run tests** before committing:
    ```bash
-   pytest tests/core/ -v --tb=short
+   python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm"
    ```
 5. **Commit** with a descriptive message (see [Commit Messages](#commit-messages))
 6. **Push** and open a Pull Request against `main`
@@ -144,14 +144,14 @@ test: add CognitiveCache persistence round-trip test
 ### Running Tests
 
 ```bash
-# Core framework tests (fast, no Ollama)
-pytest tests/core/ -v
+# Full automated suite, as run on GitHub (no Ollama needed)
+python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm"
 
-# Full suite (some tests may require domain-specific setup)
-pytest tests/ -v --tb=short
+# One folder only (faster while developing)
+python -m pytest tests/core/ -v --tb=short
 
-# With coverage
-pytest tests/core/ --cov=broker --cov-report=term-missing
+# With coverage (first: python -m pip install pytest-cov)
+python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm" --cov=broker --cov-report=term-missing
 ```
 
 ### Post-Experiment Readiness Reports
