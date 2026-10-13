@@ -1297,8 +1297,6 @@ python paper3/analysis/compute_validation_metrics.py \
     --traces paper3/results/paper3_primary/seed_42
 ```
 
-> **Note**: For complete output path specifications, see [paper3/OUTPUT_PATHS.md](paper3/OUTPUT_PATHS.md).
-
 ### Trace File Format (JSONL)
 
 Each line is a JSON object:

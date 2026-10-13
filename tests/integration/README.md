@@ -285,6 +285,4 @@ When adding new tests:
 
 ## Related Documentation
 
-- [SDK README](../../cognitive_governance/README.md) - SDK architecture and usage
-- [SA Case Design](../../examples/single_agent/CASE_DESIGN.md) - Single-agent experiment design
-- [MA Case Design](../../examples/multi_agent/CASE_DESIGN.md) - Multi-agent experiment design
+- [MA Case Design](../../examples/multi_agent/flood/docs/CASE_DESIGN.md) - Multi-agent experiment design

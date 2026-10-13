@@ -19,7 +19,7 @@ so there is exactly one implementation of "ungoverned" left, and this file
 just forwards to it.
 
 This wrapper is kept ONLY so existing docs, batch scripts
-(run_gemma4_e4b_batch.bat, run_gemma12b_batch.bat, run_ensemble.bat, ...) and
+(run_gemma4_e4b_batch.bat, run_gemma12b_batch.bat, ...) and
 tests (examples/irrigation_abm/tests/test_coupling.py's
 ``_run_ungoverned``) that invoke ``run_ungoverned_experiment.py`` by name
 keep working unchanged. New work should call
@@ -89,8 +89,8 @@ def _build_forwarding_argv(args) -> list:
     """Translate this script's parsed (legacy) args into run_experiment.py's CLI."""
     seed = args.seed if args.seed is not None else 42
 
-    # Historical default output directory (used by run_ensemble.bat, which
-    # omits --output): anchored at this file's own directory, exactly as
+    # Historical default output directory (the removed v20 ensemble launcher
+    # omitted --output): anchored at this file's own directory, exactly as
     # the pre-wrapper script anchored it at `base / "results"`.
     output = args.output or str(THIS_DIR / "results" / f"ungoverned_v20_42yr_seed{seed}")
 

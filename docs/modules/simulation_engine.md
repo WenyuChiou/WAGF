@@ -1,6 +1,6 @@
 # Simulation Engine: The Physics of the World
 
-**🌐 Language: [English](README.md) | [中文](README_zh.md)**
+**🌐 Language: [English](simulation_engine.md) | [中文](simulation_engine_zh.md)**
 
 The `simulation/` directory handles the "Ground Truth" of the world. It manages time-stepping, environmental state (floods), and executes the physical consequences of agent actions.
 

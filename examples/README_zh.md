@@ -13,7 +13,6 @@
 | 1 | **[governed_flood/](governed_flood/)** | 入門 | 獨立的 Group C 示範 — 治理 + 以人為本記憶的實際運作 |
 | 2 | **[single_agent/](single_agent/)** | 中階 | 完整 JOH 基準測試 — Groups A/B/C 消融研究、壓力測試、問卷模式 |
 | 3 | **[multi_agent/](multi_agent/)** | 進階 | 社會動態 — 保險市場、政府補貼、同儕效應 |
-| 4 | **[finance/](finance/)** | 延伸 | 跨領域示範 — 治理下的投資組合決策 |
 
 ---
 
@@ -63,15 +62,7 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 運行含家戶、政府及保險代理人的多代理人實驗：
 
 ```bash
-python examples/multi_agent/run_unified_experiment.py --model gemma3:4b
-```
-
-### 4. 跨領域：金融
-
-展示治理在金融決策情境中的應用：
-
-```bash
-python examples/finance/run_finance.py --model gemma3:4b
+python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b
 ```
 
 ---
