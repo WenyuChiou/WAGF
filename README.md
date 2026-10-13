@@ -160,7 +160,7 @@ The [examples index](examples/README.md) covers inputs and setup. Run commands f
 | Quickstart | Scripted execution, memory and rule checks. | [quickstart](examples/quickstart/) | Step 3 above. |
 | Household flood | Flood conditions inform protection decisions. | [single_agent](examples/single_agent/) | Step 5 above. |
 | Irrigation | Water demand, water rights, delivery and shortage feed back through a basin model. | [irrigation_abm](examples/irrigation_abm/README.md#1-quick-start) | `python examples/irrigation_abm/run_experiment.py --model gemma3:4b --years 5 --agents 5` (needs step 5's Ollama setup). |
-| Governed flood | Compact teaching example with domain rules. | [governed_flood](examples/governed_flood/README.md) | Not runnable from a fresh clone: its input files `data/agent_initial_profiles.csv` and `config/flood_years.csv` are not in the repository. Use step 5 for a flood run. |
+| Governed flood | Compact teaching example with domain rules. | [governed_flood](examples/governed_flood/README.md) | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10` (needs step 5's Ollama setup); without Ollama, use `python examples/governed_flood/run_experiment.py --model mock --years 2 --agents 10`. |
 | Multi-agent flood | Households, government and an insurer share a flood environment. | [multi_agent/flood](examples/multi_agent/flood/) | [Run instructions](examples/multi_agent/flood/README.md). |
 | Catastrophe model | Hazard and loss estimates inform governed insurer payments. | [cat_model](examples/cat_model/) | `python examples/cat_model/run_cat.py --model mock --years 3` |
 | Reservoir control | A numeric release proposal reaches a toy reservoir solver. | [reservoir_control](examples/reservoir_control/) | `python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4` |
@@ -261,7 +261,7 @@ Cite this repository and record the version and commit used in your study. The p
 
 ## Contributing
 
-For changes to code or documentation, read [CONTRIBUTING.md](CONTRIBUTING.md) and the [broker invariants](broker/INVARIANTS.md). [AGENTS.md](AGENTS.md) holds the instructions for AI coding assistants.
+For changes to code or documentation, read [CONTRIBUTING.md](CONTRIBUTING.md) and the [broker invariants](broker/INVARIANTS.md). If you use an AI coding assistant, see [AI-assisted setup](docs/AI_ASSISTED_SETUP.md).
 Use the tests above to check changes; report bugs with the command, configuration and error output needed to reproduce them.
 
 ## Licence

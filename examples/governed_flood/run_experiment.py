@@ -13,6 +13,7 @@ Usage:
 import sys
 import random
 import argparse
+import re
 import yaml
 import pandas as pd
 from pathlib import Path
@@ -330,14 +331,54 @@ class LifecycleHooks:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def resolve_input_path(override: Optional[Path], local: Path, tracked: Path) -> Path:
+    """Prefer an explicit input, then a private copy, then the tracked fixture."""
+    path = Path(override) if override is not None else local if local.is_file() else tracked
+    if not path.is_file():
+        raise SystemExit(
+            f"Missing input file: {path}. Default inputs use {local} when present, "
+            f"otherwise the tracked single-agent input {tracked} "
+            "(resolved relative to this script)."
+        )
+    return path
+
+
+def _natural_agent_key(agent_id: str) -> List[Any]:
+    """Match single_agent/run_flood.py: Agent_2 sorts before Agent_10."""
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", str(agent_id))]
+
+
+def _limit_agents_for_run(agents: Dict[str, Any], count: Optional[int]) -> Dict[str, Any]:
+    if count is None:
+        return agents
+    if count <= 0:
+        raise SystemExit("--agents must be a positive number of households.")
+    if count > len(agents):
+        raise SystemExit(
+            f"Requested --agents {count}, but only {len(agents)} household profiles are available."
+        )
+    ordered = sorted(agents.items(), key=lambda item: _natural_agent_key(item[0]))
+    return dict(ordered[:count])
+
+
 def main():
     args = parse_args()
     if args.thinking_mode is not None:
         from broker.utils.llm_utils import LLM_CONFIG
         LLM_CONFIG.thinking_mode = args.thinking_mode
-    base = Path(__file__).parent
+    base = Path(__file__).resolve().parent
     config_dir = base / "config"
-    data_dir = base / "data"
+    single_agent_dir = base.parent / "single_agent"
+    profiles_path = resolve_input_path(
+        args.initial_agents, base / "data" / "agent_initial_profiles.csv",
+        single_agent_dir / "agent_initial_profiles.csv",
+    )
+    flood_years_path = resolve_input_path(
+        args.flood_years, config_dir / "flood_years.csv",
+        single_agent_dir / "flood_years.csv",
+    )
+    print(f"[Inputs] Household profiles: {profiles_path}")
+    print(f"[Inputs] Flood years: {flood_years_path}")
 
     # --- Random seed ---
     seed = args.seed if args.seed is not None else random.randint(0, 1_000_000)
@@ -372,13 +413,14 @@ def main():
 
     # --- Load agents from CSV ---
     agents = load_agents_from_csv(
-        str(data_dir / "agent_initial_profiles.csv"),
+        str(profiles_path),
         {"id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
          "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
          "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
          "memory": "memory"},
         agent_type="household",
     )
+    agents = _limit_agents_for_run(agents, args.agents)
     for a in agents.values():
         a.flood_history = []
         a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
@@ -390,7 +432,7 @@ def main():
             a.custom_attributes["narrative_persona"] = a.narrative_persona
 
     # --- Load flood schedule ---
-    flood_years = sorted(pd.read_csv(config_dir / "flood_years.csv")["Flood_Years"].tolist())
+    flood_years = sorted(pd.read_csv(flood_years_path)["Flood_Years"].tolist())
     print(f"Flood years: {flood_years}")
 
     # --- Build simulation ---
@@ -488,7 +530,7 @@ def main():
     }
 
     # --- Run ---
-    print(f"--- Governed Flood Experiment | {args.model} | {args.agents} agents | {args.years} years | seed={seed} ---")
+    print(f"--- Governed Flood Experiment | {args.model} | {len(agents)} agents | {args.years} years | seed={seed} ---")
     runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
 
     # Finalize audit
@@ -518,7 +560,12 @@ def parse_args():
     p.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
                    default=None, help="Ollama thinking policy (default: framework setting)")
     p.add_argument("--years", type=int, default=10)
-    p.add_argument("--agents", type=int, default=100)
+    p.add_argument("--agents", type=int, default=None,
+                   help="First N households in natural ID order (default: all profiles, 100 in the shipped CSV)")
+    p.add_argument("--initial-agents", type=Path, default=None,
+                   help="Profile CSV override (default: local data/ copy, then tracked single_agent/ input)")
+    p.add_argument("--flood-years", type=Path, default=None,
+                   help="Flood schedule CSV override (default: local config/ copy, then tracked single_agent/ input)")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--memory-seed", type=int, default=42)
