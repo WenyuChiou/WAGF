@@ -1346,8 +1346,10 @@ GOLDEN = {
     # Item 47 updates these hashes for MB, basin tables, S1, L and K6.
     # First-year unchanged keeps are routine too; reflection inputs retain
     # their full outcome records. Digests come from the recorded mock fixture.
-    (UT1, 2019): ("UB, normal year", "7393e4cff97b235a24274f48f7d50dbf40cd3870bb9d4d03c689ab5f96f86baf"),
-    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "ff2ec19679e817ed56d0dc4fae841c47331b07b5abba6a3d245b062a505c0657"),
+    # Item 49 changes only UT1 2019/2020: both bases are at X, so the
+    # increase menu option and S1 disappear; notes/JSON offer two choices.
+    (UT1, 2019): ("UB, normal year", "5b43f36cda78a960663495f65a7be09a4bae621c22aac375cab6f3a94446bdc5"),
+    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "3dc3f337cf8341aa8802818be530e9a444ef1b9fbc22349707dd6dcd10cb1c67"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "fa0603bafd40b59f0e3828c960f9671c20cbd716095e92721caebfcdaac8f3b6"),
     (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
                   "314bad46e711074342f12e0eafd8f0a537861d3bed5fa0ff1bf095c490f87dff"),

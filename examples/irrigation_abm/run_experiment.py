@@ -592,6 +592,7 @@ class IrrigationLifecycleHooks:
                     base=agent_state["base_af"],
                     water_right=ctx["water_right"],
                     floor=ctx["water_right"] * self.env.config.min_utilisation_fraction,
+                    beneficial_use_limit_af=agent_state.get("beneficial_use_limit_af"),
                 ),
                 # WP3 (spec 3.3): read by describe_gap_reason in the supply
                 # rule's block message when this agent's own junior-priority
@@ -609,6 +610,9 @@ class IrrigationLifecycleHooks:
                 # EVERY arm, so the disabled arm can be scored post hoc on
                 # the same numbers.
                 **supply_rule_fields(ctx, agent_state),
+                **({"beneficial_use_limit_af": agent_state["beneficial_use_limit_af"],
+                    "at_beneficial_use_limit": agent_state["at_beneficial_use_limit"]}
+                   if "beneficial_use_limit_af" in agent_state else {}),
             }
             # The supply rule's text says "the {keep} acre-ft you received
             # last year": WP2 (spec 2.1) resets every request to last year's
@@ -638,7 +642,8 @@ class IrrigationLifecycleHooks:
             # the item-23 sentence appears only when an increase is offered
             # and last year's delivery was below its request.
             agent.option_notes = build_option_notes(
-                increase_offered=not validator_fields["at_allocation_cap"],
+                increase_offered=not (validator_fields["at_allocation_cap"]
+                                      or validator_fields.get("at_beneficial_use_limit", False)),
                 decrease_offered=not validator_fields["below_minimum_utilisation"],
                 last_year=getattr(agent, "_last_year_outcome", None),
                 # Spec item 45i: say why no decrease is offered at the floor.
@@ -1096,6 +1101,7 @@ class IrrigationLifecycleHooks:
                 # reflection_log.jsonl keeps the loop year, as before item 45
                 # (year_created + 2018 = the calendar year written in).
                 year_created=year,
+                reflection_input=items,
             )
             self.reflection_tally.add(written_in, result)
             if result.error:
@@ -1231,6 +1237,10 @@ class IrrigationLifecycleHooks:
                     insight.importance = self.reflection_engine.compute_dynamic_importance(
                         ctx_item["context"]
                     )
+                insight.reflection_input = [
+                    str(m.get("content", "")) if isinstance(m, dict) else str(m)
+                    for m in (ctx_item or {}).get("memories", [])
+                ]
                 # store_insight and the reflection_log.jsonl line it writes
                 # stay unconditional, so every summary the model wrote is
                 # in the log even when it is not stored below.
@@ -1826,6 +1836,87 @@ def _validate_keepfix_config(cfg_data):
     return {**package, "routine_tier_scope": scope}
 
 
+def _validate_beneficial_use_config(cfg_data, *, governance_mode, skill_registry, model):
+    """Reject an enabled item 49 setting without its menu and registry gates."""
+    import math
+    setting = cfg_data.get("irrigation_farmer", {}).get("beneficial_use_limit", {})
+    if not isinstance(setting, dict) or set(setting) - {"spec_item", "enabled", "beneficial_use_margin"}:
+        raise ValueError("beneficial_use_limit must be a mapping with spec_item, enabled, beneficial_use_margin")
+    enabled = setting.get("enabled", False)
+    margin = setting.get("beneficial_use_margin", 0.0)
+    if setting.get("spec_item", 49) != 49 or not isinstance(enabled, bool):
+        raise ValueError("beneficial_use_limit requires spec_item 49 and boolean enabled")
+    if (isinstance(margin, bool) or not isinstance(margin, (int, float))
+            or not math.isfinite(margin) or not 0 <= margin <= 1):
+        raise ValueError("beneficial_use_margin must be finite and in [0, 1]")
+    if enabled:
+        from broker.utils.llm_utils import is_mock_model
+        if margin > 0 and not is_mock_model(model):
+            raise ValueError(
+                "beneficial_use_margin > 0 is for mock/CPU sensitivity only (spec item 49); "
+                "use a mock model or set beneficial_use_margin to 0 for a real-LLM run."
+            )
+        agent_cfg = cfg_data.get("irrigation_farmer", {})
+        profile = agent_cfg.get("governance", {}).get(governance_mode, {})
+        # Match AgentTypeConfig.get_identity_rules: a nonempty top-level
+        # override wins; otherwise use embedded or agent-level rules.
+        rules = cfg_data.get("governance", {}).get(governance_mode, {}).get(
+            "irrigation_farmer", {}).get("identity_rules", [])
+        if not rules:
+            rules = profile.get("identity_rules", agent_cfg.get("identity_rules", {}))
+        if isinstance(rules, dict):
+            rules = [{"id": key, **value} for key, value in rules.items()]
+        if not any(rule.get("id") == "beneficial_use_limit"
+                   and rule.get("precondition") == "at_beneficial_use_limit"
+                   and "increase_demand" in rule.get("blocked_skills", [])
+                   and rule.get("level", "ERROR") == "ERROR" for rule in rules):
+            raise ValueError(
+                f"Governance profile {governance_mode!r} requires the beneficial_use_limit "
+                "identity rule blocking increase_demand at at_beneficial_use_limit."
+            )
+        increase = skill_registry.get("increase_demand")
+        if increase is None or "not at_beneficial_use_limit" not in increase.preconditions:
+            raise ValueError(
+                "Skill registry increase_demand requires precondition not at_beneficial_use_limit "
+                "when beneficial_use_limit is enabled."
+            )
+    return {"spec_item": 49, "enabled": enabled, "beneficial_use_margin": margin}
+
+
+def _resolve_beneficial_use_config(cfg_data, config_path, output_dir, setting):
+    """Resolve rule/audit wiring in a derived config, leaving source YAML intact."""
+    fields = ("beneficial_use_limit_af", "at_beneficial_use_limit")
+    columns = cfg_data.setdefault("global_config", {}).setdefault("audit", {}).setdefault("state_columns", [])
+    if setting["enabled"] and all(field in columns for field in fields):
+        return config_path
+    if setting["enabled"]:
+        for field in fields:
+            if field not in columns:
+                columns.append(field)
+    else:
+        columns[:] = [field for field in columns if field not in fields]
+        for profile in cfg_data["irrigation_farmer"]["governance"].values():
+            profile["identity_rules"] = [rule for rule in profile.get("identity_rules", [])
+                                         if rule["id"] != "beneficial_use_limit"]
+    _absolutize_prompt_template_paths(cfg_data, Path(config_path).parent)
+    path = Path(output_dir) / "resolved_agent_types.yaml"
+    path.write_text(yaml.safe_dump(cfg_data, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def _record_beneficial_use_provenance(output_dir, setting):
+    path = Path(output_dir) / "reproducibility_manifest.json"
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["beneficial_use_limit"] = setting
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    path = Path(output_dir) / "config_snapshot.yaml"
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data.setdefault("metadata", {})["beneficial_use_limit"] = setting
+        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
 def _read_ollama_server_version(model):
     """Read once at launch; mock and cloud models never contact Ollama."""
     from broker.utils.llm_utils import is_mock_model, is_cloud_provider_model, get_ollama_base_url
@@ -1840,6 +1931,32 @@ def _read_ollama_server_version(model):
     except (OSError, ValueError, http.client.HTTPException):
         # A non-Ollama reply on OLLAMA_HOST (e.g. BadStatusLine) records null.
         return None
+
+
+def _effective_irrigation_llm_values(
+    agent_config,
+    *,
+    tuned,
+    num_ctx_override=None,
+    num_predict_override=None,
+):
+    """Resolve the run-wide tuner values to the irrigation invoke values.
+
+    ``ExperimentRunner.get_llm_invoke`` sends the merged agent-type config
+    over ``LLM_CONFIG``.  Mirror that precedence here so the tuner's
+    ``Applied`` console line reports the context/prediction values the
+    irrigation agent will actually send.
+    """
+    configured = agent_config.get_llm_params("irrigation_farmer")
+    return {
+        "num_ctx": configured.get(
+            "num_ctx", num_ctx_override if num_ctx_override is not None else tuned.num_ctx
+        ),
+        "num_predict": configured.get(
+            "num_predict",
+            num_predict_override if num_predict_override is not None else tuned.num_predict,
+        ),
+    }
 
 
 def _record_keepfix_provenance(output_dir, package, server_version):
@@ -2003,7 +2120,6 @@ def main():
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
     package = _validate_keepfix_config(cfg_data)
-    ollama_server_version = _read_ollama_server_version(args.model)
     # PR-6 review P1-e: refuse a profile this config does not declare. This
     # runner takes `--governance-mode` as a FREE STRING (any custom profile the
     # YAML defines), so there is no `choices=` list to catch a typo, and
@@ -2015,6 +2131,11 @@ def main():
     from broker.utils.agent_config import assert_governance_profile_declared
     assert_governance_profile_declared(
         cfg_data, args.governance_mode, "irrigation_farmer", agent_config_path)
+    registry = SkillRegistry()
+    registry.register_from_yaml(str(skill_registry_path))
+    beneficial = _validate_beneficial_use_config(
+        cfg_data, governance_mode=args.governance_mode, skill_registry=registry, model=args.model)
+    ollama_server_version = _read_ollama_server_version(args.model)
 
     # --- v0.6 coupling-layer flag (--coupling CLI flag, default OFF) ---
     # May repoint agent_config_path at a derived config copy under output_dir
@@ -2022,6 +2143,7 @@ def main():
     # docstring. original_agent_config_path is kept so the manifest can
     # record where the derived copy came from.
     original_agent_config_path = agent_config_path
+    agent_config_path = _resolve_beneficial_use_config(cfg_data, agent_config_path, output_dir, beneficial)
     agent_config_path, coupling_active = _resolve_irrigation_coupling(
         cfg_data, agent_config_path, args.coupling, output_dir)
     if coupling_active:
@@ -2041,7 +2163,8 @@ def main():
     if args.min_utilisation_fraction is not None:
         config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
     config = WaterSystemConfig(seed=seed, **config_kwargs)
-    grounding = AgentTypeConfig.load(str(agent_config_path)).get_reflection_grounding()
+    agent_type_config = AgentTypeConfig.load(str(agent_config_path))
+    grounding = agent_type_config.get_reflection_grounding()
     if any(grounding.values()) and config.ub_supply_mode != "subbasin":
         raise SystemExit(
             "Grounded reflection requires ub_supply_mode == 'subbasin'; "
@@ -2076,7 +2199,7 @@ def main():
     if resume_source_path is not None:
         from broker.utils.llm_journal import RESUME_PROVENANCE_KEY, check_identifying_config
         current_identifying = _irrigation_identifying_config(
-            args, agent_config_path=agent_config_path,
+            args, agent_config_path=original_agent_config_path,
             prompt_template_path=prompt_template_path,
             skill_registry_path=skill_registry_path,
         )
@@ -2097,10 +2220,6 @@ def main():
             )
         except ValueError as exc:
             raise SystemExit(str(exc))
-
-    # --- Load skill registry ---
-    registry = SkillRegistry()
-    registry.register_from_yaml(str(skill_registry_path))
 
     # --- Create agent profiles ---
     if args.real:
@@ -2204,6 +2323,8 @@ def main():
         if package.get("K6", False) and config.lb_priority_mode == "split" and profile.basin == "lower_basin" and profile.agent_id in priority and priority[profile.agent_id]["junior_entitlement_af"] == 0:
             profile.narrative_persona += "\n" + K6_SENIOR_TIER_TEXT
     env.initialize_from_profiles(profiles)
+    env.configure_beneficial_use_limit(profiles, enabled=beneficial["enabled"],
+                                      margin=beneficial["beneficial_use_margin"], require_peak=args.real)
 
     # Load real CRSS precipitation projections when available
     if args.real:
@@ -2310,7 +2431,17 @@ def main():
     # --- Performance tuning ---
     from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
     perf = get_optimal_config(args.model)
-    apply_to_llm_config(perf, num_ctx_override=args.num_ctx, num_predict_override=args.num_predict)
+    effective_llm = _effective_irrigation_llm_values(
+        agent_type_config,
+        tuned=perf,
+        num_ctx_override=args.num_ctx,
+        num_predict_override=args.num_predict,
+    )
+    apply_to_llm_config(
+        perf,
+        num_ctx_override=effective_llm["num_ctx"],
+        num_predict_override=effective_llm["num_predict"],
+    )
 
     # --- Build experiment ---
     # governance_mode == "disabled" is the single unified path for what used
@@ -2368,7 +2499,7 @@ def main():
         # (called at the top of runner.run(), before this attribute would
         # otherwise be needed).
         runner._llm_journal_identifying_extra = _irrigation_identifying_config(
-            args, agent_config_path=agent_config_path,
+            args, agent_config_path=original_agent_config_path,
             prompt_template_path=prompt_template_path,
             skill_registry_path=skill_registry_path,
         )
@@ -2471,6 +2602,7 @@ def main():
         _record_water_system_config_provenance(output_dir, env.config)
         _record_memory_options_provenance(output_dir, memory_engine)
         _record_keepfix_provenance(output_dir, package, ollama_server_version)
+        _record_beneficial_use_provenance(output_dir, beneficial)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
         # Spec item 45e: the per-year stored / retried / dropped counts of
         # the checked reflections (only when the grounded keys are on).

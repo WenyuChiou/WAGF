@@ -11,6 +11,7 @@ v2.0: invoke functions now return (content, stats) tuple for thread-safety.
 v2.1: Added global LLM_CONFIG for configurable parameters.
 """
 import logging
+import http.client
 import math
 import os
 import threading
@@ -913,6 +914,10 @@ def get_ollama_base_url() -> str:
 # OLLAMA_HOST cannot reuse a different daemon's model metadata.
 _OLLAMA_THINKING_CAPABILITIES: Dict[Tuple[str, str], Optional[bool]] = {}
 _OLLAMA_THINKING_LEVELS: Dict[Tuple[str, str], tuple] = {}
+# Full successful /api/show responses.  The experiment runner captures this
+# once at launch for provenance; thinking-mode resolution then consumes the
+# same bytes instead of issuing a second request for the same model.
+_OLLAMA_SHOW_METADATA: Dict[Tuple[str, str], Dict[str, Any]] = {}
 _OLLAMA_THINKING_WARNED: Set[Tuple[str, str]] = set()
 _OLLAMA_THINKING_LEVEL_WARNED: Set[Tuple[str, str, str]] = set()
 _OLLAMA_THINKING_LOCK = threading.RLock()
@@ -927,6 +932,48 @@ KNOWN_THINKING_FAMILIES = (
     "gemma4", "gemma-4", "qwen3", "qwen3.5", "deepseek-v3.1",
     "deepseek-r1", "phi4-reasoning", "gpt-oss", "magistral",
 )
+
+
+def get_ollama_show_metadata(
+    model: str, *, base_url: Optional[str] = None, refresh: bool = False,
+) -> Dict[str, Any]:
+    """Return and cache one successful Ollama ``/api/show`` response.
+
+    ``refresh`` is used by a new experiment at launch so its manifest cannot
+    inherit stale model identity from an earlier run in the same process.
+    Other consumers reuse that launch response.  Failures are not cached.
+    """
+    import requests
+
+    endpoint = (base_url or get_ollama_base_url()).rstrip("/")
+    key = (endpoint, model)
+    with _OLLAMA_THINKING_LOCK:
+        if refresh or key not in _OLLAMA_SHOW_METADATA:
+            if refresh:
+                _OLLAMA_SHOW_METADATA.pop(key, None)
+                _OLLAMA_THINKING_CAPABILITIES.pop(key, None)
+                _OLLAMA_THINKING_LEVELS.pop(key, None)
+            response = requests.post(
+                f"{endpoint}/api/show", json={"model": model}, timeout=5,
+            )
+            response.raise_for_status()
+            info = response.json()
+            if not isinstance(info, dict):
+                raise ValueError("/api/show response is not an object")
+            _OLLAMA_SHOW_METADATA[key] = dict(info)
+
+            capabilities = info.get("capabilities")
+            if isinstance(capabilities, list) and all(
+                isinstance(capability, str) for capability in capabilities
+            ):
+                _OLLAMA_THINKING_CAPABILITIES[key] = "thinking" in capabilities
+            thinking = info.get("thinking")
+            levels = thinking.get("levels") if isinstance(thinking, dict) else None
+            if levels is None:
+                levels = info.get("thinking_levels")
+            if isinstance(levels, list):
+                _OLLAMA_THINKING_LEVELS[key] = tuple(levels)
+        return dict(_OLLAMA_SHOW_METADATA[key])
 
 
 def get_ollama_model_supports_thinking(model: str, *, base_url: Optional[str] = None) -> Optional[bool]:
@@ -949,11 +996,7 @@ def get_ollama_model_supports_thinking(model: str, *, base_url: Optional[str] = 
             cache_answer = False
             levels = None
             try:
-                response = requests.post(f"{endpoint}/api/show", json={"model": model}, timeout=5)
-                response.raise_for_status()
-                info = response.json()
-                if not isinstance(info, dict):
-                    raise ValueError("/api/show response is not an object")
+                info = get_ollama_show_metadata(model, base_url=endpoint)
                 thinking = info.get("thinking")
                 levels = thinking.get("levels") if isinstance(thinking, dict) else None
                 if levels is None:
@@ -966,7 +1009,11 @@ def get_ollama_model_supports_thinking(model: str, *, base_url: Optional[str] = 
                     raise ValueError("/api/show has no valid capabilities list")
                 support = "thinking" in capabilities
                 cache_answer = True
-            except (requests.RequestException, ValueError, TypeError) as exc:
+            except (requests.RequestException, ValueError, TypeError, http.client.HTTPException) as exc:
+                if not cache_answer:
+                    # A malformed capabilities answer must not survive in
+                    # the shared metadata cache and suppress a later retry.
+                    _OLLAMA_SHOW_METADATA.pop(key, None)
                 if key not in _OLLAMA_THINKING_WARNED:
                     _OLLAMA_THINKING_WARNED.add(key)
                     _LOGGER.warning(

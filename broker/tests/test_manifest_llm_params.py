@@ -735,7 +735,7 @@ class TestModelDigestSkipsMockAndUsesOllamaHost:
 
         assert not post_spy.called
         assert not get_spy.called
-        assert metadata["model_digest"] == "not_applicable_mock"
+        assert metadata["model_digest"] is None
 
     def test_cloud_provider_run_finalize_makes_no_http_request(self, tmp_path):
         """A cloud-provider model (openai/gemini/anthropic/...) never talks
@@ -747,7 +747,7 @@ class TestModelDigestSkipsMockAndUsesOllamaHost:
 
         assert not post_spy.called
         assert not get_spy.called
-        assert metadata["model_digest"] == "not_applicable_cloud_provider"
+        assert metadata["model_digest"] is None
 
     def test_non_string_model_finalize_records_unavailable_not_mock(self, tmp_path):
         """A model that is not even a string (no identity at all) must
@@ -760,7 +760,7 @@ class TestModelDigestSkipsMockAndUsesOllamaHost:
 
         assert not post_spy.called
         assert not get_spy.called
-        assert metadata["model_digest"] == "unavailable"
+        assert metadata["model_digest"] is None
 
     def test_real_model_finalize_uses_ollama_host(self, tmp_path, monkeypatch):
         """A real Ollama model's digest query must build its URL from

@@ -224,4 +224,4 @@ def test_reflection_checks_explicitly_skip_missing_input_under_mb(tmp_path):
     result = vm.reflection_checks(_reflection_run(tmp_path, with_input=False))
     assert result["foreign_figure_reflections"] == 0
     assert result["reflection_input_check_skipped"] == 1
-    assert "MB hides decision-memory lines" in result["reflection_input_skip_reason"]
+    assert "no reflection_input" in result["reflection_input_skip_reason"]
