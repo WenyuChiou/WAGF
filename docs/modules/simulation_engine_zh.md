@@ -1,6 +1,6 @@
 # 模擬引擎：世界的物理法則 (Simulation Engine)
 
-**🌐 Language: [English](README.md) | [中文](README_zh.md)**
+**🌐 Language: [English](simulation_engine.md) | [中文](simulation_engine_zh.md)**
 
 `simulation/` 目錄處理世界的「基本真理 (Ground Truth)」。它管理時間步進、環境狀態（洪水），並執行代理人行動的物理後果。
 

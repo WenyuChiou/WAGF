@@ -6,7 +6,7 @@ the Water Agent Governance Framework (WAGF). Each section follows the structure:
 investigate), and **Solution** (how to fix it).
 
 > **Cross-reference**: For YAML configuration syntax, see the
-> [YAML Configuration Reference](./yaml_configuration_reference.md).
+> [YAML Configuration Reference](../references/yaml_configuration_reference.md).
 
 ---
 

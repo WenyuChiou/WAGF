@@ -11,7 +11,7 @@ along) should be able to follow it without any external dependencies.
 
 ## Path 1 — Claude Code (the bundled-skills path)
 
-The repo ships **7 WAGF-specific skills** under `.claude/skills/`,
+The repo ships **8 WAGF-specific skills** under `.claude/skills/`,
 all tracked in git. When you open this directory in Claude Code,
 they appear in the skill picker automatically.
 
@@ -34,6 +34,7 @@ ends with a confirm-go-no-go prompt; you can stop after any tier.
 | Plan an experiment matrix (model × governance × seed × metric) | `/skill wagf-experiment-designer` | Reproducible matrix written to `.research/experiment_matrix.yml` |
 | Analyse audit traces (IBR / EHE / rejection taxonomy) | `/skill llm-agent-audit-trace-analyzer` | Paper-ready metric tables + figures |
 | Verify external-model coupling (units, time steps, feedback double-count) | `/skill model-coupling-contract-checker` | Audit report with concrete findings |
+| Test a new domain end to end or verify a WAGF setup | `/skill wagf-verification-ladder` | Run the smoke pipeline and decide whether a domain is done before experiment design or reproducibility audit |
 | Pre-submission reproducibility audit | `/skill abm-reproducibility-checker` | Pass/fail per criterion + missing-artefact list |
 
 Each skill has a `SKILL.md` + `references/` subdirectory under

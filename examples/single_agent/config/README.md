@@ -29,7 +29,6 @@ order is:
 
 Edit these only after the three files above make sense:
 
-- [../stress_config.yaml](../stress_config.yaml): stress-test configuration
 - [../agent_types_stress.yaml](../agent_types_stress.yaml): stress-only variant
 - [../run_flood.py](../run_flood.py): runner wiring and experiment assembly
 
