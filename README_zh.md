@@ -2,6 +2,8 @@
 
 [English](README.md) | [繁體中文](README_zh.md)
 
+> 註：英文版 README 已於 2026 年 10 月改版，這份中文版尚未同步；兩者有出入時，以英文版為準。
+
 ## WAGF 是什麼
 
 WAGF（Water Agent Governance Framework）是位於語言模型 agent 與水資源模擬或 agent-based simulation 之間的治理層。agent 提出行動後，validator 會在模擬執行前檢查物理與制度限制，並比較行動是否符合 agent 自己陳述的評估。若發現具阻擋效果的違規，系統會要求 agent 重新決策。啟用規則回饋時，也會說明原因。
@@ -205,7 +207,7 @@ Claude Code 使用者可以使用內附的 [WAGF skills](docs/skills/wagf-skills
 
 ### 引用方式
 
-framework 論文仍在準備中。在論文發表前，請引用 Yang and Chiou (2026) 與本 repository。
+引用時請註明本 repository 及所用的版本與 commit；若使用洪水案例，請一併引用 Yang and Chiou (2026)。
 
 ```bibtex
 @article{yang2026wrr,
@@ -223,12 +225,11 @@ framework 論文仍在準備中。在論文發表前，請引用 Yang and Chiou 
   author = {Chiou, Wenyu and Yang, Y. C. Ethan},
   title  = {{WAGF}: a governance layer for language-model agents in coupled
             human-water models},
-  year   = {2026},
-  note   = {Framework paper in preparation}
+  year   = {2026}
 }
 ```
 
-灌溉 testbed 採用 Hung, C.-L. J., & Yang, Y. C. E.（2021），*Water Resources Research* 57(7)，e2020WR029262 的 CRSS 設定。
+灌溉 testbed 採用 Hung, F., & Yang, Y. C. E.（2021），*Water Resources Research* 57，e2020WR029262 的 CRSS 設定。
 
 ### 授權條款
 
