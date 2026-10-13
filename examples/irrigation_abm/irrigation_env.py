@@ -2240,6 +2240,9 @@ class IrrigationEnvironment:
                 agent["beneficial_use_clamped"] = False
             agent["below_minimum_utilisation"] = base_af <= 1.01 * wr * self.config.min_utilisation_fraction
 
+    def _ub_subbasin_supply_row_for_year(self, year: int) -> Optional[Dict[str, float]]:
+        return _load_ub_subbasin_supply_table(self.config.ub_subbasin_supply_variant).get(year)
+
     def get_agent_context(self, agent_id: str) -> Dict[str, Any]:
         """Build context dict for a specific agent's LLM prompt.
 
@@ -2337,9 +2340,7 @@ class IrrigationEnvironment:
         supply_group = agent.get("supply_group")
         ub_subbasin_flow_share = None
         if basin_key == "upper_basin" and supply_group:
-            supply_row = _load_ub_subbasin_supply_table(
-                self.config.ub_subbasin_supply_variant
-            ).get(self._current_year)
+            supply_row = self._ub_subbasin_supply_row_for_year(self._current_year)
             if supply_row is None:
                 raise ValueError(
                     f"{agent_id}: no ub_subbasin_supply_v3.csv row for simulation "
