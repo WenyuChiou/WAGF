@@ -1441,6 +1441,32 @@ def _record_hold_requests_fixed_provenance(
               f"config_snapshot.yaml: {e}")
 
 
+def _record_hindcast_provenance(output_dir: Path, config) -> None:
+    """Add the historical inputs to the existing provenance files."""
+    from examples.irrigation_abm.hindcast_env import hindcast_provenance
+
+    commit, dirty, _ = _git_state_at_launch()
+    block = hindcast_provenance(config, code_commit=commit, git_dirty=dirty)
+    for filename in ("reproducibility_manifest.json", "config_snapshot.yaml"):
+        try:
+            path = output_dir / filename
+            if not path.exists():
+                raise FileNotFoundError(path)
+            with path.open(encoding="utf-8") as stream:
+                contents = json.load(stream) if filename.endswith(".json") else yaml.safe_load(stream)
+            if filename.endswith(".json"):
+                contents["hindcast"] = block
+            else:
+                contents.setdefault("metadata", {})["hindcast"] = block
+            with path.open("w", encoding="utf-8") as stream:
+                if filename.endswith(".json"):
+                    json.dump(contents, stream, indent=2)
+                else:
+                    yaml.dump(contents, stream, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            print(f"[Provenance] WARNING: could not record hindcast in {filename}: {exc}")
+
+
 def _validate_exception_state_fields(config, state: Dict[str, Any]) -> None:
     """Fail before any decision if an active rule reads an unpublished flag."""
     for rule in config.get_thinking_rules("irrigation_farmer"):
@@ -1753,6 +1779,8 @@ def _irrigation_identifying_config(
         "coupling": args.coupling,
         "retry_feedback_mode": args.retry_feedback_mode,
     }
+    if getattr(args, "hindcast", False):
+        config["hindcast"] = True
     if agent_config_path is not None:
         import hashlib
         config["agent_config_sha256"] = hashlib.sha256(
@@ -1991,6 +2019,17 @@ def _record_keepfix_provenance(output_dir, package, server_version):
 
 def main():
     args = parse_args()
+    if args.hindcast:
+        from examples.irrigation_abm.hindcast_env import (
+            HINDCAST_FIRST_YEAR, HINDCAST_LAST_YEAR, HINDCAST_PRECIP_CSV,
+            HindcastAgentEnvironment, hindcast_config_kwargs, reanchor_profiles,
+        )
+        expected_years = HINDCAST_LAST_YEAR - HINDCAST_FIRST_YEAR + 1
+        if not args.real or args.years != expected_years or args.coupling or args.rebalance_clusters:
+            raise SystemExit(
+                f"--hindcast requires --real --years {expected_years}, "
+                "without --coupling or --rebalance-clusters."
+            )
     # v3 (WP3, spec 3.2): the pilot phases and the ablation mode switched
     # checks that v3 no longer dispatches (consecutive_increase_cap_check,
     # zero_escape_check, demand_ceiling_stabilizer), so either flag would now
@@ -2162,6 +2201,8 @@ def main():
         config_kwargs["lb_return_flow_fraction"] = args.lb_return_flow_fraction
     if args.min_utilisation_fraction is not None:
         config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
+    if args.hindcast:
+        config_kwargs.update(hindcast_config_kwargs())
     config = WaterSystemConfig(seed=seed, **config_kwargs)
     agent_type_config = AgentTypeConfig.load(str(agent_config_path))
     grounding = agent_type_config.get_reflection_grounding()
@@ -2245,6 +2286,9 @@ def main():
         profiles = _create_synthetic_profiles(args.agents, seed)
         print(f"[Data] Created {len(profiles)} synthetic agents")
 
+    if args.hindcast:
+        profiles = reanchor_profiles(profiles)
+
     # --- Optional cluster rebalancing ---
     if args.rebalance_clusters:
         from collections import Counter
@@ -2304,7 +2348,8 @@ def main():
         "hold_requests_fixed=True -- that switch is for replays and CPU "
         "diagnostics only"
     )
-    env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
+    environment_class = HindcastAgentEnvironment if args.hindcast else IrrigationEnvironment
+    env = environment_class(config, coupling_contract_active=coupling_contract_active)
     env.keepfix_s1 = package.get("S1", False)
     env.keepfix_land_need = package.get("L", False)
     env.routine_tier_scope = package["routine_tier_scope"]
@@ -2327,7 +2372,9 @@ def main():
                                       margin=beneficial["beneficial_use_margin"], require_peak=args.real)
 
     # Load real CRSS precipitation projections when available
-    if args.real:
+    if args.hindcast:
+        env.load_crss_precipitation(str(HINDCAST_PRECIP_CSV))
+    elif args.real:
         precip_csv = ref_dir / "CRSS_DB" / "CRSS_DB" / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv"
         if precip_csv.exists():
             env.load_crss_precipitation(str(precip_csv))
@@ -2604,6 +2651,8 @@ def main():
         _record_keepfix_provenance(output_dir, package, ollama_server_version)
         _record_beneficial_use_provenance(output_dir, beneficial)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
+        if args.hindcast:
+            _record_hindcast_provenance(output_dir, env.config)
         # Spec item 45e: the per-year stored / retried / dropped counts of
         # the checked reflections (only when the grounded keys are on).
         _grounding = runner.broker.config.get_reflection_grounding()
@@ -2655,6 +2704,7 @@ def parse_args():
     )
     p.add_argument("--model", default="gemma3:1b")
     p.add_argument("--years", type=int, default=5)
+    p.add_argument("--hindcast", action="store_true", help="Use the observed hindcast window and starting state")
     p.add_argument("--agents", type=int, default=5, help="Number of synthetic agents (ignored if --real)")
     p.add_argument("--real", action="store_true", help="Use real 78-agent CRSS data from paper")
     p.add_argument("--paper-water-margin", type=float, default=0.4,

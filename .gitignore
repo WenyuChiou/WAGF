@@ -113,6 +113,7 @@ temp_*.json
 # ...and the WP1d observed hindcast record + its sources file (same
 # rationale, irrigation_v3_spec_2026-09-28.md item 25).
 !examples/irrigation_abm/data/hindcast_observed_v3.csv
+!examples/irrigation_abm/data/hindcast_precip_v3.csv
 !examples/irrigation_abm/data/hindcast_observed_v3_sources.csv
 
 # ...and the WP5 FQL reference trajectory goldens (test fixtures, not

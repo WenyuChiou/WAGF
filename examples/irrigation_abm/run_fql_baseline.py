@@ -941,6 +941,7 @@ def run_simulation(
     output_dir: Path,
     seed: int = 42,
     no_governance: bool = False,
+    pf_prev_init: Optional[Dict[str, int]] = None,
 ) -> List[Dict[str, Any]]:
     """Run FQL baseline simulation.
 
@@ -981,7 +982,7 @@ def run_simulation(
     # pf_prev, carried here across the year loop (fql.py's FQLState is not
     # the right home for it: it is a run-level lag, not per-agent learned
     # state).
-    pf_prev: Dict[str, int] = {aid: 1 for aid in agent_ids}
+    pf_prev: Dict[str, int] = {aid: 1 for aid in agent_ids} if pf_prev_init is None else pf_prev_init
 
     for year_idx in range(1, n_years + 1):
         # Advance environment (generates precipitation, Mead level, curtailment)
@@ -1467,6 +1468,19 @@ def _append_launch_command_line(output_dir: Path, text: str) -> None:
 def main():
     run_started_at = datetime.now()
     args = parse_args()
+    if args.hindcast:
+        from examples.irrigation_abm.hindcast_env import (
+            HINDCAST_FIRST_YEAR, HINDCAST_LAST_YEAR, HINDCAST_PRECIP_CSV,
+            HindcastAgentEnvironment, hindcast_config_kwargs, hindcast_provenance,
+            initial_pf_prev, reanchor_profiles,
+        )
+        expected_years = HINDCAST_LAST_YEAR - HINDCAST_FIRST_YEAR + 1
+        if (not args.real or args.years != expected_years or args.from_logs
+                or args.rebalance_clusters or args.fql_init != "calibrated"):
+            raise SystemExit(
+                f"--hindcast requires --real --years {expected_years} --fql-init calibrated, "
+                "without --from-logs or --rebalance-clusters."
+            )
     if args.rebalance_clusters and args.cluster_method == "hy2021":
         raise SystemExit(
             "--rebalance-clusters cannot be combined with --cluster-method "
@@ -1515,6 +1529,9 @@ def main():
     else:
         profiles = _create_synthetic_profiles(args.agents, seed)
         print(f"[Data] Created {len(profiles)} synthetic agents")
+
+    if args.hindcast:
+        profiles = reanchor_profiles(profiles)
 
     # Optional cluster rebalancing (matches LLM experiment)
     if args.rebalance_clusters:
@@ -1565,6 +1582,8 @@ def main():
         config_kwargs["min_utilisation_fraction"] = args.min_utilisation_fraction
     if args.powell_post2026_equalization is not None:
         config_kwargs["powell_post2026_equalization"] = args.powell_post2026_equalization
+    if args.hindcast:
+        config_kwargs.update(hindcast_config_kwargs())
     config = WaterSystemConfig(seed=seed, **config_kwargs)
     # WP2 review round 2 (LOW 3): hold_requests_fixed is for replays and
     # CPU diagnostics only (WaterSystemConfig's own docstring) -- this
@@ -1577,11 +1596,14 @@ def main():
         "hold_requests_fixed=True -- that switch is for replays and CPU "
         "diagnostics only"
     )
-    env = IrrigationEnvironment(config, coupling_contract_active=coupling_contract_active)
+    environment_class = HindcastAgentEnvironment if args.hindcast else IrrigationEnvironment
+    env = environment_class(config, coupling_contract_active=coupling_contract_active)
     env.initialize_from_profiles(profiles)
 
     # Load CRSS precipitation if available
-    if args.real and not args.from_logs:
+    if args.hindcast:
+        env.load_crss_precipitation(str(HINDCAST_PRECIP_CSV))
+    elif args.real and not args.from_logs:
         precip_csv = ref_dir / "CRSS_DB" / "CRSS_DB" / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv"
         if precip_csv.exists():
             env.load_crss_precipitation(str(precip_csv))
@@ -1606,6 +1628,12 @@ def main():
             state.init_provenance.get("prev_action_source")
             for _, state in fql_agents.values()
         )
+        if args.hindcast and src_counts != {"historical_annual_series": len(profiles)}:
+            raise SystemExit(
+                "--hindcast requires historical_annual_series as the previous-action "
+                f"source for every agent; resolved sources: {dict(src_counts)}. "
+                "QL_Div coupling files contain projection-year values."
+            )
         print(
             f"[FQL-init] calibrated warm-start loaded for {len(fql_agents)} agents "
             f"from {args.fql_init_dir} (prev_action source: {dict(src_counts)})"
@@ -1640,6 +1668,7 @@ def main():
         output_dir=output_dir,
         seed=seed,
         no_governance=args.no_governance,
+        pf_prev_init=initial_pf_prev(profiles) if args.hindcast else None,
     )
 
     # Save simulation log
@@ -1815,6 +1844,12 @@ def main():
             aid: state.init_provenance
             for aid, (_, state) in fql_agents.items()
         }
+    if args.hindcast:
+        git_info = _git_provenance(PROJECT_ROOT)
+        manifest["hindcast"] = hindcast_provenance(
+            env.config, fql_init=args.fql_init, fql_init_dir=args.fql_init_dir,
+            code_commit=git_info["git_head"], git_dirty=git_info["git_dirty"],
+        )
     _write_reproducibility_manifest(manifest, output_dir, is_real=bool(args.real))
 
     run_finished_at = datetime.now()
@@ -1833,6 +1868,7 @@ def parse_args():
         description="FQL Baseline Runner — Hung & Yang (2021) for Nature Water comparison"
     )
     p.add_argument("--years", type=int, default=5)
+    p.add_argument("--hindcast", action="store_true", help="Use the observed hindcast window and starting state")
     p.add_argument("--agents", type=int, default=5,
                    help="Number of synthetic agents (ignored if --real)")
     p.add_argument("--real", action="store_true",
