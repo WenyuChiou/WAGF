@@ -88,6 +88,8 @@ def test_only_irrigation_and_flood_opt_in():
             opted.add(path.relative_to(REPO).as_posix())
     assert opted == {
         "examples/irrigation_abm/config/agent_types.yaml",
+        "examples/irrigation_abm/config_variants/simple/agent_types.yaml",
+        "examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml",
         "examples/single_agent/agent_types.yaml",
         "examples/single_agent/config_variants/nonudge/agent_types.yaml",
     }

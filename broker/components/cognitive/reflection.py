@@ -272,7 +272,7 @@ class ReflectionCheckTally:
         for code in dict.fromkeys(p.code for p in result.first_problems):
             problems[code] += 1
         if result.insight is not None:
-            if getattr(result.insight, "parse", "strict") == "lenient":
+            if getattr(result.insight, "parse", "strict") in ("lenient", "plain_text"):
                 counts["recovered_lenient"] += 1
             flags = self._flags.setdefault(period, Counter())
             flags.update(dict.fromkeys(p.code for p in result.flags).keys())
@@ -1274,6 +1274,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                     rf"^\s*[\"*']?{re.escape(aid)}[\"*']?\s*[:\-]\s*",
                     "", raw_response, count=1, flags=re.I)
                 results[aid] = self._create_insight(value, current_year, truncate=False)
+                results[aid].parse = "plain_text"
             return results
 
         # --- Stage 2: Regex Fallback (Key: Value Pattern) ---

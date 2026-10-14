@@ -1,0 +1,877 @@
+# =============================================================================
+# IRRIGATION ABM — AGENT TYPES CONFIGURATION
+# =============================================================================
+# Adapted from Hung & Yang (2021) RL-ABM-CRSS framework:
+#   "Assessing Adaptive Irrigation Impacts on Water Scarcity in
+#    Nonstationary Environments — A Multi-Agent Reinforcement Learning Approach"
+#   Water Resources Research, 57, e2020WR029262.
+#
+# LLM-driven version: agents use language model reasoning (not Q-learning)
+# to make water demand decisions.  FQL parameters map to behavioral personas
+# and governance constraints.
+# =============================================================================
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global_config:
+  memory:
+    # LIVE AGAIN (2026-09-26, matching the SI section 3.8 retrieval): the
+    # engine runs the composed ("legacy") retrieval, so window_size and
+    # top_k_significant are read (run_experiment.py builds the engine with
+    # --window-size, default 5, and this top_k_significant). Corpora
+    # produced before 2026-09-26 served 3 items by weighted scoring.
+    window_size: 5
+    top_k_significant: 2
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    decay_rate: 0.1
+    # Item 36b (2026-10-05 design-basis audit + fix proposals, spec item
+    # 36b, N9/N10/X2): three generic framework options, default OFF in
+    # broker/components/memory/engines/humancentric.py so callers remain
+    # byte-identical unless their case config opts in; irrigation turns all
+    # three on (the flood case now also opts into its documented subset).
+    # deterministic_consolidation removes the random draw
+    # that decided whether a >= 0.6-importance outcome entered long-term
+    # memory at all (previously a coin flip, p = 0.42 to 0.63, on every
+    # eligible shortfall year); decay_ignore_emotion removes the
+    # emotion-weighted decay-rate modifier; decay_by_calendar_year counts
+    # decay age in calendar years instead of stored items (irrigation
+    # stores one outcome line plus one reflection per year, so the
+    # item-count age over-decayed at roughly twice the stated rate).
+    deterministic_consolidation: true
+    decay_ignore_emotion: true
+    decay_by_calendar_year: true
+    # Spec item 45m: reserve the latest stored reflection its own final
+    # decision-prompt slot. It is excluded from both the 5 recent event slots
+    # and the 2 significant event slots; year-end reflection explicitly opts
+    # out so its outcome-only input remains byte-for-byte unchanged.
+    reflection_slot: separate
+    recall_skip_key: "routine"
+
+  reflection:
+    interval: 1
+    # v3 (WP4, spec 4.7): one agent per reflection call. Batched calls let a
+    # reflection copy another agent's figures (L3 M8: 201 prompts showed an
+    # acre-ft figure that never belonged to the agent).
+    batch_size: 1
+    importance_boost: 0.9
+    # Spec item 45d (reflection error diagnosis 2026-10-07, section 6 R2):
+    # describe only the listed years; precipitation and Lake Mead only as
+    # higher or lower than the year before, never "average" (47 percent of
+    # Upper Basin pilot reflections named a baseline the input never gives);
+    # a general rule only if no listed year contradicts it (73 percent of
+    # the pilot's precipitation rules had a counterexample in their own
+    # input). The "Lesson Learned" / "patterns" wording that invited those
+    # rules is gone, and the three questions that asked the model to restate
+    # facts are one lesson question (literature scan 2026-10-07, A2). The
+    # framework adds the closing "no years or numbers" line
+    # (LESSON_ONLY_INSTRUCTION) because program_facts is on.
+    persona_instruction: "Speak in the first person and base your lesson only on the years listed below. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
+    questions:
+      - "What does your record teach you about choosing your request next year?"
+    # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's
+    # latest reflection in memory (framework option, default false:
+    # broker/components/cognitive/reflection.py, store_reflection_memory).
+    keep_latest_only: true
+    # Spec item 45 (a)-(e), framework options (default false everywhere
+    # else; broker/utils/agent_config.py (AgentTypeConfig.get_reflection_grounding)):
+    # (a) the reflection written at the end of a year sees that year's own
+    #     outcome line (IrrigationLifecycleHooks._batch_reflect_grounded);
+    # (b) its input is listed one line per year, oldest first (the decision
+    #     prompt's memory order stays by salience, spec item 36l);
+    # (c) the program writes the key years (the year just ended and the
+    #     listed year with the largest shortfall, reflection_checks.key_years)
+    #     and the model writes only the lesson: stored as "{facts} Lesson: {lesson}";
+    # (e) a lesson naming a year or any number is retried once, then not
+    #     stored; the contradiction checks from the irrigation checker
+    #     (reflection_checks.check_lesson) are report-only flags, never
+    #     retried or dropped.
+    year_outcome: true
+    year_lines: true
+    program_facts: true
+    lesson_no_numbers: true
+    # reflection fires every year via reflection.interval (IrrigationLifecycleHooks.post_year
+    # -> ReflectionEngine.should_reflect); the trigger-based system this block once
+    # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
+    # called anywhere in this domain's runners, so it was removed here.
+    method: hybrid
+
+  llm:
+    model: "command-line-override"
+    # Spec 7.3 (v3 launch): these three were previously UNSET here, so every
+    # call silently took Ollama's own gemma3:4b modelfile defaults. The
+    # matching numbers in broker/tests/test_manifest_llm_params.py's
+    # TestLLMParamsResolvedAbsentAndMockSkip fixture are from a FAKE
+    # modelfile response the test hands to a mocked `ollama show` call (it
+    # tests the parsing logic, not gemma3:4b's real defaults): the actual
+    # confirmation that gemma3:4b's own defaults are 1.0/0.95/64 is an
+    # external, out-of-repo fact (the model's shipped Modelfile), not
+    # something this test asserts. Writing them explicitly here makes them
+    # appear in reproducibility_manifest.json's `llm_params_resolved` (the
+    # per-agent-type MERGED params actually sent, r19 G7/G8) instead of
+    # recording them as absent for a value that was in effect all along.
+    # The manifest's SEPARATE legacy top-level `temperature` / `top_p`
+    # fields are NOT affected by this edit and stay null: they read
+    # `broker.utils.llm_utils.LLM_CONFIG`, a module-level singleton loaded
+    # from `Path.cwd()/agent_types.yaml` (falling back to
+    # `broker/utils/agent_types.yaml`) at import time, a different file
+    # from this one -- a pre-existing quirk outside this change's scope,
+    # covered by that test module's own TestBackwardCompatibleTopLevelFields.
+    # No `seed` key is added: Ollama sampling stays UNSEEDED (disclosed,
+    # spec 7.3) -- a real-LLM run's output is still not byte-reproducible
+    # run to run, only now the sampling settings it used are on the record.
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 64
+    num_ctx: 8192
+    num_predict: 4096
+    max_retries: 2
+
+  # Extra insurance before the v3 corpus launch (spec item 24, audit gap F42,
+  # PI approved 2026-09-29). Generic framework feature
+  # (broker/utils/llm_safeguard.py); OFF by default for every other domain.
+  # Values chosen for a 78-agent x 42-year real-LLM run where each Ollama
+  # call already takes tens of seconds. Fix round (post-review): retries are
+  # now TRANSPORT-failures only (a refused/reset connection, or an HTTP 5xx)
+  # -- a timeout is never retried here (the inner call already waited its
+  # own configured timeout), nor is an HTTP 4xx, empty content, or any other
+  # exception.
+  llm_safeguard:
+    enabled: true
+    # 5 retries (6 attempts total), delay doubling from 2s: 2, 4, 8, 16, 32s
+    # (62s of backoff delay total, not counting the calls' own durations).
+    # Long enough to ride out an Ollama restart or a slow GPU-driver
+    # recovery; backoff_max_seconds=60 is a defensive per-delay ceiling that
+    # does not bind for this sequence (its largest single delay is 32s) but
+    # protects a future edit to these numbers from producing an unbounded
+    # wait. Fix round 3 (TIME TO ABORT): once backoff gives up on a
+    # transport failure, the format-retry and governance-retry loops treat
+    # the decision as failed at once instead of re-prompting the same dead
+    # endpoint, so one decision's worst-case time to give up is this ~62s
+    # backoff schedule ONCE, not multiplied by however many retry-loop
+    # attempts a decision can otherwise take.
+    backoff_max_retries: 5
+    backoff_initial_seconds: 2
+    backoff_max_seconds: 60
+    # abort_window (a count, integer) and abort_threshold (a continuous
+    # share, fraction in (0, 1]) per the PI's framework-parameter rule
+    # (2026-09-25). The abort check is EARLY: it fires as soon as
+    # ceil(abort_threshold * abort_window) = ceil(0.5 * 50) = 25 failures
+    # have occurred in the current window, not only once the window is full
+    # -- so a genuinely broken endpoint (every call failing) trips at
+    # decision 25, not 50. One year of this domain is 78 agent-decisions,
+    # larger than the 50-decision window, so a badly-broken run is caught
+    # before it even finishes its first year -- well before a multi-day,
+    # multi-seed batch has burned meaningful GPU time on a run that could
+    # never have produced usable data.
+    abort_window: 50
+    abort_threshold: 0.5
+    # KNOWN LIMIT (fix round 4): the ~62s-once time-to-abort above is the
+    # DEAD-endpoint case (connection refused/reset) -- a HUNG endpoint
+    # (one that accepts the connection but never answers, so every call
+    # times out) is not sped up by any of this. A timeout is deliberately
+    # never retried by the backoff wrapper and never sets transport_error,
+    # so the early-break added this round never fires for it either; it
+    # falls back to the pre-safeguard behaviour of paying the full
+    # timeout on every attempt. At this domain's own numbers that is 3
+    # format-retry attempts x 2 inner create_llm_invoke attempts x the
+    # model's 120s timeout = 12 minutes for ONE decision to give up, so
+    # reaching the 25-failure early-stop above (still the same
+    # ceil(0.5 * 50) = 25) takes about 5 hours on a persistently hung
+    # endpoint, not the ~26 minutes a persistently DEAD one takes.
+
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: irrigation               # Domain selector for validator injection
+    # Supply-side redesign (2026-09-25, spec FW1/FW4): every retry prompt after
+    # an ERROR ends with the list of actions that pass every rule this step
+    # (framework default off).
+    feasible_set_feedback: true
+    # v3 (WP3, spec 3.8, PI item 11): within one decision, TR1 and TR3 read
+    # the water-scarcity appraisal as FIRST STATED -- the first parsed
+    # attempt's, or, if that attempt gave none, the first attempt that does
+    # -- so a retry cannot pass them by rewriting the label; the
+    # feasible-action line uses the same appraisal. It equals initial_labels
+    # whenever the first parsed attempt carried a non-blank WSA, otherwise
+    # the first NON-BLANK WSA in attempt_labels (a blank, WSA_LABEL=, is not
+    # a statement). A rewritten label is
+    # logged (final_labels, appraisal_drift, attempt_labels) and read by no
+    # rule. Generic framework option, default off
+    # (broker/core/_appraisal_freeze.py).
+    appraisal_freeze: true
+    # v3 (WP3, spec 3.5): no "[Rule: <id>] " prefix in rule messages, so no
+    # retry prompt shows an internal rule id (framework default true).
+    rule_id_prefix: false
+    # v3 (WP3 review round 1, MEDIUM 2): an off-menu answer at the cap or the
+    # floor is blocked by its identity rule; the skill registry's backstop
+    # (precondition and output-schema checks) repeats that block in internal
+    # field names. Kept in the audit, left out of the retry text (framework
+    # default false).
+    hide_registry_backstop_reports: true
+    # v3 (WP4, spec 3.7, items 11 and 15): a retry report names the blocked
+    # action in plain words ("increase demand"), never its skill id
+    # (framework default false).
+    plain_action_names: true
+    # v3 (WP4, spec 4.8, L3 M12): the closer of a placebo retry, which shows
+    # no rule text; the framework default points at "the violations above".
+    placebo_closer: "Please reconsider your decision."
+
+  # First-attempt proposal columns (initial_skill, initial_labels,
+  # attempt_skills) and the appraisal-drift columns (final_labels,
+  # appraisal_drift, appraisal_drifted) in the governance audit CSV
+  # (framework default off).
+  audit:
+    initial_proposal_columns: true
+    # Spec item 24 fix round 3 (CRITICAL 2, PI decision): the audit schema
+    # must not depend on whether a given run happened to hit a parse
+    # failure. This is a new corpus, so paying for one consistent column
+    # set from the start is free, and the governance metrics need
+    # execution_path and executed_skill regardless. Also closes a gap the
+    # LLM safeguard exposed: without this, a run that aborts on an
+    # unparsable decision could write zero rows to the audit CSV for the
+    # very decision that stopped it.
+    corrected_status_columns: true
+    # v3 (WP3, spec 3.9): file every block by grounding --
+    # rules_world_grounded (the supply rule and the two identity rules, which
+    # read water-system state) vs rules_self_report (TR1 and TR3, which read
+    # the agent's own appraisal; on an off-menu answer also the registry
+    # backstops precondition_violation and output_schema_violation, which
+    # carry no grounding stamp) -- in every profile, not only those with a
+    # world-grounded thinking rule (framework default off). A column can
+    # mix rule families: metrics count rule families by rule id.
+    grounding_columns: true
+    # v3 (WP3, WP6 metrics, PI item 19): per attempt, the appraisal labels
+    # and the ids of the rules that blocked it (attempt_labels,
+    # attempt_failed_rules, in step with attempt_skills), and
+    # appraisal_relabeled -- the relabel rate and the per-rule census read
+    # these (framework default off).
+    attempt_columns: true
+    # v3 (WP3, spec 3.3): the supply rule's inputs for every decision, as
+    # state_<key> columns, so the disabled and feasibility-only arms can be
+    # scored post hoc on exactly what the live rule reads (framework default
+    # none). The keys are validators/irrigation_validators.py
+    # (SUPPLY_RULE_FIELDS), set by IrrigationLifecycleHooks.pre_year.
+    state_columns:
+      - supply_keep_request_af
+      - supply_expected_at_keep_af
+      - supply_ratio
+      - supply_physical_ratio
+      - full_supply_ratio
+      - beneficial_use_limit_af
+      - at_beneficial_use_limit
+
+  coupling: { context_contract: true }  # PR-9 F1 guard on get_agent_context(); mock byte-identity verified (see CHANGELOG)
+
+  # --- Colorado River Basin water system parameters ---
+  water_system:
+    total_compact_allocation: 16500000  # acre-ft/year (Upper + Lower + Mexico)
+    upper_basin_share: 7500000          # acre-ft/year
+    lower_basin_share: 7500000          # acre-ft/year
+    mexico_share: 1500000               # acre-ft/year
+    simulation_start: 2019
+    simulation_end: 2060
+    historical_start: 1971
+    historical_end: 2018
+    monte_carlo_runs: 100
+
+# =============================================================================
+# SHARED DEFINITIONS
+# =============================================================================
+shared:
+  # Prompt variables supplied by the irrigation lifecycle/context code rather
+  # than by response_format fields.
+  template_vars:
+    - water_situation_text
+    - feedback_dashboard
+    # Spec item 29e: the lines after the options, present only when they
+    # apply (irrigation_personas.build_option_notes, set in pre_year).
+    - option_notes
+
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      # Chain-of-Thought: Reasoning FIRST, then appraisals, then decision
+      # NOTE: Keep to 4 fields only (matching flood ABM pattern).
+      # gemma3:4b collapses nested {"label","reason"} when >4 fields.
+      # magnitude_pct removed: execution uses Gaussian sampling (v12+).
+      # secondary_decision removed: multi_skill disabled.
+      - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE making a decision." }
+      - {
+          key: "water_scarcity_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "WSA_LABEL",
+          reason_hint: "One sentence on whether your water supply is abundant, adequate, tight, scarce, or very scarce.",
+        }
+      - {
+          key: "adaptive_capacity_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "ACA_LABEL",
+          reason_hint: "One sentence on how well you can adapt your water use.",
+        }
+      # Decision comes AFTER reasoning and appraisals
+      - { key: "decision", type: "choice", required: true }
+
+# =============================================================================
+# IRRIGATION FARMER AGENT TYPE
+# =============================================================================
+irrigation_farmer:
+  prompt_information: simple
+  # PI decision/spec item 47; identical in strict and disabled.
+  beneficial_use_limit: {spec_item: 49, enabled: false, beneficial_use_margin: 0.0}
+  keepfix_package: {spec_item: 47, MB: true, table: false, S1: false, L: false, K6: false, routine_tier_scope: affects_agent}  # affects_agent: spec item 48 (2026-10-09, PI, after T15)
+  description: >
+    Agricultural water user in the Colorado River Basin making annual
+    irrigation demand decisions.  Three behavioral clusters from Hung & Yang
+    (2021): Aggressive, Forward-looking Conservative, Myopic Conservative.
+    LLM reasoning replaces Q-learning; governance rules enforce water
+    allocation constraints equivalent to FQL parameter bounds.
+  psychological_framework: cognitive_appraisal
+
+  prompt_template_file: prompts/irrigation_farmer.txt
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action", "selected_action"]
+    default_skill: "maintain_demand"
+    global_skills: ["maintain_demand"]
+    full_disclosure: true
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    list_delimiters: ["/", "|", "\\"]
+
+    audit_keywords:
+      [
+        "water",
+        "irrigation",
+        "drought",
+        "supply",
+        "demand",
+        "crop",
+        "river",
+        "allocation",
+        "shortage",
+        "curtailment",
+        "conservation",
+        "efficiency",
+      ]
+    audit_context_fields: ["narrative_persona", "water_situation_summary"]
+    audit_blacklist:
+      [
+        "water",
+        "irrigation",
+        "farm",
+        "farmer",
+        "crop",
+        "agriculture",
+      ]
+    audit_stopwords: ["water", "irrigation", "farm", "crop"]
+
+    synonyms:
+      wsa:
+        [
+          "water_scarcity",
+          "drought_risk",
+          "scarcity",
+          "shortage",
+          "vulnerability",
+          "supply_risk",
+          "curtailment_risk",
+        ]
+      aca:
+        [
+          "adaptation_ability",
+          "coping",
+          "resilience",
+          "flexibility",
+          "efficiency_capability",
+          "conservation_capacity",
+        ]
+
+    # v3 (WP2 spec 2.2, 2026-09-29): three skills -- the LLM chooses the
+    # direction only, the environment draws the whole Hung and Yang
+    # magnitude (replaces the five-entry small/large map).
+    skill_map:
+      "1": "increase_demand"
+      "2": "maintain_demand"
+      "3": "decrease_demand"
+
+    constructs:
+      WSA_LABEL:
+        {
+          keywords: ["water_scarcity_assessment", "water_scarcity"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      WSA_REASON: { keywords: ["water_scarcity_assessment", "water_scarcity"], regex: ".*" }
+      ACA_LABEL:
+        {
+          keywords: ["adaptive_capacity_assessment", "adaptive_capacity"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      ACA_REASON: { keywords: ["adaptive_capacity_assessment", "adaptive_capacity"], regex: ".*" }
+
+  log_fields: ["water_scarcity_assessment", "adaptive_capacity_assessment"]
+
+  # ---------------------------------------------------------------------------
+  # Memory Configuration
+  # ---------------------------------------------------------------------------
+  memory:
+    engine_type: "human_centric"
+    # Composed retrieval as stated in the SI section 3.8 (2026-09-26): the
+    # window_size (5) most recent event memories are always included, plus
+    # the top_k_significant (2) event memories with the highest decayed
+    # importance (ties: earlier first; decayed importance at or below 0.05
+    # dropped), followed by the latest stored reflection in its own slot, so
+    # a prompt carries up to 5 + 2 + 1 memories (spec item 45m). These keys
+    # are LIVE AGAIN: MemoryProvider passes them to the engine
+    # (composed_retrieval).
+    # Corpora produced before 2026-09-26 served 3 items by weighted
+    # recency / importance / context scoring (MemoryProvider's top_k=3).
+    ranking_mode: legacy
+    composed_retrieval: true
+    window_size: 5
+    top_k_significant: 2
+
+    emotion_keywords:
+      # "drought" was deliberately dropped from this list: build_action_outcome_feedback
+      # / build_regret_feedback (irrigation_personas.py) unconditionally appended
+      # "Drought index: N.NN." to every yearly outcome line (until WP4 removed it),
+      # so keeping "drought" here made water_crisis match every single outcome line
+      # (including "Demand fully met" ones), masking the shortfall/unmet signal below.
+      water_crisis:
+        ["curtailment", "shortage", "shortfall", "unmet", "dry", "depleted", "crisis"]
+      strategic_choice:
+        ["decision", "increase", "decrease", "efficiency", "conservation"]
+      positive_outcome:
+        ["sufficient", "surplus", "saved", "adequate", "improved", "fully met"]
+      social_feedback:
+        ["neighbor", "upstream", "downstream", "compact", "agreement"]
+    emotional_weights:
+      water_crisis: 1.0
+      strategic_choice: 0.8
+      positive_outcome: 0.6
+      social_feedback: 0.4
+      baseline_observation: 0.1
+    source_weights:
+      personal: 1.0
+      neighbor: 0.8
+      community: 0.6
+    # _classify_source() (broker/components/memory/engines/humancentric.py)
+    # only ever reads/returns personal / neighbor / community / abstract; a
+    # source_patterns key of any other name (this used to be a separate
+    # "basin" key, plus a "policy" key with its own source_weights entry)
+    # is silently ignored, so those keyword lists and weights were dead.
+    # Renamed/folded into "community" so basin- and policy-level language
+    # is actually classified, instead of falling back to the code's own
+    # ["%", "community", "region", "area"] default (which trapped every
+    # outcome line's "N% unmet" text as "community" before "personal"
+    # could ever be reached).
+    source_patterns:
+      personal: ["i ", "my ", "me ", "you ", "your "]
+      neighbor: ["neighbor", "upstream", "downstream", "adjacent"]
+      community:
+        ["basin", "compact", "allocation", "bureau", "regulation", "policy", "mandate", "restriction"]
+
+    retrieval_weights:
+      recency: 0.3
+      importance: 0.5
+      context: 0.2
+
+    # reserve_types (a reserved retrieval slot per memory type, weighted
+    # mode only; framework option, default off) is OFF for irrigation since
+    # 2026-09-26: the composed retrieval above provides the event slots and
+    # global_config.memory.reflection_slot provides the separate final
+    # reflection slot.
+    # How the memory line of a year whose proposal was overruled reads:
+    # neutral (default here) names the rule and the action applied, not the
+    # rejected proposal; explicit is the pre-redesign text, kept as an
+    # ablation (spec S6, FW5).
+    rejection_line_style: neutral
+
+    # Generic runner opt-out (2026-09-26, ExperimentRunner._apply_state_changes):
+    # irrigation already writes its own per-year outcome line in pre_year
+    # (build_action_outcome_feedback, run_experiment.py), which states the
+    # executed action and the rule. Leaving the runner's generic "Decided
+    # to: X" / "default action applied: X" line on doubled up every year in
+    # the composed retrieval's 5-recent-memory window, so the recent window
+    # covered ~2.5 years of history instead of 5. False here skips the
+    # generic line entirely (framework default is True; unaffected domains
+    # like flood keep it and rely on DecisionFilteredMemoryEngine instead).
+    runner_decision_line: false
+
+    arousal_threshold: 0.5
+    ema_alpha: 0.3
+
+  # ---------------------------------------------------------------------------
+  # Feedback Dashboard (config-driven env feedback for LLM agents)
+  # See broker/components/feedback_provider.py
+  # ---------------------------------------------------------------------------
+  feedback:
+    trend_window: 5
+    dashboard_format: "none"       # table | summary | none
+    # v3 (WP4, spec 4.6, L3 M15): no TREND line (framework default true); it
+    # compared the mean of the first rows with the last ones and contradicted
+    # the table above it in 22 percent of prompts.
+    show_trend: false
+    # The rows are recorded in post_year from the year's FINAL settlement,
+    # labelled with the calendar year (spec 4.6, L3 M14), so the latest row is
+    # last year's actual request and delivery.
+    tracked_metrics: []
+    assertions:
+      # Item 36h (2026-10-05 design-basis audit + fix proposals, spec
+      # item 36h, provenance G12a): the warning edge is FULL_SUPPLY_RATIO
+      # (0.999), the SAME edge the supply rule and the situation-text
+      # headline switch at -- not the old, unsourced 0.85. This YAML
+      # cannot import the Python constant, so the number is written out
+      # here; test_v3_prompt.py pins it against
+      # irrigation_personas.FULL_SUPPLY_RATIO so the two can never drift
+      # apart again ("supply >= 1" is a unit guard: SafeExpressionEvaluator
+      # replaces 0 with 1e-10, and a real delivery is thousands of
+      # acre-feet). Each variant names who shares the shortage
+      # in the words of the supply rule's message (spec 3.7, item 29c: a
+      # larger request raises the agent's share only by lowering other
+      # users' deliveries and adds no water to the pool). The unmet share has
+      # one decimal, as in the memory line (review LOW 8). A declared Lower
+      # Basin tier cuts only junior-priority water (item 22) and the
+      # non-agricultural aggregate (item 14): a fully senior Lower Basin
+      # agent's shortfall is always Lake Mead's physical availability, and an
+      # junior holder is told that the tier caps delivery at its reduced
+      # entitlement ceiling (item 46), before physical Mead availability.
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_junior >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. In a year with a declared shortage tier, your
+          junior-priority water is limited to a fixed share of your entitlement.
+          A request at or below the tier ceiling is not reduced by the tier
+          that year. Above the tier ceiling, a larger request adds no
+          deliverable water. Lake Mead's physical
+          availability can reduce your delivery further.
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_lower_basin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. A declared shortage does not by itself reduce your
+          delivery; only Lake Mead's physical availability does. When water is
+          short it is shared in proportion to requests, so a larger request
+          would raise your share only by lowering the deliveries of other
+          users in the Lower Basin; it would not add water to the Lower Basin.
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_lower_basin_junior_holder >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. In a year with a declared shortage tier, your
+          junior-priority water is limited to a fixed share of your entitlement.
+          A request at or below the tier ceiling is not reduced by the tier
+          that year; Lake Mead's physical availability can still reduce it.
+          When water is physically short, it is shared in proportion to
+          requests capped by the tier ceiling, so within that ceiling a
+          larger request would raise your share only by lowering the
+          deliveries of other users in the Lower Basin; it would not add
+          water to the Lower Basin.
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_subbasin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short it is shared in proportion to
+          requests, so a larger request would raise your share only by
+          lowering the deliveries of other users in your sub-basin; it would
+          not add water to your sub-basin.
+      # The only member of its sub-basin (H&Y's UT2) has no one to share with.
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_alone >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short, a larger request would not
+          add water.
+      # The basin-wide Upper Basin backstop (or ub_supply_mode lees_ferry_pool).
+      - when: "supply / request < 0.999 and supply >= 1 and shortage_upper_basin >= 1"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF and received {supply_fmt} AF
+          ({unmet_pct:.1f}% unmet). The reason is stated in your water
+          situation above. When water is short it is shared in proportion to
+          requests, so a larger request would raise your share only by
+          lowering the deliveries of other users in the Upper Basin; it would
+          not add water to the Upper Basin.
+
+  # ---------------------------------------------------------------------------
+  # Available Actions
+  # ---------------------------------------------------------------------------
+  actions:
+    # v3 (WP2 spec 2.2, 2026-09-29): the agent picks a DIRECTION only
+    # (increase / maintain / decrease); the size is drawn by the
+    # environment from the agent's own (mu + |N(0, sigma)|) x step_bin_af
+    # distribution, the whole Hung and Yang half-normal (no small/large
+    # split -- replaces the five-skill menu). H&Y agents see no
+    # percentages, so none are stated here; the per-agent option text
+    # (irrigation_personas.build_option_texts) states the resulting
+    # request in acre-ft instead, via option_text_overrides.
+    - id: increase_demand
+      aliases: ["ID", "increase_demand", "increase", "increase request",
+                "[ID]", "[increase_demand]", "[increase]"]
+      description: >
+        Increase your diversion request.
+
+    - id: maintain_demand
+      aliases: ["MD", "maintain", "maintain_demand", "status quo",
+                "no change", "do nothing", "[MD]", "[maintain]",
+                "[maintain_demand]"]
+      description: >
+        Keep your request unchanged.
+
+    - id: decrease_demand
+      aliases: ["DD", "decrease_demand", "decrease", "decrease request",
+                "[DD]", "[decrease_demand]", "[decrease]"]
+      description: >
+        Reduce your diversion request.
+
+  # ---------------------------------------------------------------------------
+  # Multi-skill Configuration
+  # ---------------------------------------------------------------------------
+  multi_skill:
+    enabled: false
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
+
+  # ---------------------------------------------------------------------------
+  # Governance Profiles (v3, WP3; irrigation_v3_spec_2026-09-28.md section 3)
+  # ---------------------------------------------------------------------------
+  # Two rule families (spec 3.1; PI items 1, 9, 12 and 16):
+  #   - Feasibility rules, each the pre-execution counterpart of a constraint
+  #     the source model's water system enforces after the fact, plus the
+  #     legal use floor: the supply rule (validators/irrigation_validators.py,
+  #     supply_gap_block_increase; dispatched through custom_validators in
+  #     every profile but disabled) and the two identity rules below. The
+  #     identity rules are MENU FILTERS in every profile, disabled included:
+  #     the option is not offered (broker/core/_skill_filtering.py), an
+  #     off-menu answer is blocked, and the skill registry preconditions are
+  #     a second backstop.
+  #   - Thinking rules TR1 and TR3, derived from the dual-appraisal framework
+  #     (WSA = threat or primary appraisal, ACA = coping or secondary
+  #     appraisal), enforced in strict only and read on the WSA as FIRST
+  #     STATED in the decision: the first parsed attempt's, unless that
+  #     attempt gave none (global_config.governance.appraisal_freeze).
+  #     The theory is literature; mapping it onto this menu is our
+  #     assumption (item 12). TR2 (WSA H or VH, ACA H or VH, keep) is
+  #     enforced in no profile (item 9); the old R1, R2 and R4 are removed.
+  # Arms: strict; placebo and silent are strict run with
+  # --retry-feedback-mode placebo|silent; feasibility_only (item 16, one run)
+  # is strict without TR1 and TR3; disabled keeps the menu filters only.
+  # TR1 and TR3 are scored post hoc on the first-stated WSA in disabled and
+  # feasibility_only, and the supply rule post hoc in disabled (WP6, from
+  # the state_supply_* audit columns). Retired with the old rule set: the
+  # relaxed and grounded_v1 profiles.
+  governance:
+    strict:
+      thinking_rules:
+        # TR1: a larger request when the agent itself judges water to be
+        # scarce (WSA H or VH) -- flagged as a documented maladaptive
+        # response on a shared supply (item 15; rule basis 6.2, support
+        # moderate). Items 45p/45q exempt an increase after an exact
+        # tier-only cut when last year's request exceeded its delivery.
+        # Execution uses the ordinary H&Y step and water-right cap;
+        # physical supply shortfalls retain the unchanged supply rule.
+        - id: high_scarcity_no_increase
+          conditions: [{ construct: WSA_LABEL, values: ["H", "VH"] }]
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: self_report
+          message: "Demand increase blocked under the rule on increases under scarcity: at the start of this decision you judged water to be scarce this year, and a larger request when water is scarce draws more from a supply you share with other users."
+          suggestion: "Under this rule an increase is not available in this decision."
+        # TR3: a cut when the agent itself judges water not to be scarce
+        # (WSA VL or L) -- a protective response the threat appraisal does
+        # not motivate, kept for symmetry with the flood over-reaction rules
+        # (item 15; rule basis 6.3, support weak to moderate).
+        - id: low_scarcity_no_decrease
+          conditions: [{ construct: WSA_LABEL, values: ["VL", "L"] }]
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: self_report
+          message: "Demand decrease blocked under the rule on decreases without scarcity: at the start of this decision you judged that water is not scarce this year, and cutting your request when water is not scarce gives up water you could use for production."
+          suggestion: "Under this rule a decrease is not available in this decision."
+      identity_rules:
+        # Water-right cap: no increase once the base is at or above 0.99 W.
+        - id: water_right_cap
+          precondition: at_allocation_cap
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at your water right."
+        # Minimum-use floor: no decrease once the base is at or below
+        # 1.01 F, F = 0.10 W. Legal basis for having a floor at all (spec
+        # item 36k, PI-decided 2026-10-06): beneficial use is the basis
+        # and limit of a water right (Arizona Revised Statutes
+        # 45-141(B); Upper Colorado River Basin Compact 1948, Article
+        # III(b)(2)), and the UNUSED part of a right ends or is subject
+        # to forfeiture or abandonment after years of non-use (5 years
+        # in Arizona, A.R.S. 45-141(C); 7 years in Utah, Utah Code
+        # 73-1-4(2)(a); 10 years in Colorado, Colorado Revised Statutes
+        # 37-92-402(11)); approved conservation is exempt (A.R.S.
+        # 45-141(F); C.R.S. 37-92-103(2)). The 10 PERCENT PER YEAR value
+        # is this model's own assumption, not from these statutes (which
+        # set multi-year non-use periods, not an annual fraction); the
+        # source model (Hung and Yang 2021) has no floor at all. CPU
+        # sensitivities at 0 and 0.05 x W (provenance C6b).
+        - id: beneficial_use_limit
+          precondition: at_beneficial_use_limit
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at about the most water your fields can use."
+        - id: minimum_utilisation_floor
+          precondition: below_minimum_utilisation
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: world
+          message: "Decrease not available: your request is already at the minimum-use floor (10% of your water right)."
+
+    # Item 16: strict without TR1 and TR3 (one run, seed 42). Keeps the
+    # supply rule (run_experiment.py wires irrigation_governance_validator in
+    # every profile but disabled), full retry feedback, the same identity
+    # rules and the same prompt.
+    feasibility_only:
+      thinking_rules: []
+      identity_rules:
+        - id: water_right_cap
+          precondition: at_allocation_cap
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at your water right."
+        - id: beneficial_use_limit
+          precondition: at_beneficial_use_limit
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at about the most water your fields can use."
+        - id: minimum_utilisation_floor
+          precondition: below_minimum_utilisation
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: world
+          message: "Decrease not available: your request is already at the minimum-use floor (10% of your water right)."
+
+    # The identity rules only (menu parity, PI e); no thinking rules; the
+    # runner passes no custom validators, so the supply rule does not run.
+    disabled:
+      thinking_rules: []
+      identity_rules:
+        - id: water_right_cap
+          precondition: at_allocation_cap
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at your water right."
+        - id: beneficial_use_limit
+          precondition: at_beneficial_use_limit
+          blocked_skills: ["increase_demand"]
+          level: ERROR
+          grounding: world
+          message: "Increase not available: your request is already at about the most water your fields can use."
+        - id: minimum_utilisation_floor
+          precondition: below_minimum_utilisation
+          blocked_skills: ["decrease_demand"]
+          level: ERROR
+          grounding: world
+          message: "Decrease not available: your request is already at the minimum-use floor (10% of your water right)."
+
+
+# =============================================================================
+# BEHAVIORAL CLUSTER PERSONAS (derived from FQL calibration)
+# =============================================================================
+# These persona profiles correspond to the three k-means clusters from
+# Hung & Yang (2021) Section 4.1.  In the LLM version, the FQL parameters
+# translate to persona traits rather than mathematical Q-learning coefficients.
+#
+# Cluster mapping (FQL → LLM persona):
+#   mu/sigma (action magnitude)  → verbal aggressiveness / change willingness
+#   alpha (learning rate)        → how quickly persona updates beliefs
+#   gamma (discount rate)        → emphasis on future vs present
+#   epsilon (exploration rate)   → willingness to try new strategies
+#   regret (penalty sensitivity) → aversion to unmet demand
+# =============================================================================
+
+# Not read when a prompt is built: the v3 persona texts are
+# irrigation_personas._CLUSTER_PERSONAS (spec 4.1). Kept for the FQL
+# reference values only.
+personas:
+  aggressive:
+    description: >
+      You are an assertive, action-oriented farmer who responds quickly
+      and decisively to water supply signals. You prefer measured but confident changes
+      rather than extreme swings. Supply
+      constraints and operational limits moderate your actions. You have
+      a relatively low sensitivity to unmet demand penalties; you'd rather
+      take bold action and occasionally overshoot than be cautious and miss
+      opportunities. You update your views moderately fast but trust your instincts.
+    fql_reference:
+      mu: 0.36
+      sigma: 1.22
+      alpha: 0.62
+      gamma: 0.77
+      epsilon: 0.16
+      regret: 0.78
+
+  forward_looking_conservative:
+    description: >
+      You are a cautious but forward-thinking farmer. You prefer measured, gradual
+      adjustments rather than bold swings. You
+      learn quickly from experience and weigh future consequences heavily. You
+      are highly sensitive to unmet demand — the thought of running short of
+      water causes you significant concern. You are moderately willing to
+      explore new strategies, but you analyze carefully before acting.
+    fql_reference:
+      mu: 0.20
+      sigma: 0.60
+      alpha: 0.85
+      gamma: 0.78
+      epsilon: 0.19
+      regret: 2.22
+
+  myopic_conservative:
+    description: >
+      You are a tradition-oriented farmer who relies heavily on past
+      experience and established practices. You make only modest, incremental
+      changes and prefer the status quo. You
+      update your views slowly, discount future outcomes, and rarely explore
+      unfamiliar strategies. You have moderate sensitivity to unmet
+      demand but generally believe that sticking to proven practices
+      is the safest approach.
+    fql_reference:
+      mu: 0.16
+      sigma: 0.87
+      alpha: 0.67
+      gamma: 0.64
+      epsilon: 0.09
+      regret: 1.54
+
+
+# =============================================================================
+# ACTION MAGNITUDE
+# =============================================================================
+# The former skill_magnitude block (Gaussian percentage bands per skill,
+# scaled by a per-persona persona_scale) was removed on 2026-09-26. The step
+# size is the Hung and Yang (2021) action model, drawn in
+# irrigation_env.py (hy_step_af) from per-agent data: mu and sigma from
+# ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv and the grid step of
+# ref/CRSS_DB/CRSS_DB/Div_States/*_discrete_states.csv. They are data, not
+# tunables, so nothing about the step size is configured here.
+
+metadata: { version: "v17-5skill" }
