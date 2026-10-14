@@ -77,6 +77,23 @@ PAST_EVENTS = [
 ]
 
 
+def _flood_random_stream(
+    seed: int, year: int, purpose: str, household_id: Optional[str] = None
+) -> random.Random:
+    """Return a fresh stream independent of draw order and governance arm.
+
+    JSON keeps the key components unambiguous. Random's string seed uses
+    SHA-512 rather than Python's process-dependent hash(). Seed and year are
+    cast to int so a numpy integer or the string "42" gives the same stream
+    as 42; a missing seed is refused, since every unseeded run would
+    otherwise share one stream.
+    """
+    if seed is None:
+        raise ValueError("_flood_random_stream: the run seed is None; resolve a seed first.")
+    key = json.dumps([int(seed), int(year), household_id, purpose], separators=(",", ":"))
+    return random.Random(key)
+
+
 def _natural_agent_key(agent_id: str) -> List[Any]:
     """Sort Agent_2 before Agent_10 for reproducible small smoke subsets."""
     return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", str(agent_id))]
@@ -203,7 +220,10 @@ class FinalContextBuilder(TieredContextBuilder):
         self.sim = sim
         self.memory_top_k = memory_top_k
         self.shuffle_skills = shuffle_skills
-        self.shuffle_seed_base = shuffle_seed_base
+        self.shuffle_seed_base = (
+            shuffle_seed_base if shuffle_seed_base is not None
+            else getattr(sim, "seed", 42)
+        )
         self.governance_mode = governance_mode
 
     def _format_memory(self, memory_val) -> str:
@@ -303,12 +323,10 @@ class FinalContextBuilder(TieredContextBuilder):
 
         # Anti-positional-bias: shuffle skill ordering (Task-060B)
         if self.shuffle_skills and len(options) > 1:
-            if self.shuffle_seed_base is not None:
-                year = self.sim.current_year if self.sim else 0
-                seed = self.shuffle_seed_base + year * 1000 + hash(agent_id) % 997
-                random.Random(seed).shuffle(options)
-            else:
-                random.shuffle(options)
+            year = self.sim.current_year if self.sim else 0
+            _flood_random_stream(
+                self.shuffle_seed_base, year, "options", agent_id
+            ).shuffle(options)
 
         dynamic_skill_map = {}
         formatted_lines = []
@@ -456,7 +474,7 @@ def _resolved_flood_memory_options(memory_engine) -> Dict[str, Any]:
 
 
 def _record_flood_memory_options_provenance(output_dir: Path, memory_engine) -> None:
-    """Add the resolved flood memory configuration to the run manifest."""
+    """Record memory options and keyed flood/grant/damage/recall/options/gossip streams."""
     options = _resolved_flood_memory_options(memory_engine)
     try:
         manifest_path = output_dir / "reproducibility_manifest.json"
@@ -464,6 +482,7 @@ def _record_flood_memory_options_provenance(output_dir: Path, memory_engine) -> 
             with manifest_path.open("r", encoding="utf-8") as f:
                 manifest = json.load(f)
             manifest["flood_memory_options"] = options
+            manifest["random_streams"] = "keyed_per_year_household"
             with manifest_path.open("w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2)
     except Exception as e:
@@ -483,6 +502,7 @@ class ResearchSimulation:
         flood_probability: float = FLOOD_PROBABILITY,
         premium_rate: float = 0.02,
         governance_mode: str = "strict",
+        seed: int = 42,
     ):
         self.agents = agents
         self.flood_years = flood_years or []
@@ -490,6 +510,7 @@ class ResearchSimulation:
         self.flood_probability = flood_probability
         self.premium_rate = premium_rate
         self.governance_mode = governance_mode
+        self.seed = seed
         self.current_year = 0
         self.flood_event = False
         self.grant_available = False
@@ -497,10 +518,16 @@ class ResearchSimulation:
     def advance_year(self):
         self.current_year += 1
         if self.flood_mode == "prob":
-            self.flood_event = random.random() < self.flood_probability
+            self.flood_event = (
+                _flood_random_stream(self.seed, self.current_year, "flood_event").random()
+                < self.flood_probability
+            )
         else:
             self.flood_event = self.current_year in self.flood_years
-        self.grant_available = random.random() < GRANT_PROBABILITY
+        self.grant_available = (
+            _flood_random_stream(self.seed, self.current_year, "grant").random()
+            < GRANT_PROBABILITY
+        )
         return {
             "flood_event": self.flood_event,
             "grant_available": self.grant_available,
@@ -610,14 +637,17 @@ class FinalParityHook:
                 continue
             flooded = False
             if flood_event:
+                damage_draw = _flood_random_stream(
+                    self.sim.seed, year, "damage", agent.id
+                ).random()
                 if not agent.elevated:
-                    if random.random() < agent.flood_threshold:
+                    if damage_draw < agent.flood_threshold:
                         flooded = True
                         mem = f"Year {year}: Got flooded with $10,000 damage on my house."
                     else:
                         mem = f"Year {year}: A flood occurred, but my house was spared damage."
                 else: # agent.elevated
-                    if random.random() < agent.flood_threshold:
+                    if damage_draw < agent.flood_threshold:
                         flooded = True
                         mem = f"Year {year}: Despite elevation, the flood was severe enough to cause damage."
                     else:
@@ -657,8 +687,9 @@ class FinalParityHook:
                 yearly_memories.append(f"Year {year}: I observe {reloc_pct}% of my neighbors have relocated.")
 
             # Stochastic recall (baseline order)
-            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
-                yearly_memories.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+            recall_rng = _flood_random_stream(self.sim.seed, year, "recall", agent.id)
+            if recall_rng.random() < RANDOM_MEMORY_RECALL_CHANCE:
+                yearly_memories.append(f"Suddenly recalled: '{recall_rng.choice(PAST_EVENTS)}'.")
 
             # 2026-10 WRR26 rerun (design record rows F2 and F3, items 2 and 3):
             # the "Year t: You chose to X." own-action line (F3, not in WRR26)
@@ -1467,6 +1498,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         )
 
     # 2. Load Profiles (Survey Mode or CSV Mode)
+    # Library calls, like CLI calls, resolve one seed and record the actual value.
+    if seed is None:
+        seed = random.SystemRandom().randint(0, 1000000)
     if survey_mode:
         # Survey-based initialization from real household data
         # Anchored to the script, NOT to base_path: this is a shared read-only input dataset
@@ -1574,7 +1608,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     premium_rate = getattr(globals().get('args'), 'premium_rate', None) or 0.02
     sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode,
                              premium_rate=premium_rate,
-                             governance_mode=governance_mode)
+                             governance_mode=governance_mode, seed=seed)
     if premium_rate != 0.02:
         print(f" [Counterfactual] Insurance premium rate: {premium_rate} (baseline: 0.02)")
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
@@ -1585,6 +1619,12 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         graph,
         action_labels=FLOOD_ACTION_LABELS,
         visible_action_specs=FLOOD_VISIBLE_ACTION_SPECS,
+        # The runner advances the simulation before building decision contexts
+        # and finishes all decisions before advancing again. Read the live year
+        # on every call, including retries; never capture it at hub construction.
+        rng_for=lambda agent_id, purpose: _flood_random_stream(
+            sim.seed, sim.current_year, purpose, agent_id
+        ),
     )
     ctx_builder = FinalContextBuilder(
         agents=agents,
@@ -1919,13 +1959,17 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # This uses the enhanced llm_invoke in llm_utils.py with 3-attempt LLM-level retry
     # Passing verbose=False here to hide raw prompt/output dumps as requested,
     # but runner.broker.log_prompt=verbose above ensures Adapter/Validator results are still shown.
-    runner.run(llm_invoke=create_llm_invoke(model, verbose=False))
-    
+    # The manifest is written in ExperimentRunner.run's own finally block,
+    # so the provenance (random_streams marker included) is added in a
+    # finally here too: an aborted run must still say which draw scheme it used.
+    try:
+        runner.run(llm_invoke=create_llm_invoke(model, verbose=False))
+    finally:
+        _record_flood_memory_options_provenance(output_dir, runner.memory_engine)
+
     # Finalize Audit (Generates CSVs and Summary)
     if runner.broker.audit_writer:
         runner.broker.audit_writer.finalize()
-
-    _record_flood_memory_options_provenance(output_dir, runner.memory_engine)
 
     # Item 7: per-year stored / retried / dropped counts of the grounded
     # reflection in the manifest.
@@ -2096,7 +2140,7 @@ if __name__ == "__main__":
         LLM_CONFIG.thinking_mode = args.thinking_mode
 
     # Generate random seed if not specified
-    actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)
+    actual_seed = args.seed if args.seed is not None else random.SystemRandom().randint(0, 1000000)
     random.seed(actual_seed)
     
     run_parity_benchmark(

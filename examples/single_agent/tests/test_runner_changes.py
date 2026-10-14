@@ -120,7 +120,7 @@ def test_insurance_set_true_on_buy_insurance():
 # ---------------------------------------------------------------------------
 
 def test_two_separate_neighbour_lines_not_one_combined_sentence(monkeypatch):
-    monkeypatch.setattr(run_flood_mod.random, "random", lambda: 1.0)  # never recall
+    monkeypatch.setattr(run_flood_mod, "RANDOM_MEMORY_RECALL_CHANCE", 0.0)  # never recall
     agents = {
         "H0001": _FakeAgent("H0001", elevated=False),
         "H0002": _FakeAgent("H0002", elevated=True),
@@ -148,7 +148,7 @@ def test_two_separate_neighbour_lines_not_one_combined_sentence(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_community_rate_used_in_post_year_is_the_pre_decision_one(monkeypatch):
-    monkeypatch.setattr(run_flood_mod.random, "random", lambda: 1.0)
+    monkeypatch.setattr(run_flood_mod, "RANDOM_MEMORY_RECALL_CHANCE", 0.0)
     agents = {
         "H0001": _FakeAgent("H0001", elevated=False),
         "H0002": _FakeAgent("H0002", elevated=False),
@@ -183,7 +183,7 @@ def test_community_rate_used_in_post_year_is_the_pre_decision_one(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_one_memory_item_per_event_line_not_one_joined_line(monkeypatch):
-    monkeypatch.setattr(run_flood_mod.random, "random", lambda: 1.0)  # never recall
+    monkeypatch.setattr(run_flood_mod, "RANDOM_MEMORY_RECALL_CHANCE", 0.0)  # never recall
     agent = _FakeAgent("H0001", elevated=False)
     sim = _make_sim({"H0001": agent}, flood_event=False, grant_available=True)
     hook = _make_hook(sim)
@@ -204,7 +204,7 @@ def test_one_memory_item_per_event_line_not_one_joined_line(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_no_own_action_memory_line(monkeypatch):
-    monkeypatch.setattr(run_flood_mod.random, "random", lambda: 1.0)
+    monkeypatch.setattr(run_flood_mod, "RANDOM_MEMORY_RECALL_CHANCE", 0.0)
     agent = _FakeAgent("H0001", elevated=False)
     sim = _make_sim({"H0001": agent}, flood_event=False, grant_available=False)
     hook = _make_hook(sim)
