@@ -4,14 +4,13 @@ Launch, 7.1-7.6).
 Every subprocess that would actually run an experiment or contact Ollama is
 mocked: `_popen_detached` (the one function that ever spawns the detached
 chain-runner process) and `subprocess.Popen` / `subprocess.run` (used for
-each chained command, each `v3_metrics.py` call, and `is_pid_alive`'s
-`tasklist` check) are patched in every test that reaches them. An autouse
+each chained command, each `v3_metrics.py` call, and the liveness
+process query) are patched in every test that reaches them. An autouse
 fixture (`_guard_real_subprocess_calls`) additionally makes ANY
-unmocked `subprocess.Popen` / `subprocess.run` call raise, UNLESS it is one
-of the two real, local, no-network commands this suite deliberately lets
-through: `git` (the preflight tests' throwaway temp repos) and `tasklist`
-(`is_pid_alive`'s liveness check -- reading the local process table, never
-touching Ollama or the network). No test starts `run_fql_baseline.py`,
+unmocked `subprocess.Popen` / `subprocess.run` call raise, UNLESS it is the
+real, local, no-network command this suite deliberately lets through:
+`git` (the preflight tests' throwaway temp repos).
+No test starts `run_fql_baseline.py`,
 `run_experiment.py`, or `v3_metrics.py` for real, and none imports or
 touches Ollama.
 """
@@ -30,14 +29,14 @@ from examples.irrigation_abm.tools import v3_corpus_launcher as launcher
 
 _REAL_SUBPROCESS_RUN = subprocess.run
 _REAL_SUBPROCESS_POPEN = subprocess.Popen
-_ALLOWED_REAL_COMMANDS = ("git", "tasklist")
+_ALLOWED_REAL_COMMANDS = ("git",)
 
 
 @pytest.fixture(autouse=True)
 def _guard_real_subprocess_calls(monkeypatch):
     """Safety net (Opus review item 15): a test that forgets to mock
     `subprocess.Popen` / `subprocess.run` must fail loudly, not silently
-    launch something real. `git` and `tasklist` are allowed through to the
+    launch something real. `git` is allowed through to the
     real implementation (see module docstring); a test that needs to mock
     one of THOSE specifically (none currently do) can still
     `monkeypatch.setattr` it again inside the test, which simply shadows
@@ -116,7 +115,7 @@ def _mock_liveness(monkeypatch, alive_pids_and_needles):
         needle = alive_pids_and_needles.get(pid)
         if needle is None:
             return None
-        return f"python.exe ...{needle}..."
+        return f"python.exe\npython.exe {needle}"
 
     monkeypatch.setattr(launcher, "_process_command_line", _fake)
 
@@ -468,12 +467,11 @@ class TestRunStatusRunning:
         assert launcher.run_status_for_dir(d, is_llm=True, record=record) == "crashed"
 
     def test_crashed_when_pid_alive_but_command_line_names_a_different_dir(self, monkeypatch, tmp_path):
-        """Item 4: a bare PID match is not enough -- Windows recycles
-        PIDs, so a live python.exe that does NOT name THIS run's own
-        --output directory must not count as this run being alive."""
+        """A different output directory and a stale journal give no liveness."""
         d = tmp_path / "run"
         d.mkdir()
         (d / "llm_journal.jsonl").write_text('{"call": 1}\n', encoding="utf-8")
+        os.utime(d / "llm_journal.jsonl", (0, 0))
         _mock_liveness(monkeypatch, {4242: str(tmp_path / "some_other_run")})
         record = {"pid": 4242, "returncode": None}
         assert launcher.run_status_for_dir(d, is_llm=True, record=record) == "crashed"
@@ -544,6 +542,7 @@ class TestResumeChainAwareStatus:
         resume1 = base.parent / f"{base.name}_resume1"
         resume1.mkdir()
         (resume1 / "llm_journal.jsonl").write_text('{"call": 1}\n', encoding="utf-8")
+        os.utime(resume1 / "llm_journal.jsonl", (0, 0))
         launcher.write_run_record(state_dir, "strict_43_resume1", {"pid": 999999999, "returncode": None})
         _mock_all_dead(monkeypatch)
 
@@ -934,6 +933,7 @@ class TestCmdResume:
         run = next(r for r in plan if r.label == label)
         run.output_dir.mkdir(parents=True)
         (run.output_dir / "llm_journal.jsonl").write_text('{"call": 1}\n', encoding="utf-8")
+        os.utime(run.output_dir / "llm_journal.jsonl", (0, 0))
         return run
 
     def test_resume_launches_into_new_dir_and_never_touches_crashed_dir(self, monkeypatch, tmp_path, git_repo):
@@ -1030,6 +1030,7 @@ class TestCmdResume:
         resume1 = base.output_dir.parent / f"{base.output_dir.name}_resume1"
         resume1.mkdir()
         (resume1 / "llm_journal.jsonl").write_text('{"call": 1}\n', encoding="utf-8")
+        os.utime(resume1 / "llm_journal.jsonl", (0, 0))
         launcher.write_run_record(state_dir, "strict_43_resume1", {"pid": 999999999, "returncode": None})
         _mock_all_dead(monkeypatch)
         launcher.save_state(state_dir, {"workers": 4, "pilot_gate": {"passed": True, "sha8": sha8}})
@@ -1603,11 +1604,12 @@ class TestLivenessCheck:
     that shells out (`_process_command_line`) is mockable and timeout-
     bounded."""
 
-    def test_process_command_line_returns_none_on_timeout(self, monkeypatch):
+    def test_process_command_line_propagates_timeout_to_probe(self, monkeypatch):
         def _raise_timeout(*a, **kw):
             raise launcher.subprocess.TimeoutExpired(cmd="powershell", timeout=10)
         monkeypatch.setattr(launcher.subprocess, "run", _raise_timeout)
-        assert launcher._process_command_line(12345, timeout=0.01) is None
+        with pytest.raises(subprocess.TimeoutExpired):
+            launcher._process_command_line(12345, timeout=0.01)
 
     def test_process_command_line_passes_the_timeout_through(self, monkeypatch):
         captured = {}
@@ -1620,12 +1622,13 @@ class TestLivenessCheck:
         launcher._process_command_line(123, timeout=5.0)
         assert captured["timeout"] == 5.0
 
-    def test_process_command_line_none_on_nonzero_returncode(self, monkeypatch):
+    def test_process_command_line_propagates_nonzero_exit_to_probe(self, monkeypatch):
         monkeypatch.setattr(
             launcher.subprocess, "run",
             lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout=b""),
         )
-        assert launcher._process_command_line(123) is None
+        with pytest.raises(subprocess.CalledProcessError):
+            launcher._process_command_line(123)
 
     def test_is_process_alive_for_requires_python_exe(self, monkeypatch):
         monkeypatch.setattr(launcher, "_process_command_line", lambda pid, timeout=10.0: "notepad.exe something")
@@ -1665,6 +1668,316 @@ class TestLivenessCheck:
             lambda pid, timeout=10.0: "python.exe examples/irrigation_abm/run_experiment.py --output X",
         )
         assert launcher.is_chain_alive(999) is False
+
+
+class TestLivenessProbeRegression:
+    def test_wrapped_format_list_path_matches(self, monkeypatch):
+        output = r"C:\very_long_campaign\results\v3_strict_deadbeef_seed43"
+        wrapped = (
+            "Name        : python.exe\n"
+            "CommandLine : python.exe run_experiment.py --output "
+            "C:\\very_long_campaign\\results\\v3_strict_dead\n"
+            "              beef_seed43\n"
+        )
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: wrapped)
+        assert launcher.is_process_alive_for(123, output)
+
+    def test_path_case_slashes_quotes_and_whitespace_match(self, monkeypatch):
+        text = 'python.exe\npython.exe --output "c:/Campaign Results/strict_43"   --years 42'
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: text)
+        assert launcher.is_process_alive_for(123, r'C:\CAMPAIGN RESULTS\STRICT_43')
+        assert launcher.is_process_alive_for(123, '--years\t42')
+
+    def test_query_prints_raw_name_and_command_line(self, monkeypatch):
+        calls = []
+
+        def query(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return types.SimpleNamespace(returncode=0, stdout=b'python.exe\npython.exe --output C:/long/path\n')
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        text = launcher._process_command_line(123)
+        assert "C:/long/path" in text
+        script = calls[0][0][-1]
+        assert "Format-List" not in script and "Select-Object" not in script
+        assert "$p.Name" in script and "$p.CommandLine" in script
+        assert calls[0][1]["timeout"] == 30.0
+
+    @pytest.mark.parametrize("failure", ["timeout", "oserror", "nonzero"])
+    def test_failed_query_is_unknown_and_running_with_one_retry(self, monkeypatch, tmp_path, failure):
+        calls = []
+
+        def query(argv, **kwargs):
+            calls.append(kwargs)
+            if failure == "timeout":
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            if failure == "oserror":
+                raise OSError("process query unavailable")
+            return types.SimpleNamespace(returncode=1, stdout=b"query failed")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        record = {"pid": 123, "returncode": None}
+        assert launcher.run_status_for_dir(tmp_path / "run", is_llm=True, record=record) == "running"
+        assert len(calls) == 2
+        assert all(call["timeout"] == 30.0 for call in calls)
+        probe = launcher.probe_process(123, timeout=0.01)
+        assert probe.status == "unknown"
+        assert len(calls) == 4 and calls[-1]["timeout"] == 0.01
+
+    def test_retry_recovers_name_and_cmdline(self, monkeypatch):
+        calls = []
+
+        def query(argv, **kwargs):
+            calls.append(argv)
+            if len(calls) == 1:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            return types.SimpleNamespace(returncode=0, stdout=b"python.exe\npython.exe --output C:/run\n")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        probe = launcher.probe_process(123)
+        assert probe.status == "alive"
+        assert probe.name == "python.exe"
+        assert probe.cmdline == "python.exe --output C:/run"
+        assert len(calls) == 2
+
+    @pytest.mark.parametrize("manifest", ['{}', '{"run_status": "aborted_journal_divergence"}', '{invalid'])
+    @pytest.mark.parametrize("query_result", ["alive", "unknown"])
+    def test_unfinished_manifest_checks_liveness(self, monkeypatch, tmp_path, manifest, query_result):
+        (tmp_path / "reproducibility_manifest.json").write_text(manifest, encoding="utf-8")
+
+        def query(*args, **kwargs):
+            if query_result == "unknown":
+                raise subprocess.TimeoutExpired("powershell", 30)
+            return f"python.exe\npython.exe --output {tmp_path}"
+
+        monkeypatch.setattr(launcher, "_process_command_line", query)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123}) == "running"
+
+    def test_absent_with_no_exit_stays_crashed(self, monkeypatch, tmp_path):
+        calls = []
+
+        def query(argv, **kwargs):
+            calls.append(argv)
+            return types.SimpleNamespace(returncode=0, stdout=b"\r\n")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        record = {"pid": 123, "returncode": None}
+        assert launcher.run_status_for_dir(tmp_path / "run", is_llm=True, record=record) == "crashed"
+        assert len(calls) == 1
+
+    def test_absent_probe_needs_no_retry(self, monkeypatch):
+        calls = []
+
+        def query(argv, **kwargs):
+            calls.append(argv)
+            return types.SimpleNamespace(returncode=0, stdout=b"\r\n")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        assert launcher.probe_process(123).status == "absent"
+        assert len(calls) == 1
+
+    @pytest.mark.parametrize("age,query_result,expected", [
+        (10, "unknown", "running"), (901, "absent", "crashed"),
+        (10, "absent", "crashed"),
+    ])
+    def test_journal_and_process_signals(self, monkeypatch, tmp_path, age, query_result, expected):
+        journal = tmp_path / "llm_journal.jsonl"
+        journal.write_text('{}\n', encoding="utf-8")
+        os.utime(journal, (10_000 - age, 10_000 - age))
+        monkeypatch.setattr(launcher.time, "time", lambda: 10_000)
+
+        def query(*args, **kwargs):
+            if query_result == "unknown":
+                raise subprocess.TimeoutExpired("powershell", 30)
+            return types.SimpleNamespace(returncode=0, stdout=b"")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123}) == expected
+
+    @pytest.mark.parametrize("age,expected", [(0, "running"), (899, "running"), (900, "crashed"), (901, "crashed")])
+    @pytest.mark.parametrize("record", [None, {"returncode": None}])
+    def test_journal_without_pid_needs_no_query(self, monkeypatch, tmp_path, age, expected, record):
+        journal = tmp_path / "llm_journal.jsonl"
+        journal.write_text('{}\n', encoding="utf-8")
+        os.utime(journal, (10_000 - age, 10_000 - age))
+        monkeypatch.setattr(launcher.time, "time", lambda: 10_000)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record=record) == expected
+
+    @pytest.mark.parametrize("query_result", ["alive", "absent", "unknown"])
+    def test_complete_llm_manifest_wins_over_nonzero_exit(self, monkeypatch, tmp_path, query_result):
+        (tmp_path / "llm_journal.jsonl").write_text('{}\n', encoding="utf-8")
+        (tmp_path / "reproducibility_manifest.json").write_text('{}', encoding="utf-8")
+        (tmp_path / "run_integrity.json").write_text(json.dumps(_done_run_integrity()), encoding="utf-8")
+        monkeypatch.setattr(
+            launcher, "_process_command_line",
+            lambda *a, **kw: f"python.exe\npython.exe --output {tmp_path}",
+        )
+        if query_result == "absent":
+            _mock_all_dead(monkeypatch)
+        elif query_result == "unknown":
+            def query(*args, **kwargs):
+                raise OSError("query unavailable")
+            monkeypatch.setattr(launcher, "_process_command_line", query)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123, "returncode": 1}) == "done"
+
+    def test_unknown_chain_blocks_another_launch(self, monkeypatch):
+        def query(*args, **kwargs):
+            raise OSError("query unavailable")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        launch = {"pid": 123, "phase": "pilot"}
+        assert launcher.live_chain_launch({"launches": [launch]}) == launch
+
+    def test_plan_marks_latest_unknown_attempt_running_question(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(launcher, "_resolve_sha8_for_preview", lambda *a: "deadbeef")
+        state_dir = tmp_path / "state"
+        run = next(r for r in launcher.build_plan(tmp_path / "results", "deadbeef", 4) if r.label == "strict_43")
+        resumed = run.output_dir.with_name(run.output_dir.name + "_resume1")
+        resumed.mkdir(parents=True)
+        launcher.write_run_record(state_dir, "strict_43_resume1", {"pid": 123}, "deadbeef")
+
+        def query(*args, **kwargs):
+            raise OSError("query unavailable")
+
+        monkeypatch.setattr(launcher.subprocess, "run", query)
+        assert launcher.run_status_for_plan_entry(run, state_dir, "deadbeef") == "running"
+        launcher.main(["plan", "--results-root", str(tmp_path / "results"), "--state-dir", str(state_dir)])
+        line = next(line for line in capsys.readouterr().out.splitlines() if line.endswith("strict_43"))
+        assert "[running?]" in line and "pid=123" in line
+
+
+class TestLivenessReviewRegression:
+    @pytest.mark.parametrize("query_result", ["alive", "absent", "unknown"])
+    def test_complete_non_llm_manifest_wins_over_nonzero_exit(self, monkeypatch, tmp_path, query_result):
+        (tmp_path / "reproducibility_manifest.json").write_text('{}', encoding="utf-8")
+        def query(*args, **kwargs):
+            if query_result == "unknown":
+                raise OSError("query unavailable")
+            return None if query_result == "absent" else f"python.exe\npython.exe --output {tmp_path}"
+        monkeypatch.setattr(launcher, "_process_command_line", query)
+        assert launcher.run_status_for_dir(tmp_path, record={"pid": 123, "returncode": 1}) == "done"
+
+    @pytest.mark.parametrize("is_llm", [False, True])
+    def test_aborted_manifest_never_counts_as_done(self, tmp_path, is_llm):
+        (tmp_path / "reproducibility_manifest.json").write_text(
+            '{"run_status": "aborted_journal_divergence"}', encoding="utf-8",
+        )
+        (tmp_path / "run_integrity.json").write_text(json.dumps(_done_run_integrity()), encoding="utf-8")
+        assert launcher.run_status_for_dir(tmp_path, is_llm=is_llm, record={"returncode": 0}) == "crashed"
+
+    @pytest.mark.parametrize("query_result", ["alive", "absent", "unknown"])
+    def test_nonzero_exit_without_manifest_stays_crashed(self, monkeypatch, tmp_path, query_result):
+        (tmp_path / "llm_journal.jsonl").write_text('{}\n', encoding="utf-8")
+        def query(*args, **kwargs):
+            if query_result == "unknown":
+                raise OSError("query unavailable")
+            return None if query_result == "absent" else f"python.exe\npython.exe --output {tmp_path}"
+        monkeypatch.setattr(launcher, "_process_command_line", query)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123, "returncode": 1}) == "crashed"
+
+    @pytest.mark.parametrize("text", [
+        "python.exe\n", "python.exe\r\n\r\n",
+        "Name : python.exe\nCommandLine : \n",
+    ])
+    def test_python_name_without_command_line_is_unknown(self, monkeypatch, tmp_path, text):
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: text)
+        assert launcher.probe_process(123).status == "unknown"
+        assert launcher.is_run_process_alive(123, tmp_path)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123}) == "running"
+
+    @pytest.mark.parametrize("spelling", ["relative", "parent", "trailing", "case_slashes"])
+    def test_output_argument_paths_are_normalised(self, monkeypatch, tmp_path, spelling):
+        output = tmp_path / "Campaign Results" / "seed42"
+        monkeypatch.chdir(tmp_path)
+        if spelling == "relative":
+            argument = os.path.relpath(output)
+        elif spelling == "parent":
+            argument = str(output.parent / "unused" / ".." / output.name)
+        elif spelling == "trailing":
+            argument = str(output) + os.sep
+        else:
+            argument = str(output).upper().replace("\\", "/") if os.name == "nt" else str(output)
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: f'python.exe\npython.exe --output "{argument}"')
+        assert launcher.is_run_process_alive(123, output)
+        assert launcher.run_status_for_dir(output, is_llm=True, record={"pid": 123}) == "running"
+
+    @pytest.mark.parametrize("quoted", [False, True])
+    def test_resume_output_does_not_match_resume_source(self, monkeypatch, tmp_path, quoted):
+        output = tmp_path / "seed42"
+        resumed = output.with_name(output.name + "_resume1")
+        quote = '"' if quoted else ''
+        text = f'python.exe\npython.exe --output {quote}{resumed}{quote} --resume-from {quote}{output}{quote}'
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: text)
+        assert not launcher.is_run_process_alive(123, output)
+        assert launcher.is_run_process_alive(123, resumed)
+        assert launcher.run_status_for_dir(output, is_llm=True, record={"pid": 123}) == "crashed"
+
+    @pytest.mark.parametrize("flag", ["--output", "--legacy-path"])
+    @pytest.mark.parametrize("suffix", ["2", "_resume1"])
+    def test_run_folder_prefix_does_not_match(self, monkeypatch, tmp_path, flag, suffix):
+        output = tmp_path / "seed4"
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: f'python.exe\npython.exe {flag} {output}{suffix}')
+        assert not launcher.is_run_process_alive(123, output)
+        assert launcher.run_status_for_dir(output, is_llm=True, record={"pid": 123}) == "crashed"
+
+    @pytest.mark.parametrize("suffix", ["", " --years 42", '"', os.sep + "audit.csv"])
+    def test_legacy_run_path_requires_a_boundary(self, monkeypatch, tmp_path, suffix):
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: f'python.exe\npython.exe --legacy-path {tmp_path}{suffix}')
+        assert launcher.is_run_process_alive(123, tmp_path)
+
+    @pytest.mark.parametrize("name", ["pythonw.exe", "python3.14.exe", "PyThOnW.ExE"])
+    def test_python_executable_names_match_runs_and_chains(self, monkeypatch, tmp_path, name):
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: f'{name}\n{name} _run-chain --output "{tmp_path}"')
+        assert launcher.is_run_process_alive(123, tmp_path)
+        assert launcher.is_chain_alive(123)
+        assert launcher.run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123}) == "running"
+
+    @pytest.mark.parametrize("formatted", [False, True])
+    def test_query_bom_is_removed_before_the_process_name(self, monkeypatch, tmp_path, formatted):
+        text = f'python.exe\npython.exe --output "{tmp_path}"'
+        if formatted:
+            text = f'Name : python.exe\nCommandLine : python.exe --output "{tmp_path}"'
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: '\ufeff' + text)
+        assert launcher.probe_process(123).name == "python.exe"
+        assert launcher.is_run_process_alive(123, tmp_path)
+
+    @pytest.mark.parametrize("manifest", [None, '{}', '{"run_status": "aborted_exception"}', '{invalid'])
+    def test_fresh_journal_with_unmatched_live_python_is_uncertain(self, monkeypatch, tmp_path, manifest):
+        if manifest is not None:
+            (tmp_path / "reproducibility_manifest.json").write_text(manifest, encoding="utf-8")
+        journal = tmp_path / "llm_journal.jsonl"
+        journal.write_text('{}\n', encoding="utf-8")
+        os.utime(journal, (9_101, 9_101))
+        monkeypatch.setattr(launcher.time, "time", lambda: 10_000)
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: f'python.exe\npython.exe --output "{tmp_path.parent / "other_run"}"')
+        assert launcher._run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123}) == ("running", True)
+
+    @pytest.mark.parametrize("query_result,returncode,age", [
+        ("absent", None, 10), ("alive", 0, 10), ("alive", 1, 10),
+        ("alive", None, 900), ("other", None, 10),
+    ])
+    def test_fresh_journal_cannot_override_absence_or_recorded_exit(self, monkeypatch, tmp_path, query_result, returncode, age):
+        journal = tmp_path / "llm_journal.jsonl"
+        journal.write_text('{}\n', encoding="utf-8")
+        os.utime(journal, (10_000 - age, 10_000 - age))
+        monkeypatch.setattr(launcher.time, "time", lambda: 10_000)
+        name = "other.exe" if query_result == "other" else "python.exe"
+        text = None if query_result == "absent" else f'{name}\n{name} --output "{tmp_path}_other"'
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: text)
+        assert launcher._run_status_for_dir(tmp_path, is_llm=True, record={"pid": 123, "returncode": returncode}) == ("crashed", False)
+
+    def test_plan_marks_unmatched_live_python_with_fresh_journal(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(launcher, "_resolve_sha8_for_preview", lambda *a: "deadbeef")
+        state_dir = tmp_path / "state"
+        run = next(r for r in launcher.build_plan(tmp_path / "results", "deadbeef", 4) if r.label == "strict_43")
+        run.output_dir.mkdir(parents=True)
+        (run.output_dir / "llm_journal.jsonl").write_text('{}\n', encoding="utf-8")
+        launcher.write_run_record(state_dir, run.label, {"pid": 123}, "deadbeef")
+        monkeypatch.setattr(launcher, "_process_command_line", lambda *a, **kw: f'python.exe\npython.exe --output "{run.output_dir.parent / "other_run"}"')
+        assert launcher.status_is_uncertain(run, state_dir, "deadbeef")
+        launcher.main(["plan", "--results-root", str(tmp_path / "results"), "--state-dir", str(state_dir)])
+        line = next(line for line in capsys.readouterr().out.splitlines() if line.endswith(run.label))
+        assert "[running?]" in line and "pid=123" in line
 
 
 class TestLiveChainLock:
