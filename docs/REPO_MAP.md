@@ -77,7 +77,7 @@ One line per subpackage, main class or CLI read directly from the code:
 | `calibration/` | `optimize.py` (`OptimizeResult`, `TargetSplit`) + CLI `broker/tools/calibrate.py` |
 | `experiments/` | `replay.py` (`MaskSpec`, `FactorMap`), `ablation.py`, `metrics.py` |
 | `domains/` | `DomainPackRegistry` (`registry.py`); `default.py` (`DefaultDomainPack`); water reference packs under `domains/water/` |
-| `tools/` | 10 CLIs, each `if __name__ == "__main__"` runnable: `scaffold_domain`, `validate_prompt`, `gen_test_fixture`, `calibrate`, `ablate_factor`, `check_run_integrity`, `compare_audit_csv`, `readiness_report`, `recover_csv_from_jsonl`, `replay_shadow` |
+| `tools/` | 11 CLIs, each `if __name__ == "__main__"` runnable: `scaffold_domain`, `validate_prompt`, `gen_test_fixture`, `calibrate`, `ablate_factor`, `check_run_integrity`, `check_llm_transport` (read-only journal/log failure counts; `--all-steps` shows every step), `compare_audit_csv`, `readiness_report`, `recover_csv_from_jsonl`, `replay_shadow` |
 | `config/` | `GlobalConfig` (Pydantic, `schema.py`); `agent_types/registry.py` |
 | `utils/` | `model_adapter.py` re-exports `ModelAdapter` (defined in `parsing/base.py`) and `UnifiedAdapter` (defined in `parsing/unified_adapter.py`); also `data_loader.py`, `governance_auditor.py` |
 | `interfaces/` | `skill_types.py` (`SkillProposal`, `ApprovedSkill`, `ExecutionResult`, ...) — the framework's core Protocols and dataclasses |
