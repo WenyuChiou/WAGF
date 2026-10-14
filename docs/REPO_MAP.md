@@ -110,7 +110,7 @@ this.
 |---|---|---|---|---|---|
 | `quickstart/` | yes | no | `01_barebone.py`, `02_governance.py` (numbered tutorial) | no | `python examples/quickstart/02_governance.py` |
 | `single_agent/` | yes | no | `run_flood.py` + 11 `.bat` launchers | yes | `python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100` |
-| `irrigation_abm/` | yes | yes | 3 run scripts + 5 `.bat` launchers; read-back: `python examples/irrigation_abm/analysis/simple_prompt_check.py RUN_DIR` | yes | see `examples/irrigation_abm/README.md` |
+| `irrigation_abm/` | yes | yes | 3 run scripts + 5 `.bat` launchers; read-back: `python examples/irrigation_abm/analysis/simple_prompt_check.py RUN_DIR`; paper measures: `python -m examples.irrigation_abm.analysis.paper_measures {projection,hindcast} --runs DIR... --out CSV` | yes | see `examples/irrigation_abm/README.md` |
 | `multi_agent/flood/` | yes (`README.md`, `README_research.md`, `README_zh.md`) | yes | `run_unified_experiment.py`; `paper3/` has its own 6 `.bat` launchers | yes | `python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b` |
 | `governed_flood/` | yes | no | `run_experiment.py` | yes | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10` — also the fixture source imported by 17 `broker/tests/` files (`grep -rl "import examples.governed_flood\|from examples.governed_flood" broker/tests/`), do not delete |
 | `vaccination_demo/` | yes | yes | run scripts + `run_vaccination_batch.bat` | yes | see `examples/vaccination_demo/README.md` |
