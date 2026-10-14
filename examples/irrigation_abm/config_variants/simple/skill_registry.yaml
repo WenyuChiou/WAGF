@@ -1,0 +1,83 @@
+# Irrigation ABM Skill Registry
+# Defines available skills for Colorado River Basin irrigation farmers.
+# Adapted from Hung & Yang (2021) RL-ABM-CRSS framework — LLM-driven version.
+#
+# v3 (WP2, spec 2.2, 2026-09-29): three skills. The LLM chooses only the
+# DIRECTION (increase / maintain / decrease); the environment draws the
+# whole Hung and Yang (2021) half-normal step magnitude
+# (irrigation_env.py, hy_step_af, size_class="any") — no small/large
+# split, replacing the earlier five-skill menu. Descriptions below are
+# the registry FALLBACK option text; the per-agent, per-year text
+# (irrigation_personas.build_option_texts, spec 2.6) overrides them via
+# option_text_overrides (broker/core/_skill_filtering.py,
+# SkillFilterMixin._inject_options_text) whenever the runner sets one.
+# Preconditions are the WP3 menu-filter backstop (spec 2.2): the
+# identity rules that actually hide an option from every profile's menu
+# are the real gate; a registry precondition only catches an off-menu
+# answer that reaches execute_skill anyway.
+
+skills:
+  - skill_id: increase_demand
+    # Phase 6O-B action taxonomy
+    category: increase
+    intensity: any
+    reversibility: annual
+    description: "Increase your diversion request."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions:
+      - "not at_allocation_cap"
+      - "not at_beneficial_use_limit"
+    institutional_constraints:
+      annual: true
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3] }
+    conflicts_with: []
+
+  - skill_id: maintain_demand
+    # Phase 6O-B action taxonomy
+    category: maintain
+    intensity: none
+    reversibility: annual
+    description: "Keep your request unchanged."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3] }
+    conflicts_with: []
+
+  - skill_id: decrease_demand
+    # Phase 6O-B action taxonomy
+    category: decrease
+    intensity: any
+    reversibility: annual
+    description: "Reduce your diversion request."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions:
+      - "not below_minimum_utilisation"
+    institutional_constraints:
+      annual: true
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3] }
+    conflicts_with: []
+
+default_skill: maintain_demand

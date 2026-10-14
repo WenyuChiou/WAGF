@@ -3167,7 +3167,8 @@ _R = {
     "nf": re.compile(r"^Natural flow on the river this year is forecast at ([\d.]+) million acre-ft\.$"),
     "powell": re.compile(r"^Lake Powell holds ([\d.]+) million acre-ft on 1 January\.$"),
     "mead": re.compile(r"^Lake Mead was at ([\d,]+) feet above sea level on 1 January \((rising|declining) from last year\)\.$"),
-    "tier": re.compile(r"^A Tier (\d) Lower Basin shortage applies this year \(Lake Mead was below ([\d,]+) feet on 1 January\): "),
+    "tier": re.compile(r"^A Tier (\d) Lower Basin shortage applies this year "
+                       r"\(Lake Mead was below ([\d,]+) feet on 1 January\)(?P<ending>:\s|\.)"),
     "tier_volume": re.compile(r"by ([\d,]+) acre-ft in total"),
     "senior": re.compile(r"above ([\d,]+) acre-ft by about"),
     "junior_ceiling": re.compile(
@@ -3499,6 +3500,9 @@ class PromptAudit:
     mismatches: List[str] = field(default_factory=list)
     unchecked: List[str] = field(default_factory=list)
     reflection_lines: int = 0
+    grounded_reflection_lines: int = 0
+    stored_memory_lines: int = 0
+    reflection_prompt_fact_lines: int = 0
     banned_hits: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
     banned_hits_in_reflections: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
     banned_hits_in_reflection_lessons: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
@@ -3537,18 +3541,20 @@ class _Line:
 
 
 class PromptChecker:
-    """P5(b): every number in a first-attempt prompt matches the run's logs
+    """P5(b): every program-written number in a first-attempt prompt matches the run's logs
     (simulation_log.csv and the audit's logged supply-rule inputs), the v3
     sentences of irrigation_personas (spec 4.1 to 4.5) read back line by
     line. Sub-basin flow shares and senior entitlements are compared with the
-    pinned data tables the environment reads. Reflection text is the model's
-    own and is checked by P6 instead."""
+    pinned data tables the environment reads. For grounded stored reflections,
+    the fact portion before `` Lesson: `` is checked here; the model-written
+    lesson remains P6's responsibility."""
 
     def __init__(self, run: LoadedRun, cfg: WaterSystemConfig, variant: str):
         self.run, self.cfg, self.variant = run, cfg, variant
         self.fragments = static_fragments()
         self.priority = _load_lb_priority_split_table()
         self.package = run.info.manifest.get("keepfix_package", {})
+        self.prompt_information = run.info.manifest.get("prompt_information", "full")
         self.beneficial_use = beneficial_use_config(run.info.manifest)
         self._contexts = {}
         self.profiles = {}
@@ -3749,20 +3755,176 @@ class PromptChecker:
             if stripped == POWELL_DEAD_POOL_SENTENCE:
                 if system["powell_storage_maf"] > cfg.powell_dead_pool_maf + DEAD_POOL_TOL_MAF:
                     out.mismatches.append(f"{where}: Powell dead-pool sentence above the dead pool")
-            if not _DIGIT.search(text):
+            numeric_text = program_text if " Lesson: " in text else text
+            if not _DIGIT.search(numeric_text):
                 continue
             out.numeric_lines += 1
-            line = _Line(text, where, out)
-            self._line(line, agent, t, year, upper, system, w, base, d, trace, out)
+            line = _Line(numeric_text, where, out)
+            grounded_reflection = (
+                stripped.startswith("- Consolidated Reflection")
+                and (program_facts or " Lesson: " in text)
+            )
+            self._line(line, agent, t, year, upper, system, w, base, d, trace, out,
+                       grounded_reflection=grounded_reflection)
             for fragment in self.fragments:
-                start = text.find(fragment)
+                start = numeric_text.find(fragment)
                 while start >= 0:
                     line.spans.append((start, start + len(fragment)))
-                    start = text.find(fragment, start + 1)
+                    start = numeric_text.find(fragment, start + 1)
             line.finish()
 
+    def audit_persisted_sources(self, out: PromptAudit) -> None:
+        """Check unfiltered stored memory and reflection records, including the final year."""
+        for (agent, t), row in sorted(self.run.sim.rows.items(), key=lambda item: (item[0][1], item[0][0])):
+            if "memory" not in row:
+                # Legacy corpora and programmatic fixtures can omit this
+                # optional source; audit all memory that was actually recorded.
+                continue
+            for index, item in enumerate(str(row.get("memory") or "").split(" | ")):
+                if item:
+                    self._audit_memory_source(agent, t, item,
+                                              f"{self.run.label} simulation_log.csv {agent} "
+                                              f"{self.run.sim.sim_year(t)} memory[{index}]", out,
+                                              allow_current=True)
+
+        raw_path = self.run.info.path / TRACES
+        with open(raw_path, encoding="utf-8") as stream:
+            for line_number, raw in enumerate(stream, start=1):
+                row = json.loads(raw)
+                if "_metadata" in row or not row.get("memory_pre"):
+                    continue
+                agent, t = str(row["agent_id"]), int(row["year"])
+                for index, item in enumerate(row["memory_pre"]):
+                    text = item.get("content") if isinstance(item, Mapping) else str(item)
+                    if text:
+                        self._audit_memory_source(
+                            agent, t, text,
+                            f"{self.run.label} {TRACES}:{line_number} memory_pre[{index}]", out,
+                            allow_current=False)
+
+        for filename in ("reflection_checks.jsonl", "reflection_log.jsonl"):
+            path = self.run.info.path / filename
+            if not path.is_file():
+                continue
+            with open(path, encoding="utf-8") as stream:
+                for line_number, raw in enumerate(stream, start=1):
+                    if not raw.strip():
+                        continue
+                    row = json.loads(raw)
+                    inputs = _reflection_input_lines(row)
+                    if inputs is None:
+                        continue
+                    agent = str(row["agent_id"])
+                    if "period" in row:
+                        calendar_year = int(row["period"])
+                    else:
+                        calendar_year = self.run.sim.sim_year(int(row["year_created"]))
+                    t = calendar_year - self.run.sim.sim_start_year + 1
+                    for index, text in enumerate(inputs):
+                        self._audit_memory_source(
+                            agent, t, text,
+                            f"{self.run.label} {filename}:{line_number} reflection_input[{index}]",
+                            out, allow_current=True)
+
+        stored = set()
+        checks_path = self.run.info.path / "reflection_checks.jsonl"
+        if checks_path.is_file():
+            with open(checks_path, encoding="utf-8") as stream:
+                for raw in stream:
+                    if raw.strip():
+                        row = json.loads(raw)
+                        if row.get("outcome") in ("stored", "stored_after_retry"):
+                            stored.add((str(row["agent_id"]), int(row["period"])))
+        prompts_path = self.run.info.path / "reflection_prompts.jsonl"
+        if stored and prompts_path.is_file():
+            from broker.components.cognitive.reflection import RECORD_HEADING
+
+            seen = set()
+            with open(prompts_path, encoding="utf-8") as stream:
+                for line_number, raw in enumerate(stream, start=1):
+                    if not raw.strip():
+                        continue
+                    row = json.loads(raw)
+                    key = (str(row["agent_id"]), int(row["year"]))
+                    if key not in stored or key in seen or int(row.get("attempt", 0)) != 0:
+                        continue
+                    seen.add(key)
+                    agent, calendar_year = key
+                    t = calendar_year - self.run.sim.sim_start_year + 1
+                    prompt = str(row.get("prompt") or "")
+                    marker = RECORD_HEADING + "\n"
+                    record = prompt.split(marker, 1)[1].split("\n### Output Requirement", 1)[0] if marker in prompt else ""
+                    fact_texts = [line[2:] for line in record.splitlines() if line.startswith("- ")]
+                    if not fact_texts:
+                        out.mismatches.append(
+                            f"{self.run.label} reflection_prompts.jsonl:{line_number}: stored reflection has no facts")
+                    for fact_text in fact_texts:
+                        local_fact = _REFLECTION_FACT.fullmatch(fact_text)
+                        fact_line = _Line(fact_text,
+                                          f"{self.run.label} reflection_prompts.jsonl:{line_number}", out)
+                        if local_fact is not None:
+                            self._check_reflection_fact(fact_line, local_fact, 0, agent, t, allow_current=True)
+                        fact_line.finish()
+                        out.reflection_prompt_fact_lines += 1
+            for agent, calendar_year in sorted(stored - seen):
+                out.mismatches.append(
+                    f"{self.run.label} {agent} {calendar_year}: stored reflection has no attempt-0 prompt")
+
+    def _audit_memory_source(self, agent: str, t: int, text: str, where: str,
+                             out: PromptAudit, *, allow_current: bool) -> None:
+        sim = self.run.sim
+        rendered = text if text.startswith("- ") else "- " + text
+        program_text = rendered.split(" Lesson: ", 1)[0]
+        line = _Line(program_text, where, out)
+        d, trace = self.run.decisions[(agent, t)], self.run.traces[(agent, t)]
+        self._line(line, agent, t, sim.sim_year(t), sim.basin[agent] == "upper_basin",
+                   sim.system[t], sim.num(agent, t, "water_right"), d.keep_request_af,
+                   d, trace, out, grounded_reflection=" Lesson: " in rendered,
+                   allow_current_memory=allow_current)
+        line.finish()
+        out.stored_memory_lines += 1
+
+    def _check_reflection_fact(self, line: _Line, fact: "re.Match[str]", offset: int,
+                               agent: str, t: int, *, allow_current: bool) -> None:
+        sim = self.run.sim
+        tk = int(fact.group("year")) - sim.sim_start_year + 1
+        for name in ("year", "request", "previous", "received", "unmet"):
+            if fact.group(name) is not None:
+                a, b = fact.span(name)
+                line.spans.append((offset + a, offset + b))
+        in_range = 1 <= tk <= t if allow_current else 1 <= tk < t
+        if not in_range:
+            line.check(False, f"reflection fact year {fact.group('year')} outside logged years")
+            return
+        req, dlv = sim.num(agent, tk, "request"), sim.num(agent, tk, "diversion")
+        line.check(fact.group("request") == _f0(req),
+                   f"reflection fact request {fact.group('request')!r}, log {_f0(req)!r}")
+        line.check(fact.group("received") == _f0(dlv),
+                   f"reflection fact delivery {fact.group('received')!r}, log {_f0(dlv)!r}")
+        share = supply_ratio(dlv, req)
+        line.check((fact.group("outcome") == "fully met") == (share >= FULL_SUPPLY_RATIO),
+                   f"reflection fact outcome {fact.group('outcome')!r}, log share {share}")
+        if fact.group("unmet") is not None:
+            line.check(fact.group("unmet") == f"{(1.0 - share) * 100.0:.1f}",
+                       f"reflection fact unmet share {fact.group('unmet')!r}, log {share}")
+        previous = fact.group("previous")
+        if previous is not None:
+            if tk <= 1:
+                line.check(False, "reflection fact has a previous receipt before the run")
+            else:
+                prior = sim.num(agent, tk - 1, "diversion")
+                line.check(previous == _f0(prior),
+                           f"reflection fact previous delivery {previous!r}, log {_f0(prior)!r}")
+                printed_req = int(_f0(req).replace(",", ""))
+                printed_prior = int(_f0(prior).replace(",", ""))
+                expected_change = ("an increase over" if printed_req > printed_prior else
+                                   "a decrease from" if printed_req < printed_prior else "the same as")
+                line.check(fact.group("change") == expected_change,
+                           f"reflection fact change {fact.group('change')!r}, log {expected_change!r}")
+
     def _line(self, line: _Line, agent: str, t: int, year: int, upper: bool, system: Mapping[str, float],
-              w: float, base: float, d: Decision, trace: TraceRecord, out: PromptAudit) -> None:
+              w: float, base: float, d: Decision, trace: TraceRecord, out: PromptAudit,
+              grounded_reflection: bool = False, allow_current_memory: bool = False) -> None:
         """Verify one digit-bearing line. Each handler checks every number its
         sentence carries and then covers the sentence's whole match (its
         literal text is the builder's, e.g. "on 1 January"). Wildcards (the
@@ -3888,6 +4050,10 @@ class PromptChecker:
                          3: cfg.mead_shortage_tier3}.get(int(m.group(1)))
             line.expect(m, 2, _f0(threshold) if threshold is not None else "(none)", "tier threshold")
             line.cover(m)
+            if self.prompt_information == "simple":
+                line.check(m.group("ending") == ".", "simple tier sentence has full-level detail")
+                return
+            line.check(m.group("ending") == ": ", "full tier sentence has no detail")
             for mv in _R["tier_volume"].finditer(text):
                 line.expect(mv, 1, _f0(system["lb_shortage_volume_maf"] * 1e6), "declared shortage volume")
                 line.cover(mv)
@@ -4061,14 +4227,26 @@ class PromptChecker:
             return
         m = _R["reflection"].match(text)
         if m:
-            line.cover(m)  # the model's own text: P6 checks it
             out.reflection_lines += 1
+            if not grounded_reflection:
+                line.cover(m)  # Old-style line is entirely model prose; P6 checks it.
+                return
+            out.grounded_reflection_lines += 1
+            written = int(m.group(1))
+            line.cover(m, 1)
+            line.check(sim.sim_start_year <= written < year,
+                       f"reflection writing year {written} outside prior run years")
+            prefix_end = text.find(": ", m.start()) + 2
+            line.spans.append((m.start(), prefix_end))
+            for fact in _REFLECTION_FACT.finditer(text[prefix_end:]):
+                self._check_reflection_fact(line, fact, prefix_end, agent, t, allow_current=False)
             return
         m = _R["memory"].match(text)
         if m:
             tk = int(m.group(1)) - sim.sim_start_year + 1
             line.cover(m)
-            if not 1 <= tk < t:
+            in_range = 1 <= tk <= t if allow_current_memory else 1 <= tk < t
+            if not in_range:
                 line.check(False, f"memory line for {m.group(1)}")
                 return
             req, dlv = sim.num(agent, tk, "request"), sim.num(agent, tk, "diversion")
@@ -4152,7 +4330,8 @@ class PromptChecker:
                 if sb is None:
                     line.check(mf is None, f"{past}: sub-basin flow share for an agent without a sub-basin")
                 elif mf is None:
-                    line.check(False, f"{past}: no sub-basin flow share")
+                    if self.prompt_information != "simple":
+                        line.check(False, f"{past}: no sub-basin flow share")
                 else:
                     line.expect(mf, 1, f"{self.flow_share(sb, int(m.group(1))):.0%}", f"{past}: sub-basin flow share")
                 if mf is not None:
@@ -4698,6 +4877,7 @@ def gate_p5(runs: Sequence[LoadedRun], cfg: WaterSystemConfig, review: Optional[
                 no_prompt += 1
                 continue
             checker.audit(key, run.traces[key].prompt or "", audit)
+        checker.audit_persisted_sources(audit)
         for d in run.decisions.values():
             for phrase in P5_BANNED_PHRASES:
                 if phrase in d.error_messages:
@@ -4735,7 +4915,12 @@ def gate_p5(runs: Sequence[LoadedRun], cfg: WaterSystemConfig, review: Optional[
         "b_prompts": audit.prompts, "b_steps_without_a_prompt": no_prompt, "b_numeric_lines": audit.numeric_lines,
         "b_mismatches": audit.mismatches[:50], "b_mismatch_count": len(audit.mismatches),
         "b_unchecked": audit.unchecked[:50], "b_unchecked_count": len(audit.unchecked),
-        "b_reflection_lines_skipped": audit.reflection_lines,
+        "b_passed": b_ok,
+        "b_stored_memory_lines_checked": audit.stored_memory_lines,
+        "b_reflection_prompt_fact_lines_checked": audit.reflection_prompt_fact_lines,
+        "b_grounded_reflection_fact_lines_checked": audit.grounded_reflection_lines,
+        "b_reflection_lines_skipped": audit.reflection_lines - audit.grounded_reflection_lines,
+        "b_old_style_reflection_lines_skipped": audit.reflection_lines - audit.grounded_reflection_lines,
         "c_review": review, "c_passed": c_ok,
     })
 
