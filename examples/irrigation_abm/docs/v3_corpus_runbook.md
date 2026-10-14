@@ -246,8 +246,9 @@ python examples/irrigation_abm/tools/v3_corpus_launcher.py plan --tag irrigation
 ```
 
 and watch the `[fql]` / `[replays]` rows move from `pending` through
-`running` (a live process still holds that run's PID) to `done` (or
-`crashed`, if it died without a clean manifest), or read the log file
+`running` (a matching live process, or `running?` if the process query
+failed after one retry) to `done` (or `crashed`, if it died without a
+clean manifest), or read the log file
 the `run` command printed. Neither phase needs `--confirm-gpu` or
 `--workers`; neither touches Ollama.
 
@@ -488,8 +489,14 @@ this phase running unattended overnight.
 
 ## 8. Resuming a crashed run
 
-Find the crashed label from `plan` (status `crashed`: a journal or
-partial output exists but there is no clean, non-aborted manifest).
+Find the crashed label from `plan`; a manifest accepted as complete remains
+`done` regardless of a recorded exit, while a live run matches the normalised
+value of `--output`, so a resume destination cannot match its source folder.
+With no recorded exit and no PID available, an LLM journal modified
+less than 900 seconds ago counts as `running` without a process query.
+A live Python process with a different `--output` and a journal less than
+900 seconds old gives `[running?]` when no exit is recorded; confirmed
+absence or a recorded exit takes precedence over that journal.
 Then:
 
 ```
@@ -508,12 +515,12 @@ launch (section 4): the corpus is pooled for analysis as one `--workers`
 value, and `v3_metrics.py`'s own provenance guard would otherwise refuse
 the pool later, at analysis time instead of now.
 
-`resume` refuses a run whose status is `running`, not `crashed` -- the
-launcher's own record of that run's PID shows a process still alive, and
-resuming it would start a SECOND process against the same output
-directory. If `plan` shows a run stuck at `running` long after you
-expect it to have finished, check the log file first; only kill it if you
-are sure it is actually stuck:
+`resume` refuses a run whose status is `running`, including `running?`
+when the process query is unavailable. The query has a 30-second timeout
+and one retry. Resuming an active run would start a SECOND process
+against the same output directory. If `plan` shows a run stuck at
+`running` long after you expect it to have finished, check the log file
+first; only kill it if you are sure it is actually stuck:
 
 ```
 taskkill /F /PID <pid>
