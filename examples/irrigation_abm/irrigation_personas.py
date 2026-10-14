@@ -655,12 +655,20 @@ def increase_expectation_text(context):
     return result
 
 
+def _validate_prompt_information(level: str) -> None:
+    """Accept only the explicit full or simple information level."""
+    if level not in ("full", "simple"):
+        raise ValueError("prompt_information must be full or simple")
+
+
 def build_water_situation_text(
     env_context: Dict[str, Any],
     last_year: Optional[Dict[str, Any]] = None,
+    *, prompt_information: str = "full",
 ) -> str:
     """The situation text of the prompt, ``{water_situation_text}`` (spec 4.3,
-    headline revised by item 36a, 2026-10-05).
+    headline revised by item 36a, 2026-10-05). ``prompt_information`` is
+    ``full`` (default) or ``simple`` (only the pre-registered retained facts).
 
     In order: the year and basin; a headline on r, the expected delivery at
     the keep request as a share of it (TWO states only, "sufficient" at r >=
@@ -707,6 +715,7 @@ def build_water_situation_text(
     final settlement (``request``, ``diversion``, ``gap_reason`` and the
     fields ``describe_gap_reason`` reads); None in the first year.
     """
+    _validate_prompt_information(prompt_information)
     year = env_context["year"]
     basin = env_context["basin"]
     if basin not in ("upper_basin", "lower_basin"):
@@ -728,10 +737,11 @@ def build_water_situation_text(
     # Headline on r only (spec 4.3 as revised by item 36a). TWO states only;
     # the edge is FULL_SUPPLY_RATIO, the same edge the supply rule blocks
     # on, so an agent told "sufficient" is never blocked by that rule.
-    if r_share >= FULL_SUPPLY_RATIO:
-        lines.append("Water supply is sufficient for your full request this year.")
-    else:
-        lines.append("Water supply is short of your request this year.")
+    if prompt_information != "simple":
+        if r_share >= FULL_SUPPLY_RATIO:
+            lines.append("Water supply is sufficient for your full request this year.")
+        else:
+            lines.append("Water supply is short of your request this year.")
 
     if upper:
         # The agent's own sub-basin column and its strict ">" flag (spec 1.6;
@@ -747,7 +757,7 @@ def build_water_situation_text(
             f"({'above' if env_context['preceding_factor'] else 'below'} last year)."
         )
         subbasin_flow_share = env_context.get("ub_subbasin_flow_share")
-        if subbasin_flow_share is not None:
+        if prompt_information != "simple" and subbasin_flow_share is not None:
             # WP1b (item 20, memo section 9): the flow that sets this
             # agent's supply, as a share, so it is not read against the
             # request in acre-ft.
@@ -755,7 +765,7 @@ def build_water_situation_text(
                 "The natural flow of the rivers your sub-basin draws on is "
                 f"{subbasin_flow_share:.0%} of its 1971-2018 average this year."
             )
-        elif env_context.get("natural_flow_maf"):
+        elif prompt_information != "simple" and env_context.get("natural_flow_maf"):
             # Synthetic mock agents only (no sub-basin).
             lines.append(
                 "Natural flow on the river this year is forecast at "
@@ -778,7 +788,7 @@ def build_water_situation_text(
             f"on 1 January ({'rising' if env_context['preceding_factor'] else 'declining'} "
             f"from last year)."
         )
-        lines.append(_lower_basin_tier_text(env_context))
+        lines.append(_lower_basin_tier_text(env_context, prompt_information=prompt_information))
 
     # Last year's outcome (final settlement); in the first year, the 2018 use.
     if last_year is not None:
@@ -789,11 +799,14 @@ def build_water_situation_text(
             f"Last year you requested {requested:,.0f} acre-ft and received "
             f"{received:,.0f} acre-ft ({format_share(share)} delivered)"
         )
-        if share < FULL_SUPPLY_RATIO:
+        if prompt_information != "simple" and share < FULL_SUPPLY_RATIO:
             sentence += ", " + _shortfall_reason(last_year, "past", "build_water_situation_text")
         lines.append(sentence + ".")
     else:
         lines.append(f"In {int(year) - 1} you {'used' if upper else 'diverted'} {base:,.0f} acre-ft.")
+
+    if prompt_information == "simple":
+        return "\n".join(lines)
 
     # This year's expectation at the keep request (G9).
     if r_share >= FULL_SUPPLY_RATIO:
@@ -822,8 +835,10 @@ def build_water_situation_text(
     return "\n".join(lines)
 
 
-def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
+def _lower_basin_tier_text(env_context: Dict[str, Any], *, prompt_information: str = "full") -> str:
     """Describe a declared Lower Basin tier and its fixed entitlement ceiling.
+
+    ``prompt_information`` is ``full`` (default) or ``simple`` (status only).
 
     In split mode, each of the six junior holders receives a ceiling equal to
     senior entitlement plus retained priority-4 entitlement; priority-5/6 is
@@ -834,10 +849,18 @@ def _lower_basin_tier_text(env_context: Dict[str, Any]) -> str:
     agricultural tier ceiling. Physical Mead sharing is applied afterward to
     requests already capped by any tier ceiling. No agency is named (L3 D3).
     """
+    _validate_prompt_information(prompt_information)
     # Direct index (review LOW 10): get_agent_context always sets the tier.
     tier = int(env_context["shortage_tier"])
     if tier <= 0:
         return "No Lower Basin shortage applies this year."
+    if prompt_information == "simple":
+        threshold_ft = env_context.get("shortage_tier_threshold_ft")
+        if threshold_ft is None:
+            raise ValueError("build_water_situation_text: shortage_tier_threshold_ft is missing "
+                             "for irrigation_farmer.prompt_information: simple.")
+        return (f"A Tier {tier} Lower Basin shortage applies this year "
+                f"(Lake Mead was below {threshold_ft:,.0f} feet on 1 January).")
     volume_maf = env_context.get("lb_shortage_volume_maf")
     threshold_ft = env_context.get("shortage_tier_threshold_ft")
     if volume_maf is None or threshold_ft is None:
@@ -1053,9 +1076,11 @@ FLOOR_NO_DECREASE_NOTE = (
 def build_option_notes(increase_offered: bool, decrease_offered: bool,
                        last_year: Optional[Dict[str, Any]],
                        floor_af: Optional[float] = None,
-                       floor_share: Optional[float] = None) -> str:
+                       floor_share: Optional[float] = None,
+                       *, prompt_information: str = "full") -> str:
     """``{option_notes}``, the text right after ``{options_text}`` (spec 2.6,
-    item 23, item 29e).
+    item 23, item 29e). ``prompt_information`` is ``full`` (default) or
+    ``simple`` (only the random-step note).
 
     The random-step line names only the directions the menu offers: both
     (OPTION_STEP_NOTE), an increase only (INCREASE_STEP_NOTE, an agent at
@@ -1074,6 +1099,7 @@ def build_option_notes(increase_offered: bool, decrease_offered: bool,
     right) are given, FLOOR_NO_DECREASE_NOTE follows the random-step line
     and says why. ``IrrigationLifecycleHooks.pre_year`` always passes both;
     a direct caller that passes neither gets the notes as before."""
+    _validate_prompt_information(prompt_information)
     lines = []
     if increase_offered and decrease_offered:
         lines.append(OPTION_STEP_NOTE)
@@ -1081,6 +1107,8 @@ def build_option_notes(increase_offered: bool, decrease_offered: bool,
         lines.append(INCREASE_STEP_NOTE)
     elif decrease_offered:
         lines.append(DECREASE_STEP_NOTE)
+    if prompt_information == "simple":
+        return "".join("\n" + line for line in lines)
     if not decrease_offered and floor_af is not None:
         if floor_share is None:
             raise ValueError("build_option_notes: floor_af given without floor_share.")
@@ -1337,8 +1365,12 @@ def build_action_outcome_feedback(
     flow_share: Optional[float] = None,
     previous_request: Optional[float] = None,
     previous_diversion: Optional[float] = None,
+    prompt_information: str = "full",
 ) -> str:
-    """One memory line for one past year (spec 4.5):
+    """One memory line for one past year (spec 4.5).
+
+    ``prompt_information`` is ``full`` (default) or ``simple`` (no reason or
+    natural-flow share):
 
     "Year {Y}: You chose to {increase demand | maintain demand | decrease
     demand}{ (by N%)}. You requested R acre-ft and received D acre-ft.
@@ -1382,6 +1414,7 @@ def build_action_outcome_feedback(
     change: ", so your request fell from {previous request} acre-ft to the
     {request} acre-ft you received the year before".
     """
+    _validate_prompt_information(prompt_information)
     share = supply_ratio(diversion, request)
     if share >= FULL_SUPPLY_RATIO:
         shortfall = "Demand fully met."
@@ -1389,12 +1422,12 @@ def build_action_outcome_feedback(
         gap = max(0.0, request - diversion)
         shortfall = _with_reason(
             f"Shortfall: {gap:,.0f} acre-ft ({(1.0 - share) * 100.0:.1f}% unmet)",
-            gap_reason) + "."
+            "" if prompt_information == "simple" else gap_reason) + "."
 
     outcome = (
         f"You requested {request:,.0f} acre-ft and received "
         f"{diversion:,.0f} acre-ft. {shortfall} "
-        f"{_build_trend_text(basin, preceding_factor, subbasin, flow_share)}"
+        f"{_build_trend_text(basin, preceding_factor, subbasin, None if prompt_information == 'simple' else flow_share)}"
     )
 
     if not decision_read:

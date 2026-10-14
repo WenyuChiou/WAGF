@@ -1,0 +1,18 @@
+{system_prompt}{priority_section}{narrative_persona}
+{water_situation_text}
+Your memory includes:
+{memory}
+
+First, rate your water_scarcity_assessment: is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this year?
+Next, rate your adaptive_capacity_assessment: how much can you change your request this year?
+
+Now, choose one of the following water management actions:
+{options_text}{option_notes}
+
+{rating_scale}
+
+Please respond using the EXACT JSON format below.
+- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
+- "decision" MUST be the NUMERIC ID ({valid_choices_text}) from the options list.
+- Ensure all keys match the format exactly.
+{response_format}

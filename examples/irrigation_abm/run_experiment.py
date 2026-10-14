@@ -433,6 +433,8 @@ class IrrigationLifecycleHooks:
         # retried, dropped), printed each year and written to the manifest
         # by main() when the grounded reflection keys are on.
         self.reflection_tally = ReflectionCheckTally()
+        self.prompt_information = getattr(env, "prompt_information", "full")
+        self.reflection_prompt_log_complete = True
 
     # -- the simulation-log's Lake Mead column, under the same flag --
     def _log_lake_mead_level(self):
@@ -495,7 +497,8 @@ class IrrigationLifecycleHooks:
             basin=basin,
             # The past-tense form of the reason the situation text and
             # the rule messages use (spec 4.4).
-            gap_reason=describe_gap_reason(snapshot, "past"),
+            gap_reason=("" if self.prompt_information == "simple"
+                        else describe_gap_reason(snapshot, "past")),
             rejection_line_style=self.rejection_line_style,
             # Spec 4.5: placebo and silent retries name no rule, so
             # neither does their memory line (L3 M13).
@@ -507,8 +510,32 @@ class IrrigationLifecycleHooks:
             # Spec item 45g: a keep after a short year states the change.
             previous_request=snapshot.get("previous_request"),
             previous_diversion=snapshot.get("previous_diversion"),
+            prompt_information=self.prompt_information,
         )
         return feedback, action_ctx
+
+    def _record_reflection_call(self, llm_call, agent_ids, calendar_year):
+        """Record every reflection attempt without changing the model's input."""
+        if self.output_dir is None:
+            return llm_call
+        attempt = 0
+
+        def invoke(prompt):
+            nonlocal attempt
+            path = Path(self.output_dir) / "reflection_prompts.jsonl"
+            try:
+                with path.open("a", encoding="utf-8") as stream:
+                    for aid in agent_ids:
+                        stream.write(json.dumps({"agent_id": aid, "year": calendar_year,
+                                                 "attempt": attempt, "prompt": prompt}) + "\n")
+            except OSError as exc:
+                if self.reflection_prompt_log_complete:
+                    print(f"[Reflection] WARNING: could not record reflection prompts at {path}: {exc}")
+                self.reflection_prompt_log_complete = False
+            attempt += 1
+            return llm_call(prompt)
+
+        return invoke
 
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
@@ -529,7 +556,8 @@ class IrrigationLifecycleHooks:
             # the "Last year you requested ..." sentence (spec 4.3); in the
             # first year there is none and the sentence states the 2018 use.
             water_situation = build_water_situation_text(
-                ctx, last_year=getattr(agent, "_last_year_outcome", None)
+                ctx, last_year=getattr(agent, "_last_year_outcome", None),
+                prompt_information=self.prompt_information,
             )
             agent.water_situation_text = water_situation
 
@@ -649,6 +677,7 @@ class IrrigationLifecycleHooks:
                 # Spec item 45i: say why no decrease is offered at the floor.
                 floor_af=ctx["water_right"] * self.env.config.min_utilisation_fraction,
                 floor_share=self.env.config.min_utilisation_fraction,
+                prompt_information=self.prompt_information,
             )
 
             # Feedback dashboard metrics are recorded in post_year from the
@@ -1077,7 +1106,8 @@ class IrrigationLifecycleHooks:
                 facts = [fact_line(by_year[y], previous_receipt.get(y)) for y in picked]
                 rule_context = {**self.env.get_agent_context(aid),
                                 "ub_supply_mode": self.env.config.ub_supply_mode}
-                rules = reflection_rule_lines(rule_context)
+                if self.prompt_information != "simple":
+                    rules = reflection_rule_lines(rule_context)
             prompt = engine.generate_batch_reflection_prompt(
                 [{"agent_id": aid, "memories": items, "context": agent_ctx}],
                 written_in,
@@ -1093,7 +1123,7 @@ class IrrigationLifecycleHooks:
                 prompt=prompt,
                 agent_id=aid,
                 period=written_in,
-                llm_call=llm_call,
+                llm_call=self._record_reflection_call(llm_call, [aid], written_in),
                 normalize=_normalize_reflection_text,
                 checker=lambda lesson, _lines=lines, _own=own_text: check_lesson(lesson, _lines, _own),
                 lesson_no_numbers=grounding["lesson_no_numbers"],
@@ -1218,8 +1248,9 @@ class IrrigationLifecycleHooks:
             # before WP4); storing runs outside the try, so a store error
             # (e.g. keep_latest_only on an engine without remove_by_type)
             # stops the run instead of being printed and dropped.
+            recorded_call = self._record_reflection_call(llm_call, batch_ids, written_in)
             try:
-                raw = llm_call(prompt)
+                raw = recorded_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw
                 insights = self.reflection_engine.parse_batch_reflection_response(
                     text, batch_ids, year
@@ -1864,6 +1895,68 @@ def _validate_keepfix_config(cfg_data):
     return {**package, "routine_tier_scope": scope}
 
 
+SIMPLE_PROMPT_TEMPLATE = '''{system_prompt}{priority_section}{narrative_persona}
+{water_situation_text}
+Your memory includes:
+{memory}
+
+First, rate your water_scarcity_assessment: is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this year?
+Next, rate your adaptive_capacity_assessment: how much can you change your request this year?
+
+Now, choose one of the following water management actions:
+{options_text}{option_notes}
+
+{rating_scale}
+
+Please respond using the EXACT JSON format below.
+- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
+- "decision" MUST be the NUMERIC ID ({valid_choices_text}) from the options list.
+- Ensure all keys match the format exactly.
+{response_format}
+'''
+
+
+def _validate_prompt_information_config(cfg_data):
+    """Reject mixed information levels before setting up a run."""
+    farmer = cfg_data.get("irrigation_farmer", {})
+    level = farmer.get("prompt_information", "full")
+    if level not in ("full", "simple"):
+        raise ValueError("irrigation_farmer.prompt_information must be full or simple")
+    if level == "simple":
+        package = farmer.get("keepfix_package", {})
+        for key in ("S1", "L", "K6", "table"):
+            if package.get(key, False):
+                raise ValueError(f"irrigation_farmer.prompt_information: simple requires "
+                                 f"keepfix_package.{key}: false")
+        feedback = farmer.get("feedback", {})
+        if feedback.get("tracked_metrics") and (
+                feedback.get("dashboard_format", "table") != "none"
+                or feedback.get("show_trend", True)
+                or feedback.get("assertions")):
+            raise ValueError("irrigation_farmer.prompt_information: simple requires "
+                             "irrigation_farmer.feedback to have no rendering dashboard, "
+                             "trend or assertions (disable tracked_metrics)")
+    return level
+
+
+def _validate_agent_memory_config(agents, expected):
+    """Fail before model calls when per-agent irrigation memory settings were lost."""
+    required = {"composed_retrieval": True, "runner_decision_line": False}
+    for key, value in required.items():
+        if expected.get(key) is not value:
+            raise RuntimeError(f"Irrigation memory_config requires {key}: {value!r}")
+    for aid, agent in agents.items():
+        applied = getattr(agent, "memory_config", None)
+        # Check the whole configured block, including retrieval window/ranking,
+        # emotion/source weights, and rejection wording, without changing it.
+        for key in dict.fromkeys([*required, *expected]):
+            if not isinstance(applied, dict) or key not in applied or applied[key] != expected[key]:
+                raise RuntimeError(
+                    f"Irrigation agent {aid} memory_config.{key} was not applied "
+                    f"(expected {expected[key]!r}); refusing to start with changed memory text."
+                )
+
+
 def _validate_beneficial_use_config(cfg_data, *, governance_mode, skill_registry, model):
     """Reject an enabled item 49 setting without its menu and registry gates."""
     import math
@@ -1987,7 +2080,8 @@ def _effective_irrigation_llm_values(
     }
 
 
-def _record_keepfix_provenance(output_dir, package, server_version):
+def _record_keepfix_provenance(output_dir, package, server_version, prompt_information="full",
+                               reflection_prompt_log_complete=True):
     """Record resolved item 47 options and the launch-time server version.
 
     Each provenance writer is guarded independently so a write failure cannot
@@ -1998,6 +2092,8 @@ def _record_keepfix_provenance(output_dir, package, server_version):
             element: package.get(element, False) for element in ("MB", "table", "S1", "L", "K6")},
             "routine_tier_scope": package.get("routine_tier_scope", "any_tier")},
         "ollama_server_version": server_version,
+        "prompt_information": prompt_information,
+        "reflection_prompt_log_complete": reflection_prompt_log_complete,
     }
     try:
         path = Path(output_dir) / "reproducibility_manifest.json"
@@ -2159,6 +2255,7 @@ def main():
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
     package = _validate_keepfix_config(cfg_data)
+    prompt_information = _validate_prompt_information_config(cfg_data)
     # PR-6 review P1-e: refuse a profile this config does not declare. This
     # runner takes `--governance-mode` as a FREE STRING (any custom profile the
     # YAML defines), so there is no `choices=` list to catch a typo, and
@@ -2223,6 +2320,12 @@ def main():
     # --- Load prompt template ---
     prompt_template_path = config_dir / "prompts" / "irrigation_farmer.txt"
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
+    if prompt_information == "simple" and prompt_template != SIMPLE_PROMPT_TEMPLATE:
+        raise ValueError("irrigation_farmer.prompt_information: simple requires the "
+                         "pre-registered simple prompts/irrigation_farmer.txt template")
+    if prompt_information == "full" and prompt_template == SIMPLE_PROMPT_TEMPLATE:
+        raise ValueError("irrigation_farmer.prompt_information: full cannot use the simple "
+                         "prompts/irrigation_farmer.txt template")
 
     # --- Crash-resume: the full identifying-config check, now that
     # agent_config_path (post --coupling resolution), prompt_template_path
@@ -2350,6 +2453,7 @@ def main():
     )
     environment_class = HindcastAgentEnvironment if args.hindcast else IrrigationEnvironment
     env = environment_class(config, coupling_contract_active=coupling_contract_active)
+    env.prompt_information = prompt_information
     env.keepfix_s1 = package.get("S1", False)
     env.keepfix_land_need = package.get("L", False)
     env.routine_tier_scope = package["routine_tier_scope"]
@@ -2539,6 +2643,7 @@ def main():
     if resume_source_path is not None:
         builder = builder.with_resume_journal(str(resume_source_path))
     runner = builder.build()
+    _validate_agent_memory_config(agents, agent_type_config.get_memory_config("irrigation_farmer"))
     if args.llm_journal or args.resume_from:
         # Same `runner.broker._xxx = ...` idiom as _derived_from_config /
         # _retry_feedback_mode below: set directly on the already-built
@@ -2648,7 +2753,8 @@ def main():
         _record_hold_requests_fixed_provenance(output_dir, env.config.hold_requests_fixed)
         _record_water_system_config_provenance(output_dir, env.config)
         _record_memory_options_provenance(output_dir, memory_engine)
-        _record_keepfix_provenance(output_dir, package, ollama_server_version)
+        _record_keepfix_provenance(output_dir, package, ollama_server_version, prompt_information,
+                                   hooks.reflection_prompt_log_complete)
         _record_beneficial_use_provenance(output_dir, beneficial)
         _record_governance_dispatch_provenance(output_dir, dispatched_checks)
         if args.hindcast:
