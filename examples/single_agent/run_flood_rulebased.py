@@ -40,7 +40,12 @@ MEMORY_WINDOW = 5                                                   # how many r
 FLOOD_PROB = 0.2                                                    # probability a community flood occurs in a year (if not fixed via CSV)
 GRANT_PROB = 0.5                                                    # probability an elevation grant is available in a year
 import argparse                                                     # CLI argument parsing
+import json
 RNG_SEED   = int(os.environ.get('RNG_SEED', '42'))                 # random seed for reproducibility (read from env or default to 42)
+
+SIMULATION_LOG_SCHEMA_VERSION = 2
+EXECUTED_ACTIONS = {"Insurance": "buy_insurance", "Elevate": "elevate_house",
+                    "Relocate": "relocate", "DoNothing": "do_nothing"}
 
 # decision ?�temperature??(higher = more random)
 TAU = 0.5                                                           # softmax temperature controlling stochasticity of choices
@@ -103,6 +108,16 @@ def load_agents_from_csv(path):
     return agents                                                         # return loaded population
 
 # -------------- Run simulation --------------
+def _git_commit():
+    """The commit of this checkout, for the manifest; None when git is unavailable."""
+    try:
+        import subprocess
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(os.path.abspath(__file__)),
+                              capture_output=True, text=True, check=True).stdout.strip() or None
+    except Exception:
+        return None
+
+
 def run():
     # Optional fixed inputs — resolve paths relative to script directory
     base_path = os.path.dirname(os.path.abspath(__file__))
@@ -147,6 +162,8 @@ def run():
         reloc_share= 1.0 - len(active)/len(agents)                        # overall relocated share (among all agents)
 
         for a in active:                                                  # loop through active agents
+            elevated_before = a["elevated"]
+            relocated_before = a["relocated"]
             # Flood exposure
             flooded = False                                               # default: not flooded
             if flood_event:
@@ -244,7 +261,9 @@ def run():
                 agent_id=a["id"], year=year, decision=state,              # store ID, year, final state label
                 flooded_this_year=flooded, elevated=a["elevated"],        # store outcomes and flags
                 has_insurance=a["has_insurance"], relocated=a["relocated"],
-                trust_in_insurance=round(a["trust_ins"],2), trust_in_neighbors=round(a["trust_nei"],2)
+                trust_in_insurance=round(a["trust_ins"],2), trust_in_neighbors=round(a["trust_nei"],2),
+                executed_action=EXECUTED_ACTIONS[choice],
+                elevated_before=elevated_before, relocated_before=relocated_before
             ))                                                            # append one log row
         
         # Log status for previously relocated agents (to match LLM ABM behavior)
@@ -258,7 +277,8 @@ def run():
                         agent_id=a["id"], year=year, decision="Already relocated",
                         flooded_this_year=False, elevated=a["elevated"],
                         has_insurance=a["has_insurance"], relocated=True,
-                        trust_in_insurance=round(a["trust_ins"],2), trust_in_neighbors=round(a["trust_nei"],2)
+                        trust_in_insurance=round(a["trust_ins"],2), trust_in_neighbors=round(a["trust_nei"],2),
+                        executed_action="", elevated_before=a["elevated"], relocated_before=True
                     ))
 
     return pd.DataFrame(logs), flood_years                                # return logs dataframe and flood years list
@@ -279,6 +299,22 @@ if __name__ == "__main__":
 
     df_log, flood_years = run()
     df_log.to_csv(os.path.join(out_dir, "simulation_log.csv"), index=False)
+    manifest = {
+        "kind": "rulebased", "seed": RNG_SEED, "git_commit": _git_commit(),
+        "simulation_log_schema_version": SIMULATION_LOG_SCHEMA_VERSION,
+        "simulation_log": {
+            "path": "simulation_log.csv",
+            "added_columns": ["executed_action", "elevated_before", "relocated_before"],
+            "executed_actions": list(EXECUTED_ACTIONS.values()),
+            "executed_action": "this year's drawn action; blank when relocated_before is true",
+            "elevated_before": "house elevation before this year's decision",
+            "relocated_before": "already relocated before this year; no decision",
+            "decision": "legacy cumulative adaptation state (unchanged)",
+        },
+    }
+    with open(os.path.join(out_dir, "reproducibility_manifest.json"), "w", encoding="utf-8") as stream:
+        json.dump(manifest, stream, indent=2)
+        stream.write("\n")
     print(f"Saved {len(df_log)} rows to {out_dir}/simulation_log.csv")
 
     # Summary stats
