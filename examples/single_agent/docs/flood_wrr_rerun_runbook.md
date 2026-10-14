@@ -200,6 +200,12 @@ next year's decision prompt as memory."
 
 ## 3. Commands
 
+Every run needs an output folder that is absent, empty, or holds only a
+wrapper's `run.log` and `ollama_version.txt`: since 2026-10-14 the runner
+refuses any folder with output of an earlier run (it has no resume). Move an
+old folder aside first; redirecting stdout into `<out>/run.log` of an old
+folder truncates its log before the runner refuses.
+
 Run from the repo root. `<sha>` = the short commit sha this branch lands at
 once merged (`git rev-parse --short HEAD`); embed it in every output
 directory name, as the existing corpus does
