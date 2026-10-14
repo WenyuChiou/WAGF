@@ -9,8 +9,10 @@ retry to actually happen under mock (to render "one full retry message, full
 and silent" and to show the rebuilt R1/R3/R4 rules actually fire), so this
 driver monkeypatches ``broker.utils.llm_utils.create_llm_invoke`` with a
 SCRIPTED function: deterministic per (agent, year) via a hash of the stable
-prompt text, no network, no Ollama, no randomness beyond Python's own
-``random`` module seeded by ``--seed`` (same as every other run).
+prompt text, no network, no Ollama, no randomness beyond the run's own
+draws, all derived from ``--seed`` (same as every other run; the flood
+draws use per-(seed, year, household, purpose) streams, see
+``run_flood._flood_random_stream``).
 
 Not a pytest test file itself (no ``test_`` prefix, so it is not collected);
 it is imported by ``test_prompt_rendering.py`` for the leading-blank-line

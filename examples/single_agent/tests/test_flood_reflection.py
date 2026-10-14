@@ -314,7 +314,11 @@ def test_flood_memory_provenance_reports_resolved_composed_engine_options(tmp_pa
     manifest_path.write_text('{"existing": true}', encoding="utf-8")
     rf._record_flood_memory_options_provenance(tmp_path, memory)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest == {"existing": True, "flood_memory_options": expected}
+    assert manifest == {
+        "existing": True,
+        "flood_memory_options": expected,
+        "random_streams": "keyed_per_year_household",
+    }
 
 
 def test_flood_memory_provenance_does_not_claim_composed_options_when_opted_out():

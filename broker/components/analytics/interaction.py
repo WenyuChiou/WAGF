@@ -4,7 +4,7 @@ Handles information diffusion across Institutional, Social, and Spatial tiers.
 
 Phase 8 Update: Supports SDK observers for domain-agnostic observation.
 """
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, TYPE_CHECKING, Callable
 import random
 from broker.components.social.graph import SocialGraph
 from broker.components.memory.engine import MemoryEngine
@@ -50,6 +50,14 @@ class InteractionHub:
         # tokens in generic broker code).
         action_labels: Optional[Dict[str, str]] = None,
         visible_action_specs: Optional[List[Dict[str, Any]]] = None,
+        # Optional keyed random source for draws that must not depend on
+        # call order (for example, paired comparisons across governance
+        # arms). Called as rng_for(agent_id, purpose), currently only with
+        # purpose "gossip"; it must return a FRESH random.Random each call.
+        # On that path the candidates are sorted before sampling so the
+        # result does not depend on neighbour order. None keeps the legacy
+        # draw from the global ``random`` stream unchanged.
+        rng_for: Optional[Callable[[str, str], random.Random]] = None,
     ):
         if graph is None and social_graph is None:
             raise ValueError("InteractionHub requires a social graph")
@@ -65,6 +73,7 @@ class InteractionHub:
         # broker.domains.water.interaction_specs.
         self.action_labels = action_labels or {}
         self.visible_action_specs = visible_action_specs or []
+        self.rng_for = rng_for
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
         """Tier 1 (Spatial): Aggregated observation of neighbors."""
@@ -350,7 +359,13 @@ class InteractionHub:
             # Select random snippets from neighbors
             if chatty_neighbors:
                 sample_size = min(len(chatty_neighbors), max_gossip)
-                for nid in random.sample(chatty_neighbors, sample_size):
+                rng_for = getattr(self, "rng_for", None)  # subclasses may skip __init__
+                if rng_for is None:
+                    selected_neighbors = random.sample(chatty_neighbors, sample_size)
+                else:
+                    rng = rng_for(agent_id, "gossip")
+                    selected_neighbors = rng.sample(sorted(chatty_neighbors), sample_size)
+                for nid in selected_neighbors:
                     # Retrieve the most recent memory from the neighbor as gossip
                     neighbor_mems = self.memory_engine.retrieve(agents[nid], top_k=1)
 
