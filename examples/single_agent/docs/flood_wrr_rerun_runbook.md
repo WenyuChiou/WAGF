@@ -189,8 +189,14 @@ next year's decision prompt as memory."
   under this engine too; no CLI flag is needed or exists for it.
 - `--flood-mode fixed` (years 3/4/9 from `flood_years.csv`; default).
 - `--memory-seed 42` (memory engine consolidation seed; default; distinct
-  from `--seed`, which seeds Python's `random` for damage draws, grants
-  and stochastic recall).
+  from `--seed`; since 2026-10-14 damage draws, grants, stochastic recall,
+  option order and neighbour gossip each draw from their own stream keyed
+  by (seed, year, household, purpose), see `run_flood.py
+  (_flood_random_stream)`, so a household's draws do not shift between
+  governance arms; of these, option order and neighbour gossip do not reach
+  the household prompt today: the broker writes the options in fixed
+  registry order, so `--shuffle-skills` is a no-op, and the prompt template
+  has no gossip placeholder).
 
 ## 3. Commands
 
