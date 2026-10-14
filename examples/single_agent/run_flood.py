@@ -1408,8 +1408,46 @@ def _preflight_isolated_root(base_path: Path, script_dir: Path) -> None:
         )
 
 
+# Files a batch wrapper writes into the run folder immediately before it starts
+# this runner (the shell redirect of stdout, and the Ollama version stamp of
+# .ai/run_queue_*/run_flood_batch_*.sh). Only these may already exist; any other
+# entry means an earlier run, which this runner (no resume) must not touch.
+_WRAPPER_OWNED_FILES = frozenset({"run.log", "ollama_version.txt"})
+
+
+def _preflight_flood_output(output_dir: Path) -> None:
+    """This runner has no resume: preserve every entry of an earlier run."""
+    if not output_dir.exists():
+        return
+    if not output_dir.is_dir():
+        raise ValueError(
+            f"Flood output path {output_dir} is a file, not a folder. "
+            "Move it aside or choose another --output before starting a new run."
+        )
+    earlier = sorted(
+        entry.name for entry in output_dir.iterdir()
+        if not (entry.is_file() and entry.name in _WRAPPER_OWNED_FILES)
+    )
+    if earlier:
+        raise ValueError(
+            f"Flood output folder {output_dir} already holds output of an earlier run "
+            f"({', '.join(earlier[:5])}{', ...' if len(earlier) > 5 else ''}). "
+            "Move it aside or choose another --output before starting a new run."
+        )
+
+
 # --- 6. Main Runner ---
 def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None):
+    if custom_output:
+        output_dir = Path(custom_output)
+        if not output_dir.is_absolute():
+            output_dir = Path.cwd() / output_dir
+    else:
+        output_base = Path(__file__).parent / "results"
+        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
+        output_dir = output_base / model_folder
+    _preflight_flood_output(output_dir)
+
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
 
     # Flood design record item 5 (leading-blank-lines fix): refuse rather
@@ -1830,25 +1868,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         event_memory_5_2_1=event_memory_5_2_1,
     )
     
-    # 5. Determine output directory
-    if custom_output:
-        output_dir = Path(custom_output)
-        if not output_dir.is_absolute():
-            output_dir = Path.cwd() / output_dir
-    else:
-        output_base = Path(__file__).parent / "results"
-        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
-        output_dir = output_base / model_folder
-    
+    # 5. Create the output directory checked before setup.
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # --- CLEANUP TRACES (Crucial for Analysis) ---
-    raw_dir = output_dir / "raw"
-    traces_file = raw_dir / "household_traces.jsonl"
-    if traces_file.exists():
-        print(f"Cleaning up old traces: {traces_file}")
-        try: traces_file.unlink()
-        except: pass
 
     # 6. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
