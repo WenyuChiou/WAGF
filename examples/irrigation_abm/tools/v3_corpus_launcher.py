@@ -44,13 +44,14 @@ post-gate runs / 16 LLM runs / 27 total):
 
 A run's status is one of four, by inspecting its own directory (and, for an
 LLM run, the launcher's own per-run record of its PID and exit code, see
-below): "pending" (nothing there yet), "running" (a journal or partial
-output exists, no manifest yet, and the launcher's own record shows a PID
-that is still alive), "crashed" (partial output or a journal with no clean
-manifest and no live PID, or a manifest whose `run_status` starts with
-"aborted", or -- LLM runs only -- a manifest with no recorded exit 0 and a
-`run_integrity.json` that does not show every configured row and year
-written), or "done". `run <phase>` launches only the PENDING entries for
+below): "pending" (nothing there yet), "running" (a matching live PID,
+an unknown process query with no recorded exit, or a fresh LLM journal
+when no PID is available or a live Python process cannot be matched),
+"crashed" (an unfinished attempt with a recorded exit or without
+liveness evidence), or "done" (a clean
+manifest, plus either a recorded exit 0 or a `run_integrity.json` showing
+every configured row and year written for LLM runs).
+`run <phase>` launches only the PENDING entries for
 that phase, printing why every other one was skipped, since relaunching a
 "done" entry fails at the audit writer (it refuses a directory that
 already has a manifest) and relaunching a "crashed" entry without
@@ -69,11 +70,13 @@ A PID is never trusted by its bare existence: Windows recycles PIDs, so a
 crashed run's old PID can already belong to an unrelated process by the
 time anyone checks it. Every liveness check (`is_run_process_alive`,
 `is_chain_alive`) queries `Get-CimInstance Win32_Process` for that PID and
-requires BOTH that the process is `python.exe` AND that its command line
-names the specific thing being checked (a run's own `--output` directory,
+requires BOTH that the process name starts with `python` and ends with
+`.exe` AND that its command line names the specific thing being checked
+(a run's own `--output` directory,
 or the `_run-chain` entry point for a chain-runner process) -- with a
-timeout, and mockable (`_process_command_line` is the one function that
-shells out).
+timeout and one retry. An unavailable query conservatively counts as
+alive; `plan` displays this as `running?`. `_process_command_line` is the
+one mockable function that shells out.
 
 Safety rules enforced here, beyond what run_experiment.py itself enforces:
 
@@ -129,13 +132,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 # examples/irrigation_abm/tools/v3_corpus_launcher.py -> repo root is 3 parents up
 # (tools -> irrigation_abm -> examples -> root), the same depth
@@ -309,63 +314,124 @@ def _record_interpreter(state: dict) -> None:
 # Run status (pending / running / crashed / done)
 # =============================================================================
 
-_LIVENESS_TIMEOUT = 10.0
+_LIVENESS_TIMEOUT = 30.0
+_JOURNAL_LIVENESS_SECONDS = 900
+
+
+@dataclass(frozen=True)
+class ProcProbe:
+    status: str             # "alive" | "absent" | "unknown"
+    name: str = ""
+    cmdline: str = ""
 
 
 def _process_command_line(pid: int, timeout: float = _LIVENESS_TIMEOUT) -> Optional[str]:
-    """The full command line + name of a running process, via
-    `Get-CimInstance Win32_Process` (present on every Windows 10/11
-    machine; `wmic.exe` is not, it is removed on current Windows 11).
-    `None` on any failure (no such process, the query errors, or it times
-    out) -- never raises. The ONE function that shells out for a liveness
-    check, so tests mock this one function rather than subprocess
-    directly."""
-    try:
-        result = subprocess.run(
-            [
-                "powershell", "-NoProfile", "-NonInteractive", "-Command",
-                f"Get-CimInstance Win32_Process -Filter \"ProcessId={int(pid)}\" | "
-                f"Select-Object -Property Name,CommandLine | Format-List",
-            ],
-            capture_output=True, timeout=timeout,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        return None
+    """Return the raw name, then command line, or None for an absent PID.
+    Query failures propagate to probe_process so absence stays distinct
+    from an unavailable query. This is the one process-query shell call.
+    """
+    result = subprocess.run(
+        [
+            "powershell", "-NoProfile", "-NonInteractive", "-Command",
+            "$ErrorActionPreference = 'Stop'; "
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+            f'$p = Get-CimInstance Win32_Process -Filter "ProcessId={int(pid)}"; '
+            "if ($p) { $p.Name; $p.CommandLine }",
+        ],
+        capture_output=True, timeout=timeout,
+    )
     if result.returncode != 0:
-        return None
-    # Decoded by hand with errors="replace", not text=True: PowerShell's
-    # output encoding follows the console's active code page, which is not
-    # always UTF-8. All that matters here is substring matching on the
-    # command line, which survives a lossy decode either way.
+        raise subprocess.CalledProcessError(result.returncode, "powershell")
     text = (result.stdout or b"").decode("utf-8", errors="replace")
     return text or None
 
 
-def is_process_alive_for(pid: Optional[int], needle: str, timeout: float = _LIVENESS_TIMEOUT) -> bool:
-    """True only if `pid` names a CURRENTLY RUNNING python.exe process
-    whose command line contains `needle`. A bare "does this PID exist"
-    check is not enough: Windows recycles PIDs, so a crashed run's old PID
-    can already belong to an unrelated process by the time this runs."""
+def probe_process(pid: Optional[int], timeout: float = _LIVENESS_TIMEOUT) -> ProcProbe:
+    """Query once, retry one failure, and keep unknown distinct from absent."""
     if not pid:
+        return ProcProbe("absent")
+    for _ in range(2):
+        try:
+            text = _process_command_line(pid, timeout=timeout)
+        except (subprocess.TimeoutExpired, OSError, subprocess.CalledProcessError):
+            continue
+        if not text:
+            return ProcProbe("absent")
+        text = text.lstrip("\ufeff").strip()
+        if not text:
+            return ProcProbe("absent")
+        # examples/irrigation_abm/tests/test_v3_corpus_launcher.py
+        # (TestLivenessProbeRegression) also supplies legacy formatted text.
+        formatted = re.match(r"Name\s*:\s*([^\r\n]+)\s+CommandLine\s*:\s*(.*)", text, re.DOTALL)
+        if formatted:
+            name, cmdline = formatted[1].strip(), formatted[2].strip()
+        else:
+            name, separator, cmdline = text.partition("\n")
+            if not separator:
+                name, _, cmdline = text.partition(" ")
+            name, cmdline = name.strip(), cmdline.strip()
+        status = "unknown" if _is_python_name(name) and not cmdline else "alive"
+        return ProcProbe(status, name, cmdline)
+    return ProcProbe("unknown")
+
+
+def _normalise_process_text(text: str) -> str:
+    text = text.casefold().replace("/", "\\").replace('"', "").replace("'", "")
+    return " ".join(text.split())
+
+
+def _is_python_name(name: str) -> bool:
+    name = name.casefold()
+    return name.startswith("python") and name.endswith(".exe")
+
+
+def _probe_matches(probe: ProcProbe, needle: str) -> bool:
+    if probe.status == "unknown":
+        return True
+    if probe.status != "alive" or not _is_python_name(probe.name):
         return False
-    text = _process_command_line(pid, timeout=timeout)
-    if not text:
+    needle = _normalise_process_text(needle)
+    if needle in _normalise_process_text(probe.cmdline):
+        return True
+    # Format-List can split a path inside a token and indent the next line.
+    unwrapped = re.sub(r"\r?\n[ \t]+", "", probe.cmdline)
+    return needle in _normalise_process_text(unwrapped)
+
+
+def is_process_alive_for(pid: Optional[int], needle: str, timeout: float = _LIVENESS_TIMEOUT) -> bool:
+    """Match this Python process and command line, assuming alive if unknown."""
+    return _probe_matches(probe_process(pid, timeout=timeout), needle)
+
+
+def _probe_matches_run(probe: ProcProbe, output_dir: Path) -> bool:
+    if probe.status == "unknown":
+        return True
+    if probe.status != "alive" or not _is_python_name(probe.name):
         return False
-    if "python.exe" not in text.lower():
-        return False
-    return needle in text
+    cmdline = re.sub(r"\r?\n[ \t]+", "", probe.cmdline)
+    tokens = re.findall(r'''"[^"]*"|'[^']*'|\S+''', cmdline)
+    output_flags = [index for index, token in enumerate(tokens) if token == "--output"]
+    folder = os.path.normcase(os.path.abspath(str(output_dir)))
+    if output_flags:
+        index = output_flags[-1] + 1
+        if index >= len(tokens):
+            return False
+        argument = tokens[index].strip('"\'')
+        return os.path.normcase(os.path.abspath(argument)) == folder
+    needle = _normalise_process_text(folder)
+    text = " ".join(cmdline.casefold().replace("/", "\\").split())
+    return re.search(re.escape(needle) + r'''(?=$|[\s"'\\/])''', text) is not None
 
 
 def is_run_process_alive(pid: Optional[int], output_dir: Path, timeout: float = _LIVENESS_TIMEOUT) -> bool:
-    """Item 4: a PID counts as THIS run only if it is a live python.exe
-    whose command line names this run's own --output directory."""
-    return is_process_alive_for(pid, str(output_dir), timeout=timeout)
+    """Match a live Python process to this run's normalised --output value."""
+    return _probe_matches_run(probe_process(pid, timeout=timeout), output_dir)
 
 
 def is_chain_alive(pid: Optional[int], timeout: float = _LIVENESS_TIMEOUT) -> bool:
     """Item 1: a PID counts as a live CHAIN (the detached `_run-chain`
     process, not one of its inner per-run children) only if it is a live
-    python.exe whose command line names the `_run-chain` entry point."""
+    Python process whose command line names the `_run-chain` entry point."""
     return is_process_alive_for(pid, "_run-chain", timeout=timeout)
 
 
@@ -445,42 +511,53 @@ def _manifest_counts_as_done(
 def run_status_for_dir(
     output_dir: Path, *, is_llm: bool = False, record: Optional[dict] = None,
 ) -> str:
-    """"done", "running", "crashed" or "pending" for one concrete
-    directory (not resume-chain-aware; see `run_status_for_plan_entry` for
-    that). `record` is this launcher's own per-run PID/exit record for
-    THIS attempt -- `None` when unavailable, in which case "running" can
-    never be distinguished from "crashed" (conservative: reads as
-    crashed).
+    """Return one of the four status words for one concrete attempt."""
+    return _run_status_for_dir(output_dir, is_llm=is_llm, record=record)[0]
 
-    Item 2(b): an attempt dir that has a record is NEVER "pending", even
-    if the directory itself does not exist yet or is completely empty --
-    a child process can be recorded (Popen'd) before it has created its
-    own --output directory, or a resume can die at startup leaving an
-    empty `_resumeN` with a recorded failed exit. Checking the record
-    before falling back to disk inspection is what makes that distinction
-    correctly: a record with no recorded exit means still-running-or-
-    crashed (resolved by `is_run_process_alive`), and a record WITH a
-    recorded exit is crashed outright (a successful exit without a clean
-    manifest is itself suspicious, treated conservatively)."""
+
+def _journal_is_fresh(output_dir: Path) -> bool:
+    try:
+        age = time.time() - (output_dir / _JOURNAL_NAME).stat().st_mtime
+    except OSError:
+        return False
+    return 0 <= age < _JOURNAL_LIVENESS_SECONDS
+
+
+def _run_status_for_dir(
+    output_dir: Path, *, is_llm: bool = False, record: Optional[dict] = None,
+) -> Tuple[str, bool]:
+    """Return status and query uncertainty using the same probe result."""
     manifest_path = output_dir / _MANIFEST_NAME
-    if output_dir.exists() and manifest_path.is_file():
+    has_manifest = output_dir.exists() and manifest_path.is_file()
+    if has_manifest:
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return "crashed"
-        return "done" if _manifest_counts_as_done(manifest, output_dir, is_llm, record) else "crashed"
+            manifest = None
+        if manifest is not None and _manifest_counts_as_done(manifest, output_dir, is_llm, record):
+            return "done", False
 
     if record is not None:
         if record.get("returncode") is None:
             pid = record.get("pid")
-            if pid and is_run_process_alive(pid, output_dir):
-                return "running"
-        return "crashed"
+            if pid:
+                probe = probe_process(pid)
+                if _probe_matches_run(probe, output_dir):
+                    return "running", probe.status == "unknown"
+                if probe.status == "alive" and _is_python_name(probe.name) and is_llm and _journal_is_fresh(output_dir):
+                    return "running", True
+            elif not has_manifest and is_llm and _journal_is_fresh(output_dir):
+                return "running", False
+        return "crashed", False
 
+    if has_manifest:
+        return "crashed", False
+    if is_llm and _journal_is_fresh(output_dir):
+        return "running", False
     if not output_dir.exists():
-        return "pending"
+        return "pending", False
     has_partial = (output_dir / _JOURNAL_NAME).exists() or any(output_dir.iterdir())
-    return "crashed" if has_partial else "pending"
+    return ("crashed" if has_partial else "pending"), False
 
 
 def resume_chain_dirs(base_output_dir: Path) -> List[Path]:
@@ -519,28 +596,41 @@ def run_status_for_plan_entry(
     `sha8` namespaces the run-record lookup (see `_run_record_path`) so a
     fresh tag never reads a stale record left by an older sha8 under the
     same --state-dir; `None` keeps the old flat lookup."""
+    return _status_for_plan_entry(run, state_dir, sha8)[0]
+
+
+def status_is_uncertain(
+    run: PlannedRun, state_dir: Optional[Path] = None, sha8: Optional[str] = None,
+) -> bool:
+    """Whether this entry is running with uncertain process identity."""
+    return _status_for_plan_entry(run, state_dir, sha8)[1]
+
+
+def _status_for_plan_entry(
+    run: PlannedRun, state_dir: Optional[Path] = None, sha8: Optional[str] = None,
+) -> Tuple[str, bool]:
     if run.label == "replays_ab":
         record = read_run_record(state_dir, run.label, sha8) if state_dir else None
-        a = run_status_for_dir(run.output_dir / "A", is_llm=False, record=record)
-        b = run_status_for_dir(run.output_dir / "B", is_llm=False, record=record)
+        a, a_uncertain = _run_status_for_dir(run.output_dir / "A", is_llm=False, record=record)
+        b, b_uncertain = _run_status_for_dir(run.output_dir / "B", is_llm=False, record=record)
         if a == "done" and b == "done":
-            return "done"
+            return "done", False
         if a == "pending" and b == "pending":
-            return "pending"
+            return "pending", False
         if "running" in (a, b):
-            return "running"
-        return "crashed"
+            return "running", a_uncertain or b_uncertain
+        return "crashed", False
 
     if not run.is_llm:
         record = read_run_record(state_dir, run.label, sha8) if state_dir else None
-        return run_status_for_dir(run.output_dir, is_llm=False, record=record)
+        return _run_status_for_dir(run.output_dir, is_llm=False, record=record)
 
     chain = resume_chain_dirs(run.output_dir)
     attempt_index = len(chain) - 1
     latest_dir = chain[attempt_index]
     record_label = record_label_for_attempt(run.label, attempt_index)
     record = read_run_record(state_dir, record_label, sha8) if state_dir else None
-    return run_status_for_dir(latest_dir, is_llm=True, record=record)
+    return _run_status_for_dir(latest_dir, is_llm=True, record=record)
 
 
 def journaled_attempt_dirs(base_output_dir: Path) -> List[Path]:
@@ -921,7 +1011,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
         print("[v3_corpus_launcher] no --tag given: sha8 resolved from the current HEAD (preview only).")
     counts: Dict[str, int] = {}
     for run in entries:
-        status = run_status_for_plan_entry(run, state_dir, sha8)
+        status, uncertain = _status_for_plan_entry(run, state_dir, sha8)
         counts[run.phase] = counts.get(run.phase, 0) + 1
         pid_suffix = ""
         if status in ("running", "crashed"):
@@ -930,7 +1020,8 @@ def cmd_plan(args: argparse.Namespace) -> int:
             record = read_run_record(state_dir, record_label, sha8)
             if record and record.get("pid"):
                 pid_suffix = f" pid={record['pid']}"
-        print(f"[{run.phase:8s}] [{status:7s}]{pid_suffix} {run.label}")
+        display_status = "running?" if status == "running" and uncertain else status
+        print(f"[{run.phase:8s}] [{display_status:7s}]{pid_suffix} {run.label}")
         print(f"             {' '.join(run.command)}")
         print(f"             -> {run.output_dir}")
     print(
