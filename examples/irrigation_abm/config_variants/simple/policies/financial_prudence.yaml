@@ -1,0 +1,26 @@
+# Example policy for flood ABM household agents
+id: financial_prudence
+description: "Ensures agents maintain financial stability before major purchases"
+
+rules:
+  - id: min_savings
+    param: savings
+    operator: ">="
+    value: 500
+    message: "Insufficient savings for this action"
+    level: ERROR
+    xai_hint: recommend_grant
+
+  - id: debt_ratio
+    param: debt_to_income
+    operator: "<="
+    value: 0.4
+    message: "Debt-to-income ratio too high"
+    level: ERROR
+
+  - id: valid_insurance_status
+    param: insurance_status
+    operator: in
+    value: ["none", "pending", "active", "lapsed"]
+    message: "Invalid insurance status"
+    level: WARNING
