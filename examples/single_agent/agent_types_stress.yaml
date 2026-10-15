@@ -356,6 +356,8 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
+            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
     relaxed:
@@ -372,6 +374,8 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: WARNING,
+            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
     disabled:
