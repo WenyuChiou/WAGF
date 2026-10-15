@@ -106,6 +106,12 @@ global_config:
     # never its internal skill id ("elevate_house"). Generic framework
     # option (framework default false).
     plain_action_names: true
+    # Flood R5 (elevation_block) is the only identity rule here. When it blocks
+    # an attempt, leave out the skill registry's repeat of the same check
+    # ("Precondition failed: 'not elevated' (field is True)"): the rule's own
+    # message already states the reason in plain words. Same setting as
+    # irrigation; affects only attempts an identity rule has blocked.
+    hide_registry_backstop_reports: true
 
   # Retry-prompt provenance (item 13): persist the actual retry-prompt text
   # in the raw JSONL trace so a reviewer can see what the agent was told on
@@ -521,6 +527,8 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
+            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
     relaxed:
@@ -537,6 +545,8 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: WARNING,
+            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
     # Ablation: strict minus extreme_threat_block (Paper 1b R2)
@@ -578,6 +588,8 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
+            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
     # PR-6: strict, PLUS world-grounded ERROR rules.
@@ -652,6 +664,8 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
+            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
     disabled:
