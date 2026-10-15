@@ -49,6 +49,19 @@ You see these log lines in sequence:
 The broker logs `[Governance:Exhausted]` and the audit CSV shows `status=REJECTED`
 or `status=REJECTED_FALLBACK`.
 
+For a rejected proposal, the exhaustion message names both the proposal and the
+action dispatched under the configured policy, for example:
+
+```text
+[Governance:Exhausted] agent_42 | Retries failed. Proposal 'elevate_home' stays rejected; executing default 'do_nothing' (on_retry_exhausted=default)
+[Governance:Exhausted] agent_42 | Retries failed. Proposal 'elevate_home' stays rejected; executing it anyway (on_retry_exhausted=keep_proposal)
+```
+
+The policy remains `keep_proposal` when its safety guards require the default;
+the message then names that default. Without an execution engine, it reports
+`no action executed`. Parse-failure messages name the registry default actually
+dispatched, or report `No action executed.` when nothing runs.
+
 **Root Causes**
 
 1. **Deterministic constraint violation**: The agent's static attributes (income,
