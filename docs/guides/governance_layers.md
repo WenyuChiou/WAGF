@@ -503,6 +503,9 @@ with the self-report identical on every row.
 
 ## 7. Related
 
+- [Retry feedback guide](retry_feedback_guide.md) — how to write rule messages
+  and suggestions, what each retry mode sends, and how to record the exact
+  retry prompt.
 - `docs/AUDIT_SCHEMA.md` — the `rules_world_grounded` / `rules_self_report` and
   `advise_findings` / `advise_shown` columns, and their key gating.
 - `docs/references/yaml_configuration_reference.md` — `governance.advise_mode`,
