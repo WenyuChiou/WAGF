@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Warning for blocking rules without a message, and a retry-feedback
+  guide.** Loading an agent-type config now logs one WARNING per ERROR rule
+  (thinking or identity) that can run and has no `message`, naming the
+  config file, agent type, profile(s), rule id and the internal fallback text
+  the agent would be shown instead. Diagnostics only: rules, enforcement,
+  prompts, audit and traces are unchanged, and an unusual rule shape never
+  stops a config from loading. The rule getters share one selection helper
+  (`AgentTypeConfig._get_rule_definitions`); their outputs are unchanged for
+  every config in the repository. New `docs/guides/retry_feedback_guide.md`
+  explains what an agent is shown on a retry and how to write one message
+  per rule, with the flood and irrigation rules as examples.
+
 - **Irrigation beneficial-use limit (spec item 49).** Every profile, including
   disabled, hides and blocks increases at 0.99 B and clamps drawn increases
   at B = min(W, (1 + m) peak_obs_af). The shipped config enables it with

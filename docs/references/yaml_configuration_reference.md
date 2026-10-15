@@ -251,6 +251,7 @@ per retry prompt.
 | `feasible_set_feedback` | bool | No | false | Ends every ERROR retry prompt with the actions that pass every rule this step |
 | `appraisal_freeze` | bool | No | false | Within one decision, every rule reads each construct label (a key containing `_LABEL`) as the agent FIRST STATED it (the first parsed attempt's value, or the first later value if that attempt gave none), so a retry cannot pass a label rule by rewriting its label; the feasible-set line uses the same labels. Refused with `multi_skill.enabled` or the runner's cognitive cache. See `ARCHITECTURE.md`, "Appraisal freeze". |
 | `hide_registry_backstop_reports` | bool | No | false | A retry prompt leaves out the registry backstop results (`precondition_violation`, `output_schema_violation`) of an attempt an identity rule already blocked; they stay in the audit |
+| `plain_action_names` | bool | No | false | Shows blocked skill ids in plain words in retry reports (`increase demand` instead of `increase_demand`); audit values keep the skill id |
 | `rule_id_prefix` | bool | No | true | `false` drops the `[Rule: <id>] ` prefix from YAML identity/thinking rule messages (no rule id in retry prompts) |
 
 **Example:**
@@ -1093,7 +1094,7 @@ domain name to `broker/` (Invariant 5, and the genericity test enforces it).
 | `when_above` | list[string] | Yes | -- | Construct values that trigger the rule |
 | `blocked_skills` | list[string] | Yes | -- | Skill IDs blocked when the rule triggers |
 | `level` | string | No | `"ERROR"` | Enforcement level |
-| `message` | string | No | "" | Explanation message |
+| `message` | string | No | "" | Explanation shown to the agent after an `ERROR` block. Give every blocking rule a non-blank message; see the [retry feedback guide](../guides/retry_feedback_guide.md). |
 
 **Example (modern multi-condition):**
 
@@ -1370,6 +1371,8 @@ Implemented in `broker/utils/agent_config.py`. Key methods:
 | `.get_governance_retries()` | int | `global_config.governance.max_retries` (default: 3) |
 | `.get_governance_max_reports()` | int | `global_config.governance.max_reports_per_retry` (default: 3) |
 | `.get_governance_retry_feedback_mode()` | str | `global_config.governance.retry_feedback_mode` (default: `"full"`; `"full"`/`"placebo"`/`"silent"`, raises on any other value) |
+| `.get_governance_plain_action_names()` | bool | `global_config.governance.plain_action_names` (default: false); shows `increase demand` instead of `increase_demand` in retry reports |
+| `.get_governance_hide_registry_backstop_reports()` | bool | `global_config.governance.hide_registry_backstop_reports` (default: false); suppresses duplicate registry backstops from retry text after an identity-rule block, without removing them from audit results |
 | `.get_llm_retries()` | int | `global_config.llm.max_retries` (default: 2) |
 | `.get_reflection_config()` | dict | Merged reflection config (global > shared > defaults) |
 | `.get_valid_actions(agent_type)` | list[str] | All valid skill IDs and aliases for the agent type |

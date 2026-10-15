@@ -26,6 +26,10 @@ if TYPE_CHECKING:
 
 logger = setup_logger(__name__)
 
+# Diagnostic history is process-wide, including forced reloads and cache clears.
+_warned_missing_rule_messages: set[Tuple[str, str, str, str]] = set()
+_missing_rule_message_lock = threading.Lock()
+
 
 @dataclass
 class ActionConfig:
@@ -409,6 +413,138 @@ class AgentTypeConfig:
         # Validate outside the tolerant file-read block: an unsupported option
         # is a configuration error, never an empty-config fallback.
         self._validate_rule_exceptions(self._config)
+        self._warn_missing_rule_messages()
+
+    def _warn_missing_rule_messages(self) -> None:
+        """Best-effort diagnostics only; malformed input must still load."""
+        try:
+            config_path = str(Path(self._yaml_path).resolve())
+            global_config = self._config.get("global_config", {})
+            governance = global_config.get("governance", {}) if isinstance(global_config, dict) else {}
+            prefix_enabled = not (isinstance(governance, dict) and governance.get("rule_id_prefix") is False)
+            for agent_type, profile, kind, rules in self._iter_rule_message_blocks():
+                if isinstance(rules, dict):
+                    rules = [{"id": key, **value} for key, value in rules.items()
+                             if isinstance(value, dict)]
+                if not isinstance(rules, list):
+                    logger.debug("[Config] Skipping rule-message diagnostics for malformed %s", kind)
+                    continue
+                for rule in rules:
+                    if not isinstance(rule, dict):
+                        logger.debug("[Config] Skipping rule-message diagnostics for a non-mapping rule")
+                        continue
+                    # WARNING rules never reach the model's retry prompt.
+                    if rule.get("level", "ERROR") != "ERROR":
+                        continue
+                    message = rule.get("message", "")
+                    if message and (not isinstance(message, str) or message.strip()):
+                        continue
+                    rule_id = rule.get("id", rule.get("construct", "unknown")
+                                       if kind != "identity_rules" else "unknown")
+                    key = (config_path, agent_type, profile, rule_id)
+                    prefix = f"[Rule: {rule_id}] " if prefix_enabled else ""
+                    fallbacks = []
+                    skills = rule.get("blocked_skills")
+                    if isinstance(skills, str):
+                        skills = [skills] if skills else ["<skill>"]
+                    elif not (isinstance(skills, (list, tuple, set, frozenset)) and skills
+                              and all(isinstance(skill, str) and skill for skill in skills)):
+                        skills = ["<skill>"]
+                    for skill in skills:
+                        if kind == "identity_rules":
+                            fallbacks.append(
+                                f"{prefix}Identity Block: {skill} restricted by {rule.get('precondition')}")
+                        else:
+                            fallbacks.extend((
+                                f"{prefix}Thinking Block: {skill} restricted by thinking rules",
+                                f"[Rule: {rule_id}] Validation failed for skill: {skill}",
+                            ))
+                    # Preserve existing whitespace behavior: validators test
+                    # truthiness, so a spaces-only message is NOT replaced.
+                    blank_note = (
+                        f" Current whitespace is rendered verbatim ({message!r}); "
+                        "the empty-message fallbacks below apply if it is omitted or empty."
+                        if message else ""
+                    )
+                    with _missing_rule_message_lock:
+                        if key in _warned_missing_rule_messages:
+                            continue
+                        _warned_missing_rule_messages.add(key)
+                    logger.warning(
+                        "[Config] Blocking rule without a message: agent type=%r, "
+                        "profile=%r, rule id=%r (%s).%s Full-feedback fallback text "
+                        "before optional prompt formatting (AgentValidator; "
+                        "BaseValidator for thinking rules): %s",
+                        agent_type, profile, rule_id, kind, blank_note,
+                        " | ".join(repr(text) for text in fallbacks),
+                    )
+        except Exception:
+            # Diagnostics must never introduce a new configuration-load failure.
+            logger.debug("[Config] Skipping rule-message diagnostics after unexpected input", exc_info=True)
+
+    def _iter_rule_message_blocks(self):
+        """Group selected rule blocks and their actual profile applicability.
+
+        Use the getters' resolver without changing GOVERNANCE_PROFILE. A probe
+        for an undeclared profile covers the open-ended legacy/default fallback.
+        Only lowercase profile names are reachable through the environment.
+        """
+        top = self._config.get("governance", {})
+        agent_types = set(self._config) - {"governance", "global_config", "shared", "metadata"}
+        if isinstance(top, dict):
+            for agents in top.values():
+                if isinstance(agents, dict):
+                    agent_types.update(agents)
+        for agent_type in sorted(agent_types):
+            cfg = self.get(agent_type)
+            if not isinstance(cfg, dict):
+                logger.debug("[Config] Skipping rule-message diagnostics for malformed agent type %r", agent_type)
+                continue
+            embedded = cfg.get("governance", {})
+            names = {"default"}
+            for profiles in (top, embedded):
+                if isinstance(profiles, dict):
+                    names.update(name for name in profiles if isinstance(name, str) and name == name.lower())
+            probe = "__undeclared_profile__"
+            while probe in names:
+                probe += "_"
+            profiles = sorted(names)
+            if not self.get_governance_require_profile():
+                profiles.append(probe)
+            blocks = {}
+            for profile in profiles:
+                # A required profile declared only for another agent cannot run.
+                if (profile != "default" and self.get_governance_require_profile()
+                        and not (isinstance(top, dict) and isinstance(top.get(profile), dict)
+                                 and agent_type in top[profile])
+                        and not (isinstance(embedded, dict) and profile in embedded)):
+                    continue
+                for kind in ("thinking_rules", "identity_rules"):
+                    try:
+                        rules = self._get_rule_definitions(agent_type, profile, kind)
+                    except Exception:
+                        logger.debug("[Config] Skipping rule-message diagnostics for %r/%r/%s",
+                                     agent_type, profile, kind, exc_info=True)
+                        continue
+                    if not rules:
+                        continue
+                    key = (kind, id(rules))
+                    if key not in blocks:
+                        blocks[key] = (rules, [])
+                    blocks[key][1].append(profile)
+            for (kind, _), (rules, applicable) in blocks.items():
+                labels = [profile for profile in applicable if profile != probe]
+                if probe in applicable:
+                    legacy = cfg.get(kind, cfg.get("coherence_rules") if kind == "thinking_rules" else None)
+                    if rules is legacy:
+                        label = "all profiles without their own block"
+                        if labels:
+                            label += " (including " + ", ".join(labels) + ")"
+                    else:
+                        label = ", ".join(labels + ["undeclared profiles"])
+                else:
+                    label = ", ".join(labels)
+                yield agent_type, label, kind, rules
 
     @staticmethod
     def _validate_rule_exceptions(node, rule_type: Optional[str] = None) -> None:
@@ -2030,16 +2166,7 @@ class AgentTypeConfig:
         # only that one would leave an undeclared profile reachable for a whole run.
         profile = self._resolve_governance_profile(agent_type, cfg)
 
-        # Task 015 fix: Look in both locations for governance rules
-        # 1. Top-level governance section: governance.{profile}.{agent_type}.identity_rules
-        # 2. Agent-type section: {agent_type}.governance.{profile}.identity_rules (legacy)
-        top_level_gov = self._config.get("governance", {})
-        rules = top_level_gov.get(profile, {}).get(agent_type, {}).get("identity_rules", [])
-
-        # Fallback to agent-type embedded governance (legacy format)
-        if not rules:
-            gov = cfg.get("governance", {})
-            rules = gov.get(profile, {}).get("identity_rules", cfg.get("identity_rules", {}))
+        rules = self._get_rule_definitions(agent_type, profile, "identity_rules")
         
         # DEBUG
         # print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
@@ -2163,22 +2290,25 @@ class AgentTypeConfig:
             )
         return profile
 
+    def _get_rule_definitions(self, agent_type: str, profile: str, kind: str):
+        """Shared raw selection for both rule getters and load-time diagnostics."""
+        cfg = self.get(agent_type)
+        rules = self._config.get("governance", {}).get(profile, {}).get(agent_type, {}).get(kind, [])
+        if not rules:
+            gov = cfg.get("governance", {})
+            if kind == "thinking_rules":
+                container = gov.get(profile, {}) if profile in gov else gov.get("default", {})
+                rules = container.get(kind, cfg.get(kind, cfg.get("coherence_rules", {})))
+            else:
+                rules = gov.get(profile, {}).get(kind, cfg.get(kind, {}))
+        return rules
+
     def get_thinking_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get cognitive/thinking rules."""
         cfg = self.get(agent_type)
         profile = self._resolve_governance_profile(agent_type, cfg)
 
-        # Task 015 fix: Look in both locations for governance rules
-        # 1. Top-level governance section: governance.{profile}.{agent_type}.thinking_rules
-        # 2. Agent-type section: {agent_type}.governance.{profile}.thinking_rules (legacy)
-        top_level_gov = self._config.get("governance", {})
-        rules = top_level_gov.get(profile, {}).get(agent_type, {}).get("thinking_rules", [])
-
-        # Fallback to agent-type embedded governance (legacy format)
-        if not rules:
-            gov = cfg.get("governance", {})
-            rules_container = gov.get(profile, {}) if profile in gov else gov.get("default", {})
-            rules = rules_container.get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
+        rules = self._get_rule_definitions(agent_type, profile, "thinking_rules")
         
         # DEBUG
         # print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
