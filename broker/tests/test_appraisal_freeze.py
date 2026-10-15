@@ -228,8 +228,11 @@ def test_shipped_flood_config_resolved_option_set_2026_10():
     "every new option off". This test now simply pins the FULL resolved
     set, named for what it actually checks. rule_id_prefix is OFF (no
     "[Rule: ...]" prefix, so retry text names neither a label nor an
-    internal rule id); hide_registry_backstop_reports and state_columns
-    remain off/empty -- flood never needed either.
+    internal rule id); state_columns remains empty. hide_registry_backstop_reports
+    is ON since 2026-10-15: flood R5 (elevation_block, the only identity rule)
+    got a plain message, and the registry's repeat of the same check
+    ("Precondition failed: 'not elevated' ...") is left out of that retry, as in
+    irrigation.
 
     Also pins the sampling values (item 13, spec item 37e: flood sends
     gemma3:4b's own Modelfile defaults explicitly) THROUGH
@@ -245,7 +248,7 @@ def test_shipped_flood_config_resolved_option_set_2026_10():
     assert cfg.get_governance_appraisal_freeze() is True
     assert cfg.get_governance_rule_id_prefix() is False
     assert cfg.get_governance_plain_action_names() is True
-    assert cfg.get_governance_hide_registry_backstop_reports() is False
+    assert cfg.get_governance_hide_registry_backstop_reports() is True
     assert cfg.get_audit_attempt_columns() is True
     assert cfg.get_audit_state_columns() == []
     assert cfg.get_audit_retry_prompt_columns() is True
@@ -255,6 +258,35 @@ def test_shipped_flood_config_resolved_option_set_2026_10():
     assert llm_params["temperature"] == 1.0
     assert llm_params["top_p"] == 0.95
     assert llm_params["top_k"] == 64
+
+
+def test_shipped_flood_elevation_block_states_its_reason(monkeypatch):
+    """Flood R5 (2026-10-15): an elevated household that proposes elevating
+    again is told why in plain words, not the internal fallback
+    ("Identity Block: elevate_house restricted by elevated"). Every profile
+    that carries the rule has the same message; under ``relaxed`` it is a
+    WARNING and never reaches the agent."""
+    from pathlib import Path
+    from broker.validators import AgentValidator
+
+    repo = Path(__file__).resolve().parents[2]
+    path = str(repo / "examples" / "single_agent" / "agent_types.yaml")
+    expected = ("Elevation blocked under the rule on a house already elevated: your house "
+                "is already elevated, and elevating it again is not available under this rule.")
+    for profile in ("strict", "relaxed"):
+        AgentTypeConfig.clear_cache()
+        monkeypatch.setenv("GOVERNANCE_PROFILE", profile)
+        results = AgentValidator(config_path=path).validate_identity(
+            "household", "A1", "elevate_house", {"elevated": True})
+        errors = [e for r in results for e in r.errors]
+        warnings = [w for r in results for w in r.warnings]
+        if profile == "strict":
+            assert errors == [expected] and warnings == []
+        else:
+            assert errors == [] and warnings == [expected]
+        assert AgentValidator(config_path=path).validate_identity(
+            "household", "A1", "elevate_house", {"elevated": False}) == []
+    AgentTypeConfig.clear_cache()
 
 
 # ---------------------------------------------------------------------------
