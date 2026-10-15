@@ -1152,6 +1152,25 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             executed_skill = approved_skill.skill_name if approved_skill else None
             execution_path = "approved_no_engine" if approved_skill else "not_executed"
 
+        # Report the execution branch's resolved action, including keep_proposal
+        # guards, without repeating the policy or registry-default lookup.
+        if outcome is SkillOutcome.REJECTED:
+            if execution_path == "rejected_proposal":
+                action = "executing it anyway"
+            elif executed_skill is not None:
+                action = f"executing default '{executed_skill}'"
+            else:
+                action = "no action executed"
+            logger.error(
+                f" [Governance:Exhausted] {agent_id} | Retries failed. "
+                f"Proposal '{approved_skill.skill_name}' stays rejected; {action} "
+                f"(on_retry_exhausted={self._on_retry_exhausted})"
+            )
+        elif outcome is SkillOutcome.UNCERTAIN:
+            action = (f"Forcing fallback: '{executed_skill}'"
+                      if executed_skill is not None else "No action executed.")
+            logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. {action}")
+
         # Capture memory state after execution (before experiment-layer updates)
         memory_post = self._get_memory_snapshot(agent_id)
 
@@ -1304,11 +1323,6 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 parameters=_params,
             )
             outcome = SkillOutcome.REJECTED if not is_generic_fallback else SkillOutcome.UNCERTAIN
-
-            if is_generic_fallback:
-                logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. Forcing fallback: '{fallout_skill}'")
-            else:
-                logger.error(f" [Governance:Exhausted] {agent_id} | Retries failed. Proceeding with REJECTED choice: '{fallout_skill}'")
 
             self.stats["rejected"] += 1
             for v in validation_results:
