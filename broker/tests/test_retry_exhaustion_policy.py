@@ -19,6 +19,7 @@ The subtle rules these tests exist to pin:
 """
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -186,6 +187,75 @@ def test_keep_proposal_executes_the_agents_final_choice():
     # The decision is still recorded as rejected — only what EXECUTES changes, so
     # the terminal taxonomy and every status-derived metric are unaffected.
     assert t["approved_skill"]["status"] == "REJECTED"
+
+
+@pytest.mark.parametrize("policy,expected_skill,action", [
+    ("default", DEFAULT_SKILL, "executing default 'maintain_demand'"),
+    ("keep_proposal", "increase_large", "executing it anyway"),
+])
+def test_exhausted_log_names_executed_action_and_policy(
+        caplog, policy, expected_skill, action):
+    eng, sim, writer = _engine(policy)
+    with caplog.at_level(logging.ERROR):
+        _run(eng)
+
+    records = [r for r in caplog.records if "[Governance:Exhausted]" in r.message]
+    assert len(records) == 1
+    assert records[0].levelno == logging.ERROR
+    assert records[0].message == (
+        " [Governance:Exhausted] A1 | Retries failed. Proposal 'increase_large' "
+        f"stays rejected; {action} (on_retry_exhausted={policy})"
+    )
+    assert sim.executed == [expected_skill]
+    assert writer.traces[0]["executed_skill"] == expected_skill
+    assert writer.traces[0]["approved_skill"]["status"] == "REJECTED"
+
+
+def test_exhausted_log_reports_default_when_keep_proposal_is_declined(caplog):
+    eng, sim, writer = _engine("keep_proposal")
+    eng.validators[0].validate.side_effect = lambda *_a, **_k: ValidationResult(
+        valid=False, validator_name="AgentValidator:identity_error",
+        errors=["blocked"], metadata={"rules_hit": ["r1"], "constraint_type": "hard"})
+    with caplog.at_level(logging.ERROR):
+        _run(eng)
+
+    records = [r for r in caplog.records if "[Governance:Exhausted]" in r.message]
+    assert len(records) == 1
+    assert "Proposal 'increase_large' stays rejected" in records[0].message
+    assert "executing default 'maintain_demand'" in records[0].message
+    assert "on_retry_exhausted=keep_proposal" in records[0].message
+    assert sim.executed == [DEFAULT_SKILL]
+    assert writer.traces[0]["executed_via_fallback"] is True
+
+
+@pytest.mark.parametrize("policy", ["default", "keep_proposal"])
+def test_exhausted_log_does_not_claim_execution_without_engine(caplog, policy):
+    eng, sim, writer = _engine(policy)
+    eng.simulation_engine = None
+    with caplog.at_level(logging.ERROR):
+        _run(eng)
+
+    records = [r for r in caplog.records if "[Governance:Exhausted]" in r.message]
+    assert len(records) == 1
+    assert "Proposal 'increase_large' stays rejected; no action executed" in records[0].message
+    assert f"on_retry_exhausted={policy}" in records[0].message
+    assert sim.executed == []
+    assert writer.traces[0]["executed_skill"] is None
+
+
+def test_parse_failure_log_names_registry_default_that_executes(caplog):
+    eng, sim, writer = _engine("keep_proposal", parse_layer="default")
+    eng.config.get_parsing_config.return_value = {"default_skill": "increase_large"}
+    with caplog.at_level(logging.ERROR):
+        _run(eng)
+
+    records = [r for r in caplog.records if "[Governance:Exhausted]" in r.message]
+    assert len(records) == 1
+    assert records[0].message == (
+        " [Governance:Exhausted] A1 | Parsing failed. Forcing fallback: 'maintain_demand'"
+    )
+    assert sim.executed == [DEFAULT_SKILL]
+    assert writer.traces[0]["executed_skill"] == DEFAULT_SKILL
 
 
 def test_total_parse_failure_executes_nothing_at_all():

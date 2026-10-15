@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Retry-exhaustion log wording.** `[Governance:Exhausted]` now names the
+  rejected proposal, the action actually dispatched, and `on_retry_exhausted`.
+  Parse-failure messages also use the dispatched registry default. Execution,
+  audit records, traces, and counters are unchanged.
+
 ### Added
 
 - **Irrigation beneficial-use limit (spec item 49).** Every profile, including
