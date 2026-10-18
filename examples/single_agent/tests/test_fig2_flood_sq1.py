@@ -45,10 +45,15 @@ def test_writes_png_and_pdf(tmp_path, monkeypatch):
     ] for _ in range(5)])
     monkeypatch.setattr(fig, "_load_grid_records", lambda *args: [])
     monkeypatch.setattr(fig, "_load_blocked_counts", lambda *args: fig.blocked_action_counts([]))
+    monkeypatch.setattr(fig, "_load_region_counts", lambda *args: {
+        bar: {"counts": {"DN": 1, "FI": 7, "HE": 2, "RL": 0}, "dn_by_seed": {42: 10.0}}
+        for bar in fig.REGION_BARS
+    })
     assert run_main(make_root(tmp_path), tmp_path / "out") == 0
     assert {p.name for p in (tmp_path / "out").iterdir()} == {
         "Fig2_flood_sq1.png", "Fig2_flood_sq1.pdf",
-        "FigS_flood_appraisal_grid.png", "FigS_flood_appraisal_grid.pdf"}
+        "FigS_flood_appraisal_grid.png", "FigS_flood_appraisal_grid.pdf",
+        "FigS_flood_blocked_decisions.png", "FigS_flood_blocked_decisions.pdf"}
 
 
 @pytest.mark.parametrize("changes", [
@@ -287,3 +292,85 @@ def test_blocked_loader_crosschecks_first_behavioural_count(tmp_path, monkeypatc
     run["first_behavioural_count"] = 2
     with pytest.raises(MetricsError, match="first_behavioural_count"):
         fig._load_blocked_counts([run])
+
+
+@pytest.mark.parametrize("tp,cp,included", [
+    (tp, cp, True) for tp in ("H", "VH") for cp in ("M", "H", "VH")
+] + [(" h ", " m ", True), ("M", "H", False), ("H", "L", False),
+     (None, "M", False), ("H", None, False)])
+def test_region_filter_uses_first_stated_labels(tp, cp, included):
+    decision = proposal(tp=tp, cp=cp)
+    decision.final_labels = {"TP_LABEL": "L", "CP_LABEL": "L"}
+    if tp is None:
+        del decision.first_labels["TP_LABEL"]
+    if cp is None:
+        del decision.first_labels["CP_LABEL"]
+    counts = fig.region_action_counts([decision], "executed_skill")
+    assert sum(counts.values()) == int(included)
+
+
+def test_region_composition_distinguishes_proposal_and_execution_and_excludes_aborts():
+    decisions = [proposal(), proposal("buy_insurance", "elevate_house"),
+                 proposal("relocate", "relocate"), proposal(aborted=True),
+                 proposal(tp="M"), proposal(cp="L")]
+    assert fig.region_action_counts(decisions, "first_proposal") == {
+        "DN": 1, "FI": 1, "HE": 0, "RL": 1}
+    assert fig.region_action_counts(decisions, "executed_skill") == {
+        "DN": 0, "FI": 1, "HE": 1, "RL": 1}
+
+
+@pytest.mark.parametrize("field", ["first_proposal", "executed_skill"])
+def test_region_counts_refuse_missing_action(field):
+    decision = proposal()
+    setattr(decision, field, None)
+    with pytest.raises(MetricsError, match="action"):
+        fig.region_action_counts([decision], field)
+
+
+@pytest.mark.parametrize("metric", ["first_R1_count", "R1_count"])
+def test_region_crosscheck_raises_and_prints_comparison(tmp_path, capsys, metric):
+    run = {"run": tmp_path, "first_R1_count": 1, "R1_count": 0}
+    first = {"DN": 1, "FI": 1, "HE": 0, "RL": 0}
+    executed = {"DN": 0, "FI": 2, "HE": 0, "RL": 0}
+    fig._check_region_counts(run, executed, first)
+    assert metric in capsys.readouterr().out
+    run[metric] += 1
+    with pytest.raises(MetricsError, match=metric):
+        fig._check_region_counts(run, executed, first)
+    assert metric in capsys.readouterr().out
+
+
+def test_region_crosscheck_rejects_different_governed_cohort_counts(tmp_path, capsys):
+    run = {"run": tmp_path, "first_R1_count": 1, "R1_count": 0}
+    with pytest.raises(MetricsError, match="same decisions"):
+        fig._check_region_counts(run, {"DN": 0, "FI": 1}, {"DN": 1, "FI": 1})
+    assert "same decisions" in capsys.readouterr().out
+
+
+def test_region_no_validator_crosscheck_raises(tmp_path, capsys):
+    with pytest.raises(MetricsError, match="R1_count"):
+        fig._check_region_counts({"run": tmp_path, "R1_count": 2}, {"DN": 1})
+    assert "R1_count" in capsys.readouterr().out
+
+
+def test_region_loader_pools_counts_before_shares(tmp_path, monkeypatch, capsys):
+    runs = [tmp_path / f"Run_{seed}" for seed in (42, 43)]
+    decisions = {runs[0]: [proposal(executed="do_nothing")],
+                 runs[1]: [proposal("buy_insurance")] * 3}
+    monkeypatch.setattr(fig, "_load_executed_decisions", decisions.__getitem__)
+    rows = [{"run": run, "seed": seed, "first_R1_count": first, "R1_count": first}
+            for run, seed, first in zip(runs, (42, 43), (1, 0))]
+    bars = fig._load_region_counts({"strict": rows, "disabled": rows})
+    for bar in bars.values():
+        assert bar["counts"] == {"DN": 1, "FI": 3, "HE": 0, "RL": 0}
+        assert bar["dn_by_seed"] == {42: 100.0, 43: 0.0}
+    output = capsys.readouterr().out
+    assert "DN=1 (25.00%)" in output
+    assert "DN per seed" in output
+
+
+def test_region_loader_refuses_empty_region(tmp_path, monkeypatch):
+    monkeypatch.setattr(fig, "_load_executed_decisions", lambda run: [proposal(tp="M")])
+    rows = [{"run": tmp_path, "seed": 42, "R1_count": 0, "first_R1_count": 0}]
+    with pytest.raises(MetricsError, match="[Ee]mpty"):
+        fig._load_region_counts({"strict": rows, "disabled": rows})
