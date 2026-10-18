@@ -1,16 +1,17 @@
 """Flood Fig 2: consistency with appraisal and variety of household actions.
 
-Panel (a) answers the variety half of SQ1 with household protection STATES.
-Its pooled EHE annotations are the pre-registered variety number, computed
-on yearly DECISIONS, not protection states. Rule-based EHE (0.61) belongs in
-the caption, not on the canvas. Panel (b) addresses variety where the validator
-acts: blocked first proposals are redistributed across protective actions,
-compared with unforced choices in the same appraisal region, rather than
-funnelled into one action. Panel (c) answers the consistency half of SQ1.
-The supplementary appraisal grid describes where contradictions sit (about
-97% in TA=H, CA=M without the validator); it is not itself an answer to SQ1.
-All measures follow paper_measures; the earlier Nature Water figure supplies
-visual style and state mapping only. One CLI run writes both figures.
+Panel (a) answers the variety half of SQ1 at population level with household
+protection STATES. Its pooled EHE annotations are the pre-registered variety
+number, computed on yearly DECISIONS, not protection states. Rule-based EHE
+(0.61) belongs in the caption, not on the canvas. Panel (b) addresses both
+halves where the validator acts: households whose stated appraisal calls for
+protection mostly stop doing nothing while the rest of their action mix is
+unchanged. Panel (c) answers the consistency half across all enforced
+behavioural rules and all executed decisions. The supplementary appraisal
+grid describes where contradictions sit; the blocked-decisions supplement
+shows where blocked first proposals went. All measures follow paper_measures;
+the earlier Nature Water figure supplies visual style and state mapping only.
+One CLI run writes all three figures.
 
     python -m examples.single_agent.analysis.fig2_flood_sq1 \\
         --results-root DIR --out-dir DIR
@@ -57,6 +58,11 @@ STATE_MAP = {
 LEVELS = ("VL", "L", "M", "H", "VH")
 ACTION_STATES = {"do_nothing": "DN", "buy_insurance": "FI", "elevate_house": "HE", "relocate": "RL"}
 BAR_SEGMENTS = ("DN", "DN_default", "FI", "HE", "RL")
+REGION_BARS = {
+    "no_validator": ("No validator", "disabled", "executed_skill"),
+    "first": ("Governed:\nfirst proposal", "strict", "first_proposal"),
+    "executed": ("Governed:\nexecuted", "strict", "executed_skill"),
+}
 
 
 def _finite(row: dict[str, Any], key: str, run: Path) -> float:
@@ -243,6 +249,72 @@ def first_proposal_rule(d: audit.Decision) -> str | None:
 def _r1_region(d: audit.Decision) -> bool:
     tp, cp = (measures._label(d.first_labels, key) for key in ("TP_LABEL", "CP_LABEL"))
     return tp in {"H", "VH"} and cp in {"M", "H", "VH"}
+
+
+def region_action_counts(decisions: Sequence[audit.Decision], action_field: str) -> dict[str, int]:
+    """Count actions on the same executed, first-stated R1 appraisal cohort."""
+    if action_field not in {"first_proposal", "executed_skill"}:
+        raise MetricsError(f"Invalid region action field: {action_field!r}")
+    counts = dict.fromkeys(ACTION_STATES.values(), 0)
+    for d in decisions:
+        if d.aborted or not _r1_region(d):
+            continue
+        action = measures._action(getattr(d, action_field), f"R1 appraisal region: {action_field}")
+        counts[ACTION_STATES[action]] += 1
+    return counts
+
+
+def _check_region_counts(result, executed, first=None) -> None:
+    """Print every comparison before refusing a mismatched run."""
+    comparisons = [("executed DN vs R1_count", executed["DN"], result.get("R1_count"))]
+    if first is not None:
+        comparisons.extend([
+            ("first-proposal DN vs first_R1_count", first["DN"], result.get("first_R1_count")),
+            ("same decisions: first-proposal vs executed count", sum(first.values()), sum(executed.values())),
+        ])
+    failures = []
+    for label, actual, expected in comparisons:
+        matches = actual == expected
+        comparison = f"{result['run']}: {label}: {actual} {'==' if matches else '!='} {expected!r}"
+        print(f"Region cross-check {comparison}")
+        if not matches:
+            failures.append(comparison)
+    if failures:
+        raise MetricsError("; ".join(failures))
+
+
+def _print_region_counts(label, counts) -> None:
+    n = sum(counts.values())
+    if not n:
+        raise MetricsError(f"{label}: empty high-threat, able-to-cope appraisal region")
+    shares = ", ".join(f"{state}={count} ({100 * count / n:.2f}%)" for state, count in counts.items())
+    print(f"{label}: n={n}; {shares}")
+
+
+def _load_region_counts(groups) -> dict[str, Any]:
+    bars = {bar: {"counts": dict.fromkeys(ACTION_STATES.values(), 0), "dn_by_seed": {}}
+            for bar in REGION_BARS}
+    for profile in GROUPS:
+        for result in groups[profile]:
+            # Both governed bars use this exact list of decisions; only the action field changes.
+            decisions = _load_executed_decisions(Path(result["run"]))
+            executed = region_action_counts(decisions, "executed_skill")
+            first = region_action_counts(decisions, "first_proposal") if profile == "strict" else None
+            _check_region_counts(result, executed, first)
+            for bar, (label, bar_profile, field) in REGION_BARS.items():
+                if profile != bar_profile:
+                    continue
+                counts = first if field == "first_proposal" else executed
+                _print_region_counts(f"{label.replace(chr(10), ' ')} seed {result['seed']}", counts)
+                for state, count in counts.items():
+                    bars[bar]["counts"][state] += count
+                bars[bar]["dn_by_seed"][result["seed"]] = 100 * counts["DN"] / sum(counts.values())
+    for bar, (label, _, _) in REGION_BARS.items():
+        label = label.replace("\n", " ")
+        _print_region_counts(f"{label} pooled", bars[bar]["counts"])
+        shares = bars[bar]["dn_by_seed"]
+        print(f"{label} DN per seed: " + ", ".join(f"{seed}={value:.2f}%" for seed, value in shares.items()))
+    return bars
 
 
 def blocked_action_counts(decisions: Sequence[audit.Decision]) -> dict[str, Any]:
@@ -438,6 +510,39 @@ def _draw_blocked_bars(ax, counts):
               bbox_to_anchor=(0, -0.25), fontsize=6.5, frameon=False, borderaxespad=0)
 
 
+def _draw_region_bars(ax, bars):
+    for y, (bar, (label, _, _)) in enumerate(REGION_BARS.items()):
+        counts = bars[bar]["counts"]
+        n = sum(counts.values())
+        if not n or not bars[bar]["dn_by_seed"]:
+            raise MetricsError(f"{label}: empty region counts or DN seed shares")
+        left = 0.0
+        for state in ACTION_STATES.values():
+            share = 100 * counts[state] / n
+            ax.barh(y, share, left=left, height=0.62, color=STATE_COLORS[state],
+                    edgecolor="white", linewidth=0.5, zorder=2)
+            if share >= 5:
+                ax.text(left + share / 2, y, f"{share:.0f}%", ha="center", va="center",
+                        fontsize=7, color="white" if state in {"DN", "HE"} else "black",
+                        fontweight="bold")
+            left += share
+        dn = list(bars[bar]["dn_by_seed"].values())
+        ax.text(102, y, f"DN by seed\n{min(dn):.1f}\u2013{max(dn):.1f} %",
+                va="center", fontsize=6)
+    ax.set(xlim=(0, 100), ylim=(2.55, -0.55), xlabel="Share of decisions (%)")
+    ax.set_xticks(range(0, 101, 20))
+    ax.set_yticks(range(3), [item[0] for item in REGION_BARS.values()], fontsize=6.5)
+    ax.tick_params(axis="y", length=0)
+    ax.spines["left"].set_visible(False)
+    ax.set_axisbelow(True)
+    ax.grid(axis="x", alpha=0.25)
+    ax.set_title("Households that judged the threat high\nand believed they could cope",
+                 fontsize=7.4, fontweight="bold", pad=7)
+    ax.legend([Patch(facecolor=STATE_COLORS[state], edgecolor="white") for state in ACTION_STATES.values()],
+              list(ACTION_STATES.values()), loc="upper center", bbox_to_anchor=(0.5, -0.28),
+              ncol=4, fontsize=6.5, handlelength=0.8, columnspacing=1, frameon=False)
+
+
 def _save_figure(fig, out_dir: Path, stem: str) -> None:
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -471,7 +576,14 @@ def _plot_supplement(cells, out_dir: Path) -> None:
     _save_figure(fig, out_dir, "FigS_flood_appraisal_grid")
 
 
-def _plot(groups, counts, cells, blocked, out_dir: Path) -> None:
+def _plot_blocked_supplement(blocked, out_dir: Path) -> None:
+    fig, ax = plt.subplots(figsize=(3.7, 2.8))
+    fig.subplots_adjust(left=0.12, right=0.97, top=0.85, bottom=0.28)
+    _draw_blocked_bars(ax, blocked)
+    _save_figure(fig, out_dir, "FigS_flood_blocked_decisions")
+
+
+def _plot(groups, counts, cells, blocked, region, out_dir: Path) -> None:
     plt.rcParams.update({"font.family": "sans-serif", "font.sans-serif": ["Arial", "Helvetica"],
                          "font.size": 7.5, "axes.labelsize": 7.5, "axes.labelweight": "bold",
                          "axes.spines.top": False, "axes.spines.right": False,
@@ -519,7 +631,9 @@ def _plot(groups, counts, cells, blocked, out_dir: Path) -> None:
 
     lower = outer[1].subgridspec(1, 2, width_ratios=[1.5, 1], wspace=0.45)
     ax_b = fig.add_subplot(lower[0])
-    _draw_blocked_bars(ax_b, blocked)
+    position = ax_b.get_position()
+    ax_b.set_position([position.x0 + 0.10, position.y0, position.width - 0.15, position.height])
+    _draw_region_bars(ax_b, region)
 
     ax_c = fig.add_subplot(lower[1])
     bars = [("Governed:\nfirst proposal", "strict", "first_behavioural_pct", 0.45),
@@ -546,6 +660,7 @@ def _plot(groups, counts, cells, blocked, out_dir: Path) -> None:
                  fontsize=10, fontweight="bold", va="bottom")
     _save_figure(fig, out_dir, "Fig2_flood_sq1")
     _plot_supplement(cells, out_dir)
+    _plot_blocked_supplement(blocked, out_dir)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -582,7 +697,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _summary(label, groups[profile], key)
         print("Group title and panel (c) colours: governed #0072B2; no validator #D55E00 (earlier palette)")
         blocked = _load_blocked_counts(groups["strict"])
-        _plot(groups, counts, cells, blocked, out_dir)
+        region = _load_region_counts(groups)
+        _plot(groups, counts, cells, blocked, region, out_dir)
     except MetricsError:
         raise
     except (OSError, ValueError, TypeError, KeyError, OverflowError) as exc:
