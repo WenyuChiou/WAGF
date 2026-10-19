@@ -39,7 +39,7 @@ You see these log lines in sequence:
 [Governance:Retry] Attempt 2 failed validation for agent_42. Errors: [...]
 [Governance:Retry] Attempt 3 failed validation for agent_42. Errors: [...]
 [Governance:Fallout] CRITICAL: Max retries (3) reached for agent_42.
-  - Final Choice Rejected: 'elevate_home'
+  - Final Choice Rejected: 'elevate_house'
   - Blocked By: ['Precondition failed: ...']
   - Ratings: TP_LABEL=H | TP_LABEL=L
   - Agent Motivation: "I want to protect my house..."
@@ -53,8 +53,8 @@ For a rejected proposal, the exhaustion message names both the proposal and the
 action dispatched under the configured policy, for example:
 
 ```text
-[Governance:Exhausted] agent_42 | Retries failed. Proposal 'elevate_home' stays rejected; executing default 'do_nothing' (on_retry_exhausted=default)
-[Governance:Exhausted] agent_42 | Retries failed. Proposal 'elevate_home' stays rejected; executing it anyway (on_retry_exhausted=keep_proposal)
+[Governance:Exhausted] agent_42 | Retries failed. Proposal 'elevate_house' stays rejected; executing default 'do_nothing' (on_retry_exhausted=default)
+[Governance:Exhausted] agent_42 | Retries failed. Proposal 'elevate_house' stays rejected; executing it anyway (on_retry_exhausted=keep_proposal)
 ```
 
 The policy remains `keep_proposal` when its safety guards require the default;
@@ -75,7 +75,7 @@ dispatched, or report `No action executed.` when nothing runs.
 
 2. **Persistent construct mismatch**: The LLM consistently outputs reasoning that
    triggers a thinking/coherence rule. For example, a `low_coping` rule blocks
-   `elevate_home` when the Coping Appraisal label is "L" or "VL", and the LLM keeps
+   `elevate_house` when the Coping Appraisal label is "L" or "VL", and the LLM keeps
    producing that same appraisal across retries.
 
 3. **Overly restrictive governance rules**: The YAML-defined rules have conditions
@@ -123,7 +123,7 @@ dispatched, or report `No action executed.` when nothing runs.
         identity_rules:
           - id: affordability_check
             precondition: cannot_afford_elevation
-            blocked_skills: [elevate_home]
+            blocked_skills: [elevate_house]
             level: ERROR
             message: "Income too low for elevation"
   ```
@@ -136,7 +136,7 @@ dispatched, or report `No action executed.` when nothing runs.
     - id: low_coping
       construct: CP_LABEL
       when_above: [VL, L]
-      blocked_skills: [elevate_home]
+      blocked_skills: [elevate_house]
       level: WARNING  # Changed from ERROR to WARNING
   ```
   **Important**: a WARNING-level rule cannot change agent behavior in the default
@@ -170,7 +170,7 @@ dispatched, or report `No action executed.` when nothing runs.
 **Symptom**
 
 ```
-[Precondition] elevate_home: ["Precondition failed: 'not already_elevated' (field is True)"]
+[Precondition] elevate_house: ["Precondition failed: 'not already_elevated' (field is True)"]
 ```
 
 Or in the audit CSV: `failed_rules=precondition_violation`.
@@ -178,7 +178,7 @@ Or in the audit CSV: `failed_rules=precondition_violation`.
 **Root Causes**
 
 1. The skill has a `preconditions` field in the skill registry YAML that checks agent
-   state booleans. For example, `elevate_home` requires `not already_elevated`, but
+   state booleans. For example, `elevate_house` requires `not already_elevated`, but
    the agent's state has `already_elevated=True`.
 
 2. The agent's state was not reset correctly after a previous action (e.g., a prior
@@ -192,7 +192,7 @@ Or in the audit CSV: `failed_rules=precondition_violation`.
 1. Check the skill registry YAML for the skill's preconditions:
    ```yaml
    skills:
-     - skill_id: elevate_home
+     - skill_id: elevate_house
        preconditions:
          - "not already_elevated"
          - "is_homeowner"
@@ -316,7 +316,7 @@ these nested accessors over flat key lookups in custom validators.
 **Symptom**
 
 ```
-[OutputSchema] elevate_home: ["Field 'magnitude_pct': 150 > maximum 100"]
+[OutputSchema] elevate_house: ["Field 'magnitude_pct': 150 > maximum 100"]
 ```
 
 **Root Causes**
@@ -337,7 +337,7 @@ model adapter. If you see this error, check that:
 **Symptom**
 
 ```
-[Multi-Skill] agent_42 | Composite conflict: ["Skills 'elevate_home' and
+[Multi-Skill] agent_42 | Composite conflict: ["Skills 'elevate_house' and
   'relocate' are mutually exclusive"]
 ```
 
@@ -478,7 +478,7 @@ the fallback.
 **Root Causes**
 
 1. **LLM hallucinated an action**: The model invented an action not in the option
-   list (e.g., "build_seawall" when only "elevate_home", "buy_insurance", "relocate",
+   list (e.g., "build_seawall" when only "elevate_house", "buy_insurance", "relocate",
    and "do_nothing" exist).
 
 2. **Alias map incomplete**: The LLM used a reasonable abbreviation or synonym that
