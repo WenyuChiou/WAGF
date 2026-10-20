@@ -1,6 +1,6 @@
 # Two water cases, two coupling directions
 
-**Language: [English](README.md) | [中文](README_zh.md)** — the Chinese page still shows the previous version and is being updated.
+**Language: [English](README.md) | [中文](README_zh.md)**
 
 Run these built-in mock cases from the repository root with Python 3.10 or later,
 after the [installation step](../README.md#quickstart). They require no model
