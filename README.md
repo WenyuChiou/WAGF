@@ -28,7 +28,7 @@ flowchart LR
 [Tutorial](docs/tutorial/README.md) · [Examples](examples/README.md) ·
 [Architecture](ARCHITECTURE.md) · [Reference](docs/guides/readme_reference.md)
 
-[中文](README_zh.md) — the Chinese page still shows the previous version and is being updated.
+[中文](README_zh.md)
 
 ## Quickstart
 

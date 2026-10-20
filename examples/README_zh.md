@@ -1,103 +1,33 @@
-# 範例與基準測試
+# 兩個水資源案例，兩種耦合方向
 
-**語言: [English](README.md) | [中文](README_zh.md)**
+**語言：[English](README.md) | [繁體中文](README_zh.md)**（下方連結的案例說明與教學目前只有英文版。）
 
-此目錄包含 Water Agent Governance Framework 的復現腳本、實驗配置與基準測試結果。
+完成[安裝步驟](../README_zh.md#快速開始)後，請在 repository 根目錄以 Python 3.10 或更新版本執行這些內建的 mock 案例。它們不需要任何模型服務。請使用新的輸出目錄。下方時間包含啟動與匯入，量測於一台 Windows/Python 3.14 電腦，只適用於這些小型檢查。
 
----
+## 洪水調適：單向耦合
 
-## 學習路徑（建議順序）
-
-| # | 範例 | 複雜度 | 學習重點 |
-| :--- | :--- | :--- | :--- |
-| 1 | **[governed_flood/](governed_flood/)** | 入門 | 獨立的 Group C 示範 — 治理 + 以人為本記憶的實際運作 |
-| 2 | **[single_agent/](single_agent/)** | 中階 | 完整 JOH 基準測試 — Groups A/B/C 消融研究、壓力測試、問卷模式 |
-| 3 | **[multi_agent/](multi_agent/)** | 進階 | 社會動態 — 保險市場、政府補貼、同儕效應 |
-
----
-
-## 目錄概覽
-
-| 目錄 | 代理人數 | 社交 | 治理 | 記憶 | 狀態 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **[quickstart/](quickstart/)** | 1 | 無 | mock LLM | window | 活躍（教學） |
-| **[single_agent/](single_agent/)** | 100 | 可選 | 3 種配置（嚴格/寬鬆/停用） | 可配置 | 活躍（Paper 1b） |
-| **[irrigation_abm/](irrigation_abm/)** | 78 | 有 | 嚴格 | HumanCentric | 活躍（Paper 1b） |
-| **[multi_agent/flood/](multi_agent/flood/)** | 402 | 有 | 進階 | HumanCentric | 活躍（Paper 3） |
-| **[governed_flood/](governed_flood/)** | 100 | 無 | 僅嚴格 | HumanCentric | 教學示例 + broker 測試 fixture |
-| **[vaccination_demo/](vaccination_demo/)** | 25 | 無 | 嚴格 | window | Tier-2 showcase（L3-1 2026-05-24，非水）|
-
----
-
-## 快速上手
-
-### 1. 最簡單：Governed Flood 示範
-
-governed_flood 範例是一個獨立的 Group C 實驗，含完整治理和以人為本記憶。無需額外配置。
+洪水災害驅動家戶的調適決策；家戶的決策不會改變災害。這個案例展示提案檢查、重試回饋、重試用盡後採用設定的預設行動，以及家戶 audit。
 
 ```bash
-python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10
+python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --workers 1 --seed 42 --governance-mode strict --output .tmp/readme-flood
 ```
 
-### 2. 完整基準測試：單代理人（JOH 論文）
+實測執行時間：**在一台 Windows 電腦上約 5 秒**。`.tmp/readme-flood/` 中的輸出包括 `household_governance_audit.csv`（兩筆決策）、`simulation_log.csv`、`audit_summary.json`、`governance_summary.json` 與 `run_integrity.json`。mock 提出 `buy_insurance`，但沒有附上必要的評估，用盡重試後執行 `do_nothing`。它不儲存任何反思：對這個 mock 而言，完整性警告是預期中的結果，這次執行也不能與開啟反思功能的研究相比。
 
-複製三組消融研究，100 代理人，10 年：
+設定方式與本機真實模型執行，請閱讀[洪水 README](single_agent/README.md)。
+
+## 科羅拉多河灌溉：雙向耦合
+
+用水者的申請量會影響配水量與 Lake Mead 蓄水量。由此產生的水位與短缺等級會影響分配量，並寫入下一年的 prompt。這個案例展示耦合 adapter、每年的水資源狀態，以及每位用水者的 audit。
 
 ```bash
-# Group A：基準組（無治理、無記憶）
-python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100 \
-    --governance-mode disabled
-
-# Group B：治理 + 視窗記憶
-python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100 \
-    --memory-engine window --governance-mode strict
-
-# Group C：完整認知（HumanCentric + Priority Schema）
-python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100 \
-    --memory-engine humancentric --governance-mode strict --use-priority-schema
+python examples/irrigation_abm/run_experiment.py --model mock --years 2 --agents 2 --workers 1 --seed 42 --governance-mode strict --coupling --output .tmp/readme-irrigation
 ```
 
-### 3. 多代理人：社會動態
+實測執行時間：**在一台 Windows 電腦上約 5 秒**。`.tmp/readme-irrigation/` 中的輸出包括 `irrigation_farmer_governance_audit.csv`（四筆決策）、`simulation_log.csv`、`audit_summary.json`、`run_integrity.json`，以及一份會保留下來的衍生設定檔 `agent_types.coupling.yaml`。Lake Mead 年底蓄水量由 14.349 變為 15.776 million acre-feet（百萬英畝-英尺）；第 2 年起始水位為 1100.739 ft，高於第 1 年的 1081.460 ft。短缺等級（shortage tier）維持 0。
 
-運行含家戶、政府及保險代理人的多代理人實驗：
+mock 不提供評估，用盡重試後執行設定的預設行動 `maintain_demand`。它也不儲存反思，完整性記錄會標出這項限制。[教學第 4 章](../docs/tutorial/04-water-model.md)使用既有的 78 位用水者資料，展示短缺等級的轉換，以及這次轉換造成的等級削減（tier cut），使用的仍是 mock model。
 
-```bash
-python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b
-```
+水資源系統假設、設定方式與本機真實模型執行，請閱讀[灌溉 README](irrigation_abm/README.md)。
 
----
-
-## 輸出結構
-
-每個實驗在其 `results/` 目錄中產生以下輸出：
-
-| 檔案 | 說明 |
-| :--- | :--- |
-| `household_decisions.csv` | 每代理人、每年的決策日誌（動作、評估、推理） |
-| `household_governance_audit.csv` | 治理審計軌跡（介入、重試、警告） |
-| `governance_summary.json` | 治理統計彙總（介入次數、警告、結果） |
-| `audit_summary.json` | 解析品質指標（驗證錯誤、警告） |
-| `config_snapshot.yaml` | 完整實驗配置快照（可重現性） |
-| `execution.log` | 控制台輸出日誌 |
-
----
-
-## 模型
-
-所有範例支援任何 Ollama 相容模型。推薦的基準測試模型：
-
-| 模型 | 標籤 | 參數量 | 備註 |
-| :--- | :--- | :--- | :--- |
-| Gemma 3 | `gemma3:4b` | 4B | 主要基準 — 快速、良好的解析能力 |
-| Gemma 3 | `gemma3:12b` | 12B | 更好的推理能力、較慢 |
-| Gemma 3 | `gemma3:27b` | 27B | 最高品質、需要較大 VRAM |
-| Llama 3.2 | `llama3.2:3b` | 3B | 輕量、解析挑戰較多 |
-| DeepSeek R1 | `deepseek-r1:8b` | 8B | 思維鏈推理 |
-
----
-
-## 延伸閱讀
-
-- **[主 README](../README_zh.md)**：框架概覽與架構
-- **[實驗設計指南](../docs/guides/experiment_design_guide.md)**：如何設計新實驗
-- **[代理人組裝指南](../docs/guides/agent_assembly_zh.md)**：如何配置認知堆疊層級
+接著閱讀[六章教學](../docs/tutorial/README.md)。
