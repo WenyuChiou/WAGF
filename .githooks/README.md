@@ -9,6 +9,7 @@ local-only and disappears on re-clone).
 | Hook | What it does | Severity |
 |---|---|---|
 | `pre-commit` | Secret-scan: rejects commits whose **staged content** contains hardcoded API keys (Zotero / OpenAI / Anthropic / GitHub PAT / AWS / generic). | BLOCK |
+| `pre-commit` (second step) | Review gate: if this computer has `~/.claude/git-hooks/pre-commit-review-gate`, it runs after a clean secret scan and blocks a commit of 50+ lines, 3+ files or a governance file until a reviewer ack exists (`bash ~/.claude/scripts/claude-ack-review.sh <repo>`). Computers without `~/.claude` skip it. | BLOCK |
 
 ## One-time installation (per clone)
 
