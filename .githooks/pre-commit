@@ -30,6 +30,7 @@ Exit codes:
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -279,5 +280,23 @@ def main() -> int:
     return 1
 
 
+def _review_gate() -> int:
+    """Chain the review gate from Wenyu's ~/.claude harness, when this computer has it.
+
+    The gate blocks a large or governance commit until a reviewer ack exists
+    (.git/CODE_REVIEW_DONE); see ~/.claude/docs/COMMIT_GATES.md. Computers
+    without ~/.claude skip it, so this hook stays a plain secret scan there.
+    """
+    gate = Path.home() / ".claude" / "git-hooks" / "pre-commit-review-gate"
+    if not gate.is_file():
+        return 0
+    bash = shutil.which("bash")
+    if bash is None:
+        print("[review-gate] bash not found; review gate skipped", file=sys.stderr)
+        return 0
+    return subprocess.run([bash, gate.as_posix()]).returncode
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    sys.exit(rc if rc else _review_gate())
