@@ -53,4 +53,25 @@ still using the mock model.
 For water-system assumptions, configuration and real local-model runs, read the
 [irrigation README](irrigation_abm/README.md).
 
+## Other folders in `examples/`
+
+The two cases above are the main ones. `governed_flood/` supplies the flood
+domain pack that `single_agent/` uses; the other folders are demos, worked
+examples or test fixtures.
+
+| Folder | What it is |
+|---|---|
+| `governed_flood/` | Shared flood domain pack plus a small runner. Imported by `single_agent/`, `multi_agent/` and core tests; do not delete. |
+| `multi_agent/flood/` | Separate multi-agent flood study; not one of the two main cases. |
+| `reservoir_control/` | Worked example of connecting a new water model through `broker/coupling/`; run with the mock model. |
+| `reservoir_control_multidim/` | Same, with three setpoints in one decision; run with the mock model. |
+| `coupling_examples/` | Worked example of a coupling archetype. |
+| `cat_model/` | Coupling-layer demo (catastrophe insurance); used by core tests. |
+| `vaccination_demo/` | Non-water demo domain. |
+| `quickstart/` | Numbered tutorial scripts. |
+| `_test_fixtures/` | Fixture domain for tests; not runnable on its own. |
+
+Which parts of the repo are generic and which are examples:
+[`docs/REPO_MAP.md`](../docs/REPO_MAP.md).
+
 Continue with the [six-part tutorial](../docs/tutorial/README.md).
