@@ -6,6 +6,8 @@
 [![Python tested: 3.10–3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue)](.github/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
+![WAGF：以規則檢查 LLM agent 在洪水調適與灌溉研究中的水資源決策](docs/figures/wagf-cover.png)
+
 WAGF 把 agent、規則與水資源模型連接起來，用於灌溉與洪水調適的 agent-based 研究。水資源模型與規則由你提供；WAGF 負責檢查提案、在要求重試時說明原因，並記錄發生的過程。
 
 ```mermaid
