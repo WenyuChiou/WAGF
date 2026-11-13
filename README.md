@@ -6,7 +6,7 @@
 [![Python tested: 3.10–3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue)](.github/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-![WAGF: rules check the water decisions of LLM agents in flood adaptation and irrigation studies](docs/figures/wagf-cover.png)
+![WAGF: rules check LLM agents’ water decisions before they change the simulation](docs/figures/wagf-cover.svg)
 
 WAGF connects agents, rules and water models for agent-based studies of irrigation
 and flood adaptation. You supply the water model and the rules;
