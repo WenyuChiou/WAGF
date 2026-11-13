@@ -98,16 +98,24 @@ broker/                          # Core governance middleware
 ├── utils/                         # Config loading, LLM API utilities, logging, retry formatting, ...
 └── validators/                    # AgentValidator rule engine (production path) + the five governance-framework validators
 
-examples/                          # Domain-specific implementations (non-exhaustive; see `examples/` for the full list)
-├── multi_agent/flood/             # Multi-agent flood simulation (Paper 3)
+examples/                          # Domain-specific implementations (all 11 folders; subfolders abbreviated)
+├── single_agent/                  # Main case: flood adaptation (hazard affects households, not the reverse); uses the pack in governed_flood/
+├── irrigation_abm/                # Main case: Colorado River irrigation (two-way: requests change Lake Mead, its level and shortage tier come back)
+├── governed_flood/                # Shared flood domain pack + small runner; imported by single_agent/, multi_agent/ and core tests
+├── multi_agent/flood/             # Separate multi-agent flood study; not one of the two main cases
 │   ├── environment/               # Flood-specific enrichers (depth_sampler.py, rcv_generator.py)
 │   ├── survey/                    # MA-specific survey processing (flood_survey_loader.py, mg_classifier.py, ...)
 │   └── run_unified_experiment.py
-├── single_agent/                  # Single-agent flood experiments (Nature Water paper)
-├── irrigation_abm/                 # Irrigation domain (CRSS agents)
-├── vaccination_demo/               # Single-agent non-water reference domain
-└── coupling_examples/              # Standalone coupling-archetype worked examples (archetype_c_subprocess/, ...)
+├── reservoir_control/             # Worked example: connecting a new water model through broker/coupling/ (mock model)
+├── reservoir_control_multidim/    # Same, with three setpoints in one decision
+├── coupling_examples/             # Worked example of a coupling archetype (archetype_c_subprocess/, ...)
+├── cat_model/                     # Coupling-layer demo (catastrophe insurance); used by core tests
+├── vaccination_demo/              # Non-water demo domain
+├── quickstart/                    # Numbered tutorial scripts
+└── _test_fixtures/                # Fixture domain for tests; not runnable on its own
 ```
+
+Which parts are generic and which are examples: `docs/REPO_MAP.md` §1a and §4.
 
 ---
 
@@ -690,7 +698,9 @@ historical migrations:
 - **v0.4.0 (2026-05-28)**: Phase 6U identifier-generalization series
   complete (broker/ generic namespace has zero domain-flavored
   identifiers; PMT/utility/financial/narrative_diffusion metadata
-  moved to `broker/validators/governance/frameworks/`).
+  moved to `broker/validators/governance/frameworks/`). Later scans still
+  find flood-case names in generic files; the current state is in
+  `docs/REPO_MAP.md` §1a.
 - **v0.3.0 (2026-05-27)**: Phase 6T interface opening (Post,
   FollowerNetwork, InstitutionalLifecycleHandler, PerceptionPack
   social-media hooks) + silent-failure F1-F5 superset. Semver reset
