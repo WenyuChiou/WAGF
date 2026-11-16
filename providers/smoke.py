@@ -31,7 +31,7 @@ PROVIDER_SPECS = {
         "env_var": "OPENAI_API_KEY",
     },
     "anthropic": {
-        "model": "claude-3-5-sonnet-latest",
+        "model": "claude-haiku-5-5",
         "import_name": "anthropic",
         "env_var": "ANTHROPIC_API_KEY",
     },

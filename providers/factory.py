@@ -33,10 +33,15 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     
     # 1. Base Configuration
     default_model = DEFAULT_MODELS.get(provider_type, "llama3.2:3b")
+    # Current OpenAI and Anthropic models reject sampling values they do not
+    # expect (e.g. any temperature on Claude Opus 5.5, a non-default one on
+    # OpenAI reasoning models), and a fixed 1024-token cap can cut off a model
+    # that thinks first. For these providers, send only what the config sets.
+    unset_by_default = provider_type in ("openai", "azure", "anthropic", "claude")
     llm_config = LLMConfig(
         model=config.get("model", default_model),
-        temperature=config.get("temperature", 0.7),
-        max_tokens=config.get("max_tokens", 1024),
+        temperature=config.get("temperature", None if unset_by_default else 0.7),
+        max_tokens=config.get("max_tokens", None if unset_by_default else 1024),
         timeout=config.get("timeout", 60.0),
         extra_params=config.get("extra_params", {})
     )

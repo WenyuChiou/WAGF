@@ -26,7 +26,7 @@ def test_cloud_provider_reports_missing_key():
 def test_cloud_provider_reports_missing_dependency():
     result = provider_smoke.check_provider(
         provider_name="anthropic",
-        model="claude-3-5-sonnet-latest",
+        model="claude-haiku-5-5",
         env={"ANTHROPIC_API_KEY": "x"},
         importer=lambda _name: (_ for _ in ()).throw(ImportError("missing")),
         validator=lambda *_args, **_kwargs: True,

@@ -53,15 +53,30 @@ class OpenAIProvider(LLMProvider):
     def provider_name(self) -> str:
         return "openai"
     
+    def _request_kwargs(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Build the chat request; leave out unset temperature and token limit.
+
+        OpenAI's own API takes the limit as ``max_completion_tokens`` (newer
+        models reject ``max_tokens``); an OpenAI-compatible server given via
+        ``base_url`` keeps the older ``max_tokens`` name.
+        """
+        request: Dict[str, Any] = {
+            "model": self.config.model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        temperature = kwargs.get("temperature", self.config.temperature)
+        if temperature is not None:
+            request["temperature"] = temperature
+        max_tokens = kwargs.get("max_tokens", self.config.max_tokens)
+        if max_tokens is not None:
+            key = "max_tokens" if self.base_url else "max_completion_tokens"
+            request[key] = max_tokens
+        return request
+
     def invoke(self, prompt: str, **kwargs) -> LLMResponse:
         """Synchronously invoke OpenAI model."""
-        messages = [{"role": "user", "content": prompt}]
-        
         response = self._client.chat.completions.create(
-            model=self.config.model,
-            messages=messages,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
+            **self._request_kwargs(prompt, **kwargs)
         )
         
         choice = response.choices[0]
@@ -83,13 +98,8 @@ class OpenAIProvider(LLMProvider):
     
     async def ainvoke(self, prompt: str, **kwargs) -> LLMResponse:
         """Asynchronously invoke OpenAI model."""
-        messages = [{"role": "user", "content": prompt}]
-        
         response = await self._async_client.chat.completions.create(
-            model=self.config.model,
-            messages=messages,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
+            **self._request_kwargs(prompt, **kwargs)
         )
         
         choice = response.choices[0]
