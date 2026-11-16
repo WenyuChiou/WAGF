@@ -1702,7 +1702,15 @@ class ExperimentRunner:
                 [str(getattr(f, "__name__", type(f).__name__)) for f in _custom]
                 if isinstance(_custom, (list, tuple)) else None)
         except Exception as exc:
-            logger.debug(f"[Integrity] governance-resolution provenance skipped: {exc}")
+            # A failure part-way through this block used to leave every later
+            # key simply absent, which reads like an older runner rather than a
+            # broken one. Record it at warning level, as 5.6 does.
+            governance_error = f"{type(exc).__name__}: {exc}"
+            metadata["governance_resolution_error"] = governance_error
+            logger.warning(
+                "[Integrity] governance-resolution provenance incomplete (%s) — "
+                "the manifest records the failure.", governance_error,
+            )
 
         # 5.5. Coupled-world provenance (Phase 6V inc 3, review P0-3). Duck-typed
         #     on purpose: NO broker.coupling import here (flag-OFF runs must never
@@ -1712,6 +1720,7 @@ class ExperimentRunner:
         #     Only a dict result counts as provenance — a Mock/garbage return
         #     (e.g. MagicMock engines in tests) is ignored, never serialized.
         coupling_prov = None
+        coupling_error = None
         try:
             prov_fn = getattr(self.sim_engine, "get_provenance", None)
             if callable(prov_fn):
@@ -1719,9 +1728,19 @@ class ExperimentRunner:
                 if isinstance(candidate, dict):
                     coupling_prov = candidate
         except Exception as exc:
-            logger.debug(f"[Integrity] coupling provenance skipped: {exc}")
+            # A coupled engine whose get_provenance() RAISED used to give a
+            # manifest and run_integrity.json identical to an UNCOUPLED run
+            # (debug log only). Record which failure, as 5.6 does.
+            coupling_error = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "[Integrity] coupling provenance unavailable (%s) — the manifest "
+                "records the failure rather than reading as an uncoupled run.",
+                coupling_error,
+            )
         if coupling_prov is not None:
             metadata["coupling_provenance"] = coupling_prov
+        if coupling_error is not None:
+            metadata["coupling_provenance_error"] = coupling_error
 
         # 5.6. Coupling-RETROFIT provenance (PR-9, F1 remediation). A domain
         #     that validates its own physical-state handoff inline (because
@@ -1776,6 +1795,8 @@ class ExperimentRunner:
             # the adapter" is runtime truth (the Invariant-6 divergence class).
             # Keyed on the VALIDATED provenance from 5.5 (not bare hasattr) so
             # frozen-path / mock engines leave run_integrity.json unchanged.
+            # A 5.5 hook that RAISED is recorded below as
+            # coupling_provenance_error instead.
             if coupling_prov is not None:
                 refl_kwargs["extra"] = {
                     "coupling_adapter": True,
@@ -1792,6 +1813,11 @@ class ExperimentRunner:
                 refl_kwargs["extra"] = {
                     **refl_kwargs.get("extra", {}),
                     "coupling_retrofit_metadata_error": retrofit_error,
+                }
+            if coupling_error is not None:
+                refl_kwargs["extra"] = {
+                    **refl_kwargs.get("extra", {}),
+                    "coupling_provenance_error": coupling_error,
                 }
             # The configured grid, set by _finalize_experiment just before this
             # runs. Absent on any path that reaches here without finalizing, in
@@ -1839,7 +1865,14 @@ class ExperimentRunner:
                 if journal_provenance is not None:
                     metadata.update(journal_provenance)
         except Exception as exc:
-            logger.debug(f"[Integrity] llm_journal provenance skipped: {exc}")
+            # A resumed run whose journal provenance failed used to look like a
+            # normal, never-resumed run. Record it, as 5.6 does.
+            journal_error = f"{type(exc).__name__}: {exc}"
+            metadata["llm_journal_provenance_error"] = journal_error
+            logger.warning(
+                "[Integrity] llm_journal provenance unavailable (%s) — the "
+                "manifest records the failure.", journal_error,
+            )
 
         return metadata
 
