@@ -7,7 +7,7 @@ world-mutating payout action is governed (ERROR-block + retry) *before* it debit
 the shared pool.
 
 Importing this package registers BOTH cat domains (mirrors the
-vaccination_demo pattern; no edit to broker/ source):
+custom domain pattern; no edit to broker/ source):
   1. ``ValidatorRegistry.register("cat_model", "physical", [payout-solvency check])``
      -- single-agent world-mutation governance check.
   2. ``DomainPackRegistry.register("cat_model", CatModelDomainPack())``

@@ -209,9 +209,6 @@ class InteractionHub:
             # Year-1 cold start: provide a domain-neutral baseline so the
             # LLM has a social-norm anchor without leaking flood vocabulary
             # to non-water multi-agent domains.
-            # (Phase 6E Tier 2 finding 2026-05-11: the previous text said
-            # "major flood protection actions" which appeared in vaccination_ma
-            # smoke prompts and would confuse a vaccination LLM.)
             if neighbor_ids:
                 return (
                     "You have not yet observed notable behavior changes "

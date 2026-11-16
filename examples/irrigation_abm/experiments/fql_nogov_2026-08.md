@@ -104,4 +104,4 @@ is a small check, not a defect, but the two numbers should not both appear in ci
 ---
 
 *Read-only against `fql_raw/`, which was not modified. Written before the arm was used for anything,
-per the rule in [`examples/EXPERIMENTS.md`](../../EXPERIMENTS.md).*
+to keep exploratory outputs separate from frozen paper runs.*

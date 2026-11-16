@@ -42,9 +42,7 @@ mock 不提供評估，用盡重試後執行設定的預設行動 `maintain_dema
 | `reservoir_control_multidim/` | 同上，但一次決策要訂三個操作設定值（setpoint）；以 mock model 執行。 |
 | `coupling_examples/` | 耦合 archetype 的示範範例。 |
 | `cat_model/` | 耦合層 demo（巨災保險），核心測試會用到。 |
-| `vaccination_demo/` | 非水資源的 demo domain。 |
 | `quickstart/` | 編號的教學腳本。 |
-| `_test_fixtures/` | 測試用的 fixture domain，無法單獨執行。 |
 
 哪些部分是通用模組、哪些是範例，請見 [`docs/REPO_MAP.md`](../docs/REPO_MAP.md)（只有英文版）。
 

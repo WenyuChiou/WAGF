@@ -5,12 +5,12 @@ Coverage:
   - `load_action_taxonomy_from_skill_registry` reads YAML correctly,
     tolerates missing file / malformed YAML / missing fields.
   - `DefaultDomainPack.action_taxonomy()` returns empty dict.
-  - Each of the 3 reference DomainPacks (Irrigation, Flood, Vaccination)
+  - Each of the 2 reference DomainPacks (Irrigation, Flood)
     returns the expected per-skill taxonomy with all 3 fields populated.
 
 These tests exercise the public surface only — no broker pipeline
-integration. The reference YAMLs (irrigation_abm / single_agent /
-vaccination_demo skill_registry.yaml) must remain canonical inputs.
+integration. The reference YAMLs (irrigation_abm / single_agent
+skill_registry.yaml) must remain canonical inputs.
 """
 from __future__ import annotations
 
@@ -181,22 +181,6 @@ def test_flood_domain_pack_full_taxonomy():
         "elevate_house": ("adopt", "large", "permanent"),
         "relocate": ("adopt", "large", "permanent"),
         "do_nothing": ("status_quo", "none", "instant"),
-    }
-    assert set(tax.keys()) == set(expected.keys())
-    for sid, (cat, intens, rev) in expected.items():
-        e = tax[sid]
-        assert e.category == cat
-        assert e.intensity == intens
-        assert e.reversibility == rev
-
-
-def test_vaccination_domain_pack_full_taxonomy():
-    from examples.vaccination_demo.adapters.vaccination_pack import VaccinationDomainPack
-    tax = VaccinationDomainPack().action_taxonomy()
-    expected = {
-        "get_vaccinated": ("adopt", "large", "permanent"),  # reviewer round-1: biological act not reversible within year
-        "delay": ("delay", "none", "instant"),
-        "refuse": ("refuse", "none", "instant"),
     }
     assert set(tax.keys()) == set(expected.keys())
     for sid, (cat, intens, rev) in expected.items():

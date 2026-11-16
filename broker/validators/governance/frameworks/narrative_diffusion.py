@@ -3,15 +3,15 @@ Narrative-diffusion framework — generic narrative-amplification theory
 for social-media-style propagation channels.
 
 Phase 6T-F prep (2026-05-27). Generic by design — not coupled to
-flood, vaccination, traffic, or any specific domain. Per the
-genericity audit at
-``.research/social_media_genericity_audit.md``, the construct
+flood, traffic, or any specific domain. Per the
+genericity rule in
+``CHANGELOG.md`` (Phase 6T-D), the construct
 vocabulary (salience / virality / audience_fit /
 narrative_consistency) is applicable to any domain modeling
 narrative-amplification dynamics:
 
 - Flood paper-3 social-media influencer
-- Vaccination misinformation account
+- Flood misinformation account
 - Traffic news propagator
 - Disaster early-warning rumor channel
 - Misinformation research generally
@@ -166,7 +166,7 @@ class NarrativeDiffusionFramework(PsychologicalFramework):
         - ``share`` → ``share_success_story``
         - ``stay_silent`` → ``maintain_silence``
 
-        A vaccination_ma misinformation account might map the same
+        An irrigation misinformation account might map the same
         verbs to ``boost_post`` / ``debunk_claim`` / ``share_video``
         / ``go_dark``.
         """

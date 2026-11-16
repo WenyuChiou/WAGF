@@ -127,7 +127,7 @@ def main(argv=None) -> int:
     print(f"[coupling] enable=True (source={source}); adapter injected by the builder")
 
     # Explicit TieredContextBuilder (hub=None), matching
-    # examples/vaccination_demo / examples/irrigation_abm's L3-1B fix
+    # examples/irrigation_abm's L3-1B fix
     # (2026-05-23) and broker/tools/scaffold_domain.py's generated runner
     # (2026-09 round 3): ExperimentBuilder.build()'s DEFAULT context
     # builder (create_context_builder() with no hub -> plain

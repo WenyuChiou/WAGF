@@ -1,7 +1,7 @@
 """
 DomainPack Protocol — single facade for all domain-specific behavior.
 
-Phase 6C-v2 (2026-05-10): a new application domain (vaccination, traffic,
+Phase 6C-v2 (2026-05-10): a new application domain (irrigation, flood,
 finance, etc.) implements this Protocol once and registers it via
 ``DomainPackRegistry.register("<name>", pack)``. Broker code queries the
 pack via ``DomainPackRegistry.get_or_default(domain)`` and delegates
@@ -229,7 +229,7 @@ class GovernancePack(Protocol):
     dispatcher, but semantically it's a framework-selector rather than
     a governance-policy tuner. A future Phase 6R-D refinement may
     split it into its own ``FrameworkPack``; see
-    ``.research/domain_pack_protocol_reference.md`` for the deferred
+    ``docs/references/domain_pack_protocol_reference.md`` for the deferred
     design decision.
 
     Methods: ``psychological_framework``,
@@ -312,7 +312,7 @@ class DomainPack(
     ----------
     name : str
         Domain identifier matching the value passed to validators
-        (e.g., ``"irrigation"``, ``"flood"``, ``"vaccination"``).
+        (e.g., ``"irrigation"``, ``"flood"``).
     """
 
     name: str
@@ -419,7 +419,7 @@ class DomainPack(
         used to live in the (now-removed) multi-agent event dispatcher.
 
         New domains register their own event types (e.g., for
-        vaccination: ``{"outbreak": ..., "vaccine_rollout": ...}``).
+        irrigation: ``{"drought": ..., "allocation": ...}``).
         """
         ...
 
@@ -515,7 +515,7 @@ class DomainPack(
 
         This hook was a THIRD wiring vocabulary for the same concept and has
         had zero consumers for its entire lifetime: every in-tree domain
-        (flood / irrigation / vaccination / cat_model) registers through
+        (flood / irrigation / cat_model) registers through
         ValidatorRegistry, the engine dispatches PHYSICAL checks from the
         registry (``dispatch_domain_physical``), and no production code ever
         calls ``pack.builtin_checks()``. Kept (not deleted) only because
@@ -688,13 +688,11 @@ class DomainPack(
         """Phase 6T-E: ordered tier vocabulary for the domain's
         social-media propagation channel, highest-credibility first.
 
-        Example values (per the genericity audit at
-        ``.research/social_media_genericity_audit.md``):
+        Example values (per the genericity rule in
+        ``CHANGELOG.md``, Phase 6T-D):
 
         - flood (US-media-shaped): ``["official_authority",
           "verified_account", "influencer", "peer", "bot"]``
-        - vaccination_ma (hypothetical): ``["cdc", "clinician",
-          "health_influencer", "community_elder", "whatsapp_rumor"]``
         - traffic_ma (hypothetical): ``["transport_authority",
           "news_outlet", "commuter_forum", "waze_user",
           "unverified_tip"]``
@@ -775,9 +773,7 @@ class DomainPack(
         Use case: the flood pack may suppress ``bot`` tier posts
         from being injected into the household prompt (the
         operator can override per-experiment by re-setting this in
-        YAML). A vaccination_ma might suppress ``whatsapp_rumor``
-        by default while keeping it in audit logs for downstream
-        misinformation-tracking analysis.
+        YAML). Suppressed posts may remain in audit logs for analysis.
 
         Default: ``set()`` — no tiers suppressed. Domains that ship
         social-media channels typically override.
@@ -928,7 +924,7 @@ class DomainPack(
         Recognised values (must be pre-registered via
         :func:`broker.validators.governance.thinking_validator.register_framework_metadata`
         at import time): ``"pmt"`` (flood), ``"cognitive_appraisal"``
-        (irrigation), ``"hbm"`` (vaccination), ``"utility"``,
+        (irrigation), ``"hbm"`` (custom registration), ``"utility"``,
         ``"financial"``. Returning ``""`` (empty string) is the
         escape hatch for domains without registered framework
         metadata — the validator then falls back to a generic 5-level

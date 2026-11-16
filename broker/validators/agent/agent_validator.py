@@ -720,7 +720,7 @@ class AgentValidator:
                             # by irrigation, governed_flood, MA flood)
                             # AND the verbose `RuleCondition`-flavoured
                             # shape `field: X` (which L3-1C's
-                            # vaccination_demo copy-pasted from
+                            # custom domain copy-pasted from
                             # broker/governance/rule_types.py). Without
                             # this fallback, any YAML written in the
                             # verbose shape produced silently-dead

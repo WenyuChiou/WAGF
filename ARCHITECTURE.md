@@ -110,9 +110,7 @@ examples/                          # Domain-specific implementations (all 11 fol
 ├── reservoir_control_multidim/    # Same, with three setpoints in one decision
 ├── coupling_examples/             # Worked example of a coupling archetype (archetype_c_subprocess/, ...)
 ├── cat_model/                     # Coupling-layer demo (catastrophe insurance); used by core tests
-├── vaccination_demo/              # Non-water demo domain
-├── quickstart/                    # Numbered tutorial scripts
-└── _test_fixtures/                # Fixture domain for tests; not runnable on its own
+└── quickstart/                    # Numbered tutorial scripts
 ```
 
 Which parts are generic and which are examples: `docs/REPO_MAP.md` §1a and §4.

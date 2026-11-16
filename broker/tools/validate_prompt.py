@@ -1,8 +1,6 @@
 """Static validator for agent prompt templates vs YAML config (Phase 6C-v4 G3).
 
-Catches the 6 BLOCKERs surfaced by the vaccination_demo PoC (see
-``.ai/vaccination_poc_findings_2026-05-10.md``) at config-time instead of
-runtime. Examples:
+Catches prompt/config inconsistencies at config-time instead of runtime. Examples:
 
 * Prompt placeholder ``{response_format}`` referenced but YAML has no
   ``shared.response_format.fields`` block.
@@ -21,8 +19,8 @@ runtime. Examples:
 Usage::
 
     python -m broker.tools.validate_prompt \\
-        examples/vaccination_demo/config/agent_types.yaml \\
-        --agent-type individual
+        examples/irrigation_abm/config/agent_types.yaml \\
+        --agent-type irrigation_farmer
 
 The CLI exits 0 if no issues, 1 if any ERROR-level issue, 2 if only WARN
 issues are present. Issues are printed in ``severity: file:line message``
@@ -177,7 +175,7 @@ class Issue:
 #
 # When ADDING a new global_config consumer anywhere in broker/, add its key
 # here in the same commit. Keys ending in ``_system`` are domain blobs
-# (vaccination_system / water_system convention) and are exempt.
+# (water_system convention) and are exempt.
 
 KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "llm",          # LLM sampling config (model, num_ctx, num_predict, ...)
@@ -948,9 +946,8 @@ def resolve_prompt_path(yaml_path: Path, template_ref: str) -> Path:
     """Resolve a prompt_template_file reference.
 
     Two conventions coexist in the codebase:
-      * vaccination_demo / new domains: path relative to YAML directory,
-        e.g. ``prompts/individual.txt`` in
-        ``examples/vaccination_demo/config/agent_types.yaml``.
+      * new domains: path relative to YAML directory,
+        e.g. ``prompts/agent.txt`` beside ``agent_types.yaml``.
       * irrigation / older flood: path relative to the EXAMPLE root, e.g.
         ``config/prompts/irrigation_farmer.txt`` in
         ``examples/irrigation_abm/config/agent_types.yaml`` (resolves to
@@ -1141,7 +1138,7 @@ def validate_agent_type(
 
     # ---- ACTIONS block (Finding 5 root cause A) --------------------------
     # Two valid locations exist in the wild:
-    #   * top-of-block: vaccination_demo, irrigation_abm — block["actions"]
+    #   * top-of-block: custom domain, irrigation_abm — block["actions"]
     #   * nested under parsing: multi_agent flood — block["parsing"]["actions"]
     actions = block.get("actions")
     actions_location = "actions"
@@ -1174,7 +1171,7 @@ def validate_agent_type(
 
     # ---- response_format -------------------------------------------------
     # Prefer agent-block-level response_format (overrides shared); fall back
-    # to shared.response_format (vaccination_demo / irrigation pattern).
+    # to shared.response_format (custom domain / irrigation pattern).
     shared = cfg.get("shared", {})
     response_format = block.get("response_format") or shared.get("response_format", {})
     fields = response_format.get("fields", []) if isinstance(response_format, dict) else []
@@ -1245,7 +1242,7 @@ def validate_agent_type(
         # `return` before the parity BLOCKER below ever ran). The broker
         # default template renders {skills}, not {options_text}
         # (BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE — the exact
-        # vaccination_demo shape); TieredContextBuilder's own default DOES
+        # custom domain shape); TieredContextBuilder's own default DOES
         # carry {options_text}, but a static config check cannot know
         # which builder a given run will use, so it must not assume the
         # safe one. Fail closed: treat "no template at all" the same as
@@ -1264,7 +1261,7 @@ def validate_agent_type(
                 f"The broker default template used in this case "
                 f"(BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE) renders "
                 f"'ACT:{{skills}}', NOT {{options_text}} — the exact "
-                f"vaccination_demo bug shape. RAG skill retrieval can re-rank "
+                f"custom domain bug shape. RAG skill retrieval can re-rank "
                 f"the menu per call while the model answers against a stale "
                 f"legend. Fix: add a prompt_template_file that renders "
                 f"{{options_text}}, or set 'parsing.full_disclosure: true'.",
@@ -1303,7 +1300,7 @@ def validate_agent_type(
     # ---- options-text parity (2026-09 fix) --------------------------------
     # BLOCKER: an agent with >1 eligible skill whose prompt never renders
     # the live numbered list ({options_text}/{skills_text}) is vulnerable to
-    # the vaccination_demo bug — RAG skill retrieval (or shuffle_options)
+    # the custom domain bug — RAG skill retrieval (or shuffle_options)
     # can re-rank the menu per call, and the model would then answer against
     # a stale/hardcoded legend (or the never-filled {skills} placeholder)
     # while the parser decodes the digit against the ACTUAL re-ranked
@@ -1396,9 +1393,7 @@ def validate_agent_type(
             f"RAG skill retrieval (or shuffle_options) can re-rank the menu "
             f"per call; the model then answers against a stale/hardcoded "
             f"legend while the parser decodes the digit against the actual "
-            f"re-ranked map — this is the vaccination_demo bug (57-63% of "
-            f"decisions decoded to the wrong skill from year 2 on, verified "
-            f"on 3 runs). Fix: render {{options_text}} in the prompt "
+            f"re-ranked map. Fix: render {{options_text}} in the prompt "
             f"template, or set 'parsing.full_disclosure: true' to keep the "
             f"menu order stable.",
         ))
@@ -1480,7 +1475,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         # Auto-discover: any top-level dict that looks like an agent-type
         # config block. Two conventions are seen in the wild:
-        #   - vaccination_demo style: explicit `agent_type:` key inside
+        #   - custom domain style: explicit `agent_type:` key inside
         #   - irrigation / flood style: the dict's KEY name is the agent
         #     type and the block has prompt_template_file / parsing / etc.
         AGENT_KEY_INDICATORS = (

@@ -106,7 +106,7 @@ def check_options_text_parity(
         # digit involved) but NOT safe on its own if the template ALSO
         # invites a digit answer some other way (a re-rankable numeric
         # menu with no visible number-to-name mapping is exactly the
-        # vaccination_demo bug shape). So {skills} only counts as a live
+        # custom domain bug shape). So {skills} only counts as a live
         # legend when the template does not otherwise invite a digit.
         if template and "{skills}" in template and not _invites_digit(
             template, decision_field_is_numeric_choice,
@@ -137,7 +137,7 @@ def check_options_text_parity(
             f"reachable for this agent type at {template_path!r}. This is not "
             f"safe to skip: BaseAgentContextBuilder's real fallback is "
             f"DEFAULT_PROMPT_TEMPLATE ('ACT:{{skills}}' — the exact "
-            f"vaccination_demo shape, {{skills}} is never filled by "
+            f"custom domain shape, {{skills}} is never filled by "
             f"TieredContextBuilder), and TieredContextBuilder's own default "
             f"already carries {{options_text}}; a caller that cannot tell "
             f"which will render must not assume the safe one. Likely cause: "
@@ -437,7 +437,7 @@ def assert_rendered_prompt_shows_options(
     type.
 
     Raises, naming the agent_type and what was expected, when NEITHER
-    holds -- that is exactly the vaccination_demo/cat_model shape: the
+    holds -- that is exactly the custom domain/cat_model shape: the
     model saw no menu (or the wrong one), and every later decision would
     decode against the wrong skill, so stopping the run is the correct
     call.

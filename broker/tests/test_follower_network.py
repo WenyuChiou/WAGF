@@ -14,8 +14,8 @@ Verifies:
   (asymmetric — caller must query FollowerNetwork directly)
 - Genericity invariant: the new module imports no domain code
 
-Per the genericity audit at
-``.research/social_media_genericity_audit.md``, 6T-D ships the
+Per the genericity rule in
+``CHANGELOG.md`` (Phase 6T-D), 6T-D ships the
 graph primitives WITHOUT credibility-tier vocabulary. The
 ``Post.credibility_tier`` enum + verbalisation templates are 6T-E
 scope and MUST live in the DomainPack, not in broker/.
@@ -313,7 +313,7 @@ class TestSocialGraphSpecFollowerNetwork:
 
 
 class TestFollowerNetworkGenericity:
-    """Per .research/social_media_genericity_audit.md, the new
+    """Per the Phase 6T-D rule (CHANGELOG.md), the new
     module + the SocialGraphSpec extensions MUST NOT carry
     domain-specific vocabulary (water/flood/household) or
     US-media-shaped tier literals
@@ -370,6 +370,6 @@ class TestFollowerNetworkGenericity:
                     pytest.fail(
                         f"follower_network.py contains forbidden tier "
                         f"literal {node.value!r} — per "
-                        f".research/social_media_genericity_audit.md, "
+                        f"CHANGELOG.md Phase 6T-D, "
                         f"tier vocabulary belongs in the DomainPack."
                     )

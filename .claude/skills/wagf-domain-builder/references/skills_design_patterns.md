@@ -23,7 +23,6 @@ increase_large, increase_small, maintain, decrease_small, decrease_large
 Concrete examples:
 
 - `examples/irrigation_abm/`: `increase_large`, `increase_small`, `maintain_demand`, `decrease_small`, `decrease_large`.
-- Vaccination dose-count variant: `increase_doses`, `maintain_schedule`, `decrease_doses` if the agent controls dose count rather than yes/no adoption.
 - Energy thermostat variant: `raise_setpoint`, `maintain_setpoint`, `lower_setpoint`.
 
 Map to scaffolder:
@@ -48,17 +47,16 @@ Use categorical skills when options are discrete and unordered. The agent is cho
 
 Concrete examples:
 
-- `examples/vaccination_demo/`: `get_vaccinated`, `delay`, `refuse`.
 - `examples/governed_flood/`: `do_nothing`, `buy_insurance`, `elevate_house`, `relocate`.
 - Transit mode choice: `drive`, `take_transit`, `bike`, `walk`.
 
 Map to scaffolder:
 
 ```bash
-python -m broker.tools.scaffold_domain vaccination \
-  --output examples/vaccination_demo \
-  --skills "get_vaccinated,delay,refuse" \
-  --framework custom
+python -m broker.tools.scaffold_domain flood_demo \
+  --output examples/flood_demo \
+  --skills "buy_insurance,elevate_house,relocate,do_nothing" \
+  --framework pmt
 ```
 
 Keep categorical spaces under 6 choices until parsing quality has been verified. Small local models degrade once the prompt asks them to distinguish too many options with similar consequences.

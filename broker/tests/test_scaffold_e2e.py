@@ -113,8 +113,7 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
     # the options-text-parity guard both reporting clean (neither one
     # checks RUNTIME rendering, only template-time and order-safety).
     # gen_run_experiment() now pins an explicit TieredContextBuilder
-    # (hub=None), matching examples/vaccination_demo /
-    # examples/irrigation_abm's established fix for the exact same gap.
+    # (hub=None), matching examples/irrigation_abm's established fix for the exact same gap.
     raw_trace = output_dir / "raw" / "agent_traces.jsonl"
     assert raw_trace.exists(), f"missing raw trace: {raw_trace}"
     trace_lines = raw_trace.read_text(encoding="utf-8").splitlines()

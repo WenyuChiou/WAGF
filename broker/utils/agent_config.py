@@ -610,7 +610,7 @@ class AgentTypeConfig:
         """Registry-PHYSICAL dispatch selector for the simple ExperimentBuilder
         path: a domain string, an ``{agent_type: domain}`` mapping, or None.
 
-        OPT-IN, default-OFF: frozen domains (flood / irrigation / vaccination /
+        OPT-IN, default-OFF: frozen domains (flood / irrigation /
         MA-flood / SA-flood) — which run their physical checks via
         ``custom_validators`` or intentionally leave them dormant — see no
         change in behavior or audit output.

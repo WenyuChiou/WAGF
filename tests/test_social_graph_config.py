@@ -668,7 +668,7 @@ class TestRegisterSocialSpec:
 
     def teardown_method(self):
         """Clean test entries so other tests are unaffected."""
-        for key in ("vaccination_individual", "energy_consumer",
+        for key in ("irrigation_individual", "energy_consumer",
                     "test_collision_type"):
             AGENT_SOCIAL_SPECS.pop(key, None)
 
@@ -676,9 +676,9 @@ class TestRegisterSocialSpec:
         """Non-water domain can register custom spec."""
         from broker.components.social.config import register_social_spec
         spec = SocialGraphSpec(graph_type="spatial", radius=3)
-        register_social_spec("vaccination_individual", spec)
-        assert "vaccination_individual" in AGENT_SOCIAL_SPECS
-        retrieved = AGENT_SOCIAL_SPECS["vaccination_individual"]
+        register_social_spec("irrigation_individual", spec)
+        assert "irrigation_individual" in AGENT_SOCIAL_SPECS
+        retrieved = AGENT_SOCIAL_SPECS["irrigation_individual"]
         assert retrieved.graph_type == "spatial"
         assert retrieved.radius == 3
 
@@ -714,10 +714,10 @@ class TestRegisterSocialSpec:
         """Registered spec is picked up by get_social_spec() for matching agents."""
         from broker.components.social.config import register_social_spec
         register_social_spec(
-            "vaccination_individual",
+            "irrigation_individual",
             SocialGraphSpec(graph_type="random", max_connections=5),
         )
-        agent = MockAgent(id="v1", agent_type="vaccination_individual")
+        agent = MockAgent(id="v1", agent_type="irrigation_individual")
         spec = get_social_spec(agent)
         assert spec.graph_type == "random"
         assert spec.max_connections == 5

@@ -24,12 +24,12 @@ Invoke this skill when the user says any of:
 - "I want to build a WAGF model for my <domain>."
 - "Help me set up a new domain from scratch."
 - "I'm new to WAGF and have a research question about <X>."
-- "Scaffold a domain for vaccination / energy / crop yield / ..."
+- "Scaffold a domain for flood / irrigation / crop yield / ..."
 - "How do I add my own domain to WAGF?"
 
 Do NOT use this skill for:
 
-- Running the EXISTING flood / irrigation / vaccination_demo
+- Running the EXISTING flood / irrigation
   reference examples → `wagf-quickstart`.
 - Designing an experiment on a domain that already works
   → `wagf-experiment-designer`.
@@ -51,8 +51,7 @@ Do NOT use this skill for:
   copy from `examples/multi_agent/flood/run_unified_experiment.py` rather than
   the single-agent demo.
 - **Cognitive framework**: PMT / Utility / Financial (pre-
-  registered), HBM (registered in vaccination_demo as the non-
-  water reference), or custom (scaffolded by
+  registered), HBM (custom registration), or custom (scaffolded by
   `scaffold_domain --framework custom`). **Phase 6Q-G (2026-05-26)
   registration contract**: auto-discovery in
   `broker/domains/__init__.py` was removed. If your generated domain
@@ -148,9 +147,9 @@ The `--framework` decision: `scaffold_domain` only accepts `pmt` or
 
 If the user picks Utility or Financial expecting "default", use
 `--framework custom` and immediately note that the registration
-boilerplate is already implemented in `examples/vaccination_demo/
-cognition/` (HBM example) and `broker/domains/water/{utility,
-financial}.py` (Utility, Financial reference implementations) — they
+boilerplate is already implemented in
+`broker/domains/water/{utility,financial}.py`
+(Utility, Financial reference implementations) — they
 do NOT need to re-implement these, just register them in the
 generated `cognition/__init__.py`.
 
@@ -186,9 +185,7 @@ point.
    `get_thinking_rules()` loader at
    `broker/utils/agent_config.py:859` only recognises
    `thinking_rules` or `coherence_rules`. A bare `rules:`
-   block is silently dead config — Phase 6N-C 2026-05-23
-   finding from the vaccination_demo PoC, which had used the
-   wrong key for its entire lifetime.) 1-2 coherence rules at
+   block is silently dead config.) 1-2 coherence rules at
    ERROR level. WARNING-level rules have ~0% behavior effect
    on small LLMs (per MEMORY.md); use ERROR for actual
    enforcement.
@@ -197,7 +194,7 @@ point.
    (just prints "TODO: replace this stub" and exits). Replace it
    with a working entry point.
 
-   **Single-agent path**: use `examples/vaccination_demo/run_experiment.py`
+   **Single-agent path**: use `examples/irrigation_abm/run_experiment.py`
    as the canonical reference. Key elements: `ExperimentBuilder`
    import, synthetic agent generator OR real-data loader,
    `with_simulation(env)` instantiation, `builder.run()` invocation.
@@ -277,10 +274,8 @@ provider integration is deferred to Phase 6T-F
 (`social_media_influencer` agent type). Domain authors do not need
 to wire dedup explicitly today.
 
-Reference architecture: `.research/social_tier_injection_reference.md`
-§9 (SocialMediaProvider call-graph + top-K weighting + 6 byte-identity
-guard layers) and §10 (cross-channel dedup contract). Skill upgrade
-trail: this section added in v0.5.1 (2026-05-28).
+Reference implementation: `broker/components/context/providers.py`;
+known-gap tests: `broker/tests/test_perception_filter_asymmetry.py`.
 
 #### S5 appendix — Phase 6R-D sub-pack mixin pattern (optional)
 
@@ -316,13 +311,11 @@ The 7 sub-protocols are defined in `broker/domains/protocol.py`:
 `ReflectionPack` / `MemoryPack` / `SkillPack` / `EventPack` /
 `PerceptionPack` / `GovernancePack` / `SetupPack`. Reference
 implementation: `examples/governed_flood/adapters/flood_pack.py`.
-Full canonical doc: `.research/domain_pack_protocol_reference.md`.
+Full canonical doc: `docs/references/domain_pack_protocol_reference.md`.
 
 Static gate at
 `broker/tests/test_phase_6r_d_decomposition_gate.py` pins the
-mixin pattern for production packs — FakeTraffic
-(`examples/_test_fixtures/fake_traffic/pack.py`) is intentionally
-exempt (115 LOC, no productive value in splitting).
+mixin pattern for production packs (Flood / Irrigation).
 
 **Acceptance criteria for the mixin pattern**: the existing pack
 regression tests (`tests/test_domain_pack_contract.py`) must stay
@@ -390,7 +383,7 @@ examples/<domain>_demo/
 └── contract.md                                ← created at S2 by wagf-coupling-designer C1
 ```
 
-This is the same shape as `examples/vaccination_demo/` — the user
+This is the same shape as `examples/irrigation_abm/` — the user
 can compare their output to the reference example at any point.
 
 ## Refusal Protocol
@@ -472,7 +465,7 @@ The skill is ready when:
   3-skill skill list, hands off to coupling-designer cleanly,
   invokes scaffold_domain, guides 4 edits, and finishes with a
   green mock smoke run.
-- For input "I have a vaccination domain but no external model",
+- For input "I have an irrigation domain but no external model",
   same outcome but with S2 / S3 / S7 skipped cleanly.
 - For input "I want to build a multi-agent flood model", surfaces
   the HOW_TO multi-agent section (covers the dual-dict gotcha + env-
