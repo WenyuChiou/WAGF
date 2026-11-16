@@ -222,7 +222,7 @@ class BaseAgentContextBuilder(ContextBuilder):
             # ``BaseAgentContextBuilder`` fallback path left the LLM with
             # no schema example, surfacing as 100% parse failure when a
             # prompt asked for more than the LLM could improvise (L3-1B
-            # vaccination_demo smoke #1 & #2 fell into this). The fix
+            # custom domain smoke #1 & #2 fell into this). The fix
             # mirrors the Tiered injection at lines ~543-562 below.
             agent_config = agent_cfg.get(agent_type)
             if agent_config:

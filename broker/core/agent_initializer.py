@@ -725,7 +725,7 @@ def initialize_agents(
     # Replaces the `if domain_name == "flood":` hardcodes that
     # forced every CSV/synthetic mode call to traverse a
     # water-namespace import even when the domain was irrigation,
-    # vaccination, or anything else. Each DomainPack now owns its
+    # or anything else. Each DomainPack now owns its
     # loader classes; default packs return None → generic loader.
     from broker.domains.registry import DomainPackRegistry
     # Phase 6R-D-4 (2026-05-26): narrowed to SetupPack —

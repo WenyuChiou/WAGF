@@ -27,7 +27,7 @@ your domain, then run::
 
 Reference:
 - ``docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`` — full schema + walkthrough
-- ``examples/vaccination_demo/`` — production reference example
+- ``examples/irrigation_abm/`` — production reference example
 
 Generated runner: sys.path / import safety
 --------------------------------------------
@@ -158,7 +158,6 @@ def gen_readme(domain: str, skills: List[str]) -> str:
            and environment stub with your actual ABM.
 
         ## Reference
-        - `examples/vaccination_demo/` — full non-water reference (HBM-based)
         - `examples/irrigation_abm/` — water demand reference
         - `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md` — complete walkthrough
         """).lstrip()
@@ -203,7 +202,7 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
     # Options-text parity fix (2026-09): the decision field used to
     # hand-roll a hardcoded digit legend here
     # ("Numeric ID, choose ONE from: 1, 2, 3 (1=skill_a, 2=skill_b, ...)")
-    # via `description:` — exactly the vaccination_demo bug (a legend
+    # via `description:` — exactly the custom domain bug (a legend
     # that goes stale the moment RAG re-ranks the menu). No `description:`
     # is emitted for the decision field below; ResponseFormatBuilder falls
     # back to its own dynamic "Numeric ID, choose ONE from:
@@ -326,7 +325,7 @@ def gen_prompt(domain: str, skills: List[str]) -> str:
     # Options-text parity fix (2026-09): the scaffolder used to render
     # ``Available actions: {skills}`` plus a hand-written, hardcoded
     # "1 = skill_a / 2 = skill_b" digit legend — exactly the
-    # vaccination_demo bug shape ({skills} is never filled by
+    # custom domain bug shape ({skills} is never filled by
     # TieredContextBuilder, and a hardcoded legend goes stale the moment
     # RAG skill retrieval re-ranks the menu). Every scaffolded domain now
     # renders the live, broker-filled {options_text} list instead, which
@@ -369,7 +368,7 @@ def gen_validators_init(domain: str) -> str:
         rules must go via the YAML ``thinking_rules:`` block in
         ``config/agent_types.yaml`` (consumed by ThinkingValidator), not here.
 
-        Registration mirrors examples/vaccination_demo/validators/__init__.py:
+        Registration mirrors examples/irrigation_abm/validators/__init__.py:
         ``ValidatorRegistry.register(domain, slot, checks_list)`` at import time.
         \"\"\"
         from .{domain}_validators import {checks_const}
@@ -394,7 +393,7 @@ def gen_validators(domain: str) -> str:
         Only the physical / personal / social / semantic
         slots accept Python checks; thinking-level coherence rules go in
         ``config/agent_types.yaml`` under the ``thinking_rules:`` key (consumed by
-        ThinkingValidator), NOT here. Reference: examples/vaccination_demo/validators/.
+        ThinkingValidator), NOT here. Reference: examples/irrigation_abm/validators/.
         \"\"\"
         from __future__ import annotations
 
@@ -631,7 +630,7 @@ def gen_run_experiment(domain: str) -> str:
             agents = build_agents(args.agents, skills)
 
             # Explicit TieredContextBuilder (hub=None), matching
-            # examples/vaccination_demo and examples/irrigation_abm's L3-1B
+            # examples/irrigation_abm's L3-1B
             # fix (2026-05-23): ExperimentBuilder.build()'s DEFAULT context
             # builder (create_context_builder() with no hub) is a plain
             # BaseAgentContextBuilder, which does NOT render {{options_text}}

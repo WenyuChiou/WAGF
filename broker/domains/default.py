@@ -244,7 +244,7 @@ class DefaultDomainPack:
         Packs without per-agent-type framework specialisation get the
         legacy domain-wide framework regardless of ``agent_type`` —
         preserving pre-6T-B behaviour for single-agent flood +
-        irrigation + vaccination + any custom pack that hasn't opted
+        irrigation + any custom pack that hasn't opted
         into per-type framework selection.
 
         Multi-agent packs (FloodGovernanceMixin) override to return

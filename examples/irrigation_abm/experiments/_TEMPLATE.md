@@ -6,11 +6,11 @@ design. A record written afterwards documents what was found, which is a differe
 useful thing.
 
 Copy this file to `<arm-name>_<YYYY-MM>.md` in this directory, fill it in, and add a row to
-[`examples/EXPERIMENTS.md`](../../EXPERIMENTS.md).
+the naming rules in this template.
 
 | | |
 |---|---|
-| **run directories** | `examples/<domain>/results/<arm>_<model>_seed<S>` — must NOT contain `_v21_42yr_` (see EXPERIMENTS.md rule 2) |
+| **run directories** | `examples/<domain>/results/<arm>_<model>_seed<S>` — must NOT contain `_v21_42yr_` (reserved for frozen paper runs) |
 | **model** | |
 | **arm** | governed / no-validator / advise / … |
 | **seeds** | |

@@ -26,11 +26,10 @@ def _agent_config(framework: str = "pmt") -> dict:
     }
 
 
-def test_vaccination_hbm_yaml_loads_under_non_water_slot():
-    cfg = load_agent_config(Path("examples/vaccination_demo/config/agent_types.yaml"))
+def test_irrigation_yaml_loads_under_agent_types_slot():
+    cfg = load_agent_config(Path("examples/irrigation_abm/config_variants/simple/agent_types.yaml"))
 
-    assert cfg.individual.psychological_framework == "hbm"
-    assert cfg.agent_types["individual"].psychological_framework == "hbm"
+    assert cfg.agent_types["irrigation_farmer"].psychological_framework == "cognitive_appraisal"
 
 
 def test_legacy_agent_type_slot_warns_and_matches_new_shape():

@@ -255,7 +255,6 @@ def test_taxonomy_module_has_no_domain_tokens():
     forbidden = (
         "flood",
         "irrigation",
-        "vaccination",
         "PMT",
         "HBM",
         "WSA",

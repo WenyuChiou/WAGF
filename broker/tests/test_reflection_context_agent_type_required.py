@@ -79,7 +79,7 @@ class TestExplicitAgentTypePasses:
         assert ctx.agent_type == "household"
 
     def test_non_water_agent_type_explicit(self):
-        """A commuter / dispatcher / vaccination-individual is just
+        """A commuter / dispatcher / irrigation-farmer is just
         as valid as household — proves no agent_type whitelist."""
         ctx = AgentReflectionContext(agent_id="C1", agent_type="commuter")
         assert ctx.agent_type == "commuter"
@@ -104,9 +104,9 @@ class TestExtractAgentContextPropagates:
     def test_extract_with_attr_succeeds(self):
         agent = MagicMock(spec=[])
         agent.id = "Y1"
-        agent.agent_type = "vaccination_individual"
+        agent.agent_type = "irrigation_individual"
         ctx = ReflectionEngine.extract_agent_context(agent, year=2)
-        assert ctx.agent_type == "vaccination_individual"
+        assert ctx.agent_type == "irrigation_individual"
 
     def test_extract_without_attr_raises(self):
         """The companion test to

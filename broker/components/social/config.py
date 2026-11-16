@@ -98,7 +98,7 @@ class SocialGraphSpec:
     # callables — broker doesn't constrain shape or interpret
     # author/follower identifiers. See
     # broker/components/social/follower_network.py + the genericity
-    # audit at .research/social_media_genericity_audit.md.
+    # rule in CHANGELOG.md (Phase 6T-D).
     follower_seed_fn: Optional[Callable[[str, Any], List[str]]] = None
     weight_fn: Optional[Callable[[str, str], float]] = None
 
@@ -464,7 +464,7 @@ def register_social_spec(
             ``overwrite=False``.
 
     Examples:
-        >>> # In examples/vaccination_demo/__init__.py
+        >>> # In examples/irrigation_abm/__init__.py
         >>> from broker.components.social.config import (
         ...     register_social_spec, SocialGraphSpec,
         ... )

@@ -1,7 +1,7 @@
 """Tests for broker.tools.validate_prompt CLI (Phase 6C-v4 G3, 2026-05-10).
 
 Verifies the static validator catches the 6 BLOCKERs surfaced by the
-vaccination_demo PoC (see ``.ai/vaccination_poc_findings_2026-05-10.md``).
+custom domain PoC (see ``broker/tests/test_validate_prompt.py``).
 """
 from __future__ import annotations
 
@@ -339,7 +339,7 @@ def test_validate_parsing_actions_location(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# Options-text parity BLOCKER (2026-09 fix — the vaccination_demo bug)
+# Options-text parity BLOCKER (2026-09 fix — the custom domain bug)
 # ---------------------------------------------------------------------------
 
 def _multi_skill_yaml(*, prompt_body: str, full_disclosure: bool = False) -> str:
@@ -363,9 +363,9 @@ def _multi_skill_yaml(*, prompt_body: str, full_disclosure: bool = False) -> str
     """).strip()
 
 
-def test_validate_options_text_blocker_fires_on_prefix_vaccination_shape(tmp_path: Path):
+def test_validate_options_text_blocker_fires_on_prefix_options_shape(tmp_path: Path):
     """Falsification (fail-before): reproduces the EXACT pre-fix
-    vaccination_demo shape — 3 actions, prompt renders {skills} (never
+    custom domain shape — 3 actions, prompt renders {skills} (never
     filled by TieredContextBuilder) instead of {options_text}, no
     full_disclosure. Must raise a BLOCKER (ERROR)."""
     yaml_path = tmp_path / "agent_types.yaml"
@@ -583,7 +583,7 @@ def test_validate_options_text_blocker_fires_when_no_template_at_all(tmp_path: P
     plain WARN and `return` BEFORE the parity BLOCKER ever ran. The
     broker default template in this case
     (BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE) renders
-    'ACT:{skills}', not {options_text} — the exact vaccination_demo shape
+    'ACT:{skills}', not {options_text} — the exact custom domain shape
     — so a multi-skill, non-full_disclosure agent with NO template at all
     must also BLOCK, not just WARN."""
     yaml_path = tmp_path / "agent_types.yaml"
@@ -641,20 +641,6 @@ def test_validate_options_text_blocker_silent_no_template_with_full_disclosure(t
         f"expected no BLOCKER with full_disclosure set, got: {[i.message for i in issues]}"
 
 
-def test_validate_options_text_blocker_on_real_prefix_vaccination_config():
-    """Falsification against the REAL current config: the fixed, on-disk
-    vaccination_demo config must NOT trip the BLOCKER (companion
-    falsification against the pre-fix version of this same file is done
-    manually via `git stash` / a temp copy — see the PR report)."""
-    repo_root = Path(__file__).resolve().parents[2]
-    # The fixed, current, on-disk config — must be clean of this BLOCKER.
-    yaml_path = repo_root / "examples" / "vaccination_demo" / "config" / "agent_types.yaml"
-    import yaml as _yaml
-    cfg = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-    issues = validate_agent_type(cfg, "individual", yaml_path)
-    errors = [i for i in issues if i.severity == "ERROR"]
-    assert not any("eligible skills" in i.message for i in errors), \
-        f"fixed vaccination config must not trip the BLOCKER, got: {[i.message for i in issues]}"
 
 
 # ---------------------------------------------------------------------------
@@ -682,7 +668,7 @@ def test_main_returns_one_on_error(good_config: Path, capsys):
 
 def test_known_broker_placeholders_documented():
     """Sanity: BROKER_FILLED_PLACEHOLDERS contains the placeholders the
-    docs / vaccination_demo prompt actually rely on. If a maintainer
+    docs / custom domain prompt actually rely on. If a maintainer
     removes one, tests fail loudly."""
     expected = {"narrative_persona", "memory", "skills", "rating_scale",
                 "response_format", "options_text"}

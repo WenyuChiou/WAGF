@@ -4,8 +4,7 @@ Before this fix, `ThinkingValidator._validate_yaml_rules` hardcoded
 `valid=False` regardless of whether the YAML rule declared
 `level: ERROR` or `level: WARNING`. So any WARNING rule with
 `blocked_skills` silently block-and-retried like ERROR — a real
-behaviour leak that vaccination_demo worked around in L3-1C by
-stripping `blocked_skills` from WARNING rules (commit `64899b8`).
+behaviour leak.
 Irrigation + governed_flood had not worked around it and so 9+
 WARNING+blocked_skills rules in those domains were silently blocking.
 

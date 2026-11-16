@@ -48,13 +48,11 @@ Scaffold choice: start with the default scaffold if the prompt can stay simple; 
 
 ## HBM - Health Belief Model
 
-Status: registered in `examples/vaccination_demo/` as the non-water reference. A new domain still needs custom registration in its own package unless it directly imports and reuses that registration.
+Status: register HBM constructs in your domain through the generic framework registry.
 
 Constructs: `susceptibility`, `severity`, `benefits`, `barriers`, `self_efficacy`, `cues`.
 
-Best for: health behavior, public health, vaccination, screening, treatment uptake, and preventive care.
-
-Examples in WAGF: `examples/vaccination_demo/` uses HBM for individual vaccination decisions.
+Best for: health behavior, public health, screening, treatment uptake, and preventive care.
 
 Use HBM when the question sounds like: "Does perceived susceptibility, self-efficacy, or barriers explain adoption of a health action?"
 

@@ -37,6 +37,12 @@ REPO = Path(__file__).resolve().parents[2]
 # the moment a production consumer ships (the test forces it).
 # ---------------------------------------------------------------------------
 DORMANT_HOOKS = {
+    "importance_profiles": (
+        "Dormant 2026-11-16 after water-only cleanup: remaining water packs "
+        "read adapter importance_profiles dictionaries inside compute_importance; "
+        "no production caller of the pack method remains. Keep the shared "
+        "API for external packs until a deliberate protocol revision."
+    ),
     "builtin_checks": (
         "DEPRECATED 2026-06-10 (Wave 4): third wiring vocabulary for "
         "validator checks; zero consumers ever. Register via "
