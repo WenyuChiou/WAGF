@@ -7,7 +7,7 @@ Each sub-protocol owns a cohesive method group; the composite
 Test goals:
 1. All 7 sub-protocol names export from ``broker.domains.protocol``.
 2. Each sub-protocol declares exactly the methods it owns (per the
-   ``.research/domain_pack_protocol_reference.md`` audit).
+   ``docs/references/domain_pack_protocol_reference.md`` audit).
 3. ``DomainPack`` inherits from all 7 in MRO.
 4. A concrete pack (FloodDomainPack via the registered example) satisfies
    each sub-protocol's ``isinstance`` check (runtime_checkable Protocol).
@@ -82,7 +82,7 @@ class TestSubProtocolMethodOwnership:
             "passthrough_agent_types",
             # Phase 6T-E (2026-05-27) additions — social-media tier
             # vocabulary + verbalisation + per-agent filter. Per the
-            # audit at .research/social_media_genericity_audit.md the
+            # Phase 6T-D rule (CHANGELOG.md), the
             # tier vocabulary lives in the DomainPack (not in broker/).
             "credibility_tiers",
             "credibility_weight",
@@ -157,7 +157,7 @@ class TestSubProtocolMethodOwnership:
 
     def test_total_method_count_is_41(self):
         """Sanity check: union of all 7 sub-protocol method-sets is 41 —
-        the original 32 (per ``.research/domain_pack_protocol_reference.md``)
+        the original 32 (per ``docs/references/domain_pack_protocol_reference.md``)
         plus 1 Phase 6T-A EventPack addition (``event_persistence_policy``;
         ``event_type_to_domain`` / ``silent_skip_event_types`` also added
         Phase 6T-A but removed org-4 cleanup 2026-09) plus 1 Phase 6T-B

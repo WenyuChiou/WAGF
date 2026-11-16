@@ -17,7 +17,7 @@ File: `config/prompts/<agent_type>.txt`.
 Replace the generic situation narrative with the domain-specific decision context. Keep `{narrative_persona}`, `{memory}`, `{skills}`, `{rating_scale}`, and `{response_format}` unchanged; the broker fills them. Add custom placeholders only if your lifecycle hook or DomainPack supplies them.
 
 ```text
-It is time to consider your annual vaccination decision.
+It is time to consider your annual flood-adaptation decision.
 Available actions: {skills}
 {response_format}
 ```
@@ -42,17 +42,17 @@ File: `adapters/<domain>_pack.py`.
 
 Override `name`, `reflection_status_text`, and `importance_profiles` at minimum. Add `compute_importance`, `classify_emotion`, `event_handlers`, or `extreme_actions` only when the domain needs them for the first smoke.
 
-**Phase 6Q-G (2026-05-26) registration contract**: if your domain depends on the water psychometric frameworks (`pmt` / `cognitive_appraisal` / `utility` / `financial`) — i.e. your `psychological_framework: …` YAML field is one of those — you MUST add `import broker.domains.water  # noqa: F401` to your `examples/<domain>/__init__.py` BEFORE `DomainPackRegistry.register(...)`. Auto-discovery in `broker/domains/__init__.py` was removed in 6Q-G; consumers now declare their dependency explicitly. See `examples/governed_flood/__init__.py` for the reference pattern. If your domain registers its own framework (like vaccination_demo's HBM) you do NOT need the water import.
+**Phase 6Q-G (2026-05-26) registration contract**: if your domain depends on the water psychometric frameworks (`pmt` / `cognitive_appraisal` / `utility` / `financial`) — i.e. your `psychological_framework: …` YAML field is one of those — you MUST add `import broker.domains.water  # noqa: F401` to your `examples/<domain>/__init__.py` BEFORE `DomainPackRegistry.register(...)`. Auto-discovery in `broker/domains/__init__.py` was removed in 6Q-G; consumers now declare their dependency explicitly. See `examples/governed_flood/__init__.py` for the reference pattern. If your domain registers its own framework you do NOT need the water import.
 
 ```python
 @property
 def name(self) -> str:
-    return "vaccination"
+    return "flood"
 ```
 
 ```python
 def importance_profiles(self):
-    return {"outbreak": 0.95, "stable_year": 0.45}
+    return {"flood": 0.95, "stable_year": 0.45}
 ```
 
 Validate:
@@ -102,8 +102,7 @@ class <Domain>DomainPack(
 Reference: `examples/governed_flood/adapters/flood_pack.py`
 (7 mixins, ~480 LOC). The mixin pattern is **opt-in**; the static
 gate at `broker/tests/test_phase_6r_d_decomposition_gate.py`
-enforces it only for production packs (Flood / Irrigation /
-Vaccination). FakeTraffic fixture (115 LOC) is exempt.
+enforces it only for production packs (Flood / Irrigation).
 
 Verification: `isinstance(YourPack(), ReflectionPack)` etc. must
 all return `True` (Python `@runtime_checkable` structural check).
@@ -123,18 +122,18 @@ from broker.governance.rule_types import GovernanceRule
 from broker.interfaces.skill_types import ValidationResult
 
 
-def no_recent_revaccination(
+def no_repeated_elevation(
     skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
 ) -> List[ValidationResult]:
-    if skill_name != "get_vaccinated":
+    if skill_name != "elevate_house":
         return []
-    if int(context.get("weeks_since_dose", 999)) >= 26:
+    if not context.get("elevated", False):
         return []
     return [ValidationResult(
         valid=False,
-        validator_name="no_recent_revaccination",
-        errors=["Vaccination too recent (less than 6 months ago)."],
-        metadata={"category": "physical", "rule_id": "no_recent_revaccination",
+        validator_name="no_repeated_elevation",
+        errors=["House is already elevated."],
+        metadata={"category": "physical", "rule_id": "no_repeated_elevation",
                   "deterministic": True},
     )]
 ```
@@ -191,7 +190,7 @@ Common pitfall: writing prescriptive rules that leave the agent no plausible act
 
 ## Post-Edit Smoke
 
-After all four config edits have clean validator output AND edit 5 has rewritten the scaffolded TODO `run_experiment.py` into a working ExperimentBuilder entry point (use `examples/vaccination_demo/run_experiment.py` as reference), run the mock smoke from the repo root:
+After all four config edits have clean validator output AND edit 5 has rewritten the scaffolded TODO `run_experiment.py` into a working ExperimentBuilder entry point (use `examples/irrigation_abm/run_experiment.py` as reference), run the mock smoke from the repo root:
 
 ```bash
 python examples/<domain>_demo/run_experiment.py \

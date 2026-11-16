@@ -6,9 +6,9 @@ Ask these in order during S0 and write the answers to `.research/<domain>_brief.
 
 Why: the domain name becomes the package name, output directory, YAML domain key, and DomainPack registry key.
 
-Use: normalize to 1-2 words in lowercase snake_case, such as `vaccination` or `energy_use`.
+Use: normalize to 1-2 words in lowercase snake_case, such as `flood` or `irrigation`.
 
-Example answer: `vaccination` - individuals decide whether to take a seasonal vaccine.
+Example answer: `flood` - households decide how to adapt to flood risk.
 
 ## Q2. "What decision does one agent make each timestep?"
 
@@ -16,7 +16,7 @@ Why: WAGF skills are actions, so the decision statement is the root of S1.
 
 Use: convert the verb phrase into 3-5 skill IDs in `skills_design_patterns.md`.
 
-Example answer: "Each individual chooses whether to get vaccinated, delay, or refuse this year."
+Example answer: "Each household chooses insurance, elevation, relocation, or no action this year."
 
 ## Q3. "What is one timestep in your model?"
 
@@ -24,7 +24,7 @@ Why: prompt wording, memory cadence, external-model sync, and smoke-run row coun
 
 Use: record one of `year`, `month`, `day`, or `decision_point_triggered`; if event-triggered, name the trigger.
 
-Example answer: `year` - the vaccination agent makes one seasonal decision per simulated year.
+Example answer: `year` - the flood household makes one adaptation decision per simulated year.
 
 ## Q4. "Is there an external model involved?"
 
@@ -32,7 +32,7 @@ Why: this branches the workflow into the coupling path or the no-coupling path.
 
 Use: if yes, hand off to `.claude/skills/wagf-coupling-designer/SKILL.md` at S2 and S3; if no, skip straight from S1 to S4.
 
-Example answer: "No external model for the first build; outbreak severity is generated inside `run_experiment.py`."
+Example answer: "No external model for the first build; flood severity is generated inside `run_experiment.py`."
 
 ## Q5. "Which cognitive framework should govern the agent's reasoning?"
 
@@ -40,7 +40,7 @@ Why: the framework determines appraisal constructs, YAML rules, and any custom r
 
 Use: choose from `pmt`, `utility`, `financial`, `hbm`, `tpb`, or `custom`; use `cognitive_framework_chooser.md` before finalizing.
 
-Example answer: "HBM fits because vaccination is a health-behavior decision; use `--framework custom` and register HBM-style constructs."
+Example answer: "PMT fits because flood adaptation depends on threat and coping appraisals; use `--framework pmt`."
 
 ## Q6. "Is this single-agent or multi-agent?"
 
@@ -48,7 +48,7 @@ Why: this skill is v1 single-agent only; multi-agent needs a different orchestra
 
 Use: if the user says multi-agent, say: "Multi-agent domain building is deferred to v2. We can build the single-agent version first, or stop here and capture the multi-agent requirements."
 
-Example answer: "Single-agent for now; each individual acts independently with a shared outbreak signal."
+Example answer: "Single-agent for now; each individual acts independently with a shared flood signal."
 
 ## Q7. "Do you already have a baseline or counterfactual?"
 
@@ -56,7 +56,7 @@ Why: baselines shape the later experiment matrix but should not block the first 
 
 Use: record whether they have FQL, expert heuristic, observational data, or no baseline yet; hand this to `.claude/skills/wagf-experiment-designer/SKILL.md` after S6.
 
-Example answer: "Use an expert heuristic baseline: vaccinate during outbreak years, delay otherwise."
+Example answer: "Use an expert heuristic baseline: buy insurance during flood years, take no action otherwise."
 
 ## Q8. "What would convince you the first smoke run is useful?"
 

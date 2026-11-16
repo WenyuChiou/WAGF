@@ -5,7 +5,7 @@ lines 121, 125, and 130 silently fell back to the literal string
 ``"household"`` for any agent missing the ``agent_type`` attribute. That
 fallback misrouted non-water-domain malformed agents into the
 ``household_nmg_owner`` spatial-graph lookup — a flood-shaped social
-topology with no semantic meaning for traffic / vaccination / generic
+topology with no semantic meaning for traffic / generic
 agents.
 
 This module pins the new raise-on-None contract + the happy-path

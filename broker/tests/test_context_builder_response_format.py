@@ -1,13 +1,13 @@
 """Phase 6N-B regression tests.
 
-Two bugs surfaced during the L3-1B vaccination_demo upgrade:
+Two bugs surfaced during the L3-1B custom domain upgrade:
 
 1. ``BaseAgentContextBuilder.format_prompt`` did not inject the YAML-
    defined ``{response_format}`` schema into prompts. Only
    ``TieredContextBuilder`` (used when an InteractionHub is wired) did.
    So single-agent / no-Hub domains fell through to ``SafeFormatter``'s
    ``[N/A]`` placeholder and the LLM had no JSON schema example. Caught
-   when the vaccination_demo L3-1B smoke #1/#2 hit 0-1/10 APPROVED.
+   when the custom domain L3-1B smoke #1/#2 hit 0-1/10 APPROVED.
 
 2. The construct-LABEL regex extractor at
    ``broker/utils/parsing/unified_adapter.py`` matched case-insensitively
@@ -36,7 +36,7 @@ def test_base_context_builder_injects_response_format(tmp_path: Path):
     ``response_format``. Without this fix the prompt's
     ``{response_format}`` placeholder rendered as ``[N/A]``.
     """
-    # Minimal agent_types.yaml mirroring the vaccination_demo schema shape
+    # Minimal agent_types.yaml mirroring the custom domain schema shape
     # (shared.response_format.fields with the canonical broker keys).
     yaml_text = """
 global_config: {}

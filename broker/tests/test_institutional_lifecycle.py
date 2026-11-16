@@ -200,7 +200,7 @@ class TestDefaultDomainPackExtensionDefaults:
     """A pack without per-agent-type lifecycle specialisation must
     return empty dispatch tables — preserving pre-6T-C behaviour for
     every existing domain (single-agent flood, irrigation,
-    vaccination, custom packs)."""
+    custom packs)."""
 
     def test_default_pack_returns_empty_handlers_dict(self):
         pack = DefaultDomainPack()

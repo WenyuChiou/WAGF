@@ -4,7 +4,6 @@ These tests prove (without an LLM smoke run) that the multi-agent path's
 load-bearing primitives work for ANY agent_type vocabulary, not just
 flood's household_*/government/insurance triple.
 
-Reference: `.ai/ma_vaccination_findings_2026-05-10.md` Findings #1-3.
 """
 from __future__ import annotations
 
@@ -35,7 +34,7 @@ class TestContextBuilderHubOptional:
     def test_construct_with_dynamic_whitelist_only(self):
         """The hubless path — env→whitelist→template_vars→prompt — works
         in isolation. This is the coupling channel for non-spatial
-        multi-agent domains (vaccination_ma, etc.)."""
+        multi-agent domains (irrigation, etc.)."""
         ctx = TieredContextBuilder(
             agents={},
             dynamic_whitelist=["custom_var_a", "custom_var_b"],
@@ -44,7 +43,7 @@ class TestContextBuilderHubOptional:
         # whitelist (Phase 1 verdict — broker provides env→whitelist
         # passthrough generically, no agent-type branching).
         # We only check construction succeeds; full data-flow test is the
-        # smoke run (examples/vaccination_ma_demo/).
+        # smoke run (examples/multi_agent/flood/).
         assert ctx is not None
 
 
@@ -77,7 +76,7 @@ class TestEnvDictAliasingPattern:
                 self.env = {"persistent_key": "carryover_from_last_year"}
 
             def pre_year(self, year, env, agents):
-                # Pattern from vaccination_ma_demo/lifecycle_hooks.py:
+                # Pattern from examples/multi_agent/flood/lifecycle_hooks/:
                 env.update(self.env)
                 self.env = env   # alias
                 self.env["year"] = year
@@ -135,8 +134,7 @@ class TestEnvDictAliasingPattern:
 class TestNeighborSummaryColdStartDomainNeutral:
     """`InteractionHub.get_neighbor_action_summary` cold-start text was
     'major flood protection actions' which leaked flood vocabulary into
-    non-water multi-agent prompts (Phase 6E Tier 2 finding, vaccination_ma
-    smoke 2026-05-11). Regression guard: cold-start string must avoid
+    other multi-agent prompts. Regression guard: cold-start string must avoid
     flood-domain terms."""
 
     def test_cold_start_text_no_flood_vocabulary(self):
@@ -170,23 +168,23 @@ class TestNeighborSummaryColdStartDomainNeutral:
 
 
 class TestDynamicWhitelistIsDomainGeneric:
-    """Phase 1 trace agent verdict (.ai/ma_vaccination_findings_2026-05-10.md):
+    """Cross-agent context contract:
     `env dict → dynamic_whitelist → top-level context → template_vars →
     SafeFormatter` has no flood-specific branching in broker.
 
     These tests assert the broker pieces of that pipeline accept arbitrary
-    domain vocabularies (vaccination_ma, energy, traffic, etc.)."""
+    domain vocabularies (irrigation, energy, traffic, etc.)."""
 
     def test_whitelist_accepts_arbitrary_keys(self):
         """DynamicStateProvider must accept any string key, not just
         flood-domain keys (govt_message, subsidy_rate, etc.)."""
         from broker.components.context.providers import DynamicStateProvider
 
-        # Vaccination_ma keys
+        # Irrigation keys
         p1 = DynamicStateProvider([
             "advisory_strength_label",
             "community_support_text",
-            "outbreak_severity_label",
+            "drought_severity_label",
         ])
         # Energy_consumer keys
         p2 = DynamicStateProvider([
@@ -206,10 +204,10 @@ class TestDynamicWhitelistIsDomainGeneric:
         # signature.
         for provider, env, expected_keys in [
             (p1, {"advisory_strength_label": "strong",
-                  "community_support_text": "clinic open",
-                  "outbreak_severity_label": "severe"},
+                  "community_support_text": "water district open",
+                  "drought_severity_label": "severe"},
              {"advisory_strength_label", "community_support_text",
-              "outbreak_severity_label"}),
+              "drought_severity_label"}),
             (p2, {"grid_load_label": "high",
                   "tariff_signal": "peak",
                   "neighbor_avg_usage": "above avg"},
@@ -230,12 +228,12 @@ class TestDynamicWhitelistIsDomainGeneric:
         keys — verifies the Phase 1 verdict claim line by line."""
         from broker.components.context.providers import DynamicStateProvider
 
-        whitelist = ["advisory_strength_label", "outbreak_severity_label"]
+        whitelist = ["advisory_strength_label", "drought_severity_label"]
         provider = DynamicStateProvider(whitelist)
 
         env_context = {
             "advisory_strength_label": "strong",
-            "outbreak_severity_label": "severe",
+            "drought_severity_label": "severe",
             "irrelevant_key": "should_not_propagate",
         }
         context: dict = {}
@@ -250,6 +248,6 @@ class TestDynamicWhitelistIsDomainGeneric:
 
         # Whitelisted keys propagated into context
         assert context.get("advisory_strength_label") == "strong"
-        assert context.get("outbreak_severity_label") == "severe"
+        assert context.get("drought_severity_label") == "severe"
         # Non-whitelisted key did NOT propagate
         assert "irrelevant_key" not in context

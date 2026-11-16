@@ -1,17 +1,17 @@
 # How to add a new domain to WAGF
 
-This guide walks through plugging a non-water topic — e.g., **vaccination decision-making** — into the WAGF framework. After Phase 6C-v2 (2026-05-10), adding a new domain requires **one class** (a `DomainPack`) and **one registration call**. Zero edits to `broker/`.
+This guide describes adding a water-resource domain to the WAGF framework. After Phase 6C-v2 (2026-05-10), adding a new domain requires **one class** (a `DomainPack`) and **one registration call**. Zero edits to `broker/`.
 
 > **Phase 6R-D update (2026-05-26)**: `DomainPack` is now formally
 > composed of 7 sub-protocols (`ReflectionPack` / `MemoryPack` /
 > `SkillPack` / `EventPack` / `PerceptionPack` / `GovernancePack` /
 > `SetupPack`) — see the new "Sub-protocol architecture (Phase 6R-D)"
-> subsection after Step 5 below. The single-class
+> subsection below. The single-class
 > `class XDomainPack(DefaultDomainPack)` pattern this guide teaches
 > STILL works (it remains the scaffold default + simplest entry
 > point); mixin decomposition is opt-in for advanced cohesion. Full
 > per-method consumer-graph reference at
-> `.research/domain_pack_protocol_reference.md`.
+> `docs/references/domain_pack_protocol_reference.md`.
 
 ## Minimum DomainPack surface (Phase 6Q-A, 2026-05-26)
 
@@ -47,367 +47,7 @@ WAGF treats each domain as a **plug-in** built from these registry-driven layers
 
 The broker pipeline calls into your `DomainPack` for any domain-specific decision; everything else is YAML-driven. **No `broker/` edits.**
 
-## 7-step walkthrough — vaccination decision example
-
-We'll build a minimal vaccination-decision ABM. Agents are individuals deciding whether to vaccinate based on perceived risk (Health Belief Model), social pressure, and recent outbreak signals.
-
-### Step 1 — Scaffold the example directory
-
-```
-examples/vaccination_abm/
-├── __init__.py                # registers DomainPack
-├── adapters/
-│   ├── __init__.py
-│   ├── vaccination_adapter.py # importance/emotion (~100 LOC)
-│   └── vaccination_pack.py    # DomainPack subclass (~150 LOC)
-├── config/
-│   ├── agent_types.yaml       # agent personas + reflection questions
-│   ├── skill_registry.yaml    # skills + preconditions
-│   └── prompts/
-│       └── individual.txt     # LLM prompt template
-├── validators/
-│   ├── __init__.py            # registers checks with ValidatorRegistry
-│   └── vaccination_validators.py  # check functions (~80-200 LOC)
-└── run_experiment.py          # lifecycle hooks + main entry (~80-200 LOC)
-```
-
-Copy `examples/irrigation_abm/` as a starting skeleton, then strip out water-specific files.
-
-### Step 2 — Define skills in `config/skill_registry.yaml`
-
-```yaml
-domain: vaccination
-default_skill: delay     # falls back here when validator rejects all options
-
-skills:
-  - skill_id: get_vaccinated
-    description: "Receive a single vaccine dose"
-    eligible_agent_types: ["individual"]
-    preconditions:
-      - "not vaccinated"   # framework's state-gate filters this out post-vaccination
-    institutional_constraints:
-      once_only: false      # can re-vaccinate (boosters)
-    allowed_state_changes:
-      - vaccinated
-
-  - skill_id: delay
-    description: "Wait for more information before deciding"
-    eligible_agent_types: ["individual"]
-    preconditions: []
-    institutional_constraints:
-      cost_type: "free"
-
-  - skill_id: refuse
-    description: "Decline vaccination"
-    eligible_agent_types: ["individual"]
-    preconditions: []
-    institutional_constraints:
-      cost_type: "free"
-```
-
-### Step 3 — Define agent personas in `config/agent_types.yaml`
-
-**Critical**: this YAML is the single biggest source of confusion for new-domain users. The minimal example below shows ALL required blocks — leaving any out causes silent parser / validator failures (Phase 6C-v4 finding inventory at the end of this doc).
-
-```yaml
-# =============================================================================
-# GLOBAL CONFIGURATION
-# =============================================================================
-global_config:
-  memory:
-    window_size: 5
-    consolidation_threshold: 0.6
-    decay_rate: 0.1
-
-  reflection:
-    interval: 1
-    batch_size: 5
-    persona_instruction: "Summarize each agent's vaccination journey..."
-    # Domain-wide reflection questions. For a multi-agent domain you may
-    # instead (or additionally) put a `reflection: {questions: [...]}`
-    # block under a specific agent type below — it overrides this global
-    # set for that type. Resolution order, highest first: per-agent-type
-    # YAML > global_config YAML > DomainPack.reflection_questions() >
-    # a domain-neutral generic fallback. No DomainPack code is required —
-    # editing this YAML is enough.
-    questions:
-      - "Has your perceived susceptibility to infection changed this year?"
-      - "Did the perceived benefits outweigh the barriers?"
-    triggers:
-      crisis: true
-      periodic_interval: 2
-      decision_types: [get_vaccinated, refuse]
-
-  llm:
-    model: "command-line-override"
-    num_ctx: 4096
-    num_predict: 1024
-    max_retries: 2
-
-  governance:
-    max_retries: 3
-    domain: vaccination               # REQUIRED — must match skill_registry.yaml domain
-
-# =============================================================================
-# SHARED — rating scale + response schema seen by ALL agent types
-# =============================================================================
-shared:
-  rating_scale: |
-    ### RATING SCALE (You MUST use EXACTLY one of these codes):
-    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
-
-  response_format:
-    delimiter_start: "<<<DECISION_START>>>"
-    delimiter_end: "<<<DECISION_END>>>"
-    fields:
-      # Each `key` MUST match what the LLM emits in JSON AND what the
-      # parser extracts. Mismatches between `key` here and the JSON
-      # example in your prompt template cause silent parser rejection.
-      - { key: "reasoning", type: "text", required: true,
-          description: "Explain your thought process in 2-3 sentences." }
-      - {
-          key: "susceptibility_assessment",          # ← JSON key in LLM output
-          type: "appraisal",                          # ← {label, reason} pair
-          required: true,
-          construct: "SUSCEPTIBILITY_LABEL",          # ← label extracted to this key in reasoning dict
-          reason_hint: "One sentence on how likely you feel to be infected.",
-        }
-      - {
-          key: "self_efficacy_assessment",
-          type: "appraisal",
-          required: true,
-          construct: "SELF_EFFICACY_LABEL",
-          reason_hint: "One sentence on your confidence to vaccinate.",
-        }
-
-# =============================================================================
-# AGENT TYPE — individual
-# =============================================================================
-individual:
-  agent_type: individual
-  psychological_framework: hbm                # ← MUST be pre-registered (see Step 4)
-  prompt_template_file: prompts/individual.txt   # ← relative to THIS yaml's dir
-  inherit_shared: true
-
-  # ---------------------------------------------------------------------------
-  # actions: REQUIRED. Without this block parser.get_valid_actions("individual")
-  # returns [] and every LLM output is silently rejected. skill_registry.yaml's
-  # `eligible_agent_types: ["individual"]` is NOT auto-translated here.
-  # ---------------------------------------------------------------------------
-  actions:
-    - id: get_vaccinated
-      aliases: ["1", "get_vaccinated", "vaccinate", "[get_vaccinated]"]
-      description: >
-        Receive a single dose of the seasonal vaccine this year.
-    - id: delay
-      aliases: ["2", "delay", "wait", "postpone", "[delay]"]
-      description: >
-        Postpone the decision; reconsider next year.
-    - id: refuse
-      aliases: ["3", "refuse", "decline", "skip", "[refuse]"]
-      description: >
-        Decline vaccination this year.
-
-  # ---------------------------------------------------------------------------
-  # parsing: REQUIRED. The `constructs:` block tells the parser HOW to extract
-  # appraisal labels from nested JSON. Without it, the agent_validator rejects
-  # responses with "missing required fields".
-  # ---------------------------------------------------------------------------
-  parsing:
-    decision_keywords: ["decision", "choice", "action", "selected_action"]
-    default_skill: "delay"                    # ← must match skill_registry.yaml default_skill
-    strict_mode: true
-    preprocessor:
-      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
-    proximity_window: 35
-
-    constructs:
-      SUSCEPTIBILITY_LABEL:
-        keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
-        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
-      SUSCEPTIBILITY_REASON:
-        keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
-        regex: ".*"
-      SELF_EFFICACY_LABEL:
-        keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
-        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
-      SELF_EFFICACY_REASON:
-        keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
-        regex: ".*"
-
-  # log_fields: which appraisal keys to surface in audit CSV `reason_*` columns
-  log_fields: ["susceptibility_assessment", "self_efficacy_assessment"]
-
-  # (Optional) Tier-2 thinking rules — YAML-driven HBM coherence checks
-  # consumed by ThinkingValidator. Add only the rules you want to enforce.
-  # IMPORTANT: the loader is `get_thinking_rules()` at
-  # broker/utils/agent_config.py:859 — it recognises ONLY the keys
-  # `thinking_rules` and `coherence_rules`. A plain `rules:` block is
-  # silently ignored (Phase 6N-C 2026-05-23 finding: the vaccination_demo
-  # PoC's original `rules:` block was dead config for the entire PoC
-  # lifetime until renamed).
-  # Each condition uses the canonical short shape
-  # `{ construct: X, values: [...] }`. Phase 6N-E 2026-05-24 finding:
-  # the verbose `RuleCondition`-flavoured shape
-  # `{ type: construct, field: X, operator: "in", values: [...] }` is
-  # silently treated as dead config by `agent_validator.py::_run_rule_set`
-  # — `cond.get("construct")` returns None for that shape. The
-  # post-Phase-6N-E defensive evaluator falls back to `cond.get("field")`
-  # but new YAML should use the canonical short shape below.
-  thinking_rules:
-    - id: high_susceptibility_high_severity_high_efficacy_no_refuse
-      level: ERROR
-      blocked_skills: [refuse]
-      conditions:
-        - { construct: SUSCEPTIBILITY_LABEL, values: ["H", "VH"] }
-        - { construct: SEVERITY_LABEL,       values: ["H", "VH"] }
-        - { construct: SELF_EFFICACY_LABEL,  values: ["H", "VH"] }
-      message: "HBM coherence: high susceptibility + high severity + high self-efficacy should not lead to refusal."
-```
-
-### Step 4 — Implement validator checks
-
-```python
-# examples/vaccination_abm/validators/vaccination_validators.py
-
-from broker.interfaces.skill_types import ValidationResult
-
-def vaccinated_no_revaccinate_in_short_window(skill_name, rules, context):
-    """Block re-vaccination if last dose < 6 months ago."""
-    if skill_name != "get_vaccinated":
-        return []
-    weeks_since = context.get("weeks_since_dose", 999)
-    if weeks_since < 26:  # 6 months
-        return [ValidationResult(
-            valid=False,
-            validator_name="vaccinated_no_revaccinate_in_short_window",
-            errors=["Vaccination too recent (less than 6 months ago)."],
-            metadata={"category": "physical", "rule_id": "physical_short_window"}
-        )]
-    return []
-
-VACCINATION_PHYSICAL_CHECKS = (vaccinated_no_revaccinate_in_short_window,)
-```
-
-```python
-# examples/vaccination_abm/validators/__init__.py
-
-from broker.components.governance.validator_registry import ValidatorRegistry
-from .vaccination_validators import VACCINATION_PHYSICAL_CHECKS
-
-ValidatorRegistry.register("vaccination", "physical", list(VACCINATION_PHYSICAL_CHECKS))
-```
-
-> Warning: registered checks are dispatched only when `global_config.governance.domain` and `global_config.governance.dispatch_domain_physical: true` are both set in `agent_types.yaml`; without the flag, registration silently never fires.
-
-### Step 5 — Implement `DomainPack`
-
-```python
-# examples/vaccination_abm/adapters/vaccination_pack.py
-
-from typing import Any, Dict, List, Optional, Set
-from broker.domains.protocol import DomainPack, EventHandler
-
-
-def _handle_outbreak(event, gs):
-    gs["infection_pressure"] = event.data.get("severity", 0.5)
-    gs["outbreak_message"] = event.description
-
-
-def _handle_vaccine_rollout(event, gs):
-    gs["vaccine_supply"] = event.data.get("doses", 0)
-    gs["rollout_message"] = event.description
-
-
-class VaccinationDomainPack:
-    """DomainPack for vaccination decision-making example."""
-
-    name: str = "vaccination"
-
-    # ─── Reflection ───────────────────────────────────────────────
-    def reflection_status_text(self, context: Any) -> Optional[str]:
-        if getattr(context, "agent_type", None) != "individual":
-            return None
-        parts = []
-        if getattr(context, "vaccinated", False):
-            weeks = getattr(context, "weeks_since_dose", 0)
-            parts.append(f"you received your last dose {weeks} weeks ago")
-        else:
-            parts.append("you are unvaccinated")
-        if getattr(context, "had_infection", False):
-            parts.append("you've recovered from a prior infection")
-        return f"Current status: {', '.join(parts)}." if parts else None
-
-    def reflection_questions(self) -> List[str]:
-        return []  # uses agent_types.yaml questions
-
-    def reflection_persona(self) -> Optional[str]:
-        return None
-
-    # ─── Memory / importance / emotion ─────────────────────────────
-    def importance_profiles(self) -> Dict[str, float]:
-        return {
-            "first_outbreak": 0.95,
-            "side_effect_event": 0.88,
-            "stable_year": 0.55,
-        }
-
-    def compute_importance(self, context: Any, base: float = 0.7) -> float:
-        importance = base
-        if context.get("outbreak_severity", 0) > 0.6:
-            importance = self.importance_profiles()["first_outbreak"]
-        return min(1.0, max(0.0, importance))
-
-    def classify_emotion(self, decision: str, context: Any) -> str:
-        if decision == "get_vaccinated" and context.get("outbreak_severity", 0) > 0.6:
-            return "critical"
-        if decision == "refuse":
-            return "major"
-        return "minor"
-
-    def emotional_keywords(self) -> Dict[str, str]:
-        return {"outbreak": "critical", "side_effect": "major"}
-
-    def retrieval_weights(self) -> Dict[str, float]:
-        return {"W_recency": 0.40, "W_importance": 0.40, "W_context": 0.20}
-
-    # ─── Skills ────────────────────────────────────────────────────
-    def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
-        return {
-            "get_vaccinated": {"emotion": "major", "importance": 0.85, "source": "personal"},
-            "refuse":         {"emotion": "major", "importance": 0.70, "source": "personal"},
-            "delay":          {"emotion": "minor", "importance": 0.40, "source": "personal"},
-        }.get(skill_name, {})
-
-    def extreme_actions(self) -> Set[str]:
-        return set()  # vaccination has no irreversible one-way actions
-
-    # ─── Events ────────────────────────────────────────────────────
-    def event_handlers(self) -> Dict[str, EventHandler]:
-        return {
-            "outbreak": _handle_outbreak,
-            "vaccine_rollout": _handle_vaccine_rollout,
-        }
-
-    # ─── Context provider hooks ────────────────────────────────────
-    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
-        return ""  # no MG-specific narrative for this minimal example
-
-    # ─── Validators / templates ────────────────────────────────────
-    def builtin_checks(self) -> Dict[str, List]:
-        return {}   # already registered via ValidatorRegistry
-
-    def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
-        return []
-```
-
 ### Sub-protocol architecture (Phase 6R-D, optional advanced pattern)
-
-The single-class `VaccinationDomainPack(DefaultDomainPack)` above is
-sufficient for any new domain — it's what `scaffold_domain` generates,
-and it's what the regression tests pin. **Read this section only if
-your pack will grow large (>200 LOC) or if you want sub-protocol
-boundaries explicit in source.**
 
 Phase 6R-D-1 (2026-05-26) split the `DomainPack` Protocol into seven
 sub-protocols, one per cohesive method group:
@@ -438,7 +78,7 @@ status = ref_pack.reflection_status_text(context)
 
 If your pack is large enough to benefit from internal organisation,
 the Phase 6R-D-5/6 example packs (`FloodDomainPack` /
-`IrrigationDomainPack` / `VaccinationDomainPack`) use the **sub-pack
+`IrrigationDomainPack`) use the **sub-pack
 mixin pattern**:
 
 ```python
@@ -477,39 +117,18 @@ class FloodDomainPack(
    verifies this for the production packs.
 4. The static gate at
    `broker/tests/test_phase_6r_d_decomposition_gate.py` pins the
-   mixin pattern for `Flood / Irrigation / Vaccination`. FakeTraffic
-   is intentionally exempt (115 LOC, no productive value in
-   splitting).
+   mixin pattern for `Flood / Irrigation`.
 
 **Sub-protocol single-source-of-truth**:
-`.research/domain_pack_protocol_reference.md` carries the per-method
+`docs/references/domain_pack_protocol_reference.md` carries the per-method
 consumer-graph + MUST/SHOULD/MAY classification for all 32 methods.
 Consult before adding a NEW method to `DomainPack` Protocol.
 
-### Step 6 — Register the pack at import time
-
-```python
-# examples/vaccination_abm/__init__.py
-
-"""Vaccination decision-making ABM."""
-# Phase 6Q-G (2026-05-26): if your domain uses one of the water-
-# registered psychometric frameworks (pmt / cognitive_appraisal /
-# utility / financial — i.e. anything you declared as
-# `psychological_framework:` in agent_types.yaml), add this line.
-# Vaccination uses HBM (its own registered framework) so this is
-# NOT needed; flood and irrigation packs DO require it. Pattern:
-#     import broker.domains.water  # noqa: F401
-from broker.domains.registry import DomainPackRegistry
-from examples.vaccination_abm.adapters.vaccination_pack import VaccinationDomainPack
-
-DomainPackRegistry.register("vaccination", VaccinationDomainPack())
-```
-
-### Step 6.5 — Inject social-tier context (optional)
+### Inject social-tier context (optional)
 
 If your domain needs agents to reason about peer behaviour
 ("I observe N% of commuters switched to transit"), community-wide
-signals ("outbreak hotspot in nearby region"), or institutional
+signals ("drought hotspot in nearby region"), or institutional
 narratives ("the dispatcher issued a congestion advisory"), WAGF
 provides a **3-tier social-context pipeline**:
 
@@ -520,7 +139,7 @@ provides a **3-tier social-context pipeline**:
 The pipeline is **already wired** in `broker/components/context/tiered.py` —
 new domains plug in via the PerceptionMixin hooks
 (`perception_descriptors` / `perception_field_policy` /
-`passthrough_agent_types`) demonstrated in Step 5's
+`passthrough_agent_types`) demonstrated in the flood domain's
 `FloodPerceptionMixin` reference and via social-spec registration
 in your package's `__init__.py`.
 
@@ -529,9 +148,7 @@ metrics → define perception descriptors → define visible neighbour
 actions → register in DomainPack's PerceptionMixin → reference in
 prompt template.
 
-Full mechanical recipe + 7 placeholder reference + 6 known gaps:
-`.research/social_tier_injection_reference.md`. Reference
-implementation: the flood domain — search
+Reference implementation: the flood domain — search
 `examples/governed_flood/adapters/flood_perception.py` for
 `DescriptorMapping` examples + `examples/governed_flood/adapters/flood_pack.py`
 for the PerceptionMixin wiring.
@@ -539,21 +156,6 @@ for the PerceptionMixin wiring.
 Domains that DON'T need social context can skip this step — agents
 will still receive their T1 personal block; gossip / community
 fields render as empty strings.
-
-### Step 7 — Run a smoke test
-
-```bash
-python examples/vaccination_abm/run_experiment.py \
-    --model gemma3:1b --years 3 --agents 5 --seed 42 \
-    --output results/smoke_vacc
-```
-
-Verify:
-- ✅ No `[Governance:Diagnostic] Key collision` warnings (you used distinct YAML field names)
-- ✅ No `[DomainPack] No pack registered for 'vaccination'` warning (your `__init__.py` registered)
-- ✅ `results/smoke_vacc/individual_governance_audit.csv` has `proposed_skill / final_skill / status` columns
-- ✅ At least one trace shows `validator_rejected` (your check fires correctly)
-- ✅ Reflection prompts include "you are unvaccinated" (your `reflection_status_text` is wired)
 
 ## Common pitfalls
 
@@ -567,12 +169,12 @@ Verify:
 | `[DomainPack] No pack registered` warning | Pack class not imported / not registered | Verify `examples/<your_domain>/__init__.py` runs at startup |
 | Reflection prompt has no domain text | `reflection_status_text` returns `None` for your agent_type | Check the `getattr(context, "agent_type", None) == "individual"` gate |
 | `rules_*_hit` columns are 0 | Validator checks don't set `metadata["category"]` | Add `metadata={"category": "physical"}` (or appropriate slot) to ValidationResult |
-| Audit `state_before` missing your key fields | Your env-state dict and your agent-state dict have key collisions | Use distinct names (e.g., `agent_outbreak_severity` for agent state, `outbreak_severity` for env) |
+| Audit `state_before` missing your key fields | Your env-state dict and your agent-state dict have key collisions | Use distinct names (e.g., `agent_drought_severity` for agent state, `drought_severity` for env) |
 | LLM proposes invalid skill names | Skill registry / prompt mismatch | Ensure prompt's enum matches `skill_registry.yaml` skill_ids |
 
 ### Parser / validator pitfalls (Phase 6C-v4 findings)
 
-These 6 BLOCKERs were surfaced by the `examples/vaccination_demo/` PoC on 2026-05-10 and fixed in Phase 6C-v4. They are the single most common reason a freshly-scaffolded new domain produces 0 valid LLM decisions:
+These 6 BLOCKERs can cause a new domain to produce no valid LLM decisions:
 
 | # | Symptom | Root cause | Fix |
 |---|---|---|---|
@@ -580,8 +182,8 @@ These 6 BLOCKERs were surfaced by the `examples/vaccination_demo/` PoC on 2026-0
 | 2 | Prompt template renders with `[N/A]` literals | Unfilled custom `{placeholder}` — broker only auto-fills `{narrative_persona}, {memory}, {skills}, {rating_scale}` and any agent-attribute `{xxx}` | Use only the 4 standard placeholders; for custom narrative, set agent attributes (e.g. `agent.water_situation_text`) in your lifecycle hook |
 | 3 | Logs say `Empty/Null response received` but Ollama responds (verify via curl) | The log message conflated LLM-empty with parser-side rejection. Post-v4 the broker distinguishes: `LLM returned empty response (...)` vs `LLM responded (N chars) but parser rejected — see [Adapter:Error] diagnostic above` | If you see the second message, look at the `[Adapter:Error]` diagnostic block which shows `raw_output`, `parse_layer reached`, `expected keys`, `valid skills for this agent_type`. The diagnostic names the exact gap. |
 | 4 | `[Adapter:Error]` diagnostic says LLM JSON keys don't match expected | YAML `shared.response_format.fields[].key` (e.g. `susceptibility_assessment`) must match the EXACT key the LLM emits in JSON (per your prompt example) | Sync prompt template's JSON example keys with YAML schema keys. Currently manual; v5 will auto-derive `{response_format}` from YAML to eliminate this risk. |
-| 5 | `[Adapter:Error]` diagnostic shows `valid skills for this agent_type: []` | Missing `actions:` block under your agent type in `agent_types.yaml` | Add `actions:` block listing every skill ID + aliases. `skill_registry.yaml`'s `eligible_agent_types` is NOT auto-translated. See Step 3 example above. |
-| 6 | `[Governance:Initial] ... missing required fields: <appraisal_key>, ...` even though LLM JSON contains those keys | Missing `parsing.constructs:` block. Parser doesn't know to extract `appraisal_key.label` → `APPRAISAL_LABEL` construct without this mapping | Add `parsing:` block with `constructs:` mapping each construct name to its JSON key + label regex. See Step 3 example above. |
+| 5 | `[Adapter:Error]` diagnostic shows `valid skills for this agent_type: []` | Missing `actions:` block under your agent type in `agent_types.yaml` | Add `actions:` block listing every skill ID + aliases. `skill_registry.yaml`'s `eligible_agent_types` is NOT auto-translated. See the irrigation config reference. |
+| 6 | `[Governance:Initial] ... missing required fields: <appraisal_key>, ...` even though LLM JSON contains those keys | Missing `parsing.constructs:` block. Parser doesn't know to extract `appraisal_key.label` → `APPRAISAL_LABEL` construct without this mapping | Add `parsing:` block with `constructs:` mapping each construct name to its JSON key + label regex. See the irrigation config reference. |
 
 If your smoke run produces 0 traces and the error doesn't match any row above, run with the in-built diagnostic by checking the `[Adapter:Error]` block in stdout. The diagnostic was added in Phase 6C-v4 (commit `bd86634`) specifically to make new-domain debugging tractable.
 
@@ -650,7 +252,7 @@ from broker.components.social.config import (
 )
 
 register_social_spec(
-    "vaccination_individual",
+    "irrigation_individual",
     SocialGraphSpec(graph_type="spatial", radius=3),
 )
 register_social_spec(
@@ -663,7 +265,7 @@ Without registration, unknown agent types fall back to `DEFAULT_SOCIAL_SPEC` (sp
 
 ### Building a multi-agent domain (Phase 6E, 2026-05-10)
 
-The single-agent walkthrough above (`examples/vaccination_demo/`) is the easier path. Multi-agent domains (multiple agent types interacting via cross-agent state) need a few extra wiring steps — see `examples/multi_agent/flood/` (Paper 3 multi-agent flood, 402 agents × 13 yr, production-grade reference) for the canonical multi-agent pattern.
+Multi-agent domains (multiple agent types interacting via cross-agent state) need a few extra wiring steps — see `examples/multi_agent/flood/` (Paper 3 multi-agent flood, 402 agents × 13 yr, production-grade reference) for the canonical multi-agent pattern.
 
 **The cross-agent coupling pattern (the load-bearing one)**:
 
@@ -682,7 +284,7 @@ from broker.components.context.tiered import TieredContextBuilder, load_prompt_t
 
 # Cross-agent state keys — must match EVERY key the lifecycle hook
 # writes AND EVERY placeholder the prompt templates reference. The full
-# vaccination_ma list has 9 keys; this is just a representative slice.
+# This is a representative slice of cross-agent keys.
 # A key in your prompt template but missing from this list will render
 # as the literal string "{key}" in the prompt — confusing for small LLMs
 # and silent at runtime (the only signal is `validate_prompt` WARN).
@@ -690,11 +292,11 @@ DYNAMIC_WHITELIST = [
     "year",
     "advisory_strength_label",
     "advisory_text",
-    "outbreak_severity_label",
+    "drought_severity_label",
     "community_support_text",
     # ...add EVERY cross-agent placeholder your prompts reference.
     # See examples/multi_agent/flood/run_unified_experiment.py for the full
-    # 9-key list.
+    # complete list.
 ]
 
 ctx_builder = TieredContextBuilder(
@@ -717,7 +319,7 @@ runner = (
     )
     .with_context_builder(ctx_builder)
     .with_phase_order(
-        [["health_authority"], ["community_org"], ["individual"]]
+        [["water_authority"], ["water_district"], ["individual"]]
     )
     # ... rest of builder chain
 ).build()
@@ -744,7 +346,7 @@ def pre_year(self, year, env, agents):
 
 Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironment(...))` which returns a persistent env dict that `advance_year` mutates in place. For multi-agent domains WITHOUT a simulation engine, use the aliasing pattern above.
 
-**Reference**: `examples/multi_agent/flood/` — Paper 3 multi-agent flood (production-grade). The `lifecycle_hooks` directory carries the canonical aliasing implementation. The vaccination_ma_demo/ reference that previously documented Phase 6E was removed in Phase 6N-F (2026-05-24); the aliasing pattern itself is unchanged.
+**Reference**: `examples/multi_agent/flood/` — Paper 3 multi-agent flood (production-grade). The `lifecycle_hooks` directory carries the canonical aliasing implementation.
 
 **Skill registry schema asymmetry**: `skill_registry.yaml` uses `- skill_id: <id>` (different from `agent_types.yaml` actions block which uses `- id: <id>`). This is an artefact of WAGF's history. The `validate_prompt` CLI does not check skill_registry.yaml's schema; the broker raises `KeyError('skill_id')` at experiment-build time if you use the wrong field. Phase 6C-v4 `scaffold_domain` was patched in Phase 6E to emit the correct field; if you hand-write a skill_registry.yaml, use `skill_id:`.
 
@@ -760,19 +362,15 @@ Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironme
 
 - `examples/irrigation_abm/` — reference implementation (water demand)
 - `examples/governed_flood/` — reference implementation (flood adaptation)
-- `examples/vaccination_demo/` — first non-water reference example (HBM-based, ~600 LOC)
 - `broker/domains/protocol.py` — DomainPack Protocol contract (Phase 6R-D-1: 7 sub-protocols defined here)
 - `broker/domains/default.py` — DefaultDomainPack no-op fallback
 - `broker/domains/registry.py` — DomainPackRegistry semantics (Phase 6R-D-3: typed accessors `get_<x>_pack`)
 - `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
 - `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
-- `.ai/vaccination_poc_findings_2026-05-10.md` — 6-BLOCKER inventory + lessons learned (single-agent)
 - `examples/multi_agent/flood/` — Paper 3 multi-agent reference (production-grade)
-- `.ai/ma_vaccination_findings_2026-05-10.md` — Phase 6E multi-agent BLOCKER inventory (3 findings)
 - `tests/test_multi_agent_coupling.py` — integration tests covering Findings #1 and #3
-- **`.research/domain_pack_protocol_reference.md`** (Phase 6R-A) — canonical per-method consumer-graph + MUST/SHOULD/MAY classification for all 32 DomainPack methods. Consult when planning your overrides.
+- **`docs/references/domain_pack_protocol_reference.md`** (Phase 6R-A) — canonical per-method consumer-graph + MUST/SHOULD/MAY classification for all 32 DomainPack methods. Consult when planning your overrides.
 - **`broker/tests/test_sub_protocol_split.py`** (Phase 6R-D-1) — pins the 7-sub-protocol structure + isinstance contract for registered packs.
-- **`broker/tests/test_phase_6r_d_decomposition_gate.py`** (Phase 6R-F) — pins the sub-pack mixin pattern for production packs (Flood / Irrigation / Vaccination).
 - **`broker/tools/gen_test_fixture.py`** (Phase 6R-A) — generate a minimal test-fixture DomainPack package without paper-grade scaffolding overhead.
 - **`broker/tools/compare_audit_csv.py`** (Phase 6R-C-0) — column-aware audit byte-identity diff (normalises timestamps + set iteration). Use for paper-1b byte-identity verification on any refactor that touches generic broker code.
 

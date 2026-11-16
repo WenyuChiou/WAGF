@@ -24,7 +24,7 @@ class _DroughtPack:
         return {"W_recency": 0.40, "W_importance": 0.40, "W_context": 0.20}
 
     def emotional_keywords(self):
-        # pack shape: {keyword: emotion} (vaccination_pack.py idiom)
+        # pack shape: {keyword: emotion} (domain-pack idiom)
         return {
             "allocation cut": "critical",
             "curtailment": "critical",

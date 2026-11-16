@@ -13,20 +13,18 @@ describes structure; it does not change any Python/YAML behaviour.
 | `broker/` | Framework core: governance pipeline, memory engines, validators, audit writer, lifecycle hooks. Domain-agnostic. | `broker/core/experiment.py` (shim), `broker/core/skill_broker_engine.py::SkillBrokerEngine` | Framework maintainers only; see `broker/INVARIANTS.md` before touching. |
 | `broker/tools/` | 11 operator CLIs (scaffold, validate, calibrate, audit-compare, recovery). | `python -m broker.tools.<name> --help` | Framework maintainers. |
 | `broker/tests/` | Tests for `broker/` internals (126 `test_*.py` files). | `pytest broker/` | Whoever changes `broker/`. |
-| `examples/` | Domain packs and runnable experiments (11 example dirs). | `examples/README.md` | Domain researchers; each dir usually has one owner-experiment. |
+| `examples/` | Domain packs and runnable experiments (9 example dirs). | `examples/README.md` | Domain researchers; each dir usually has one owner-experiment. |
 | `tests/` | Repo-root test suite — integration, core, sdk, flood, manual, fixtures (141 `test_*.py` files). | `pytest tests/` | Whoever changes cross-cutting behaviour. |
-| `docs/` | Reference documentation: architecture, guides, module docs, references, multi-agent specs, skill chooser (90 files total, including this map). | `docs/architecture/architecture.md`, `docs/guides/` | Whoever changes the thing a doc describes. |
+| `docs/` | Reference documentation: architecture, guides, module docs, references, skill chooser (84 files total, including this map). | `docs/architecture/architecture.md`, `docs/guides/` | Whoever changes the thing a doc describes. |
 | `providers/` | LLM adapter layer (9 files: `__init__.py`, `anthropic.py`, `factory.py`, `gemini.py`, `llm_provider.py`, `ollama.py`, `openai_provider.py`, `rate_limiter.py`, `smoke.py`). Packaged together with `broker/` and imported by `broker/utils/llm_utils.py (create_provider_invoke)`. | `providers/factory.py` | Framework maintainers when adding a new model backend. |
 | `ref/` | Reference/comparison material — `RL-ABM-CRSS` (external RL-ABM baseline for the irrigation case). | `ref/README.md` | Read-only reference; rarely edited. |
 | `reproduction/` | Analysis code that turns audit traces into the numbers a paper reports (does NOT include run outputs — those are gitignored `examples/*/results/`). Mirrors the `decomposition/` analysis that also exists under `SUBMISSION_2026/` on a separate, unmerged submission branch (not present in this tree — verified absent from `origin/main`). | `reproduction/README.md`, `reproduction/decomposition/run_all.py` | Paper authors doing figure/number regeneration. |
 | `.claude/skills/` | 8 WAGF-specific Claude Code skills (domain builder, coupling designer, quickstart, experiment designer, audit-trace analyzer, coupling checker, verification ladder, reproducibility checker). | `docs/skills/wagf-skills.md` (chooser table) | Whoever maintains the AI-agent workflow. |
 | `.github/workflows/` | CI: one `test.yml` with two jobs (`test`, `scaffold-smoke`). | `.github/workflows/test.yml` | Whoever changes what CI verifies. |
 
-Note: this table omits `.git`, `.githooks` and `.research`. `.research/`
-is gitignored (a local workspace, not framework structure), but three
-files in it are tracked on purpose: `domain_pack_protocol_reference.md`,
-`social_media_genericity_audit.md` and `social_tier_injection_reference.md`.
-Two skills under `.claude/skills/` and one test refer to them.
+Note: this table omits `.git`, `.githooks` and the gitignored local
+`.research/` workspace. The DomainPack protocol reference lives at
+`docs/references/domain_pack_protocol_reference.md`.
 
 ---
 
@@ -52,8 +50,8 @@ only non-generic trees are `broker/domains/<domain>/` and `broker/tests/`.
 | Exception | What it means if you add a domain |
 |---|---|
 | `broker/domains/water/` holds 38 tracked files of flood and irrigation content inside the package. | Put your domain in `examples/<domain>/` (or `broker/domains/<domain>/`), not in the generic subtrees. |
-| `broker/tests/` imports examples as fixtures (`governed_flood`, `cat_model`, `single_agent`, `irrigation_abm`, `reservoir_control`, `reservoir_control_multidim`, `vaccination_demo`, `multi_agent`). | The core tests need `examples/` present; deleting those folders breaks them. |
-| `broker/config/schema.py (_import_domain_for_config_path)` picks what to auto-import from the config path: `examples/vaccination_demo/` imports `examples.vaccination_demo`; `examples/irrigation_abm/`, `examples/single_agent/`, `examples/multi_agent/flood/` and `examples/governed_flood/` import `broker.domains.water`; any other path imports nothing. | A new domain must import its own pack before loading its config. |
+| `broker/tests/` imports examples as fixtures (`governed_flood`, `cat_model`, `single_agent`, `irrigation_abm`, `reservoir_control`, `reservoir_control_multidim`, `multi_agent`). | The core tests need `examples/` present; deleting those folders breaks them. |
+| `broker/config/schema.py (_import_domain_for_config_path)` picks what to auto-import from the config path: `examples/irrigation_abm/`, `examples/single_agent/`, `examples/multi_agent/flood/` and `examples/governed_flood/` import `broker.domains.water`; any other path imports nothing. | A new domain must import its own pack before loading its config. |
 | A scan of code (not comments or docstrings) for flood and irrigation words (flood, irrigat-, household, insurance, elevat-, Lake Mead, farmer, premium, relocat-) matches 33 non-test files outside `broker/domains/` (10 identifiers, 72 string literals), for example `HouseholdPerceptionFilter`, `InsuranceInfoProvider`, `FloodDomainConfig`. | Some names and a few defaults in generic files still come from the flood case, for example the default institutional agent types in `broker/components/cognitive/reflection.py`. Check the defaults your domain relies on. |
 
 Between examples: `single_agent` imports `governed_flood` (it supplies
@@ -150,12 +148,10 @@ this.
 | `irrigation_abm/` | Main case: Colorado River irrigation (two-way: requests change Lake Mead, its level and shortage tier come back) | yes | yes (43) | 3 run scripts (`run_experiment.py` is the entry) + 5 `.bat` launchers; read-back: `python examples/irrigation_abm/analysis/simple_prompt_check.py RUN_DIR`; paper measures: `python -m examples.irrigation_abm.analysis.paper_measures {projection,hindcast} --runs DIR... --out CSV` | yes | see `examples/irrigation_abm/README.md` |
 | `multi_agent/flood/` | Separate multi-agent flood study; not a main case | yes (`README.md`, `README_research.md`, `README_zh.md`) | yes (24) | `run_unified_experiment.py`; `paper3/` has its own 6 `.bat` launchers | yes | `python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b` |
 | `governed_flood/` | Shared flood domain pack + small runner; imported by `single_agent/`, `multi_agent/`, core tests | yes | no | `run_experiment.py` | yes | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10` — also the fixture source imported by 15 `broker/tests/` files (`grep -rl "examples\.governed_flood" broker/tests/`), do not delete |
-| `vaccination_demo/` | Non-water demo domain | yes | yes (3) | run scripts + `run_vaccination_batch.bat` | yes | see `examples/vaccination_demo/README.md` |
 | `cat_model/` | Coupling-layer demo (catastrophe insurance); used by core tests | yes | no | `run_cat.py` (single-agent insurer), `run_cat_ma.py` (multi-agent pool) | yes | `python examples/cat_model/run_cat.py --model mock --years 3` |
 | `reservoir_control/` | Worked example: connecting a new water model through `broker/coupling/` | yes | no | `run_reservoir_ops.py` | yes | `python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4` |
 | `reservoir_control_multidim/` | Same, with three setpoints in one decision | yes | no | `run_reservoir_multidim.py` | yes | `python examples/reservoir_control_multidim/run_reservoir_multidim.py --model mock --years 4` |
 | `coupling_examples/` | Worked example of a coupling archetype | yes | no | `archetype_c_subprocess/run_archetype_c.py` | no (worked example, not a paper domain) | `python examples/coupling_examples/archetype_c_subprocess/run_archetype_c.py --model mock --years 4` |
-| `_test_fixtures/` | Fixture domain for tests; not runnable on its own | yes | no (consumed by `tests/integration/test_e2e_genericity.py`) | none (fixture, not runnable standalone) | yes — registered under key `"traffic"` (directory is `fake_traffic/`) | not runnable directly — read `tests/integration/test_e2e_genericity.py` |
 
 ---
 
@@ -165,7 +161,7 @@ this.
 |---|---|---|---|
 | `tests/` | 141 `test_*.py` | Repo-root integration/core/sdk/flood/manual suites | `pytest tests/` |
 | `broker/tests/` | 126 `test_*.py` | Framework-internal unit + invariant tests | `pytest broker/` |
-| `examples/**/test_*.py` | 82 `test_*.py`: `irrigation_abm` 43, `multi_agent` 24, `single_agent` 12, `vaccination_demo` 3, other folders 0 | Per-experiment analysis/pipeline checks | run individually per dir; only `examples/single_agent/tests` is part of the CI command below |
+| `examples/**/test_*.py` | 79 `test_*.py`: `irrigation_abm` 43, `multi_agent` 24, `single_agent` 12, other folders 0 | Per-experiment analysis/pipeline checks | run individually per dir; only `examples/single_agent/tests` is part of the CI command below |
 
 CI (`.github/workflows/test.yml`, step "Tests (no LLM)") runs, verbatim
 (reflowed from the workflow's line continuation):
@@ -178,18 +174,14 @@ plus a separate `scaffold-smoke` job that runs
 `scaffold_domain` → `validate_prompt` → the generated
 `run_experiment.py --model mock --years 1 --agents 1` end to end, to
 catch a class of bug no unit test can (a broken generated-runner
-import). The tests under `irrigation_abm/`, `multi_agent/` and
-`vaccination_demo/` (70 files) are not invoked by either CI job; they
+import). The tests under `irrigation_abm/` and `multi_agent/` (67 files) are not invoked by either CI job; they
 are for whoever is actively working in that example directory.
 
 ---
 
 ## 6. `.bat` launcher index
 
-23 launchers exist today (the pre-audit estimate for this PR was 18;
-verified count is higher because `single_agent/` has 11, not 6, and
-`vaccination_demo/` has one that wasn't in the original count). Not
-moved in this PR — indexed only.
+22 launchers are indexed below.
 
 ### `examples/irrigation_abm/` (5)
 
@@ -227,12 +219,6 @@ moved in this PR — indexed only.
 | `run_rerun_gemma4_all_v2.bat` | Master launcher chaining e2b → e4b → 26b V2 reruns. |
 | `run_rerun_gemma4_e2b_v2.bat` | Gemma-4 e2b V2 rerun (2 conditions × 5 seeds). |
 | `run_rerun_gemma4_e4b_v2.bat` | Gemma-4 e4b V2 rerun (2 conditions × 5 seeds). |
-
-### `examples/vaccination_demo/` (1)
-
-| File | Purpose |
-|---|---|
-| `run_vaccination_batch.bat` | Tier-2 showcase batch: 3 seeds × 2 models = 6 runs; Windows companion to `run_vaccination_batch.sh`. |
 
 ### Removed launchers
 

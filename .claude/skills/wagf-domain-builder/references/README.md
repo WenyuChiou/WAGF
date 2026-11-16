@@ -42,7 +42,6 @@ Do not route a first-domain-build user to `.claude/skills/wagf-quickstart/SKILL.
 
 ## Reference Domains
 
-- `examples/vaccination_demo/`: first non-water single-agent reference, HBM-based.
 - `examples/multi_agent/flood/`: multi-agent reference, Paper 3 production-grade (402 agents × 13 yr), env-dict-whitelist coupling pattern.
 - `examples/irrigation_abm/`: scaling-action water-demand reference (single-agent).
 - `examples/governed_flood/`: flood adaptation reference with categorical protective actions (single-agent).

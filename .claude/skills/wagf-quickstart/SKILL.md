@@ -129,10 +129,7 @@ here. Instead:
      later via the two-layer flag (`global_config.social_feeds.enable`
      in YAML AND the DomainPack `social_feeds_default_enabled()`
      hook). When OFF, runs are byte-identical to pre-v0.5.1 output.
-     Architecture: `.research/social_tier_injection_reference.md`
-     §9–§10 (note: §10.5 — the cross-channel dedup module ships as
-     infrastructure with no live consumer at v0.5.1; provider
-     integration is deferred).
+     Reference implementation: `broker/components/context/providers.py`.
 3. Hand off explicitly: "Now loading
    `wagf-experiment-designer` with these defaults — confirm or
    override."

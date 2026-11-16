@@ -16,7 +16,7 @@ against the existing irrigation skill_registry.yaml shape:
 
 - ``category``: a domain-defined grouping (e.g. ``"increase"`` /
   ``"maintain"`` / ``"decrease"`` for irrigation magnitude; ``"adopt"``
-  / ``"delay"`` / ``"refuse"`` for vaccination).
+  / ``"status_quo"`` for flood adaptation).
 - ``intensity``: a magnitude / strength ranking within a category
   (e.g. ``"small"`` / ``"large"`` / ``"none"``). Optional — categorical
   domains without a magnitude axis leave this `None`.
@@ -26,7 +26,7 @@ against the existing irrigation skill_registry.yaml shape:
   capital investment), ``"instant"`` (no lasting state change).
 
 Phase 6O-B-1 ships protocol + default + irrigation. 6O-B-2 wires
-flood and vaccination DomainPacks (deferred to keep the first commit
+the flood DomainPack (deferred to keep the first commit
 under the byte-identical paper-1b regression gate manageable).
 """
 from __future__ import annotations

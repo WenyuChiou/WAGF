@@ -9,7 +9,7 @@ char) — and between `m` and ` ` (space) — so the bare `m` inside `I'm`
 produces a match that gets captured as a LABEL.
 
 Smoke #6 of L3-1C (commit 64899b8, 2026-05-24) saw this leak as
-`construct_SEVERITY_LABEL='m'` on row 36 of a vaccination_demo
+`construct_SEVERITY_LABEL='m'` on row 36 of a custom domain
 gemma3:1b run. The flood Group_C paper-1b reference data carries
 2/8918 such leaks (recorded in INVARIANTS cross-version log dd4a4f2).
 

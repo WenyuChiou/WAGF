@@ -247,7 +247,7 @@ without a simulation engine, you MUST use the aliasing pattern.
 Symptoms when you forget:
 - Prompts show stale state from year start
 - Cross-agent coupling appears not to work
-- Year-2+ vaccination uptake / community support / advisory signals
+- Year-2+ flood adaptation uptake / community support / advisory signals
   appear "frozen"
 
 `tests/test_multi_agent_coupling.py::TestEnvDictAliasingPattern`
@@ -315,7 +315,7 @@ Run from `examples/<your_domain>_demo/` unless noted.
    does NOT emit this file for non-coupling domains; you must add it
    yourself. Easiest path: copy
    `examples/multi_agent/flood/lifecycle_hooks.py` into your domain
-   dir, rename the class (e.g. `VaccinationMAHooks` →
+   dir, rename the class (e.g. `FloodMAHooks` →
    `MyDomainHooks`), and update the `setdefault` keys in `__init__` to
    your domain's cross-agent state vocabulary.
 4. Edit `lifecycle_hooks.py` to write the cross-agent keys your domain

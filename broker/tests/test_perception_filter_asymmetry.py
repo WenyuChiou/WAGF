@@ -1,8 +1,7 @@
 """Phase 6S-D regression — perception-filter behavior pinning.
 
 This module pins the CURRENT behavior of WAGF's perception filter
-chain, including two known gaps documented in
-``.research/social_tier_injection_reference.md`` §7:
+chain, including two known gaps documented below:
 
   Gap #1 — Observable injection asymmetry
   Gap #4 — MG observable threshold too aggressive
@@ -15,8 +14,7 @@ The actual runtime fix is **deliberately deferred** because:
    MG cohort. Without a budgeted paper-1b multi-seed rerun, fixing
    these gaps risks invalidating the canonical dataset.
 
-2. The current behavior is documented in
-   ``.research/social_tier_injection_reference.md`` §7 as known
+2. The current behavior is documented below as known
    future debt; this test file is the regression gate that prevents
    silent drift before a deliberate v2 perception-filter migration.
 
@@ -129,7 +127,7 @@ class TestCurrentBehavior:
 # ---------------------------------------------------------------------------
 
 class TestKnownGapMGOverAggressive:
-    """Pin Gap #4 from ``.research/social_tier_injection_reference.md`` §7.
+    """Pin known Gap #4.
 
     Desired post-fix behavior: MG agents should retain SPATIAL-scope
     observables (per-agent neighborhood data) and lose only
@@ -145,8 +143,8 @@ class TestKnownGapMGOverAggressive:
         reason=(
             "Phase 6S-D Gap #4: MG agents currently lose ALL "
             "community_observable_fields including SPATIAL-scope. "
-            "Documented in .research/social_tier_injection_reference.md "
-            "§7. Fix deferred until paper-1b multi-seed rerun budget "
+            "Pinned by this known-gap test. "
+            "Fix deferred until paper-1b multi-seed rerun budget "
             "available — reruns would invalidate v21 dataset."
         ),
     )
@@ -183,7 +181,7 @@ class TestKnownGapMGOverAggressive:
 # ---------------------------------------------------------------------------
 
 class TestKnownGapObservableAsymmetry:
-    """Pin Gap #1 from ``.research/social_tier_injection_reference.md`` §7.
+    """Pin known Gap #1.
 
     Desired post-fix behavior: any raw numeric observable injected by
     ``ObservableStateProvider`` MUST be either verbalised by a
@@ -200,8 +198,7 @@ class TestKnownGapObservableAsymmetry:
             "Phase 6S-D Gap #1: ObservableStateProvider writes raw "
             "numeric fields BEFORE PerceptionAwareProvider runs; "
             "fields not in percentage_fields whitelist leak as raw "
-            "floats. Documented in "
-            ".research/social_tier_injection_reference.md §7. "
+            "floats. Pinned by this known-gap test. "
             "Fix deferred — paper-1b byte-identity sensitive."
         ),
     )
@@ -234,26 +231,3 @@ class TestKnownGapObservableAsymmetry:
         result = f.filter(context, _non_mg_agent())
         # Current: raw float remains in output.
         assert result.get("observables", {}).get("some_unwhitelisted_metric") == 0.73
-
-
-# ---------------------------------------------------------------------------
-# Migration path documentation
-# ---------------------------------------------------------------------------
-
-def test_migration_path_documented():
-    """Sanity test asserting the social-tier reference doc exists.
-    If a future contributor removes the doc without addressing the
-    gaps, this test surfaces the regression."""
-    from pathlib import Path
-    repo_root = Path(__file__).resolve().parents[2]
-    doc = repo_root / ".research" / "social_tier_injection_reference.md"
-    assert doc.exists(), (
-        f"social-tier injection reference doc missing: {doc}. "
-        f"Phase 6S-C shipped this doc as the canonical gap inventory; "
-        f"removing it strands the xfail markers in this file."
-    )
-    text = doc.read_text(encoding="utf-8")
-    # Doc must contain §7 Known gaps section (anchor for xfail
-    # markers — if removed, future contributors might re-fix the
-    # gaps without coordinating with the rest of the design).
-    assert "Known gaps" in text

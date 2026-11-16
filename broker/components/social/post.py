@@ -7,14 +7,12 @@ authors push into ``TieredEnvironment.social_feeds`` and that
 followers' perception filters render into prompt content via
 their DomainPack's :meth:`PerceptionPack.verbalise_post` hook.
 
-Audit-locked design (see ``.research/social_media_genericity_audit.md``)
+Audit-locked design (see Phase 6T-D in ``CHANGELOG.md``)
 ======================================================================
 The :class:`Post` dataclass has a ``tier_id: str`` field — NOT a
 broker-hardcoded credibility enum. The tier vocabulary
 (e.g. ``official_authority / verified_account / influencer / peer
-/ bot`` for flood; ``cdc / clinician / health_influencer /
-community_elder / whatsapp_rumor`` for a future vaccination_ma
-domain) is owned by the DomainPack via :meth:`PerceptionPack.credibility_tiers`.
+/ bot`` for flood) is owned by the DomainPack via :meth:`PerceptionPack.credibility_tiers`.
 
 This is the **third instance** of the broker/domain separation
 pattern the audit traces:

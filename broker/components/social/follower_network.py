@@ -58,7 +58,7 @@ carry domain tokens. Verified by
 and by the genericity-audit AST scan in
 ``broker/tests/test_follower_network.py``. The genericity contract
 is also documented in
-``.research/social_media_genericity_audit.md`` —
+``CHANGELOG.md`` (Phase 6T-D) —
 ``Post.credibility_tier`` and similar US-media-shaped enums do
 NOT belong here; they belong on the DomainPack's PerceptionPack.
 """

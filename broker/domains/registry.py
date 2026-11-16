@@ -12,8 +12,8 @@ Usage
 Registration (inside a domain example's ``__init__.py``)::
 
     from broker.domains.registry import DomainPackRegistry
-    from .vaccination_pack import VaccinationDomainPack
-    DomainPackRegistry.register("vaccination", VaccinationDomainPack())
+    from .adapters.flood_pack import FloodDomainPack
+    DomainPackRegistry.register("flood", FloodDomainPack())
 
 Lookup (inside broker pipeline code)::
 

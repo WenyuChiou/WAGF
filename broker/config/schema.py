@@ -492,9 +492,7 @@ def _import_domain_for_config_path(config_path: Path) -> None:
     """
     normalized = config_path.as_posix()
     candidates: list[str] = []
-    if "examples/vaccination_demo/" in normalized:
-        candidates.append("examples.vaccination_demo")
-    elif any(
+    if any(
         marker in normalized
         for marker in (
             "examples/irrigation_abm/",

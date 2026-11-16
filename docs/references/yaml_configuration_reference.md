@@ -228,7 +228,7 @@ separate response `thinking` field is not currently retained in the audit.
 
 Every Python entrypoint under `examples/` that exposes an LLM `--model`
 option also accepts `--thinking-mode {auto,disabled,enabled}`. This includes
-the irrigation, governed/single/multi-agent flood, vaccination, reservoir,
+the irrigation, governed/single/multi-agent flood, reservoir,
 catastrophe-model, and archetype-C runners, plus the paper-3 ICC, PA,
 persona-sensitivity, and prompt-sensitivity probes. Deprecated wrappers pass
 the option through to their canonical runner. Omitting the flag inherits the

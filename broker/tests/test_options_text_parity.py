@@ -1,36 +1,8 @@
 """Regression lock for the options-text parity fix (2026-09).
 
-THE BUG: vaccination_demo's ``config/prompts/individual.txt`` rendered
-``Available actions: {skills}`` -- a placeholder the context builder never
-fills -- so the model only ever saw the hardcoded YAML legend that used to
-live at ``agent_types.yaml``'s ``decision`` field description
-("1=get_vaccinated, 2=delay, 3=refuse"). Meanwhile RAG skill retrieval
-(``broker/core/skill_broker_engine.py`` "Phase 28" block ->
-``broker/components/governance/retriever.py``) re-ranks the eligible skills
-per call, and ``_inject_options_text``
-(``broker/core/_skill_filtering.py``) rebuilds ``dynamic_skill_map`` in
-THAT re-ranked order. ``broker/utils/parsing/unified_adapter.py`` decodes
-the model's digit answer against ``dynamic_skill_map`` -- so whenever the
-map order differed from the static legend the model was actually shown,
-the decoded skill was WRONG. Year 1 (empty memory, nothing to rank on)
-always matched; verified 57-63% mismatch from year 2 on across three runs.
-
-THE FIX (two parts, both locked here):
-  1. Config (examples/vaccination_demo): ``prompts/individual.txt`` now
-     renders ``{options_text}`` (the SAME list ``dynamic_skill_map`` is
-     built from) and ``agent_types.yaml`` sets
-     ``parsing.full_disclosure: true`` (keeps the retriever from
-     re-ranking at all, mirroring ``examples/irrigation_abm``).
-  2. Runtime (broker/core/_skill_filtering.py): ``_inject_options_text``
-     now calls ``_assert_options_text_parity``, which raises loud whenever
-     the installed map order differs from the registry (YAML ``actions:``)
-     order AND the agent's prompt template renders neither
-     ``{options_text}`` nor ``{skills_text}``.
-
-Falsification: every test in this file that exercises the guard was run
-against the PRE-FIX ``_inject_options_text`` (no ``agent_type`` param, no
-guard call) and failed as expected (guard tests: no ``RuntimeError``
-raised; config tests: ``{skills}`` present / ``full_disclosure`` absent).
+The shared guard rejects a re-ranked skill map when the prompt does not
+render the live numbered options. Synthetic tests pin both failure and
+repair paths.
 """
 from __future__ import annotations
 
@@ -43,8 +15,6 @@ from broker.core._skill_filtering import SkillFilterMixin
 from broker.utils.agent_config import AgentTypeConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VAX_CONFIG = REPO_ROOT / "examples" / "vaccination_demo" / "config" / "agent_types.yaml"
-VAX_PROMPT = REPO_ROOT / "examples" / "vaccination_demo" / "config" / "prompts" / "individual.txt"
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +112,7 @@ RERANKED_ORDER = ["refuse", "get_vaccinated", "delay"]  # what RAG handed back
 
 def test_guard_raises_when_reranked_order_hidden_from_template():
     """Core falsification: a re-ranked map + a template with NO
-    {options_text}/{skills_text} placeholder (the pre-fix vaccination_demo
+    {options_text}/{skills_text} placeholder (the pre-fix custom domain
     shape, ``Available actions: {skills}``) must raise loud."""
     engine = _engine(
         action_ids=REGISTRY_ORDER,
@@ -155,7 +125,7 @@ def test_guard_raises_when_reranked_order_hidden_from_template():
 
 def test_guard_silent_when_template_renders_options_text():
     """Same re-rank, but the template DOES render {options_text} -- the
-    fixed vaccination_demo shape. Must not raise, and the map must reflect
+    fixed custom domain shape. Must not raise, and the map must reflect
     the actual (re-ranked) order the model was shown."""
     engine = _engine(
         action_ids=REGISTRY_ORDER,
@@ -214,7 +184,7 @@ def test_option_text_overrides_used_when_present_in_state():
 
 def test_no_option_text_overrides_falls_back_to_registry_description():
     """WP2 review round 1 (LOW 10): renamed from test_flood_options_unchanged
-    -- this uses the generic fake vaccination-style registry/engine harness
+    -- this uses the generic fake synthetic registry/engine harness
     above, not flood's real config, so the old name overclaimed what it
     checks. No ``state`` key at all -- every domain that never sets
     ``option_text_overrides`` (flood included, but not exercised here)
@@ -293,36 +263,6 @@ def test_guard_skipped_without_agent_type():
     assert context["personal"]["dynamic_skill_map"]["1"] == "refuse"
 
 
-# ---------------------------------------------------------------------------
-# Config-level locks
-# ---------------------------------------------------------------------------
-
-def test_vaccination_prompt_renders_options_text():
-    """individual.txt must render {options_text}, not the never-filled
-    {skills} placeholder."""
-    text = VAX_PROMPT.read_text(encoding="utf-8")
-    assert "{options_text}" in text
-    assert "{skills}" not in text
-
-
-def test_vaccination_config_wires_individual_into_full_disclosure():
-    """Belt-and-braces: the retriever must never re-rank vaccination's
-    3-skill menu at all (mirrors examples/irrigation_abm)."""
-    cfg = AgentTypeConfig.load(str(VAX_CONFIG))
-    assert "individual" in cfg.get_full_disclosure_agent_types()
-
-
-def test_vaccination_decision_field_has_no_hardcoded_legend():
-    """The removed BLOCKER: agent_types.yaml's decision field must not
-    hand-roll a digit legend that can drift from the live options order."""
-    import yaml
-
-    cfg = yaml.safe_load(VAX_CONFIG.read_text(encoding="utf-8"))
-    decision_field = next(
-        f for f in cfg["shared"]["response_format"]["fields"] if f.get("key") == "decision"
-    )
-    assert "description" not in decision_field or "=" not in decision_field.get("description", "")
-
 
 # ---------------------------------------------------------------------------
 # Parity property: decode a digit against a RE-RANKED map
@@ -367,7 +307,7 @@ def test_decoded_digit_matches_numbered_prompt_order():
 def test_p0_missing_template_evaluates_real_base_default_and_raises():
     """Item 1 (P0): a missing prompt_templates lookup used to `return`
     silently. The REAL fallback for BaseAgentContextBuilder is
-    DEFAULT_PROMPT_TEMPLATE ('ACT:{skills}') -- the exact vaccination_demo
+    DEFAULT_PROMPT_TEMPLATE ('ACT:{skills}') -- the exact custom domain
     shape. The guard must evaluate against that real fallback and raise,
     not assume safety it never checked."""
     from broker.components.context.builder import BaseAgentContextBuilder
@@ -813,7 +753,7 @@ def test_p3e_tiered_default_fallback_imports_the_real_constant():
 def test_p4_1_skills_placeholder_not_accepted_when_template_invites_digit():
     """Item 1: a template rendering {skills} (unnumbered, safe for a pure
     name-based decision) but ALSO {response_format} with a numeric-choice
-    decision field invites a digit answer just like the vaccination_demo
+    decision field invites a digit answer just like the custom domain
     shape did -- {skills} showing an unnumbered list does not tell the
     model which digit maps to which name. Must still raise for a
     re-ranked, unresolvable-registry, multi-skill map."""
