@@ -1,14 +1,14 @@
 """
 Anthropic LLM Provider - API support for Claude models.
 
-Supports:
-- claude-opus-4-6, claude-sonnet-4-5-20250929
-- claude-haiku-4-5-20251001
-- And future Claude model releases
+Works with any Claude model ID, e.g. claude-haiku-5-5, claude-sonnet-5-5,
+claude-opus-5-5. Temperature is sent only when the config sets one: current
+Claude models reject it (Opus 5.5) or accept only the default (Sonnet 5.5,
+Haiku 5.5).
 
 Usage:
-    --model anthropic:claude-sonnet-4-5-20250929
-    --model claude:claude-opus-4-6
+    --model anthropic:claude-haiku-5-5
+    --model claude:claude-sonnet-5-5
 """
 from typing import Any, Dict
 import os
@@ -20,6 +20,9 @@ try:
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
+
+# Used when the config sets no max_tokens (the API requires one).
+DEFAULT_MAX_TOKENS = 16000
 
 
 class AnthropicProvider(LLMProvider):
@@ -57,13 +60,28 @@ class AnthropicProvider(LLMProvider):
     def provider_name(self) -> str:
         return "anthropic"
 
+    def _request_kwargs(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Build the Messages API request; omit temperature when it is unset.
+
+        ``max_tokens`` is required by the API. When unset it defaults to
+        DEFAULT_MAX_TOKENS, which leaves room for the thinking that current
+        Claude models do before answering.
+        """
+        max_tokens = kwargs.get("max_tokens", self.config.max_tokens)
+        request: Dict[str, Any] = {
+            "model": self.config.model,
+            "max_tokens": DEFAULT_MAX_TOKENS if max_tokens is None else max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        temperature = kwargs.get("temperature", self.config.temperature)
+        if temperature is not None:
+            request["temperature"] = temperature
+        return request
+
     def invoke(self, prompt: str, **kwargs) -> LLMResponse:
         """Synchronously invoke Claude model."""
         response = self._client.messages.create(
-            model=self.config.model,
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            temperature=kwargs.get("temperature", self.config.temperature),
-            messages=[{"role": "user", "content": prompt}],
+            **self._request_kwargs(prompt, **kwargs)
         )
 
         content = ""
@@ -91,10 +109,7 @@ class AnthropicProvider(LLMProvider):
     async def ainvoke(self, prompt: str, **kwargs) -> LLMResponse:
         """Asynchronously invoke Claude model."""
         response = await self._async_client.messages.create(
-            model=self.config.model,
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            temperature=kwargs.get("temperature", self.config.temperature),
-            messages=[{"role": "user", "content": prompt}],
+            **self._request_kwargs(prompt, **kwargs)
         )
 
         content = ""
