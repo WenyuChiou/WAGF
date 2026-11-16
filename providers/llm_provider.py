@@ -10,8 +10,10 @@ import threading
 class LLMConfig:
     """Configuration for an LLM provider."""
     model: str
-    temperature: float = 0.7
-    max_tokens: int = 1024
+    # None = do not send; the provider then uses the model's own default.
+    # The cloud providers (OpenAI, Anthropic) honour None; see create_provider.
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 1024
     timeout: float = 60.0
     extra_params: Dict[str, Any] = field(default_factory=dict)
 

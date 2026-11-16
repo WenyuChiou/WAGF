@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **OpenAI and Anthropic providers work with current models.** For
+  `--model openai:<name>` and `--model anthropic:<name>`, temperature and the
+  token limit are sent only when the config sets them (current Claude models
+  reject `temperature` or accept only the default). Anthropic requests default
+  to `max_tokens=16000` so a model that thinks first is not cut off; OpenAI's
+  own API gets `max_completion_tokens`, while a `base_url` server keeps
+  `max_tokens`. Ollama and Gemini providers keep 0.7 / 1024. The smoke
+  check's Claude default is now `claude-haiku-5-5`.
+
 - **Retry-exhaustion log wording.** `[Governance:Exhausted]` now names the
   rejected proposal, the action actually dispatched, and `on_retry_exhausted`.
   Parse-failure messages also use the dispatched registry default. Execution,
