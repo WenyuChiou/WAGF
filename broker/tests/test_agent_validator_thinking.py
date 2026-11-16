@@ -1,122 +1,12 @@
-"""Phase 6N-E regression test — `AgentValidator.validate_thinking` fires
-rules end-to-end on real YAML conditions.
-
-Before this fix, vaccination_demo's 5 thinking_rules were silently
-dead config: their conditions used the verbose
-`RuleCondition`-flavoured shape `{ type: construct, field: X,
-operator: "in", values: [...] }`, but
-`AgentValidator._run_rule_set` at `agent_validator.py:418` read
-`cond.get("construct")` ONLY — not `cond.get("field")`. So
-`construct_name = None`, `get_label(None) → ""`,
-`label_matches("", ["H","VH"]) → False`, rule never fired.
-
-Origin: L3-1C (commit `64899b8`) copied the dict shape from
-`broker/governance/rule_types.py::RuleCondition` instead of from
-the working irrigation YAML. Phase 6N-C fixed `rules:` →
-`thinking_rules:` at the top level but missed the nested condition
-dict structure.
-
-Phase 6N-E:
-1. Defensive evaluator: `cond.get("construct") or cond.get("field")`.
-2. Canonical YAML rewrite of vaccination_demo's 5 thinking_rules.
-
-These tests pin both: (1) canonical shape works (would fire even on
-pre-6N-E-1 code if the YAML used canonical); (2) legacy `field:`
-shape is now tolerated (FAILS on pre-6N-E-1 code, PASSES post-fix).
-"""
+"""Regression tests for legacy thinking-rule conditions and normalization."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
 
-import examples.vaccination_demo  # noqa: F401 — register HBM framework
+import broker.domains.water  # noqa: F401 — register PMT framework
 from broker.validators.agent import AgentValidator
-
-
-VACCINATION_YAML = (
-    Path(__file__).resolve().parents[2]
-    / "examples" / "vaccination_demo" / "config" / "agent_types.yaml"
-)
-
-
-# ---------------------------------------------------------------------
-# Smoke-#8 row 2 reasoning — BARRIERS=H + EFFICACY=H + delay
-# Expected fire: high_barriers_high_self_efficacy_no_action_required (WARNING)
-# ---------------------------------------------------------------------
-
-_ROW_2_REASONING = {
-    "SUSCEPTIBILITY_LABEL": "M",
-    "SEVERITY_LABEL": "H",
-    "BENEFITS_LABEL": "L",
-    "BARRIERS_LABEL": "H",
-    "SELF_EFFICACY_LABEL": "H",
-    "CUES_TO_ACTION_LABEL": "L",
-}
-
-
-def test_canonical_construct_key_fires():
-    """vaccination_demo's `{ construct: X, values: [...] }` shape
-    fires under live AgentValidator end-to-end.
-
-    Drives the row-2 case from smoke #8 (Phase 6N-D-5): with the
-    canonical YAML shape, the WARNING rule should now fire with
-    `valid=True` and the rule message in `warnings[]`.
-    """
-    validator = AgentValidator(config_path=str(VACCINATION_YAML))
-    results = validator.validate_thinking(
-        agent_type="individual",
-        agent_id="Agent_005",
-        decision="delay",
-        state={},
-        reasoning=_ROW_2_REASONING,
-    )
-
-    # Find the specific rule fire among results
-    matched = [
-        r for r in results
-        if r.metadata.get("rule_id")
-        == "high_barriers_high_self_efficacy_no_action_required"
-    ]
-    assert len(matched) == 1, (
-        f"Expected exactly one fire of "
-        f"`high_barriers_high_self_efficacy_no_action_required`; "
-        f"got {len(matched)} matches across {len(results)} results."
-    )
-
-    r = matched[0]
-    # WARNING level — must not block
-    assert r.valid is True, (
-        f"Phase 6N-D-1 contract: WARNING rule must set valid=True. "
-        f"Got valid={r.valid}."
-    )
-    assert r.warnings, (
-        f"WARNING rule must populate warnings[]. Got warnings={r.warnings}."
-    )
-    assert r.errors == [], (
-        f"WARNING rule must NOT populate errors[]. Got errors={r.errors}."
-    )
-
-
-def test_canonical_susceptibility_vl_fires_warning():
-    """A second canonical-shape rule fires: SUSCEPTIBILITY=VL + skill=get_vaccinated
-    triggers `low_susceptibility_no_get_vaccinated` (WARNING)."""
-    validator = AgentValidator(config_path=str(VACCINATION_YAML))
-    reasoning = {**_ROW_2_REASONING, "SUSCEPTIBILITY_LABEL": "VL"}
-    results = validator.validate_thinking(
-        agent_type="individual",
-        agent_id="Agent_TEST",
-        decision="get_vaccinated",
-        state={},
-        reasoning=reasoning,
-    )
-    matched = [
-        r for r in results
-        if r.metadata.get("rule_id") == "low_susceptibility_no_get_vaccinated"
-    ]
-    assert len(matched) == 1
-    assert matched[0].valid is True  # WARNING
-    assert matched[0].warnings
 
 
 def test_legacy_field_key_also_fires(tmp_path: Path):
@@ -137,7 +27,7 @@ shared:
   normalization_map: {VL: VL, L: L, M: M, H: H, VH: VH}
 test_agent:
   agent_type: test_agent
-  psychological_framework: hbm
+  psychological_framework: pmt
   prompt_template_file: ""
   inherit_shared: true
   actions:

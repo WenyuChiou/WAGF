@@ -108,8 +108,6 @@ Plus four end-to-end domain examples:
 - `examples/single_agent/` — Nature Water Paper 1b reference (flood single-agent, 4 skills)
 - `examples/irrigation_abm/` — 78 CRSS agents × 42-year irrigation
 - `examples/multi_agent/flood/` — Paper 3 multi-agent flood (400 agents × 13 years, 7 agent types)
-- `examples/vaccination_demo/` — Non-water reference using Health Belief Model (HBM)
-- `examples/_test_fixtures/fake_traffic/` — Minimum-surface non-water genericity gate (validates that broker truly is domain-pluggable)
 
 ---
 

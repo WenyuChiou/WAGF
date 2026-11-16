@@ -11,7 +11,7 @@ analysis scripts; none reimplements WAGF logic.
 | **Build a new domain from scratch** — I have a research question + maybe an external model | `wagf-domain-builder` |
 | **Verify a domain end-to-end / is it done?** — test my new domain, run the smoke pipeline, my domain runs — what now? | `wagf-verification-ladder` |
 | **Design the coupling** between WAGF agents and my external simulator | `wagf-coupling-designer` |
-| **Onboard** — first time using the EXISTING reference examples (flood / irrigation / vaccination) | `wagf-quickstart` |
+| **Onboard** — first time using the EXISTING reference examples (flood / irrigation) | `wagf-quickstart` |
 | **Plan** a new experiment matrix from a research question on a working domain | `wagf-experiment-designer` |
 | **Analyse** existing audit traces into paper-ready metrics | `llm-agent-audit-trace-analyzer` |
 | **Verify** the contract between agents and an external model (audit existing coupling) | `model-coupling-contract-checker` |

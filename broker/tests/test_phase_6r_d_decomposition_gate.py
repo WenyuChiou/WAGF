@@ -1,8 +1,7 @@
 """Phase 6R-F regression — pin the Phase 6R-D-5/6 sub-pack
 decomposition pattern.
 
-After Phase 6R-D-5 (FloodDomainPack) + 6R-D-6 (Irrigation +
-Vaccination), each production example pack splits its class body into
+After Phase 6R-D-5 (FloodDomainPack) + 6R-D-6 (Irrigation), each production example pack splits its class body into
 sub-pack mixin classes corresponding to the Phase 6R-D-1 sub-protocols.
 The pattern is:
 
@@ -17,12 +16,7 @@ the decomposition (e.g. by collapsing all methods back into a single
 ``FooDomainPack`` class body during a "simplification" pass — losing
 the type-narrowing + cohesion benefits the 6R-D refactor established).
 
-Scope: ONLY production paper-1b example packs (Flood / Irrigation /
-Vaccination). The FakeTraffic test fixture is intentionally exempt
-— per the Phase 6R-D-6 CHANGELOG entry, splitting its 115-LOC body
-into mixins would add ~30 LOC of structural overhead with zero
-functional benefit (the fixture only overrides 7 methods across 4
-sub-protocols).
+Scope: production paper-1b example packs (Flood / Irrigation).
 """
 from __future__ import annotations
 
@@ -43,10 +37,6 @@ _GUARDED_PACKS: List[Tuple[str, str]] = [
     (
         "examples/irrigation_abm/adapters/irrigation_pack.py",
         "IrrigationDomainPack",
-    ),
-    (
-        "examples/vaccination_demo/adapters/vaccination_pack.py",
-        "VaccinationDomainPack",
     ),
 ]
 
@@ -195,11 +185,10 @@ class TestProductionPacksSatisfyAllSubProtocols:
         # Importing each example package registers its pack.
         import examples.governed_flood  # noqa: F401
         import examples.irrigation_abm  # noqa: F401
-        import examples.vaccination_demo  # noqa: F401
 
     @pytest.mark.parametrize(
         "domain_name",
-        ["flood", "irrigation", "vaccination"],
+        ["flood", "irrigation"],
     )
     def test_each_production_pack_satisfies_all_7_sub_protocols(
         self, domain_name: str,

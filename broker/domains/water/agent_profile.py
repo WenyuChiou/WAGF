@@ -9,7 +9,7 @@ domain-neutral demographic / psychometric / spatial fields plus an
 
 Why this split?
 ===============
-A non-water domain (vaccination, traffic, finance, education, etc.) had
+A non-water domain (traffic, finance, education, etc.) had
 to either (a) accept that every agent unconditionally carries
 ``flood_zone``, ``elevated``, ``has_insurance``, ``flood_depth``, etc.
 with meaningless defaults (silent leak into prompts), or (b) subclass
@@ -47,9 +47,9 @@ class FloodAgentProfile(AgentProfile):
     # AgentProfile. These 5 fields are PMT-framework specific labels
     # (Threat Perception / Coping Perception / Stakeholder Perception
     # / Social Capital / Place Attachment) — the names + semantics are
-    # water-domain vocabulary. A non-water domain that needs typed
+    # water-domain vocabulary. Another domain that needs typed
     # psychometric fields subclasses base AgentProfile and adds its
-    # own (e.g. ``HBMAgentProfile`` for vaccination).
+    # own (e.g. ``IrrigationAgentProfile`` for irrigation).
     tp_score: float = 3.0  # Threat Perception
     cp_score: float = 3.0  # Coping Perception
     sp_score: float = 3.0  # Stakeholder Perception

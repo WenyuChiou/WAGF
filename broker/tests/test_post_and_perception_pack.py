@@ -18,7 +18,7 @@ Verifies:
   ``TestNoUSMediaTierLiteralsInBrokerSocial`` gate covers this
   centrally; this file adds a focused module-level check
 
-Per the audit at ``.research/social_media_genericity_audit.md``,
+Per the Phase 6T-D genericity rule (``CHANGELOG.md``),
 the Post dataclass uses ``tier_id: str`` (NOT an enum). The tier
 vocabulary lives in the DomainPack's ``credibility_tiers``.
 
@@ -53,7 +53,7 @@ class _DemoPack(DefaultDomainPack):
 
     def credibility_tiers(self) -> List[str]:
         # Deliberately non-flood vocabulary to prove the pack-side
-        # ownership: a future vaccination_ma can declare its own.
+        # ownership: a future irrigation can declare its own.
         return ["medical_authority", "clinician", "community", "rumor"]
 
     def credibility_weight(self, tier_id: str) -> float:

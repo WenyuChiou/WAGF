@@ -120,11 +120,11 @@ class TestGeneratedFixtureImports:
     """Acid test: the generated package must actually import + register."""
 
     def test_generated_pack_imports_and_registers(self, tmp_path: Path):
-        # Generate at tmp_path/_test_fixtures/test_e/
-        fixtures_root = tmp_path / "_test_fixtures"
+        # Generate at tmp_path/generated_fixtures/test_e/
+        fixtures_root = tmp_path / "generated_fixtures"
         fixtures_root.mkdir()
         # Make tmp_path a fake "package root" by adding an empty
-        # _test_fixtures/__init__.py so the generated package is importable.
+        # generated_fixtures/__init__.py so the generated package is importable.
         (fixtures_root / "__init__.py").touch()
         pkg = write_fixture("test_e", fixtures_root, "reflection")
 
@@ -139,7 +139,7 @@ class TestGeneratedFixtureImports:
 
         try:
             sys.path.insert(0, str(tmp_path))
-            mod = importlib.import_module("_test_fixtures.test_e")
+            mod = importlib.import_module("generated_fixtures.test_e")
             # Pack should have registered itself.
             pack = DomainPackRegistry.get("test_e")
             assert pack is not None
@@ -155,7 +155,7 @@ class TestGeneratedFixtureImports:
             DomainPackRegistry._missing_warned.update(saved_warned)
             # Remove the imported module so subsequent test runs are clean.
             for key in list(sys.modules):
-                if key.startswith("_test_fixtures"):
+                if key.startswith("generated_fixtures"):
                     del sys.modules[key]
 
 

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the vaccination demo and its example-specific loading and tests.
+- Removed the fake traffic fixture and tests that required it.
+- Removed archived social research notes; moved the DomainPack protocol reference to `docs/references/`.
+- Removed `examples/EXPERIMENTS.md` and the outdated multi-agent specifications.
+
 ### Fixed
 
 - **Retry-exhaustion log wording.** `[Governance:Exhausted]` now names the

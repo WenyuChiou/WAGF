@@ -101,7 +101,7 @@ python examples/governed_flood/run_experiment.py --model gemma3:4b --years 5
 | Build a full experiment | [Experiment Design Guide](experiment_design_guide.md) |
 | Add custom validators | Experiment Design Guide, Step 4 |
 | Add memory + reflection | Experiment Design Guide, Steps 5-6 |
-| Multi-agent setup | [Multi-Agent Specs](../../docs/multi_agent_specs/) |
+| Multi-agent setup | [Multi-agent flood example](../../examples/multi_agent/flood/) |
 | Run without social network | [Single-Agent Mode](experiment_design_guide.md#single-agent-mode-no-social-network) |
 
 ---

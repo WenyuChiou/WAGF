@@ -67,9 +67,7 @@ examples or test fixtures.
 | `reservoir_control_multidim/` | Same, with three setpoints in one decision; run with the mock model. |
 | `coupling_examples/` | Worked example of a coupling archetype. |
 | `cat_model/` | Coupling-layer demo (catastrophe insurance); used by core tests. |
-| `vaccination_demo/` | Non-water demo domain. |
 | `quickstart/` | Numbered tutorial scripts. |
-| `_test_fixtures/` | Fixture domain for tests; not runnable on its own. |
 
 Which parts of the repo are generic and which are examples:
 [`docs/REPO_MAP.md`](../docs/REPO_MAP.md).

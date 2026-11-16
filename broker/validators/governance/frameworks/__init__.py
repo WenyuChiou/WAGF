@@ -7,7 +7,7 @@ Closes a Phase-6P-A-class genericity leak: pre-this-commit the
 ``broker/domains/water/thinking_checks.py`` even though their construct
 vocabulary (``BUDGET_UTIL`` / ``EQUITY_GAP`` / ``ADOPTION_RATE`` for
 utility; ``RISK_APPETITE`` / ``SOLVENCY_IMPACT`` / ``MARKET_SHARE`` for
-financial) is genuinely cross-domain — a vaccination-funding agent or
+financial) is genuinely cross-domain — a flood-adaptation funding agent or
 a transit-fare-policy agent could legitimately use utility theory; an
 insurance / pension / catastrophe-bond agent could use financial.
 
@@ -42,14 +42,14 @@ Scope decisions
   splitting each Framework into a generic-base + flood-specific
   subclass; that's deferred to a separate refactor.
 
-**Audit-locked design (per `.research/social_media_genericity_audit.md`)**:
+**Audit-locked design (per Phase 6T-D in `CHANGELOG.md`)**:
 
 - ``narrative_diffusion`` framework constructs are deliberately
   generic (salience / virality / audience_fit /
   narrative_consistency) — applicable to any domain modeling
   narrative-amplification dynamics, not just paper-3 flood social
   media.
-- A future vaccination-misinformation framework or a
+- A future flood-misinformation framework or a
   traffic-news-propagation framework can register their OWN names
   with the same construct shape via ``register_framework_metadata``
   without needing to fork or extend this module.
@@ -184,7 +184,7 @@ FINANCIAL_LABEL_MAPPINGS = {
 #   narrative_consistency)
 #
 # Constructs deliberately generic — applicable to any narrative-
-# amplification context. A vaccination-misinformation
+# amplification context. A flood-misinformation
 # narrative_diffusion influencer + a traffic-news-propagation
 # influencer would use the same construct vocabulary.
 #

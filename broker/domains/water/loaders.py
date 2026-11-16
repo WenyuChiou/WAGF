@@ -21,7 +21,7 @@ which:
     Passaic-NJ geographic bounding box so test agents have realistic
     coordinates for flood-zone enrichment.
 
-Other domains (vaccination, traffic, etc.) define their own analogous
+Other domains (traffic, etc.) define their own analogous
 subclasses with their own profile class and field synthesis.
 """
 from __future__ import annotations
