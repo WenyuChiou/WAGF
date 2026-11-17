@@ -425,6 +425,8 @@ Manifests record `keepfix_package.spec_item: 47`, enabled elements, and
 `ollama_server_version` (one `/api/version` read at launch for local models,
 null for mock, cloud, or an unreachable server). These fields and the resolved
 `recall_skip_key` also appear in `config_snapshot.yaml` metadata.
+For action counts, use the governance audit `executed_skill` for analysis; `yearly_decision` is the agent's proposal. `executed_decision` records the dispatched skill in `simulation_log.csv`.
+
 `simulation_log.csv`'s `memory` column contains unfiltered post-year retrieval
 (`top_k=5`, `recall_skip_key=None`), retaining routine outcomes for offline
 counts; decision prompts use the MB filter and reflection inputs override it.
@@ -545,7 +547,8 @@ Audit columns for the metrics (governance audit CSV): `initial_skill`, `initial_
 
 ## 8. Data Availability
 
-All data for `--real` mode (78 CRSS agents) is included in `ref/CRSS_DB/`:
+Data for `--real` mode (78 CRSS agents) is gitignored and available from the
+authors on request; place it in `ref/CRSS_DB/CRSS_DB/` (see [DATA.md](../../DATA.md)):
 
 - **Precipitation**: `HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` (CRSS/NOAA PRISM, 2017-2060)
 - **Agent water rights**: `Div_States/UB_discrete_states.csv` / `Div_States/LB_discrete_states.csv` (78 agents). F10 (2026-09-25 audit): this is the TOP of each agent's discretised FQL diversion grid (Hung & Yang's `Div_max`, the ceiling the FQL state space discretises against), not a legal Colorado River entitlement from `annual_baseline_time_series.csv`. Most agents' 2018 initial use sits well under this ceiling: 61 of 78 agents (52 of 56 Upper Basin) start below 50% utilisation, so in corpora produced before 2026-09-25 `demand_floor_stabilizer` bound for most agents from year 1 in the governed arm (retired from dispatch since). See `irrigation_personas.py:create_profiles_from_data` and `docs/irrigation_physics.md`.

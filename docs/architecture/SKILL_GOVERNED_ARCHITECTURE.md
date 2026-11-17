@@ -178,7 +178,7 @@ Multi-layer validation pipeline:
 - **Registry**: Only lookups, no execution logic
 
 ### 2. Fail-Safe Defaults
-- If parsing fails → default to `do_nothing`
+- If the first answer remains unparseable after format retries, return ABORTED and execute no skill
 - If validator errors → retry with feedback
 - If execution fails → log and continue
 

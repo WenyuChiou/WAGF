@@ -661,7 +661,13 @@ class AgentValidator:
                     "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH"
                 }
             
-            return normalization_map.get(label_text, label_text[:2] if len(label_text) >= 2 else label_text)
+            if label_text in normalization_map:
+                return normalization_map[label_text]
+            if label_text in {"VL", "L", "M", "H", "VH", *normalization_map.values()}:
+                return label_text
+            if label_text and key not in missing_constructs:
+                missing_constructs.append(key)
+            return ""
 
         def label_matches(actual_label: str, expected_values: list) -> bool:
             """Check if actual_label matches any of the expected values (5-level aware)."""
@@ -838,17 +844,19 @@ class AgentValidator:
         # indistinguishable from a row where the rule was evaluated and passed.
         for construct_name in missing_constructs:
             message = (
-                f"[Rule: construct_missing] Construct '{construct_name}' was not "
-                f"reported, so rules conditioned on it did not fire. No middle "
+                f"[Rule: construct_missing] Construct '{construct_name}' "
+                f"{'was not reported' if framework_aware else 'has an invalid label'}, "
+                f"so rules conditioned on it did not fire. No middle "
                 f"value was assumed."
             )
             results.append(ValidationResult(
-                valid=True,
+                valid=framework_aware,
                 validator_name=f"AgentValidator:{tier_name}_construct_missing",
-                errors=[],
-                warnings=[message],
+                errors=[] if framework_aware else [message],
+                warnings=[message] if framework_aware else [],
                 metadata={
-                    "level": ValidationLevel.WARNING,
+                    "level": ValidationLevel.WARNING if framework_aware else ValidationLevel.ERROR,
+                    **({"category": "format"} if not framework_aware else {}),
                     "tier": f"Tier 2: {tier_name.capitalize()}",
                     "rule": "construct_missing",
                     "rule_id": "construct_missing",
@@ -857,7 +865,7 @@ class AgentValidator:
                     "framework": framework,
                     "constraint": "construct_present",
                     "expected_terminal": False,
-                    "constraint_type": "diagnostic",
+                    "constraint_type": "diagnostic" if framework_aware else "hard",
                     "grounding": "self_report",
                 },
             ))

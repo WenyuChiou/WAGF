@@ -218,6 +218,9 @@ class ExperimentBuilder:
         return self
 
     def with_governance(self, profile: str, config_path: str):
+        from broker.utils.agent_config import AgentTypeConfig, assert_governance_profile_declared
+        config = AgentTypeConfig.load(config_path)
+        assert_governance_profile_declared(config._config, profile, None, config_path)
         self.profile = profile
         self.agent_types_path = config_path
         return self

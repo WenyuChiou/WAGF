@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Report out-of-scale appraisal labels as format errors on the legacy validator
+  path; warn about unknown configuration keys and blocked skill names; refuse
+  undeclared builder profiles and supplied memory fractions outside [0, 1].
+- Correct CRSS data availability, YAML sampling defaults, and total parse-failure
+  documentation. Scaffolded domains enable the full proposal, attempt and status audit.
+
 - **OpenAI and Anthropic providers work with current models.** For
   `--model openai:<name>` and `--model anthropic:<name>`, temperature and the
   token limit are sent only when the config sets them (current Claude models
@@ -32,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   audit records, traces, and counters are unchanged.
 
 ### Added
+
+- Gated `execution_success` audit values; `executed_decision` in example simulation
+  logs; manifest default-skill, launch-command, dirty-file and loaded-input hashes;
+  bounded model-digest retries with a recorded failure reason.
+- Regression coverage for generic review findings and selective CRSS-data test skips.
 
 - **Warning for blocking rules without a message, and a retry-feedback
   guide.** Loading an agent-type config now logs one WARNING per ERROR rule
