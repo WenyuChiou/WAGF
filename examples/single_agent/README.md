@@ -107,6 +107,8 @@ workspace. Related locations:
 
 ## Developer Notes
 
+For action counts, use the governance audit `executed_skill` for analysis; `yearly_decision` is the agent's proposal. `executed_decision` records the dispatched skill in `simulation_log.csv`.
+
 - This runner is still research-oriented and fairly large.
 - `analysis/` contains both reusable metrics code and paper-side helper scripts.
 - `results/` contains benchmark outputs and should be treated as experiment data,

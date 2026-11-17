@@ -790,6 +790,7 @@ class IrrigationLifecycleHooks:
 
         self.yearly_decisions[(agent.id, year)] = {
             "skill": skill_name,
+            "executed_skill": getattr(result, "executed_skill", None) if result else None,
             "appraisals": appraisals,
         }
 
@@ -938,6 +939,7 @@ class IrrigationLifecycleHooks:
                 cluster=profile.cluster if profile else "unknown",
                 basin=profile.basin if profile else "unknown",
                 yearly_decision=skill or "N/A",
+                executed_decision=(dec.get("executed_skill") or "N/A") if isinstance(dec, dict) else "N/A",
                 wsa_label=appr.get("wsa_label", "N/A"),
                 aca_label=appr.get("aca_label", "N/A"),
                 agent_state=agent_state,

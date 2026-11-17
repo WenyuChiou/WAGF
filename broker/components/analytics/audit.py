@@ -678,6 +678,8 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     # governance policy.
     if "execution_path" in t:
         row["execution_path"] = t.get("execution_path")
+    if "execution_success" in t:
+        row["execution_success"] = t.get("execution_success")
 
     # 2.7b. P0-1a: FIRST-ATTEMPT proposal columns, key-gated the same way. Only
     # traces produced with global_config.audit.initial_proposal_columns ON carry

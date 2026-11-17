@@ -38,6 +38,11 @@ class TestGenAgentTypesYaml:
         assert "global_config" in data
         assert "shared" in data
         assert "agent" in data
+        assert data["global_config"]["audit"] == {
+            "initial_proposal_columns": True,
+            "attempt_columns": True,
+            "corrected_status_columns": True,
+        }
 
     def test_includes_all_required_blocks(self):
         text = gen_agent_types_yaml(

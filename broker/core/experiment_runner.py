@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 import inspect
 import json
 import random
+import hashlib
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from broker.agents import BaseAgent
@@ -153,6 +155,8 @@ class ExperimentRunner:
         self.sim_engine = sim_engine
         self.agents = agents
         self.config = config
+        self._launch_command = " ".join(sys.argv)
+        self._prompt_template_sha256_at_launch = self._prompt_template_hashes()
         self._capture_model_metadata_at_launch()
         self.step_counter = 0
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
@@ -167,12 +171,17 @@ class ExperimentRunner:
             self._git_commit_at_launch = subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
             ).decode().strip()
-            self._git_dirty_at_launch = len(subprocess.check_output(
+            dirty_files = subprocess.check_output(
                 ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
-            ).decode().strip()) > 0
+            ).decode().splitlines()
+            self._git_dirty_at_launch = bool(dirty_files)
+            self._git_dirty_files_at_launch = dirty_files[:200]
+            self._git_dirty_files_truncated_at_launch = len(dirty_files) > 200
         except Exception:
             self._git_commit_at_launch = "unavailable"
             self._git_dirty_at_launch = None
+            self._git_dirty_files_at_launch = None
+            self._git_dirty_files_truncated_at_launch = False
 
         # Sync verbosity
         self.broker.log_prompt = self.config.verbose
@@ -231,7 +240,7 @@ class ExperimentRunner:
         else:
             self.efficiency = None
 
-    def _capture_model_metadata_at_launch(self) -> None:
+    def _capture_model_metadata_at_launch(self, _attempt: int = 0) -> None:
         """Capture a real model digest once, before the experiment starts.
 
         Mock and cloud-provider runs never contact Ollama.  A successful
@@ -258,6 +267,7 @@ class ExperimentRunner:
 
             endpoint = get_ollama_base_url().rstrip("/")
             info = get_ollama_show_metadata(model, base_url=endpoint, refresh=True)
+            info = info if isinstance(info, dict) else {}
             details = info.get("details") if isinstance(info.get("details"), dict) else {}
             model_metadata.update({
                 "model_family": details.get("family", "unknown"),
@@ -286,15 +296,51 @@ class ExperimentRunner:
             TypeError,
             requests.RequestException,
             http.client.HTTPException,
-        ):
+        ) as exc:
             model_metadata["model_digest"] = None
+            model_metadata["model_digest_error"] = str(exc) or type(exc).__name__
         if model_metadata["model_digest"] is None:
+            if _attempt < 3:
+                import time
+                time.sleep(0.1)
+                self._capture_model_metadata_at_launch(_attempt + 1)
+                return
+            model_metadata.setdefault("model_digest_error", "Model metadata and tags contained no matching digest")
             logger.warning(
                 "[Reproducibility] Local model digest is unavailable at launch "
                 "for %r; the manifest will record model_digest=null.",
                 model,
             )
         self._model_metadata_at_launch = model_metadata
+
+    def _prompt_template_hashes(self) -> dict:
+        """Hash loaded files at launch; hash text for inline/custom templates."""
+        broker = getattr(self, "broker", None)
+        templates = getattr(getattr(broker, "context_builder", None), "prompt_templates", {})
+        if not isinstance(templates, dict):
+            return {}
+        config = getattr(broker, "config", None)
+        config_data = getattr(config, "_config", {})
+        hashes = {}
+        for agent_type, template in templates.items():
+            if not isinstance(template, str):
+                continue
+            source = template.encode("utf-8")
+            block = config_data.get(agent_type, {}) if isinstance(config_data, dict) else {}
+            file_ref = block.get("prompt_template_file") if isinstance(block, dict) else None
+            resolve = getattr(config, "_resolve_template_path", None)
+            if file_ref and resolve is not None:
+                path = resolve(file_ref)
+                try:
+                    raw = path.read_bytes() if path is not None else None
+                    # A custom template can override a YAML file. Hash only the
+                    # file whose decoded text actually matches the loaded input.
+                    if raw is not None and raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n") == template:
+                        source = raw
+                except (OSError, UnicodeError) as exc:
+                    logger.warning("[Reproducibility] Could not hash prompt file %s: %s", path, exc)
+            hashes[str(agent_type)] = hashlib.sha256(source).hexdigest()
+        return hashes
 
     @property
     def hooks(self) -> Dict[str, Callable]:
@@ -1257,6 +1303,19 @@ class ExperimentRunner:
     def _collect_reproducibility_metadata(self) -> dict:
         """Collect model digest, git state, and config hashes for reproducibility."""
         metadata = {}
+        registry = getattr(getattr(self, "broker", None), "skill_registry", None)
+        default_skill = getattr(registry, "_default_skill", None)
+        metadata["default_skill"] = default_skill if isinstance(default_skill, str) else None
+        metadata["default_skill_checked_by_validators"] = False
+        metadata["git_dirty_files"] = getattr(self, "_git_dirty_files_at_launch", None)
+        metadata["git_dirty_files_truncated"] = getattr(self, "_git_dirty_files_truncated_at_launch", False)
+        metadata["launch_command"] = getattr(self, "_launch_command", " ".join(sys.argv))
+        metadata["prompt_template_sha256"] = (
+            self._prompt_template_sha256_at_launch if hasattr(self, "_prompt_template_sha256_at_launch")
+            else self._prompt_template_hashes()
+        )
+        registry_hash = getattr(registry, "source_sha256", None)
+        metadata["skill_registry_sha256"] = registry_hash if isinstance(registry_hash, str) else None
 
         # 1. Model identity captured at launch.  A runner made with __new__
         # in a focused unit test has no launch cache, so populate it lazily;
@@ -1579,7 +1638,6 @@ class ExperimentRunner:
             )
 
         # 5. Timestamp and Python version
-        import sys
         from datetime import datetime
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
