@@ -147,7 +147,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         for name, value in {
             "decay_rate": decay_rate, "consolidation_prob": consolidation_prob,
             "consolidation_threshold": consolidation_threshold,
-            "forgetting_threshold": forgetting_threshold, "arousal_threshold": arousal_threshold,
+            "forgetting_threshold": forgetting_threshold,
             "W_recency": W_recency, "W_importance": W_importance, "W_context": W_context,
         }.items():
             validate_fraction(name, value)

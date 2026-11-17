@@ -27,9 +27,11 @@ logger = logging.getLogger(__name__)
 
 # Fractions read by memory engines and reflection configuration. Defaults stay
 # with their consumers; only explicitly supplied configuration is validated.
+# arousal_threshold is not here: the universal engine compares it with an
+# unbounded surprise score (default 2.0; 99.0 keeps every year in System 1).
 FRACTION_PARAMETERS = frozenset({
     "decay_rate", "consolidation_prob", "consolidation_probability",
-    "consolidation_threshold", "forgetting_threshold", "arousal_threshold",
+    "consolidation_threshold", "forgetting_threshold",
     "W_recency", "W_importance", "W_context", "importance_boost", "base_importance",
 })
 
