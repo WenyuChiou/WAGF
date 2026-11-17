@@ -159,13 +159,28 @@ via `llm_params`).
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `model` | string | No | (CLI override) | Model identifier (typically overridden at the command line) |
-| `temperature` | float | No | 0.7 | Sampling temperature |
-| `top_p` | float | No | 0.9 | Nucleus sampling probability |
-| `top_k` | int | No | 40 | Top-k sampling parameter |
-| `num_ctx` | int | No | 4096 | Context window size in tokens |
-| `num_predict` | int | No | 1024 | Maximum tokens to generate |
+| `temperature` | float | No | unset (not sent) | Sampling temperature; provider/model default when omitted |
+| `top_p` | float | No | unset (not sent) | Nucleus sampling probability; provider/model default when omitted |
+| `top_k` | int | No | unset (not sent) | Top-k sampling parameter; provider/model default when omitted |
+| `num_ctx` | int | No | 16384 | Context window size in tokens |
+| `num_predict` | int | No | -1 | Maximum tokens to generate (-1 means unlimited for Ollama) |
 | `max_retries` | int | No | 2 | Maximum raw LLM invocation retries on malformed output |
 | `thinking_mode` | string | No | `"disabled"` | Ollama reasoning policy: `disabled`, `auto`, or `enabled` |
+
+These defaults come from `broker.utils.llm_utils.LLMConfig` and
+`LLMConfig.to_ollama_params`, merged by `resolve_ollama_params`. Per-agent
+`llm_params` and CLI overrides can change the effective request. One
+exception: when the working directory holds an `agent_types.yaml` whose
+`global_config.llm` block leaves `num_predict` unset, the default becomes 2048
+(`broker.utils.llm_utils._load_global_config`).
+
+**Unused in the irrigation runner:** `global_config.water_system.*` is not
+read by `examples.irrigation_abm.run_experiment`; it constructs
+`WaterSystemConfig` from code and supported CLI arguments. Editing that YAML
+block does not configure the water system. Reflection `triggers` and `method`
+have consumers in `ReflectionEngine.load_trigger_config`; the two paper runners
+schedule their batch reflection with `reflection.interval` instead. Flood
+`consolidation_threshold` is read when its memory engine is constructed.
 
 **Example:**
 
@@ -478,7 +493,7 @@ last-resort layers. Without it:
   schema's highest tier, meant for a clean JSON parse — whenever the raw text
   also happened to contain (unusable) JSON, because the confidence check
   tests `"json" in parse_layer` before `"digit"`.
-- A total parse failure that falls through to the domain default
+- A non-strict adapter fallback that returns the domain default
   (`parse_layer == "default"`) and then happens to pass governance is
   recorded as `decision_source == "llm_reasoned"` in the JSONL trace — the
   model never made a decision; the parser substituted one.
@@ -777,7 +792,7 @@ Controls how the broker extracts structured decisions from raw LLM output.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `decision_keywords` | list[string] | No | ["decision"] | JSON keys to search for the decision value |
-| `default_skill` | string | No | -- | Fallback skill when parsing fails after all retries |
+| `default_skill` | string | No | -- | Adapter fallback in non-strict parsing; a first answer that remains unparseable after format retries is ABORTED and executes nothing |
 | `global_skills` | list[string] | No | [] | Skills that are always available regardless of preconditions |
 | `full_disclosure` | bool | No | false | Bypass relevance retrieval: present ALL *eligible* skills un-truncated (NOT "all available" — preconditions still apply). Set `true` for agents whose actions are mutually-exclusive strategic choices; otherwise `SkillRetriever` truncates the menu to `top_n` by relevance and silently drops low-relevance options (the Phase 6T-F influencer menu-collapse bug) |
 | `strict_mode` | bool | No | false | Reject any output that does not match a known skill ID or alias |

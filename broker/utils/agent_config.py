@@ -120,6 +120,19 @@ NON_AGENT_TOP_LEVEL_KEYS: frozenset = frozenset({
     "skill_magnitude",
 })
 
+# AgentTypeConfig accessors, context/parser consumers, and the example domain
+# loaders read these agent-block keys. New consumers must extend this inventory.
+AGENT_BLOCK_KEYS = frozenset({
+    "agent_type", "description", "psychological_framework", "llm_params",
+    "prompt_template", "prompt_template_file", "inherit_shared", "actions",
+    "parsing", "constructs", "validation_rules", "coherence_rules", "thinking_rules",
+    "identity_rules", "governance", "log_fields", "memory", "feedback",
+    "parameters", "response_format", "multi_skill", "multi_param_action", "decider", "reflection",
+    "rules", "prompt_information", "beneficial_use_limit", "keepfix_package",
+})
+_warned_unknown_config_keys: set = set()
+_warned_unknown_blocked_skills: set = set()
+
 # Warn-once keys for scope coercion (W5). ``world_condition_target`` runs per
 # condition per rule per agent per step, so an unconditional warning would print
 # at agents x years x rules x retries frequency and become noise nobody reads.
@@ -414,6 +427,75 @@ class AgentTypeConfig:
         # is a configuration error, never an empty-config fallback.
         self._validate_rule_exceptions(self._config)
         self._warn_missing_rule_messages()
+        self._warn_unknown_keys()
+        self._validate_supplied_fractions()
+
+    def _warn_unknown_keys(self) -> None:
+        for name, block in self._config.items():
+            if name in NON_AGENT_TOP_LEVEL_KEYS:
+                continue
+            if not isinstance(block, dict) or (name != "default" and not AGENT_BLOCK_KEYS.intersection(block)):
+                unknown = [str(name)]
+            else:
+                unknown = [f"{name}.{key}" for key in block if key not in AGENT_BLOCK_KEYS]
+            for key in unknown:
+                identity = (self._yaml_path, key)
+                if identity not in _warned_unknown_config_keys:
+                    _warned_unknown_config_keys.add(identity)
+                    logger.warning("[Config] Unknown key %r in %s", key, self._yaml_path)
+
+    def _validate_supplied_fractions(self) -> None:
+        from broker.components.memory.factory import (
+            FRACTION_PARAMETERS, validate_fraction, validate_nonnegative,
+        )
+
+        def check(block, prefix):
+            if not isinstance(block, dict):
+                return
+            for key in FRACTION_PARAMETERS.intersection(block):
+                validate_fraction(f"{prefix}.{key}", block[key])
+
+        for scope, body in self._config.items():
+            if not isinstance(body, dict):
+                continue
+            check(body.get("memory"), f"{scope}.memory")
+            reflection = body.get("reflection", {})
+            check(reflection, f"{scope}.reflection")
+            if isinstance(reflection, dict):
+                check(reflection.get("triggers"), f"{scope}.reflection.triggers")
+            governance = body.get("governance", {})
+            if isinstance(governance, dict):
+                retrieval = governance.get("retrieval", {})
+                if isinstance(retrieval, dict) and "min_score" in retrieval:
+                    validate_nonnegative(f"{scope}.governance.retrieval.min_score", retrieval["min_score"])
+
+    def warn_unknown_blocked_skills(self, registry) -> None:
+        """Diagnose rule typos when the loaded config and registry meet."""
+        if not callable(getattr(registry, "exists", None)):
+            return
+        for agent_type, body in self._config.items():
+            if agent_type in NON_AGENT_TOP_LEVEL_KEYS or not isinstance(body, dict):
+                continue
+            profiles = declared_governance_profiles(self._config, agent_type) | {"default"}
+            for profile in profiles:
+                for kind in ("thinking_rules", "identity_rules"):
+                    rules = self._get_rule_definitions(agent_type, profile, kind)
+                    entries = rules.values() if isinstance(rules, dict) else rules
+                    if not isinstance(rules, (dict, list, tuple)):
+                        continue
+                    for rule in entries or []:
+                        if not isinstance(rule, dict):
+                            continue
+                        skills = rule.get("blocked_skills", []) or []
+                        if not isinstance(skills, (list, tuple)):
+                            continue
+                        for skill in skills:
+                            if not isinstance(skill, str):
+                                continue
+                            identity = (self._yaml_path, agent_type, str(skill))
+                            if not registry.exists(skill) and identity not in _warned_unknown_blocked_skills:
+                                _warned_unknown_blocked_skills.add(identity)
+                                logger.warning("[Config] Unknown blocked_skills entry %r for %s in %s", skill, agent_type, self._yaml_path)
 
     def _warn_missing_rule_messages(self) -> None:
         """Best-effort diagnostics only; malformed input must still load."""
@@ -1796,6 +1878,11 @@ class AgentTypeConfig:
         merged.update(pack_policy)   # DomainPack over framework default
         merged.update(shared_ret)    # legacy shared over pack
         merged.update(global_ret)    # global YAML over all
+
+        # Checked after the merge so a DomainPack value is covered too: a NaN
+        # cutoff would make every `score >= min_score` False and retrieve nothing.
+        from broker.components.memory.factory import validate_nonnegative
+        validate_nonnegative("retrieval.min_score", merged["min_score"])
 
         # Coerce + validate so a malformed config value fails here with a
         # clear message, not later as a TypeError deep inside SkillRetriever

@@ -30,6 +30,17 @@ from examples.irrigation_abm.tools import v3_corpus_launcher as launcher
 _REAL_SUBPROCESS_RUN = subprocess.run
 _REAL_SUBPROCESS_POPEN = subprocess.Popen
 _ALLOWED_REAL_COMMANDS = ("git",)
+# The production pin, read before any fixture patches it.
+_PINNED_PYTHON = launcher._REQUIRED_PYTHON
+
+
+@pytest.fixture(autouse=True)
+def _accept_this_interpreter(monkeypatch):
+    """CI runs this suite on Python 3.10-3.12, not the 3.14 corpus
+    interpreter, so the version guard accepts whatever runs the tests. Tests
+    that check the guard set their own version afterwards, and
+    test_production_pin_is_the_corpus_interpreter checks the real pin."""
+    monkeypatch.setattr(launcher, "_REQUIRED_PYTHON", tuple(sys.version_info[:2]))
 
 
 @pytest.fixture(autouse=True)
@@ -307,9 +318,11 @@ class TestCommandsUseSysExecutable:
 # =============================================================================
 
 class TestPythonVersionGuard:
-    def test_passes_on_the_real_interpreter_this_suite_runs_under(self):
-        # This suite itself only runs under the corpus interpreter (3.14),
-        # so this must never raise here.
+    def test_production_pin_is_the_corpus_interpreter(self):
+        assert _PINNED_PYTHON == (3, 14)
+
+    def test_passes_when_required_python_matches_actual(self):
+        # The autouse fixture sets the requirement to this interpreter.
         launcher.assert_correct_interpreter()
 
     def test_refuses_when_required_python_does_not_match_actual(self, monkeypatch):
@@ -771,7 +784,8 @@ class TestPopenDetached:
 
         assert proc.pid == 999
         flags = captured["creationflags"]
-        assert flags & launcher.subprocess.DETACHED_PROCESS
+        # DETACHED_PROCESS exists only on Windows; elsewhere the flags are 0.
+        assert flags == getattr(launcher.subprocess, "DETACHED_PROCESS", 0)
         new_group = getattr(launcher.subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         assert new_group == 0 or not (flags & new_group)
         assert captured["stdin"] == launcher.subprocess.DEVNULL
