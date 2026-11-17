@@ -115,7 +115,7 @@ def test_builder_refuses_undeclared_profile(tmp_path):
 
 
 PARAMETERS = ["decay_rate", "consolidation_prob", "consolidation_probability",
-              "consolidation_threshold", "forgetting_threshold", "arousal_threshold",
+              "consolidation_threshold", "forgetting_threshold",
               "W_recency", "W_importance", "W_context", "importance_boost", "base_importance"]
 
 
@@ -261,3 +261,17 @@ def test_irrigation_rejected_proposal_logs_executed_default(tmp_path, monkeypatc
         audit = next(csv.DictReader(f))
     assert audit["status"] == "REJECTED"
     assert row["executed_decision"] == audit["executed_skill"] == "maintain_demand"
+
+
+@pytest.mark.parametrize("threshold", [2.0, 99.0])
+@pytest.mark.parametrize("config", [
+    {"engine": "universal", "stimulus_key": "flood_depth_m"},
+    {"engine": "humancentric"},
+])
+def test_arousal_threshold_is_not_a_fraction(config, threshold):
+    # The universal engine compares it with an absolute surprise score
+    # (default 2.0; 99.0 documented for always-System-1 runs).
+    from broker.components.memory.factory import create_memory_engine
+    params = {k: v for k, v in config.items() if k != "engine"}
+    engine = create_memory_engine(config["engine"], {**params, "arousal_threshold": threshold})
+    assert engine is not None
