@@ -64,6 +64,17 @@ jobs:
             --continue-on-collection-errors \
             -k "not real_llm"
 
+      # The irrigation tests run in their own pytest session: they share a module
+      # basename (test_paper_measures.py) with examples/single_agent/tests, and two
+      # same-named test modules in one session fail at collection. ref/CRSS_DB is
+      # gitignored, so tests marked requires_crss_data skip here with a stated
+      # reason (examples/irrigation_abm/tests/conftest.py); other skips are the
+      # tests' own.
+      - name: Irrigation tests (no CRSS data)
+        run: |
+          python -m pytest examples/irrigation_abm/tests -ra --tb=short \
+            -k "not real_llm"
+
   scaffold-smoke:
     # Proves the documented onboarding front door -- scaffold_domain ->
     # validate_prompt -> run_experiment.py -- actually runs end to end, on
