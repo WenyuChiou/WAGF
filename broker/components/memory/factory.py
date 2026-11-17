@@ -17,6 +17,7 @@ External users can register custom engines:
     MemoryEngineRegistry.register("my_engine", MyEngineClass)
 """
 import logging
+import math
 from numbers import Real
 from typing import Optional, Dict, Any
 
@@ -40,6 +41,17 @@ def validate_fraction(name: str, value: Any) -> None:
     """Refuse nonnumeric values and fractions outside the closed unit interval."""
     if isinstance(value, bool) or not isinstance(value, Real) or not 0 <= value <= 1:
         raise ValueError(f"{name} must be a real number in [0, 1], got {value!r}")
+
+
+def validate_nonnegative(name: str, value: Any) -> None:
+    """Refuse nonnumeric, non-finite or negative values (unbounded score cutoffs).
+
+    SkillRetriever scores sum keyword weights plus a 2.0 exact-match bonus, so
+    retrieval.min_score is not a fraction.
+    """
+    if (isinstance(value, bool) or not isinstance(value, Real)
+            or not math.isfinite(value) or value < 0):
+        raise ValueError(f"{name} must be a finite real number >= 0, got {value!r}")
 
 
 def _pack_memory_defaults(pack: Any) -> Dict[str, Any]:
@@ -115,7 +127,7 @@ def create_memory_engine(
     for name in FRACTION_PARAMETERS & config.keys():
         validate_fraction(name, config[name])
     if isinstance(config.get("retrieval"), dict) and "min_score" in config["retrieval"]:
-        validate_fraction("retrieval.min_score", config["retrieval"]["min_score"])
+        validate_nonnegative("retrieval.min_score", config["retrieval"]["min_score"])
     engine = MemoryEngineRegistry.create(engine_type, config)
 
     if scorer is not None and hasattr(engine, "scorer"):

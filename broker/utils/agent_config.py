@@ -445,7 +445,9 @@ class AgentTypeConfig:
                     logger.warning("[Config] Unknown key %r in %s", key, self._yaml_path)
 
     def _validate_supplied_fractions(self) -> None:
-        from broker.components.memory.factory import FRACTION_PARAMETERS, validate_fraction
+        from broker.components.memory.factory import (
+            FRACTION_PARAMETERS, validate_fraction, validate_nonnegative,
+        )
 
         def check(block, prefix):
             if not isinstance(block, dict):
@@ -465,7 +467,7 @@ class AgentTypeConfig:
             if isinstance(governance, dict):
                 retrieval = governance.get("retrieval", {})
                 if isinstance(retrieval, dict) and "min_score" in retrieval:
-                    validate_fraction(f"{scope}.governance.retrieval.min_score", retrieval["min_score"])
+                    validate_nonnegative(f"{scope}.governance.retrieval.min_score", retrieval["min_score"])
 
     def warn_unknown_blocked_skills(self, registry) -> None:
         """Diagnose rule typos when the loaded config and registry meet."""
@@ -1877,10 +1879,10 @@ class AgentTypeConfig:
         merged.update(shared_ret)    # legacy shared over pack
         merged.update(global_ret)    # global YAML over all
 
-        from broker.components.memory.factory import validate_fraction
-        for supplied in (shared_ret, global_ret):
-            if "min_score" in supplied:
-                validate_fraction("retrieval.min_score", supplied["min_score"])
+        # Checked after the merge so a DomainPack value is covered too: a NaN
+        # cutoff would make every `score >= min_score` False and retrieve nothing.
+        from broker.components.memory.factory import validate_nonnegative
+        validate_nonnegative("retrieval.min_score", merged["min_score"])
 
         # Coerce + validate so a malformed config value fails here with a
         # clear message, not later as a TypeError deep inside SkillRetriever

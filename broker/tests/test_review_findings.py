@@ -127,12 +127,23 @@ def test_supplied_memory_fraction_rejected(key, value):
         create_memory_engine("window", {key: value})
 
 
-@pytest.mark.parametrize("value", [1.5, -0.1, "abc", True])
-def test_retrieval_fraction_rejected(tmp_path, value):
+@pytest.mark.parametrize("value", [-0.1, "abc", True, float("nan"), float("inf")])
+def test_retrieval_min_score_rejected(tmp_path, value):
     path = tmp_path / "agent_types.yaml"
     path.write_text(yaml.safe_dump({"global_config": {"governance": {"retrieval": {"min_score": value}}}}), encoding="utf-8")
     with pytest.raises(ValueError, match="min_score"):
         AgentTypeConfig.load(str(path), force_reload=True)
+
+
+def test_retrieval_min_score_above_one_allowed(tmp_path):
+    # SkillRetriever scores are unbounded (keyword weights + 2.0 exact-match
+    # bonus), so a cutoff of 2.0 is a valid setting.
+    from broker.components.memory.factory import create_memory_engine
+    path = tmp_path / "agent_types.yaml"
+    path.write_text(yaml.safe_dump({"global_config": {"governance": {"retrieval": {"min_score": 2.0}}}}), encoding="utf-8")
+    config = AgentTypeConfig.load(str(path), force_reload=True)
+    assert config.get_retrieval_config()["min_score"] == 2.0
+    create_memory_engine("window", {"retrieval": {"min_score": 2.0}})
 
 
 @pytest.mark.parametrize("value", [0, 1, 0.5])
