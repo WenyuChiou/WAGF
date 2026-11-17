@@ -755,6 +755,7 @@ class FinalParityHook:
 
         self.yearly_decisions[(agent.id, year)] = {
             "skill": skill_name,
+            "executed_skill": getattr(result, "executed_skill", None) if result else None,
             "proposed_skill": proposed_skill,
             "appraisals": appraisals,
             "governance_intervention": proposed_skill != skill_name if proposed_skill and skill_name else False,
@@ -867,6 +868,7 @@ class FinalParityHook:
             self.logs.append({
                 "agent_id": agent.id, "year": year, "cumulative_state": classify_adaptation_state(agent),
                 "yearly_decision": yearly_decision if yearly_decision else "N/A",
+                "executed_decision": (decision_data.get("executed_skill") or "N/A") if isinstance(decision_data, dict) else "N/A",
                 "proposed_skill": proposed_skill if proposed_skill else "N/A",
                 "governance_intervention": governance_intervention,
                 "failed_rules": "|".join(failed_rules) if failed_rules else "",
@@ -2061,6 +2063,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                         "decision": "Relocate",
                         "cumulative_state": "Relocate",
                         "yearly_decision": "relocated", # Consistent filler
+                        "executed_decision": "N/A",
                         "elevated": True,
                         "has_insurance": False,
                         "relocated": True

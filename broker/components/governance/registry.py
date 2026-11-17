@@ -8,6 +8,7 @@ This is NOT a prompt - it's a governance configuration.
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 import logging
+import hashlib
 import yaml
 from pathlib import Path
 
@@ -47,8 +48,9 @@ class SkillRegistry:
         sets the registry's default fallback skill accordingly.
         """
         try:
-            with open(yaml_path, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
+            source = Path(yaml_path).read_bytes()
+            data = yaml.safe_load(source.decode("utf-8"))
+            self.source_sha256 = hashlib.sha256(source).hexdigest()
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"Skill registry configuration not found: {yaml_path}\n"

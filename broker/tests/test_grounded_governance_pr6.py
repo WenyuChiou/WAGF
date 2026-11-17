@@ -19,9 +19,9 @@ truncated to two characters. Registration is generic — the frameworks registry
 maps AGGRESSIVE to "A" — but enforcement was not: "AGGRESSIVE" became "AG",
 matched nothing, and every `financial` rule silently never fired. A rule that
 never fires and a rule that never triggers are indistinguishable in the audit
-trail, which is why this survived. `test_financial_labels_truncate_and_never_
-fire_with_flag_off` pins the defect deliberately, so flag-OFF reproduction of
-the published corpora stays exact.
+trail, which is why this survived. The generic-module review now requires
+invalid labels to produce a format error on the legacy five-level path;
+framework-aware labels retain their existing normalization.
 
 **F3 — a soft layer with no channel.** WARNING findings do not block (by
 design) and did not reach the model or the audit row either, so the advisory
@@ -602,16 +602,14 @@ def _financial_config(flag: bool) -> AgentTypeConfig:
     )
 
 
-def test_financial_labels_truncate_and_never_fire_with_flag_off():
-    """PINS THE DEFECT. "AGGRESSIVE" is normalised to "AG", which is in no
-    registered alphabet, so the rule cannot fire. Deliberate: flag-OFF must
-    reproduce the published behaviour exactly, defects included."""
+def test_financial_labels_report_format_error_with_flag_off():
+    """Out-of-scale labels require repair on the legacy five-level path."""
     v = _validator(_financial_config(False))
     results = v.validate_thinking(
         "trader", "T1", "hold_position", {}, {"RISK_APPETITE": "AGGRESSIVE"},
         full_context={},
     )
-    assert [r for r in results if not r.valid] == []
+    assert any(not r.valid and r.metadata.get("rule") == "construct_missing" for r in results)
 
 
 def test_financial_labels_match_under_the_flag():
@@ -1303,9 +1301,8 @@ def test_an_unresolvable_framework_fails_loud_under_the_flag():
                             {"RISK_APPETITE": "AGGRESSIVE"}, full_context={})
 
 
-def test_an_unresolvable_framework_is_harmless_with_the_flag_off():
-    """The fail-loud is scoped to the opt-in flag: a frozen run must keep
-    reproducing whatever its config accessor does."""
+def test_unresolvable_framework_still_checks_legacy_label_format():
+    """The legacy label check does not need framework resolution."""
     cfg = _financial_config(False)
 
     def _boom(agent_type):
@@ -1313,8 +1310,9 @@ def test_an_unresolvable_framework_is_harmless_with_the_flag_off():
 
     cfg.get_framework_for_agent_type = _boom
     v = _validator(cfg)
-    assert v.validate_thinking("trader", "T1", "hold_position", {},
-                               {"RISK_APPETITE": "AGGRESSIVE"}, full_context={}) == []
+    results = v.validate_thinking("trader", "T1", "hold_position", {},
+                                 {"RISK_APPETITE": "AGGRESSIVE"}, full_context={})
+    assert any(not r.valid and r.metadata.get("rule") == "construct_missing" for r in results)
 
 
 # ---------------------------------------------------------------------------

@@ -227,6 +227,11 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
         # one without consulting docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md.
 
         global_config:
+          audit:
+            initial_proposal_columns: true
+            attempt_columns: true
+            corrected_status_columns: true
+
           memory:
             window_size: 5
             consolidation_threshold: 0.6
@@ -659,7 +664,7 @@ def gen_run_experiment(domain: str) -> str:
                 .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
                 .with_memory_engine(mem_engine)
                 .with_context_builder(ctx_builder)
-                .with_governance("strict", str(agent_types_path))
+                .with_governance("default", str(agent_types_path))
                 .with_exact_output(str(output_path))
                 .with_workers(1)
                 .with_seed(args.seed)

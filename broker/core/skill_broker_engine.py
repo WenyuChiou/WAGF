@@ -138,6 +138,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         self.simulation_engine = simulation_engine
         self.context_builder = context_builder
         self.config = config or load_agent_config()
+        from broker.utils.agent_config import AgentTypeConfig
+        if isinstance(self.config, AgentTypeConfig):
+            self.config.warn_unknown_blocked_skills(self.skill_registry)
         self.custom_validators = custom_validators or [] # Store custom validators
         # Opt-in (default None/OFF): when set, _run_validators also dispatches the
         # named domain's registry PHYSICAL checks. Keeps the registry physical path

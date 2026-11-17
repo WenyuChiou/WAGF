@@ -679,6 +679,7 @@ class AuditMixin:
                 "executed_skill": "",
                 "executed_via_fallback": False,
                 "execution_path": "aborted",
+                "execution_success": "",
                 # PR-8: same gated keys as every other row, so a
                 # mixed-population CSV has ONE column set. The PATH is
                 # forced to "aborted" (review P1-c): this row exists
@@ -837,6 +838,12 @@ class AuditMixin:
         # documented enum for exactly that reason.
         if corrected:
             executed_extra["execution_path"] = execution_path or "unknown"
+            executed_extra["execution_success"] = (
+                bool(execution_result.success)
+                if execution_result is not None and executed_skill is not None
+                and execution_path in {"approved", "rejected_proposal", "fallback", "rejected_default"}
+                else ""
+            )
 
         # 6W-B6: PROPOSED-parameter columns, OPT-IN via
         # global_config.audit.param_columns (default OFF). Same key-gated

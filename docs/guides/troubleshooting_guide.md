@@ -379,7 +379,11 @@ Or:
 [Broker:Retry] Empty/Null response received (Attempt 1/2)
 ```
 
-The audit CSV shows `status=REJECTED_FALLBACK` and `parse_layer=default`.
+If the first answer remains unparseable after format retries, the result is
+`ABORTED` and no skill executes. With `audit.corrected_status_columns: true`,
+the audit includes a sentinel row with `execution_path=aborted`; otherwise
+this early return produces no audit row. A non-strict adapter can instead
+return a usable default proposal with `parse_layer=default`.
 
 **Root Causes**
 
@@ -418,8 +422,9 @@ The audit CSV shows `status=REJECTED_FALLBACK` and `parse_layer=default`.
 **Diagnosis**
 
 1. Check `raw_output` in the JSONL trace or audit CSV.
-2. Look at the `parse_layer` column: empty means total parse failure; `"default"`
-   means all layers failed and the fallback skill was used.
+2. Look at the `parse_layer` column: an aborted sentinel has no parsed decision;
+   `"default"` identifies a non-strict adapter's default proposal. It does not
+   mean a default executed after an ABORTED first answer.
 3. Check `format_retries` column: if > 0, the broker attempted structural retries
    before giving up.
 4. Review `parsing_warnings` for specific adapter diagnostics:

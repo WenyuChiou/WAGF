@@ -17,12 +17,27 @@ External users can register custom engines:
     MemoryEngineRegistry.register("my_engine", MyEngineClass)
 """
 import logging
+from numbers import Real
 from typing import Optional, Dict, Any
 
 from .engine import MemoryEngine
 from .registry import MemoryEngineRegistry
 
 logger = logging.getLogger(__name__)
+
+# Fractions read by memory engines and reflection configuration. Defaults stay
+# with their consumers; only explicitly supplied configuration is validated.
+FRACTION_PARAMETERS = frozenset({
+    "decay_rate", "consolidation_prob", "consolidation_probability",
+    "consolidation_threshold", "forgetting_threshold", "arousal_threshold",
+    "W_recency", "W_importance", "W_context", "importance_boost", "base_importance",
+})
+
+
+def validate_fraction(name: str, value: Any) -> None:
+    """Refuse nonnumeric values and fractions outside the closed unit interval."""
+    if isinstance(value, bool) or not isinstance(value, Real) or not 0 <= value <= 1:
+        raise ValueError(f"{name} must be a real number in [0, 1], got {value!r}")
 
 
 def _pack_memory_defaults(pack: Any) -> Dict[str, Any]:
@@ -95,6 +110,10 @@ def create_memory_engine(
     """
     pack_defaults = _pack_memory_defaults(pack) if pack is not None else {}
     config = {**pack_defaults, **(config or {}), **kwargs}
+    for name in FRACTION_PARAMETERS & config.keys():
+        validate_fraction(name, config[name])
+    if isinstance(config.get("retrieval"), dict) and "min_score" in config["retrieval"]:
+        validate_fraction("retrieval.min_score", config["retrieval"]["min_score"])
     engine = MemoryEngineRegistry.create(engine_type, config)
 
     if scorer is not None and hasattr(engine, "scorer"):

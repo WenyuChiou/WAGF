@@ -38,6 +38,8 @@ _CRASH_AFTER_CALLS = 20
 _VOLATILE_KEYS = {
     "timestamp", "git_commit", "git_dirty",
     "git_commit_at_finalize", "git_dirty_at_finalize", "finalized_at",
+    # Launch provenance legitimately differs across output folders/processes.
+    "launch_command", "git_dirty_files", "git_dirty_files_truncated",
 }
 
 
