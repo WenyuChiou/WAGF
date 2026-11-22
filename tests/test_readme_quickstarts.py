@@ -103,3 +103,33 @@ def test_ch4_command_fails_on_missing_crss_with_the_path_the_docs_name(tmp_path)
     assert result.returncode != 0
     assert "CRSS_DB" in result.stdout + result.stderr
     assert "ref/CRSS_DB/CRSS_DB" in (ROOT / "DATA.md").read_text(encoding="utf-8")
+
+
+# --- The first-run demo: README's first command, and the places that repeat it ----------------
+RESERVOIR = "examples/reservoir_control/run_reservoir_ops.py"
+
+
+def test_readme_first_run_shows_block_reason_repair_and_effect(tmp_path):
+    command = shlex.split(_quickstart_command(ROOT / "README.md", RESERVOIR))
+    assert command[command.index("--model") + 1] == "mock"
+    command[0] = sys.executable
+    command[command.index("--output") + 1] = str(tmp_path / "run")
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True,
+                            encoding="utf-8", timeout=300)
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary = result.stdout.split("Block and repair in this run:")[1]
+    assert "BLOCKED:" in summary and "below dead pool" in summary
+    assert "APPROVED:" in summary
+    assert "toy reservoir release target:" in summary
+
+
+def test_first_run_command_is_the_same_everywhere():
+    readme = _quickstart_command(ROOT / "README.md", RESERVOIR)
+    for path in ["examples/reservoir_control/README.md"]:
+        assert _quickstart_command(ROOT / path, RESERVOIR) == readme, path
+    for path in [".claude/skills/wagf-quickstart/SKILL.md",
+                 ".claude/skills/wagf-quickstart/references/smoke_test_recipe.md"]:
+        assert readme in (ROOT / path).read_text(encoding="utf-8"), path
+    zh = (ROOT / "README_zh.md").read_text(encoding="utf-8")
+    assert readme in zh

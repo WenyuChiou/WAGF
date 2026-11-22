@@ -28,7 +28,7 @@ time_horizon_years: 10     # flood=10, irrigation=42
 # committing the matrix.
 models:
   - tag: gemma3:4b
-    governance: [strict, disabled]   # at least 2 conditions for paired-t
+    governance: [strict, disabled]   # at least 2 conditions to compare
     seeds: [42, 43, 44, 45, 46]      # 5 seeds = paper convention
 
   - tag: gemma4:e4b
@@ -64,21 +64,20 @@ metrics:
     output_artefact: .ai/temporal_diagnostic.csv
 
 # ───────────────────────────────────────────────────────────────────
-# Statistical comparisons (mandatory)
+# Across-seed summaries (mandatory). The paper reports the median and the
+# range (min-max) across seeds and runs no significance test.
 # ───────────────────────────────────────────────────────────────────
-statistical_comparisons:
+seed_summaries:
   - name: governed_vs_disabled_per_model
-    test: paired_t
+    summary: median_range_across_seeds
     metric: ibr
-    df_per_model: 4
-    ci: 0.95
-    expected_direction: positive   # ΔIBR = disabled - governed > 0
+    difference: difference_of_medians   # ΔIBR = disabled - governed
+    expected_direction: positive
 
-  - name: model_size_effect
-    test: linear_regression
-    predictor: log_param_count
-    response: delta_ibr
-    expected_direction: negative   # bigger model → smaller delta
+  - name: model_size_trend
+    summary: median_range_across_seeds
+    metric: ibr
+    group_by: model_size   # read the pattern off the per-model medians
 
 # ───────────────────────────────────────────────────────────────────
 # Output paths (mandatory)
@@ -130,11 +129,11 @@ reproducibility:
 2. `models[].tag` must validate against `ollama list` at run time.
 3. `models[].governance` must be a non-empty subset of the modes
    declared in the domain's `agent_types.yaml`.
-4. `models[].seeds` must have ≥ 3 entries for paired-t to be
-   well-defined; warn if < 5.
+4. `models[].seeds` must have ≥ 3 entries for a median and range to mean
+   anything; warn if < 5.
 5. `metrics[]` must have ≥ 1 entry; each entry must reference a
    canonical script that exists on disk.
-6. `statistical_comparisons[]` must reference only metrics declared
+6. `seed_summaries[]` must reference only metrics declared
    above.
 7. `output_root` should not point at an existing populated directory
    without explicit user opt-in (avoid silent overwrite).

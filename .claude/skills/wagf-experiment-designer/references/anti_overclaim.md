@@ -62,8 +62,8 @@ After the matrix is written, prompt the user:
 `metrics_plan.md` MUST include a Caveats section listing:
 
 - Effect-size threshold (what magnitude counts as "real").
-- Multiple-comparisons risk (number of paired-t tests; Bonferroni or
-  not).
+- Comparison count: how many governed-vs-disabled contrasts are shown, and
+  that none carries a significance test.
 - Data-pooling boundary (no mixing of code commits without flagging).
 - Reproducibility prerequisite (run via the standard bat with
   manifest writes ON; otherwise `abm-reproducibility-checker` will

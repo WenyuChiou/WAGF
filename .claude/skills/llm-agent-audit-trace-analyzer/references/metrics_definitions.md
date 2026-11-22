@@ -3,14 +3,12 @@
 Every metric used by this skill cites the exact production implementation.
 Never reimplement; always import or shell out.
 
-> **Some paths below are not in this checkout.** `main` is the framework platform
-> line, so the two places that actually compute these numbers live elsewhere:
-> `paper/nature_water/` is gitignored and exists only in a working copy, and
-> `SUBMISSION_2026/decomposition/` lives on the branch
-> `p0-1-governance-instrumentation`. They are cited by name because that is where
-> the code and the reference values are, and a citation you can chase to another
-> branch is worth more than a gap. Everything under `broker/`, `examples/` and
-> `tests/` resolves here.
+> **Where the code is.** The scripts that compute these numbers are tracked under
+> `reproduction/` (`reproduction/decomposition/` and `reproduction/nature_water/`),
+> and the analysis modules are under `examples/`. The run outputs they read
+> (`examples/*/results/`) are gitignored and are not in a clone; see
+> `reproduction/README.md`. Paper drafts under `paper/` are also gitignored and are
+> only named in prose here, never as a path to run.
 
 **All reference values below were re-derived from disk on 2026-08-20** on the
 v21 irrigation corpus (gemma3:4b, seeds 42-46) and the single-agent flood
@@ -72,9 +70,9 @@ IBR          100 * numerator / denominator
 aggregate    one rate per seed, then the unweighted mean over 5 seeds
 ```
 
-Canonical: `SUBMISSION_2026/decomposition/_loader.py::ibr()` (12 lines).
+Canonical: `reproduction/decomposition/_loader.py::ibr()` (12 lines).
 Reproduce the whole table with
-`python SUBMISSION_2026/decomposition/reproduce_published.py`.
+`python reproduction/decomposition/reproduce_published.py`.
 
 | denominator | action | governed | no-validator | delta |
 |---|---|---|---|---|
@@ -163,7 +161,7 @@ governed arm's would-be violations.
   fixed by design, `e1_total_effect.py`: **-21.62 pp**, CI [-26.80, -16.45],
   paired t = -11.608, df = 4, p = 0.000315 — 93.9% of the published magnitude.
 - The full six-estimator robustness suite, each with an independent verifier that
-  shares no code with it, is `SUBMISSION_2026/decomposition/`; its verdict memo
+  shares no code with it, is `reproduction/decomposition/`; its verdict memo
   is `RESULTS.md` (SURVIVES-WITH-REFRAMING) and the fix list is
   `PAPER_PUNCHLIST.md`.
 
@@ -176,8 +174,8 @@ EHE = H(action distribution) / log2(k)
       H = -sum p_i log2 p_i over the observed actions
       k = size of the agent's action interface, NOT the number of observed actions
 ```
-- Irrigation **k = 5** (increase_large, increase_small, maintain_demand,
-  decrease_small, decrease_large)
+- Irrigation **k = 3** (increase_demand, maintain_demand, decrease_demand: the
+  skills in `examples/irrigation_abm/config/skill_registry.yaml`)
 - Flood **k = 4** (do_nothing, buy_insurance, elevate_house, relocate)
 
 **Unconditional** — every row, no appraisal filter. This is the one place the two
@@ -196,8 +194,8 @@ yearly-averaged then meaned (yearly-averaging gives ~0.63 and is wrong).
 
 | domain | aggregation | governed | no-validator |
 |---|---|---|---|
-| irrigation (k=5) | **per-seed then mean** | **0.6724** | **0.8569** <- what Supp Fig 1 plots |
-| irrigation (k=5) | all-seed pooled | 0.6765 | 0.8595 |
+| irrigation (k=5, earlier five-skill action set) | **per-seed then mean** | **0.6724** | **0.8569** <- what Supp Fig 1 plots |
+| irrigation (k=5, earlier five-skill action set) | all-seed pooled | 0.6765 | 0.8595 |
 | flood (k=4) | **per-run then mean** | **0.8614** | **0.7861** |
 
 The flood pair reproduces `gen_fig3_case2_flood.py`'s printed 0.861 / 0.786
@@ -222,17 +220,16 @@ The paper quotes magnitudes, so signs flip between code and prose.
 
 | Output | Script |
 |---|---|
-| Fig 2 (irrigation) | `paper/nature_water/scripts/gen_fig2_case1_irrigation.py` |
-| Fig 3 (flood) | `paper/nature_water/scripts/gen_fig3_case2_flood.py` |
-| Supp Fig 1 (EHE x AAI scatter) | `paper/nature_water/scripts/gen_fig3_crossmodel.py` |
-| Supp Fig 2 (trajectories) | `paper/nature_water/scripts/gen_sfig_crossmodel_trajectories.py` |
-| Supp Tables 1 & 6 | `paper/nature_water/scripts/analysis_2026-05-31/gen_tableS1_S6_crossmodel_unified.py` |
-| Headline reproduction from raw | `SUBMISSION_2026/decomposition/reproduce_published.py` |
-| Canonical loader + `ibr()` | `SUBMISSION_2026/decomposition/_loader.py` |
+| Fig 2 (irrigation) | `reproduction/nature_water/gen_fig2_case1_irrigation.py` |
+| Fig 3 (flood) | `reproduction/nature_water/gen_fig3_case2_flood.py` |
+| Supp Fig 1 (EHE x AAI scatter) | `reproduction/nature_water/gen_fig3_crossmodel.py` |
+| Supp Fig 2 (trajectories) | `reproduction/nature_water/gen_sfig_crossmodel_trajectories.py` |
+| Supp Tables 1 & 6 | `reproduction/nature_water/gen_tableS1_S6_crossmodel_unified.py` |
+| Headline reproduction from raw | `reproduction/decomposition/reproduce_published.py` |
+| Canonical loader + `ibr()` | `reproduction/decomposition/_loader.py` |
 
-`paper/` is gitignored, so those five figure scripts are not recoverable from
-git. `SUBMISSION_2026/decomposition/` is tracked and is the durable copy of the
-computation.
+All of these scripts are tracked under `reproduction/`. They read run outputs that
+are not in a clone, so they cannot be run without the corpus.
 
 ## Other metrics
 
@@ -254,11 +251,11 @@ computation.
   behavioural inertia, M3 evidence-grounded irreversibility. Canonical:
   `examples/single_agent/analysis/compute_temporal_diagnostics.py`
   (`--gemma4-pipeline {v1,v2}`).
-- **Paired t-test**: `scipy.stats.ttest_rel` on matched seeds, CI via
-  `scipy.stats.t.interval(0.95, df=n-1, ...)`. Reference implementation:
-  `SUBMISSION_2026/decomposition/e1_total_effect.py` (the old pointer here,
-  `gen_sfig_forest.py:paired_stats`, is inside a do-not-run script).
-  With n = 5 the exact sign-flip
+- **Across-seed summary**: the paper reports the median and the range (min-max)
+  across seeds and runs no significance test. Report that; give a paired test
+  or a confidence interval only if the user asks. If one is asked for, the
+  reference implementation is `reproduction/decomposition/e1_total_effect.py`
+  (a paired t on matched seeds). With n = 5 the exact sign-flip
   permutation floor is 0.0625, so any p below that is parametric-only and must
   be labelled as such. **Check the seeds are actually matched first**: the six
   gemma3/ministral3 flood models pair governed seeds 42/4202/4203/45/46 against
@@ -276,7 +273,7 @@ computation.
   the published 1.60 / 14.22 and not the design-fixed 0.76 / 7.10.
   `CLAUDE.md` still names it canonical; that pointer is stale. The function is
   fine for R1/R3/R4/R5 component counts.
-- `paper/nature_water/scripts/gen_sfig_forest.py` — writes the adopted
+- `gen_sfig_forest.py` (not in the repo) — wrote the adopted
   Supplementary Figure 1 filename with a different plot and the old
   unconditional denominator. Its printed Gemma-3 4B ΔIBR of +6.54 is the
   unconditional row above, not the published one.

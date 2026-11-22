@@ -1,6 +1,9 @@
 # Start with the water cases
 
-The supported introduction is the [two-case quickstart](../../README.md#quickstart):
+The supported introduction is the [quickstart](../../README.md#quickstart). Its first
+step is the [reservoir demo](../reservoir_control/README.md), which shows a blocked
+request, its reason, the repaired answer and the change in the toy reservoir. Then
+come the two water cases:
 [household flood adaptation](../single_agent/README.md) for one-way coupling,
 and [Colorado River irrigation](../irrigation_abm/README.md) for two-way coupling
 with Lake Mead. Follow the [tutorial](../../docs/tutorial/README.md) to inspect

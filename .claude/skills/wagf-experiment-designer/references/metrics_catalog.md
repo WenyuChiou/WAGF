@@ -18,8 +18,8 @@ listed here.
   that propose any `increase_*` skill. "Propose" is exact: the column records the
   last proposal after retries, not what executed.
 - **Canonical scripts**:
-  - published pair, either domain: `SUBMISSION_2026/decomposition/_loader.py::ibr()`;
-    reproduce with `SUBMISSION_2026/decomposition/reproduce_published.py`
+  - published pair, either domain: `reproduction/decomposition/_loader.py::ibr()`;
+    reproduce with `reproduction/decomposition/reproduce_published.py`
   - flood R1/R3/R4/R5 component counts:
     `examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py`
     (`compute_ibr_components`) — its own rate divides by every row of the
@@ -119,13 +119,17 @@ listed here.
 - **Read from**: `simulation_log.csv:shortage_tier`.
 - **Use for**: paper EDT1.
 
-## paired_t_delta_ibr / paired_t_delta_ehe
+## median_range_across_seeds (IBR, EHE)
 
-- **Definition**: paired t-test on (governed_metric, disabled_metric)
-  vectors matched by seed.
-- **Canonical helper**: `paper/nature_water/scripts/gen_sfig_forest.py:paired_stats`.
-- **Output**: (mean_diff, ci_lo, ci_hi, p, n).
-- **Use for**: paper SI Table 6, SFig 1.
+- **Definition**: for each (model, condition), the median and the range
+  (min-max) of the per-seed value. The paper reports these and runs no
+  significance test; the governed-minus-disabled difference is a difference of
+  medians.
+- **Canonical helper**: `process_llm_csv` in
+  `examples/single_agent/analysis/compute_flood_metrics.py` (flood); the
+  summary it prints is median and range across seeds.
+- **Output**: (median, min, max, n_seeds).
+- **Use for**: paper SI Tables 1 and 6, SFig 1.
 
 ## NOT in catalogue (refuse)
 

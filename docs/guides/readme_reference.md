@@ -53,7 +53,7 @@ If it fails: see [Ollama troubleshooting](../../docs/guides/troubleshooting_guid
 
 ## Start a water application
 
-Generate a folder for your own decision model:
+Run the [first-run demo](../../README.md#quickstart) first: it shows a rule blocking a request, the retry and the executed change on a toy reservoir. Then generate a folder for your own decision model:
 
 ```bash
 python -m broker.tools.scaffold_domain my_water_model --framework generic --skills "action_a,action_b"

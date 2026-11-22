@@ -45,10 +45,10 @@ Run `ollama ps` only if Gate 4 real-LLM smoke is planned.
 ## Gate 1 - Config-Time Validation
 
 Run the static prompt/YAML validator on the domain's actual agent config.
-The shipped v0.6 examples are:
+The shipped smoke case is the reservoir demo, a water case (the same one the
+front-page README runs first):
 
 ```bash
-python -m broker.tools.validate_prompt examples/cat_model/config/ma_cat_agent_types.yaml
 python -m broker.tools.validate_prompt examples/reservoir_control/config/reservoir_agent_types.yaml
 ```
 
@@ -80,16 +80,17 @@ optional flags.
 
 ## Gate 2 - Mock Smoke, the Determinism Gate
 
-Run the domain through its runner with `--model mock`. The shipped v0.6
-mock smokes are:
+Run the domain through its runner with `--model mock`. The shipped mock
+smoke is the reservoir demo; it prints one blocked attempt with its reason,
+the approved retry, and the change in the toy reservoir:
 
 ```bash
-python examples/cat_model/run_cat_ma.py --model mock --years 2 --output examples/cat_model/results_ma
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --output examples/reservoir_control/results_ops
-# --strict belongs on YOUR domain's run dir; the shipped example dirs may
-# predate run_integrity.json and would fail spuriously under --strict.
-python -m broker.tools.check_run_integrity <your_run_dir> --strict
+python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/ladder-reservoir
+python -m broker.tools.check_run_integrity .tmp/ladder-reservoir --strict
 ```
+
+For your own domain, run `check_run_integrity <your_run_dir> --strict` on its
+run directory.
 
 For a new domain, use its actual runner and only the flags shown by that
 runner's `--help`.
@@ -164,8 +165,7 @@ reference model from the 2026-06-10 incidents is `gemma4:e4b`.
 
 ```bash
 ollama ps
-python examples/cat_model/run_cat_ma.py --model gemma4:e4b --years 1 --output examples/cat_model/results_ma_e4b
-python examples/reservoir_control/run_reservoir_ops.py --model gemma4:e4b --years 4 --output examples/reservoir_control/results_ops_e4b
+python examples/reservoir_control/run_reservoir_ops.py --model gemma4:e4b --years 4 --output .tmp/ladder-reservoir-e4b
 ```
 
 For a new domain, use 1-4 periods and the smallest agent count that
@@ -217,7 +217,7 @@ python -m broker.tools.compare_audit_csv <baseline-audit.csv> <candidate-audit.c
 Use `compare_audit_csv` for baseline comparisons. Do not use raw
 `sha256` as the only check; audit CSVs contain wall-clock and
 set-order noise such as `mem_top_source`-adjacent drift. If freezing a
-baseline, record it under `.baselines/BASELINE_HASHES.md`.
+baseline, record its commit and the comparison command in your own notes.
 
 **PASS criteria**
 

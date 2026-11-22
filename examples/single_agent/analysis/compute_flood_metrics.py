@@ -40,6 +40,15 @@ def normalize_action(a):
     return ACTION_MAP.get(a, a)
 
 
+def median_range(values, digits):
+    """'median [min-max]' across seeds; 'N/A' when no seed has a value."""
+    values = pd.Series(values).dropna()
+    if values.empty:
+        return "N/A"
+    return (f"{values.median():.{digits}f} "
+            f"[{values.min():.{digits}f}-{values.max():.{digits}f}]")
+
+
 def compute_ehe(actions):
     """Aggregate EHE = H/log2(k), k=4. All actions pooled across years."""
     counts = actions.value_counts()
@@ -224,54 +233,39 @@ def main():
 
     # ========== SUMMARY TABLE ==========
     print("\n" + "=" * 130)
-    print("SUMMARY TABLE (mean +/- sd across seeds)")
+    print("SUMMARY TABLE (median and range, min-max, across seeds)")
     print("=" * 130)
     hdr2 = (f"{'Model':<20} {'Condition':<15} {'Seeds':>5} "
-            f"{'EHE (mean+/-sd)':<22} {'IBR% (mean+/-sd)':<22} {'Reloc% (mean+/-sd)':<22}")
+            f"{'EHE median [min-max]':<30} {'IBR% median [min-max]':<28} "
+            f"{'Reloc% median [min-max]':<28}")
     print(hdr2)
-    print("-" * 110)
+    print("-" * 130)
 
     for (model, cond), grp in df_results.groupby(["model", "condition"], sort=True):
-        n_seeds = len(grp)
-        ehe_m = grp["ehe"].mean()
-        ehe_s = grp["ehe"].std(ddof=1) if len(grp) > 1 else 0
-        ibr_m = grp["ibr"].mean()
-        ibr_s = grp["ibr"].std(ddof=1) if len(grp) > 1 else 0
-        reloc_m = grp["reloc"].mean()
-        reloc_s = grp["reloc"].std(ddof=1) if len(grp) > 1 else 0
+        ehe_str = median_range(grp["ehe"], 4)
+        ibr_str = median_range(grp["ibr"], 2)
+        reloc_str = median_range(grp["reloc"], 2)
 
-        ehe_str = f"{ehe_m:.4f} +/- {ehe_s:.4f}"
-        ibr_str = f"{ibr_m:.2f} +/- {ibr_s:.2f}" if not np.isnan(ibr_m) else "N/A"
-        reloc_str = f"{reloc_m:.2f} +/- {reloc_s:.2f}"
-
-        print(f"{model:<20} {cond:<15} {n_seeds:>5} "
-              f"{ehe_str:<22} {ibr_str:<22} {reloc_str:<22}")
+        print(f"{model:<20} {cond:<15} {len(grp):>5} "
+              f"{ehe_str:<30} {ibr_str:<28} {reloc_str:<28}")
 
     # ========== MARKDOWN TABLE ==========
     print("\n" + "=" * 130)
     print("MARKDOWN TABLE")
     print("=" * 130)
-    print("| Model | Condition | Seeds | EHE (mean +/- sd) | IBR% (mean +/- sd) | Reloc% (mean +/- sd) |")
-    print("|-------|-----------|-------|-------------------|-------------------|---------------------|")
+    print("| Model | Condition | Seeds | EHE median [min-max] | IBR% median [min-max] | Reloc% median [min-max] |")
+    print("|-------|-----------|-------|----------------------|-----------------------|-------------------------|")
 
     for (model, cond), grp in df_results.groupby(["model", "condition"], sort=True):
-        n_seeds = len(grp)
-        ehe_m = grp["ehe"].mean()
-        ehe_s = grp["ehe"].std(ddof=1) if len(grp) > 1 else 0
-        ibr_m = grp["ibr"].mean()
-        ibr_s = grp["ibr"].std(ddof=1) if len(grp) > 1 else 0
-        reloc_m = grp["reloc"].mean()
-        reloc_s = grp["reloc"].std(ddof=1) if len(grp) > 1 else 0
+        ehe_str = median_range(grp["ehe"], 4)
+        ibr_str = median_range(grp["ibr"], 2)
+        reloc_str = median_range(grp["reloc"], 2)
 
-        ehe_str = f"{ehe_m:.4f} +/- {ehe_s:.4f}"
-        ibr_str = f"{ibr_m:.2f} +/- {ibr_s:.2f}" if not np.isnan(ibr_m) else "N/A"
-        reloc_str = f"{reloc_m:.2f} +/- {reloc_s:.2f}"
-
-        print(f"| {model} | {cond} | {n_seeds} | {ehe_str} | {ibr_str} | {reloc_str} |")
+        print(f"| {model} | {cond} | {len(grp)} | {ehe_str} | {ibr_str} | {reloc_str} |")
 
     # ========== GOVERNED vs DISABLED COMPARISON ==========
     print("\n" + "=" * 130)
-    print("GOVERNED vs DISABLED COMPARISON (delta = disabled - governed)")
+    print("GOVERNED vs DISABLED COMPARISON (delta of medians = disabled - governed)")
     print("=" * 130)
     print(f"{'Model':<20} {'dEHE':>10} {'dIBR%':>10} {'dReloc%':>10}")
     print("-" * 55)
@@ -280,9 +274,9 @@ def main():
         gov = df_results[(df_results["model"] == model) & (df_results["condition"] == "governed")]
         dis = df_results[(df_results["model"] == model) & (df_results["condition"] == "disabled")]
         if len(gov) > 0 and len(dis) > 0:
-            d_ehe = dis["ehe"].mean() - gov["ehe"].mean()
-            d_ibr = dis["ibr"].mean() - gov["ibr"].mean()
-            d_reloc = dis["reloc"].mean() - gov["reloc"].mean()
+            d_ehe = dis["ehe"].median() - gov["ehe"].median()
+            d_ibr = dis["ibr"].median() - gov["ibr"].median()
+            d_reloc = dis["reloc"].median() - gov["reloc"].median()
             print(f"{model:<20} {d_ehe:>+10.4f} {d_ibr:>+10.2f} {d_reloc:>+10.2f}")
 
     # ========== IBR DECOMPOSITION ==========

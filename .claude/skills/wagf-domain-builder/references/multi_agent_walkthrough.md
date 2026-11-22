@@ -73,9 +73,10 @@ class MyDomainHooks:
             # update per-individual state
 ```
 
-Read `examples/multi_agent/flood/lifecycle_hooks.py` for the canonical
-shape. It's ~190 LOC and contains every pattern any multi-agent domain
-needs.
+Read `examples/multi_agent/flood/orchestration/lifecycle_hooks.py` (class
+`MultiAgentHooks`) for the canonical shape. The file is long because it
+carries the whole flood domain; read its `pre_year` and `post_step` methods,
+which hold the patterns any multi-agent domain needs.
 
 ### 2. `run_experiment.py` ExperimentBuilder wiring
 
@@ -152,9 +153,9 @@ catch-all `DEFAULT_SOCIAL_SPEC`:
 # happens to work without these calls because get_social_spec() falls
 # back to DEFAULT_SOCIAL_SPEC (spatial radius=2), but Tier 2 silently
 # produces wrong graph topology if missing. The canonical
-# `examples/multi_agent/flood/__init__.py` calls register_social_spec
-# at import time regardless of tier — copy that pattern, don't skip it
-# for Tier 1.
+# `broker/domains/water/social_specs.py` (`register_water_social_specs`)
+# registers the flood types the same way — copy that pattern, and don't
+# skip it for Tier 1.
 from broker.components.social.config import (
     register_social_spec, SocialGraphSpec,
 )
@@ -307,21 +308,24 @@ taxonomy first; the dual-dict alias fixes E1 only, not E3–E5.
 
 Run from `examples/<your_domain>_demo/` unless noted.
 
-1. Copy `examples/multi_agent/flood/run_experiment.py` as your
-   template. Don't write from scratch.
-2. Edit `synth_agents()` for your N agent types (grid_x/grid_y only for
+1. Use `examples/multi_agent/flood/run_unified_experiment.py` as the
+   reference for the ExperimentBuilder wiring (it is long; read the part
+   that calls `.with_phase_order(`) and write your own small runner from
+   it. Don't write from scratch.
+2. Build your N agent types in your runner (grid_x/grid_y only for
    Tier 2 spatial; not needed Tier 1).
 3. **Create `lifecycle_hooks.py`** — `broker.tools.scaffold_domain`
    does NOT emit this file for non-coupling domains; you must add it
-   yourself. Easiest path: copy
-   `examples/multi_agent/flood/lifecycle_hooks.py` into your domain
-   dir, rename the class (e.g. `FloodMAHooks` →
-   `MyDomainHooks`), and update the `setdefault` keys in `__init__` to
-   your domain's cross-agent state vocabulary.
+   yourself. Easiest path: copy the pattern of
+   `examples/multi_agent/flood/orchestration/lifecycle_hooks.py` (class
+   `MultiAgentHooks`) into your domain dir, rename the class (e.g.
+   `MyDomainHooks`), keep only the `pre_year` and `post_step` shape, and set
+   the `setdefault` keys in `__init__` to your domain's cross-agent state
+   vocabulary.
 4. Edit `lifecycle_hooks.py` to write the cross-agent keys your domain
    needs. Per-agent-type if/elif branches in `post_step`. Make sure
    `pre_year` does `self.env = env` aliasing.
-5. Edit `DYNAMIC_WHITELIST` in run_experiment.py to list EVERY key the
+5. Edit `DYNAMIC_WHITELIST` in your runner to list EVERY key the
    prompts reference.
 6. Edit `with_phase_order([[t1], [t2], [t3]])` to declare your execution
    tiers.
@@ -362,7 +366,7 @@ Hand off to `wagf-experiment-designer` once these pass.
 
 ## Reference
 
-- `examples/multi_agent/flood/` — canonical 3-agent-type demo
+- `examples/multi_agent/flood/` — multi-agent flood reference (hooks in `examples/multi_agent/flood/orchestration/lifecycle_hooks.py`, runner `examples/multi_agent/flood/run_unified_experiment.py`)
 - `examples/multi_agent/flood/` — Paper 3 (4 agent types: government, insurance, household_owner, household_renter)
 - `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md` "Building a multi-agent domain" section
 - `tests/test_multi_agent_coupling.py` — integration tests including dual-dict aliasing pattern

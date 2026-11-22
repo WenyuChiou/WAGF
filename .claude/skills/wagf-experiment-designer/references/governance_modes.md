@@ -49,7 +49,7 @@ naming) and present for cross-model variants (e.g.,
 
 ## Multi-agent flood (`examples/multi_agent/flood/`)
 
-Source: `examples/multi_agent/flood/config/agent_types.yaml`
+Source: `examples/multi_agent/flood/config/ma_agent_types.yaml`
 
 | Mode | Description |
 |------|-------------|

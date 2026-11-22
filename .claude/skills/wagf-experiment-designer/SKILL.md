@@ -105,11 +105,10 @@ metrics:
     formula_ref: references/metrics_catalog.md#ehe
     output_artefact: analysis/governance_metrics.csv
 
-statistical_comparisons:
+seed_summaries:
   - name: governed_vs_disabled_per_model
-    test: paired_t
+    summary: median_range_across_seeds
     metric: ibr
-    df_per_model: 4   # n_seeds - 1
 ```
 
 ### `.research/metrics_plan.md`
@@ -122,8 +121,9 @@ Free-form markdown with one section per metric:
 - Canonical script: <path>
 - Input data path: <path glob>
 - Output: <path>
-- Statistical comparison: paired t (governed vs disabled, n=5 seeds)
-- Acceptance: ΔIBR with 95% CI excludes 0 → governance effect confirmed
+- Across-seed summary: median and range (min-max), governed vs disabled, n=5 seeds
+- Acceptance: the governed range sits clear of the disabled range, and the
+  difference in medians has the expected sign
 ```
 
 ### `.research/run_plan.md`
@@ -158,7 +158,7 @@ The skill MUST refuse to:
 3. Invent governance modes. Read available modes from the domain's
    `agent_types.yaml`; ask if the requested mode is not configured.
 4. Run with seed budget < 3 unless the user explicitly states the
-   experiment is exploratory. Below n=3 paired-t is unreliable; flag.
+   experiment is exploratory. Below n=3 a median and range say little; flag.
 5. Mix domains in one matrix. Each matrix is single-domain by default;
    cross-domain comparison requires a separate matrix per domain plus
    a comparison plan.

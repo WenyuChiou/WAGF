@@ -11,23 +11,23 @@ python examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py
 
 Reads `JOH_FINAL_v2/` and `JOH_ABLATION_DISABLED_v2/` (Gemma-4) plus
 `JOH_FINAL/` and `JOH_ABLATION_DISABLED/` (other 6 models). Emits the
-9-model paired-t table that backs SI Tables 5/6.
+9-model governed-vs-disabled table that backs SI Tables 5/6.
 
 Key functions exposed (importable):
 - `compute_ibr_components(work_df) -> (ibr_fraction, components_dict)`
 - `summarize_pooled_metrics(df) -> dict`
 - `normalize_action(s)`, `normalize_tp(s)` — vocabulary aliasing.
 
-## Forest plot (SFig 1)
+## Cross-model figure (Supp Fig 1)
 
 ```bash
-python paper/nature_water/scripts/gen_sfig_forest.py
+python reproduction/nature_water/gen_fig3_crossmodel.py
 ```
 
-Produces `paper/nature_water/figures/SFig_crossmodel_ehe_ibr.{png,pdf}`.
-Routes Gemma-4 to V2 paths automatically; uses the R1+R3+R4 IBR.
-
-Importable function: `paired_stats(gov_ibrs, dis_ibrs)`.
+Reads the cross-model flood runs under `examples/single_agent/results/`
+(not in a clone). It is a figure script; for a per-model median and range
+across seeds, use `process_llm_csv` from
+`examples/single_agent/analysis/compute_flood_metrics.py`.
 
 ## Temporal diagnostics (SI Table 7)
 
@@ -55,16 +55,16 @@ across the Gemma-4 family governed runs.
 ## Irrigation IBR / governance comparison
 
 ```bash
-python SUBMISSION_2026/decomposition/reproduce_published.py
+python reproduction/decomposition/reproduce_published.py
 ```
 
 Prints the published irrigation pair per seed under every candidate definition
 (conditional and unconditional denominator, last-proposal and executed action),
 plus the appraisal-share shift between arms. Import
-`SUBMISSION_2026/decomposition/_loader.py::ibr()` to compute it on one run.
+`reproduction/decomposition/_loader.py::ibr()` to compute it on one run.
 
-`examples/irrigation_abm/analysis/compute_ibr.py` used to be the entry point
-here. It was deleted 2026-08-20: every results directory it pointed at was a v20
+A script named `compute_ibr.py` in `examples/irrigation_abm/analysis/` used to be the
+entry point here. It was deleted 2026-08-20: every results directory it pointed at was a v20
 path that no longer exists, so it had not been runnable for some time. Four
 sibling scripts went with it for the same reason — `ensemble_analysis.py`,
 `governed_vs_ungoverned.py`, `nw_comprehensive_analysis.py`,
@@ -109,11 +109,11 @@ manifest = _collect_reproducibility_metadata(...)
 ```
 
 Used by all run scripts at startup. Returns a dict matching the
-schema at `references/manifest_schema.md`.
+schema at `../../abm-reproducibility-checker/references/manifest_schema.md`.
 
 ## What the skill should NEVER do
 
-- Reimplement IBR. Use `SUBMISSION_2026/decomposition/_loader.py::ibr()` for
+- Reimplement IBR. Use `reproduction/decomposition/_loader.py::ibr()` for
   the published conditional statistic, or `compute_ibr_components` for the
   flood R1/R3/R4/R5 component counts — note that the latter divides by the
   all-rows denominator and does NOT give the published pair. Which denominator
@@ -122,5 +122,6 @@ schema at `references/manifest_schema.md`.
 - Reimplement EHE. Always use `shannon_entropy`.
 - Pool data without checking the manifests' `git_commit` for
   consistency (delegate that to `abm-reproducibility-checker`).
-- Run `gen_sfig_forest.py`. It overwrites the adopted Supplementary Figure 1
-  with a different plot built on the superseded unconditional denominator.
+- Rebuild Supplementary Figure 1 from an older `gen_sfig_forest.py` (no longer
+  in the repo): it drew a different plot on the superseded unconditional
+  denominator. Use `reproduction/nature_water/gen_fig3_crossmodel.py`.
