@@ -72,6 +72,15 @@ is submission machinery rather than analysis; two superseded generators that
 write an adopted figure's filename with a different plot or overwrite a
 hand-drawn figure; and two reference-only analyses that no display item uses.
 
+## `history_rewrite/` — old commit ids in run records
+
+The repository history was rewritten on 2026-11-21, so every commit id changed.
+Run manifests and folder names written before then (for example
+`JOH_strict_defaults_gemma3_4b_9c4ba160`) still name the old ids.
+`history_rewrite/commit-map.txt` gives the new id for every old one, and
+`history_rewrite/README.md` lists the paper's commits and the tag on each.
+`tests/test_history_rewrite_map.py` checks that all 30 paper runs resolve.
+
 ## Metric definitions
 
 Before quoting any number these scripts produce, read

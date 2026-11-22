@@ -1,0 +1,7 @@
+role	old_commit	new_commit	tag	used_by	note
+flood_paper_runs	9c4ba160996428117dfe72d0a54053cc1d550ff7	98b542986bd409786b8662710dbed4bf45500a77	paper-flood-runs	15 flood manifests (sets disabled, silent, strict; seeds 42-46)	dirty at launch; changed files not recorded
+irrigation_paper_runs	6d06739e0160aacca0babe2b1ee1c2190a8ea653	258978134d67515c517677ce7b5f79d57aeeee00	paper-irrigation-runs	15 irrigation manifests (sets disabled, disabled_withlimit, strict; seeds 42-46)	clean at launch
+flood_rulebased_reference	186abb29faa5957cbd9b9850703ef2473571d559	24d62cb96a1e8626f17a79ec47f308176eecaa7d	paper-flood-rulebased	examples/single_agent/analysis/fig2_flood_sq1.py (RULEBASED_COMMIT); run folder rulebased_5seed_186abb29	no LLM; reference household model
+irrigation_fql_reference	6027deaa102cd386bd3811fd8917e94ae2aeace7	28b34862c2dfb758ab165cddc1fd8b87a835b5ae	paper-irrigation-fql	run folders v3_fql_reference_6027deaa_seed42-51	no LLM; earlier than the irrigation paper runs
+reservoir_multidim_baseline	b4a2dd6fca43bfe1d391e31adaf7bce0bde407e1	3cd357034982c4850d561a91679b34f379a4f357		examples/reservoir_control_multidim/BASELINE_e4b.md	not a paper run; map entry only
+main_at_rewrite	740df304cdd82d2fce1bce2ba35a725a39139924	63c6d20ea771b85c7c22beef19e51e8f8cd27ce5		main on 2026-11-21 before and after the rewrite	files identical
