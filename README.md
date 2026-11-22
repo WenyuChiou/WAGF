@@ -93,7 +93,10 @@ Read `irrigation_farmer_governance_audit.csv` and `simulation_log.csv` there.
 The mock again omits appraisals and uses defaults, with no stored reflections.
 Lake Mead's level changes between years, while the shortage tier stays at 0 in
 this tiny run. [Tutorial chapter 4](docs/tutorial/04-water-model.md) uses the
-existing 78-user data with the mock to show a tier transition and the tier cut it causes.
+78-user data with the mock to show a tier transition and the tier cut it causes.
+Chapter 4 needs the CRSS bundle, which is not distributed with this repository
+(available from the authors on request; see [DATA.md](DATA.md)). Without it, chapter 4
+stops with a missing-file error, so read its first section before running it.
 
 The mock model above is a wiring check: it never states an appraisal, so its
 answers fail the format check and every decision ends in the default. With a real
@@ -115,8 +118,8 @@ Attempt 2  water scarcity: H (scarce)   decision: maintain_demand   -> approved
 ```
 
 For a real local run, start Ollama with a downloaded model, then replace
-`--model mock` with `--model gemma4:12b` (flood) or `--model gemma3:4b`
-(irrigation), the models this project's own runs use, and choose new output
+`--model mock` with a model you have pulled, for example `--model gemma3:4b`
+(the model the flood and irrigation paper runs used), and choose new output
 directories. Install the model packages with `python -m pip install -e ".[llm,analysis]"`;
 see [local and cloud models](docs/guides/readme_reference.md#local-and-cloud-models).
 
@@ -189,8 +192,12 @@ and limitations. These small checks do not establish scientific results.
 
 The package version is 0.6.0.
 
-The WAGF methods paper is **in preparation**. Cite the software and record the
-version and commit used in your study:
+The WAGF methods paper is **in preparation**. The paper's runs are marked by two
+git tags, `paper-flood-runs` and `paper-irrigation-runs`. The repository history was
+rewritten on 2026-11-21, so old commit ids in run records map to new ones through
+[`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md). That package
+version is not the code the paper ran. A later release of the reproduction kit
+will be named here. Cite the software and record the version and commit used in your study:
 
 ```bibtex
 @software{wagf,

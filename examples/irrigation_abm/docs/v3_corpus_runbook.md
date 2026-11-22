@@ -74,7 +74,7 @@ git checkout main
 git pull
 git tag irrigation-v3-YYYY-MM-DD
 git push origin irrigation-v3-YYYY-MM-DD
-git worktree add C:/Users/wenyu/Desktop/Lehigh/wagf-irrigation-v3-run irrigation-v3-YYYY-MM-DD
+git worktree add <path-to-run-worktree> irrigation-v3-YYYY-MM-DD
 ```
 
 Use today's date for the tag. Do not reuse an old tag name. Pushing the
@@ -91,7 +91,7 @@ Copy `ref/CRSS_DB` into the new worktree BEFORE running `pytest` below
 tests read real CRSS data):
 
 ```powershell
-robocopy "C:/Users/wenyu/Desktop/Lehigh/wagf-persona/ref/CRSS_DB" "C:/Users/wenyu/Desktop/Lehigh/wagf-irrigation-v3-run/ref/CRSS_DB" /E
+robocopy "<path-to-primary-clone>/ref/CRSS_DB" "<path-to-run-worktree>/ref/CRSS_DB" /E
 ```
 
 Copy, never junction. A junction into the worktree has cost a full
@@ -105,7 +105,7 @@ Now run the full suite, in the new worktree, with `ref/CRSS_DB` already
 in place:
 
 ```
-cd C:/Users/wenyu/Desktop/Lehigh/wagf-irrigation-v3-run
+cd <path-to-run-worktree>
 pytest tests/ broker/ examples/irrigation_abm/tests
 ```
 
@@ -370,8 +370,11 @@ python examples/irrigation_abm/tools/v3_corpus_launcher.py run pilot --tag irrig
 ```
 
 This is the first GPU launch in the campaign: it records `<N>` in the
-launcher's state file (default `C:/Users/wenyu/.wagf_launcher/state.json`,
-override with `--state-dir`). It launches strict-seed-42 and
+launcher's state file (default `~/.wagf_launcher/state.json`,
+override with `--state-dir`). Results go to `WAGF_V3_RESULTS_ROOT` if set,
+otherwise `~/.wagf_launcher/results/v3_corpus` (or pass `--results-root`); set it
+to the primary clone's `examples/irrigation_abm/results/v3_corpus` to keep the
+results in the nightly backup. It launches strict-seed-42 and
 disabled-seed-42, in that order, inside one detached process, each with
 `--llm-journal --workers <N>`. Check progress the same way as section 2
 (`plan`, or the log file).
@@ -575,7 +578,7 @@ right after the gate passes), run the existing nightly backup script by
 hand rather than waiting for its 04:30 schedule:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File "C:/Users/wenyu/Desktop/Lehigh/backup_wagf_to_gdrive.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "<path-to>/backup_wagf_to_gdrive.ps1"
 ```
 
 It is a copy-only `robocopy /E` into `G:\我的雲端硬碟\WAGF_backup`

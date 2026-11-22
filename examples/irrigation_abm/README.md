@@ -15,7 +15,10 @@ python run_experiment.py --model gemma3:4b --years 5 --agents 5
 # Validation (10 synthetic agents, 10 years)
 python run_experiment.py --model gemma3:4b --years 10 --agents 10 --seed 42
 
-# Production (78 real CRSS agents, 42 years — requires ref/CRSS_DB data)
+# Real agents (78 CRSS agents) need the CRSS bundle in ref/CRSS_DB, which is not
+# distributed with the repository (see DATA.md). The paper's runs also pass a
+# --config-dir and other flags: use the recipe in reproduction/recipes/irrigation.md
+# instead of retyping them. Generic form:
 python run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx 8192 --num-predict 4096
 ```
 
@@ -278,32 +281,14 @@ modifies the source run's files; its own `llm_journal.jsonl` holds both
 the replayed history and everything new, so it can be resumed again if it
 also crashes.
 
-## 2. Production Results (v21)
+## 2. Results
 
-**Experiment**: 78 agents × 42 years, gemma3:4b, strict governance, seed 42.
-
-| Metric | Value | CRSS Reference |
-| :----- | :---- | :------------- |
-| Mean demand | 5.87 MAF/yr | 5.86 MAF/yr (1.00×) |
-| Steady-state CoV (Y6-42) | 5.3% | Target <10% |
-| Within ±10% corridor | 88% (37/42 yr) | — |
-
-### Governance Outcomes (3,276 decisions)
-
-| Outcome | Count | Percentage |
-| :------ | ----: | ---------: |
-| Approved (1st attempt) | 1,236 | 37.7% |
-| Retry success | 735 | 22.4% |
-| Rejected → maintain_demand | 1,305 | 39.8% |
-
-### Behavioral Diversity
-
-| Condition | IBR | EHE |
-| :-------- | --: | --: |
-| Governed (with validators) | 38.2% | 0.687 |
-| No-validator baseline | 61.1% | 0.848 |
-
-Note: v20 results are deprecated due to the execute_skill base asymmetry bug. All analysis uses v21 data.
+This README does not report results. An earlier table here came from an older
+corpus (v21, before the current rules and prompts) and was removed because it
+is not the paper's result. The paper's runs and how to repeat them are in
+[`reproduction/`](../../reproduction/README.md). A real-agent irrigation run needs
+the CRSS bundle, which is not distributed with the repository (see
+[DATA.md](../../DATA.md)).
 
 ---
 

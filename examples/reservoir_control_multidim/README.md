@@ -14,7 +14,7 @@ Unlike `reservoir_control/` (one setpoint), coupling is ON by default here.
 - `run_reservoir_multidim.py` — the runnable experiment.
 - `ops_modules_multidim.py` — the three-setpoint solver.
 - `config/multidim_agent_types.yaml`, `config/multidim_skill_registry.yaml`.
-- `BASELINE_e4b.md` — the real-LLM (`gemma4:e4b`) worked-run baseline.
+- `BASELINE_e4b.md` — one exploratory `gemma4:e4b` run, not a validation.
 
 ## Run it
 
@@ -22,4 +22,5 @@ Unlike `reservoir_control/` (one setpoint), coupling is ON by default here.
 python examples/reservoir_control_multidim/run_reservoir_multidim.py --model mock --years 4
 ```
 
-Mock-validated skeleton; see `BASELINE_e4b.md` for real-LLM status.
+A design walk-through, tested with the mock. `BASELINE_e4b.md` records one
+exploratory real-LLM run; it is not a validation.

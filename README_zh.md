@@ -78,7 +78,7 @@ python examples/irrigation_abm/run_experiment.py --model mock --years 2 --agents
 --- Complete! Results in .tmp\readme-irrigation ---
 ```
 
-請閱讀該目錄中的 `irrigation_farmer_governance_audit.csv` 與 `simulation_log.csv`。mock 同樣不提供評估，改採預設行動，也沒有儲存的反思。Lake Mead 水位在兩年之間有變化，但在這個極小的執行中，短缺等級（shortage tier）維持 0。[教學第 4 章](docs/tutorial/04-water-model.md)用既有的 78 位用水者資料搭配 mock，展示短缺等級的轉換，以及這次轉換造成的等級削減（tier cut）。
+請閱讀該目錄中的 `irrigation_farmer_governance_audit.csv` 與 `simulation_log.csv`。mock 同樣不提供評估，改採預設行動，也沒有儲存的反思。Lake Mead 水位在兩年之間有變化，但在這個極小的執行中，短缺等級（shortage tier）維持 0。[教學第 4 章](docs/tutorial/04-water-model.md)用 78 位用水者的資料搭配 mock，展示短缺等級的轉換，以及這次轉換造成的等級削減（tier cut）。第 4 章需要 CRSS 資料包，而 CRSS 資料包不隨本 repository 發布（可向作者索取，見 [DATA.md](DATA.md)）。沒有它，第 4 章會因找不到檔案而停止，所以執行前請先讀該章第一節。
 
 上面的 mock model 只是接線檢查：它從不陳述評估，所以回答都無法通過格式檢查，每個決策最後都採用預設行動。改用真實模型時，真正發揮作用的是規則本身。下面的節錄直接取自一次真實、啟用治理規則的灌溉執行的 audit 記錄（透過 Ollama 使用 gemma3:4b；這是一次 15 年、78 位用水者的執行中，一位用水者第 2 年的決策），保留英文原文；它只用來說明這個流程，不是研究結果：
 
@@ -95,7 +95,7 @@ Attempt 2  water scarcity: H (scarce)   decision: maintain_demand   -> approved
   use given the scarcity."
 ```
 
-要在本機用真實模型執行，請先啟動 Ollama 並下載模型，再把 `--model mock` 換成 `--model gemma4:12b`（洪水）或 `--model gemma3:4b`（灌溉），也就是本專案自己的執行所用的模型，並選擇新的輸出目錄。模型相關套件請以 `python -m pip install -e ".[llm,analysis]"` 安裝；詳見[本機與雲端模型](docs/guides/readme_reference.md#local-and-cloud-models)。
+要在本機用真實模型執行，請先啟動 Ollama 並下載模型，再把 `--model mock` 換成你已下載的模型，例如 `--model gemma3:4b`（洪水與灌溉論文執行所用的模型），並選擇新的輸出目錄。模型相關套件請以 `python -m pip install -e ".[llm,analysis]"` 安裝；詳見[本機與雲端模型](docs/guides/readme_reference.md#local-and-cloud-models)。
 
 接著閱讀[六個簡短的教學章節](docs/tutorial/README.md)：洪水、阻擋與重試、audit 記錄、灌溉雙向耦合、從日誌復原，以及用既有分析模組計算不合理行為比例（irrational behaviour rate，IBR）與有效異質性熵（effective heterogeneity entropy，EHE）。這兩項指標分別衡量被計入的規則違反情形，以及決策在可選行動之間分布得多平均。
 
@@ -143,7 +143,7 @@ WAGF 在提案與執行之間加入明確的檢查。規則可以拿行動去比
 
 套件版本為 0.6.0。
 
-WAGF 的方法論文**正在準備中**。請引用此軟體，並記錄研究所用的版本與 commit：
+WAGF 的方法論文**正在準備中**。論文的執行以兩個 git tag 標記：`paper-flood-runs` 與 `paper-irrigation-runs`。本 repository 的歷史在 2026-11-21 改寫過，因此執行紀錄裡的舊 commit id 要透過 [`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md) 對應到新的 id。這個套件版本不是論文執行時的程式碼。之後重現工具的 release 會寫在這裡。請引用此軟體，並記錄研究所用的版本與 commit：
 
 ```bibtex
 @software{wagf,

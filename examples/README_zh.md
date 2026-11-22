@@ -12,7 +12,7 @@
 python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --workers 1 --seed 42 --governance-mode strict --output .tmp/readme-flood
 ```
 
-實測執行時間：**在一台 Windows 電腦上約 5 秒**。`.tmp/readme-flood/` 中的輸出包括 `household_governance_audit.csv`（兩筆決策）、`simulation_log.csv`、`audit_summary.json`、`governance_summary.json` 與 `run_integrity.json`。mock 提出 `buy_insurance`，但沒有附上必要的評估，用盡重試後執行 `do_nothing`。它不儲存任何反思：對這個 mock 而言，完整性警告是預期中的結果，這次執行也不能與開啟反思功能的研究相比。
+2026-11-22 在 commit `9c6e6c7c`、一台 Windows 電腦上實測：約 5 秒。`.tmp/readme-flood/` 中的輸出包括 `household_governance_audit.csv`（兩筆決策）、`simulation_log.csv`、`audit_summary.json`、`governance_summary.json` 與 `run_integrity.json`。mock 提出 `buy_insurance`，但沒有附上必要的評估，用盡重試後執行 `do_nothing`。它不儲存任何反思：對這個 mock 而言，完整性警告是預期中的結果，這次執行也不能與開啟反思功能的研究相比。
 
 設定方式與本機真實模型執行，請閱讀[洪水 README](single_agent/README.md)。
 
@@ -24,9 +24,9 @@ python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --wo
 python examples/irrigation_abm/run_experiment.py --model mock --years 2 --agents 2 --workers 1 --seed 42 --governance-mode strict --coupling --output .tmp/readme-irrigation
 ```
 
-實測執行時間：**在一台 Windows 電腦上約 5 秒**。`.tmp/readme-irrigation/` 中的輸出包括 `irrigation_farmer_governance_audit.csv`（四筆決策）、`simulation_log.csv`、`audit_summary.json`、`run_integrity.json`，以及一份會保留下來的衍生設定檔 `agent_types.coupling.yaml`。Lake Mead 年底蓄水量由 14.349 變為 15.776 million acre-feet（百萬英畝-英尺）；第 2 年起始水位為 1100.739 ft，高於第 1 年的 1081.460 ft。短缺等級（shortage tier）維持 0。
+2026-11-22 在 commit `9c6e6c7c`、一台 Windows 電腦上實測：約 3 秒。`.tmp/readme-irrigation/` 中的輸出包括 `irrigation_farmer_governance_audit.csv`（四筆決策）、`simulation_log.csv`、`audit_summary.json`、`run_integrity.json`，以及一份會保留下來的衍生設定檔 `agent_types.coupling.yaml`。Lake Mead 年底蓄水量由 14.349 變為 15.776 million acre-feet（百萬英畝-英尺）；第 2 年起始水位為 1100.739 ft，高於第 1 年的 1081.460 ft。短缺等級（shortage tier）維持 0。
 
-mock 不提供評估，用盡重試後執行設定的預設行動 `maintain_demand`。它也不儲存反思，完整性記錄會標出這項限制。[教學第 4 章](../docs/tutorial/04-water-model.md)使用既有的 78 位用水者資料，展示短缺等級的轉換，以及這次轉換造成的等級削減（tier cut），使用的仍是 mock model。
+mock 不提供評估，用盡重試後執行設定的預設行動 `maintain_demand`。它也不儲存反思，完整性記錄會標出這項限制。[教學第 4 章](../docs/tutorial/04-water-model.md)使用 CRSS 資料包裡的 78 位用水者資料，展示短缺等級的轉換，以及這次轉換造成的等級削減（tier cut），使用的仍是 mock model。CRSS 資料包不隨本 repository 發布（可向作者索取，見 [DATA.md](../DATA.md)）。
 
 水資源系統假設、設定方式與本機真實模型執行，請閱讀[灌溉 README](irrigation_abm/README.md)。
 

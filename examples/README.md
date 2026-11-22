@@ -17,7 +17,7 @@ default after exhausted retries, and a household audit.
 python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --workers 1 --seed 42 --governance-mode strict --output .tmp/readme-flood
 ```
 
-Measured runtime: **about 5 seconds on one Windows machine**. Outputs in `.tmp/readme-flood/` include
+Measured on 2026-11-22 at commit `9c6e6c7c` on one Windows machine: about 5 seconds. Outputs in `.tmp/readme-flood/` include
 `household_governance_audit.csv` (two decisions), `simulation_log.csv`,
 `audit_summary.json`, `governance_summary.json` and `run_integrity.json`.
 The mock proposes `buy_insurance` without required appraisals, exhausts retries,
@@ -37,7 +37,7 @@ This case shows the coupling adapter, annual water state and per-user audits.
 python examples/irrigation_abm/run_experiment.py --model mock --years 2 --agents 2 --workers 1 --seed 42 --governance-mode strict --coupling --output .tmp/readme-irrigation
 ```
 
-Measured runtime: **about 5 seconds on one Windows machine**. Outputs in `.tmp/readme-irrigation/` include
+Measured on 2026-11-22 at commit `9c6e6c7c` on one Windows machine: about 3 seconds. Outputs in `.tmp/readme-irrigation/` include
 `irrigation_farmer_governance_audit.csv` (four decisions), `simulation_log.csv`,
 `audit_summary.json`, `run_integrity.json` and a persistent
 `agent_types.coupling.yaml` derived configuration. End-of-year Lake Mead storage
@@ -47,8 +47,9 @@ changes from 14.349 to 15.776 million acre-feet; the year-2 starting level is
 The mock omits appraisals, exhausts retries and executes the configured
 `maintain_demand` default. It also stores no reflections, and the integrity
 record flags that limitation. [Tutorial chapter 4](../docs/tutorial/04-water-model.md)
-uses the existing 78-user profiles to show a tier transition and the tier cut it causes,
-still using the mock model.
+uses the 78-user profiles from the CRSS bundle to show a tier transition and the tier cut it causes,
+still using the mock model. The CRSS bundle is not distributed with the repository
+(available from the authors on request; see [DATA.md](../DATA.md)).
 
 For water-system assumptions, configuration and real local-model runs, read the
 [irrigation README](irrigation_abm/README.md).

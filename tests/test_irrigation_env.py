@@ -239,9 +239,12 @@ class TestCalendarYearAlignment:
         is absent rather than fabricating fixture data for it."""
         import os
 
-        primary_csv = (
-            r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-            r"\ref\CRSS_DB\CRSS_DB\HistoricalData\PrismWinterPrecip_ST_NOAA_Future.csv"
+        from pathlib import Path
+
+        primary_csv = str(
+            Path(__file__).resolve().parents[1]
+            / "ref" / "CRSS_DB" / "CRSS_DB" / "HistoricalData"
+            / "PrismWinterPrecip_ST_NOAA_Future.csv"
         )
         if not os.path.exists(primary_csv):
             pytest.skip(f"real CRSS PRISM CSV not present at {primary_csv}")

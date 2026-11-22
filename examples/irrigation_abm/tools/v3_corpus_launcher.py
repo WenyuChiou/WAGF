@@ -119,11 +119,11 @@ Safety rules enforced here, beyond what run_experiment.py itself enforces:
   OUTSIDE the run worktree (default `~/.wagf_launcher/`), so the worktree
   stays clean for `git status --porcelain`.
 
-Results root default: the PRIMARY clone's own irrigation results tree
-(`governed_broker_framework/examples/irrigation_abm/results/v3_corpus`),
-not a path inside whatever worktree this launcher runs from. That tree is
-already gitignored and already covered by the nightly 04:30
-`WAGF_Results_Backup_GDrive` task, so pointing there needs no new junction
+Results root default: `WAGF_V3_RESULTS_ROOT` if set, otherwise
+`~/.wagf_launcher/results/v3_corpus`; never a path inside whatever worktree
+this launcher runs from. Set `WAGF_V3_RESULTS_ROOT` to the primary clone's
+`examples/irrigation_abm/results/v3_corpus` to keep results in the gitignored
+tree the nightly backup covers. Either way no junction goes
 into a worktree (junctions have cost a full results tree before: see the
 memory note on removing a worktree with junctions) and the run worktree
 itself never accumulates result data.
@@ -148,9 +148,12 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 _THIS_FILE = Path(__file__).resolve()
 _REPO_ROOT = _THIS_FILE.parents[3]
 
+# Outputs stay outside the worktree (TestOutputsOutsideWorktree). Set
+# WAGF_V3_RESULTS_ROOT to put them elsewhere, for example in the primary clone's
+# examples/irrigation_abm/results/v3_corpus.
 _DEFAULT_RESULTS_ROOT = Path(
-    "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/"
-    "examples/irrigation_abm/results/v3_corpus"
+    os.environ.get("WAGF_V3_RESULTS_ROOT")
+    or Path.home() / ".wagf_launcher" / "results" / "v3_corpus"
 )
 _DEFAULT_STATE_DIR = Path.home() / ".wagf_launcher"
 

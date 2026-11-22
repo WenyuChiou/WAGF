@@ -10,8 +10,10 @@ not shipped with the code.
 Colorado River Simulation System reference data used by the irrigation ABM
 (Case Study 2). Original source: USBR CRSS model (2012, 2019 projections).
 
-This data is gitignored and is **not included in the repository**. The prepared
-reference bundle is available from the authors on request. Place the directories
+This data is gitignored and is **not distributed with the repository**. The prepared
+reference bundle is available from the authors on request. Anything that reads it
+(tutorial chapter 4, real-agent irrigation runs) fails with a missing-file error
+until you have it. Place the directories
 below under `ref/CRSS_DB/CRSS_DB/` (the repeated directory name is expected by
 the loaders). Real-agent runs also read the tracked parameter table
 `ref/RL-ABM-CRSS/ALL_colorado_ABM_params_cal_1108.csv`; calibrated FQL runs
@@ -30,18 +32,19 @@ expect `Initial_Files/All-1109/` inside that CRSS data directory.
 
 ## Included Data
 
-### Flood Input Data (`examples/multi_agent/flood/input/`)
+### Flood Input Data (`examples/multi_agent/flood/`)
 
 | File | Contents | Source |
 |------|----------|--------|
-| `census/` | Synthetic census tract profiles | Generated from ACS data |
-| `*.asc` | FEMA flood zone rasters | FEMA National Flood Hazard Layer |
+| `input/PRB/maxDepth*.asc` | Passaic River Basin (PRB) maximum flood depth grids by year (ASCII raster) | Not recorded in this repository; ask the authors |
+| `data/agents_init.csv` | Initial household table for the multi-agent flood example | Not recorded in this repository; ask the authors |
+| `data/initial_memories*.json` | Initial household memories | Not recorded in this repository; ask the authors |
 
 ### Configuration Reference
 
 | File | Purpose |
 |------|---------|
-| `ref/flood_years.csv` | Deterministic flood schedule for experiments |
+| `examples/single_agent/flood_years.csv` | Deterministic flood schedule for the single-agent flood case |
 
 ## Not Included (Large Files)
 
@@ -56,5 +59,5 @@ The following are generated during experiments and not tracked in git:
 1. Install Ollama and pull the required model
 2. For real-agent irrigation runs, obtain the CRSS bundle from the authors and
    place it in `ref/CRSS_DB/CRSS_DB/` as described above. Synthetic mode needs no CRSS data.
-3. Flood input rasters should be placed in `examples/multi_agent/flood/input/`
+3. The multi-agent flood depth grids are tracked under `examples/multi_agent/flood/input/PRB/`
 4. Run experiments per the instructions in each example's README
