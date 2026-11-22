@@ -1,0 +1,121 @@
+# Recipe for the irrigation paper runs (gemma3:4b, 3 sets of simulations x 5 seeds, 42 years).
+# Read by tests/test_repro_kit.py (reproduction/check_manifests.py reads only the
+# history_rewrite tables, not this file); the prose version is reproduction/recipes/irrigation.md. Paths are repo-relative.
+#
+# Every irrigation run folder stores its launch command (launch_command.txt). `argv`
+# below is that command with the machine-specific parts replaced: the interpreter path
+# by `python`, the working folder by the repo root, absolute paths by repo-relative ones.
+# The test compares it with all 15 stored commands.
+case: irrigation
+launch_command_stored: true
+runner: examples/irrigation_abm/run_experiment.py
+
+tags:
+  runs: paper-irrigation-runs
+  reference: paper-irrigation-fql
+commits:
+  runs:
+    old: 6d06739e0160aacca0babe2b1ee1c2190a8ea653
+    new: 258978134d67515c517677ce7b5f79d57aeeee00
+  reference:
+    old: 6027deaa102cd386bd3811fd8917e94ae2aeace7
+    new: 28b34862c2dfb758ab165cddc1fd8b87a835b5ae
+dirty_at_launch: false        # all 15 runs: git_dirty false at launch and at finalize
+changed_files_recorded: not needed (clean)
+
+environment:
+  python: "3.14.0"            # manifest python_version, all 15 runs
+  numpy: not recorded         # the LLM-run manifests have no numpy field. The FQL reference runs record 2.4.2.
+  ollama_server: "0.40.4 (disabled, strict: 10 runs); 0.40.6 (disabled_withlimit: 5 runs)"   # ollama_version.txt
+  workers: 4
+model:
+  name: "gemma3:4b"
+  digest: c30276f7dffec93a536d283e15088990454b8d21cf180a3d6eea4959e4147291
+  digest_short: c30276f7dffe
+  family: gemma3
+  parameter_size: 4.3B
+  quantization: Q4_K_M
+  # 11 of the 15 manifests carry the full digest; disabled_withlimit seeds 43-46 do not
+  # (their ollama_version.txt shows the same short id).
+
+# `set` is the folder-name key and the key used in reproduction/history_rewrite/*.tsv.
+# Names: main text "without rules" / "with rules"; SI "with the use limit only".
+arms:
+  - set: disabled
+    label: without rules
+    governance_mode: disabled
+    config_dir: examples/irrigation_abm/config_variants/simple_nolimit
+    beneficial_use_limit_enabled: false
+    folder_pattern: "examples/irrigation_abm/results/v3_simple/v3_simple_disabled_42yr_gemma3_4b_6d06739e_seed{seed}"
+  - set: disabled_withlimit
+    label: with the use limit only (SI)
+    governance_mode: disabled
+    config_dir: examples/irrigation_abm/config_variants/simple
+    beneficial_use_limit_enabled: true
+    folder_pattern: "examples/irrigation_abm/results/v3_simple/v3_simple_disabled_withlimit_42yr_gemma3_4b_6d06739e_seed{seed}"
+  - set: strict
+    label: with rules
+    governance_mode: strict
+    config_dir: examples/irrigation_abm/config_variants/simple
+    beneficial_use_limit_enabled: true
+    folder_pattern: "examples/irrigation_abm/results/v3_simple/v3_simple_strict_42yr_gemma3_4b_6d06739e_seed{seed}"
+
+seeds: [42, 43, 44, 45, 46]
+
+# One argv per run: {seed}, {mode} and {config_dir} come from the arm; --memory-seed equals --seed;
+# --output is not compared (its path is the machine's).
+argv:
+  - python
+  - examples/irrigation_abm/run_experiment.py
+  - "--real"
+  - "--model"
+  - "gemma3:4b"
+  - "--years"
+  - "42"
+  - "--seed"
+  - "{seed}"
+  - "--memory-seed"
+  - "{seed}"
+  - "--paper-water-margin"
+  - "0.4"
+  - "--cluster-method"
+  - "hy2021"
+  - "--governance-mode"
+  - "{mode}"
+  - "--config-dir"
+  - "{config_dir}"
+  - "--output"
+  - "{output}"
+  - "--llm-journal"
+  - "--workers"
+  - "4"
+
+# Config hashes. config_hash in the manifest = first 12 hex of sha256 of the agent_types.yaml the run read.
+config_hashes:
+  examples/irrigation_abm/config_variants/simple/agent_types.yaml: da90d4c52909          # matches the tracked LF file at the tag
+  examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml: 5ee12b76dd71  # recorded as derived_from_config_sha256
+# For `disabled` the run read a derived copy, resolved_agent_types.yaml (in the run folder, not tracked):
+# its hash f7075f293dad is the manifest config_hash, and the tracked simple_nolimit file is the
+# manifest derived_from_config. Both are checked by reproduction/check_manifests.py.
+prompt_hash_in_manifest: absent   # these manifests carry no prompt hash
+
+# Data files the manifest hashes (sha256 over LF text); all tracked at the run tag.
+data_hashes:
+  examples/irrigation_abm/data/hydrology_v3.csv: 9951f2224334a859a7adbc9d55914e6505bbce38ea0424f26f10f7c8d51a04b5
+  examples/irrigation_abm/data/mead_capacity_usbr2009_1ft.csv: 7f233bd8149cc9416612991c27ed130c22842e93bbbbdd121d7716d5f8d9c8d6
+  examples/irrigation_abm/data/lb_priority_split_v3.csv: 0a19f14349a74e992811b2ac883e6bdbd2c4759bd4b4ed3e6ebb92d04deb1fe6
+  examples/irrigation_abm/data/ub_subbasin_supply_v3.csv: ac0a17639488e4d4e7e4cba6ae876ff4a7930a8e9012b5487e2a920189662d48
+  examples/irrigation_abm/data/ub_subbasin_envelope_v3.csv: 7f38c4dbfe5a57dc897ef9c2b7983c504fa71dd7ad86b82799a448848e618ca2
+  examples/irrigation_abm/data/ub_subbasin_variant_means_v3.csv: c79ac70bad3db3f9fc22dec572740e0e29d74d67c3c7ac573ffbba86d693f288
+
+# Reference: FQL agents, no LLM. The folder's LAUNCH_COMMAND.txt holds only timings; the flags
+# below are read from the manifest of each folder (runner run_fql_baseline).
+reference:
+  entry: examples/irrigation_abm/run_fql_baseline.py
+  folder_pattern: "examples/irrigation_abm/results/v3_corpus/v3_fql_reference_6027deaa_seed{seed}"
+  seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+  flags: ["--real", "--years", "42", "--seed", "{seed}", "--paper-water-margin", "0.4", "--cluster-method", "hy2021", "--no-governance", "--fql-init", "calibrated"]
+  note: "--fql-init-dir points into the CRSS data (ref/CRSS_DB/CRSS_DB/Initial_Files/All-1109); the path is the machine's."
+  manifest_expect: {runner: run_fql_baseline, years: 42, real: true, no_governance: true, git_dirty: false, numpy_version: "2.4.2", python_version: "3.14.0"}
+
+needs_crss: true   # a rerun reads ref/CRSS_DB and ref/RL-ABM-CRSS (DATA.md); the listed run artifacts do not include it.

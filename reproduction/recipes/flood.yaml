@@ -1,0 +1,108 @@
+# Recipe for the flood paper runs (gemma3:4b, 3 sets of simulations x 5 seeds).
+# Read by tests/test_repro_kit.py (reproduction/check_manifests.py reads only the
+# history_rewrite tables, not this file); the prose version is reproduction/recipes/flood.md. Paths are repo-relative.
+#
+# What this file is NOT: a copy of the command lines. The flood run folders store no
+# launch command. Every flag below was read back from the run's own
+# reproducibility_manifest.json / config_snapshot.yaml, or from the runner's default
+# (named as such). Flags the run folders do not record are listed in `not_recorded`.
+case: flood
+launch_command_stored: false
+runner: examples/single_agent/run_flood.py
+
+tags:
+  runs: paper-flood-runs
+  reference: paper-flood-rulebased
+commits:
+  runs:
+    old: 9c4ba160996428117dfe72d0a54053cc1d550ff7
+    new: 98b542986bd409786b8662710dbed4bf45500a77
+  reference:
+    old: 186abb29faa5957cbd9b9850703ef2473571d559
+    new: 24d62cb96a1e8626f17a79ec47f308176eecaa7d
+# All 15 runs record git_dirty true at launch and at finalize. The tag marks the commit
+# they started from; it is not an exact copy of the code that ran.
+dirty_at_launch: true
+changed_files_recorded: false
+
+environment:
+  python: "3.14.0"                 # manifest python_version, all 15 runs
+  numpy: not recorded              # no numpy field in the flood or irrigation LLM manifests
+  ollama_server: "0.40.4"          # ollama_version.txt, all 15 flood runs
+  workers: 4                       # manifest `workers`
+model:
+  name: "gemma3:4b"
+  digest: c30276f7dffec93a536d283e15088990454b8d21cf180a3d6eea4959e4147291
+  digest_short: c30276f7dffe
+  family: gemma3
+  parameter_size: 4.3B
+  quantization: Q4_K_M
+  # 14 of the 15 flood manifests carry the full digest; seed 45 of `silent` does not
+  # (its ollama_version.txt shows the same short id).
+
+config:
+  agent_types: examples/single_agent/agent_types.yaml        # same file for all three sets
+  # config_hash in the manifest = first 12 hex of sha256 of the file as checked out on the
+  # Windows machine (CRLF line endings): 926ff4a10ee8. The tracked file has LF endings
+  # (sha256 prefix bdb8afce44dc); the two agree once LF is turned into CRLF.
+  config_hash_in_manifest: 926ff4a10ee8
+  config_hash_of_lf_file: bdb8afce44dc
+  prompt_template: config/prompts/household.txt              # household.prompt_template_file in config_snapshot.yaml
+  prompt_hash_in_manifest: absent                            # these manifests carry no prompt hash
+
+# Names: main text "without rules" / "with rules"; SI "with rules, no reasons".
+# `set` is the folder-name key and the key used in reproduction/history_rewrite/*.tsv.
+arms:
+  - set: disabled
+    label: without rules
+    folder_pattern: "examples/single_agent/results/JOH_disabled_defaults_gemma3_4b_9c4ba160/Run_{seed}"
+    manifest_expect: {governance_profile: disabled, retry_feedback_mode: full}
+    flags: ["--governance-mode", "disabled"]
+  - set: strict
+    label: with rules
+    folder_pattern: "examples/single_agent/results/JOH_strict_defaults_gemma3_4b_9c4ba160/Run_{seed}"
+    manifest_expect: {governance_profile: strict, retry_feedback_mode: full}
+    flags: ["--governance-mode", "strict"]
+  - set: silent
+    label: with rules, no reasons (SI)
+    folder_pattern: "examples/single_agent/results/JOH_silent_defaults_gemma3_4b_9c4ba160/Run_{seed}"
+    manifest_expect: {governance_profile: strict, retry_feedback_mode: silent}
+    flags: ["--governance-mode", "strict", "--retry-feedback-mode", "silent"]
+
+seeds: [42, 43, 44, 45, 46]
+
+# Flags common to every flood run, with where each was confirmed.
+common_flags:
+  - ["--model", "gemma3:4b"]        # manifest model
+  - ["--years", "10"]               # manifest num_years
+  - ["--agents", "100"]             # run_integrity.audit_agents = 100 (also the runner default)
+  - ["--num-ctx", "8192"]           # manifest num_ctx
+  - ["--num-predict", "4096"]       # manifest num_predict
+  - ["--thinking-mode", "disabled"] # manifest thinking_mode
+  - ["--workers", "4"]              # manifest workers
+  - ["--seed", "{seed}"]            # manifest seed
+
+# What the manifest must say for the recipe to hold (tests/test_repro_kit.py checks these
+# against every flood manifest it can read).
+manifest_common:
+  model: "gemma3:4b"
+  num_years: 10
+  num_ctx: 8192
+  num_predict: 4096
+  thinking_mode: disabled
+  workers: 4
+  python_version: "3.14.0"
+
+not_recorded:
+  - flag: "--memory-seed"
+    note: "manifest memory_seed is null. The runner default is 42 and the 2026-10 runbook command passes 42; the run folders do not show it."
+  - flag: "--workers"
+    note: "the runbook command (examples/single_agent/docs/flood_wrr_rerun_runbook.md) passes 1; the manifests record 4 and run.log shows the performance tuner adjusting workers. The list above uses the manifest value."
+  - flag: "--output"
+    note: "folder names above; the paths are not stored."
+  - flag: "--flood-mode"
+    note: "runner default `fixed` (flood_years.csv). Not recorded."
+  - flag: "--survey-mode"
+    note: "off by default: profiles come from examples/single_agent/agent_initial_profiles.csv. Not recorded."
+
+needs_crss: false   # flood has no CRSS data; its flood schedule is a tracked file

@@ -1,0 +1,5 @@
+global_config:
+  llm:
+    model: fixture-model
+household:
+  prompt_template_file: config/prompts/household.txt
