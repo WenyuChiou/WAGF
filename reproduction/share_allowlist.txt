@@ -1,0 +1,39 @@
+# Run-folder files that may be shared with a reader of the paper.
+# One pattern per line, matched case-sensitively one path part at a time against the path
+# relative to the run folder: a pattern without "/" matches only files at the top of the
+# run folder ("*" never crosses a "/"). Links inside a run folder are never followed.
+# Used by reproduction/check_share.py. Copy these files with
+#   python reproduction/check_share.py --stage <dest> <run-folder>
+# which blanks absolute paths in the copy, then checks the copy.
+#
+# Why each is here: they are what the manifest checker, the recipes and the figure
+# scripts read. Run records, configuration, and per-decision audit tables only.
+
+reproducibility_manifest.json
+run_integrity.json
+config_snapshot.yaml
+resolved_agent_types.yaml
+launch_command.txt
+ollama_version.txt
+audit_summary.json
+governance_summary.json
+simulation_log.csv
+*_governance_audit.csv
+*_governance_audit.schema.json
+reflection_checks.jsonl
+reflection_log.jsonl
+reflection_prompts.jsonl
+validator_health.csv
+validator_health_by_agent_type.csv
+
+# Left out on purpose:
+#   run.log             console log: a local path on 6 to 11 lines in every one of the 30 paper runs
+#   llm_journal.jsonl   irrigation only; holds a local path in all 15 irrigation runs
+#   run_metadata.json   5 irrigation runs; holds the whole process environment, drive letters and
+#                       user-folder paths in many fields
+#   raw/*.jsonl         raw LLM traces, 12 to 60 MB per run. The 30 paper runs hold no drive letter,
+#                       user-folder path, key-shaped value or e-mail address in them (scan of
+#                       2026-11-22), but the scan cannot see personal data in free text, so they
+#                       are not shared by default. Add "raw/*.jsonl" here only after that is checked.
+#   REJECTION_CLEARED_*.txt  one folder; a note, not a record
+#   *.png               figures made while the run was in progress

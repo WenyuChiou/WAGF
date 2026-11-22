@@ -1,0 +1,6 @@
+global_config:
+  llm:
+    model: fixture-model
+irrigation_farmer:
+  prompt_template_file: prompts/irrigation_farmer.txt
+  beneficial_use_limit: off
