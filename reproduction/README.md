@@ -120,3 +120,18 @@ directory in every command it told the reader to run. One file from the source
 directory, a memo about what the analysis implied for a manuscript in progress,
 was deliberately not copied: this directory carries the computation, not
 commentary on a draft.
+
+## Recipes, manifest checker and share step (the paper runs)
+
+These three pieces describe and check the 30 paper runs (15 flood, 15 irrigation). They read run
+folders that are not in git; the code is here, the folders come from the authors.
+
+| What | Where | Use |
+|---|---|---|
+| Recipes | `recipes/flood.md`, `recipes/irrigation.md` (prose), `recipes/flood.yaml`, `recipes/irrigation.yaml` (machine-readable) | Every flag per set of simulations and seed, the arm-to-config map, the model digest, the Python version, the run tag, and what each run folder does and does not record. The flood run folders store no launch command; the irrigation ones do. |
+| Manifest checker | `check_manifests.py` | `python reproduction/check_manifests.py --root <checkout that holds the run folders> --expect-missing-digest 5` prints one row per run: old commit to new commit, dirty flags, model digest present or not, config and data hashes against the tracked files at the run tag. It exits non-zero on any problem: a mismatch, or a hash, file or data field that is absent. Five of the paper runs carry only a short model id; `--expect-missing-digest 5` accepts exactly that count. A prompt hash absent from the manifest is never a problem (none of the paper manifests records one). It reads only. |
+| Share step | `share_allowlist.txt`, `check_share.py` | `python reproduction/check_share.py --stage <dest> <run folder>` copies the allowlisted files with absolute paths blanked, then scans the copy for drive letters, network and user-folder paths (also URL-encoded), e-mail addresses and literal keys. It never follows a link, refuses a target that already exists or overlaps a run folder, and reports a file it could not parse or read instead of passing it. It prints file paths, field names and counts, never the matched text. |
+
+`tests/test_repro_kit.py` checks all three on synthetic fixtures. With `WAGF_RESULTS_ROOT` set to the
+checkout that holds the run folders it also checks the recipes and the checker against the real ones.
+A rerun of the irrigation runs needs the CRSS data (`ref/CRSS_DB`; see `DATA.md`); the listed run artifacts do not include it. See the recipe.
