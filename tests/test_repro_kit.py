@@ -289,6 +289,7 @@ def _build_runs(tmp_path: Path, repo: Path, commit: str, *, bad_config=False, ba
             else:
                 m["agent_types_config"] = variant_path
                 m["config_hash"] = _sha(cfg)[:12] if not bad_config else "0" * 12
+            (folder / "config_snapshot.yaml").write_text("global_config:\n  llm:\n    provider: ollama\n", encoding="utf-8")
             m.update({k: _sha(v) for k, v in data.items() if k.startswith("ub_")})
             m["coupling_retrofit_metadata"] = {k: _sha(v) for k, v in data.items() if k.startswith("water_")}
             if bad_data:
@@ -398,6 +399,14 @@ def _mutate(root: Path, what: str) -> None:
         m = _manifest(flood)
         m["seed"] = 7
         _save_manifest(flood, m)
+    elif what == "short_digest":
+        m = _manifest(flood)
+        m["model_digest"] = m["model_digest"][:12]  # only the short id, not the 64-hex digest
+        _save_manifest(flood, m)
+    elif what == "drop_snapshot_no_prompt_hash":
+        (irr / "config_snapshot.yaml").unlink()  # irrigation manifests carry no prompt hash
+    elif what == "bad_snapshot_no_prompt_hash":
+        (irr / "config_snapshot.yaml").write_text("global_config: [unclosed\n", encoding="utf-8")
 
 
 @pytest.mark.parametrize("what,needle", [
@@ -409,6 +418,9 @@ def _mutate(root: Path, what: str) -> None:
     ("corrupt_manifest", "manifest does not parse as a JSON object"),
     ("short_hash", "config_hash does not match the tracked config file"),
     ("wrong_seed", "seed in the manifest differs from paper_manifest_commits.tsv"),
+    ("short_digest", "model_digest is not a 64-character hex digest"),
+    ("drop_snapshot_no_prompt_hash", "config_snapshot.yaml absent from the run folder"),
+    ("bad_snapshot_no_prompt_hash", "config_snapshot.yaml does not parse"),
 ])
 def test_checker_counts_missing_or_unparsed_data_as_a_problem(tmp_path, kit_repo, capsys, what, needle):
     repo, commit = kit_repo

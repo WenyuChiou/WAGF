@@ -7,9 +7,10 @@ reproducibility_manifest.json under a results root and prints:
   commit   the old id the manifest names -> the new id from
            reproduction/history_rewrite/commit-map.txt
   dirty    git_dirty at launch / at finalize (T or F)
-  digest   full   the manifest carries the model digest
-           short  only the short id in ollama_version.txt ("ollama ps" line)
-           none   neither
+  digest   full     the manifest carries the model digest (64 hex characters)
+           short    only the short id in ollama_version.txt ("ollama ps" line)
+           none     neither
+           invalid  the manifest's model_digest is not 64 hex characters (a problem)
   config   config_hash in the manifest against the tracked file at the new commit
            (lf / crlf = which line-ending form matched; the manifests hashed a
            Windows checkout, so a CRLF form is expected for flood)
@@ -21,7 +22,8 @@ Nothing is written, copied or executed except `git show` and `git rev-parse` rea
 Only commit ids, hashes, flags and counts are printed; never a path taken from a manifest.
 
 Every cell that is not a positive match is listed as a problem: a hash that does not
-match, a hash or file that is absent, a manifest or config snapshot that does not parse,
+match, a hash or file that is absent, a model digest that is not 64 hex characters, a
+config snapshot that is absent or does not parse, a manifest that does not parse,
 an irrigation run without all six data-file hashes, a seed that differs from the table.
 A run without the full model digest in its manifest (digest "short" or "none") is a
 problem too, unless --expect-missing-digest N names how many such runs are known; the
@@ -189,10 +191,14 @@ def check_run(row: dict[str, str], root: Path, git: Git, cmap: dict[str, str],
     server, short = ollama_info(folder)
     out["ollama"] = server
     d = m.get("model_digest")
-    if d:
+    full = isinstance(d, str) and re.fullmatch(r"(?:sha256:)?[0-9a-f]{64}", d)
+    if full:
         out["digest"] = "full"
-        if short not in ("-", d[:12]):
+        if short not in ("-", d.split(":")[-1][:12]):
             P.append("model digest differs from the id in ollama_version.txt")
+    elif d:
+        out["digest"] = "invalid"  # counted with the runs without a full digest
+        P.append("model_digest is not a 64-character hex digest")
     else:
         out["digest"] = "short" if short != "-" else "none"
 
@@ -232,6 +238,22 @@ def check_run(row: dict[str, str], root: Path, git: Git, cmap: dict[str, str],
         else:
             out["config"] = got
 
+    # config snapshot: every paper run folder holds one; checked whether or not the
+    # manifest records prompt hashes (none of the paper manifests does)
+    snap = folder / "config_snapshot.yaml"
+    cfg = None
+    if not snap.is_file():
+        P.append("config_snapshot.yaml absent from the run folder")
+    else:
+        try:
+            cfg = yaml.safe_load(snap.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            P.append("config_snapshot.yaml does not parse")
+        else:
+            if not isinstance(cfg, dict):
+                P.append("config_snapshot.yaml is not a mapping")
+                cfg = None
+
     # prompt hash
     ph = m.get("prompt_template_sha256")
     if not ph:
@@ -242,20 +264,7 @@ def check_run(row: dict[str, str], root: Path, git: Git, cmap: dict[str, str],
     elif not new:
         out["prompt"] = "?"  # the commit problem is already listed
     else:
-        out["prompt"] = "?"
-        snap = folder / "config_snapshot.yaml"
-        cfg = None
-        if not snap.is_file():
-            P.append("config_snapshot.yaml absent, so the prompt files cannot be found")
-        else:
-            try:
-                cfg = yaml.safe_load(snap.read_text(encoding="utf-8-sig"))
-            except (OSError, UnicodeDecodeError, yaml.YAMLError):
-                P.append("config_snapshot.yaml does not parse")
-            else:
-                if not isinstance(cfg, dict):
-                    P.append("config_snapshot.yaml is not a mapping")
-                    cfg = None
+        out["prompt"] = "?"  # stays "?" when the snapshot problem above is listed
         if cfg is not None:
             base = (rel or "").rsplit("/", 1)[0] if rel else ""
             results = []
@@ -350,8 +359,10 @@ def main(argv: list[str] | None = None) -> int:
     dirty = sum(1 for r in found if r["dirty"] != "F/F")
     print()
     print(f"runs listed {n}, found {len(found)}, missing folders {n - len(found) - unreadable}, unreadable manifests {unreadable}")
+    invalid = sum(1 for r in found if r["digest"] == "invalid")
     print(f"without a full model digest in the manifest: {missing_digest}"
-          f" (short id in ollama_version.txt: {sum(1 for r in found if r['digest'] == 'short')}, none: {sum(1 for r in found if r['digest'] == 'none')})")
+          f" (short id in ollama_version.txt: {sum(1 for r in found if r['digest'] == 'short')}, none: {sum(1 for r in found if r['digest'] == 'none')}"
+          + (f", invalid: {invalid})" if invalid else ")"))
     print(f"dirty at launch or finalize: {dirty}  (flood {sum(1 for r in found if r['case'] == 'flood' and r['dirty'] != 'F/F')}, "
           f"irrigation {sum(1 for r in found if r['case'] == 'irrigation' and r['dirty'] != 'F/F')})")
     print(f"config mismatches: {sum(1 for r in found if r['config'] == 'MISMATCH')}, "
