@@ -302,29 +302,34 @@ def summarize_block_and_repair(output_dir) -> list:
         ]
         year = rec["year"]
         env = rec.get("environment_context") or {}
-        repaired = rec["skill_proposal"]["reasoning"].get("magnitude")
-        change = (rec.get("execution_result") or {}).get("action_context", {})
-        new_target = change.get("world_delta", {}).get("world_changes", {}).get("release_target")
+        # A retried decision can end without a parsable proposal (skill_proposal
+        # null) or without an approved skill, e.g. when a live model's retries
+        # end in unparsable output; describe that instead of failing here.
+        proposal = rec.get("skill_proposal") or {}
+        repaired = (proposal.get("reasoning") or {}).get("magnitude")
+        approved = rec.get("approved_skill") or {}
+        change = (rec.get("execution_result") or {}).get("action_context") or {}
+        new_target = ((change.get("world_delta") or {}).get("world_changes") or {}).get("release_target")
         retries = int(rec["retry_count"])
         blocked = "attempt 1 " if retries == 1 else f"attempts 1-{retries}"
         lines.append(f"Year {year}, agent {rec['agent_id']}:")
         lines.append(f"  {blocked} BLOCKED: " + (" ".join(reasons) or "validation failed"))
-        lines.append(
-            f"  attempt {retries + 1}  {rec['approved_skill']['status']}: "
-            f"{rec['approved_skill']['skill_name']} at {repaired}% of demand"
-        )
-        if new_target is not None:
+        if proposal and approved:
+            outcome = f"{approved.get('skill_name')} at {repaired}% of demand"
+        else:
+            outcome = "no parsable proposal after the retries; see the trace for the fallback"
+        lines.append(f"  attempt {retries + 1}  {approved.get('status', 'NO DECISION')}: {outcome}")
+        if new_target is not None and env.get("release_actual") is not None:
             lines.append(
-                f"  executed   toy reservoir release target: {env.get('release_actual'):.3f} -> "
+                f"  executed   toy reservoir release target: {env['release_actual']:.3f} -> "
                 f"{new_target:.3f} maf/month"
             )
-        after = records.get(step_id + 1)
-        if after is not None:
-            after_storage = after["environment_context"]["storage"]
+        after_env = (records.get(step_id + 1) or {}).get("environment_context") or {}
+        if None not in (after_env.get("storage"), env.get("storage"), env.get("dead_pool")):
             lines.append(
-                f"  effect     storage {env.get('storage'):.3f} maf at year {year}, "
-                f"{after_storage:.3f} maf at year {year + 1} "
-                f"(dead pool {env.get('dead_pool'):.3f} maf)"
+                f"  effect     storage {env['storage']:.3f} maf at year {year}, "
+                f"{after_env['storage']:.3f} maf at year {year + 1} "
+                f"(dead pool {env['dead_pool']:.3f} maf)"
             )
     return lines
 

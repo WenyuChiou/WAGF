@@ -112,3 +112,14 @@ def test_summary_counts_attempts_when_blocked_twice(tmp_path):
     lines = _summarize()(tmp_path)
     assert lines[1].startswith("  attempts 1-2 BLOCKED: below dead pool.")
     assert lines[2].startswith("  attempt 3  APPROVED: set_release at 40% of demand")
+
+
+def test_summary_handles_a_retry_that_ends_without_a_proposal(tmp_path):
+    rec = _record(1, 3)
+    rec.update(skill_proposal=None, approved_skill=None, execution_result=None)
+    _write_trace(tmp_path, [rec])
+    lines = _summarize()(tmp_path)
+    assert lines[1].startswith("  attempts 1-3 BLOCKED: below dead pool.")
+    assert lines[2] == ("  attempt 4  NO DECISION: no parsable proposal after the retries; "
+                        "see the trace for the fallback")
+    assert len(lines) == 3
