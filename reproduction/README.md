@@ -135,3 +135,10 @@ folders that are not in git; the code is here, the folders come from the authors
 `tests/test_repro_kit.py` checks all three on synthetic fixtures. With `WAGF_RESULTS_ROOT` set to the
 checkout that holds the run folders it also checks the recipes and the checker against the real ones.
 A rerun of the irrigation runs needs the CRSS data (`ref/CRSS_DB`; see `DATA.md`); the listed run artifacts do not include it. See the recipe.
+
+## What the tests check
+
+[`TESTS.md`](TESTS.md) says which claims CI checks on every push, which only the author's local run
+with the CRSS data checks (with its date, commit and result), and which no test checks: CI runs
+Python 3.10-3.12 while the paper ran on 3.14.0, the irrigation golden comparison skips on CI, and the
+workers test is a 3-year scripted mock, not a 42-year live run.
