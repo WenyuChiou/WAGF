@@ -141,13 +141,16 @@ WAGF 在提案與執行之間加入明確的檢查。規則可以拿行動去比
 
 ## 引用方式
 
-WAGF 的方法論文**正在準備中**。論文的執行以兩個 git tag 標記：`paper-flood-runs` 與 `paper-irrigation-runs`。本 repository 的歷史在 2026-11-21 改寫過，因此執行紀錄裡的舊 commit id 要透過 [`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md) 對應到新的 id。套件版本 0.6.0 不是論文執行時的程式碼。之後重現工具的 release 會寫在這裡。請引用此軟體，並記錄研究所用的 commit：
+套件版本為 0.6.0。
+
+WAGF 的方法論文**正在準備中**。論文的執行以兩個 git tag 標記：`paper-flood-runs` 與 `paper-irrigation-runs`。本 repository 的歷史在 2026-11-21 改寫過，因此執行紀錄裡的舊 commit id 要透過 [`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md) 對應到新的 id。這個套件版本不是論文執行時的程式碼。之後重現工具的 release 會寫在這裡。請引用此軟體，並記錄研究所用的版本與 commit：
 
 ```bibtex
 @software{wagf,
   author  = {Chiou, Wenyu and Yang, Y. C. Ethan},
   title   = {Water Agent Governance Framework (WAGF)},
   year    = {2026},
+  version = {0.6.0},
   url     = {https://github.com/WenyuChiou/WAGF}
 }
 ```

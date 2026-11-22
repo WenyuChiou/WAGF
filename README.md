@@ -190,18 +190,21 @@ and limitations. These small checks do not establish scientific results.
 
 ## How to cite
 
+The package version is 0.6.0.
+
 The WAGF methods paper is **in preparation**. The paper's runs are marked by two
 git tags, `paper-flood-runs` and `paper-irrigation-runs`. The repository history was
 rewritten on 2026-11-21, so old commit ids in run records map to new ones through
-[`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md). The package
-version, 0.6.0, is not the code the paper ran. A later release of the reproduction kit
-will be named here. Cite the software and record the commit used in your study:
+[`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md). That package
+version is not the code the paper ran. A later release of the reproduction kit
+will be named here. Cite the software and record the version and commit used in your study:
 
 ```bibtex
 @software{wagf,
   author  = {Chiou, Wenyu and Yang, Y. C. Ethan},
   title   = {Water Agent Governance Framework (WAGF)},
   year    = {2026},
+  version = {0.6.0},
   url     = {https://github.com/WenyuChiou/WAGF}
 }
 ```
