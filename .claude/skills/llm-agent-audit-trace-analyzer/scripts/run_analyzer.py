@@ -160,17 +160,19 @@ def write_artefacts(rows: List[Dict], out_dir: Path, domain: str) -> None:
     agg_spec = {"n_runs": ("run_id", "nunique"),
                 "n_decisions": ("n_decisions", "sum")}
     if "ibr" in df.columns:
-        agg_spec["ibr_mean"] = ("ibr", "mean")
-        agg_spec["ibr_sd"] = ("ibr", lambda s: s.std(ddof=1) if len(s) > 1 else 0.0)
+        agg_spec["ibr_med"] = ("ibr", "median")
+        agg_spec["ibr_min"] = ("ibr", "min")
+        agg_spec["ibr_max"] = ("ibr", "max")
     if "ehe" in df.columns:
-        agg_spec["ehe_mean"] = ("ehe", "mean")
-        agg_spec["ehe_sd"] = ("ehe", lambda s: s.std(ddof=1) if len(s) > 1 else 0.0)
+        agg_spec["ehe_med"] = ("ehe", "median")
+        agg_spec["ehe_min"] = ("ehe", "min")
+        agg_spec["ehe_max"] = ("ehe", "max")
     if "rejection_rate" in df.columns:
-        agg_spec["rej_mean"] = ("rejection_rate", "mean")
+        agg_spec["rej_med"] = ("rejection_rate", "median")
     if "retry_rate" in df.columns:
-        agg_spec["retry_mean"] = ("retry_rate", "mean")
+        agg_spec["retry_med"] = ("retry_rate", "median")
     if "approval_rate" in df.columns and "rejection_rate" not in df.columns:
-        agg_spec["approval_mean"] = ("approval_rate", "mean")
+        agg_spec["approval_med"] = ("approval_rate", "median")
     agg = df.groupby(["model", "condition"]).agg(**agg_spec).reset_index()
 
     lines = [
@@ -186,26 +188,26 @@ def write_artefacts(rows: List[Dict], out_dir: Path, domain: str) -> None:
     ]
     # Auto-narrative
     if "Group_C" in df["condition"].unique() and "Group_C_disabled" in df["condition"].unique():
-        gov = df[df["condition"] == "Group_C"]["ibr"].mean() * 100
-        dis = df[df["condition"] == "Group_C_disabled"]["ibr"].mean() * 100
+        gov = df[df["condition"] == "Group_C"]["ibr"].median() * 100
+        dis = df[df["condition"] == "Group_C_disabled"]["ibr"].median() * 100
         lines.append(
             f"Across {df['model'].nunique()} model(s), validators "
-            f"reduced IBR from {dis:.1f}% (no validator) to {gov:.1f}% (governed)."
+            f"reduced median IBR from {dis:.1f}% (no validator) to {gov:.1f}% (governed)."
         )
     else:
         lines.append("Single-condition data; no governed-vs-disabled comparison computed.")
 
-    has_ibr = "ibr_mean" in agg.columns
+    has_ibr = "ibr_med" in agg.columns
     if has_ibr:
         lines += ["", "## Metrics table", "",
-                  "| Model | Condition | Runs | IBR mean ± sd | EHE mean ± sd | Rej rate | Retry rate |",
+                  "| Model | Condition | Runs | IBR median [min-max] | EHE median [min-max] | Rej rate | Retry rate |",
                   "|---|---|---:|---:|---:|---:|---:|"]
         for _, r in agg.iterrows():
             lines.append(
                 f"| {r['model']} | {r['condition']} | {int(r['n_runs'])} "
-                f"| {100*r['ibr_mean']:.1f}% ± {100*r['ibr_sd']:.1f}% "
-                f"| {r['ehe_mean']:.3f} ± {r['ehe_sd']:.3f} "
-                f"| {100*r.get('rej_mean', 0):.1f}% | {100*r.get('retry_mean', 0):.1f}% |"
+                f"| {100*r['ibr_med']:.1f}% [{100*r['ibr_min']:.1f}-{100*r['ibr_max']:.1f}] "
+                f"| {r['ehe_med']:.3f} [{r['ehe_min']:.3f}-{r['ehe_max']:.3f}] "
+                f"| {100*r.get('rej_med', 0):.1f}% | {100*r.get('retry_med', 0):.1f}% |"
             )
     else:
         lines += ["", "## Metrics table (simple-domain mode — IBR/EHE not applicable)", "",
@@ -215,14 +217,14 @@ def write_artefacts(rows: List[Dict], out_dir: Path, domain: str) -> None:
             lines.append(
                 f"| {r['model']} | {r['condition']} | {int(r['n_runs'])} "
                 f"| {int(r['n_decisions'])} "
-                f"| {100*r.get('approval_mean', 0):.1f}% |"
+                f"| {100*r.get('approval_med', 0):.1f}% |"
             )
     lines += ["", "## Caveats", ""]
     # Find missing seeds, partial runs, etc.
     for (m, c), grp in df.groupby(["model", "condition"]):
         if len(grp) < 5:
-            lines.append(f"- {m} / {c}: only {len(grp)} run(s); paired-t inference under-powered.")
-    if not any("paired-t" in l for l in lines[-5:]):
+            lines.append(f"- {m} / {c}: only {len(grp)} run(s); a median and range over so few seeds is thin.")
+    if not any("seeds is thin" in l for l in lines[-5:]):
         lines.append("- (no caveats detected)")
     lines += [
         "",

@@ -23,17 +23,16 @@ time_horizon_years: 42 # paper convention; lower bound 10 for laptop run
 models:
   - tag: gemma3:4b     # smallest model that produces sensible behaviour
     governance: [strict, disabled]
-    seeds: [42, 43, 44]   # 3 seeds = smallest meaningful paired-t
+    seeds: [42, 43, 44]   # 3 seeds = smallest useful median and range
 metrics:
   - name: ibr
   - name: ehe
   - name: rejection_rate
   - name: retry_rate
-statistical_comparisons:
+seed_summaries:
   - name: governed_vs_disabled
-    test: paired_t
+    summary: median_range_across_seeds
     metric: ibr
-    df_per_model: 2
 llm_params:
   num_ctx: 8192
   num_predict: 4096
@@ -64,11 +63,10 @@ metrics:
   - name: ehe
   - name: rejection_rate
   - name: retry_rate
-statistical_comparisons:
+seed_summaries:
   - name: governed_vs_disabled
-    test: paired_t
+    summary: median_range_across_seeds
     metric: ibr
-    df_per_model: 2
 llm_params:
   num_ctx: 8192
   num_predict: 1536
@@ -83,7 +81,7 @@ Approximate runtime: ~3 hr per governed run × 3 seeds × 2 conditions
 - **Single model**: a cross-model matrix is intimidating for a first
   run. After completing this experiment the user can re-invoke
   `wagf-experiment-designer` to expand to N models.
-- **3 seeds**: smallest n that supports a paired-t with df = 2;
+- **3 seeds**: smallest n that gives a useful median and range;
   paper convention is 5 seeds and `wagf-experiment-designer` will
   prompt the user to bump to 5 before submission.
 - **`gemma3:4b`**: the paper's baseline model; produces reproducible

@@ -274,6 +274,66 @@ def _build_runner(args):
     return runner, bundle
 
 
+def summarize_block_and_repair(output_dir) -> list:
+    """Plain-text summary of each blocked-then-repaired decision in a finished run.
+
+    Reads the operator's audit trace (one record per agent and year). A record
+    with ``retry_count > 0`` is a decision the dead-pool rule blocked and the
+    operator then repaired; its ``validation_issues`` hold the block reason and
+    ``execution_result`` holds the change that was applied to the toy reservoir.
+    """
+    trace = Path(output_dir) / "raw" / "operator_traces.jsonl"
+    if not trace.is_file():
+        return [f"(no trace file at {trace}, so no block/repair summary)"]
+    records = {}
+    for line in trace.read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        if "step_id" in rec:
+            records[rec["step_id"]] = rec
+    lines = []
+    for step_id in sorted(records):
+        rec = records[step_id]
+        if not rec.get("retry_count"):
+            continue
+        reasons = [
+            err
+            for issue in rec.get("validation_issues") or []
+            for err in issue.get("errors", [])
+        ]
+        year = rec["year"]
+        env = rec.get("environment_context") or {}
+        # A retried decision can end without a parsable proposal (skill_proposal
+        # null) or without an approved skill, e.g. when a live model's retries
+        # end in unparsable output; describe that instead of failing here.
+        proposal = rec.get("skill_proposal") or {}
+        repaired = (proposal.get("reasoning") or {}).get("magnitude")
+        approved = rec.get("approved_skill") or {}
+        change = (rec.get("execution_result") or {}).get("action_context") or {}
+        new_target = ((change.get("world_delta") or {}).get("world_changes") or {}).get("release_target")
+        retries = int(rec["retry_count"])
+        blocked = "attempt 1 " if retries == 1 else f"attempts 1-{retries}"
+        lines.append(f"Year {year}, agent {rec['agent_id']}:")
+        lines.append(f"  {blocked} BLOCKED: " + (" ".join(reasons) or "validation failed"))
+        if proposal and approved:
+            outcome = f"{approved.get('skill_name')} at {repaired}% of demand"
+        else:
+            outcome = "no parsable proposal after the retries; see the trace for the fallback"
+        lines.append(f"  attempt {retries + 1}  {approved.get('status', 'NO DECISION')}: {outcome}")
+        if new_target is not None and env.get("release_actual") is not None:
+            lines.append(
+                f"  executed   toy reservoir release target: {env['release_actual']:.3f} -> "
+                f"{new_target:.3f} maf/month"
+            )
+        after_env = (records.get(step_id + 1) or {}).get("environment_context") or {}
+        if None not in (after_env.get("storage"), env.get("storage"), env.get("dead_pool")):
+            lines.append(
+                f"  effect     storage {env['storage']:.3f} maf at year {year}, "
+                f"{after_env['storage']:.3f} maf at year {year + 1} "
+                f"(dead pool {env['dead_pool']:.3f} maf)"
+            )
+    return lines
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Reservoir continuous-control experiment")
     ap.add_argument("--model", default="mock", help="LLM model or 'mock'")
@@ -299,6 +359,10 @@ def main(argv=None) -> int:
     print("=" * 72)
     runner.run()
     print(f"\nDone. Audit + traces under: {args.output}")
+    summary = summarize_block_and_repair(args.output)
+    print("\nBlock and repair in this run:" if summary else "\nNo decision was blocked in this run.")
+    for line in summary:
+        print(line)
     return 0
 
 

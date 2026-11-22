@@ -90,5 +90,5 @@ The manifest does not currently capture:
 Pre-submission checklists (this skill's `references/checklist.md`) flag
 any missing field as YELLOW.
 
-Future schema expansion is tracked in
-`.ai/wagf_audit_summary_2026-04-24.md` (Phase 4 fix item F8).
+Future schema expansion is tracked in the audit schema notes,
+`docs/AUDIT_SCHEMA.md`.

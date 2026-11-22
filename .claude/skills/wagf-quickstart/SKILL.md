@@ -73,37 +73,47 @@ python .claude/skills/wagf-quickstart/scripts/check_env.py
 - Records phase-1 status to `.wagf-quickstart-status.json`.
 
 **Refuse to advance** if RED. Show the remediation list and wait for
-the user to fix.
+the user to fix. One exception: the Ollama and model checks matter only
+from Phase 3 on (Phase 2 runs on the built-in mock), so if Python and the
+imports are fine and only Ollama or the model is missing, Phase 2 may run
+first.
 
-### Phase 2 — Smoke test (~5 min)
+### Phase 2 — First run: a block and a repair (~2 min)
 
-**Goal**: confirm the broker pipeline produces meaningful behavioural
-diff (governed vs ungoverned).
+**Goal**: show the user, on a runnable example, one blocked attempt with
+its reason, the repaired answer, and the change in the toy model's state.
 
-**Run** (in order):
+This is the same first step the front-page `README.md` gives. It uses the
+built-in mock, so it needs no Ollama and no model download.
+
+**Run** (the user picks a fresh `--output` directory each time):
 
 ```bash
-python examples/quickstart/01_barebone.py
-python examples/quickstart/02_governance.py
+python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
-`01_barebone.py` runs without governance; `02_governance.py` runs the
-same scenario through the full broker pipeline. Both are short
-(~5 agents × 2 years).
+**What to show the user after the run**: the summary the script prints
+under `Block and repair in this run:`
 
-**What to show the user after the runs**:
-- A 3-line diff: skill distribution from `01_` vs `02_` (typically
-  governance reduces the increase / inaction rate).
-- Confirm `examples/quickstart/results/<run_dir>/simulation_log.csv`
-  was written.
+- `attempt 1  BLOCKED:` the dead-pool rule's reason (year 3);
+- `attempt 2  APPROVED:` the repaired answer (50% of demand);
+- `executed` the toy reservoir's release target before and after;
+- `effect` storage before and after, against the dead pool.
 
-**Refuse to advance** if either script crashes or
-`simulation_log.csv` is missing/empty. Inspect stdout for the actual
-error and recommend the fix from
-`references/troubleshooting.md`.
+Then point to `<output>/operator_governance_audit.csv` (year 3 row:
+`status` APPROVED, `retry_count` 1, `failed_rules` `dead_pool_violation`)
+and `<output>/raw/operator_traces.jsonl` (full reason and executed change).
+The answers are scripted: say plainly that this shows the loop, not a result.
 
-**Record** phase-2 status with the path of each run dir, so Phase 4's
-analyser can find them later.
+**Optional second step**: the two paper cases in the README (flood, then
+irrigation), same mock, fresh output directories.
+
+**Refuse to advance** if the run crashes, the summary is missing, or
+`operator_governance_audit.csv` is missing or empty. Inspect stdout for the
+actual error and recommend the fix from `references/troubleshooting.md`.
+
+**Record** phase-2 status with the output directory, so Phase 4's
+analyser can find it later.
 
 ### Phase 3 — First real experiment (~30 min planning + multi-hour run)
 
@@ -121,7 +131,7 @@ here. Instead:
    - **Models**: 1 model, default `gemma3:4b` (already pulled in
      Phase 1).
    - **Conditions**: `[strict, disabled]`.
-   - **Seeds**: 3 (smallest meaningful paired-t; bump to 5 later).
+   - **Seeds**: 3 (smallest useful median and range; bump to 5 later).
    - **Time horizon**: domain default (irrigation 42 yr, flood 10 yr).
    - **Social-media propagation** (v0.5.1+, opt-in): OFF by default
      and recommended OFF for first runs. Researchers studying
@@ -220,8 +230,9 @@ The skill is ready when:
   (env check + smoke test + Phase 3 prompt).
 - `check_env.py` returns GREEN on this repo (Python 3.14, Ollama
   with `gemma3:4b`, `gemma4:e2b` present).
-- `examples/quickstart/01_barebone.py` and
-  `02_governance.py` both produce a `simulation_log.csv` after Phase 2.
+- The reservoir command in Phase 2 prints a blocked attempt, its reason,
+  an approved retry and the change in the toy reservoir, and writes
+  `operator_governance_audit.csv`.
 - The hand-off to `wagf-experiment-designer` produces a valid
   `.research/wagf_experiment_matrix.yml` with the user's research
   question filled in (not auto-invented).

@@ -20,7 +20,15 @@ lines 3-7; the "C1" review-finding label is a code comment at line 60).
 
 ## Run it
 
+This is the first-run demo in the front-page [quickstart](../../README.md#quickstart).
+
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4
+python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
+
+The mock operator asks for 100% of demand, the dead-pool rule blocks that in year 3,
+and the operator's retry at 50% is approved and executed. The run ends by printing
+the blocked attempt with its reason, the approved retry, the executed release target
+and the storage before and after. `--output` must be a new directory.
+
 Compare with `reservoir_control_multidim/` (three-setpoint variant).

@@ -17,17 +17,16 @@ they are observed.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `01_barebone.py` exits with stack trace at year 1 | broker code-state mismatch | `git status` (should be clean); `git pull` |
-| Empty `simulation_log.csv` after `02_governance.py` | Python crashed mid-run | Inspect last record in `raw/*.jsonl`; common: prompt parse failure on a specific agent. Fix: re-pull model (`ollama pull gemma3:4b --insecure-clean`) |
-| Both scripts report identical action distributions | governance disabled in `02_governance.py` config | Confirm `02_governance.py` references the correct `agent_types.yaml` with `governance_profile: strict` |
-| `simulation_log.csv` is written but only contains 1 row | a single-agent run finished correctly but the env loop bailed out early | Check for `RuntimeError` in stdout; common cause is a malformed `skill_registry.yaml` |
-| Reflection log empty | `reflection.interval` not set in config OR run too short for reflection trigger | Phase 2 uses 2-year horizon; reflection at default interval=1 should fire each year. If empty, check `agent_types.yaml:global_config.reflection.interval` exists |
+| The reservoir run exits with a stack trace at year 1 | broker code-state mismatch | `git status` (should be clean); `git pull` |
+| No `Block and repair in this run:` block printed | the run crashed before the end, or `--years` was less than 3 | Inspect stdout for the first error; rerun with `--years 4` and a new `--output` directory |
+| Empty `operator_governance_audit.csv` | Python crashed mid-run | Inspect the last record in `raw/operator_traces.jsonl`; rerun with a new `--output` directory |
+| `retry_count` is 0 on every row | the dead-pool rule did not engage | Confirm the command used `--model mock` (the scripted operator makes the year 3 request that the rule blocks) |
 
 ## Phase 3 (first experiment via wagf-experiment-designer)
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "metric not in catalogue" error | user requested an undefined metric | Pick from `references/metrics_catalog.md` in `wagf-experiment-designer` |
+| "metric not in catalogue" error | user requested an undefined metric | Pick from `wagf-experiment-designer/references/metrics_catalog.md` |
 | "model not in supported list" | user typed a model name without exact Ollama tag | Provide exact tag (e.g., `gemma3:4b` not `gemma`) and confirm via `ollama list` |
 | Bat fails to launch on Windows | path with spaces or backslash escaping | Wrap paths in double quotes; use forward slashes in YAML |
 
@@ -49,8 +48,8 @@ they are observed.
 
 ## When all else fails
 
-1. Open `examples/quickstart/01_barebone.py` and read the script
-   end-to-end (it's intentionally short).
+1. Open `examples/reservoir_control/run_reservoir_ops.py` and read the
+   scripted mock (`_operator_mock`) and the summary function.
 2. Run with `--verbose` if the script supports it.
 3. File an issue with: Python version, Ollama version, model tag,
    the first stack trace, the first 5 records of `raw/*.jsonl`.

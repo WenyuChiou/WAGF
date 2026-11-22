@@ -48,15 +48,17 @@ If nothing supplied, ask. Do not invent a path.
    reimplement):
    - IBR / AAI → read `references/metrics_definitions.md` FIRST and state which
      denominator you are using; the same data gives flood 0.87% or 1.60%
-     depending on it. Published pair: `SUBMISSION_2026/decomposition/_loader.py::ibr()`.
+     depending on it. Published pair: `reproduction/decomposition/_loader.py::ibr()`.
      Flood R1/R3/R4/R5 component counts:
      `examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py:compute_ibr_components`
      (its own denominator is every row of the audit csv with no medium-tier
      exclusion, so its rate is NOT the published one).
    - EHE = normalized Shannon entropy → use
-     `examples/irrigation_abm/analysis/nw_bootstrap_ci.py:shannon_entropy`,
-     with k from the action interface (irrigation 5, flood 4), one value per
-     seed, then the mean.
+     `examples/irrigation_abm/analysis/nw_bootstrap_ci.py:shannon_entropy`
+     (entropy in bits; divide by log2 k yourself, because that file's own
+     `ehe()` is fixed to its legacy 5-action list), with k = the number of
+     skills in that case's skill registry (irrigation 3, flood 4), one value
+     per seed, then the median and range across seeds.
    - Sentinel sweep → use
      `broker/components/analytics/audit.py:detect_audit_sentinels_in_csv`.
    - Temporal diagnostics M1/M2/M3 → call
@@ -64,8 +66,10 @@ If nothing supplied, ask. Do not invent a path.
      with `--gemma4-pipeline {v1,v2}` flag matched to the dataset.
    - Retry compliance Pattern A/B/C → call
      `examples/single_agent/analysis/compute_retry_compliance.py`.
-3. **Aggregate**: group by (model, condition); compute mean ± s.d.
-   across seeds; paired t-test for governed-vs-disabled; 95% CI.
+3. **Aggregate**: group by (model, condition); report the median and the
+   range (min-max) across seeds, as the paper does. Report the governed and
+   disabled values side by side and their difference in medians. Do not add a
+   significance test or a confidence interval unless the user asks for one.
 4. **Detect anomalies**: any sentinel-flagged column not on the
    `broker/INVARIANTS.md` Invariant 4 reserved list → flag in caveats.
 5. **Write artefacts** (see Outputs).
@@ -83,8 +87,9 @@ Write all under `analysis/` (create if missing):
   rejection counts and percentages.
 - `retry_outcomes.csv` — Pattern A/B/C distribution per (model,
   condition).
-- `model_condition_comparison.md` — pairwise governed-vs-disabled
-  paired t-tests with ΔIBR, ΔEHE, 95% CI, p-value per model.
+- `model_condition_comparison.md` — governed-vs-disabled comparison per
+  model: median and range (min-max) across seeds for each condition, and
+  ΔIBR, ΔEHE as differences of medians.
 
 ## Output structure contract
 
@@ -93,9 +98,9 @@ these exact headings:
 
 1. `## Scope` — paths analysed, run counts per (model, condition)
 2. `## Headline metrics` — one short narrative paragraph (≤120 words)
-   stating the headline finding (e.g., "Validators reduced IBR from
-   X% to Y% across N models; the reduction was significant (p<…) in
-   K of N").
+   stating the headline finding (e.g., "Validators reduced median IBR
+   from X% to Y% across N models; the governed range did not overlap the
+   disabled range in K of N").
 3. `## Metrics table` — the model × condition × metric matrix in
    markdown table form.
 4. `## Caveats` — explicit list of: missing seeds, sentinel-flagged
@@ -118,8 +123,9 @@ The skill MUST refuse to:
 2. Pool seeds across model versions or code versions without flagging.
    When pooling, the caveats section must list every distinct git
    commit observed across the pooled manifests.
-3. Report a paired t-test p-value when n < 3 paired observations
-   without an explicit warning.
+3. Report a median and range over fewer than 3 seeds without an explicit
+   warning that the range is thin. Do not report a p-value or confidence
+   interval as if the paper had one.
 4. Drop sentinel-flagged columns silently. Always list them in caveats.
 5. Compare runs whose `agent_types_config` paths differ without a
    warning.
@@ -143,9 +149,10 @@ The skill is ready when:
 - It produces all five artefacts for any non-empty results dir.
 - For
   `examples/single_agent/results/JOH_FINAL_v2/gemma4_e4b/Group_C/`,
-  the recomputed Table 5 row matches paper SI to ±0.001 on IBR mean.
+  the recomputed Table 5 row matches paper SI to ±0.001 on IBR.
 - For a tree containing both governed and disabled subtrees, the
-  paired t-test reproduces SFig 1 numbers within ±0.01 on every ΔIBR.
+  comparison file gives a median, a range and a difference in medians
+  for every model that has both arms.
 - Caveats section is non-empty for any input that has missing seeds or
   flagged sentinel columns.
 - Refusal protocol triggers when fed an unknown metric name (e.g.,

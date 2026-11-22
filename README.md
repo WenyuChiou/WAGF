@@ -47,8 +47,36 @@ On macOS/Linux, use `python3` if `python` is unavailable; use that interpreter
 throughout. The [setup check](docs/guides/readme_reference.md#check-your-python-setup)
 confirms the imports and prints `WAGF imports OK`.
 
-Run the two water cases with the repository's built-in **mock model**. No model
-download, GPU or API key is needed. Choose fresh output directories for each run.
+**First run: a block and a repair.** A toy reservoir with one operator, run with
+the repository's built-in **mock model**. No model download, GPU or API key is
+needed. Choose a fresh output directory for each run.
+
+```bash
+python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+```
+
+The scripted operator asks to release 100% of demand each year. In year 3 the
+dead-pool rule blocks that request, because storage would end below the dead
+pool. The operator then asks for 50%, which is approved and executed. The run
+ends with this summary:
+
+```text
+Block and repair in this run:
+Year 3, agent OPERATOR:
+  attempt 1  BLOCKED: set_release at 100.0% projects end-of-year storage 1.838 maf, below dead pool 6.000 maf.
+  attempt 2  APPROVED: set_release at 50% of demand
+  executed   toy reservoir release target: 0.750 -> 0.375 maf/month
+  effect     storage 7.543 maf at year 3, 6.362 maf at year 4 (dead pool 6.000 maf)
+```
+
+In `operator_governance_audit.csv` in that directory, the year 3 row has
+`status` APPROVED, `retry_count` 1 and `failed_rules` `dead_pool_violation`;
+`raw/operator_traces.jsonl` keeps the full reason and the executed change. The
+answers are scripted, so this shows how a rule, a retry and an executed effect
+fit together; it is not a result.
+
+Next, run the two paper cases with the same mock model. Choose fresh output
+directories for each run.
 
 **Flood: one year, two households.**
 

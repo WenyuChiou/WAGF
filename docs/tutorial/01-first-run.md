@@ -1,5 +1,9 @@
 # 1. Run the two quickstarts
 
+If you have not yet run the reservoir demo that opens the
+[quickstart](../../README.md#quickstart), run it first: it is the shortest way to see a
+block, a retry and an executed change.
+
 From the repository root, install WAGF as described in the
 [quickstart](../../README.md#quickstart), then run the built-in mock with a fresh
 output directory:

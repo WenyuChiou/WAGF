@@ -41,7 +41,26 @@ python -m pip install -e ".[analysis]"
 
 在 macOS/Linux 上，若沒有 `python`，請改用 `python3`，並全程使用同一個直譯器。[安裝檢查](docs/guides/readme_reference.md#check-your-python-setup)會確認匯入正常，並印出 `WAGF imports OK`。
 
-用 repository 內建的 **mock model** 執行兩個水資源案例，不需下載模型，也不需 GPU 或 API key。每次執行都請使用新的輸出目錄。
+**第一次執行：一次攔阻與一次修正。** 一個玩具水庫、一位操作員，使用 repository 內建的 **mock model**，不需下載模型，也不需 GPU 或 API key。每次執行都請使用新的輸出目錄。
+
+```bash
+python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+```
+
+腳本化的操作員每年都要求放出 100% 的需水量。第 3 年，死庫容（dead pool）規則攔阻了這個要求，因為年底蓄水量會低於死庫容。操作員接著改要求 50%，這次通過並被執行。執行結束時會印出這段摘要：
+
+```text
+Block and repair in this run:
+Year 3, agent OPERATOR:
+  attempt 1  BLOCKED: set_release at 100.0% projects end-of-year storage 1.838 maf, below dead pool 6.000 maf.
+  attempt 2  APPROVED: set_release at 50% of demand
+  executed   toy reservoir release target: 0.750 -> 0.375 maf/month
+  effect     storage 7.543 maf at year 3, 6.362 maf at year 4 (dead pool 6.000 maf)
+```
+
+在該目錄的 `operator_governance_audit.csv` 中，第 3 年那一列的 `status` 是 APPROVED、`retry_count` 是 1、`failed_rules` 是 `dead_pool_violation`；`raw/operator_traces.jsonl` 則保留完整的攔阻原因與被執行的變更。回答是腳本寫好的，所以這只是示範規則、重試與執行效果如何串在一起，不是研究結果。
+
+接著用同一個 mock model 執行兩個論文案例。每次執行都請使用新的輸出目錄。
 
 **洪水：一年、兩個家戶。**
 
