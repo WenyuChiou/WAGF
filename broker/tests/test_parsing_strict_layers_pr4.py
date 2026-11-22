@@ -70,7 +70,7 @@ CTX = {"agent_id": "H0001", "agent_type": "household"}
 CTX_RETRY = dict(CTX, retry_attempt=1)
 
 #: The commit this PR-4 stack branch was cut from (stack PR-3 tip).
-HEAD_COMMIT = "fece4ed4"
+HEAD_COMMIT = "97a9580a"  # fece4ed4 before the 2026-11-21 history rewrite (reproduction/history_rewrite/commit-map.txt)
 
 
 # ---------------------------------------------------------------------------

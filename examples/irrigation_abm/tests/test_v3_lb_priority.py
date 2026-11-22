@@ -83,14 +83,14 @@ _REAL_REF_AVAILABLE = CRSS_PARAMS_CSV.is_file() and CRSS_DB_DIR.is_dir()
 
 # Review round 2 (MEDIUM 3): the exact commit this review requires
 # lb_priority_mode="senior_all" to stay bit-identical to.
-_HEAD_COMMIT = "38e5c34b"
+_HEAD_COMMIT = "416c2a47"  # 38e5c34b before the 2026-11-21 history rewrite (reproduction/history_rewrite/commit-map.txt)
 # Re-review 2026-09-29 round 4 (LOW 7): the branch tip immediately before
 # items 25-27 (LB non-ag 5.2, the 2007 Interim Guidelines Powell tiers)
 # landed -- the exact commit the v3-DEFAULT ("split") settlement must stay
 # bit-identical to when both new defaults are pinned back to what they
 # were there (lb_non_ag_total_maf=5.0, powell_release_mode=
 # "storage_balancing"; see TestSplitDefaultBitIdenticalTo58a1d0ea below).
-_PRE_ITEMS_25_27_COMMIT = "58a1d0ea"
+_PRE_ITEMS_25_27_COMMIT = "10b4c2eb"  # 58a1d0ea before the 2026-11-21 history rewrite (reproduction/history_rewrite/commit-map.txt)
 
 
 def _agent(basin: str, request: float, water_right: float = 4_000_000.0) -> dict:

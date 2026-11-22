@@ -465,7 +465,9 @@ class TestZeroInitByteIdenticalToPreFix:
     def test_zero_init_matches_pre_fix_commit(self, tmp_path):
         old_script = tmp_path / "_snapshot_00654d14_run_fql_baseline.py"
         show = subprocess.run(
-            ["git", "show", "00654d14:examples/irrigation_abm/run_fql_baseline.py"],
+            # 2c8e2fe4 is 00654d14 before the 2026-11-21 history rewrite
+            # (reproduction/history_rewrite/commit-map.txt).
+            ["git", "show", "2c8e2fe4:examples/irrigation_abm/run_fql_baseline.py"],
             cwd=str(PROJECT_ROOT), capture_output=True, text=True,
         )
         assert show.returncode == 0, show.stderr
