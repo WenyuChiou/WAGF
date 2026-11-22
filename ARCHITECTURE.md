@@ -4,9 +4,9 @@
 
 ## Overview
 
-The Water Agent Governance Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — including flood risk adaptation, irrigation water management, and water resource policy evaluation.
+The Water Agent Governance Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — with two worked cases in this repository: flood risk adaptation and Colorado River irrigation.
 
-The framework's extensible architecture allows new water sub-domains to be added through configuration (YAML skill registries + domain validators) without modifying the core broker.
+A new case is added without editing the core broker, but not by configuration alone: it needs YAML skill registries and validators plus Python code for the case's world and lifecycle hooks (see [how to add a domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
 
 **Version**: v0.6.0 (semver). Pre-v0.3.0 the project used a different
 internal versioning scheme; v0.29.0 → v0.3.0 (2026-05-27) was a

@@ -16,7 +16,8 @@ python examples/irrigation_abm/run_experiment.py --model mock --years 2 --agents
 
 That run writes four decisions to `irrigation_farmer_governance_audit.csv` and
 the coupled water state to `simulation_log.csv`. [Chapter 4](04-water-model.md)
-uses the 78 bundled profiles to make the feedback path and tier transition
+uses the 78 user profiles from the CRSS bundle (not distributed; see
+[DATA.md](../../DATA.md)) to make the feedback path and tier transition
 visible.
 
 This is **one-way coupling**: the supplied flood schedule drives household

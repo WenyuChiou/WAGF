@@ -84,7 +84,6 @@ The main experiment modes are:
 
 - benchmark / ablation runs through [run_flood.py](run_flood.py)
 - survey-driven initialization through `--survey-mode`
-- stress testing through `run_stress_marathon.ps1`
 
 This directory contains both production-style runs and paper-analysis helpers.
 For the full academic framing, hypotheses, and validation details, read
@@ -101,7 +100,7 @@ workspace. Related locations:
 
 - Single-agent irrigation reference: [examples/irrigation_abm/](../irrigation_abm/)
 - Multi-agent flood reference: [examples/multi_agent/flood/](../multi_agent/flood/)
-- Nature Water manuscript workspace: `paper/nature_water/`
+- Reproduction notes and the old-to-new commit map: [reproduction/](../../reproduction/README.md)
 
 ---
 

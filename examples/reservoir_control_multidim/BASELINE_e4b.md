@@ -1,6 +1,6 @@
 # `reservoir_control_multidim` — gemma4:e4b worked-run baseline
 
-Real-LLM validation of the Phase 6W multi-dimensional-action chain: the operator
+One exploratory real-LLM run (not a validation) of the Phase 6W multi-dimensional-action chain: the operator
 proposes **three bounded setpoints in one decision** (`release_rate_cms`,
 `hydropower_target_mw`, `flood_pool_pct`), each governed per-field by the generic
 `ParameterBoundsValidator` (reject-and-retry) and committed verbatim to the hosted

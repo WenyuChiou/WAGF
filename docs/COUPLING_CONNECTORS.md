@@ -138,18 +138,16 @@ Three contracts the example pins (copy them, don't rediscover):
    set_value / get_var_units / get_current_time) drops into the slot;
    non-BMI models implement the 4-verb surface in a ~30-line wrapper.
 
-Real-LLM validated (gemma4:e4b, 4-yr run, exit-clean, 4/4 APPROVED): the
-model self-curtailed (20-40% of demand in drought years) so the dead-pool
-wall never needed to fire — walls are backstops, not steering. What the
-real run DID exercise: two early-year magnitude parse failures were caught
-by the output-schema check plus the validator's honest missing-key result
-(`missing_world_state`), governed re-prompts recovered both, and no
-silent fallback occurred. The deterministic wall→retry→APPROVED narrative
-is pinned by the scripted-mock path and its test suite instead. One more
-real-LLM lesson baked into both coupled examples: the hub-less builder
-path does not populate `{options_text}`, so inject the action menu via
-`dynamic_state` and give the `decision` field an explicit `description`
-(the format builder's default claims "1, 2, or 3" regardless of menu size).
+`examples/reservoir_control/` and `examples/reservoir_control_multidim/` are
+design walk-throughs. They are run with the mock model and with scripted
+proposals in their tests, which pin the wall, retry and approved sequence. Neither
+is validated with a real LLM: the multidim folder keeps one exploratory
+`gemma4:e4b` run (`BASELINE_e4b.md`), and the walls are backstops, not a way to
+steer the agent. If you build your own prompt, give the
+`decision` field an explicit `description` or pass `valid_choices_text` to the
+format builder. Its own default text is "1, 2, or 3" and is used only when the
+caller passes none; the context builders pass the real menu
+(`broker/components/context/tiered.py`).
 
 ## Two models at once
 One bundle per adapter, one `event_src` slot — compose INSIDE one bundle:

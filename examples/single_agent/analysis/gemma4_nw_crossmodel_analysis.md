@@ -119,7 +119,7 @@ Metric Guide:
   ESRR = Extreme Scenario Response Rate [0-1]: strong actions in severe scenarios
 
 [stderr]
-C:\Users\wenyu\AppData\Roaming\Python\Python314\site-packages\requests\__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+<site-packages>\requests\__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
   warnings.warn(
 ```
 

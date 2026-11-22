@@ -643,14 +643,14 @@ def _primary_results_dir() -> Path:
 
     Overridable via WAGF_PRIMARY_RESULTS (2026-09-27 review) so this test
     skips cleanly on a machine/CI without that specific clone checked out
-    at that path; defaults to the hardcoded path this repo has used so far.
+    at that path; defaults to this repository's own results/ directory.
     """
     import os
     override = os.environ.get("WAGF_PRIMARY_RESULTS")
     if override:
         return Path(override)
     return (
-        Path("C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework")
+        Path(__file__).resolve().parents[3]
         / "examples" / "irrigation_abm" / "results"
     )
 

@@ -58,3 +58,48 @@ def test_quickstart_commands_match(entrypoint):
     ]
     commands = [_quickstart_command(path, entrypoint) for path in paths]
     assert commands[1:] == commands[:-1]
+
+
+# --- Tutorial chapter 4 needs CRSS data that is not distributed ------------------------------
+CH4 = ROOT / "docs/tutorial/04-water-model.md"
+
+
+def _ch4_real_command():
+    text = CH4.read_text(encoding="utf-8")
+    for match in re.finditer(r"```bash\n(.*?)\n```", text, flags=re.DOTALL):
+        if match.group(1).startswith("python examples/irrigation_abm/run_experiment.py") \
+                and "--real" in match.group(1):
+            return text, match.group(1), match.start()
+    raise AssertionError("chapter 4 has no --real irrigation command")
+
+
+def test_ch4_tells_reader_about_crss_before_the_command():
+    text, _command, start = _ch4_real_command()
+    before = text[:start].lower()
+    assert "crss" in before and "not distributed" in before
+    assert "data.md" in before
+
+
+@pytest.mark.parametrize("path", ["README.md", "examples/README.md", "docs/tutorial/01-first-run.md"])
+def test_pages_that_point_to_ch4_name_the_crss_requirement(path):
+    text = (ROOT / path).read_text(encoding="utf-8")
+    # Look at the paragraph that links chapter 4.
+    paragraphs = [p for p in re.split(r"\n\s*\n", text) if "04-water-model.md" in p]
+    assert paragraphs, f"{path} no longer links chapter 4"
+    assert all("CRSS" in p and "DATA.md" in p for p in paragraphs), path
+
+
+def test_ch4_command_fails_on_missing_crss_with_the_path_the_docs_name(tmp_path):
+    """With ref/CRSS_DB hidden (a clean clone), the failure names the folder DATA.md describes."""
+    if (ROOT / "ref" / "CRSS_DB").exists():
+        pytest.skip("CRSS_DB is present here; the clean-clone case cannot be shown")
+    _text, command, _start = _ch4_real_command()
+    argv = shlex.split(command)
+    argv[0] = sys.executable
+    argv[argv.index("--output") + 1] = str(tmp_path / "ch4")
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True,
+                            encoding="utf-8", timeout=120)
+    assert result.returncode != 0
+    assert "CRSS_DB" in result.stdout + result.stderr
+    assert "ref/CRSS_DB/CRSS_DB" in (ROOT / "DATA.md").read_text(encoding="utf-8")

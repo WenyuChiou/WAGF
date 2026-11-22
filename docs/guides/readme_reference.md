@@ -47,7 +47,7 @@ Expect yearly household decisions and `results/flood_first_run/simulation_log.cs
 
 Thinking (extra reasoning output from models that support it) is off by default; add `--thinking-mode enabled` to request it. A few models cannot turn thinking off; WAGF notes this in the run manifest. See the [model configuration reference](../../docs/references/yaml_configuration_reference.md#214-global_configllm).
 
-See the [flood manual](../../examples/single_agent/README.md) for inputs and outputs. Cloud models use `--model anthropic:<id>`, `openai:<id>` or `gemini:<id>`. Set `ANTHROPIC_API_KEY` for Anthropic, `OPENAI_API_KEY` for OpenAI or `GOOGLE_API_KEY` for Gemini. Cloud models also need the provider's own package: `python -m pip install anthropic`, `python -m pip install openai` or `python -m pip install google-generativeai`.
+See the [flood manual](../../examples/single_agent/README.md) for inputs and outputs. Cloud models use `--model anthropic:<id>`, `openai:<id>` or `gemini:<id>`. Set `ANTHROPIC_API_KEY` for Anthropic, `OPENAI_API_KEY` for OpenAI or `GOOGLE_API_KEY` for Gemini. Cloud models also need the provider's own package, installed as an extra: `python -m pip install -e ".[anthropic]"`, `".[openai]"` or `".[gemini]"` (the Ollama provider's `httpx` is the `ollama` extra).
 
 If it fails: see [Ollama troubleshooting](../../docs/guides/troubleshooting_guide.md#3-ollama-connection-issues); for a finished output folder, choose a new one.
 

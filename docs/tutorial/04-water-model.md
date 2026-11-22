@@ -5,7 +5,14 @@ directions. The agents' requests enter the annual water balance. The resulting
 Lake Mead level sets the next year's Lower Basin shortage tier, delivery limits,
 and water-situation text shown to each agent.
 
-Use the built-in mock with the 78 bundled CRSS profiles. This two-year setting
+**This chapter needs CRSS data, which is not distributed with the repository.**
+The 78 user profiles come from the Colorado River Simulation System (CRSS) bundle,
+which is available from the authors on request. Place it under `ref/CRSS_DB/CRSS_DB/`
+as described in [DATA.md](../../DATA.md). Without it, the command below fails at once
+with a missing-file error for `ref/CRSS_DB/CRSS_DB/Div_States/UB_discrete_states.csv`.
+The two-agent mock run in [chapter 1](01-first-run.md) needs no CRSS data.
+
+Use the built-in mock with the 78 CRSS profiles. This two-year setting
 is the smallest stock-data run used here that crosses a Lake Mead tier without
 editing a configuration:
 

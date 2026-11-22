@@ -1,41 +1,44 @@
 Tracked copy of the working ledger; every threshold in the framework's shipped rules needs a literature source (L) or a stated assumption (A).
-Updated 2026-09-07.
+Updated 2026-11-22 to describe the rules as they ran in the paper runs (earlier text described the v21 irrigation corpus).
 
-# Rule and threshold basis ledger (irrigation + flood single-agent), 2026-09-06
+# Rule and threshold basis ledger (irrigation + flood single-agent)
 
 Rule agreed with the user 2026-09-06: every threshold or rule in the paper must have
 either (L) a literature source or (A) a stated reasonable assumption. A number derived
 from our own corpus (a quantile) is neither and is not allowed. This file is the working
-record; nothing here is manuscript prose.
+record; nothing here is manuscript prose. Code is cited by file and symbol, not line number.
 
-## Irrigation (published v21 strict profile + environment)
+## Irrigation (the rules of the irrigation paper runs, `config/agent_types.yaml`)
+
+The thinking rules TR1 and TR3 run in the `strict` profile only. The identity rules are menu
+filters in every profile. The supply rule runs in every profile except `disabled`.
+Thinking rules read the water-scarcity appraisal (WSA) as first stated in the decision.
+The v21 rules R1, R2 and R4, the demand ceiling and floor stabilizers, and the `grounded_v1`
+and `grounded_tier1eq` variants are not part of the paper runs and are not listed.
 
 | Rule / number | Value | Basis type | Basis | Where in code |
 |---|---|---|---|---|
-| Shortage tiers | Mead 1,075 / 1,050 / 1,025 ft | L | Bureau of Reclamation 2007 Interim Guidelines (Record of Decision); 2019 Drought Contingency Plan (verify citations before use) | `irrigation_env.py:62-64`, `_compute_shortage_tier` |
-| Curtailment per tier | 5 / 10 / 20 % | A | uniform-percentage simplification of the volumetric state-by-state cuts in the Guidelines/DCP; state as a simplification | `irrigation_env.py:1001` |
-| `water_right_cap` | per-agent water right | L | Colorado River Compact (1922) allocation + CRSS water rights (Hung & Yang 2021 WRR) | `agent_types.yaml` strict identity rule; skill-registry precondition |
-| `demand_ceiling_stabilizer` (retired from dispatch 2026-09-25; row describes the v21 corpus) | 6.0 MAF | A anchored on L | 1.024 × CRSS basin demand target 5.86 MAF (Hung & Yang 2021); the 2.4 % headroom is an assumption | `irrigation_validators.py:682, 736-788` |
-| `demand_floor_stabilizer` (retired from dispatch 2026-09-25; row describes the v21 corpus) | 50 % of water right | A | economic-viability floor | `irrigation_validators.py:681` |
-| `minimum_utilisation_floor` | 10 % of water right | A | hard economic floor | `agent_types.yaml` strict identity rule |
-| Compact aggregate warning | basin share | L | 1922 Compact | `irrigation_validators.py:286-317` |
-| `low_threat_no_increase` | WSA = VL | L (theory) | mirrors the FQL decider's WSA×ACA logic (Hung & Yang 2021); appraisal–action consistency | `agent_types.yaml:347-353` |
-| `high_threat_high_cope_no_increase` | WSA, ACA ∈ {H, VH} | L (theory) | same | `agent_types.yaml:355-365` |
-| `high_threat_no_maintain` | WSA = VH, WARNING | L (theory) | same; WARNING has no channel to the model unless advise_mode is on | `agent_types.yaml:336-343` |
-| `drought_index` composite | 0.5 × precip deficit + 0.5 × Mead depletion | A | model-defined index; weights are an assumption | `irrigation_env.py:951-960` |
-| grounded_v1 threshold | 0.08 | **none** | 3-seed corpus p85 → NOT allowed; arm dropped | PR-6 profile |
-| Optional variant `grounded_tier1eq` | 0.227 | A derived from L | drought_index evaluated at 1,075 ft (Tier-1 elevation) under baseline precipitation | `config_variants/grounded_tier1eq` (unscheduled) |
+| Shortage tiers | Mead 1,075 / 1,050 / 1,025 ft | L | Bureau of Reclamation 2007 Interim Guidelines (Record of Decision); 2019 Drought Contingency Plan (verify citations before use) | `irrigation_env.py` (`WaterSystemConfig.mead_shortage_tier1` to `tier3`, `_compute_shortage_tier`) |
+| Lower Basin shortage volumes | 333 / 417 / 500 kaf (Arizona share 320 / 400 / 480 kaf) | L | 2007 Interim Guidelines Record of Decision, Section 2.D.1; the Arizona priority-4 fraction is not independently verified | `irrigation_env.py` (`_tier_shortage_volume_maf`, `_AZ_LB_TIER_VOLUME_AF`, `_lb_junior_tier_fraction`) |
+| TR1 `high_scarcity_no_increase` | WSA in {H, VH} blocks `increase_demand` (ERROR, strict only) | L (theory) + A | dual-appraisal theory: an increase on a shared supply when the user judges water scarce is a maladaptive response; mapping the theory onto this menu is our assumption | `config/agent_types.yaml` (`governance.strict.thinking_rules`) |
+| TR3 `low_scarcity_no_decrease` | WSA in {VL, L} blocks `decrease_demand` (ERROR, strict only) | L (theory) + A | same, kept for symmetry with the flood over-reaction rules; support weak to moderate | same |
+| TR2 (WSA and ACA both H or VH, keep) | not enforced in any profile | - | - | - |
+| Supply rule `supply_gap_block_increase` | blocks `increase_demand` when the expected delivery of last year's request is below `FULL_SUPPLY_RATIO` of it | A | world-state rule; reads only water-system state; no other numeric threshold | `validators/irrigation_validators.py` (`supply_gap_block_increase`, `supply_rule_fields`) |
+| `water_right_cap` | no increase at or above 0.99 of the water right | L + A | Colorado River Compact (1922) allocation and CRSS water rights (Hung & Yang 2021); the 0.99 margin is an assumption | `config/agent_types.yaml` (`identity_rules`), skill-registry precondition |
+| `beneficial_use_limit` | no increase at about the most water the fields can use | L + A | beneficial use as the basis and limit of a water right (A.R.S. 45-141(B); Upper Colorado River Basin Compact 1948, Art. III(b)(2)); the per-agent limit comes from the model's data | `config/agent_types.yaml`, `irrigation_env.py` (`at_beneficial_use_limit`) |
+| `minimum_utilisation_floor` | no decrease at or below 1.01 × 10 % of the water right | A | the legal basis (forfeiture of unused rights after years of non-use) sets multi-year periods, not an annual fraction, so the 10 % is this model's assumption; the source model has no floor; sensitivities at 0 and 0.05 are recorded | `config/agent_types.yaml`, `irrigation_env.py` (`WaterSystemConfig.min_utilisation_fraction`) |
+| `drought_index` | legacy proxy | A | no prompt, rule or metric reads it in the paper runs; it still scales the legacy `total_available_water` term | `irrigation_env.py` (`_compute_drought_index`) |
 
-## Flood single-agent (published strict profile)
+## Flood single-agent (the `strict` profile of the paper runs, `examples/single_agent/agent_types.yaml`)
 
 | Rule / number | Value | Basis type | Basis | Where |
 |---|---|---|---|---|
-| `extreme_threat_block` | TP ∈ {H, VH} → no do_nothing | L (theory) | Protection Motivation Theory: high threat appraisal should not end in inaction | `examples/single_agent/agent_types.yaml:342-348` |
-| `relocation_threat_low`, `elevation_threat_low` | TP ∈ {VL, L} → no relocate / elevate | L (theory) | PMT: costly protection without threat is inconsistent | `:358-372` |
-| `low_coping_block` | CP ∈ {VL, L}, WARNING | L (theory) | PMT coping appraisal | `:349-357` |
-| `elevation_block` | already elevated → no elevate | A (physical) | state precondition | `:373-379` |
-| grounded_v1 `observed_flood_low_threat_inaction` | flood_event is true AND TP low AND do_nothing | A (observed event) | conditions on the simulated flood event, a boolean world fact; no threshold | PR-6 profile |
-| Fallback default `do_nothing` | — | A | status-quo default; makes rejection behaviourally inert in flood (disclose) | `agent_types.yaml:102` |
+| `extreme_threat_block` (R1) | TP ∈ {H, VH} and CP not in {VL, L} → no do_nothing (ERROR) | L (theory) | Protection Motivation Theory: high threat appraisal with coping not low should not end in inaction (non-protective response, Grothmann and Reusswig 2006); with low coping the rule does not fire, and the post-hoc measure reads it the same way (`test_pi_r1_requires_coping_not_low`) | `agent_types.yaml` (`governance.strict.thinking_rules`) |
+| `relocation_threat_low` (R3), `elevation_threat_low` (R4) | TP ∈ {VL, L} → no relocate / elevate | L (theory) | PMT: costly protection without threat is inconsistent | same |
+| `low_coping_block` | CP ∈ {VL, L}, WARNING | L (theory) | PMT coping appraisal | same |
+| `elevation_block` (R5) | already elevated → no elevate | A (state precondition) | state precondition | `agent_types.yaml` (`governance.strict.identity_rules`) |
+| grounded_v1 (not in paper runs) `observed_flood_low_threat_inaction` | flood_event is true AND TP low AND do_nothing | A (observed event) | conditions on the simulated flood event, a boolean world fact; no threshold | not part of the paper runs; see the `grounded_v1` profile |
+| Fallback default `do_nothing` | — | A | status-quo default; makes rejection behaviourally inert in flood (disclose) | `agent_types.yaml` (fallback skill) |
 
 ## Advise arm
 
