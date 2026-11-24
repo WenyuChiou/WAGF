@@ -4,7 +4,7 @@ The AR-6 home for numeric-parameter governance: ONE bounds vocabulary, reusing t
 coupling ``VarSpec.lo/hi`` via ``VarSpec.range_violation``. This is a FACTORY whose
 returned callable has the PHYSICAL-slot validator signature
 ``(skill_name, rules, context) -> List[ValidationResult]`` — the same registration
-channel ``dead_pool_violation`` uses: register it via
+channel a domain's Python physical check uses: register it via
 ``ValidatorRegistry.register(domain, "physical", [validator])`` (NOT the
 ``custom_validators`` path, whose signature is ``(proposal, context, registry)``).
 The factory is built from a per-skill spec mapping (the value the SkillPack
@@ -30,7 +30,7 @@ from typing import Any, Callable, Dict, List
 from broker.coupling.contract import VarSpec
 from broker.interfaces.skill_types import ValidationResult
 
-# A PHYSICAL-slot validator (registered via ValidatorRegistry, like dead_pool_violation):
+# A PHYSICAL-slot validator (registered via ValidatorRegistry):
 #   (skill_name, rules, context) -> List[ValidationResult]
 ParameterBoundsValidator = Callable[[str, Any, Dict[str, Any]], List[ValidationResult]]
 

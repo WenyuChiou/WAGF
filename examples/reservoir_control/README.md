@@ -7,15 +7,15 @@ storage against a dead-pool wall.
 
 **Decision timing (hindcast-then-set)**: each year the solver advances
 under the LAST committed release target, THEN the operator decides —
-the dead-pool projection combines just-observed storage with *next*
-year's inflow forecast (rationale: `ops_modules.py` module docstring,
-lines 3-7; the "C1" review-finding label is a code comment at line 60).
+the dead-pool check runs the toy model forward from the storage just observed, with *next*
+year's inflow forecast (rationale: `ops_modules.py` module docstring).
 
 ## Files
 
 - `reservoir_pack.py` — `ReservoirControlDomainPack` (coupling OFF by default).
 - `run_reservoir_ops.py` — the runnable experiment.
-- `ops_modules.py`/`ops_validators.py` — solver + the dead-pool projection check (Python).
+- `ops_modules.py` — the toy solver and its bundle (`apply_forecast`, `inputs_for_skill`).
+- `ops_validators.py` — no checks any more; the dead-pool limit is a `feasibility:` bound in the contract.
 - `config/reservoir_agent_types.yaml`, `config/reservoir_skill_registry.yaml`. The
   flood-control overflow limit (block `set_release` below 100% of demand while storage is
   above 90% of capacity) is one `expression:` rule in the YAML, under the `strict` profile.
@@ -42,6 +42,14 @@ there but not a finite number gets a `world_variable_unusable` WARNING. The run'
 audit rows never have a missing variable (the runner publishes all three), so the demo
 output is unchanged apart from the two grounding columns, which appear whenever a profile
 has a world rule.
+
+**Dead-pool check (feasibility bound).** The contract declares `dead_pool_violation`:
+`storage_unclamped >= 6.0` must hold at every month of the coming year. Before a `set_release`
+is approved, a deep copy of the toy reservoir is fed the forecast the operator saw and the
+requested release, and run 12 months; the live model, its random numbers and files are not
+touched. `storage_unclamped` is next month's storage before the clamp to [0, capacity]. The old
+linear formula is gone: the check uses the model's own evaporation (see "Feasibility bounds" in
+`docs/COUPLING_CONNECTORS.md`).
 
 **Water balance.** The contract declares one relation, `storage_balance`: storage minus
 (previous storage + inflow - release - evaporation - spill) must be within 1e-9 maf, checked

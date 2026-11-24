@@ -119,7 +119,7 @@ def test_readme_first_run_shows_block_reason_repair_and_effect(tmp_path):
                             encoding="utf-8", timeout=300)
     assert result.returncode == 0, result.stdout + result.stderr
     summary = result.stdout.split("Block and repair in this run:")[1]
-    assert "BLOCKED:" in summary and "below dead pool" in summary
+    assert "BLOCKED:" in summary and "breaks dead_pool_violation" in summary
     assert "APPROVED:" in summary
     assert "toy reservoir release target:" in summary
 

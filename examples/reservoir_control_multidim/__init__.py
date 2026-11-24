@@ -2,7 +2,7 @@
 
 Importing this package registers the multi-dim DomainPack AND the generic
 ParameterBoundsValidator (built from the pack's per-skill VarSpec param_specs) in the
-physical validator slot — the same ValidatorRegistry channel dead_pool_violation uses.
+physical validator slot — the ValidatorRegistry channel a domain's Python physical checks use.
 
 This is the FIRST real call-site of DomainPack.param_specs(): its dormancy ends here
 (the DORMANT_HOOKS entry for param_specs is removed in this commit). Demonstrates the

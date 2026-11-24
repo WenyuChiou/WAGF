@@ -27,6 +27,20 @@ from ..utils.llm_safeguard import (
 from .efficiency import CognitiveCache
 
 
+def _is_projection_stop(exc: BaseException) -> bool:
+    """True for an error the coupling projection check raised during validation
+    (a value it could not read, a zero divisor, a side effect on a copy).
+
+    Such an error must stop the run: the step handlers below turn any other
+    exception into an ABORTED row and carry on, which would let a proposal go
+    unchecked. ``broker.coupling`` is looked up in ``sys.modules``, never
+    imported, so a run without coupling does not load it.
+    """
+    mod = sys.modules.get("broker.coupling.projection_check")
+    cls = getattr(mod, "ProjectionCheckError", None) if mod is not None else None
+    return cls is not None and isinstance(exc, cls)
+
+
 def _rebuild_cached_proposal(
     cached_proposal: Optional[Dict[str, Any]],
     *,
@@ -2304,6 +2318,11 @@ class ExperimentRunner:
                 # run()'s generic handler records it in the manifest.
                 raise
             except Exception as e:
+                if _is_projection_stop(e):
+                    # R1 slice 2: the projection check could not judge a
+                    # proposal. Stop the run (run()'s generic handler records
+                    # it in the manifest); never file another ABORTED row.
+                    raise
                 # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):
                 # pre-fix path logged + dropped the agent from `results`,
                 # shrinking the audit-CSV denominator silently — the
@@ -2671,6 +2690,11 @@ class ExperimentRunner:
                     executor.shutdown(wait=True, cancel_futures=True)
                     raise
                 except Exception as e:
+                    if _is_projection_stop(e):
+                        # R1 slice 2: same as the sequential handler; drain the
+                        # executor first, as the clauses above do.
+                        executor.shutdown(wait=True, cancel_futures=True)
+                        raise
                     # F4 fix (post-Phase-6T silent-failure audit,
                     # 2026-05-27): parallel mirror of F1. The
                     # ``_write_aborted_trace`` helper was deliberately

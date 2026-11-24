@@ -23,22 +23,25 @@ drought tail:
   10.511, 9.776, 9.088, 8.488, 7.973, 7.543]; spill=0.000,
   shortfall=0.000, mean release=0.750.
 
-Per-decision projections (S_proj = S + F_next - 12*release - 0.12*S):
+Per-decision what-if run (the contract's ``dead_pool_violation`` feasibility
+bound: ``storage_unclamped >= 6.0`` at every month of the coming year, on a copy
+of this model fed the forecast the operator saw):
 
-* Decision 1 (S=17.276, F2=7.35):  100% -> 13.553 maf  (passes)
-* Decision 2 (S=13.682, F3=4.20):  100% ->  7.240 maf  (passes)
-* Decision 3 (S=7.543,  F4=4.20):  100% ->  1.838 maf  < 6.0 dead pool ->
-  WALL fires (max passing magnitude 53.75%); the scripted retry at 50%
-  projects 6.338 maf >= 6.0 and is APPROVED — wall -> retry -> resolves.
+* Decision 1 (S=17.276, F2=7.35):  100% passes.
+* Decision 2 (S=13.682, F3=4.20):  100% passes.
+* Decision 3 (S=7.543,  F4=4.20):  100% -> storage_unclamped 5.434 at month 6
+  (2.102 at month 12) < 6.0 dead pool -> WALL fires (a release of about 53.6%
+  or less passes); the scripted retry at 50% ends the year at 6.362 maf and is
+  APPROVED — wall -> retry -> resolves.
 * Year 4 then runs at the curtailed 0.375 maf/month and ends at
   6.362 maf, above dead pool.
 * Decision 4 (S=6.362, F5=10.50 — the factor cycle wraps to wet):
-  100% -> 7.099 maf (passes; recovery year).
+  100% passes (recovery year).
 """
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from broker.coupling import ContinuousBundle, CouplingViolation
 
@@ -91,6 +94,10 @@ class ToyMassBalanceReservoir:
         self._inflow = 0.0
         self._evaporation = 0.0
         self._last_available = self._storage
+        self._storage_unclamped = self._storage
+        # Used only on a projection copy (set_inflow_forecast): None = off.
+        self._forecast_total: float | None = None
+        self._forecast_until = 0
 
     def initialize(self, _config_file: str | None = None) -> None:
         self._storage = self.INITIAL_STORAGE
@@ -102,6 +109,9 @@ class ToyMassBalanceReservoir:
         self._inflow = 0.0
         self._evaporation = 0.0
         self._last_available = self._storage
+        self._storage_unclamped = self._storage
+        self._forecast_total = None
+        self._forecast_until = 0
 
     @property
     def release_target(self) -> float:
@@ -124,8 +134,19 @@ class ToyMassBalanceReservoir:
         factor = self._year_factor_for_index((int(year) - 1) % len(self._year_factors))
         return sum(INFLOW_PATTERN_MONTHLY) * factor
 
+    def set_inflow_forecast(self, year_total: float) -> None:
+        """Projection copies only: the next 12 months' inflow follows the
+        forecast the agent saw (monthly = pattern share of ``year_total``), not
+        the true inflow of that year. The live model never calls this."""
+        self._forecast_total = float(year_total)
+        self._forecast_until = self._t + 12
+
     def _current_inflow(self) -> float:
         month = self._t % 12
+        if self._forecast_total is not None and self._t < self._forecast_until:
+            return INFLOW_PATTERN_MONTHLY[month] * self._forecast_total / sum(
+                INFLOW_PATTERN_MONTHLY
+            )
         year = self._t // 12
         return INFLOW_PATTERN_MONTHLY[month] * self._year_factor_for_index(year)
 
@@ -144,6 +165,10 @@ class ToyMassBalanceReservoir:
             - evap_loss
         )
         spill = max(0.0, next_storage - self.CAPACITY)
+        # Published for the feasibility bound: the storage this month asked
+        # for, before the clamp to [0, CAPACITY] hides how far below dead pool
+        # (or zero) the request would have taken the reservoir.
+        self._storage_unclamped = next_storage
         self._storage = min(self.CAPACITY, max(0.0, next_storage))
         self._spill = spill
         self._shortfall = max(0.0, self.DEMAND_M - release_applied)
@@ -158,6 +183,8 @@ class ToyMassBalanceReservoir:
     def get_value(self, name: str) -> List[float]:
         if name == "storage":
             return [self._storage]
+        if name == "storage_unclamped":
+            return [self._storage_unclamped]
         if name == "spill":
             return [self._spill]
         if name == "shortfall":
@@ -182,7 +209,7 @@ class ToyMassBalanceReservoir:
         self._release_target = float(raw)
 
     def get_var_units(self, name: str) -> str:
-        if name in {"storage", "spill", "shortfall", "inflow", "evaporation"}:
+        if name in {"storage", "storage_unclamped", "spill", "shortfall", "inflow", "evaporation"}:
             return "maf"
         if name in {"release_actual", "release_target"}:
             return "maf_per_month"
@@ -211,13 +238,38 @@ class ReservoirOpsBundle(ContinuousBundle):
         super().__post_init__()
         self._last_release_target = ToyMassBalanceReservoir.DEMAND_M
 
-    def commit_world_delta(self, approved_skill: Any):
-        params = dict(getattr(approved_skill, "parameters", None) or {})
+    def _release_target_for(self, approved_skill: Any) -> float:
+        """The release target a skill asks for (no side effects)."""
+        params = getattr(approved_skill, "parameters", None) or {}
         pct = params.get("magnitude_pct")
         if pct is None:
-            release_target = self._last_release_target
-        else:
-            release_target = (float(pct) / 100.0) * ToyMassBalanceReservoir.DEMAND_M
+            return self._last_release_target
+        return (float(pct) / 100.0) * ToyMassBalanceReservoir.DEMAND_M
+
+    def inputs_for_skill(self, approved_skill: Any) -> Dict[str, float]:
+        """magnitude_pct -> release_target; no magnitude -> the last target.
+        Any other declared input passes through as in ContinuousBundle."""
+        params = dict(getattr(approved_skill, "parameters", None) or {})
+        params["release_target"] = self._release_target_for(approved_skill)
+        return super().inputs_for_skill(replace(approved_skill, parameters=params))
+
+    def apply_forecast(self, model_copy: Any, context: Dict[str, Any]) -> None:
+        """Feed a projection copy the inflow forecast the operator saw."""
+        env = context.get("env_state") if isinstance(context, dict) else None
+        forecast = env.get("inflow_forecast_year") if isinstance(env, dict) else None
+        if forecast is None and isinstance(context, dict):
+            forecast = context.get("inflow_forecast_year")
+        if forecast is None:
+            raise CouplingViolation(
+                "projection needs inflow_forecast_year in the validation context "
+                "(the forecast the operator saw); it is absent, so the copy cannot "
+                "be fed it. Check the runner's env wiring."
+            )
+        model_copy.set_inflow_forecast(forecast)
+
+    def commit_world_delta(self, approved_skill: Any):
+        params = dict(getattr(approved_skill, "parameters", None) or {})
+        release_target = self._release_target_for(approved_skill)
 
         spec = self.contract.input_specs().get("release_target")
         if spec is not None:

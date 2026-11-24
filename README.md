@@ -56,14 +56,14 @@ python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --
 ```
 
 The scripted operator asks to release 100% of demand each year. In year 3 the
-dead-pool rule blocks that request, because storage would end below the dead
-pool. The operator then asks for 50%, which is approved and executed. The run
+dead-pool rule blocks that request, because the toy reservoir's own trial run of
+the coming year ends below the dead pool. The operator then asks for 50%, which is approved and executed. The run
 ends with this summary:
 
 ```text
 Block and repair in this run:
 Year 3, agent OPERATOR:
-  attempt 1  BLOCKED: set_release at 100.0% projects end-of-year storage 1.838 maf, below dead pool 6.000 maf.
+  attempt 1  BLOCKED: set_release (requested release_target=0.75) breaks dead_pool_violation: storage_unclamped >= 6.0 does not hold; the model projects storage_unclamped=5.43401 at sub-step 6 of 12 (copy projection).
   attempt 2  APPROVED: set_release at 50% of demand
   executed   toy reservoir release target: 0.750 -> 0.375 maf/month
   effect     storage 7.543 maf at year 3, 6.362 maf at year 4 (dead pool 6.000 maf)

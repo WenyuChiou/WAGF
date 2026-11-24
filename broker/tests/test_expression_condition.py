@@ -675,6 +675,12 @@ def test_zero_divisor_stops_a_parallel_run(tmp_path, monkeypatch):
         OVERFLOW, "storage_now / (capacity - capacity) > 0.9 and proposed_magnitude < 100"),
         encoding="utf-8")
     monkeypatch.setattr(ops, "CONFIG", cfg_dir)
+    # The builder refuses workers>1 for a contract with feasibility bounds
+    # (R1 slice 2); this test is about the expression path, so drop them.
+    import dataclasses
+    orig_contract = ops._build_contract
+    monkeypatch.setattr(ops, "_build_contract",
+                        lambda: dataclasses.replace(orig_contract(), feasibility=()))
     orig_workers = ExperimentBuilder.with_workers
     monkeypatch.setattr(ExperimentBuilder, "with_workers",
                         lambda self, n: orig_workers(self, 2))

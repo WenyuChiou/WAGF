@@ -754,6 +754,7 @@ class AuditMixin:
         attempt_labels: Optional[List] = None,
         attempt_failed_rules: Optional[List] = None,
         attempt_prompts: Optional[List] = None,
+        projection_default_breach: Optional[str] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -972,6 +973,14 @@ class AuditMixin:
         if attempt_prompts is not None:
             retry_prompt_extra["retry_prompts"] = list(attempt_prompts)
 
+        # R1 slice 2: the default skill that ran after the retries were
+        # exhausted was projected (the coupled model declares feasibility
+        # bounds): the bound names it breaches, "" when it passes. Key-gated by
+        # the value itself, so a run without bounds adds no key and no column.
+        projection_extra: Dict[str, Any] = {}
+        if projection_default_breach is not None:
+            projection_extra["projection_default_breach"] = projection_default_breach
+
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)
         if (callable(get_pflag) and get_pflag()
@@ -1069,6 +1078,8 @@ class AuditMixin:
             **state_extra,
             # Retry-prompt text, spread last (same rationale); JSONL-only.
             **retry_prompt_extra,
+            # Default-after-retries projection mark, spread last (same rationale).
+            **projection_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

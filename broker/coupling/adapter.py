@@ -55,6 +55,9 @@ class EnvironmentCouplingAdapter:
         self._relation_prev: Optional[Dict[str, float]] = None
         self._relation_checks_run = 0
         self._relation_skipped: List[Dict[str, Any]] = []
+        # The projection check for contract.feasibility; the builder sets it
+        # (None when the contract declares no bounds).
+        self.projection_check: Optional[Any] = None
         # Validate the contract's static checks once, up front (fail-fast).
         static = contract.check_units() + contract.check_cadence()
         if static:
@@ -336,11 +339,13 @@ class EnvironmentCouplingAdapter:
 
         # CouplingContract is a frozen dataclass of frozen VarSpecs — its repr
         # is deterministic, so the sha256 is a stable contract identity.
-        # Declared relations are not in repr(contract) (so a contract without
-        # any hashes exactly as before); fold them in when present.
+        # Declared relations and feasibility bounds are not in repr(contract) (so a
+        # contract without any hashes exactly as before); fold them in when present.
         identity = repr(self.contract)
         if self.contract.relations:
             identity += repr(self.contract.relations)
+        if self.contract.feasibility:
+            identity += repr(self.contract.feasibility)
         contract_sha = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
         prov: Dict[str, Any] = {
             "adapter_class": type(self).__name__,
@@ -358,6 +363,14 @@ class EnvironmentCouplingAdapter:
                 "observations_in_no_relation": coverage["observations_in_no_relation"],
                 "checks_run": self._relation_checks_run,
                 "skipped_no_previous_value": [dict(x) for x in self._relation_skipped],
+            }
+        if self.contract.feasibility:
+            prov["feasibility"] = {
+                "declared": [
+                    {"name": b.name, "must_hold": b.must_hold, "skills": list(b.skills)}
+                    for b in self.contract.feasibility
+                ],
+                **(self.projection_check.describe() if self.projection_check is not None else {}),
             }
         fn = getattr(self.sources, "get_provenance", None)
         if callable(fn):

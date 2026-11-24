@@ -202,6 +202,64 @@ expression, its value, the period, the sub-step and the variable values used.
 - **An equation the model's own numbers must satisfy every step (e.g. the water
   balance): a `relations:` entry on the contract.** A breach stops the run. See
   "Relations" above.
+- **A limit judged on the model's own what-if run before the action executes: a
+  `feasibility:` bound on the contract.** A breach blocks the proposal and the agent
+  retries. See "Feasibility bounds" below.
+
+### Feasibility bounds
+
+```python
+CouplingContract(..., feasibility=(
+    FeasibilityBound(name="dead_pool_violation",
+                     must_hold="storage_unclamped >= 6.0",
+                     skills=("set_release",)),     # empty = every skill
+))
+```
+
+`must_hold` is a true/false expression that must hold at EVERY sub-step of the coming
+decision period (same whitelist as an `expression:` rule). It may read
+`requested_<input>` for a declared contract input (what the proposal asks for, before
+any clamp) and any name the model answers through `get_value`. Publish the value before
+the model clamps it (`storage_unclamped`), so a request that would empty the reservoir
+cannot hide behind a clamped 0.0.
+
+Where the what-if answer comes from, chosen once when the experiment is built:
+
+1. the model's own `project(inputs, context, substeps) -> {name: [values per sub-step]}`;
+2. else a deep copy of the Python solver, stepped one decision period on the copy. The
+   bundle's `apply_forecast(model_copy, context)` feeds the copy the forecast the agent
+   saw, not the true next inflow. A bundle with no outside forcing sets
+   `projection_has_no_forcing = True`;
+3. else the build fails: the model has no `project()` and cannot be deep-copied. There is
+   no silent skip.
+
+Isolation: on a copy the live model object is not stepped (a `project()` method is
+trusted to leave its model alone), and the global `random` and legacy
+`numpy.random` states are saved and restored. On a copy, a guard stops the run with
+`ProjectionSideEffect` when the copy opens a file for writing, removes, renames or links
+one, makes a directory, or starts or signals a process; the message says to give the
+model `project()` or switch the copy's file output off in `apply_forecast`. A run with
+feasibility bounds must use `workers=1` (the build refuses more). A value that cannot be
+read, a zero divisor, or a `project()` result without one value per sub-step stops the run
+with `CouplingViolation`.
+
+The copy is only as separate as `copy.deepcopy` makes it, and the guard sees only
+Python's audit events. Not seen or not protected: writes from native code (C, Fortran,
+`sqlite3`), `os.write` to a file already open, log records (a copied logger is the same
+logger), processes started without an audit event (`multiprocessing` on POSIX), network
+traffic, `os.environ`, and state shared with the live model (a module-level
+`default_rng()`, class attributes, a `__deepcopy__` that returns `self`, native handles).
+A model that does any of these needs `project()`.
+
+When the retries run out and the default skill runs, it is projected too. If it also
+breaches, it still runs; the audit row carries `projection_default_breach` (the bound names,
+`""` when the default passes). The column exists only in runs that declare feasibility.
+
+In one line each:
+
+- `expression:` rule = a threshold on today's values.
+- `relations:` = an equation the model's own numbers must satisfy every step.
+- `feasibility:` bound = a limit judged on the model's own what-if run before the action executes.
 
 ## Two models at once
 One bundle per adapter, one `event_src` slot — compose INSIDE one bundle:
