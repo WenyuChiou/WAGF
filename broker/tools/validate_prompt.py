@@ -1528,6 +1528,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     # PR-8: every declared `decider:` must name a registered one, and the
     # key must be where something reads it.
     all_issues.extend(check_decider_declarations(cfg))
+
+    # Load runtime configuration only when a selected block declares none.
+    # This keeps loader diagnostics out of the existing CLI path for other configs.
+    if any(
+        isinstance(cfg.get(name), dict)
+        and str(cfg[name].get("psychological_framework") or "").strip().lower() == "none"
+        for name in agent_types
+    ):
+        from broker.utils.agent_config import AgentTypeConfig
+
+        agent_config = AgentTypeConfig.load(str(args.yaml_file), force_reload=True)
+        all_issues.extend(
+            Issue("ERROR", f"yaml: {name}", problem)
+            for name in agent_config.agent_type_names()
+            if name in agent_types
+            for problem in agent_config.check_theory_free(name)
+        )
+
     # Phase 6R-B-3: resolve domain-specific placeholder extensions once
     # per CLI invocation. The hook is keyed on
     # ``global_config.governance.domain``.
