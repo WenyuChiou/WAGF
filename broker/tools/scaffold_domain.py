@@ -1,17 +1,4 @@
-"""Generate a minimal working WAGF domain skeleton (Phase 6C-v4 cycle 4 Part B).
-
-The goal is to compress the "new domain" cost from ~600 LOC of boilerplate
-to one shell command. The generated skeleton:
-
-* Passes ``broker.tools.validate_prompt`` immediately.
-* Uses the broker-filled ``{response_format}`` placeholder (the right
-  pattern — no hand-rolled JSON to drift from YAML).
-* Includes all 6 required YAML blocks identified by the Phase 6C-v4
-  BLOCKER inventory (actions, parsing.constructs, log_fields, etc).
-* Supports pre-registered cognitive frameworks (``pmt``, ``utility``,
-  ``financial``, ``narrative_diffusion``, ``generic``); pass
-  ``--framework custom`` to also scaffold a placeholder ``cognition/``
-  package.
+"""Generate a minimal working WAGF domain skeleton.
 
 Usage::
 
@@ -19,64 +6,25 @@ Usage::
         --output examples/energy_demo \\
         --skills "increase_use,maintain_use,decrease_use"
 
-After scaffolding, edit the generated YAML / prompt / DomainPack to match
-your domain, then run::
+The default framework is PMT. Use ``--framework custom`` to scaffold a
+cognition package, or ``--physical-only`` for decisions without appraisal.
+
+Edit the generated configuration, prompt, and world to match your domain,
+then validate and run the case::
 
     python -m broker.tools.validate_prompt examples/energy_demo/config/agent_types.yaml
-    python examples/energy_demo/run_experiment.py --model gemma3:4b --years 2 --agents 3
+    python -m broker.run examples/energy_demo/config/agent_types.yaml --model mock --years 2 --agents 3
 
-Reference:
-- ``docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`` — full schema + walkthrough
-- ``examples/irrigation_abm/`` — production reference example
-
-Generated runner: sys.path / import safety
---------------------------------------------
-``gen_run_experiment()`` below emits a runner script that inserts two
-things onto ``sys.path`` and imports the scaffolded package by its
-on-disk directory name rather than a hardcoded domain literal. Both
-choices are deliberate and were tightened after a 2026-08 review found
-the first cut unsafe with a custom ``--output``:
-
-* **Repo-root insert is guarded, not unconditional.** The runner always
-  adds its own container directory (``_CONTAINER_DIR``, e.g. ``examples/``
-  for the default layout) to ``sys.path`` so the scaffolded package
-  imports. It also wants the *repo root* on the path, so a sibling WAGF
-  checkout's installed ``broker`` package can't silently shadow the one
-  next to this file. With the *default* output location
-  (``examples/<domain>_demo/``) that repo root is exactly
-  ``_CONTAINER_DIR.parent``, harmless to insert. But with a **custom**
-  ``--output`` (e.g. a directory outside the repo entirely),
-  ``_CONTAINER_DIR.parent`` can be an arbitrary directory — inserting an
-  arbitrary path at ``sys.path[0]`` risks a same-named module or package
-  sitting in that directory shadowing a stdlib or site-packages module
-  for the rest of the process. The runner therefore only inserts
-  ``_REPO_ROOT`` when it actually looks like the WAGF repo root (a
-  ``broker/__init__.py`` exists directly under it); otherwise it's
-  skipped and ``broker`` falls back to the normal pip-install lookup.
-* **Import target is the on-disk directory name, not a hardcoded domain
-  literal**, because ``--output``'s basename need not equal the domain
-  name (default output is ``<domain>_demo/``, e.g. domain
-  ``energy_consumer`` writes to ``energy_consumer_demo/``). Deriving the
-  import target from the runner's own file location means it can't
-  diverge from where the package was actually written, even if the
-  directory is later renamed or copied.
-* **The import-identity check after that import** (comparing
-  ``Path(_pkg.__file__).resolve().parent`` against ``_PKG_DIR``) guards
-  against the remaining failure mode: a *different*, already-installed
-  package happening to share the scaffolded directory's name (a
-  site-packages name collision) would otherwise import silently and
-  the runner would proceed against the wrong code with no error. The
-  check turns that into an immediate, actionable ``SystemExit`` instead
-  of confusing runtime behavior.
-
-Added: 2026-05-10.
+Case-local factory imports are handled by ``broker/run/_imports.py``.
+See ``docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`` for the full walkthrough.
 """
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
-from textwrap import dedent
+from textwrap import dedent, indent
 from typing import List
 
 
@@ -120,7 +68,11 @@ def gen_package_init(domain: str, framework: str) -> str:
         """).lstrip()
 
 
-def gen_readme(domain: str, skills: List[str]) -> str:
+def gen_readme(domain: str, skills: List[str], *, output_dir: Path | None = None) -> str:
+    config_path = ((output_dir or Path(domain)) / "config" / "agent_types.yaml").as_posix()
+    if any(char.isspace() for char in config_path):
+        config_path = f'"{config_path}"'
+    skill_list = "\n        ".join(f"- `{skill}`" for skill in skills)
     return dedent(f"""
         # {domain} — WAGF domain skeleton
 
@@ -130,19 +82,18 @@ def gen_readme(domain: str, skills: List[str]) -> str:
 
         ```bash
         # 1. Validate the scaffolded config
-        python -m broker.tools.validate_prompt {domain}/config/agent_types.yaml
+        python -m broker.tools.validate_prompt {config_path}
 
         # 2. Run a smoke experiment
-        python {domain}/run_experiment.py --model mock --years 2 --agents 2
+        python -m broker.run {config_path} --model mock --years 2 --agents 2
         ```
 
-        Note: mock-model runs show `[Broker:Retry]` / missing-construct warnings
-        by design — the mock LLM returns blank output and governance catches +
-        retries it. A completed run with audit output under `results/smoke`
-        means the wiring is correct.
+        Note: mock-model runs may show `[Broker:Retry]` warnings when a
+        framework expects constructs. Check for audit output under `results/smoke`
+        after the run.
 
         ## Skills declared
-        {chr(10).join(f"- `{s}`" for s in skills)}
+        {skill_list}
 
         ## Next steps
 
@@ -154,8 +105,9 @@ def gen_readme(domain: str, skills: List[str]) -> str:
            check with real domain rules.
         4. Edit `adapters/{domain}_pack.py` — fill in `importance_profiles`,
            `event_handlers`, and any domain-specific hooks.
-        5. Edit `run_experiment.py` — replace the synthetic agent generator
-           and environment stub with your actual ABM.
+        5. Edit `world.py` to plug in your case's world model. Add `agents`,
+           `hooks`, `validators` or `mock` slots under `global_config.run` when
+           the case needs them (see `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`).
 
         ## Reference
         - `examples/irrigation_abm/` — water demand reference
@@ -197,7 +149,11 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
     )
 
 
-def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
+def gen_agent_types_yaml(
+    domain: str, skills: List[str], framework: str, *, physical_only: bool = False,
+) -> str:
+    if physical_only:
+        framework = "none"
     framework_value = f"{domain}_framework" if framework == "custom" else framework
     # Options-text parity fix (2026-09): the decision field used to
     # hand-roll a hardcoded digit legend here
@@ -209,9 +165,6 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
     # {valid_choices_text}" text (broker/components/response_format.py),
     # matching examples/irrigation_abm's pattern.
 
-    # Build skill actions block at the EXACT indent the final YAML needs.
-    # `actions:` lives at column 2 under `agent:`, so list items go at 4.
-    # We use a marker that dedent won't touch and replace it AFTER dedent.
     skill_actions = "\n".join(
         (f"    - id: {s}\n"
          f'      aliases: ["{i + 1}", "{s}", "[{s}]"]\n'
@@ -220,16 +173,77 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
         for i, s in enumerate(skills)
     )
 
-    template = dedent(f"""
+    def behavioral_section(text: str, spaces: int) -> str:
+        return "" if physical_only else indent(dedent(text), " " * spaces)
+
+    reflection = behavioral_section("""\
+        reflection:
+          interval: 1
+          batch_size: 5
+          importance_boost: 0.85
+          persona_instruction: >
+            Summarize each agent's recent decisions in first person, 2-3 sentences.
+          questions:
+            - "What changed in your situation this period?"
+            - "Did your previous decision turn out as expected?"
+          triggers:
+            periodic_interval: 2
+
+        """, 2)
+    rating_scale = behavioral_section("""\
+        rating_scale: |
+          ### RATING SCALE (You MUST use EXACTLY one of these codes):
+          VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+        """, 2)
+    appraisal_field = behavioral_section("""\
+        - {
+            key: "primary_assessment",
+            type: "appraisal",
+            required: true,
+            construct: "PRIMARY_LABEL",
+            reason_hint: "One sentence on your primary appraisal of the situation.",
+          }
+        """, 6)
+    constructs = behavioral_section("""\
+        constructs:
+          primary: ["PRIMARY_LABEL"]
+          secondary: []
+          all: ["PRIMARY_LABEL"]
+
+        """, 2)
+    construct_parsing = behavioral_section(r"""
+        preprocessor:
+          { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+        proximity_window: 35
+        constructs:
+          PRIMARY_LABEL:
+            keywords: ["primary_assessment", "primary"]
+            regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+          PRIMARY_REASON:
+            keywords: ["primary_assessment", "primary"]
+            regex: ".*"
+        """.lstrip("\n"), 4)
+
+    template = dedent("""
         # {domain} agent types config.
         # Scaffolded by broker.tools.scaffold_domain. EVERY block below is
         # required for the parser/validator pipeline to work — do NOT delete
         # one without consulting docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md.
 
         global_config:
+          run:
+            # python -m broker.run config/agent_types.yaml reads these defaults;
+            # command-line flags override them. Slots name module:function in this folder.
+            world: world:build_world
+            governance: default
+            years: 3
+            agent_count: 5
+            output: results/smoke
+
           audit:
-            initial_proposal_columns: true
-            attempt_columns: true
+            initial_proposal_columns: {audit_appraisals}
+            attempt_columns: {audit_appraisals}
             corrected_status_columns: true
 
           memory:
@@ -238,28 +252,14 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
             top_k_significant: 2
             decay_rate: 0.1
 
-          reflection:
-            interval: 1
-            batch_size: 5
-            importance_boost: 0.85
-            persona_instruction: >
-              Summarize each agent's recent decisions in first person, 2-3 sentences.
-            questions:
-              - "What changed in your situation this period?"
-              - "Did your previous decision turn out as expected?"
-            triggers:
-              periodic_interval: 2
-
-          llm:
+        {reflection}  llm:
             model: "command-line-override"
             num_ctx: 4096
             num_predict: 1024
-            max_retries: 2
-
+        {llm_retries}
           governance:
             max_retries: 3
-            max_reports_per_retry: 3
-            domain: {domain}
+        {reports_per_retry}    domain: {domain}
             # Opt-in: dispatch this domain's registered PHYSICAL checks directly.
             # Default-OFF elsewhere so frozen paper runs stay byte-identical.
             dispatch_domain_physical: true
@@ -268,24 +268,13 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
             summary_counts_python_checks: true
 
         shared:
-          rating_scale: |
-            ### RATING SCALE (You MUST use EXACTLY one of these codes):
-            VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
-
-          response_format:
+        {rating_scale}  response_format:
             delimiter_start: "<<<DECISION_START>>>"
             delimiter_end: "<<<DECISION_END>>>"
             fields:
               - {{ key: "reasoning", type: "text", required: true,
                   description: "Explain your thought process in 2-3 sentences BEFORE choosing." }}
-              - {{
-                  key: "primary_assessment",
-                  type: "appraisal",
-                  required: true,
-                  construct: "PRIMARY_LABEL",
-                  reason_hint: "One sentence on your primary appraisal of the situation.",
-                }}
-              - {{
+        {appraisal_field}      - {{
                   key: "decision",
                   type: "choice",
                   required: true,
@@ -298,38 +287,36 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
           inherit_shared: true
 
           actions:
-        __SKILL_ACTIONS_MARKER__
+        {skill_actions}
 
-          constructs:
-            primary: ["PRIMARY_LABEL"]
-            secondary: []
-            all: ["PRIMARY_LABEL"]
-
-          parsing:
+        {constructs}  parsing:
             decision_keywords: ["decision", "choice", "action"]
-            default_skill: "{skills[0] if skills else 'TODO_default_skill'}"
+            default_skill: "{default_skill}"
             strict_mode: true
-            preprocessor:
-              {{ type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }}
-            proximity_window: 35
-            constructs:
-              PRIMARY_LABEL:
-                keywords: ["primary_assessment", "primary"]
-                regex: "(?i)\\\\b(VL|L|M|H|VH)\\\\b"
-              PRIMARY_REASON:
-                keywords: ["primary_assessment", "primary"]
-                regex: ".*"
-
-          log_fields: ["primary_assessment"]
+        {construct_parsing}
+          log_fields: {log_fields}
 
           rules: []
         """).lstrip()
-    # Inject skill action items at the marker AFTER dedent so the marker's
-    # original indentation can't influence dedent's common-prefix computation.
-    return template.replace("__SKILL_ACTIONS_MARKER__", skill_actions)
+    return template.format(
+        domain=domain,
+        framework_value=framework_value,
+        # Both opt-ins emit appraisal columns even when there are no labels.
+        audit_appraisals="false" if physical_only else "true",
+        skill_actions=skill_actions,
+        default_skill=skills[0] if skills else "TODO_default_skill",
+        reflection=reflection,
+        llm_retries="" if physical_only else "    max_retries: 2\n",
+        reports_per_retry="" if physical_only else "    max_reports_per_retry: 3\n",
+        rating_scale=rating_scale,
+        appraisal_field=appraisal_field,
+        constructs=constructs,
+        construct_parsing=construct_parsing,
+        log_fields="[]" if physical_only else '["primary_assessment"]',
+    )
 
 
-def gen_prompt(domain: str, skills: List[str]) -> str:
+def gen_prompt(domain: str, skills: List[str], *, physical_only: bool = False) -> str:
     # Options-text parity fix (2026-09): the scaffolder used to render
     # ``Available actions: {skills}`` plus a hand-written, hardcoded
     # "1 = skill_a / 2 = skill_b" digit legend — exactly the
@@ -342,7 +329,20 @@ def gen_prompt(domain: str, skills: List[str]) -> str:
     # description from skill_registry.yaml (including the "TODO —
     # describe..." placeholder gen_skill_registry() emits there, until
     # the domain author fills it in — no duplicate TODO list needed here).
-    return dedent(f"""
+    if physical_only:
+        decision_instruction = (
+            "Consider your situation and the rules you operate under, then choose ONE action below."
+        )
+        rating_scale = ""
+        appraisal_instruction = ""
+    else:
+        decision_instruction = (
+            "Consider your situation, then assess your primary appraisal and choose\n"
+            "ONE action below."
+        )
+        rating_scale = "{rating_scale}\n\n"
+        appraisal_instruction = "- Use EXACTLY one of: VL, L, M, H, VH for the appraisal label.\n"
+    return dedent("""
         {{narrative_persona}}
 
         It is time to make your annual {domain} decision.
@@ -350,20 +350,21 @@ def gen_prompt(domain: str, skills: List[str]) -> str:
         Your memory of recent events:
         {{memory}}
 
-        Consider your situation, then assess your primary appraisal and choose
-        ONE action below.
+        {decision_instruction}
 
         Available actions:
         {{options_text}}
 
-        {{rating_scale}}
-
-        Please respond using the EXACT JSON format below.
-        - Use EXACTLY one of: VL, L, M, H, VH for the appraisal label.
-        - "decision" MUST be the NUMERIC ID.
+        {rating_scale}Please respond using the EXACT JSON format below.
+        {appraisal_instruction}- "decision" MUST be the NUMERIC ID.
 
         {{response_format}}
-        """).lstrip()
+        """).lstrip().format(
+            domain=domain,
+            decision_instruction=decision_instruction,
+            rating_scale=rating_scale,
+            appraisal_instruction=appraisal_instruction,
+        )
 
 
 def gen_validators_init(domain: str) -> str:
@@ -530,47 +531,11 @@ def gen_domain_pack(domain: str, framework: str = "pmt") -> str:
         """).lstrip()
 
 
-def gen_run_experiment(domain: str) -> str:
+def gen_world(domain: str) -> str:
     return dedent(f"""
-        \"\"\"{domain} experiment entry point - minimal runnable smoke.
+        \"\"\"World model for the {domain} domain.\"\"\"
 
-        Replace SyntheticEnvironment with your real ABM as the domain matures.
-        \"\"\"
-        from __future__ import annotations
-
-        import argparse
-        import sys
-        from pathlib import Path
-
-        # Path setup + package import below are guarded/checked on purpose --
-        # see scaffold_domain.py's "Generated runner: sys.path / import
-        # safety" docstring section for the rationale.
-        _PKG_DIR = Path(__file__).resolve().parent
-        _CONTAINER_DIR = _PKG_DIR.parent  # e.g. examples/, for the default output layout
-        sys.path.insert(0, str(_CONTAINER_DIR))
-        _REPO_ROOT = _CONTAINER_DIR.parent
-        if (_REPO_ROOT / "broker" / "__init__.py").exists():
-            sys.path.insert(0, str(_REPO_ROOT))
-
-        import yaml  # noqa: E402
-
-        import importlib  # noqa: E402
-        _pkg = importlib.import_module(_PKG_DIR.name)  # noqa: E402
-        _pkg_file = getattr(_pkg, "__file__", None)  # noqa: E402
-        if _pkg_file is None or Path(_pkg_file).resolve().parent != _PKG_DIR:
-            raise SystemExit(
-                f"Imported '{{_PKG_DIR.name}}' from {{_pkg_file}}, not "
-                f"{{_PKG_DIR}}. Rename the scaffold directory to something unique."
-            )
-
-        from broker.agents import AgentConfig, BaseAgent, Skill  # noqa: E402
-        from broker.components.context.builder import TieredContextBuilder  # noqa: E402
-        from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
-        from broker.core.experiment import ExperimentBuilder  # noqa: E402
-        from broker.interfaces.skill_types import ExecutionResult  # noqa: E402
-
-        HERE = Path(__file__).resolve().parent
-        CONFIG = HERE / "config"
+        from broker.interfaces.skill_types import ExecutionResult
 
 
         class SyntheticEnvironment:
@@ -591,102 +556,9 @@ def gen_run_experiment(domain: str) -> str:
                 return ExecutionResult(success=True, state_changes={{}})
 
 
-        def load_declared_skills():
-            data = yaml.safe_load(
-                (CONFIG / "skill_registry.yaml").read_text(encoding="utf-8")
-            ) or {{}}
-            return [
-                Skill(
-                    skill_id=item["skill_id"],
-                    description=item.get("description", item["skill_id"]),
-                    affected_param=None,
-                    direction="none",
-                )
-                for item in data.get("skills", [])
-            ]
-
-
-        def build_agents(count, skills):
-            return {{
-                f"agent_{{i}}": BaseAgent(
-                    AgentConfig(
-                        name=f"agent_{{i}}",
-                        agent_type="agent",
-                        state_params=[],
-                        objectives=[],
-                        constraints=[],
-                        skills=skills,
-                    )
-                )
-                for i in range(1, count + 1)
-            }}
-
-
-        def main(argv=None):
-            parser = argparse.ArgumentParser()
-            parser.add_argument("--model", default="gemma3:4b")
-            parser.add_argument("--years", type=int, default=3)
-            parser.add_argument("--agents", type=int, default=5)
-            parser.add_argument("--seed", type=int, default=42)
-            parser.add_argument("--output", default="results/smoke")
-            args = parser.parse_args(argv)
-
-            output_path = Path(args.output)
-            if not output_path.is_absolute():
-                output_path = HERE / output_path
-
-            skills = load_declared_skills()
-            if not skills:
-                raise SystemExit("No skills found in config/skill_registry.yaml")
-            agents = build_agents(args.agents, skills)
-
-            # Explicit TieredContextBuilder (hub=None), matching
-            # examples/irrigation_abm's L3-1B
-            # fix (2026-05-23): ExperimentBuilder.build()'s DEFAULT context
-            # builder (create_context_builder() with no hub) is a plain
-            # BaseAgentContextBuilder, which does NOT render {{options_text}}
-            # or {{response_format}} at all -- both fall through to
-            # SafeFormatter's "[N/A]" default, leaving the LLM with no menu
-            # and no JSON schema example. Pinning TieredContextBuilder here
-            # is what makes prompts/agent.txt's {{options_text}} placeholder
-            # (see gen_prompt()) actually render the live skill list.
-            mem_engine = WindowMemoryEngine(window_size=3)
-            agent_types_path = CONFIG / "agent_types.yaml"
-            prompt_template = (CONFIG / "prompts" / "agent.txt").read_text(encoding="utf-8")
-            ctx_builder = TieredContextBuilder(
-                agents=agents,
-                hub=None,
-                prompt_templates={{"agent": prompt_template, "default": prompt_template}},
-                yaml_path=str(agent_types_path),
-                memory_engine=mem_engine,
-            )
-
-            runner = (
-                ExperimentBuilder()
-                .with_model(args.model)
-                .with_years(args.years)
-                .with_agents(agents)
-                .with_simulation(SyntheticEnvironment())
-                .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
-                .with_memory_engine(mem_engine)
-                .with_context_builder(ctx_builder)
-                .with_governance("default", str(agent_types_path))
-                .with_exact_output(str(output_path))
-                .with_workers(1)
-                .with_seed(args.seed)
-            ).build()
-
-            print(
-                f"[{domain}] smoke run | model={{args.model}} "
-                f"years={{args.years}} agents={{args.agents}}"
-            )
-            runner.run()
-            print(f"Done. Audit + traces under: {{output_path}}")
-            return 0
-
-
-        if __name__ == "__main__":
-            raise SystemExit(main())
+        def build_world(ctx):
+            \"\"\"Build the case's own model here. ctx is a broker.run.RunContext.\"\"\"
+            return SyntheticEnvironment()
         """).lstrip()
 
 
@@ -700,6 +572,8 @@ def scaffold(
     skills: List[str],
     framework: str,
     force: bool = False,
+    *,
+    physical_only: bool = False,
 ) -> List[Path]:
     """Write the full skeleton. Returns the list of created paths.
 
@@ -709,6 +583,9 @@ def scaffold(
         raise FileExistsError(
             f"Output dir {output_dir} is non-empty. Pass --force to overwrite."
         )
+
+    if physical_only:
+        framework = "none"
 
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "adapters").mkdir(exist_ok=True)
@@ -724,15 +601,18 @@ def scaffold(
         written.append(full)
 
     write("__init__.py", gen_package_init(domain, framework))
-    write("README.md", gen_readme(domain, skills))
+    write("README.md", gen_readme(domain, skills, output_dir=output_dir))
     write("config/skill_registry.yaml", gen_skill_registry(domain, skills))
-    write("config/agent_types.yaml", gen_agent_types_yaml(domain, skills, framework))
-    write("config/prompts/agent.txt", gen_prompt(domain, skills))
+    write(
+        "config/agent_types.yaml",
+        gen_agent_types_yaml(domain, skills, framework, physical_only=physical_only),
+    )
+    write("config/prompts/agent.txt", gen_prompt(domain, skills, physical_only=physical_only))
     write("validators/__init__.py", gen_validators_init(domain))
     write(f"validators/{domain}_validators.py", gen_validators(domain))
     write("adapters/__init__.py", "")
     write(f"adapters/{domain}_pack.py", gen_domain_pack(domain, framework))
-    write("run_experiment.py", gen_run_experiment(domain))
+    write("world.py", gen_world(domain))
 
     if framework == "custom":
         cognition_dir = output_dir / "cognition"
@@ -819,7 +699,7 @@ def main(argv: List[str] | None = None) -> int:
             "generic",
             "custom",
         ],
-        default="pmt",
+        default=None,
         help=(
             "Cognitive framework. default 'pmt' is retained for backward-compat; "
             "new domains are encouraged to choose 'generic' or one of the "
@@ -828,11 +708,20 @@ def main(argv: List[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--physical-only",
+        action="store_true",
+        help="Scaffold decisions without cognitive appraisal (framework 'none').",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite non-empty output directory.",
     )
     args = parser.parse_args(argv)
+
+    if args.physical_only and args.framework is not None:
+        print("ERROR: --physical-only cannot be combined with --framework", file=sys.stderr)
+        return 1
 
     if not args.domain.replace("_", "").isalnum() or not args.domain.islower():
         print(
@@ -847,9 +736,24 @@ def main(argv: List[str] | None = None) -> int:
         return 1
 
     output_dir = args.output or Path("examples") / f"{args.domain}_demo"
+    # broker.run imports the case folder as a Python package, so its name
+    # must be one (broker/run/_imports.py, _package_prefix).
+    folder_name = output_dir.resolve().name
+    if not (folder_name.isascii() and folder_name.isidentifier()):
+        print(
+            f"ERROR: the output folder name must be a Python identifier (letters, "
+            f"digits and underscores, not starting with a digit), because "
+            f"python -m broker.run imports the case folder as a package "
+            f"(got '{folder_name}'). Try '{re.sub(r'[^0-9A-Za-z_]', '_', folder_name)}'.",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
-        written = scaffold(args.domain, output_dir, skills, args.framework, args.force)
+        written = scaffold(
+            args.domain, output_dir, skills, args.framework or "pmt", args.force,
+            physical_only=args.physical_only,
+        )
     except FileExistsError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
@@ -863,7 +767,7 @@ def main(argv: List[str] | None = None) -> int:
     print(f"  1. python -m broker.tools.validate_prompt {yaml_path}")
     print(f"  2. Edit {output_dir}/config/prompts/agent.txt to describe the domain")
     print(f"  3. Edit {output_dir}/adapters/{args.domain}_pack.py to fill in domain hooks")
-    print(f"  4. python {output_dir}/run_experiment.py --model gemma3:4b --years 2 --agents 3")
+    print(f"  4. python -m broker.run {yaml_path} --model mock --years 2 --agents 3")
     return 0
 
 

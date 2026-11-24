@@ -6,6 +6,8 @@ onboarding cost is genuinely one command.
 """
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +23,41 @@ from broker.tools.scaffold_domain import (
     scaffold,
 )
 from broker.tools.validate_prompt import main as validate_main
+from broker.utils.agent_config import AgentTypeConfig, PMT_TEXT_MARKERS
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LEGACY_RUNNER = Path(__file__).with_name("fixtures") / "legacy_scaffold" / "run_experiment.py"
+
+
+def _yaml_keys(node):
+    if isinstance(node, dict):
+        yield from node
+        for value in node.values():
+            yield from _yaml_keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _yaml_keys(item)
+
+
+def _assert_mock_smoke(root: Path, entry_point: list[str]) -> None:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (str(REPO_ROOT), env.get("PYTHONPATH")) if part
+    )
+    result = subprocess.run(
+        [sys.executable, *entry_point, "--model", "mock", "--years", "1", "--agents", "1"],
+        capture_output=True,
+        text=True,
+        cwd=root,
+        env=env,
+        timeout=240,
+    )
+    assert result.returncode == 0, (
+        f"{entry_point} failed mock smoke:\n"
+        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    )
+    assert (root / "results" / "smoke" / "governance_summary.json").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -197,10 +234,11 @@ class TestScaffoldEndToEnd:
             "validators/energy_validators.py",
             "adapters/__init__.py",
             "adapters/energy_pack.py",
-            "run_experiment.py",
+            "world.py",
         ]
         for rel in required:
             assert (root / rel).exists(), f"missing scaffolded file: {rel}"
+        assert not (root / "run_experiment.py").exists()
 
     def test_overwrite_protection(self, tmp_path: Path):
         target = tmp_path / "energy"
@@ -220,26 +258,26 @@ class TestScaffoldEndToEnd:
         assert ids == ["b", "c"]
 
     @staticmethod
-    def _assert_scaffold_imports(tmp_path: Path, domain: str, skills, framework: str):
-        """Scaffold a domain, then in a SUBPROCESS import the package and assert
+    def _assert_scaffold_imports(root: Path, framework_label: str):
+        """Import a scaffolded package in a subprocess and assert
         the DomainPack + physical validators registered. The YAML acid-tests
         never import the package, so a broken validators/__init__.py or top
         __init__.py (nonexistent module import, wrong register signature,
         dedent IndentationError) would otherwise ship green — the exact P0
         class this guards. Subprocess so registry side-effects don't leak."""
-        scaffold(domain, tmp_path / domain, list(skills), framework=framework)
-        # Resolved framework label the pack/YAML declare (custom -> <domain>_framework).
-        framework_value = f"{domain}_framework" if framework == "custom" else framework
+        domain = root.name
         code = (
             "import sys\n"
-            f"sys.path.insert(0, {str(tmp_path)!r})\n"
+            f"sys.path.insert(0, {str(root.parent)!r})\n"
             f"import {domain}  # triggers cognition + validator + DomainPack registration\n"
             "from broker.domains.registry import DomainPackRegistry\n"
             "from broker.components.governance.validator_registry import ValidatorRegistry\n"
             "from broker.validators.governance.thinking_validator import FRAMEWORK_LABEL_ORDERS\n"
-            f"assert DomainPackRegistry.get({domain!r}) is not None, 'DomainPack not registered'\n"
+            f"pack = DomainPackRegistry.get({domain!r})\n"
+            "assert pack is not None, 'DomainPack not registered'\n"
+            f"assert pack.psychological_framework() == {framework_label!r}\n"
             f"assert ValidatorRegistry.get_checks({domain!r}, 'physical'), 'physical checks not registered'\n"
-            f"assert {framework_value!r} in FRAMEWORK_LABEL_ORDERS, 'framework metadata not registered'\n"
+            f"assert {framework_label!r} in FRAMEWORK_LABEL_ORDERS, 'framework metadata not registered'\n"
             "print('IMPORT_OK')\n"
         )
         r = subprocess.run(
@@ -247,21 +285,61 @@ class TestScaffoldEndToEnd:
             capture_output=True, text=True, timeout=120,
         )
         assert r.returncode == 0 and "IMPORT_OK" in r.stdout, (
-            f"scaffolded {framework} package failed to import/register:\n"
+            f"scaffolded {framework_label} package failed to import/register:\n"
             f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
         )
 
     def test_scaffolded_pmt_package_imports_and_registers(self, tmp_path: Path):
-        self._assert_scaffold_imports(
-            tmp_path, "energy", ["increase", "maintain", "decrease"], "pmt"
-        )
+        root = tmp_path / "energy"
+        scaffold("energy", root, ["increase", "maintain", "decrease"], framework="pmt")
+        self._assert_scaffold_imports(root, "pmt")
 
     def test_scaffolded_custom_package_imports_and_registers(self, tmp_path: Path):
         # Exercises the custom-framework path (cognition module + the dedent
         # indentation that previously emitted a broken __init__.py).
-        self._assert_scaffold_imports(
-            tmp_path, "traffic", ["drive", "transit", "bike"], "custom"
-        )
+        root = tmp_path / "traffic"
+        scaffold("traffic", root, ["drive", "transit", "bike"], framework="custom")
+        self._assert_scaffold_imports(root, "traffic_framework")
+
+    def test_physical_only_scaffold_is_theory_free(self, tmp_path: Path):
+        root = tmp_path / "energy"
+        assert main(["energy", "--output", str(root), "--physical-only"]) == 0
+
+        yaml_path = root / "config" / "agent_types.yaml"
+        yaml_text = yaml_path.read_text(encoding="utf-8")
+        data = yaml.safe_load(yaml_text)
+        keys = list(_yaml_keys(data))
+        agent = data["agent"]
+        assert agent["psychological_framework"] == "none"
+        assert "rating_scale" not in yaml_text
+        assert "constructs" not in keys
+        assert "reflection" not in data["global_config"]
+        assert "preprocessor" not in agent["parsing"]
+        assert "proximity_window" not in agent["parsing"]
+        assert agent["log_fields"] == []
+        fields = data["shared"]["response_format"]["fields"]
+        assert [(field["key"], field["type"], field["required"]) for field in fields] == [
+            ("reasoning", "text", True),
+            ("decision", "choice", True),
+        ]
+        assert keys.count("max_retries") == 1
+        assert data["global_config"]["governance"]["max_retries"] == 3
+        assert "max_reports_per_retry" not in keys
+
+        prompt = (root / "config" / "prompts" / "agent.txt").read_text(encoding="utf-8")
+        assert "{rating_scale}" not in prompt
+        assert not any(term in prompt.casefold() for term in PMT_TEXT_MARKERS)
+        for placeholder in ("narrative_persona", "memory", "options_text", "response_format"):
+            assert "{" + placeholder + "}" in prompt
+        assert not (root / "cognition").exists()
+
+        AgentTypeConfig.clear_cache()
+        try:
+            assert AgentTypeConfig.load(str(yaml_path)).check_theory_free("agent") == []
+            assert validate_main([str(yaml_path)]) == 0
+        finally:
+            AgentTypeConfig.clear_cache()
+        self._assert_scaffold_imports(root, "none")
 
     def test_scaffolded_pack_consumer_calls_and_physical_dispatch_flag(
         self, tmp_path: Path
@@ -299,34 +377,22 @@ class TestScaffoldEndToEnd:
         )
 
     def test_scaffolded_runner_completes_mock_smoke(self, tmp_path: Path):
+        root = tmp_path / "energy"
         scaffold(
             "energy",
-            tmp_path / "energy",
+            root,
             ["increase", "maintain", "decrease"],
             framework="pmt",
         )
-        runner = tmp_path / "energy" / "run_experiment.py"
-        r = subprocess.run(
-            [
-                sys.executable,
-                str(runner),
-                "--model",
-                "mock",
-                "--years",
-                "1",
-                "--agents",
-                "1",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path / "energy"),
-            timeout=240,
-        )
-        assert r.returncode == 0, (
-            "scaffolded run_experiment.py failed mock smoke:\n"
-            f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
-        )
-        assert (tmp_path / "energy" / "results" / "smoke" / "governance_summary.json").exists()
+        config = root / "config" / "agent_types.yaml"
+        _assert_mock_smoke(root, ["-m", "broker.run", str(config)])
+
+    def test_legacy_scaffold_runner_completes_mock_smoke(self, tmp_path: Path):
+        root = tmp_path / "energy"
+        assert main(["energy", "--output", str(root)]) == 0
+        runner = root / "run_experiment.py"
+        shutil.copyfile(LEGACY_RUNNER, runner)
+        _assert_mock_smoke(root, [str(runner)])
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +400,23 @@ class TestScaffoldEndToEnd:
 # ---------------------------------------------------------------------------
 
 class TestCLI:
+    def test_rejects_physical_only_with_explicit_framework(self, tmp_path: Path, capsys):
+        rc = main([
+            "energy", "--output", str(tmp_path / "energy"),
+            "--physical-only", "--framework", "pmt",
+        ])
+        assert rc == 1
+        assert "--physical-only cannot be combined with --framework" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("folder", ["energy-demo", "2energy", "énergie"])
+    def test_rejects_output_folder_broker_run_cannot_import(
+        self, tmp_path: Path, capsys, folder
+    ):
+        rc = main(["energy", "--output", str(tmp_path / folder)])
+        assert rc == 1
+        assert "must be a Python identifier" in capsys.readouterr().err
+        assert not (tmp_path / folder).exists()
+
     def test_rejects_uppercase_domain(self, tmp_path: Path, capsys):
         rc = main(["MyDomain", "--output", str(tmp_path / "x")])
         captured = capsys.readouterr()
