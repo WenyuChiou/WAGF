@@ -470,6 +470,22 @@ def test_copy_projection_with_a_custom_sink_is_a_build_error():
         ProjectionCheck(EnvironmentCouplingAdapter(None, contract, bundle))
 
 
+class _DoublingSink(BmiControlSink):
+    def apply_control(self, name, value):
+        super().apply_control(name, 2 * float(value))
+
+
+def test_copy_projection_with_a_bmi_sink_subclass_is_a_build_error():
+    # PR #113 review: the copy is driven by a plain BmiControlSink, so a
+    # subclass that changes the controls would be judged on other values
+    # than the live model gets.
+    contract = _simple_contract([_bound("x >= 4", "floor", ())])
+    solver = _Base()
+    bundle = _NoForcing(contract=contract, solver=solver, sink=_DoublingSink(solver))
+    with pytest.raises(ValueError, match="sink is _DoublingSink"):
+        ProjectionCheck(EnvironmentCouplingAdapter(None, contract, bundle))
+
+
 def test_feasibility_with_workers_above_1_is_a_build_error(monkeypatch, tmp_path):
     orig_workers = ExperimentBuilder.with_workers
     monkeypatch.setattr(ExperimentBuilder, "with_workers", lambda self, n: orig_workers(self, 2))

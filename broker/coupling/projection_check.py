@@ -305,7 +305,12 @@ class ProjectionCheck:
         if solver is None or not isinstance(self.bundle, ContinuousBundle):
             raise ValueError(f"{cannot} (the bundle {type(self.bundle).__name__} hosts no solver).")
         sink = getattr(self.bundle, "sink", None)
-        if self.contract.inputs and not isinstance(sink, BmiControlSink):
+        # Exactly the default sink: the copy is driven by a plain
+        # BmiControlSink, so a subclass that changes apply_control would be
+        # projected with different controls than the live model gets. Every
+        # subclass is refused on purpose (one that does not override cannot be
+        # told apart cheaply); do not relax this to isinstance.
+        if self.contract.inputs and type(sink) is not BmiControlSink:
             raise ValueError(
                 "contract declares feasibility bounds and the model is projected on a copy, "
                 f"which takes its setpoints through set_value; but the bundle's sink is "
