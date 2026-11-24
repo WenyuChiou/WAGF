@@ -185,6 +185,35 @@ def test_unguarded_zero_divisor_stops_the_run_naming_the_rule(tmp_path):
                    full_validation_context=ctx)
 
 
+def test_expression_is_not_evaluated_for_a_skill_the_rule_does_not_block(tmp_path):
+    # PR #111 review: the rule blocks only `release`; proposing `hold` with a
+    # zero divisor (or a missing variable) must neither stop the run nor
+    # record a warning, as in ThinkingValidator.
+    v = _validator(tmp_path, [_rule("storage_now / capacity > 0.9", rule_id="ratio_rule")])
+    ctx = _context({"storage_now": 3, "capacity": 0})
+    assert v.validate("op", "A1", "hold", ctx["state"], None, {"x": "y"}, "",
+                      full_validation_context=ctx) == []
+    assert _thinking(v, ctx, "hold") == []
+    assert _thinking(v, _context({"capacity": 10}), "hold") == []
+    with pytest.raises(ExpressionEvaluationError, match="ratio_rule"):
+        _thinking(v, ctx, "release")
+
+
+def test_guard_in_a_separate_condition_stops_a_later_expression(tmp_path):
+    # PR #111 review: conditions [capacity > 0, storage_now / capacity > 0.9]
+    # with capacity 0 must not evaluate the second one, in every evaluator.
+    conds = [{"expression": "capacity > 0"},
+             {"expression": "storage_now / capacity > 0.9"}]
+    rule = {"id": "r1", "conditions": conds, "blocked_skills": ["release"],
+            "level": "ERROR", "message": "blocked by r1"}
+    v = _validator(tmp_path, [rule])
+    zero = _context({"storage_now": 3, "capacity": 0})
+    assert not _fired(_thinking(v, zero))
+    assert _fired(_thinking(v, _context({"storage_now": 9.5, "capacity": 10})))
+    tv = ThinkingValidator(framework="", builtin_checks=[])
+    assert tv._evaluate_conditions(conds, {}, zero, "", [], rule_id="r1") is False
+
+
 def test_zero_value_is_not_swapped_for_epsilon(tmp_path):
     """Regression for the 1e-10 swap: `storage_now == 0` must fire on 0."""
     v = _validator(tmp_path, [_rule("storage_now == 0")])

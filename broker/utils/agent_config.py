@@ -1131,6 +1131,29 @@ class AgentTypeConfig:
         """
         return self._governance_bool("hide_registry_backstop_reports", False)
 
+    def get_governance_summary_counts_python_checks(self) -> bool:
+        """``global_config.governance.summary_counts_python_checks``
+        (default False).
+
+        ``governance_summary.json`` counts a blocking rule by the ids in its
+        result's ``metadata["rules_hit"]``. YAML rules set that list; a Python
+        check (a registered physical / personal / social / semantic check, or
+        a ``custom_validators`` function) usually names its rule only by
+        ``metadata["rule_id"]``, so its blocks never reached
+        ``total_interventions``, ``rule_frequency``, ``retry_exhausted`` or
+        ``retry_success``, while the audit CSV's ``failed_rules`` named them.
+
+        When True, a blocking result (``valid=False``) with no ``rules_hit``
+        is counted under its ``rule_id``, the same way ``rules_hit`` ids are:
+        per blocking result of the last attempt when the decision ends
+        rejected, per distinct rule id of the first attempt when a retry
+        fixes it. A result that has ``rules_hit`` is counted by those ids
+        only, as before. False reproduces
+        the shipped summary byte-for-byte; the frozen paper configs leave it
+        unset. ``broker.tools.scaffold_domain`` turns it on for new domains.
+        """
+        return self._governance_bool("summary_counts_python_checks", False)
+
     def get_governance_plain_action_names(self) -> bool:
         """``global_config.governance.plain_action_names`` (default False).
 

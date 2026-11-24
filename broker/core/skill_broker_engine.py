@@ -313,6 +313,14 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_hbr = getattr(self.config, "get_governance_hide_registry_backstop_reports", None)
         _hbr = _get_hbr() if callable(_get_hbr) else False
         self._hide_registry_backstop_reports = _hbr if isinstance(_hbr, bool) else False
+        # Python checks in governance_summary.json (global_config.governance.
+        # summary_counts_python_checks, default OFF): when on, a blocking
+        # result that names its rule only by rule_id (no rules_hit) is counted
+        # by the auditor too (_summary_rule_ids). Coerced for the same
+        # MagicMock reason as the flags above.
+        _get_spc = getattr(self.config, "get_governance_summary_counts_python_checks", None)
+        _spc = _get_spc() if callable(_get_spc) else False
+        self._summary_counts_python_checks = _spc if isinstance(_spc, bool) else False
         # Retry-text wording (global_config.governance.plain_action_names and
         # placebo_closer, both default OFF; see their getters in
         # broker/utils/agent_config.py): the blocked action named in plain
@@ -887,7 +895,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # Track initial errors for audit summary
         initial_rule_ids = set()
         for v in validation_results:
-            initial_rule_ids.update(v.metadata.get("rules_hit", []))
+            initial_rule_ids.update(self._summary_rule_ids(v))
         
         # Diagnostic summary for User
         if self.log_prompt:
@@ -1385,10 +1393,29 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
 
             self.stats["rejected"] += 1
             for v in validation_results:
-                for rule_id in v.metadata.get("rules_hit", []):
+                for rule_id in self._summary_rule_ids(v):
                     self.auditor.log_intervention(rule_id, success=False, is_final=True)
 
         return approved_skill, outcome
+
+    def _summary_rule_ids(self, result) -> List[str]:
+        """The rule ids governance_summary.json counts for one validation result.
+
+        ``metadata["rules_hit"]``, as shipped. With
+        ``global_config.governance.summary_counts_python_checks`` on, a
+        BLOCKING result (``valid=False``) that has no ``rules_hit`` falls back
+        to ``[metadata["rule_id"]]`` -- the shape of a Python check's result,
+        and the id the audit CSV's ``failed_rules`` already shows. Non-blocking
+        results (warnings, shadow results, rule exceptions) never fall back.
+        Flag off: exactly ``metadata.get("rules_hit", [])``, byte-identical.
+        """
+        hits = result.metadata.get("rules_hit", [])
+        if hits or not self._summary_counts_python_checks or result.valid:
+            return hits
+        rule_id = result.metadata.get("rule_id")
+        if isinstance(rule_id, str) and rule_id.strip():
+            return [rule_id.strip()]
+        return []
 
     def _keeps_rejected_proposal(self, outcome, approved_skill,
                                  validation_results=None) -> bool:

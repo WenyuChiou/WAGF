@@ -220,12 +220,20 @@ and limitations. These small checks do not establish scientific results.
 
 The package version is 0.6.0.
 
-The WAGF methods paper is **in preparation**. The paper's runs are marked by two
-git tags, `paper-flood-runs` and `paper-irrigation-runs`. The repository history was
-rewritten on 2026-11-21, so old commit ids in run records map to new ones through
-[`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md). That package
-version is not the code the paper ran. A later release of the reproduction kit
-will be named here. Cite the software and record the version and commit used in your study:
+The WAGF methods paper is **in preparation**. Its runs are marked by four git tags:
+`paper-flood-runs` and `paper-irrigation-runs` for the language-model runs, and
+`paper-flood-rulebased` and `paper-irrigation-fql` for the reference runs. The repository
+history was rewritten on 2026-11-21, so old commit ids in run records map to new ones through
+[`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md).
+
+The tools that check those runs are tagged `repro-kit-2026-11-22` (see
+[`reproduction/`](reproduction/README.md)). Neither that tag nor version 0.6.0 is the code
+the paper ran: at the tag, `broker/` differs from the flood run commit in 55 files and from
+the irrigation run commit in 58. The run folders are not in git. They are available from the
+authors on request, as is the Colorado River (CRSS) data the irrigation runs need
+([`DATA.md`](DATA.md)).
+
+To cite WAGF in your own study, cite the software and record the version and commit you used:
 
 ```bibtex
 @software{wagf,
