@@ -1,0 +1,46 @@
+You are a homeowner in a city, with a strong attachment to your community.
+Your house is already elevated, which provides very good protection.
+Your memory includes:
+- Year 2: Elevation grants are available.
+- Year 2: No flood occurred this year.
+- Year 2: I observe 36% of my neighbors have elevated homes.
+- Year 2: I observe 27% of my neighbors have relocated.
+- Year 3: A flood occurred, but my house was protected by its elevation.
+- Year 3: I observe 27% of my neighbors have elevated homes.
+- Year 3: I observe 36% of my neighbors have relocated.
+- Consolidated Reflection (written in Year 2): Year 2: no flood occurred; at the end of the year my house was elevated and I did not have flood insurance. Lesson: I learned that a flood comes every year, so I must always be ready.
+
+You currently do not have flood insurance.
+You have slight doubts about the insurance company. You are skeptical of your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage)
+2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently)
+3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage)
+Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
+
+### RATING SCALE (You MUST use EXACTLY one of these codes):
+VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+
+Please respond using the EXACT JSON format below.
+- IMPORTANT: The "decision" field MUST be the NUMERIC ID (1, 2, or 3) from the available options list.
+- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
+- Ensure all keys match the format exactly.
+
+<<<DECISION_START>>>
+{
+  "reasoning": "Explain your thought process in 2-3 sentences.",
+  "threat_appraisal": {"label": "VL/L/M/H/VH", "reason": "One sentence summary of how threatened you feel by any remaining flood risks."},
+  "coping_appraisal": {"label": "VL/L/M/H/VH", "reason": "One sentence summary of how well you think you can cope or act."},
+  "decision": "<Numeric ID, choose ONE from: 1, 2, or 3>"
+}
+<<<DECISION_END>>>

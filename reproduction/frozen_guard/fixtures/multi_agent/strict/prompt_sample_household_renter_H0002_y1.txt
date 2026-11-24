@@ -1,0 +1,167 @@
+
+
+
+
+You are a renter (Agent ID: H0002) in the Passaic River Basin, New Jersey.
+
+### YOUR SITUATION
+- Income: $100,000 - $149,999
+- Household Size: 2 people
+- Years at Current Address: 1 generation
+- Flood Zone: MEDIUM
+- Flood Experience: No direct flood experience
+- Contents Value: $63,451
+- Insurance: You currently do NOT have contents flood insurance.
+
+### YOUR FLOOD HISTORY
+- Total flood events experienced: 0
+- Years since last flood: 99
+- Cumulative damage to date: $0
+
+### RELEVANT MEMORIES
+No memories yet.
+
+### CRITICAL RISK ASSESSMENT
+It is crucial to accurately assess your flood risk based on your personal flood history, memories, and current situation. Consider how recent or distant your flood experiences are — threat perceptions naturally evolve with time and new experiences. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+
+### POLICY UPDATES THIS YEAR
+- NJ Government: The government is monitoring the situation.
+- FEMA/NFIP: Insurance rates are stable.
+
+### WORLD EVENTS
+- 0.475
+- 0.007200000000000001
+- 0.008
+- 0.09999999999999999
+- False
+- 0.0
+- 0.0
+- 1
+- The government has moderately DECREASED the subsidy (-2.5%).
+- CRS class significantly reduced (-5%) — community discount now 10%. Budget constraints limit mitigation investment.
+- 0.0
+- False
+- {}
+- False
+- 500000
+- 100.0
+- 0
+- small_decrease_subsidy
+- 0
+- 0
+- 0.0
+- 0.0
+- 0.0
+- No flooding this year
+- 0.007200000000000001
+- 0.0
+- healthy
+- 10
+- 8
+- 0
+- significantly_reduce_crs
+- 0.0
+- 0.0
+- 1
+- NONE
+- 0.0
+- 1
+- 0.0
+- 2
+- 0.25
+- False
+- 0
+- 8
+- 0
+- 2
+- 0
+- 0
+- 1
+- 1
+- Weak
+- [10]
+- Stable
+- 10
+- Room to grow
+- Stable
+- Well-funded
+- Very early stage
+- Roughly equal
+- Holding steady
+- Recent crisis
+- High
+- 50000
+- 10
+- 12
+
+### LOCAL NEIGHBORHOOD
+No flooding was reported in your community this year.
+
+[N/A]
+
+### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
+- Annual Contents Insurance Premium: $508/year
+- NFIP Contents Coverage Limit: $100,000
+- NFIP Contents Deductible: $1,000
+- Estimated Relocation Costs:
+  * Within PRB (local move): ~$5,000-$10,000
+  * Out of Basin: ~$15,000-$25,000 (plus loss of community ties)
+  * NOTE: Relocation involves finding new housing, breaking your lease, moving expenses, disruption to work/school, and leaving familiar neighbors and services. Most renters find the process difficult and stressful.
+  * YOUR CUMULATIVE FLOOD DAMAGE: $0 — if this already exceeds relocation costs, moving may save money over time.
+- Insurance Premium Burden: Your $508/year premium is 0.5% of your annual income ($105,602). This is affordable. Below 5% of income is generally affordable. Above 12% is a heavy burden for most households.
+
+
+
+
+### YOUR DECISION PRIORITIES
+
+Your default choice is **do_nothing**. As a renter, the building is your landlord's property and responsibility. You have rent, utilities, and daily expenses to manage. Many renters assume their landlord's insurance covers their belongings — it does not, but even so, buying a separate contents policy is not something most renters prioritize. Choosing do_nothing means you focus on your everyday life and budget. This is a rational and common choice.
+
+Before considering any other action, ask yourself:
+1. Has something specific and urgent happened THIS YEAR that makes my current situation unacceptable?
+2. Can I actually afford this without cutting into rent or essential expenses?
+3. Is the cost truly worth it given my specific flood history?
+If any answer is NO, choose do_nothing.
+
+**Contents insurance:** Some renters in your situation purchase contents insurance, though many do not — a single flood does not necessarily mean your area will flood again soon. Even a few hundred dollars a year competes with rent, groceries, and transportation. Many renters who buy a policy after a flood let it lapse within a year or two when no further flooding occurs. Whether the ongoing cost is worthwhile depends on your personal flood experience and budget.
+
+**Relocation is a significant decision.** Moving means finding new housing, managing moving costs, and adjusting to a new neighborhood. Most renters stay in place after a single flood. However, renters who have experienced multiple severe floods sometimes decide that moving to a safer area — even within the same region — is worth the short-term cost and disruption. If you have been flooded 3 or more times, or your cumulative flood damage significantly exceeds relocation costs, relocating may be a reasonable choice.
+
+**If your flood zone is LOW:** You face minimal flood risk. Insurance is optional. Focus on whether the annual cost fits your budget, or simply continue as you are.
+
+### ADAPTATION OPTIONS (as a renter)
+1. Take no protective action this year. This includes waiting for more information, believing current protection is adequate, focusing on other financial priorities, feeling uncertain about what to do, or accepting the situation as it is.
+2. Purchase NFIP contents-only flood insurance (annual)
+3. Relocate to lower flood-risk area (irreversible)
+
+Note: As a renter, you cannot elevate the property or accept a buyout.
+Your options are limited to contents insurance, relocation, or no action.
+
+**Sub-options** (include in your response if applicable):
+- If choosing RELOCATION: specify destination (1=Within PRB, 2=Out of basin)
+
+**Secondary Action** (OPTIONAL):
+You may propose ONE additional action this year.
+For example: buy contents insurance AND relocate.
+Set "secondary_decision" to 0 if you only want one action.
+
+### EVALUATION CRITERIA
+[N/A]
+
+Rating Scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High
+
+Based on your situation, memories, financial constraints, and PMT profile, evaluate each criterion and make your decision.
+Respond ONLY with valid JSON:
+<<<DECISION_START>>>
+{
+  "threat_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "coping_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "stakeholder_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "social_capital": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "place_attachment": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "decision": "<Numeric ID, choose ONE from: 1, 2, or 3>",
+  "relocation_destination": "<If relocating: 1=Within PRB, 2=Out of basin>",
+  "secondary_decision": "<OPTIONAL: Numeric ID from: 1, 2, or 3, or 0 for none>",
+  "reasoning": "..."
+}
+<<<DECISION_END>>>

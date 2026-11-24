@@ -1,0 +1,185 @@
+
+
+
+
+You are a homeowner (Agent ID: H0001) in the Passaic River Basin, New Jersey.
+
+### YOUR SITUATION
+- Income: $100,000 - $149,999
+- Household Size: 4 people
+- Generations in Area: 2 generations
+- Flood Zone: HIGH
+- Flood Experience: No direct flood experience
+- Property Value: $383,748 (building) + $167,061 (contents)
+- Current Status: Your house is NOT elevated.
+- Insurance: You currently do NOT have flood insurance.
+
+### YOUR FLOOD HISTORY
+- Total flood events experienced: 0
+- Years since last flood: 99
+- Cumulative damage to date: $0
+- Cumulative out-of-pocket costs: $0
+
+### RELEVANT MEMORIES
+No memories yet.
+
+### CRITICAL RISK ASSESSMENT
+It is crucial to accurately assess your flood risk based on your personal flood history, memories, and current situation. Consider how recent or distant your flood experiences are — threat perceptions naturally evolve with time and new experiences. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+
+### POLICY UPDATES THIS YEAR
+- NJ Government (NJDEP Blue Acres): The government is monitoring the situation.
+- FEMA/NFIP Insurance: Insurance rates are stable.
+
+### WORLD EVENTS
+- 0.475
+- 0.007200000000000001
+- 0.008
+- 0.09999999999999999
+- False
+- 0.0
+- 0.0
+- 1
+- The government has moderately DECREASED the subsidy (-2.5%).
+- CRS class significantly reduced (-5%) — community discount now 10%. Budget constraints limit mitigation investment.
+- 0.0
+- False
+- {}
+- False
+- 500000
+- 100.0
+- 0
+- small_decrease_subsidy
+- 0
+- 0
+- 0.0
+- 0.0
+- 0.0
+- No flooding this year
+- 0.007200000000000001
+- 0.0
+- healthy
+- 10
+- 8
+- 0
+- significantly_reduce_crs
+- 0.0
+- 0.0
+- 1
+- NONE
+- 0.0
+- 1
+- 0.0
+- 2
+- 0.25
+- False
+- 0
+- 8
+- 0
+- 2
+- 0
+- 0
+- 1
+- 1
+- Weak
+- [10]
+- Stable
+- 10
+- Room to grow
+- Stable
+- Well-funded
+- Very early stage
+- Roughly equal
+- Holding steady
+- Recent crisis
+- High
+- 50000
+- 10
+- 12
+
+### LOCAL NEIGHBORHOOD
+No flooding was reported in your community this year.
+
+[N/A]
+
+### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
+- Annual NFIP Premium: $4,406/year
+- Elevation Subsidy Rate: 50%
+- Elevation Cost Estimates (before subsidy):
+  * 3 feet above BFE: ~$45,000 (your cost after subsidy: ~$22,500)
+  * 5 feet above BFE: ~$80,000 (your cost after subsidy: ~$40,000)
+  * 8 feet above BFE: ~$150,000 (your cost after subsidy: ~$75,000)
+  * Elevation Cost Burden: The cheapest elevation option costs 22% of your annual income. Below 30% is manageable. Above 50% is very difficult without special financing.
+  * NOTE: Elevation requires 6-12 months of construction, temporary relocation, and significant disruption to daily life. Many homeowners find the process stressful and costly beyond the dollar amount.
+  * PRACTICAL REALITY: Elevation also requires local building permits, a specialized contractor (limited availability, especially after major floods), and often a federal grant (HMGP/FMA — competitive and slow). The full process typically takes 1-3 years from decision to completion.
+- Blue Acres Buyout Offer: ~$287,811 (based on property value)
+  * NOTE: Accepting a buyout means relocating to a different area. Whether this represents a significant loss depends on your actual community ties (see PA definition).
+  * PRACTICAL REALITY: Blue Acres is a voluntary program with limited annual funding. The process from application to closing typically takes 2-5 years. Most applicants face long waiting periods, property appraisal disputes, and the program prioritizes repetitive-loss properties in clusters (not individual homes). Many families who initially express interest ultimately decline when faced with the reality of relocating.
+- NFIP Deductible: $1,000 (structure) / $1,000 (contents)
+- NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
+- Insurance Premium Burden: Your $4,406/year premium is 4.2% of your annual income ($103,683). This is affordable. Below 5% of income is generally affordable. Above 12% is a heavy burden for most households.
+
+
+
+
+### YOUR DECISION PRIORITIES
+
+Your default choice is **do_nothing**. You are a homeowner with mortgage payments, bills, family needs, and daily responsibilities. Flood protection is not your top priority — you have more immediate concerns. Unless something has changed dramatically in your situation, staying the course is the natural choice. Choosing do_nothing means you actively prioritize your everyday life. This is a rational, common, and well-reasoned choice.
+
+Before considering any other action, ask yourself:
+1. Has something specific and urgent happened THIS YEAR that makes my current situation unacceptable?
+2. Can I actually afford this action with my current finances?
+3. Is the disruption and cost truly worth it given my specific flood history?
+If any answer is NO, choose do_nothing.
+
+**If you decide you need protection:** Some homeowners in your situation purchase insurance, though many do not — especially when the premium is a meaningful expense relative to income. A single flood does not necessarily mean your area will flood again soon. If you are in a HIGH flood zone or were recently flooded, insurance may be worth considering given your specific risk.
+
+**Elevation is a significant commitment.** It involves contractors, permits, temporary relocation, and substantial cost even with subsidies. Homeowners who elevate have typically experienced repeated flooding and secured financial assistance. If you have been flooded multiple times and can manage the cost, elevation may be worth serious consideration.
+
+**Buyout is a permanent, rare decision.** Accepting a buyout means leaving your home and community forever. In practice, very few homeowners take this step — even among those with severe flood histories, most choose to stay and adapt in place. Buyout is realistic only for homeowners who have experienced 3+ severe floods, have exhausted other options (insurance, elevation), and are emotionally prepared to leave their neighborhood permanently. The Blue Acres program has limited funding and long wait times (2-5 years).
+
+**If your flood zone is LOW:** You face minimal flood risk. Structural actions like elevation or buyout are not relevant to your situation.
+
+### ADAPTATION OPTIONS
+1. Take no protective action this year. This includes waiting for more information, believing current protection is adequate, focusing on other financial priorities, feeling uncertain about what to do, or accepting the situation as it is.
+2. Purchase NFIP flood insurance (annual, renewable)
+3. Elevate house structure (3ft=$45K, 5ft=$80K, 8ft=$150K before subsidy)
+
+**Sub-options** (include in your response if applicable):
+- If choosing INSURANCE: specify coverage type (1=Structure+Contents, 2=Contents-only)
+- If choosing ELEVATION: specify feet above Base Flood Elevation (3, 5, or 8 feet)
+- If choosing BUYOUT: this is irreversible (you leave the community permanently)
+
+**Secondary Action** (OPTIONAL):
+You may propose ONE additional action this year if budget allows.
+For example: elevate AND buy insurance, or buy insurance AND do nothing else.
+Set "secondary_decision" to 0 if you only want one action.
+Note: You cannot combine elevation with buyout.
+
+### EVALUATION CRITERIA
+[N/A]
+
+Rating Scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High
+
+Based on your situation, memories, financial constraints, and PMT profile, evaluate each criterion and make your decision.
+
+IMPORTANT: If you choose elevate_house, your reasoning MUST explain:
+(a) Can you afford it this year? (check the Elevation Cost Burden above)
+(b) Have you been flooded at least 2-3 times in recent years?
+(c) Why is insurance alone not enough for your situation?
+If you cannot answer all three, choose a different option.
+
+Respond ONLY with valid JSON in this format:
+<<<DECISION_START>>>
+{
+  "threat_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "coping_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "stakeholder_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "social_capital": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "place_attachment": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "decision": "<Numeric ID, choose ONE from: 1, 2, or 3>",
+  "elevation_feet": "If elevating, how many feet above BFE? (3, 5, or 8)",
+  "insurance_coverage": "<If buying insurance: 1=Structure+Contents, 2=Contents-only>",
+  "secondary_decision": "<OPTIONAL: Numeric ID from: 1, 2, or 3, or 0 for none>",
+  "reasoning": "..."
+}
+<<<DECISION_END>>>
