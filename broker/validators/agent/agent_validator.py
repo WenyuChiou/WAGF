@@ -724,6 +724,15 @@ class AgentValidator:
                             if is_expression_condition(cond):
                                 _compiled = compile_expression_condition(
                                     cond, where=f"rule {rule.id!r}")
+                                _rule_has_world_condition = True
+                                if not all(matches):
+                                    # An earlier condition is already false, so
+                                    # the rule cannot fire. Stop here, as
+                                    # ThinkingValidator and GovernanceRule do,
+                                    # so a separate guard (`capacity > 0`)
+                                    # protects a later divisor.
+                                    matches.append(False)
+                                    continue
                                 try:
                                     _outcome = evaluate_expression_condition(
                                         _compiled, state, full_context)
@@ -731,7 +740,6 @@ class AgentValidator:
                                     raise ExpressionEvaluationError(
                                         f"Rule {rule.id!r}: {_exc}") from _exc
                                 matches.append(_outcome.matched)
-                                _rule_has_world_condition = True
                                 if not _outcome.readable:
                                     _rule_world_unreadable = True
                                     for _name in _outcome.missing:
