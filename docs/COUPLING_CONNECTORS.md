@@ -149,6 +149,49 @@ format builder. Its own default text is "1, 2, or 3" and is used only when the
 caller passes none; the context builders pass the real menu
 (`broker/components/context/tiered.py`).
 
+### Relations: an equation the model's own numbers must satisfy
+
+A contract can declare scalar `relations`, for example the water balance of the
+reservoir. Each one is a residual that is 0 when the equation holds:
+
+```python
+CouplingContract(
+    observations=(...,),          # storage, inflow, release_actual, evaporation, spill ...
+    relations=(
+        Relation(
+            name="storage_balance",
+            residual="storage - (prev_storage + inflow - release_actual - evaporation - spill)",
+            tolerance=1e-9,       # absolute, in the variables' unit (maf here)
+        ),
+    ),
+)
+```
+
+The same thing written as a dict in a YAML contract: `{name:, residual:, tolerance:}`.
+If `abs(residual) > tolerance`, or the residual is not a finite number, or it divides
+by zero, the run stops with `CouplingViolation` naming the relation, the residual
+expression, its value, the period, the sub-step and the variable values used.
+
+- **Names.** Only observation names, and `prev_` + an observation name for its value one
+  step earlier. An input is not allowed: publish the value as an observation if a relation
+  needs it. Unknown names fail when the contract is built.
+- **Sub-steps.** A `ContinuousBundle` run is checked at every sub-step on the raw
+  sub-step values, never on the reduced period value. `prev_x` at the first sub-step of a
+  period is the last sub-step of the previous period. A bundle without sub-steps is checked
+  once per decision period on the period values (after the observations' `on_missing`
+  policy, so a filled-in value is what gets checked). A bundle that publishes
+  `last_substep_series` with a series missing or of unequal length stops the run.
+- **First step.** There is no previous value at the very first step, so a relation that
+  uses a `prev_` name is not evaluated there; it is listed under
+  `skipped_no_previous_value` in the provenance. A relation without `prev_` is checked
+  from the start.
+- **Zero divisor.** A division by zero is not guarded: it stops the run. A value that is
+  missing, not a number or not finite stops the run too, never skipped silently.
+- **Report.** `get_provenance()["relations"]` (in the run manifest under
+  `coupling_provenance`) lists the declared relations, `checks_run`, the skipped steps and
+  `observations_in_no_relation`: the observations no relation covers, so you can see what
+  is not being checked. A contract with no relations adds nothing and hashes as before.
+
 ## Physical checks: which form for what
 
 - **A threshold on world values and the proposed number: an `expression:` rule.**
@@ -156,6 +199,9 @@ caller passes none; the context builders pass the real menu
   `storage_now > 0.9 * capacity and proposed_magnitude < 100`. It is checked before
   the proposal is executed; a breach blocks the proposal and the agent retries. See
   `docs/guides/governance_layers.md` for the syntax.
+- **An equation the model's own numbers must satisfy every step (e.g. the water
+  balance): a `relations:` entry on the contract.** A breach stops the run. See
+  "Relations" above.
 
 ## Two models at once
 One bundle per adapter, one `event_src` slot — compose INSIDE one bundle:

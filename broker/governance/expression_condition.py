@@ -173,11 +173,14 @@ def _bool_operands_ok(node: ast.AST) -> bool:
     return False
 
 
-@lru_cache(maxsize=1024)
-def _compile_source(source: str, scope: str) -> CompiledExpression:
-    """Validate ``source`` and return its compiled form. Raises
-    ``ExpressionConditionError`` with a message that does not name the rule
-    (the caller prefixes that). Failures are not cached by ``lru_cache``."""
+def _check_source(source: str, *, numeric: bool) -> Tuple[ast.AST, list]:
+    """The checks both compile paths share: parses, only the
+    ``SafeExpressionEvaluator`` whitelist, finite number constants, no
+    underscore names. Returns ``(tree, names)`` with names in order of first
+    appearance. ``numeric=True`` is for an expression that must be a number
+    (a relation residual): no comparison or and/or anywhere, and no bool
+    constant. Raises ``ExpressionConditionError`` with a message that does not
+    name the rule (the caller prefixes that)."""
     evaluator = _allowed_nodes()
     try:
         tree = ast.parse(source, mode="eval")
@@ -198,18 +201,25 @@ def _compile_source(source: str, scope: str) -> CompiledExpression:
                 "comparisons, and/or. No calls, powers, subscripts, attributes "
                 "or strings."
             )
+        if numeric and isinstance(node, (ast.Compare, ast.BoolOp)):
+            raise ExpressionConditionError(
+                f"expression {source!r} uses a comparison or and/or; it must be "
+                "a number (arithmetic on variables and numbers only), not a test."
+            )
     if not evaluator.is_safe(source):  # belt and braces: same whitelist
         raise ExpressionConditionError(f"expression {source!r} is not safe")
 
-    names = []
+    names: list = []
     positions: Dict[str, int] = {}   # first appearance, so names read left to right
+    allowed_constants = (int, float) if numeric else (int, float, bool)
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant):
             value = node.value
-            if type(value) not in (int, float, bool):
+            if type(value) not in allowed_constants:
                 raise ExpressionConditionError(
                     f"expression {source!r} contains the constant {value!r}; only "
-                    "numbers and true/false are allowed."
+                    + ("numbers" if numeric else "numbers and true/false")
+                    + " are allowed."
                 )
             try:
                 finite = math.isfinite(float(value))
@@ -228,19 +238,58 @@ def _compile_source(source: str, scope: str) -> CompiledExpression:
             if node.id not in names:
                 names.append(node.id)
             positions[node.id] = min(positions.get(node.id, node.col_offset), node.col_offset)
+    names.sort(key=lambda n: positions[n])
+    return tree, names
 
-    if not _bool_operands_ok(tree.body):
-        raise ExpressionConditionError(
-            f"expression {source!r} must be a comparison, or and/or of "
-            "comparisons, so that it answers true or false."
-        )
+
+def _require_names(source: str, names: list) -> None:
     if not names:
         raise ExpressionConditionError(
             f"expression {source!r} reads no variable; it would always give the "
             "same answer."
         )
-    names.sort(key=lambda n: positions[n])
+
+
+@lru_cache(maxsize=1024)
+def _compile_source(source: str, scope: str) -> CompiledExpression:
+    """Validate ``source`` and return its compiled form. Raises
+    ``ExpressionConditionError`` with a message that does not name the rule
+    (the caller prefixes that). Failures are not cached by ``lru_cache``."""
+    tree, names = _check_source(source, numeric=False)
+    if not _bool_operands_ok(tree.body):
+        raise ExpressionConditionError(
+            f"expression {source!r} must be a comparison, or and/or of "
+            "comparisons, so that it answers true or false."
+        )
+    _require_names(source, names)
     return CompiledExpression(source=source, names=tuple(names), scope=scope)
+
+
+@lru_cache(maxsize=1024)
+def _compile_numeric_source(source: str) -> CompiledExpression:
+    _tree, names = _check_source(source, numeric=True)
+    _require_names(source, names)
+    return CompiledExpression(source=source, names=tuple(names), scope="auto")
+
+
+def compile_numeric_expression(expr: Any, *, where: str = "") -> CompiledExpression:
+    """Validate an arithmetic expression that must give a NUMBER (a coupling
+    relation's residual), with the same whitelist, constant and name checks as
+    the boolean condition: numbers, names, ``+ - * / // %``, unary minus. No
+    comparison, ``and``/``or``, bool or string constant, call, or name starting
+    with an underscore; at least one name. Raises ``ExpressionConditionError``
+    (message starts with ``where``)."""
+    prefix = f"{where}: " if where else ""
+    try:
+        if not isinstance(expr, str) or not expr.strip():
+            raise ExpressionConditionError(
+                f"expression must be a non-empty string, got {expr!r}."
+            )
+        return _compile_numeric_source(expr.strip())
+    except ExpressionConditionError as exc:
+        if prefix and not str(exc).startswith(prefix):
+            raise ExpressionConditionError(prefix + str(exc)) from exc.__cause__
+        raise
 
 
 def _read(cond: Any, key: str) -> Any:
@@ -374,6 +423,7 @@ __all__ = [
     "ExpressionEvaluationError",
     "ExpressionOutcome",
     "compile_expression_condition",
+    "compile_numeric_expression",
     "evaluate_expression_condition",
     "is_expression_condition",
     "lookup_world_variable",

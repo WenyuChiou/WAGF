@@ -43,4 +43,15 @@ audit rows never have a missing variable (the runner publishes all three), so th
 output is unchanged apart from the two grounding columns, which appear whenever a profile
 has a world rule.
 
+**Water balance.** The contract declares one relation, `storage_balance`: storage minus
+(previous storage + inflow - release - evaporation - spill) must be within 1e-9 maf, checked
+every month on the raw monthly values (see "Relations" in `docs/COUPLING_CONNECTORS.md`).
+The toy solver publishes `inflow` and `evaporation` for it. A breach stops the run with
+`CouplingViolation`. The toy solver clamps storage at 0, so in a month where the release takes
+everything, the evaporation charged on the old storage is not removed and the balance is off
+by that amount; the relation would stop such a run. The shipped 4-year mock run never reaches
+that case (lowest storage is 6.36 maf against a release of at most 0.75 maf a month).
+The relation reports `shortfall` under `observations_in_no_relation`: it is not part of the
+balance.
+
 Compare with `reservoir_control_multidim/` (three-setpoint variant).

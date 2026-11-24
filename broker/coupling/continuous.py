@@ -112,6 +112,10 @@ class ContinuousBundle(InterfaceBundle):
             self.solver.update()
             for n in names:
                 series[n].append(_scalar(self.solver.get_value(n)))
+        # The raw per-sub-step series, kept for the adapter's relation checks
+        # (a relation is tested on raw sub-step values, never on a reduction).
+        # An attribute only: env and its keys are unchanged.
+        self.last_substep_series = {n: list(v) for n, v in series.items()}
         for vs in self.contract.observations:
             env[vs.name] = reduce_series(series[vs.name], vs.observation_reduce)
         env["_substeps_run"] = self._substeps

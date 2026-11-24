@@ -20,6 +20,7 @@ Critical division of labour (the design's load-bearing correction):
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Callable, Dict, List, Optional
 
 from ..interfaces.skill_types import ApprovedSkill, ExecutionResult
@@ -48,6 +49,12 @@ class EnvironmentCouplingAdapter:
         self.sources = sources
         self.agent_lookup = agent_lookup
         self._period = 0
+        # Relation checks (contract.relations): last values seen, how many
+        # checks ran, and the (relation, period, substep) triples skipped for
+        # want of a previous value. Untouched when no relation is declared.
+        self._relation_prev: Optional[Dict[str, float]] = None
+        self._relation_checks_run = 0
+        self._relation_skipped: List[Dict[str, Any]] = []
         # Validate the contract's static checks once, up front (fail-fast).
         static = contract.check_units() + contract.check_cadence()
         if static:
@@ -68,6 +75,7 @@ class EnvironmentCouplingAdapter:
             base, events, self.contract.operation_order, self.contract.control_hold_policy
         )
         self._validate_observations(env)  # numerical-correctness #1 at runtime
+        self._check_relations(env)  # declared relations (no-op without any)
         env["current_year"] = base.get("current_year", self._period)
         return env
 
@@ -94,6 +102,140 @@ class EnvironmentCouplingAdapter:
                 )
                 return {"current_year": self._period}
         return {"current_year": self._period}
+
+    # ------------------------------------------------------------------
+    # Declared relations (contract.relations)
+    # ------------------------------------------------------------------
+    def _check_relations(self, env: Dict[str, Any]) -> None:
+        """Check every declared relation; stop the run on a breach.
+
+        Relations are tested on RAW values, never on reductions. A bundle that
+        steps its model K times per decision and publishes the raw series as
+        ``last_substep_series`` (``ContinuousBundle`` does) is checked at every
+        sub-step on those raw values; any other bundle has one value per
+        decision period and is checked once per period on the values in ``env``.
+        ``prev_x`` is x one step earlier: the previous sub-step, or for the first
+        sub-step of a period the last sub-step of the previous period. Where no
+        previous value exists yet (the very first step) a relation that uses a
+        ``prev_`` name is not evaluated and is recorded as skipped (see
+        ``get_provenance``); a relation without one is checked from the start.
+        A missing, non-numeric or non-finite value, a zero divisor, a non-finite
+        residual and ``abs(residual) > tolerance`` all raise ``CouplingViolation``.
+        """
+        relations = self.contract.relations
+        if not relations:
+            return  # fast path: nothing declared, the bundle is not touched
+        from broker.components.analytics.feedback import SafeExpressionEvaluator
+
+        obs_names = {vs.name for vs in self.contract.observations}
+        base_of: Dict[str, Dict[str, Any]] = {}  # relation -> {variable: (observation, is_prev)}
+        needed: List[str] = []  # observations any relation uses, in first-use order
+        for rel in relations:
+            mapping = {}
+            for var in rel.names:
+                base = self.contract.relation_base_name(var, obs_names)
+                mapping[var] = (base, base != var)
+                if base not in needed:
+                    needed.append(base)
+            base_of[rel.name] = mapping
+
+        series = getattr(self.sources, "last_substep_series", None)
+        steps = None  # list of (sub-step index or None, {observation: value})
+        if series is not None:
+            # A bundle that publishes raw sub-step series is checked on them;
+            # an incomplete series stops the run rather than falling back to
+            # the reduced values in env (a relation never sees a reduction).
+            lengths = (
+                {len(series[n]) for n in needed
+                 if isinstance(series.get(n), (list, tuple))}
+                if isinstance(series, dict) else set()
+            )
+            if (not isinstance(series, dict)
+                    or any(not isinstance(series.get(n), (list, tuple)) for n in needed)
+                    or len(lengths) != 1 or next(iter(lengths)) < 1):
+                raise CouplingViolation(
+                    "relations cannot be checked: the bundle's last_substep_series "
+                    f"does not hold one equal-length, non-empty series for each of "
+                    f"{needed} (period {self._period})"
+                )
+            steps = [
+                (k, {n: self._relation_number(n, series[n][k], k) for n in needed})
+                for k in range(next(iter(lengths)))
+            ]
+        if steps is None:
+            steps = [(None, {n: self._relation_number(n, env.get(n), None) for n in needed})]
+
+        for k, current in steps:
+            prev = self._relation_prev
+            for rel in relations:
+                mapping = base_of[rel.name]
+                if prev is None and any(is_prev for _b, is_prev in mapping.values()):
+                    self._relation_skipped.append(
+                        {"relation": rel.name, "period": self._period, "substep": k}
+                    )
+                    continue
+                values = {
+                    var: (prev[base] if is_prev else current[base])
+                    for var, (base, is_prev) in mapping.items()
+                }
+                self._relation_checks_run += 1
+                try:
+                    residual = SafeExpressionEvaluator.evaluate(
+                        rel.residual, values, zero_guard=False
+                    )
+                except ZeroDivisionError as exc:
+                    raise CouplingViolation(
+                        self._relation_message(rel, k, values, "division by zero in relation")
+                    ) from exc
+                except OverflowError as exc:
+                    raise CouplingViolation(
+                        self._relation_message(rel, k, values, "overflow in relation")
+                    ) from exc
+                try:
+                    residual = float(residual)
+                except (TypeError, ValueError):
+                    residual = float("nan")
+                if not math.isfinite(residual):
+                    raise CouplingViolation(
+                        self._relation_message(rel, k, values, "residual is not finite", residual)
+                    )
+                if abs(residual) > rel.tolerance:
+                    raise CouplingViolation(
+                        self._relation_message(rel, k, values, "relation breached", residual)
+                    )
+            self._relation_prev = dict(current)
+
+    def _relation_number(self, name: str, raw: Any, substep: Optional[int]) -> float:
+        """A relation input as a finite float; anything else cannot be checked
+        and stops the run (never skipped silently)."""
+        where = f"period {self._period}" + (f", sub-step {substep}" if substep is not None else "")
+        if raw is None or isinstance(raw, (bool, str, bytes)):
+            raise CouplingViolation(
+                f"relation cannot be checked: {name}={raw!r} is missing or not a number ({where})"
+            )
+        try:
+            number = float(raw)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise CouplingViolation(
+                f"relation cannot be checked: {name}={raw!r} is not a number ({where})"
+            ) from exc
+        if not math.isfinite(number):
+            raise CouplingViolation(
+                f"relation cannot be checked: {name}={raw!r} is not finite ({where})"
+            )
+        return number
+
+    def _relation_message(
+        self, rel: Any, substep: Optional[int], values: Dict[str, float], what: str,
+        residual: Optional[float] = None,
+    ) -> str:
+        shown = ", ".join(f"{k}={v!r}" for k, v in values.items())
+        value = "" if residual is None else f" residual={residual!r} (tolerance {rel.tolerance!r})"
+        step = "" if substep is None else f", sub-step {substep}"
+        return (
+            f"relation {rel.name!r}: {what}: {rel.residual!r}{value} at period "
+            f"{self._period}{step}; values: {shown}"
+        )
 
     def _validate_observations(self, env: Dict[str, Any]) -> None:
         """Apply ``on_missing`` policy + range checks to each contracted
@@ -194,13 +336,29 @@ class EnvironmentCouplingAdapter:
 
         # CouplingContract is a frozen dataclass of frozen VarSpecs — its repr
         # is deterministic, so the sha256 is a stable contract identity.
-        contract_sha = hashlib.sha256(repr(self.contract).encode("utf-8")).hexdigest()[:16]
+        # Declared relations are not in repr(contract) (so a contract without
+        # any hashes exactly as before); fold them in when present.
+        identity = repr(self.contract)
+        if self.contract.relations:
+            identity += repr(self.contract.relations)
+        contract_sha = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
         prov: Dict[str, Any] = {
             "adapter_class": type(self).__name__,
             "contract_sha256": contract_sha,
             "bundle_class": type(self.sources).__name__,
             "wrapped_engine_class": type(self.real_engine).__name__ if self.real_engine is not None else None,
         }
+        if self.contract.relations:
+            coverage = self.contract.relation_coverage()
+            prov["relations"] = {
+                "declared": [
+                    {"name": r.name, "residual": r.residual, "tolerance": r.tolerance}
+                    for r in self.contract.relations
+                ],
+                "observations_in_no_relation": coverage["observations_in_no_relation"],
+                "checks_run": self._relation_checks_run,
+                "skipped_no_previous_value": [dict(x) for x in self._relation_skipped],
+            }
         fn = getattr(self.sources, "get_provenance", None)
         if callable(fn):
             try:
