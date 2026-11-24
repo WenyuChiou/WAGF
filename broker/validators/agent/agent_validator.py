@@ -698,7 +698,17 @@ class AgentValidator:
 
         for rule in rules:
             if not rule.blocked_skills: continue
-            
+            # A rule with an `expression:` condition is judged only for a skill
+            # it blocks, as ThinkingValidator does: an unreadable value or a
+            # zero divisor must not stop the run for an unrelated skill. Rules
+            # without an expression keep the path they always took.
+            if (isinstance(rule.conditions, list)
+                    and any(isinstance(c, dict) and is_expression_condition(c)
+                            for c in rule.conditions)
+                    and decision.lower().strip().replace("_", "") not in {
+                        b.lower().strip().replace("_", "") for b in rule.blocked_skills}):
+                continue
+
             is_triggered = False
             _rule_has_world_condition = False
             _rule_world_unreadable = False
