@@ -280,9 +280,12 @@ class Relation:
         )
 
         try:
-            compile_numeric_expression(self.residual, where=f"Relation[{self.name}]")
+            compiled = compile_numeric_expression(self.residual, where=f"Relation[{self.name}]")
         except ExpressionConditionError as exc:
             raise ValueError(str(exc)) from exc
+        # Keep the source that was checked (stripped): the run-time evaluator
+        # rejects leading whitespace that the build-time check allowed.
+        object.__setattr__(self, "residual", compiled.source)
 
     @property
     def names(self) -> Tuple[str, ...]:

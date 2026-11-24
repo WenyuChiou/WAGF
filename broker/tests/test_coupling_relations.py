@@ -100,6 +100,23 @@ def test_real_toy_solver_passes_four_years_on_48_substeps():
     ]
 
 
+def test_residual_with_surrounding_whitespace_is_checked_not_refused():
+    # PR #112 review: the build-time check strips the residual; the run-time
+    # evaluator must get the same stripped source, not a leading indent.
+    rel = Relation("level_balance", "  level - (prev_level + gain - loss)  ", 1e-9)
+    rows = [
+        {"level": 10.0, "gain": 1.0, "loss": 0.0},
+        {"level": 11.0, "gain": 1.0, "loss": 0.0},
+    ]
+    adapter = EnvironmentCouplingAdapter(None, _period_contract(rel), _PeriodBundle(rows))
+    adapter.advance_step()
+    adapter.advance_step()
+    assert adapter.get_provenance()["relations"]["checks_run"] == 1
+    assert rel.residual == "level - (prev_level + gain - loss)"
+    assert Relation.from_dict({"name": "b", "residual": " level - level ",
+                               "tolerance": 0.0}).residual == "level - level"
+
+
 # --------------------------------------------------------------------------
 # 3: first step
 # --------------------------------------------------------------------------
