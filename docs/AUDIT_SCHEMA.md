@@ -579,6 +579,15 @@ and FLAGS the run (`integrity_ok: false`) when every row of a grounded run was
 unevaluable — that run's CSV is otherwise indistinguishable from a
 self-report-only run's.
 
+**`world_variable_unusable`.** The `expression:` form of a world rule
+(`docs/guides/governance_layers.md`) reads several variables at once. When one is
+published but is not a finite number (None, a list, text such as `"abc"`, NaN,
+infinity) the rule does not fire and records a WARNING with `grounding: world`,
+validator name `AgentValidator:<tier>_world_variable_unusable`, `field` (the
+variable), `source_rule_id`, and `value_repr` (what was there). It counts in the
+same unevaluable-rule census as `world_variable_missing`. A zero divisor is not
+a finding: it stops the run.
+
 **Key gating.** The columns are absent unless the trace carries the keys, and
 `compute_csv_fieldnames` derives fieldnames from row keys, so a self-report-only
 profile gains no columns and every frozen CSV stays byte-identical. The gate is
@@ -750,8 +759,8 @@ told something, and the row named nothing.
 **Category prefixes.** An id reads `thinking:low_coping_block`,
 `social:norm_drift`, and so on, because one cell can carry findings from several
 validator tiers and a bare id does not say which layer produced it.
-`construct_missing` and `world_variable_missing` instead carry the FIELD —
-`construct_missing:TP_LABEL` — since the rule id is the same string for every
+`construct_missing`, `world_variable_missing` and `world_variable_unusable`
+instead carry the FIELD — `construct_missing:TP_LABEL` — since the rule id is the same string for every
 unreported construct.
 
 **When the snapshot is taken.** `advise_findings` records the ATTEMPT-0

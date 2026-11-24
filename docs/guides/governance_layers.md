@@ -335,6 +335,48 @@ carries the same name, at which point the rule silently reads the wrong plane.
 The coercion warns once at runtime, and `python -m broker.tools.validate_prompt`
 rejects it at config time, which is while it is still one character to fix.
 
+### Writing a threshold as one `expression:` string
+
+A world condition can also be one arithmetic/comparison string over world
+variables and the number the agent just proposed:
+
+```yaml
+thinking_rules:
+  - id: flood_control_overflow
+    conditions:
+      - expression: "storage_now > 0.9 * capacity and proposed_magnitude < 100"
+        # scope: auto        # optional: auto | env | state | social | context
+    blocked_skills: [set_release]
+    level: ERROR
+    message: "..."
+```
+
+- **Allowed:** numbers, `true`/`false`, variable names, `+ - * / // %`, the
+  comparisons `< > <= >= == !=`, and `and` / `or`. No function calls, powers,
+  subscripts, attributes or strings. The whole string must be a comparison (or
+  `and`/`or` of comparisons) over at least one variable, so it always answers
+  yes or no. It stands alone: do not add `variable`, `construct`, `operator` or
+  `value` to the same condition.
+- **Where names are read:** the same order as any world condition, env, then the
+  agent's own state, then the flattened context. `proposed_magnitude` lives in the
+  flattened context. `scope:` picks one plane (same five values as above).
+- **A name that is not there:** the rule does not fire and the row gets the
+  `world_variable_missing` WARNING.
+- **A name whose value is not a finite number** (None, a list, text such as
+  `"abc"`, bytes, NaN, infinity): the rule does not fire and the row gets a
+  `world_variable_unusable` WARNING that shows the value. A numeric string such as
+  `"5"` is read as 5, and true/false is allowed.
+- **A zero divisor stops the run**, with the rule and the values named. Nothing is
+  swapped in for zero. Guard a divisor with `and`, which really does skip the
+  rest: `capacity > 0 and storage_now / capacity > 0.9`.
+- **A bad string fails when the config loads**, naming the rule and the YAML path.
+- **`thinking_rules` only.** Identity rules read `precondition:`; an `expression:`
+  inside `identity_rules` is refused at load.
+- The rule runs even when the model wrote no reasoning. A rule that mixes an
+  `expression:` with a `construct:` condition runs then too; the construct finds
+  no label, so that rule does not fire (and, under `framework_aware_labels`, the
+  row gets a `construct_missing` WARNING).
+
 ### A variable the environment never published
 
 A world variable that cannot be read makes the rule **not fire**. That is

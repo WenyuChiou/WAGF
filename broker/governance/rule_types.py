@@ -16,6 +16,13 @@ from enum import Enum
 from typing import Dict, List, Any, Optional, Literal
 
 
+from broker.governance.expression_condition import (
+    ExpressionEvaluationError,
+    agent_state_from_context,
+    compile_expression_condition,
+    evaluate_expression_condition,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +45,8 @@ class ConditionType(str, Enum):
     """Types of conditions that can be evaluated."""
     CONSTRUCT = "construct"      # Behavioral construct label comparison (e.g., THREAT_LABEL, CAPACITY_LABEL)
     PRECONDITION = "precondition"  # Boolean state check (e.g., at_capacity, adopted_technology)
-    EXPRESSION = "expression"    # Mathematical expression (e.g., budget > threshold)
+    EXPRESSION = "expression"    # Field/operator test on a world variable, or a free expression string:
+    #   {expression: "storage_now > 0.9 * capacity and proposed_magnitude < 100", scope: auto}
     SOCIAL = "social"            # Social context check (e.g., adoption_rate > 0.5)
 
 
@@ -52,11 +60,24 @@ class RuleCondition:
     - precondition: {type: "precondition", field: "at_capacity", operator: "==", values: [True]}
     - expression: {type: "expression", field: "budget", operator: ">=", values: [50000]}
     - social: {type: "social", field: "adoption_rate", operator: ">", values: [0.6]}
+    - free expression (whole test in one string, over world variables and the
+      proposed number): {expression: "storage_now > 0.9 * capacity and
+      proposed_magnitude < 100", scope: "auto"}. ``type`` is ``expression``;
+      ``field``/``operator``/``values`` stay unset. See
+      ``broker.governance.expression_condition``.
     """
     type: str  # construct, precondition, expression, social
     field: str  # Field name to check (configured per domain in agent_types.yaml)
     operator: str = "in"  # in, ==, !=, >, <, >=, <=
     values: List[Any] = field(default_factory=list)
+    expression: Optional[str] = None  # free arithmetic/comparison string (see above)
+    scope: str = "auto"  # lookup plane for an expression: auto | env | state | social | context
+
+    def __post_init__(self):
+        # A bad expression fails when the rule is built, not mid-run.
+        if self.expression is not None:
+            compile_expression_condition(self, where="RuleCondition")
+
 
     def evaluate(self, context: dict) -> bool:
         """
@@ -68,6 +89,14 @@ class RuleCondition:
         Returns:
             True if condition is satisfied (rule should trigger)
         """
+        if self.expression is not None:
+            # Missing / non-numeric variable -> not matched, like every other
+            # RuleCondition. A zero divisor raises ExpressionEvaluationError.
+            outcome = evaluate_expression_condition(
+                compile_expression_condition(self, where="RuleCondition"),
+                agent_state_from_context(context), context)
+            return outcome.matched
+
         # Get the actual value from context
         actual_value = self._get_value_from_context(context)
         if actual_value is None:
@@ -134,6 +163,12 @@ class RuleCondition:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
+        if self.expression is not None:
+            # The expression form stands alone: emitting the unused
+            # field/operator/values would make the dict a mixed shape that
+            # from_dict (and the YAML loader) refuse.
+            return {"type": self.type, "expression": self.expression,
+                    "scope": self.scope}
         return {
             "type": self.type,
             "field": self.field,
@@ -144,6 +179,16 @@ class RuleCondition:
     @classmethod
     def from_dict(cls, data: dict) -> "RuleCondition":
         """Create from dictionary."""
+        if "expression" in data:
+            # Whole test in the string; compile_expression_condition (run by
+            # __post_init__) refuses a mixed shape or a bad expression.
+            compile_expression_condition(data, where="RuleCondition")
+            return cls(
+                type=data.get("type") or "expression",
+                field="",
+                expression=data["expression"],
+                scope=str(data.get("scope") or "auto").strip().lower(),
+            )
         return cls(
             type=data.get("type", "construct"),
             field=data.get("field", ""),
@@ -193,7 +238,12 @@ class GovernanceRule:
         # If using modern conditions
         if self.conditions:
             # All conditions must be satisfied for rule to trigger
-            return all(cond.evaluate(context) for cond in self.conditions)
+            try:
+                return all(cond.evaluate(context) for cond in self.conditions)
+            except ExpressionEvaluationError as exc:
+                # An `expression:` condition divided by zero; name the rule
+                # (RuleCondition itself does not know its rule's id).
+                raise ExpressionEvaluationError(f"Rule {self.id!r}: {exc}") from exc
 
         # Legacy support: single construct with when_above
         if self.construct and self.when_above:

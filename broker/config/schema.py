@@ -320,6 +320,17 @@ class RuleCondition(BaseModel):
         default=None,
         description="Single value for comparison operators (==, <, >, etc.)"
     )
+    expression: Optional[str] = Field(
+        default=None,
+        description="Free arithmetic/comparison string over world variables, e.g. "
+                    "'storage_now > 0.9 * capacity and proposed_magnitude < 100'. "
+                    "Stands alone: do not combine with construct/variable/value."
+    )
+    scope: Optional[str] = Field(
+        default=None,
+        description="Where an expression's names are looked up: "
+                    "auto (default) | env | state | social | context"
+    )
 
 
 class GovernanceRule(BaseModel):

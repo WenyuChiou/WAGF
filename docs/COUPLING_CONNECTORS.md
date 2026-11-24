@@ -149,6 +149,14 @@ format builder. Its own default text is "1, 2, or 3" and is used only when the
 caller passes none; the context builders pass the real menu
 (`broker/components/context/tiered.py`).
 
+## Physical checks: which form for what
+
+- **A threshold on world values and the proposed number: an `expression:` rule.**
+  Write it in the agent-types YAML, for example
+  `storage_now > 0.9 * capacity and proposed_magnitude < 100`. It is checked before
+  the proposal is executed; a breach blocks the proposal and the agent retries. See
+  `docs/guides/governance_layers.md` for the syntax.
+
 ## Two models at once
 One bundle per adapter, one `event_src` slot — compose INSIDE one bundle:
 `run_pipeline` pumps both models and merges their env projections; contract

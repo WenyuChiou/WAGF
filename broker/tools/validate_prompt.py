@@ -493,11 +493,18 @@ _WORLD_CONDITION_CONSUMED_KEYS: Set[str] = {
 # live. `operator` on its own is not.
 _CONSTRUCT_NUMERIC_KEYS: Set[str] = {"operator", "value"}
 
+# An `expression:` condition (broker.governance.expression_condition).
+_EXPRESSION_CONDITION_CONSUMED_KEYS: Set[str] = {"expression", "scope", "type"}
+
 
 def _consumed_condition_keys(cond: Dict[str, Any]) -> Set[str]:
     """Which keys this particular condition shape actually consumes."""
     from broker.utils.agent_config import world_condition_target
 
+    if "expression" in cond:
+        # R1 slice 3: the whole test is in the string. Any other key on such a
+        # condition is refused at config load, so these three are all it reads.
+        return _EXPRESSION_CONDITION_CONSUMED_KEYS
     name, _scope = world_condition_target(cond)
     if name:
         return _WORLD_CONDITION_CONSUMED_KEYS

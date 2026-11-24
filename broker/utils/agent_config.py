@@ -231,6 +231,9 @@ def resolve_rule_grounding(rule: Dict[str, Any]) -> str:
     conditions = rule.get("conditions") or []
     if isinstance(conditions, list):
         for cond in conditions:
+            # R1 slice 3: a free `expression:` reads world variables by definition.
+            if isinstance(cond, dict) and "expression" in cond:
+                return "world"
             name, _scope = world_condition_target(cond)
             if name:
                 return "world"
@@ -429,6 +432,7 @@ class AgentTypeConfig:
         self._warn_missing_rule_messages()
         self._warn_unknown_keys()
         self._validate_supplied_fractions()
+        self._validate_expression_conditions()
 
     def _warn_unknown_keys(self) -> None:
         for name, block in self._config.items():
@@ -468,6 +472,72 @@ class AgentTypeConfig:
                 retrieval = governance.get("retrieval", {})
                 if isinstance(retrieval, dict) and "min_score" in retrieval:
                     validate_nonnegative(f"{scope}.governance.retrieval.min_score", retrieval["min_score"])
+
+    def _validate_expression_conditions(self) -> None:
+        """Compile every ``expression:`` rule condition at load time.
+
+        Walks every governance profile in both shapes the loader reads
+        (``governance.<profile>.<agent_type>.<kind>`` and
+        ``<agent_type>.governance.<profile>.<kind>``) plus the rule lists
+        written directly on an agent block. A bad expression raises
+        ``ExpressionConditionError`` naming the YAML path and the rule, so a
+        typo fails at build time rather than mid-run. An expression inside
+        ``identity_rules`` raises too: identity rules read only ``precondition:``
+        and would silently ignore it.
+        """
+        from broker.governance.expression_condition import (
+            ExpressionConditionError,
+            compile_expression_condition,
+            is_expression_condition,
+        )
+
+        def walk(rules, path, kind):
+            if isinstance(rules, dict):
+                entries = [(k, v) for k, v in rules.items() if isinstance(v, dict)]
+            elif isinstance(rules, (list, tuple)):
+                entries = [(None, v) for v in rules if isinstance(v, dict)]
+            else:
+                return
+            for key, rule in entries:
+                rule_id = rule.get("id", key if key is not None else rule.get("construct", "unknown"))
+                conditions = rule.get("conditions")
+                if not isinstance(conditions, (list, tuple)):
+                    continue
+                for index, cond in enumerate(conditions):
+                    if not isinstance(cond, dict) or not is_expression_condition(cond):
+                        continue
+                    where = f"rule {rule_id!r} in {self._yaml_path} at {path}.{kind}[{index}]"
+                    if kind == "identity_rules":
+                        raise ExpressionConditionError(
+                            f"{where}: an expression condition is not read in "
+                            "identity_rules (they read only `precondition:`). "
+                            "Put the rule in thinking_rules."
+                        )
+                    compile_expression_condition(cond, where=where)
+
+        kinds = ("thinking_rules", "coherence_rules", "identity_rules")
+        top = self._config.get("governance")
+        if isinstance(top, dict):
+            for profile, agents in top.items():
+                if not isinstance(agents, dict):
+                    continue
+                for agent_type, block in agents.items():
+                    if not isinstance(block, dict):
+                        continue
+                    for kind in kinds:
+                        walk(block.get(kind), f"governance.{profile}.{agent_type}", kind)
+        for agent_type, body in self._config.items():
+            if agent_type in NON_AGENT_TOP_LEVEL_KEYS or not isinstance(body, dict):
+                continue
+            for kind in kinds:
+                walk(body.get(kind), agent_type, kind)
+            embedded = body.get("governance")
+            if isinstance(embedded, dict):
+                for profile, block in embedded.items():
+                    if not isinstance(block, dict):
+                        continue
+                    for kind in kinds:
+                        walk(block.get(kind), f"{agent_type}.governance.{profile}", kind)
 
     def warn_unknown_blocked_skills(self, registry) -> None:
         """Diagnose rule typos when the loaded config and registry meet."""

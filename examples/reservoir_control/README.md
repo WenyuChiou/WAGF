@@ -15,8 +15,10 @@ lines 3-7; the "C1" review-finding label is a code comment at line 60).
 
 - `reservoir_pack.py` — `ReservoirControlDomainPack` (coupling OFF by default).
 - `run_reservoir_ops.py` — the runnable experiment.
-- `ops_modules.py`/`ops_validators.py` — solver + bounded-release check.
-- `config/reservoir_agent_types.yaml`, `config/reservoir_skill_registry.yaml`.
+- `ops_modules.py`/`ops_validators.py` — solver + the dead-pool projection check (Python).
+- `config/reservoir_agent_types.yaml`, `config/reservoir_skill_registry.yaml`. The
+  flood-control overflow limit (block `set_release` below 100% of demand while storage is
+  above 90% of capacity) is one `expression:` rule in the YAML, under the `strict` profile.
 
 ## Run it
 
@@ -30,5 +32,15 @@ The mock operator asks for 100% of demand, the dead-pool rule blocks that in yea
 and the operator's retry at 50% is approved and executed. The run ends by printing
 the blocked attempt with its reason, the approved retry, the executed release target
 and the storage before and after. `--output` must be a new directory.
+
+**Overflow rule, and one difference from the old Python check.** The overflow limit used
+to be a Python check that blocked the proposal when `storage_now` or `proposed_magnitude`
+was absent from the validation context. As a YAML `expression:` rule it follows the
+framework rule for world conditions instead: a variable that is not there means the rule
+does not fire, and the row gets a `world_variable_missing` WARNING. A variable that is
+there but not a finite number gets a `world_variable_unusable` WARNING. The run's own
+audit rows never have a missing variable (the runner publishes all three), so the demo
+output is unchanged apart from the two grounding columns, which appear whenever a profile
+has a world rule.
 
 Compare with `reservoir_control_multidim/` (three-setpoint variant).

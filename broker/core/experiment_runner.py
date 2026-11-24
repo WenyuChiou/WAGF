@@ -2158,6 +2158,9 @@ class ExperimentRunner:
         # clause's own comment. Imported here (not module level) so a run
         # that never touches the journal feature pays no import cost.
         from broker.utils.llm_journal import JournalReplayDivergence
+        # R1 slice 3: an `expression:` rule that divides by zero stops the run
+        # (no 0 -> 1e-10 swap); it must not become one more ABORTED row.
+        from broker.governance.expression_condition import ExpressionEvaluationError
         results = []
         for agent in agents:
             # PR-8 review P1-c: a DECLARED decider is bound OUTSIDE the try.
@@ -2294,6 +2297,11 @@ class ExperimentRunner:
                 # the rebuilt state, which is exactly the silent-divergence
                 # outcome this exception exists to prevent. Re-raise past
                 # run()'s loop.
+                raise
+            except ExpressionEvaluationError:
+                # A rule expression divided by zero: a config error the
+                # author must guard (`capacity > 0 and ...`). Stop the run;
+                # run()'s generic handler records it in the manifest.
                 raise
             except Exception as e:
                 # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):
@@ -2459,6 +2467,9 @@ class ExperimentRunner:
         # JournalReplayDivergence only. Imported here (not module level) so
         # a run that never touches the journal feature pays no import cost.
         from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
+        # R1 slice 3: see _run_agents_sequential -- a zero divisor in an
+        # `expression:` rule stops the run instead of becoming an ABORTED row.
+        from broker.governance.expression_condition import ExpressionEvaluationError
         results = []
 
         def process_agent(agent, step_id, declared_decider=None):
@@ -2598,6 +2609,12 @@ class ExperimentRunner:
                     # before `raise`, means the executor is already fully
                     # drained by the time this exception reaches run()'s
                     # finally, instead of racing it.
+                    executor.shutdown(wait=True, cancel_futures=True)
+                    raise
+                except ExpressionEvaluationError:
+                    # R1 slice 3: a rule expression divided by zero. Stop the
+                    # run (drain the executor first, as the clause above does)
+                    # instead of filing one more ABORTED row.
                     executor.shutdown(wait=True, cancel_futures=True)
                     raise
                 except (JournalReplayDivergence, JournalWriteError):
