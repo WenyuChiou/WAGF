@@ -246,7 +246,7 @@ def _soft_finding_labels(v) -> List[str]:
         if not h:
             continue
         rid = str(h)
-        if rid in ("construct_missing", "world_variable_missing"):
+        if rid in ("construct_missing", "world_variable_missing", "world_variable_unusable"):
             field = str(meta.get("field") or "").strip()
             out.append(f"{rid}:{field}" if field else rid)
         else:

@@ -23,6 +23,14 @@ from broker.utils.agent_config import (
     GovernanceAuditor,
     world_condition_target,
 )
+from broker.governance.expression_condition import (
+    MISSING,
+    ExpressionEvaluationError,
+    compile_expression_condition,
+    evaluate_expression_condition,
+    is_expression_condition,
+    lookup_world_variable,
+)
 from broker.utils.logging import setup_logger
 
 logger = setup_logger(__name__)
@@ -31,41 +39,10 @@ logger = setup_logger(__name__)
 # validation context". A plain ``None`` cannot be the sentinel — a domain may
 # legitimately store ``None`` in state, and treating that as "absent" would make
 # a rule silently not fire on exactly the rows where the world state is unknown.
-_MISSING = object()
-
-
-def _lookup_world_variable(name, scope, state, full_context):
-    """Resolve a world variable, returning ``_MISSING`` when it is not present.
-
-    Lookup order for ``scope: auto`` is env_state -> agent state -> flattened
-    context, and it is DOCUMENTED rather than incidental. The broker builds its
-    validation context as ``{"env_state": env, **agent_state, **env}``, so a name
-    carried by both planes resolves to the env copy and the agent's own value is
-    unreachable — the key-collision trap. ``scope: state`` / ``scope: env`` name
-    the plane explicitly and are the recommended form for any new rule.
-    """
-    ctx = full_context if isinstance(full_context, dict) else {}
-    env = ctx.get("env_state")
-    env = env if isinstance(env, dict) else {}
-    social = ctx.get("social_context")
-    social = social if isinstance(social, dict) else {}
-    st = state if isinstance(state, dict) else {}
-
-    if scope == "env":
-        planes = (env,)
-    elif scope == "state":
-        planes = (st,)
-    elif scope == "social":
-        planes = (social,)
-    elif scope == "context":
-        planes = (ctx,)
-    else:  # auto
-        planes = (env, st, ctx)
-
-    for plane in planes:
-        if name in plane:
-            return plane[name]
-    return _MISSING
+# The sentinel and the lookup now live in ``expression_condition`` (one shared
+# implementation for the ``expression:`` condition); the old names stay here.
+_MISSING = MISSING
+_lookup_world_variable = lookup_world_variable
 
 
 def _coerce_pair(actual, target):
@@ -421,7 +398,16 @@ class AgentValidator:
                 base_type, agent_id, decision, state, reasoning,
                 full_context=full_validation_context,
             ))
-        
+        else:
+            # A world-only `expression:` rule must not depend on the model
+            # writing reasoning. Only such rules run here; with none configured
+            # this adds nothing, so every existing row is unchanged.
+            results.extend(self.validate_thinking(
+                base_type, agent_id, decision, state, {},
+                full_context=full_validation_context,
+                expression_rules_only=True,
+            ))
+
         # 3. Numeric Attribute Bounds (Legacy/Structural)
         # Driven by 'validation_rules' in YAML
         rules = self.config.get_validation_rules(base_type)
@@ -576,6 +562,7 @@ class AgentValidator:
         state: Dict[str, Any],
         reasoning: Dict[str, str],
         full_context: Optional[Dict[str, Any]] = None,
+        expression_rules_only: bool = False,
     ) -> List[ValidationResult]:
         """Tier 2: Thinking/Cognitive validation (Reasoning-based).
 
@@ -584,8 +571,22 @@ class AgentValidator:
         ``state`` dict does not, and world-grounded rules need them. Optional
         and default-``None`` so every existing direct caller keeps working —
         with it absent, a world condition simply finds nothing and does not fire.
+
+        ``expression_rules_only`` is how a world-only rule still runs when the
+        model wrote no reasoning: only rules with at least one ``expression:``
+        condition are evaluated, so a config without one yields nothing.
         """
         rules = self.config.get_thinking_rules(agent_type)
+        if expression_rules_only:
+            rules = [
+                r for r in rules
+                if isinstance(r.conditions, list)
+                and any(is_expression_condition(c) for c in r.conditions)
+            ]
+            if not rules:
+                # No expression rule: do not enter the rule pass at all, so an
+                # empty-reasoning decision runs exactly the code it always ran.
+                return []
         return self._run_rule_set(
             agent_id, decision, state, reasoning, rules, "thinking",
             agent_type=agent_type, full_context=full_context,
@@ -623,6 +624,9 @@ class AgentValidator:
         # condition is only reachable at all in a profile that declares one, and
         # no frozen profile does, so this cannot move a published byte.
         missing_world_vars: List[tuple] = []
+        # Same, for a variable that IS published but is not a finite number
+        # (None, a list, "abc", NaN, inf): (rule_id, variable, repr(value)).
+        unusable_world_vars: List[tuple] = []
         # Per-pass grounded-rule census, for the run-integrity tally below.
         world_rules_total = 0
         world_rules_unreadable = 0
@@ -703,6 +707,32 @@ class AgentValidator:
                     matches = []
                     for cond in rule.conditions:
                         if isinstance(cond, dict):
+                            # `expression:` condition (R1 slice 3). Only a
+                            # condition that carries the key reaches this, and
+                            # no frozen config has one, so every existing rule
+                            # takes the identical path it always took.
+                            if is_expression_condition(cond):
+                                _compiled = compile_expression_condition(
+                                    cond, where=f"rule {rule.id!r}")
+                                try:
+                                    _outcome = evaluate_expression_condition(
+                                        _compiled, state, full_context)
+                                except ExpressionEvaluationError as _exc:
+                                    raise ExpressionEvaluationError(
+                                        f"Rule {rule.id!r}: {_exc}") from _exc
+                                matches.append(_outcome.matched)
+                                _rule_has_world_condition = True
+                                if not _outcome.readable:
+                                    _rule_world_unreadable = True
+                                    for _name in _outcome.missing:
+                                        _pair = (str(rule.id), str(_name))
+                                        if _pair not in missing_world_vars:
+                                            missing_world_vars.append(_pair)
+                                    for _name, _repr in _outcome.unusable:
+                                        _triple = (str(rule.id), str(_name), _repr)
+                                        if _triple not in unusable_world_vars:
+                                            unusable_world_vars.append(_triple)
+                                continue
                             # PR-6: WORLD-STATE condition. Checked first and
                             # `continue`d, so a construct condition takes the
                             # identical path it always took — that equality is
@@ -904,6 +934,35 @@ class AgentValidator:
                     # The per-pass census, carried on the finding so the audit
                     # row can tally "every grounded rule was unevaluable here"
                     # once per ROW rather than once per validation pass.
+                    "world_rules_total": world_rules_total,
+                    "world_rules_unreadable": world_rules_unreadable,
+                    "world_rules_unevaluable_pass": _pass_unevaluable,
+                },
+            ))
+        for rule_id, var_name, value_repr in unusable_world_vars:
+            message = (
+                f"[Rule: world_variable_unusable] Rule '{rule_id}' reads world "
+                f"variable '{var_name}', whose value ({value_repr}) is not a "
+                f"finite number, so the rule did not fire. No value was assumed."
+            )
+            results.append(ValidationResult(
+                valid=True,
+                validator_name=f"AgentValidator:{tier_name}_world_variable_unusable",
+                errors=[],
+                warnings=[message],
+                metadata={
+                    "level": ValidationLevel.WARNING,
+                    "tier": f"Tier 2: {tier_name.capitalize()}",
+                    "rule": "world_variable_unusable",
+                    "rule_id": "world_variable_unusable",
+                    "rules_hit": ["world_variable_unusable"],
+                    "field": var_name,
+                    "source_rule_id": rule_id,
+                    "value_repr": value_repr,
+                    "constraint": "world_variable_numeric",
+                    "expected_terminal": False,
+                    "constraint_type": "diagnostic",
+                    "grounding": "world",
                     "world_rules_total": world_rules_total,
                     "world_rules_unreadable": world_rules_unreadable,
                     "world_rules_unevaluable_pass": _pass_unevaluable,

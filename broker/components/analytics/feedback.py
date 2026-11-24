@@ -198,17 +198,32 @@ class SafeExpressionEvaluator:
             return False
 
     @classmethod
-    def evaluate(cls, expr: str, variables: Dict[str, float]) -> Any:
+    def evaluate(
+        cls, expr: str, variables: Dict[str, float], *, zero_guard: bool = True
+    ) -> Any:
         """Safely evaluate *expr* with the given variable bindings.
+
+        ``zero_guard=True`` (default) replaces every 0-valued variable with a
+        tiny epsilon before evaluating, so a zero divisor never raises. The
+        feedback dashboard assertions use it, and it is byte-for-byte what they
+        always did. The side effect is that ``x == 0`` is never true for a zero.
+
+        ``zero_guard=False`` evaluates the real values: a zero divisor raises
+        :class:`ZeroDivisionError` and ``x == 0`` is true for a zero. Governance
+        ``expression:`` rule conditions use it
+        (``broker.governance.expression_condition``).
 
         Raises :class:`ValueError` if the expression is unsafe.
         """
         if not cls.is_safe(expr):
             raise ValueError(f"Unsafe expression rejected: {expr!r}")
-        # Guard against division by zero: replace 0-valued vars with tiny ε
-        safe_vars = {
-            k: (v if v != 0 else 1e-10) for k, v in variables.items()
-        }
+        if zero_guard:
+            # Guard against division by zero: replace 0-valued vars with tiny ε
+            safe_vars = {
+                k: (v if v != 0 else 1e-10) for k, v in variables.items()
+            }
+        else:
+            safe_vars = dict(variables)
         code = compile(ast.parse(expr, mode="eval"), "<assertion>", "eval")
         return eval(code, {"__builtins__": {}}, safe_vars)  # noqa: S307
 

@@ -41,6 +41,13 @@ from typing import Dict, List, Any, Optional, Set, Tuple
 from broker.interfaces.skill_types import ValidationResult
 from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
 from broker.governance.rule_types import GovernanceRule
+from broker.governance.expression_condition import (
+    ExpressionEvaluationError,
+    agent_state_from_context,
+    compile_expression_condition,
+    evaluate_expression_condition,
+    is_expression_condition,
+)
 from broker.validators.governance.base_validator import BaseValidator, BuiltinCheck
 
 logger = logging.getLogger(__name__)
@@ -52,6 +59,10 @@ logger = logging.getLogger(__name__)
 #: warn-once shape as ``_WARNED_UNREGISTERED_FRAMEWORK`` in
 #: ``domain_validator_dispatch.py``.
 _WARNED_MISSING_WORLD_VARIABLE: Set[Tuple[str, str]] = set()
+
+#: Same warn-once dedup for an ``expression:`` variable that is published but
+#: not a finite number. Keyed by (rule_id, variable).
+_WARNED_UNUSABLE_WORLD_VARIABLE: Set[Tuple[str, str]] = set()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -475,6 +486,8 @@ class ThinkingValidator(BaseValidator):
         if declared in ("world", "self_report"):
             return declared
         for cond in (getattr(rule, "conditions", None) or []):
+            if is_expression_condition(cond):
+                return "world"
             if isinstance(cond, dict):
                 if cond.get("variable"):
                     return "world"
@@ -516,6 +529,17 @@ class ThinkingValidator(BaseValidator):
             True if ALL conditions match (rule is violated), False otherwise
         """
         for cond in conditions:
+            # `expression:` condition, any shape (dict, pydantic, dataclass):
+            # one shared implementation, so this plane cannot disagree with
+            # AgentValidator or RuleCondition.evaluate.
+            if is_expression_condition(cond):
+                if not self._evaluate_expression_condition(cond, context, rule_id):
+                    return False
+                matched_conditions.append(
+                    cond.get("expression") if isinstance(cond, dict)
+                    else str(getattr(cond, "expression")))
+                continue
+
             # Handle multiple RuleCondition formats:
             # 1. Pydantic model (broker/config/schema.py): construct, variable, operator, values, value
             # 2. Dataclass (broker/governance/rule_types.py): type, field, operator, values
@@ -564,6 +588,46 @@ class ThinkingValidator(BaseValidator):
 
         return True  # All conditions matched
 
+    @staticmethod
+    def _evaluate_expression_condition(
+        cond: Any, context: Dict[str, Any], rule_id: Optional[str] = None,
+    ) -> bool:
+        """Evaluate an ``expression:`` condition through the shared module.
+
+        A missing or non-numeric variable means the condition does not match;
+        like the missing-variable case above, this plane has no audit finding,
+        so a deduped ``logger.warning`` names the rule and variable. A zero
+        divisor raises, with the rule id in the message.
+        """
+        name = str(rule_id or "unknown_rule")
+        compiled = compile_expression_condition(cond, where=f"rule {name!r}")
+        try:
+            outcome = evaluate_expression_condition(
+                compiled, agent_state_from_context(context), context)
+        except ExpressionEvaluationError as exc:
+            raise ExpressionEvaluationError(f"Rule {name!r}: {exc}") from exc
+        for var in outcome.missing:
+            key = (name, var)
+            if key not in _WARNED_MISSING_WORLD_VARIABLE:
+                _WARNED_MISSING_WORLD_VARIABLE.add(key)
+                logger.warning(
+                    "[ThinkingValidator] rule %r reads world variable %r, "
+                    "which the environment did not publish for this decision "
+                    "— the condition does not match (warned once per "
+                    "(rule_id, variable) per process).", name, var,
+                )
+        for var, value_repr in outcome.unusable:
+            key = (name, var)
+            if key not in _WARNED_UNUSABLE_WORLD_VARIABLE:
+                _WARNED_UNUSABLE_WORLD_VARIABLE.add(key)
+                logger.warning(
+                    "[ThinkingValidator] rule %r reads world variable %r, "
+                    "whose value (%s) is not a finite number — the condition "
+                    "does not match (warned once per (rule_id, variable) "
+                    "per process).", name, var, value_repr,
+                )
+        return outcome.matched
+
     def _evaluate_single_condition(
         self,
         cond: Dict[str, Any],
@@ -590,6 +654,9 @@ class ThinkingValidator(BaseValidator):
         Returns:
             True if condition matches, False otherwise
         """
+        if is_expression_condition(cond):
+            return self._evaluate_expression_condition(cond, context, rule_id)
+
         # Get the value to compare
         if cond.get("construct"):
             if self.framework_aware_labels:

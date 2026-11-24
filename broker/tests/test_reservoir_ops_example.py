@@ -20,10 +20,7 @@ from examples.reservoir_control.ops_modules import (
     ReservoirOpsBundle,
     ToyMassBalanceReservoir,
 )
-from examples.reservoir_control.ops_validators import (
-    dead_pool_violation,
-    flood_control_overflow,
-)
+from examples.reservoir_control.ops_validators import dead_pool_violation
 
 
 def _approved(skill_name: str = "set_release", **params) -> ApprovedSkill:
@@ -223,7 +220,9 @@ def test_registration_isolation():
     cat_checks = ValidatorRegistry.get_checks("cat_model_ma", "physical")
 
     assert dead_pool_violation in reservoir_checks
-    assert flood_control_overflow in reservoir_checks
+    # The flood-control overflow threshold is a YAML `expression:` rule now
+    # (config/reservoir_agent_types.yaml), not a registered Python check.
+    assert [c.__name__ for c in reservoir_checks] == ["dead_pool_violation"]
     assert insurer_payout_solvency_check in cat_single_checks
     assert policyholder_claim_check in cat_checks
     assert policyholder_claim_check not in reservoir_checks

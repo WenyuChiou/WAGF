@@ -106,57 +106,12 @@ def dead_pool_violation(
     return []
 
 
-def flood_control_overflow(
-    skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
-) -> List[ValidationResult]:
-    """When nearly full, block releases below demand."""
-    if skill_name != "set_release":
-        return []
-
-    missing: List[str] = []
-
-    def req(key: str) -> Any:
-        value = _ctx_get(context, key, None)
-        if value is None:
-            missing.append(key)
-        return value
-
-    storage_now = req("storage_now")
-    proposed_magnitude = req("proposed_magnitude")
-    capacity = _ctx_get(context, "capacity", ToyMassBalanceReservoir.CAPACITY)
-    if missing:
-        return _missing_result("flood_control_overflow", skill_name, missing)
-
-    if float(storage_now) > 0.9 * float(capacity) and float(proposed_magnitude) < 100.0:
-        return [
-            ValidationResult(
-                valid=False,
-                validator_name="flood_control_overflow",
-                errors=[
-                    "set_release below 100% demand is invalid while storage is "
-                    "above 90% capacity; release at least demand for flood control."
-                ],
-                metadata={
-                    "category": "physical",
-                    "rule_id": "flood_control_overflow",
-                    "deterministic": True,
-                    "storage_now": float(storage_now),
-                    "capacity": float(capacity),
-                    "proposed_magnitude": float(proposed_magnitude),
-                },
-            )
-        ]
-    return []
-
-
 RESERVOIR_CONTROL_PHYSICAL_CHECKS = (
     dead_pool_violation,
-    flood_control_overflow,
 )
 
 
 __all__ = [
     "RESERVOIR_CONTROL_PHYSICAL_CHECKS",
     "dead_pool_violation",
-    "flood_control_overflow",
 ]

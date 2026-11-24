@@ -101,6 +101,16 @@ operator:
   log_fields: []
   governance:
     strict:
+      # Physical thresholds on world values and the proposed number are written
+      # here as an `expression:` rule (storage_now and capacity come from the
+      # reservoir, proposed_magnitude is the number the operator just proposed).
+      # The dead-pool projection stays a Python check (ops_validators.py).
+      thinking_rules:
+        - id: flood_control_overflow
+          conditions:
+            - expression: "storage_now > 0.9 * capacity and proposed_magnitude < 100"
+          blocked_skills: [set_release]
+          level: ERROR
+          message: "set_release below 100% demand is invalid while storage is above 90% capacity; release at least demand for flood control."
       documented_unconstrained_skills:
-        - set_release
         - maintain_release
