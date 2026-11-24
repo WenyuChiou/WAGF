@@ -28,7 +28,13 @@ import examples.reservoir_control  # noqa: E402,F401
 from broker.agents import AgentConfig, BaseAgent  # noqa: E402
 from broker.agents.base import Skill  # noqa: E402
 from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
-from broker.coupling import CouplingContract, Relation, VarSpec, resolve_coupling_enabled  # noqa: E402
+from broker.coupling import (  # noqa: E402
+    CouplingContract,
+    FeasibilityBound,
+    Relation,
+    VarSpec,
+    resolve_coupling_enabled,
+)
 from broker.core.experiment import ExperimentBuilder  # noqa: E402
 from broker.domains.registry import DomainPackRegistry  # noqa: E402
 from broker.utils.llm_utils import LLMStats  # noqa: E402
@@ -215,6 +221,19 @@ def _build_contract() -> CouplingContract:
                     " - evaporation - spill)"
                 ),
                 tolerance=1e-9,
+            ),
+        ),
+        # The dead-pool limit, judged before a release is approved on the toy
+        # model's own what-if run: the coming year's 12 months with the forecast
+        # the operator saw. storage_unclamped is the storage before the clamp
+        # to [0, capacity], so a request that would empty the reservoir cannot
+        # hide behind the clamped value. The id stays dead_pool_violation: the
+        # scripted mock retries at 50% when the prompt carries it.
+        feasibility=(
+            FeasibilityBound(
+                name="dead_pool_violation",
+                must_hold=f"storage_unclamped >= {ToyMassBalanceReservoir.DEAD_POOL}",
+                skills=("set_release",),
             ),
         ),
     )

@@ -20,7 +20,6 @@ from examples.reservoir_control.ops_modules import (
     ReservoirOpsBundle,
     ToyMassBalanceReservoir,
 )
-from examples.reservoir_control.ops_validators import dead_pool_violation
 
 
 def _approved(skill_name: str = "set_release", **params) -> ApprovedSkill:
@@ -219,14 +218,15 @@ def test_registration_isolation():
     cat_single_checks = ValidatorRegistry.get_checks("cat_model", "physical")
     cat_checks = ValidatorRegistry.get_checks("cat_model_ma", "physical")
 
-    assert dead_pool_violation in reservoir_checks
-    # The flood-control overflow threshold is a YAML `expression:` rule now
-    # (config/reservoir_agent_types.yaml), not a registered Python check.
-    assert [c.__name__ for c in reservoir_checks] == ["dead_pool_violation"]
+    # The dead-pool limit is a feasibility bound on the coupling contract now
+    # (projection check), the flood-control overflow limit a YAML `expression:`
+    # rule: no Python physical check is registered for this domain.
+    assert reservoir_checks == []
+    assert [b.name for b in run_reservoir_ops._build_contract().feasibility] == [
+        "dead_pool_violation"
+    ]
     assert insurer_payout_solvency_check in cat_single_checks
     assert policyholder_claim_check in cat_checks
     assert policyholder_claim_check not in reservoir_checks
     assert insurer_payout_solvency_check not in reservoir_checks
-    assert dead_pool_violation not in cat_checks
-    assert dead_pool_violation not in cat_single_checks
     assert DomainPackRegistry.get("reservoir_control") is not None

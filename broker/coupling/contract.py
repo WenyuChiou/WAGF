@@ -307,6 +307,89 @@ class Relation:
         return cls(name=data["name"], residual=data["residual"], tolerance=data["tolerance"])
 
 
+@dataclass(frozen=True)
+class FeasibilityBound:
+    """A limit judged on the hosted model's own what-if run, before the action runs.
+
+    ``must_hold`` is a boolean expression that must be True at EVERY projected
+    sub-step of the coming decision period; a False answer is a breach and the
+    proposal is refused (the agent is asked again)::
+
+        FeasibilityBound(
+            name="dead_pool_violation",
+            must_hold="storage_unclamped >= 6.0",
+            skills=("set_release",),     # empty = every skill
+        )
+
+    A name in the expression is either ``requested_<input>`` for a declared
+    contract input (the value the proposal asks for, before any clamp), or a
+    name the model answers through ``get_value`` on the projection. Numbers are
+    written literally. The same whitelist as an ``expression:`` rule condition
+    applies. See ``broker/coupling/projection_check.py``.
+    """
+
+    name: str
+    must_hold: str
+    skills: Tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ValueError(f"FeasibilityBound: name must be a non-empty string, got {self.name!r}")
+        skills = self.skills
+        if isinstance(skills, (list, tuple)):
+            bad = [s for s in skills if not isinstance(s, str) or not s.strip()]
+            if bad:
+                raise ValueError(
+                    f"FeasibilityBound[{self.name}]: skills must be non-empty strings, got {bad!r}"
+                )
+            object.__setattr__(self, "skills", tuple(skills))
+        else:
+            raise ValueError(
+                f"FeasibilityBound[{self.name}]: skills must be a tuple or list of "
+                f"skill names, got {skills!r}"
+            )
+        from broker.governance.expression_condition import (
+            ExpressionConditionError,
+            compile_expression_condition,
+        )
+
+        try:
+            compile_expression_condition(self.must_hold, where=f"FeasibilityBound[{self.name}]")
+        except ExpressionConditionError as exc:
+            raise ValueError(str(exc)) from exc
+
+    @property
+    def names(self) -> Tuple[str, ...]:
+        """The variable names ``must_hold`` uses, in order of first appearance."""
+        from broker.governance.expression_condition import compile_expression_condition
+
+        return compile_expression_condition(self.must_hold).names
+
+    def applies_to(self, skill_name: Optional[str]) -> bool:
+        return not self.skills or skill_name in self.skills
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "FeasibilityBound":
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"FeasibilityBound: expected a dict with name/must_hold/skills, got {data!r}"
+            )
+        unknown = sorted(set(data) - {"name", "must_hold", "skills"})
+        if unknown:
+            raise ValueError(
+                f"FeasibilityBound[{data.get('name', '?')}]: unknown key(s) {unknown}; "
+                "allowed: name, must_hold, skills"
+            )
+        missing = [k for k in ("name", "must_hold") if k not in data]
+        if missing:
+            raise ValueError(f"FeasibilityBound[{data.get('name', '?')}]: missing key(s) {missing}")
+        return cls(
+            name=data["name"],
+            must_hold=data["must_hold"],
+            skills=data.get("skills", ()),
+        )
+
+
 PREV_PREFIX = "prev_"
 
 
@@ -337,6 +420,11 @@ class CouplingContract:
     # every contract that declares none; the adapter folds declared relations
     # into the hash itself. Dicts are accepted and converted.
     relations: Tuple["Relation", ...] = field(default_factory=tuple, repr=False)
+    # Limits judged on the model's own what-if run before an action executes (see
+    # ``FeasibilityBound``). repr=False for the same reason as ``relations``; the
+    # adapter folds declared bounds into the contract identity hash itself. Dicts
+    # are accepted and converted.
+    feasibility: Tuple["FeasibilityBound", ...] = field(default_factory=tuple, repr=False)
 
     def __post_init__(self) -> None:
         if self.decision_cadence not in _DECISION_CADENCES:
@@ -360,6 +448,19 @@ class CouplingContract:
             object.__setattr__(self, "relations", rels)
         else:
             object.__setattr__(self, "relations", ())
+        if self.feasibility:
+            bounds = tuple(
+                b if isinstance(b, FeasibilityBound) else FeasibilityBound.from_dict(b)
+                for b in self.feasibility
+            )
+            seen_bounds = set()
+            for b in bounds:
+                if b.name in seen_bounds:
+                    raise ValueError(f"CouplingContract: duplicate feasibility bound name {b.name!r}")
+                seen_bounds.add(b.name)
+            object.__setattr__(self, "feasibility", bounds)
+        else:
+            object.__setattr__(self, "feasibility", ())
         for vs in self.observations:
             if vs.direction != "world_to_agent":
                 raise ValueError(f"observation {vs.name!r} must be world_to_agent, got {vs.direction}")
@@ -487,4 +588,4 @@ class CouplingContract:
         return {vs.name: vs for vs in self.inputs}
 
 
-__all__ = ["VarSpec", "CouplingContract", "Relation", "reduce_series"]
+__all__ = ["VarSpec", "CouplingContract", "Relation", "FeasibilityBound", "reduce_series"]

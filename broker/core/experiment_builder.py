@@ -316,11 +316,25 @@ class ExperimentBuilder:
         if not enabled:
             logger.info(f"[coupling] declared but disabled (source={source}); sim engine left unwrapped")
             return
-        self.sim_engine = EnvironmentCouplingAdapter(
+        adapter = EnvironmentCouplingAdapter(
             real_engine=self.sim_engine,
             contract=self._coupling["contract"],
             sources=self._coupling["sources"],
         )
+        # R1 slice 2: a contract that declares feasibility bounds gets a
+        # projection check. It is built BEFORE the adapter replaces the sim
+        # engine, so a model that cannot be projected fails here, at build time,
+        # and a retried build() starts clean. It runs with the other custom
+        # validators (build() hands them to the engine after this method).
+        bounds = getattr(self._coupling["contract"], "feasibility", None)
+        if isinstance(bounds, (tuple, list)) and bounds:
+            from broker.coupling.projection_check import ProjectionCheck
+
+            check = ProjectionCheck(adapter)
+            adapter.projection_check = check
+            self.custom_validators = [*self.custom_validators, check]
+            logger.info(f"[coupling] projection check built (source={check.source})")
+        self.sim_engine = adapter
         logger.info(f"[coupling] adapter injected via builder (enable=True, source={source})")
 
     def with_skill_registry(self, registry: Any):
@@ -610,6 +624,17 @@ class ExperimentBuilder:
             llm_journal_path=getattr(self, '_llm_journal_path', None),
             resume_journal_path=getattr(self, '_resume_journal_path', None),
         )
+
+        # R1 slice 2: a projection check saves and restores the process-wide RNG
+        # state around each what-if run, which would rewind other threads' draws,
+        # and it copies the live model while other threads may change it. Unlike
+        # AR-3 below, the predicate is exact here, so refuse instead of warning.
+        if self.workers > 1 and getattr(self.sim_engine, "projection_check", None) is not None:
+            raise ValueError(
+                f"workers={self.workers} with a coupling contract that declares "
+                "feasibility bounds is not supported: the projection check needs "
+                "workers=1."
+            )
 
         # AR-3 (broker/INVARIANTS.md Accepted risks): workers>1 with a coupled
         # world is NOT supported — phase-internal parallel steps can interleave

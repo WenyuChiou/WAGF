@@ -124,17 +124,44 @@ class ContinuousBundle(InterfaceBundle):
     # ------------------------------------------------------------------
     # agent -> world (PURE COMMITTER — governance ran in the retry loop)
     # ------------------------------------------------------------------
-    def commit_world_delta(self, approved_skill: Any) -> WorldDelta:
+    def inputs_for_skill(self, approved_skill: Any) -> Dict[str, float]:
+        """The setpoints this bundle WOULD apply for ``approved_skill``, with no
+        side effects (nothing is written, no state is kept). ``commit_world_delta``
+        applies exactly this dict; the projection check reads it before approval.
+        A bundle that derives a setpoint from another proposal field overrides it."""
         params = getattr(approved_skill, "parameters", None) or {}
         declared = {vs.name for vs in self.contract.inputs}
         # 6W-B5 (R1): magnitude_fallback is an audit-only bool the B5 bridge
         # co-locates with the setpoints in ApprovedSkill.parameters; it must never be
         # coerced through float() / applied as a world setpoint, even if a contract
         # input were (mis)named "magnitude_fallback".
-        to_apply = {
+        return {
             k: float(v) for k, v in params.items()
             if k in declared and k != "magnitude_fallback"
         }
+
+    # ------------------------------------------------------------------
+    # what-if run (contract.feasibility; see broker/coupling/projection_check.py)
+    # ------------------------------------------------------------------
+    # True for a model that has no outside forcing to feed a projection copy
+    # (nothing like a forecast): then no apply_forecast is needed.
+    projection_has_no_forcing = False
+
+    def apply_forecast(self, model_copy: Any, context: Dict[str, Any]) -> None:
+        """Feed a projection COPY the forecast the agent saw (not the true next
+        inflow, which the agent could not know). Override it in the domain bundle
+        and change only ``model_copy``. The default refuses, so a model whose
+        projection would silently run on the wrong forcing fails at build time;
+        set ``projection_has_no_forcing = True`` if the model needs none."""
+        raise NotImplementedError(
+            f"{type(self).__name__}.apply_forecast is not implemented: a projection "
+            "copy must be fed the forecast the agent saw. Implement "
+            "apply_forecast(model_copy, context), or set the class attribute "
+            "projection_has_no_forcing = True if the model has no outside forcing."
+        )
+
+    def commit_world_delta(self, approved_skill: Any) -> WorldDelta:
+        to_apply = self.inputs_for_skill(approved_skill)
         if to_apply and self.sink is None:
             raise ValueError(
                 "ContinuousBundle has no ControlSink (solver lacks set_value?) "

@@ -49,7 +49,7 @@ def test_trace_keeps_the_block_reason_for_the_same_step(demo):
     assert step["outcome"] == "RETRY_SUCCESS"
     assert step["approved_skill"]["status"] == "APPROVED"
     errors = [e for v in step["validation_issues"] for e in v["errors"]]
-    assert any("below dead pool" in e for e in errors)
+    assert any("dead_pool_violation" in e and "storage_unclamped" in e for e in errors)
     assert step["skill_proposal"]["reasoning"]["magnitude"] == 50
 
 
@@ -67,8 +67,8 @@ def test_executed_change_reaches_the_toy_reservoir(demo):
 def test_console_summary_shows_block_reason_repair_and_effect(demo):
     _, stdout = demo
     summary = stdout.split("Block and repair in this run:")[1]
-    assert "BLOCKED: set_release at 100.0%" in summary
-    assert "below dead pool" in summary
+    assert "BLOCKED: set_release (requested release_target=0.75)" in summary
+    assert "breaks dead_pool_violation" in summary
     assert "APPROVED: set_release at 50% of demand" in summary
     assert "0.750 -> 0.375 maf/month" in summary
     assert "storage 7.543 maf at year 3, 6.362 maf at year 4" in summary

@@ -131,6 +131,12 @@ trace covers the standard audit projection.
 | `executed_skill` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `executed_via_fallback` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `execution_path` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `projection_default_breach` | feasibility mark (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
+
+`projection_default_breach` (R1 slice 2): present only when the coupled contract declares
+`feasibility` bounds and the retries ran out. It names the bounds the default skill (which runs
+anyway) breaches on the model's own what-if run, joined by `;`, empty when the default passes.
+A run without bounds has no such column.
 
 ## Reserved Or Dead Columns
 

@@ -680,6 +680,12 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["execution_path"] = t.get("execution_path")
     if "execution_success" in t:
         row["execution_success"] = t.get("execution_success")
+    # 2.7a'. R1 slice 2: key-gated like execution_path. Present only when the
+    # default skill that ran after the retries were exhausted was projected
+    # (the coupled model declares feasibility bounds): the breached bound names
+    # joined by ";", "" when the default passes.
+    if "projection_default_breach" in t:
+        row["projection_default_breach"] = t.get("projection_default_breach", "")
 
     # 2.7b. P0-1a: FIRST-ATTEMPT proposal columns, key-gated the same way. Only
     # traces produced with global_config.audit.initial_proposal_columns ON carry

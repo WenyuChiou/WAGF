@@ -97,6 +97,27 @@ def _reset_uncategorised_rules() -> None:
         )
 
 
+def parameters_from_proposal(skill_proposal) -> Dict[str, Any]:
+    """The ``ApprovedSkill.parameters`` dict a proposal becomes on approval.
+
+    One definition for ``_build_approved_skill`` and for the coupling projection
+    check (``broker/coupling/projection_check.py``), which asks "what would
+    happen if this ran?" before the proposal is approved.
+    """
+    _params: Dict[str, Any] = {}
+    # 6W-B5: multi-field setpoints flow into ApprovedSkill.parameters so the
+    # already-N-capable commit_world_delta consumes them. Applied FIRST; the
+    # legacy magnitude_pct/magnitude_fallback are set LAST so the legacy scalar
+    # still wins those keys (backward path). Frozen domains: parameters=={} ->
+    # this update is a no-op -> _params built byte-identically to pre-6W.
+    if skill_proposal and skill_proposal.parameters:
+        _params.update(skill_proposal.parameters)
+    if skill_proposal and skill_proposal.magnitude_pct is not None:
+        _params["magnitude_pct"] = skill_proposal.magnitude_pct
+        _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
+    return _params
+
+
 class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
     """
     Skill-Governed Broker Engine.
@@ -1086,6 +1107,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         executed_skill: Optional[str] = None
         executed_via_fallback = False
         execution_path = "not_executed"
+        # R1 slice 2: set only when the default skill was projected (the
+        # coupled model declares feasibility bounds); None keeps the audit row
+        # free of the key, so runs without bounds keep their exact columns.
+        projection_default_breach: Optional[str] = None
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
             executed_skill = approved_skill.skill_name
@@ -1118,6 +1143,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         skill_name=fallback_skill,
                         agent_id=approved_skill.agent_id,
                         approval_status="REJECTED_FALLBACK",
+                    )
+                    projection_default_breach = self._project_default_skill(
+                        fallback, validation_context, agent_id
                     )
                     execution_result = self.simulation_engine.execute_skill(fallback)
                     executed_skill = fallback_skill
@@ -1204,6 +1232,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_labels=attempt_labels,
                 attempt_failed_rules=attempt_failed_rules,
                 attempt_prompts=attempt_prompts,
+                projection_default_breach=projection_default_breach,
             )
 
         # Spec item 24: this decision's outcome for the abort-rate window --
@@ -1246,6 +1275,43 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         )
         return result
     
+    def _project_default_skill(
+        self, fallback: ApprovedSkill, validation_context: Dict[str, Any], agent_id: str
+    ) -> Optional[str]:
+        """Retries ran out and the default skill is about to run: project it too.
+
+        Returns None when the simulation engine is not a coupling adapter with a
+        projection check (every run without ``contract.feasibility``). Otherwise
+        the names of the bounds the default would breach, joined by ``;`` (empty
+        string when it passes). A breach is logged and the default still runs:
+        the audit row says no action was feasible. The coupling module is looked
+        up in ``sys.modules`` rather than imported, so a run without coupling
+        never loads it.
+        """
+        import sys
+
+        adapter_mod = sys.modules.get("broker.coupling.adapter")
+        if adapter_mod is None:
+            return None
+        engine = self.simulation_engine
+        if not isinstance(engine, adapter_mod.EnvironmentCouplingAdapter):
+            return None
+        check = getattr(engine, "projection_check", None)
+        if check is None:
+            return None
+        breaches = check.check_skill(
+            fallback.skill_name, dict(fallback.parameters or {}), validation_context,
+            stop_at_first=False,
+        )
+        names = ";".join(b.bound for b in breaches)
+        if breaches:
+            logger.warning(
+                f" [Projection] {agent_id} | No feasible action: the default skill "
+                f"'{fallback.skill_name}' also breaches {names}; it runs anyway. "
+                f"{breaches[0].text}"
+            )
+        return names
+
     def _build_approved_skill(
         self, *, all_valid: bool, skill_proposal, agent_id: str,
         agent_type: str, retry_count: int, validation_results: List,
@@ -1256,17 +1322,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         Returns (approved_skill, outcome). May mutate skill_proposal on
         the rejection path (clears magnitude_pct, sets magnitude_fallback).
         """
-        _params = {}
-        # 6W-B5: multi-field setpoints flow into ApprovedSkill.parameters so the
-        # already-N-capable commit_world_delta consumes them. Applied FIRST; the
-        # legacy magnitude_pct/magnitude_fallback are set LAST so the legacy scalar
-        # still wins those keys (backward path). Frozen domains: parameters=={} ->
-        # this update is a no-op -> _params built byte-identically to pre-6W.
-        if skill_proposal and skill_proposal.parameters:
-            _params.update(skill_proposal.parameters)
-        if skill_proposal and skill_proposal.magnitude_pct is not None:
-            _params["magnitude_pct"] = skill_proposal.magnitude_pct
-            _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
+        _params = parameters_from_proposal(skill_proposal)
 
         if all_valid and skill_proposal:
             approved_skill = ApprovedSkill(

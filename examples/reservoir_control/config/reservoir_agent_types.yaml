@@ -17,7 +17,7 @@ shared:
     - demand_year
     # storage_now is not rendered in the prompt body (the prompt shows
     # {storage}) but IS a validation-context dependency of the
-    # dead_pool_violation physical check — listed so tooling that
+    # flood_control_overflow rule below — listed so tooling that
     # enumerates template_vars sees the full dependency set (review S2).
     - storage_now
   response_format:
@@ -44,7 +44,6 @@ global_config:
     max_retries: 3
   governance:
     domain: reservoir_control
-    dispatch_domain_physical: true
     max_retries: 3
     max_reports_per_retry: 2
 
@@ -104,7 +103,8 @@ operator:
       # Physical thresholds on world values and the proposed number are written
       # here as an `expression:` rule (storage_now and capacity come from the
       # reservoir, proposed_magnitude is the number the operator just proposed).
-      # The dead-pool projection stays a Python check (ops_validators.py).
+      # The dead-pool limit is a feasibility bound on the coupling contract
+      # (run_reservoir_ops._build_contract), judged on the model's own what-if run.
       thinking_rules:
         - id: flood_control_overflow
           conditions:

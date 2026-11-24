@@ -26,7 +26,7 @@ Public API:
 """
 from __future__ import annotations
 
-from .contract import CouplingContract, Relation, VarSpec, reduce_series
+from .contract import CouplingContract, FeasibilityBound, Relation, VarSpec, reduce_series
 from .flag import resolve_coupling_enabled
 from .interfaces import (
     ControlSink,
@@ -52,6 +52,7 @@ __all__ = [
     "VarSpec",
     "CouplingContract",
     "Relation",
+    "FeasibilityBound",
     "reduce_series",
     "Event",
     "MdrDraw",

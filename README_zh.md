@@ -47,12 +47,12 @@ python -m pip install -e ".[analysis]"
 python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
-腳本化的操作員每年都要求放出 100% 的需水量。第 3 年，死庫容（dead pool）規則攔阻了這個要求，因為年底蓄水量會低於死庫容。操作員接著改要求 50%，這次通過並被執行。執行結束時會印出這段摘要：
+腳本化的操作員每年都要求放出 100% 的需水量。第 3 年，死庫容（dead pool）規則攔阻了這個要求，因為玩具水庫模型自己試跑一年後，蓄水量會低於死庫容。操作員接著改要求 50%，這次通過並被執行。執行結束時會印出這段摘要：
 
 ```text
 Block and repair in this run:
 Year 3, agent OPERATOR:
-  attempt 1  BLOCKED: set_release at 100.0% projects end-of-year storage 1.838 maf, below dead pool 6.000 maf.
+  attempt 1  BLOCKED: set_release (requested release_target=0.75) breaks dead_pool_violation: storage_unclamped >= 6.0 does not hold; the model projects storage_unclamped=5.43401 at sub-step 6 of 12 (copy projection).
   attempt 2  APPROVED: set_release at 50% of demand
   executed   toy reservoir release target: 0.750 -> 0.375 maf/month
   effect     storage 7.543 maf at year 3, 6.362 maf at year 4 (dead pool 6.000 maf)
