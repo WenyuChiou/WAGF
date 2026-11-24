@@ -18,6 +18,7 @@ pure numerical models, but here carried across the LLM <-> simulator boundary:
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -233,6 +234,83 @@ class VarSpec:
 
 
 @dataclass(frozen=True)
+class Relation:
+    """A scalar equation the hosted model's own numbers must satisfy.
+
+    ``residual`` is an arithmetic expression over observation names (and
+    ``prev_<observation>`` for the value one step earlier) that is 0 when the
+    relation holds, e.g. a reservoir water balance::
+
+        Relation(
+            name="storage_balance",
+            residual="storage - (prev_storage + inflow - release_actual"
+                     " - evaporation - spill)",
+            tolerance=1e-9,   # absolute, in the variables' unit
+        )
+
+    If ``abs(residual) > tolerance`` (or the residual is not finite, or it
+    divides by zero) the run stops with ``CouplingViolation``. The expression
+    uses the same whitelist as an ``expression:`` rule condition but must be a
+    number: no comparison, and/or, bool or string constant, call, or name that
+    starts with an underscore, and it must name at least one variable.
+    """
+
+    name: str
+    residual: str
+    tolerance: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ValueError(f"Relation: name must be a non-empty string, got {self.name!r}")
+        tol = self.tolerance
+        if isinstance(tol, bool) or not isinstance(tol, numbers.Real):
+            raise ValueError(
+                f"Relation[{self.name}]: tolerance must be a real number, got {tol!r}"
+            )
+        if not math.isfinite(float(tol)) or float(tol) < 0:
+            raise ValueError(
+                f"Relation[{self.name}]: tolerance must be finite and >= 0, got {tol!r}"
+            )
+        object.__setattr__(self, "tolerance", float(tol))
+        # Shared checks (whitelist, constants, names) live next to the boolean
+        # condition; imported here so the contract layer stays light to import.
+        from broker.governance.expression_condition import (
+            ExpressionConditionError,
+            compile_numeric_expression,
+        )
+
+        try:
+            compile_numeric_expression(self.residual, where=f"Relation[{self.name}]")
+        except ExpressionConditionError as exc:
+            raise ValueError(str(exc)) from exc
+
+    @property
+    def names(self) -> Tuple[str, ...]:
+        """The variable names the residual uses, in order of first appearance."""
+        from broker.governance.expression_condition import compile_numeric_expression
+
+        return compile_numeric_expression(self.residual).names
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Relation":
+        if not isinstance(data, dict):
+            raise ValueError(f"Relation: expected a dict with name/residual/tolerance, got {data!r}")
+        unknown = sorted(set(data) - {"name", "residual", "tolerance"})
+        if unknown:
+            raise ValueError(
+                f"Relation[{data.get('name', '?')}]: unknown key(s) {unknown}; "
+                "allowed: name, residual, tolerance"
+            )
+        missing = [k for k in ("name", "residual", "tolerance") if k not in data]
+        if missing:
+            raise ValueError(f"Relation[{data.get('name', '?')}]: missing key(s) {missing}")
+        return cls(name=data["name"], residual=data["residual"], tolerance=data["tolerance"])
+
+
+PREV_PREFIX = "prev_"
+
+
+@dataclass(frozen=True)
 class CouplingContract:
     """The full agent <-> simulator contract for one domain."""
 
@@ -253,6 +331,12 @@ class CouplingContract:
     # K solver sub-steps per decision period (inc 3). None = event/annual
     # coupling (one advance per period). ContinuousBundle requires it.
     substeps_per_decision: Optional[int] = None
+    # Scalar equations the hosted model's numbers must satisfy every step (see
+    # ``Relation``). repr=False keeps ``repr(contract)`` -- and with it the
+    # contract identity hash in ``adapter.get_provenance`` -- byte-identical for
+    # every contract that declares none; the adapter folds declared relations
+    # into the hash itself. Dicts are accepted and converted.
+    relations: Tuple["Relation", ...] = field(default_factory=tuple, repr=False)
 
     def __post_init__(self) -> None:
         if self.decision_cadence not in _DECISION_CADENCES:
@@ -269,6 +353,13 @@ class CouplingContract:
             object.__setattr__(self, "substeps_per_decision", int(self.substeps_per_decision))
             if self.substeps_per_decision < 1:
                 raise ValueError(f"substeps_per_decision must be >= 1, got {self.substeps_per_decision}")
+        if self.relations:
+            rels = tuple(
+                r if isinstance(r, Relation) else Relation.from_dict(r) for r in self.relations
+            )
+            object.__setattr__(self, "relations", rels)
+        else:
+            object.__setattr__(self, "relations", ())
         for vs in self.observations:
             if vs.direction != "world_to_agent":
                 raise ValueError(f"observation {vs.name!r} must be world_to_agent, got {vs.direction}")
@@ -283,6 +374,54 @@ class CouplingContract:
                 f">1 consumer_of_record (mass-balance double-count bug): {dupes}. Mark all but "
                 "one of each duplicate as consumer_of_record=False (diagnostic-only)."
             )
+        self._check_relations_declared()
+
+    def _check_relations_declared(self) -> None:
+        """Build-time checks on ``relations``: unique names, and every variable a
+        relation uses is an observation name or ``prev_`` + an observation name
+        (an input is not allowed: publish it as an observation if a relation
+        needs it)."""
+        if not self.relations:
+            return
+        seen = set()
+        for rel in self.relations:
+            if rel.name in seen:
+                raise ValueError(f"CouplingContract: duplicate relation name {rel.name!r}")
+            seen.add(rel.name)
+        obs = {vs.name for vs in self.observations}
+        for rel in self.relations:
+            unknown = [n for n in rel.names if self.relation_base_name(n, obs) is None]
+            if unknown:
+                raise ValueError(
+                    f"Relation[{rel.name}]: unknown name(s) {unknown}. A relation may "
+                    f"use only observation names ({sorted(obs)}) or "
+                    f"{PREV_PREFIX!r} + an observation name; inputs are not allowed "
+                    "(publish the value as an observation)."
+                )
+
+    @staticmethod
+    def relation_base_name(name: str, observation_names) -> Optional[str]:
+        """The observation a relation variable refers to (``prev_x`` -> ``x``),
+        or None when it is neither an observation nor ``prev_`` + one."""
+        if name in observation_names:
+            return name
+        if name.startswith(PREV_PREFIX) and name[len(PREV_PREFIX):] in observation_names:
+            return name[len(PREV_PREFIX):]
+        return None
+
+    def relation_coverage(self) -> Dict[str, List[str]]:
+        """Which observations the declared relations leave unchecked."""
+        obs = [vs.name for vs in self.observations]
+        used = set()
+        for rel in self.relations:
+            for n in rel.names:
+                base = self.relation_base_name(n, obs)
+                if base is not None:
+                    used.add(base)
+        return {
+            "declared": [r.name for r in self.relations],
+            "observations_in_no_relation": [n for n in obs if n not in used],
+        }
 
     # --- numerical-correctness check #1 ---
     def check_units(self) -> List[str]:
@@ -348,4 +487,4 @@ class CouplingContract:
         return {vs.name: vs for vs in self.inputs}
 
 
-__all__ = ["VarSpec", "CouplingContract", "reduce_series"]
+__all__ = ["VarSpec", "CouplingContract", "Relation", "reduce_series"]

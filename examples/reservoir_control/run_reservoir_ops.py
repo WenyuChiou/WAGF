@@ -28,7 +28,7 @@ import examples.reservoir_control  # noqa: E402,F401
 from broker.agents import AgentConfig, BaseAgent  # noqa: E402
 from broker.agents.base import Skill  # noqa: E402
 from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
-from broker.coupling import CouplingContract, VarSpec, resolve_coupling_enabled  # noqa: E402
+from broker.coupling import CouplingContract, Relation, VarSpec, resolve_coupling_enabled  # noqa: E402
 from broker.core.experiment import ExperimentBuilder  # noqa: E402
 from broker.domains.registry import DomainPackRegistry  # noqa: E402
 from broker.utils.llm_utils import LLMStats  # noqa: E402
@@ -163,6 +163,26 @@ def _build_contract() -> CouplingContract:
                 observation_reduce="mean",
                 consumer_of_record=False,
             ),
+            # Published so the water balance below can be checked: this
+            # month's inflow and the evaporation actually removed.
+            VarSpec(
+                "inflow",
+                float,
+                "maf",
+                lo=0.0,
+                cadence="per_solver_step",
+                observation_reduce="sum",
+                consumer_of_record=False,
+            ),
+            VarSpec(
+                "evaporation",
+                float,
+                "maf",
+                lo=0.0,
+                cadence="per_solver_step",
+                observation_reduce="sum",
+                consumer_of_record=False,
+            ),
         ),
         inputs=(
             VarSpec(
@@ -185,6 +205,18 @@ def _build_contract() -> CouplingContract:
         solver_cadence="sub_step",
         control_hold_policy="constant",
         substeps_per_decision=12,
+        # The toy solver's own water balance, checked every month on the raw
+        # sub-step values (maf; release_actual is maf per month = maf per step).
+        relations=(
+            Relation(
+                name="storage_balance",
+                residual=(
+                    "storage - (prev_storage + inflow - release_actual"
+                    " - evaporation - spill)"
+                ),
+                tolerance=1e-9,
+            ),
+        ),
     )
 
 

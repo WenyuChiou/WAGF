@@ -88,6 +88,8 @@ class ToyMassBalanceReservoir:
         self._spill = 0.0
         self._shortfall = 0.0
         self._release_actual = 0.0
+        self._inflow = 0.0
+        self._evaporation = 0.0
         self._last_available = self._storage
 
     def initialize(self, _config_file: str | None = None) -> None:
@@ -97,6 +99,8 @@ class ToyMassBalanceReservoir:
         self._spill = 0.0
         self._shortfall = 0.0
         self._release_actual = 0.0
+        self._inflow = 0.0
+        self._evaporation = 0.0
         self._last_available = self._storage
 
     @property
@@ -132,17 +136,22 @@ class ToyMassBalanceReservoir:
         inflow_m = self._current_inflow()
         available = max(0.0, self._storage + inflow_m)
         release_applied = min(self._release_target, available)
+        evap_loss = self._evap_loss(self._storage)
         next_storage = (
             self._storage
             + inflow_m
             - release_applied
-            - self._evap_loss(self._storage)
+            - evap_loss
         )
         spill = max(0.0, next_storage - self.CAPACITY)
         self._storage = min(self.CAPACITY, max(0.0, next_storage))
         self._spill = spill
         self._shortfall = max(0.0, self.DEMAND_M - release_applied)
         self._release_actual = release_applied
+        # Published for the contract's water-balance relation: this month's
+        # inflow and the evaporation loss actually subtracted above.
+        self._inflow = inflow_m
+        self._evaporation = evap_loss
         self._last_available = available
         self._t += 1
 
@@ -157,6 +166,10 @@ class ToyMassBalanceReservoir:
             return [self._release_actual]
         if name == "release_target":
             return [self._release_target]
+        if name == "inflow":
+            return [self._inflow]
+        if name == "evaporation":
+            return [self._evaporation]
         raise KeyError(name)
 
     def set_value(self, name: str, value) -> None:
@@ -169,7 +182,7 @@ class ToyMassBalanceReservoir:
         self._release_target = float(raw)
 
     def get_var_units(self, name: str) -> str:
-        if name in {"storage", "spill", "shortfall"}:
+        if name in {"storage", "spill", "shortfall", "inflow", "evaporation"}:
             return "maf"
         if name in {"release_actual", "release_target"}:
             return "maf_per_month"
