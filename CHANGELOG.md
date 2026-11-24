@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Python checks reach `governance_summary.json`.** The summary counted a
+  blocking rule only by `metadata["rules_hit"]`, which YAML rules set and Python
+  checks (registered checks, `custom_validators`) usually do not; their blocks
+  showed in the audit CSV's `failed_rules` but not in `total_interventions`,
+  `rule_frequency`, `retry_exhausted` or `retry_success`. New
+  `global_config.governance.summary_counts_python_checks` (default false) counts
+  a blocking result without `rules_hit` under its `rule_id`, the same way
+  `rules_hit` ids are counted.
+  Scaffolded domains turn it on. Off, the summary is unchanged, so the paper
+  configs (which leave it unset) write the same numbers as before.
 - Report out-of-scale appraisal labels as format errors on the legacy validator
   path; warn about unknown configuration keys and blocked skill names; refuse
   undeclared builder profiles and supplied memory fractions outside [0, 1].

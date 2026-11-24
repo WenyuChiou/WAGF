@@ -263,6 +263,9 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
             # Opt-in: dispatch this domain's registered PHYSICAL checks directly.
             # Default-OFF elsewhere so frozen paper runs stay byte-identical.
             dispatch_domain_physical: true
+            # Count blocks by Python checks (which name their rule by rule_id)
+            # in governance_summary.json, as the audit CSV's failed_rules does.
+            summary_counts_python_checks: true
 
         shared:
           rating_scale: |
@@ -426,9 +429,12 @@ def gen_validators(domain: str) -> str:
                         validator_name="{domain}_budget",
                         errors=["insufficient budget for this action"],
                         # deterministic blocks let the retry loop EarlyExit
-                        # instead of burning all retries.
+                        # instead of burning all retries. rule_id names the
+                        # rule in the audit CSV (failed_rules) and in
+                        # governance_summary.json.
                         metadata={{
                             "category": "physical",
+                            "rule_id": "{domain}_budget",
                             "deterministic": True,
                         }},
                     )]
