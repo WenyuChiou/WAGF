@@ -142,3 +142,29 @@ A rerun of the irrigation runs needs the CRSS data (`ref/CRSS_DB`; see `DATA.md`
 with the CRSS data checks (with its date, commit and result), and which no test checks: CI runs
 Python 3.10-3.12 while the paper ran on 3.14.0, the irrigation golden comparison skips on CI, and the
 workers test is a 3-year scripted mock, not a 42-year live run.
+
+## Frozen-case guard (before a merge that touches `broker/`)
+
+A change to `broker/` for a new feature merges only if the guard shows the paper's frozen cases still behave the same. The guard runs each case on a mock LLM whose answer is a pure function of the prompt text (sha256). It states appraisal labels and takes the action from the prompt's own menu, so a changed rule threshold or a changed prompt line changes the run. The stock `--model mock` cannot do this (first option, no labels). Each arm runs as its own subprocess.
+
+| Case | Arms | Size | Runs on |
+|---|---|---|---|
+| Flood single agent (`tests/test_frozen_guard_flood.py`) | without rules, with rules, with rules and silent retries (the three arms of `recipes/flood.yaml`) | 12 agents, 4 years (floods in years 3 and 4), seed 42, workers 1 | CI, in the existing `tests/` step; about 10 s |
+| Multi-agent flood (`tests/test_frozen_guard_multi_agent.py`) | the frozen config `ma_agent_types.yaml`, gossip off | 8 synthetic households (`--mode random`, no survey file) plus the two institutions, 4 years, floods in years 2 and 3, seed 42 | CI, same step; about 5 s |
+| Irrigation (`examples/irrigation_abm/tests/test_frozen_guard_irrigation.py`) | without rules, with the use limit only, with rules (`recipes/irrigation.yaml`) | 78 farmers, 2 years, seed 42, workers 1 | **manual row**; skips on CI (needs CRSS data); about 25 s |
+
+**What is compared, per arm, against `reproduction/frozen_guard/fixtures/<case>/<arm>/`:** the step prompt of every agent and year (sha256, plus the full text of a few prompts so a diff reads), and the ordered hash of every retry and reflection prompt; the governance audit CSV (timestamps, timing columns and set order normalised with `broker/tools/compare_audit_csv.py`; a cell over 100 characters kept as a hash); the executed action per agent and year; the simulation state (`simulation_log.csv`; for multi-agent the household state at decision time). Numbers are compared to a relative 1e-8 (absolute 1e-9), except that two integers must match exactly; everything else exactly. The strict arms must reject, retry and fall to the default at least once (flood, irrigation) or reject and retry (multi-agent); the tests assert it, so a mock change that stops reaching those paths fails.
+
+**A pass means** the covered fixtures matched, on the machine that ran it. It does not mean every paper path is unchanged, and it says nothing about a real model, other seeds, the 42-year or 10-year runs, gossip, or the mixed-population and influencer configs.
+
+**Multi-agent limit:** two identical runs list equal-scored memories in a different order from year 4 on, so the guard compares the `RELEVANT MEMORIES` block as a set (and the mock sees it sorted); every other prompt byte is compared as it is. With gossip on, the case itself differs between identical runs, so that arm is not covered.
+
+**Fixtures** change only through `python reproduction/frozen_guard/regenerate.py` (reports what differs, writes nothing) and `... --update` (writes). The tests never write. Read the printed differences before committing an update: a changed fixture means the case now behaves differently from the frozen one.
+
+**Manual irrigation row (run before each merge that touches `broker/`).** Copy the CRSS bundle into the checkout (a copy, not a link): `ref/CRSS_DB` from the checkout that holds it (gitignored). Then
+
+```bash
+python -m pytest examples/irrigation_abm/tests/test_frozen_guard_irrigation.py --timeout=900 -p no:cacheprovider
+```
+
+and put the pass or fail line in the merge note. The same command with `tests/test_frozen_guard_flood.py tests/test_frozen_guard_multi_agent.py` runs the two CI rows locally.
