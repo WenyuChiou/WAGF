@@ -191,6 +191,8 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
                       # gap F42, default OFF); AgentTypeConfig.get_llm_safeguard_config
                       # validates its five sub-keys itself, so no KNOWN_*_KEYS
                       # sub-block here -- same shape as "llm" / "memory" / "reflection".
+    "run",          # `python -m broker.run` slots and defaults; broker/run/_entry.py
+                    # (_run_block) refuses unknown sub-keys itself.
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {
