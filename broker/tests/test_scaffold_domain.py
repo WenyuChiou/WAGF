@@ -276,6 +276,7 @@ class TestScaffoldEndToEnd:
             tmp_path / "energy" / "config" / "agent_types.yaml"
         ).read_text(encoding="utf-8")
         assert "dispatch_domain_physical: true" in agent_types
+        assert "summary_counts_python_checks: true" in agent_types
 
         code = (
             "import sys\n"

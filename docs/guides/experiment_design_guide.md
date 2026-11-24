@@ -541,7 +541,7 @@ results/<run_name>/
 
 | Metric | Source | Meaning |
 |--------|--------|---------|
-| `total_interventions` | `governance_summary.json` | ERROR-level blocks (governance corrected LLM) |
+| `total_interventions` | `governance_summary.json` | ERROR-level blocks (governance corrected LLM); blocks by Python checks count only with `governance.summary_counts_python_checks: true` |
 | `retry_success` | `governance_summary.json` | Agent corrected behavior on retry |
 | `total_warnings` | `governance_summary.json` | WARNING observations (logged, not blocked) |
 | Construct distributions | `simulation_log.csv` | Appraisal label frequencies per year |
