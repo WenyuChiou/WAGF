@@ -14,7 +14,7 @@
 
 1. [Overview](#1-overview)
 2. [Part 1 -- agent_types.yaml](#2-part-1----agent_typesyaml)
-   - [global_config](#21-global_config)
+   - [global_config](#21-global_config) (including `global_config.run`)
    - [shared](#22-shared)
    - [Agent Type Blocks](#23-agent-type-blocks)
    - [Governance Rules](#24-governance-rules)
@@ -59,6 +59,23 @@ metadata:        # Optional version metadata
 
 Framework-wide defaults that apply to all agent types unless overridden at the
 agent-type level.
+
+#### 2.1.0 global_config.run
+
+Read by `python -m broker.run CONFIG`. Every key is optional, command-line flags override it, and an unknown key is refused.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `world`, `agents`, `hooks`, `validators`, `mock` | string `module:function` | none | Python slots; the function takes `ctx`. A YAML slot may import only modules inside the case folder. |
+| `model` | string | `mock` | Model name |
+| `years`, `agent_count`, `workers` | int | 1 | Years, agents per agent type, workers |
+| `seed` | int | 42 | Simulation seed |
+| `governance` | string | `default` | Governance profile |
+| `output` | string | `results/<config file name>` | Output folder, relative to the case folder |
+| `skill_registry` | string | `skill_registry.yaml` | Registry file, relative to this YAML's folder |
+| `phase_order` | list of lists | none | Multi-agent only: agent types per phase |
+
+Slots, the import rule and defaults are explained in the [new-domain guide](../guides/HOW_TO_ADD_A_NEW_DOMAIN.md#running-a-case-python--m-brokerrun).
 
 #### 2.1.1 global_config.memory
 

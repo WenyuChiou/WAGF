@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-import examples.reservoir_control  # noqa: F401 - registers reservoir_control
+import broker.run
 from broker.components.governance.validator_registry import ValidatorRegistry
 from broker.coupling import CouplingViolation, EnvironmentCouplingAdapter
 from broker.domains.registry import DomainPackRegistry
 from broker.interfaces.skill_types import ApprovedSkill
 from examples.cat_model.cat_validators import insurer_payout_solvency_check
 from examples.cat_model.ma_validators import policyholder_claim_check
-from examples.reservoir_control import run_reservoir_ops
+from examples.reservoir_control import ops_case
 from examples.reservoir_control.ops_modules import (
     INFLOW_PATTERN_MONTHLY,
     ReservoirOpsBundle,
@@ -75,8 +75,8 @@ def _manual_year(storage: float, factor: float, release_target: float) -> dict[s
 def test_e2e_mock_run_rows_equal_years(tmp_path: Path):
     out = tmp_path / "ops_results"
 
-    rc = run_reservoir_ops.main(
-        ["--model", "mock", "--years", "4", "--output", str(out)]
+    rc = broker.run.main(
+        [str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "4", "--output", str(out)]
     )
 
     assert rc == 0
@@ -100,7 +100,7 @@ def test_drought_year_wall_retry_resolves_and_audits_failed_rule(tmp_path: Path)
     APPROVED. Wall evidence AND resolution evidence both asserted."""
     out = tmp_path / "ops_results"
 
-    run_reservoir_ops.main(["--model", "mock", "--years", "4", "--output", str(out)])
+    broker.run.main([str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "4", "--output", str(out)])
 
     rows = _csv_rows(out / "operator_governance_audit.csv")
     year3 = next(row for row in rows if row["year"] == "3")
@@ -119,7 +119,7 @@ def test_drought_year_wall_retry_resolves_and_audits_failed_rule(tmp_path: Path)
 
 def test_reduce_semantics_match_hand_computed_solver_year():
     solver = ToyMassBalanceReservoir()
-    bundle = ReservoirOpsBundle(contract=run_reservoir_ops._build_contract(), solver=solver)
+    bundle = ReservoirOpsBundle(contract=ops_case.build_contract(), solver=solver)
 
     env = bundle.run_pipeline({"current_year": 1}, [], (), "constant")
     expected = _manual_year(18.0, 1.0, 0.75)
@@ -133,7 +133,7 @@ def test_reduce_semantics_match_hand_computed_solver_year():
 
 def test_magnitude_setpoint_mapping_and_absent_magnitude_repeats_last():
     solver = ToyMassBalanceReservoir()
-    bundle = ReservoirOpsBundle(contract=run_reservoir_ops._build_contract(), solver=solver)
+    bundle = ReservoirOpsBundle(contract=ops_case.build_contract(), solver=solver)
 
     first = bundle.commit_world_delta(_approved(magnitude_pct=80))
     assert first.world_changes["release_target"] == pytest.approx(0.6)
@@ -171,8 +171,8 @@ def test_model_swap_linear_evap_run_completes(tmp_path: Path):
 
     out = tmp_path / "linear_results"
 
-    rc = run_reservoir_ops.main(
-        ["--model", "mock-linear-evap", "--years", "2", "--output", str(out)]
+    rc = broker.run.main(
+        [str(ops_case.CONFIG_PATH), "--model", "mock-linear-evap", "--years", "2", "--output", str(out)]
     )
 
     assert rc == 0
@@ -200,7 +200,7 @@ def test_out_of_range_derived_setpoint_blocked_by_bundle_guard():
     against the same VarSpec range BEFORE super() reaches the sink, so the
     solver is still protected pre-mutation."""
     solver = ToyMassBalanceReservoir()
-    bundle = ReservoirOpsBundle(contract=run_reservoir_ops._build_contract(), solver=solver)
+    bundle = ReservoirOpsBundle(contract=ops_case.build_contract(), solver=solver)
     adapter = EnvironmentCouplingAdapter(
         real_engine=None,
         contract=bundle.contract,
@@ -222,7 +222,7 @@ def test_registration_isolation():
     # (projection check), the flood-control overflow limit a YAML `expression:`
     # rule: no Python physical check is registered for this domain.
     assert reservoir_checks == []
-    assert [b.name for b in run_reservoir_ops._build_contract().feasibility] == [
+    assert [b.name for b in ops_case.build_contract().feasibility] == [
         "dead_pool_violation"
     ]
     assert insurer_payout_solvency_check in cat_single_checks

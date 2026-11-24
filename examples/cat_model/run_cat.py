@@ -135,7 +135,7 @@ def main(argv=None) -> int:
     # {options_text} (written there by _inject_options_text) rendered
     # "[N/A]" — a 2026-09 options-text-parity POST-RENDER check caught
     # this as a real, pre-existing gap. examples/cat_model/run_cat_ma.py
-    # and examples/reservoir_control/run_reservoir_ops.py already work
+    # and examples/reservoir_control/ops_case.py already work
     # around the same gap with a STATIC agent.dynamic_state["options_text"]
     # override (safe there because those menus never get RAG-reranked);
     # run_cat.py had neither that workaround nor this one. Pinning

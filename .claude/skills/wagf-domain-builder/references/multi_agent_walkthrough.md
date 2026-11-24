@@ -78,9 +78,9 @@ Read `examples/multi_agent/flood/orchestration/lifecycle_hooks.py` (class
 carries the whole flood domain; read its `pre_year` and `post_step` methods,
 which hold the patterns any multi-agent domain needs.
 
-### 2. `run_experiment.py` ExperimentBuilder wiring
+### 2. The case's own runner (ExperimentBuilder wiring)
 
-Three additions vs single-agent:
+The scaffold does not write a runner. `python -m broker.run` takes only `phase_order` from the YAML (`global_config.run.phase_order`), so a case that needs a social graph, other memory engines or the whitelist below writes its own small runner. Three additions vs single-agent:
 
 ```python
 # a. The whitelist — keys lifecycle_hooks writes AND prompt templates read.
@@ -308,7 +308,10 @@ taxonomy first; the dual-dict alias fixes E1 only, not E3–E5.
 
 Run from `examples/<your_domain>_demo/` unless noted.
 
-1. Use `examples/multi_agent/flood/run_unified_experiment.py` as the
+1. The scaffold wrote `world.py` and a `global_config.run` block, not a
+   runner. If `phase_order` is all you need, set it under
+   `global_config.run` and run `python -m broker.run`. Otherwise use
+   `examples/multi_agent/flood/run_unified_experiment.py` as the
    reference for the ExperimentBuilder wiring (it is long; read the part
    that calls `.with_phase_order(`) and write your own small runner from
    it. Don't write from scratch.
@@ -333,8 +336,10 @@ Run from `examples/<your_domain>_demo/` unless noted.
    `hub=hub` to TieredContextBuilder.
 8. Verify config: `python -m broker.tools.validate_prompt
    examples/<domain>_demo/config/agent_types.yaml` — expect OK clean.
-9. Smoke: `python examples/<domain>_demo/run_experiment.py --model
-   gemma3:1b --years 2 --agents N --seed 42 --output results/smoke_42`
+9. Smoke: with your own runner, `python examples/<domain>_demo/<your_runner>.py --model
+   gemma3:1b --years 2 --agents N --seed 42 --output results/smoke_42`; with
+   `phase_order` only, `python -m broker.run examples/<domain>_demo/config/agent_types.yaml
+   --model mock --years 2 --agents N --seed 42 --output results/smoke_42`
 10. Inspect: audit CSVs split per agent_type, all APPROVED, traces
     show cross-agent state actually rendered in prompts.
 
@@ -355,7 +360,7 @@ Run from `examples/<your_domain>_demo/` unless noted.
 Multi-agent domain meets S6 pass when ALL hold:
 
 1. `validate_prompt` exits 0 clean
-2. `run_experiment.py` exits 0 with N×Y×T traces (N agents, Y years, T agent types)
+2. The run (`python -m broker.run`, or your own runner) exits 0 with N×Y×T traces (N agents, Y years, T agent types)
 3. Audit CSV auto-splits by agent_type (one CSV per type)
 4. All traces APPROVED or REJECTED with valid reasoning (no `[Adapter:Error]` blocks)
 5. Cross-agent state rendered in downstream agents' prompts (spot-check a year-2 individual prompt for institutional output)

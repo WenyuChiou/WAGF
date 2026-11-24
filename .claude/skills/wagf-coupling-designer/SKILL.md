@@ -182,7 +182,7 @@ draft `_build_contract() -> CouplingContract` skeleton.
 Copy the closest v0.6 worked example first. Use
 `examples/cat_model/run_cat.py` for single-agent event coupling,
 `examples/cat_model/run_cat_ma.py` for period-end multi-agent
-settlement, or `examples/reservoir_control/run_reservoir_ops.py` for
+settlement, or `examples/reservoir_control/ops_case.py` for
 continuous control / `ContinuousBundle`. Only use
 `templates/mock_external_model.py.tmpl` when no shipped skeleton is
 close enough.

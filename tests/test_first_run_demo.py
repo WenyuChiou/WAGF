@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = "examples/reservoir_control/run_reservoir_ops.py"
+RESERVOIR_CONFIG = "examples/reservoir_control/config/reservoir_agent_types.yaml"
 
 
 @pytest.fixture(scope="module")
@@ -17,7 +17,7 @@ def demo(tmp_path_factory):
     out = tmp_path_factory.mktemp("first_run") / "run"
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
     result = subprocess.run(
-        [sys.executable, SCRIPT, "--model", "mock", "--years", "4", "--output", str(out)],
+        [sys.executable, "-m", "broker.run", RESERVOIR_CONFIG, "--model", "mock", "--years", "4", "--output", str(out)],
         cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=300,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -76,7 +76,7 @@ def test_console_summary_shows_block_reason_repair_and_effect(demo):
 
 def _summarize():
     sys.path.insert(0, str(ROOT))
-    from examples.reservoir_control.run_reservoir_ops import summarize_block_and_repair
+    from examples.reservoir_control.ops_case import summarize_block_and_repair
     return summarize_block_and_repair
 
 

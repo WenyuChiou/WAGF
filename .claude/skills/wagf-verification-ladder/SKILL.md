@@ -85,7 +85,7 @@ smoke is the reservoir demo; it prints one blocked attempt with its reason,
 the approved retry, and the change in the toy reservoir:
 
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/ladder-reservoir
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/ladder-reservoir
 python -m broker.tools.check_run_integrity .tmp/ladder-reservoir --strict
 ```
 
@@ -165,7 +165,7 @@ reference model from the 2026-06-10 incidents is `gemma4:e4b`.
 
 ```bash
 ollama ps
-python examples/reservoir_control/run_reservoir_ops.py --model gemma4:e4b --years 4 --output .tmp/ladder-reservoir-e4b
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model gemma4:e4b --years 4 --seed 42 --output .tmp/ladder-reservoir-e4b
 ```
 
 For a new domain, use 1-4 periods and the smallest agent count that

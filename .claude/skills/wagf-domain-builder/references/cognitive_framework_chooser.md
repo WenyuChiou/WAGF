@@ -93,7 +93,19 @@ python -m broker.tools.scaffold_domain <domain> \
 
 The scaffold creates `cognition/` boilerplate. Replace the generated construct list with the theory's real constructs before S6.
 
+## None (physical-only)
+
+Status: built in; no registration needed.
+
+Constructs: none.
+
+Best for: decisions with no appraisal step, such as a pump schedule, a gate setting or a release rule, where the agent reads the state and picks an action.
+
+Scaffold choice: `python -m broker.tools.scaffold_domain <domain> --output examples/<domain>_demo --skills "<skills>" --physical-only`. It writes `psychological_framework: none` explicitly: no rating scale, no appraisal fields or constructs, a prompt without appraisal wording, and one retry setting. It cannot be combined with `--framework`. `validate_prompt` and `ExperimentBuilder.build()` refuse a `none` agent that still has appraisal fields, constructs, `{rating_scale}` or PMT wording, or `construct` references in rules.
+
 ## Decision Tree
+
+0. Does the decision have no appraisal at all? Choose none (`--physical-only`).
 
 1. Is the domain hazard-protective? Choose PMT.
 

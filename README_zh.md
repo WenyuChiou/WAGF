@@ -44,7 +44,7 @@ python -m pip install -e ".[analysis]"
 **第一次執行：一次攔阻與一次修正。** 一個玩具水庫、一位操作員，使用 repository 內建的 **mock model**，不需下載模型，也不需 GPU 或 API key。每次執行都請使用新的輸出目錄。
 
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
 腳本化的操作員每年都要求放出 100% 的需水量。第 3 年，死庫容（dead pool）規則攔阻了這個要求，因為玩具水庫模型自己試跑一年後，蓄水量會低於死庫容。操作員接著改要求 50%，這次通過並被執行。執行結束時會印出這段摘要：
@@ -144,6 +144,19 @@ WAGF 在提案與執行之間加入明確的檢查。規則可以拿行動去比
 | 科羅拉多河灌溉（雙向） | 用水者的申請量會改變 Lake Mead；其水位與短缺等級又會改變配水量，以及後續 prompt 中的資訊。 | [上方的 mock 命令](#快速開始) · [灌溉 README](examples/irrigation_abm/README.md) |
 
 [範例總覽](examples/README_zh.md)列出實測的 mock 執行時間、輸出與限制。這些小型檢查不能作為科學結果。
+
+### 建立自己的案例
+
+```bash
+python -m broker.tools.scaffold_domain my_water_model --skills increase_release,maintain_release,decrease_release
+python -m broker.tools.validate_prompt examples/my_water_model_demo/config/agent_types.yaml
+python -m broker.run examples/my_water_model_demo/config/agent_types.yaml --model mock --years 1 --agents 1
+```
+
+scaffold 會寫出設定檔、prompt、一個暫代的 `world.py`，以及 `global_config.run` 區塊，所以只需要
+`python -m broker.run` 這一個入口。空的 scaffold 用 mock 模型跑時會印出重試警告，這是預期的。
+決策不需要評估（appraisal）步驟時，在 scaffold 命令加上 `--physical-only`。詳見
+[新增自己的領域](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)。
 
 ## 文件
 

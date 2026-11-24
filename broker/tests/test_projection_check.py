@@ -6,13 +6,12 @@ import csv
 import dataclasses
 import hashlib
 import random
-from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import examples.reservoir_control  # noqa: F401 - registers reservoir_control
+import broker.run
 from broker.coupling import (
     BmiControlSink,
     ContinuousBundle,
@@ -28,9 +27,8 @@ from broker.coupling.projection_check import (
     ProjectionCheckError,
     ProjectionSideEffect,
 )
-from broker.core.experiment_builder import ExperimentBuilder
 from broker.utils.agent_config import AgentTypeConfig
-from examples.reservoir_control import run_reservoir_ops as ops
+from examples.reservoir_control import ops_case
 from examples.reservoir_control.ops_modules import (
     ReservoirOpsBundle,
     ToyLinearEvapReservoir,
@@ -45,7 +43,7 @@ def _ctx(forecast=FORECAST_DROUGHT):
     return {"env_state": {"inflow_forecast_year": forecast}}
 
 
-_ORIGINAL_CONTRACT = ops._build_contract
+_ORIGINAL_CONTRACT = ops_case.build_contract
 
 
 def _contract(bounds):
@@ -92,7 +90,7 @@ def test_bound_from_dict_and_contract_accepts_dicts():
 
 
 def test_no_feasibility_leaves_repr_hash_and_provenance_alone():
-    contract = ops._build_contract()
+    contract = ops_case.build_contract()
     contract = dataclasses.replace(contract, feasibility=())
     assert "feasibility" not in repr(contract)
     bundle = ReservoirOpsBundle(contract=contract, solver=ToyMassBalanceReservoir())
@@ -319,7 +317,10 @@ def test_builder_build_fails_for_a_non_copyable_model(tmp_path, monkeypatch):
     monkeypatch.setattr(ToyMassBalanceReservoir, "__deepcopy__", refuse, raising=False)
     AgentTypeConfig.clear_cache()
     with pytest.raises(ValueError, match="cannot be deep-copied"):
-        ops._build_runner(Namespace(model="mock", years=1, output=str(tmp_path / "o"), seed=1))
+        broker.run.prepare([
+            str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "1",
+            "--output", str(tmp_path / "o"), "--seed", "1",
+        ])
     AgentTypeConfig.clear_cache()
 
 
@@ -486,13 +487,14 @@ def test_copy_projection_with_a_bmi_sink_subclass_is_a_build_error():
         ProjectionCheck(EnvironmentCouplingAdapter(None, contract, bundle))
 
 
-def test_feasibility_with_workers_above_1_is_a_build_error(monkeypatch, tmp_path):
-    orig_workers = ExperimentBuilder.with_workers
-    monkeypatch.setattr(ExperimentBuilder, "with_workers", lambda self, n: orig_workers(self, 2))
+def test_feasibility_with_workers_above_1_is_a_build_error(tmp_path):
     AgentTypeConfig.clear_cache()
     try:
         with pytest.raises(ValueError, match="workers=2 .* feasibility bounds"):
-            ops._build_runner(Namespace(model="mock", years=1, output=str(tmp_path / "o"), seed=1))
+            broker.run.prepare([
+                str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "1",
+                "--output", str(tmp_path / "o"), "--seed", "1", "--workers", "2",
+            ])
     finally:
         AgentTypeConfig.clear_cache()
 
@@ -518,19 +520,21 @@ def test_global_rng_states_are_restored_after_a_projection():
 
 # ---------------------------------------------- 9. default after retries (e2e) ----
 def _always_100(prompt):
-    return ops._decision_payload("set_release", magnitude=100)
+    return ops_case.decision_payload("set_release", magnitude=100)
 
 
 def _run(monkeypatch, tmp_path, bounds, years=2, always_100=True):
     contract = _contract(bounds)
-    monkeypatch.setattr(ops, "_build_contract", lambda: contract)
+    monkeypatch.setattr(ops_case, "build_contract", lambda: contract)
     out = tmp_path / "out"
     AgentTypeConfig.clear_cache()
     try:
-        runner, _bundle = ops._build_runner(
-            Namespace(model="mock", years=years, output=str(out), seed=42)
-        )
-        runner._llm_cache["operator"] = _always_100 if always_100 else ops._operator_mock
+        runner = broker.run.prepare([
+            str(ops_case.CONFIG_PATH), "--model", "mock", "--years", str(years),
+            "--output", str(out), "--seed", "42",
+        ]).runner
+        if always_100:
+            runner._llm_cache["operator"] = _always_100
         runner.run()
     finally:
         AgentTypeConfig.clear_cache()
@@ -599,7 +603,9 @@ def test_run_without_feasibility_has_no_projection_column(monkeypatch, tmp_path)
 # ---------------------------------------------------------- 11. end to end ----
 def test_reservoir_main_blocks_year_3_and_approves_the_retry(tmp_path):
     out = tmp_path / "out"
-    assert ops.main(["--model", "mock", "--years", "4", "--output", str(out)]) == 0
+    assert broker.run.main([
+        str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "4", "--output", str(out),
+    ]) == 0
     with (out / "operator_governance_audit.csv").open(encoding="utf-8-sig", newline="") as fh:
         rows = {r["year"]: r for r in csv.DictReader(fh)}
     assert rows["3"]["retry_count"] == "1" and rows["3"]["failed_rules"] == "dead_pool_violation"
@@ -614,11 +620,13 @@ ZERO_DIV = _bound("1 / (storage_unclamped - storage_unclamped) > 0", "zero_div",
 
 
 def test_zero_divisor_in_a_projection_stops_the_run(monkeypatch, tmp_path):
-    monkeypatch.setattr(ops, "_build_contract", lambda: _contract([ZERO_DIV]))
+    monkeypatch.setattr(ops_case, "build_contract", lambda: _contract([ZERO_DIV]))
     AgentTypeConfig.clear_cache()
     try:
         with pytest.raises(CouplingViolation, match="zero_div"):
-            ops.main(["--years", "2", "--output", str(tmp_path / "out")])
+            broker.run.main([
+                str(ops_case.CONFIG_PATH), "--years", "2", "--output", str(tmp_path / "out"),
+            ])
     finally:
         AgentTypeConfig.clear_cache()
 
@@ -628,7 +636,7 @@ def test_zero_divisor_stops_a_parallel_run(monkeypatch, tmp_path):
     # handler still re-raises (defence in depth), so drive it directly.
     from broker.core.experiment_runner import ExperimentRunner
 
-    monkeypatch.setattr(ops, "_build_contract", lambda: _contract([ZERO_DIV]))
+    monkeypatch.setattr(ops_case, "build_contract", lambda: _contract([ZERO_DIV]))
     calls = []
     orig_parallel = ExperimentRunner._run_agents_parallel
 
@@ -639,10 +647,10 @@ def test_zero_divisor_stops_a_parallel_run(monkeypatch, tmp_path):
     monkeypatch.setattr(ExperimentRunner, "_run_agents_parallel", spy)
     AgentTypeConfig.clear_cache()
     try:
-        runner, _bundle = ops._build_runner(
-            Namespace(model="mock", years=2, output=str(tmp_path / "out"), seed=42)
-        )
-        runner._llm_cache["operator"] = ops._operator_mock
+        runner = broker.run.prepare([
+            str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "2",
+            "--output", str(tmp_path / "out"), "--seed", "42",
+        ]).runner
         runner.config.workers = 2
         with pytest.raises(ProjectionCheckError, match="zero_div"):
             runner.run()
@@ -654,10 +662,10 @@ def test_zero_divisor_stops_a_parallel_run(monkeypatch, tmp_path):
 # ----------------------------------------------------------------- 12. mixed ----
 def test_relations_are_still_checked_after_execution_alongside_feasibility(tmp_path):
     out = tmp_path / "out"
-    runner, _bundle = ops._build_runner(
-        Namespace(model="mock", years=3, output=str(out), seed=42)
-    )
-    runner._llm_cache["operator"] = ops._operator_mock
+    runner = broker.run.prepare([
+        str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "3",
+        "--output", str(out), "--seed", "42",
+    ]).runner
     runner.run()
     prov = runner.sim_engine.get_provenance()
     assert prov["relations"]["declared"][0]["name"] == "storage_balance"

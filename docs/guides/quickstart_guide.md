@@ -85,7 +85,7 @@ python examples/governed_flood/run_experiment.py --model gemma3:4b --years 5
 
 **To build your own domain**, scaffold via `python -m broker.tools.scaffold_domain <domain-name>` (or invoke the `wagf-domain-builder` Claude Code skill):
 
-- `run_experiment.py` - ExperimentBuilder setup
+- `world.py` and a `global_config.run` block in `config/agent_types.yaml` - the world model and run settings; run the case with `python -m broker.run`
 - `adapters/` - Domain-specific output parsing
 - `validators/` - Domain-specific governance rules
 - `config/` - Agent types and skill definitions (YAML)

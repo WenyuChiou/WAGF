@@ -52,7 +52,7 @@ the repository's built-in **mock model**. No model download, GPU or API key is
 needed. Choose a fresh output directory for each run.
 
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
 The scripted operator asks to release 100% of demand each year. In year 3 the
@@ -202,6 +202,19 @@ Two examples, two coupling directions:
 
 [The examples gallery](examples/README.md) records measured mock runtimes, outputs
 and limitations. These small checks do not establish scientific results.
+
+### Your own case
+
+```bash
+python -m broker.tools.scaffold_domain my_water_model --skills increase_release,maintain_release,decrease_release
+python -m broker.tools.validate_prompt examples/my_water_model_demo/config/agent_types.yaml
+python -m broker.run examples/my_water_model_demo/config/agent_types.yaml --model mock --years 1 --agents 1
+```
+
+The scaffold writes a config, a prompt, a stand-in `world.py` and a `global_config.run` block, so
+`python -m broker.run` is the only entry you need. The empty scaffold prints retry warnings with
+the mock model; that is expected. Add `--physical-only` to the scaffold command for decisions with
+no appraisal step. See [Add your own domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md).
 
 ## Documentation
 

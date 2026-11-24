@@ -13,7 +13,7 @@ year's inflow forecast (rationale: `ops_modules.py` module docstring).
 ## Files
 
 - `reservoir_pack.py` — `ReservoirControlDomainPack` (coupling OFF by default).
-- `run_reservoir_ops.py` — the runnable experiment.
+- `ops_case.py` — the world, agents, hooks and scripted mock that `broker.run` loads.
 - `ops_modules.py` — the toy solver and its bundle (`apply_forecast`, `inputs_for_skill`).
 - `ops_validators.py` — no checks any more; the dead-pool limit is a `feasibility:` bound in the contract.
 - `config/reservoir_agent_types.yaml`, `config/reservoir_skill_registry.yaml`. The
@@ -25,7 +25,7 @@ year's inflow forecast (rationale: `ops_modules.py` module docstring).
 This is the first-run demo in the front-page [quickstart](../../README.md#quickstart).
 
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
 The mock operator asks for 100% of demand, the dead-pool rule blocks that in year 3,

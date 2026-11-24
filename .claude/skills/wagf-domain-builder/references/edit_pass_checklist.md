@@ -190,14 +190,14 @@ Common pitfall: writing prescriptive rules that leave the agent no plausible act
 
 ## Post-Edit Smoke
 
-After all four config edits have clean validator output AND edit 5 has rewritten the scaffolded TODO `run_experiment.py` into a working ExperimentBuilder entry point (use `examples/irrigation_abm/run_experiment.py` as reference), run the mock smoke from the repo root:
+After all four config edits have clean validator output AND edit 5 has replaced the scaffold's stand-in `world.py` with your model and added any `agents`, `hooks`, `validators` or `mock` slots under `global_config.run`, run the mock smoke from the repo root:
 
 ```bash
-python examples/<domain>_demo/run_experiment.py \
-    --model gemma3:4b --years 2 --agents 3 \
-    --seed 42 --output results/smoke_42
+python -m broker.run examples/<domain>_demo/config/agent_types.yaml \
+    --model mock --years 2 --agents 3 \
+    --seed 42 --output examples/<domain>_demo/results/smoke_42
 ```
 
-The explicit `--seed 42 --output results/smoke_42` flags make the run reproducible and put the audit CSV at the same path the verify-done check (`stage_outputs.md` S6 row) expects. Without these, the audit lands in `results/smoke/` and seed-based reproducibility is lost.
+The explicit `--seed 42 --output ...` flags make the run reproducible and put the audit CSV at the same path the verify-done check (`stage_outputs.md` S6 row) expects. On the command line `--output` is relative to the current directory. A finished output folder is never overwritten: use a new `--output`. Without `--output`, the audit lands in the YAML's `run.output` folder (`results/smoke/` in the scaffold).
 
-Verify the audit CSV at `results/smoke_42/individual_governance_audit.csv` has `years * agents` rows, no `[Adapter:Error]` blocks appeared in stdout, and every `proposed_skill` is one of the declared skill IDs.
+Verify the audit CSV under that folder (named after the agent type, for example `agent_governance_audit.csv`) has `years * agents` rows, no `[Adapter:Error]` blocks appeared in stdout, and every `proposed_skill` is one of the declared skill IDs.

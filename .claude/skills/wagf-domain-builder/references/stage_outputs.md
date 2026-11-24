@@ -27,15 +27,17 @@ python -m broker.tools.scaffold_domain <domain> \
   --skills "<comma-separated skill ids>"
 ```
 
-S6 is a single smoke command (after S5 edit 5 has wired ExperimentBuilder):
+Add `--physical-only` for decisions with no appraisal (it writes `psychological_framework: none`). The scaffold writes `world.py` and a `global_config.run` block, not a runner.
+
+S6 is a single smoke command (after S5 edit 5 has written your `world.py` and slots):
 
 ```bash
-python examples/<domain>_demo/run_experiment.py \
-    --model gemma3:4b --years 2 --agents 3 \
-    --seed 42 --output results/smoke_42
+python -m broker.run examples/<domain>_demo/config/agent_types.yaml \
+    --model mock --years 2 --agents 3 \
+    --seed 42 --output examples/<domain>_demo/results/smoke_42
 ```
 
-Pass `--seed 42 --output results/smoke_42` explicitly so the audit CSV lands at the path the verify-done check expects. Without these flags, the audit goes to `results/smoke/` (no seed suffix) and the verify-done check fails to find it.
+Pass `--seed 42 --output ...` explicitly so the audit CSV lands at the path the verify-done check expects. Without `--output`, the audit goes to the YAML's `run.output` folder (`results/smoke/` in the scaffold) and the verify-done check fails to find it.
 
 After S7, route to `.claude/skills/model-coupling-contract-checker/SKILL.md` for the coupling audit, then `.claude/skills/wagf-experiment-designer/SKILL.md` for the experiment matrix, and `.claude/skills/abm-reproducibility-checker/SKILL.md` before submission.
 
