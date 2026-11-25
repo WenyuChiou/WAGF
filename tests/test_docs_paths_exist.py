@@ -117,7 +117,7 @@ def _is_in_scope(rel_path: str) -> bool:
     return not _has_chinese_prose(ROOT / rel_path)
 
 
-def _clean_candidate(raw: str) -> str | None:
+def _clean_candidate(raw: str, *, is_link: bool = False) -> str | None:
     s = raw.strip().strip("'\"")
     if not s:
         return None
@@ -131,6 +131,10 @@ def _clean_candidate(raw: str) -> str | None:
     if any(ch in s for ch in (" ", "\t", "=", "|", "(", ")", "[", "]", ";", ",")):
         return None
     if "/" not in s:
+        # A bare file name is checked only as a link target (e.g. `[next](02-rules.md)`,
+        # resolved against the doc's own folder); in backticks it is too ambiguous.
+        if is_link and not s.startswith(".") and EXT_RE.search(s):
+            return s
         return None
     if s.endswith("/"):
         return s
@@ -149,7 +153,7 @@ def _extract_paths(text: str) -> dict[str, bool]:
         if candidate:
             found.setdefault(candidate, False)
     for match in LINK_RE.finditer(no_fence):
-        candidate = _clean_candidate(match.group(1))
+        candidate = _clean_candidate(match.group(1), is_link=True)
         if candidate:
             found[candidate] = True
     return found
@@ -227,10 +231,13 @@ def test_allowlist_skips_placeholders_and_flags_missing_repo_paths() -> None:
         "URL `https://example.com/a/b.py`, "
         "placeholder `examples/<domain>/agent_types.yaml`, "
         "crss `ref/CRSS_DB/CRSS_DB/Div_States/UB_discrete_states.csv`, "
-        "broken `broker/does_not_exist_xyz.py`."
+        "broken `broker/does_not_exist_xyz.py`, "
+        "same-folder link [ok](README.md), "
+        "broken same-folder link [bad](no_such_sibling_xyz.md), "
+        "bare name in backticks `not_checked_xyz.md`."
     )
     missing = find_missing_paths(["ARCHITECTURE.md"], text_overrides={"ARCHITECTURE.md": sample})
-    assert len(missing) == 1
-    assert "ARCHITECTURE.md" in missing[0]
-    assert "broker/does_not_exist_xyz.py" in missing[0]
-    assert FAILURE_HINT in missing[0]
+    assert len(missing) == 2, missing
+    assert all("ARCHITECTURE.md" in m and FAILURE_HINT in m for m in missing)
+    assert any("broker/does_not_exist_xyz.py" in m for m in missing)
+    assert any("no_such_sibling_xyz.md" in m for m in missing)
