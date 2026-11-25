@@ -4,6 +4,7 @@ In-scope markdown files:
   * ARCHITECTURE.md and broker/INVARIANTS.md
   * broker/**/README.md
   * docs/**/*.md except docs/internal/
+  * templates/**/*.md
   * .claude/skills/**/*.md
   * English files only (*_zh.md, README_zh.md, and Chinese prose excluded)
 
@@ -106,6 +107,7 @@ def _is_in_scope(rel_path: str) -> bool:
         rel_path in ("ARCHITECTURE.md", "broker/INVARIANTS.md")
         or (rel_path.startswith("broker/") and rel_path.endswith("/README.md"))
         or rel_path.startswith(".claude/skills/")
+        or rel_path.startswith("templates/")
         or (
             rel_path.startswith("docs/")
             and not rel_path.startswith(OUT_OF_SCOPE_DIRS)

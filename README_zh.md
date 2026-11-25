@@ -25,7 +25,7 @@ flowchart LR
     R -. 記錄檢查結果 .-> L[Audit 記錄]
 ```
 
-[教學](docs/tutorial/README.md) · [範例](examples/README_zh.md) · [架構](ARCHITECTURE.md) · [參考資料](docs/guides/readme_reference.md)
+[使用手冊](docs/index_zh.md) · [教學](docs/tutorial/README.md) · [範例](examples/README_zh.md) · [架構](ARCHITECTURE.md) · [參考資料](docs/guides/readme_reference.md)
 
 [English](README.md) | 繁體中文：教學、架構、參考資料與各案例說明目前只有英文版。
 

@@ -27,7 +27,7 @@ flowchart LR
     R -. Record checks .-> L[Audit record]
 ```
 
-[Tutorial](docs/tutorial/README.md) · [Examples](examples/README.md) ·
+[User Manual](docs/index.md) · [Tutorial](docs/tutorial/README.md) · [Examples](examples/README.md) ·
 [Architecture](ARCHITECTURE.md) · [Reference](docs/guides/readme_reference.md)
 
 [中文](README_zh.md)

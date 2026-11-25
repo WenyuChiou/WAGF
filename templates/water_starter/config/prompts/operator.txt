@@ -1,0 +1,14 @@
+### RESERVOIR OPERATOR STARTER
+Agent ID: {agent_id}
+Water Year: {current_year}
+
+### CURRENT RESERVOIR STATE
+- Starting storage: {storage} maf (dead pool: {dead_pool} maf, capacity: {capacity} maf)
+- Prior year actual release: {release_actual} maf
+- Coming year inflow forecast: {inflow_forecast} maf
+- Annual target demand: {demand_year} maf
+
+### OPTIONS
+{options_text}
+
+{response_format}

@@ -1,0 +1,106 @@
+# Minimal governed reservoir-operator starter configuration for broker.run.
+#
+# === VARIABLE & UNIT DICTIONARY ===
+# Prompt & rule variables published by world.py::StarterReservoirWorld:
+#   current_year    : [int] 1-based simulation water year
+#   storage         : [maf] starting storage for the current decision year (initial=11.0)
+#   inflow_forecast : [maf] expected total inflow this water year (Year 1=10.0, Year 2=1.5)
+#   demand_year     : [maf] full annual target demand (9.0 maf)
+#   dead_pool       : [maf] minimum allowable storage floor (5.0 maf)
+#   capacity        : [maf] maximum physical reservoir capacity (20.0 maf)
+#   release_actual  : [maf] actual annual release executed in the previous year
+# LLM response fields:
+#   magnitude       : [fraction, 0.0..1.0] desired release as a share of annual demand
+#   decision        : [choice, 1|2] 1=set_release, 2=maintain_release
+#   reasoning       : [text] brief justification before choosing
+# ==================================
+
+global_config:
+  run:
+    world: world:build_world
+    agents: world:build_agents
+    hooks: world:build_hooks
+    mock: world:operator_mock
+    skill_registry: skill_registry.yaml
+    governance: strict
+    years: 2
+    agent_count: 1
+    seed: 42
+    output: results/starter
+    workers: 1
+
+  audit:
+    initial_proposal_columns: true
+    attempt_columns: true
+    corrected_status_columns: true
+
+  memory:
+    window_size: 3
+
+  llm:
+    model: "command-line-override"
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+
+  governance:
+    domain: water_starter
+    max_retries: 3
+    max_reports_per_retry: 2
+
+shared:
+  template_vars:
+    - current_year
+    - storage
+    - inflow_forecast
+    - demand_year
+    - dead_pool
+    - capacity
+    - release_actual
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "reasoning", type: "text", required: false,
+          description: "Brief 1-2 sentence explanation for your release choice." }
+      - { key: "magnitude", type: "numeric", min: 0, max: 1, unit: "fraction", required: true,
+          description: "REQUIRED number from 0 to 1: annual release as a fraction of demand (e.g. 0.4)" }
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (set_release) or 2 (maintain_release)" }
+
+operator:
+  agent_type: operator
+  psychological_framework: utility
+  prompt_template_file: prompts/operator.txt
+  inherit_shared: true
+
+  actions:
+    - id: set_release
+      aliases: ["1", "set_release"]
+      description: "Set annual release as a fraction of demand [0, 1]"
+    - id: maintain_release
+      aliases: ["2", "maintain_release"]
+      description: "Keep the previously committed release fraction"
+
+  parsing:
+    decision_keywords: ["decision"]
+    default_skill: maintain_release
+    strict_mode: true
+    skill_map:
+      "1": set_release
+      "2": maintain_release
+
+  log_fields: []
+
+  governance:
+    strict:
+      thinking_rules:
+        - id: dead_pool_guard
+          conditions:
+            - expression: "storage + inflow_forecast - demand_year * proposed_magnitude < dead_pool"
+          blocked_skills: [set_release]
+          level: ERROR
+          message: "Proposed release leaves projected storage below the dead-pool threshold; reduce magnitude."
+      documented_unconstrained_skills:
+        - maintain_release

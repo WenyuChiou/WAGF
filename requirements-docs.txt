@@ -1,0 +1,2 @@
+# Optional dependencies to preview or build the static HTML User Manual (docs/index.md)
+mkdocs>=1.5,<2.0
