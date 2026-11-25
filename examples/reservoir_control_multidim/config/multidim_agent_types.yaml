@@ -3,6 +3,20 @@
 # multi-dim-action machinery (B1-B6): multi_param_action routes the extracted
 # numerics onto SkillProposal.parameters; audit.param_columns emits the
 # proposed_param_* audit columns. SEPARATE from the frozen reservoir_control config.
+#
+# === VARIABLE & UNIT DICTIONARY ===
+# Prompt state variables:
+#   current_year         : [int] 1-based simulation water year
+#   storage / storage_now: [maf] current end-of-year storage (CAPACITY=1000.0, DEAD_POOL=50.0)
+#   spill / shortfall    : [maf] prior-year spill and unmet-demand volumes
+#   inflow_forecast_year : [maf] next-year inflow forecast shown in prompt
+#   dead_pool / capacity : [maf] reservoir dead-pool and full-capacity bounds
+# Multi-dimensional LLM response setpoints (bounds enforced in multidim_skill_registry.yaml):
+#   release_rate_cms     : [cms, 0.0..850.0] target downstream release rate (cubic meters/sec)
+#   hydropower_target_mw : [MW, 0.0..2000.0] target hydropower generation (megawatts)
+#   flood_pool_pct       : [pct, 0.0..100.0] reserved flood-control storage share (%)
+#   decision             : [choice, 1|2] 1=set_release_multi, 2=maintain_release
+# ==================================
 shared:
   rating_scales:
     utility:

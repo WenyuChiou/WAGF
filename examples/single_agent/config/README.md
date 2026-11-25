@@ -32,6 +32,27 @@ Edit these only after the three files above make sense:
 - [../agent_types_stress.yaml](../agent_types_stress.yaml): stress-only variant
 - [../run_flood.py](../run_flood.py): runner wiring and experiment assembly
 
+## Input CSV Data Dictionary
+
+### `../agent_initial_profiles.csv`
+
+| Column | Type / Range | Unit / Meaning |
+|---|---|---|
+| `id` | string (`Agent_1` ...) | Unique household agent identifier |
+| `elevated` | boolean (`TRUE` / `FALSE`) | Whether the house starts already elevated |
+| `has_insurance` | boolean (`TRUE` / `FALSE`) | Whether the household holds flood insurance at Year 0 |
+| `relocated` | boolean (`TRUE` / `FALSE`) | Whether the household starts already relocated |
+| `trust_in_insurance` | float `[0, 1]` | Initial trust in the flood insurer |
+| `trust_in_neighbors` | float `[0, 1]` | Initial trust in neighbors' judgment |
+| `memory` | pipe-delimited string | Initial historical memory sentences (` \| ` separated) |
+| `flood_threshold` | float `> 0` (m) | Flood depth threshold above which house damage occurs |
+
+### `../flood_years.csv`
+
+| Column | Type / Range | Unit / Meaning |
+|---|---|---|
+| `Flood_Years` | integer `>= 1` | 1-based simulation year indices where basin flooding occurs when `--flood-mode fixed` (default) |
+
 ## Scope Boundary
 
 This config surface is for the single-agent flood benchmark only. The

@@ -1,4 +1,10 @@
 # Reservoir continuous-control skill registry.
+#
+# === VARIABLE & UNIT DICTIONARY ===
+# Validated proposal fields (produced after ModelAdapter maps LLM "magnitude" -> magnitude_pct):
+#   decision      : [int, 1|2] numeric action selector (1=set_release, 2=maintain_release)
+#   magnitude_pct : [number, 0.0..1.0] normalized release fraction of annual demand (1.0 = full demand)
+# ==================================
 skills:
   - skill_id: set_release
     category: setpoint

@@ -1,3 +1,19 @@
+# === VARIABLE & UNIT DICTIONARY ===
+# Domain: Colorado River Basin irrigation ABM (Upper & Lower Basin farmers, 78 agents).
+# Hydrologic & audit state variables (units follow USBR CRSS conventions):
+#   AF (acre-feet/yr)           : individual farm diversions, requests, water_right_af, beneficial_use_limit_af
+#   MAF (million acre-feet/yr)  : basin/reservoir storages and flows (1 MAF = 1,000,000 AF)
+#   Elevation [ft msl]          : Lake Powell / Lake Mead water surface elevation in feet
+#   supply_keep_request_af      : [AF] farm request if keeping previous year's request unchanged
+#   supply_expected_at_keep_af  : [AF] expected physical delivery at keep_request under current supply
+#   supply_ratio / full_supply_ratio : [ratio, >=0] expected delivery / request ratio tracked by TR/supply rules
+#   at_beneficial_use_limit     : [bool] whether current request is already at agent's diversion ceiling
+# Prompt & parsed cognitive-appraisal constructs (scale: VL | L | M | H | VH):
+#   WSA_LABEL (water_scarcity_assessment)    : [VL|L|M|H|VH] perceived basin/local water scarcity
+#   ACA_LABEL (adaptive_capacity_assessment) : [VL|L|M|H|VH] perceived capacity to adjust demand
+#   decision                                 : [choice, 1..3] 1=increase_demand, 2=maintain_demand, 3=decrease_demand
+# Note: Inline "Spec item ..." / "WP..." notes below are paper-reproduction provenance.
+#
 # =============================================================================
 # IRRIGATION ABM — AGENT TYPES CONFIGURATION
 # =============================================================================
