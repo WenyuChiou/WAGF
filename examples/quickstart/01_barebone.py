@@ -7,8 +7,7 @@ Demonstrates the core WAGF workflow:
 No Ollama required (uses mock LLM).
 
 Usage:
-  python 01_barebone.py
-  python 01_barebone.py --output results/rerun   # re-run without clearing
+  python examples/quickstart/01_barebone.py --output .tmp/quickstart-barebone
 """
 import argparse
 import sys
@@ -65,13 +64,11 @@ class TinySimulation:
 
 # --- 3. Build experiment ---
 script_dir = Path(__file__).resolve().parent
-# A relative --output resolves against this script's own directory (not the
-# caller's cwd), mirroring scaffold_domain.py's generated-runner behavior --
-# see that module's docstring for the rationale.
+# Resolve relative --output against cwd (matching broker.run and case runners).
 if args.output:
     output_dir = Path(args.output)
     if not output_dir.is_absolute():
-        output_dir = script_dir / output_dir
+        output_dir = (Path.cwd() / output_dir).resolve()
 else:
     output_dir = script_dir / "results"
 

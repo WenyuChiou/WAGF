@@ -13,7 +13,7 @@ The pre-existing `01_barebone.py`, `02_governance.py`, `agent_types.yaml` and
 `skill_registry.yaml` remain here unchanged for compatibility. They are not the
 front-page teaching path.
 
-- `01_barebone.py` shows a minimal agent–broker–simulation loop with the built-in mock: run `python examples/quickstart/01_barebone.py --output ../../.tmp/quickstart-barebone` from the repository root.
-- `02_governance.py` shows a rule blocking repeated protection and a mock retry choosing `do_nothing`: run `python examples/quickstart/02_governance.py` from the repository root; it writes to `examples/quickstart/results/`, so delete `examples/quickstart/results/` first if an earlier run is there.
+- `01_barebone.py` shows a minimal agent–broker–simulation loop with the built-in mock: run `python examples/quickstart/01_barebone.py --output .tmp/quickstart-barebone` from the repository root.
+- `02_governance.py` shows a rule blocking repeated protection and a mock retry choosing `do_nothing`: run `python examples/quickstart/02_governance.py --output .tmp/quickstart-gov` from the repository root (pass a fresh `--output` directory for each run).
 
 Read the [quickstart guide](../../docs/guides/quickstart_guide.md) for the underlying API.

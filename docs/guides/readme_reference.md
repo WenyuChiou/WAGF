@@ -4,13 +4,26 @@ Setup, rule semantics and reproducibility details for water-modelling studies. S
 
 ## Check your Python setup
 
-Use the same Python interpreter for installation and runs. On macOS/Linux,
-`python3` may be the available command; use it consistently in place of `python`.
+Use a clean virtual environment on **Python 3.10–3.12** (the tested CI matrix) so optional third-party packages in a global environment do not conflict or emit compatibility warnings. Use the same Python interpreter for installation and runs (on macOS/Linux, `python3` may be the available command).
 After the [quickstart installation](../../README.md#quickstart), check the imports:
 
 ```bash
+python -m venv .venv
+# Activate .venv, then:
+python -m pip install -e ".[analysis]"
 python -c "import broker; from broker.core.experiment import ExperimentBuilder; print('WAGF imports OK')"
 ```
+
+## Entry points: `broker.run` vs. paper runners
+
+New cases use `python -m broker.run CONFIG`. Existing benchmark runners retain their own CLI flags and memory/reflection wiring to preserve paper reproducibility:
+
+| Entry point | Use case | Governance flag | Default `--model` | External data |
+|---|---|---|---|---|
+| `python -m broker.run CONFIG` | New domains, scaffolded cases, `reservoir_control` | `--governance PROFILE` | `mock` | None |
+| `python examples/single_agent/run_flood.py` | Single-agent flood benchmark | `--governance-mode {strict,relaxed,disabled,strict_no_etb,grounded_v1}` | `llama3.2:3b` | Tracked (`flood_years.csv`) |
+| `python examples/irrigation_abm/run_experiment.py` | Colorado River irrigation ABM | `--governance-mode` (`strict` default) | `gemma3:1b` | Synthetic: none; `--real`: CRSS bundle (`DATA.md`) |
+| `python examples/multi_agent/flood/run_unified_experiment.py` | Multi-agent flood benchmark | `--disable-governance` flag | `gpt-oss:latest` | Tracked under `examples/multi_agent/flood/` |
 
 ## Core concepts
 

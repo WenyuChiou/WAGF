@@ -8,19 +8,26 @@ LLM-driven reproduction of the Colorado River Basin irrigation ABM from Hung & Y
 
 ## 1. Quick Start
 
+Run commands from the **repository root** and choose a fresh `--output` directory for each run:
+
 ```bash
-# Smoke test (5 synthetic agents, 5 years)
-python run_experiment.py --model gemma3:4b --years 5 --agents 5
+# Zero-setup mock smoke check (2 synthetic agents, 2 years; no Ollama or CRSS data needed)
+python examples/irrigation_abm/run_experiment.py --model mock --years 2 --agents 2 --workers 1 --seed 42 --governance-mode strict --coupling --output .tmp/irrigation-smoke
+
+# Real local-model smoke test (requires Ollama + `ollama pull gemma3:4b`; synthetic agents)
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --years 5 --agents 5 --output .tmp/irrigation-ollama
 
 # Validation (10 synthetic agents, 10 years)
-python run_experiment.py --model gemma3:4b --years 10 --agents 10 --seed 42
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --years 10 --agents 10 --seed 42 --output .tmp/irrigation-val
 
 # Real agents (78 CRSS agents) need the CRSS bundle in ref/CRSS_DB, which is not
 # distributed with the repository (see DATA.md). The paper's runs also pass a
 # --config-dir and other flags: use the recipe in reproduction/recipes/irrigation.md
 # instead of retyping them. Generic form:
-python run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx 8192 --num-predict 4096
+python examples/irrigation_abm/run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx 8192 --num-predict 4096 --output .tmp/irrigation-real
 ```
+
+Note: `run_*.bat` / `check_e4b_status.bat` in this folder are archival Windows batch launchers for paper runs. To build a **new domain**, use `python -m broker.run CONFIG` (see [HOW_TO_ADD_A_NEW_DOMAIN.md](../../docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
 
 ### Key CLI Flags
 

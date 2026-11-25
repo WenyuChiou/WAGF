@@ -10,8 +10,9 @@ Demonstrates how governance rules validate LLM decisions:
 No Ollama required (uses mock LLM with state-aware responses).
 
 Usage:
-  python 02_governance.py
+  python examples/quickstart/02_governance.py --output .tmp/quickstart-gov
 """
+import argparse
 import sys
 from pathlib import Path
 
@@ -23,6 +24,16 @@ from broker.components.memory.engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from broker.agents import BaseAgent, AgentConfig
 from broker.agents.base import StateParam, Skill
+
+# --- 0. CLI args ---
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "--output",
+    default=None,
+    help="Results directory (default: examples/quickstart/results). Pass a fresh "
+         "directory (e.g. .tmp/quickstart-gov) to re-run without removing old outputs.",
+)
+args = parser.parse_args()
 
 # --- 1. Agent with "protected" and "wealth" state ---
 agent_cfg = AgentConfig(
@@ -81,6 +92,12 @@ def mock_llm(prompt: str) -> str:
 
 # --- 4. Build and run ---
 script_dir = Path(__file__).resolve().parent
+if args.output:
+    output_dir = Path(args.output)
+    if not output_dir.is_absolute():
+        output_dir = (Path.cwd() / output_dir).resolve()
+else:
+    output_dir = script_dir / "results"
 
 sim = GovernanceDemo(agents)
 runner = (
@@ -92,7 +109,7 @@ runner = (
     .with_skill_registry(str(script_dir / "skill_registry.yaml"))
     .with_memory_engine(WindowMemoryEngine(window_size=3))
     .with_governance("strict", str(script_dir / "agent_types.yaml"))
-    .with_exact_output(str(script_dir / "results"))
+    .with_exact_output(str(output_dir))
     .with_workers(1)
     .with_seed(42)
 ).build()
