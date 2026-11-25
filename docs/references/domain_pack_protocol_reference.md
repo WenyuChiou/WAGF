@@ -46,8 +46,8 @@ Legend:
 | 13 | `extreme_actions()` | Skill | `set()` | SHOULD | ThinkingValidator extreme-actions guard |
 | 14 | `action_taxonomy()` | Skill | `{}` | SHOULD | skill categorization in audit + analytics |
 | 15 | `affordability_constraints()` | Skill | `{}` | MAY | financial validators |
-| 16 | `event_handlers()` | Event | `{}` | SHOULD (multi-agent) | `broker/components/events/ma_manager.py:275` |
-| 17 | `agent_impact_handlers()` | Event | `{}` | SHOULD (multi-agent) | `ma_manager.py:330` (per-agent impact) |
+| 16 | `event_handlers()` | Event | `{}` | SHOULD (multi-agent) | `MAEventManager` (removed 2026-09) |
+| 17 | `agent_impact_handlers()` | Event | `{}` | SHOULD (multi-agent) | `MAEventManager` (removed 2026-09; per-agent impact) |
 | 18 | `perception_descriptors()` | Perception | `{}` | SHOULD | `broker/components/social/perception.py` |
 | 19 | `perception_field_policy()` | Perception | `{}` | MAY | perception field stripping |
 | 20 | `passthrough_agent_types()` | Perception | `set()` | MAY | raw-numeric perception bypass |
@@ -60,7 +60,7 @@ Legend:
 | 27 | `bridge_importance_policy()` | Governance | `{}` | MAY | MemoryBridge resolution importance |
 | 28 | `csv_loader_class()` | Setup | `None` | MAY | `broker/core/agent_initializer.py` CSV loader dispatch |
 | 29 | `synthetic_loader_class()` | Setup | `None` | MAY | synthetic agent generator dispatch |
-| 30 | `phase_layout()` | Setup | `None` | MAY (multi-agent) | `broker/components/orchestration/phases.py` |
+| 30 | `phase_layout()` | Setup | `None` | MAY (multi-agent) | `PhaseOrchestrator` (removed 2026-09) |
 | 31 | `initial_memory_templates(profile)` | Setup | `[]` | MAY | initial-memory seeding |
 | 32 | `mg_barrier_text(profile)` | Setup | `""` | MAY | water-specific narrative |
 
@@ -76,7 +76,7 @@ sub-protocol classification. It lives on the composite `DomainPack` itself.
 | **ReflectionPack** | 4 (#2-5) | `broker/components/cognitive/reflection.py` |
 | **MemoryPack** | 6 (#6-11) | `broker/components/memory/{policy_classifier,initial_loader,universal}.py` |
 | **SkillPack** | 4 (#12-15) | `broker/core/experiment_runner.py` + validators |
-| **EventPack** | 2 (#16-17) | `broker/components/events/ma_manager.py` |
+| **EventPack** | 2 (#16-17) | `MAEventManager` (removed 2026-09) |
 | **PerceptionPack** | 3 (#18-20) | `broker/components/social/perception.py` |
 | **GovernancePack** | 7 (#21-27) | `broker/components/governance/*` + `broker/validators/*` |
 
@@ -87,7 +87,7 @@ sub-protocol classification. It lives on the composite `DomainPack` itself.
 > tuner like `retrieval_policy` / `drift_policy`. Phase 6R-D-1 may relocate it
 > to its own `FrameworkPack` (single-method) or keep it on GovernancePack —
 > decision deferred to the design pass.
-| **SetupPack** | 5 (#28-32) | `broker/core/agent_initializer.py`, `broker/components/orchestration/phases.py` |
+| **SetupPack** | 5 (#28-32) | `broker/core/agent_initializer.py`, `PhaseOrchestrator` (removed 2026-09) |
 
 **Consumer disjointness verdict**: per Agent 1's audit, each method appears in
 **exactly one** sub-protocol's consumer set — no method is read by two

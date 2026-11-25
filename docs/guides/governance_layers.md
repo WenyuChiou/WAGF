@@ -171,7 +171,7 @@ manifest's `retry_feedback_mode` field.
 Irrigation (`examples/irrigation_abm/run_experiment.py`) has the same
 `--retry-feedback-mode {full,placebo,silent}` flag as of 2026-09-27, replacing
 the earlier approach of pointing `--config-dir` at a full copy of `config/`
-with only the YAML line changed (`config_variants/silent_gemma3_4b/`, now
+with only the YAML line changed (the `silent_gemma3_4b` variant folder, now
 removed: a plain file copy silently drifts out of parity with `config/`
 every time the source changes, which is exactly what happened once already
 during the supply-side redesign). Omitting the flag leaves

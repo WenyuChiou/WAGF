@@ -57,7 +57,7 @@ sub-protocols, one per cohesive method group:
 | `ReflectionPack` | 4 | `broker/components/cognitive/reflection.py` |
 | `MemoryPack` | 6 | `broker/components/memory/*.py` |
 | `SkillPack` | 4 | `broker/core/experiment_runner.py` + validators |
-| `EventPack` | 2 | `broker/components/events/ma_manager.py` |
+| `EventPack` | 2 | multi-agent event dispatcher |
 | `PerceptionPack` | 3 | `broker/components/social/perception.py` |
 | `GovernancePack` | 8 | governance + validators + `validate_prompt` |
 | `SetupPack` | 5 | `broker/core/agent_initializer.py` + orchestration |
@@ -429,7 +429,7 @@ Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironme
 
 - ✗ Edit `broker/components/cognitive/reflection.py` — DomainPack handles it
 - ✗ Edit `broker/core/experiment_runner.py` — DomainPack handles it
-- ✗ Edit `broker/components/events/ma_manager.py` — DomainPack handles it
+- ✗ Edit the multi-agent event dispatcher — DomainPack handles it
 - ✗ Edit `broker/domains/water/validator_bundles.py` — registry handles it
 - ✗ Edit `broker/components/context/providers.py` — DomainPack handles it
 
@@ -441,7 +441,6 @@ Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironme
 - `broker/domains/default.py` — DefaultDomainPack no-op fallback
 - `broker/domains/registry.py` — DomainPackRegistry semantics (Phase 6R-D-3: typed accessors `get_<x>_pack`)
 - `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
-- `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
 - `examples/multi_agent/flood/` — Paper 3 multi-agent reference (production-grade)
 - `tests/test_multi_agent_coupling.py` — integration tests covering Findings #1 and #3
 - **`docs/references/domain_pack_protocol_reference.md`** (Phase 6R-A) — canonical per-method consumer-graph + MUST/SHOULD/MAY classification for all 32 DomainPack methods. Consult when planning your overrides.
