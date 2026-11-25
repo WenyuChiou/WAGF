@@ -76,10 +76,6 @@ ALLOWLIST_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         re.compile(r"^(?:JOH_[A-Za-z0-9_]*|_archive_[A-Za-z0-9_.-]*)/$|^examples/(?:single_agent|irrigation_abm)/results/"),
         "Gitignored paper experiment output and archived run directories.",
     ),
-    (
-        re.compile(r"^code/chapter8/"),
-        "External Hello-Agents book code folder cited in docs/references/Chapter8-Memory-and-Retrieval.md.",
-    ),
 )
 
 
