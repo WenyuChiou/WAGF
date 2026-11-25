@@ -11,12 +11,12 @@ Key simulation constants (defined below):
     GRANT_PROBABILITY (0.5)            Annual elevation-grant availability probability per year
     RANDOM_MEMORY_RECALL_CHANCE (0.2)  Probability of recalling a historical PAST_EVENTS line
     MAX_FLOOD_EVENT_LINES_PER_YEAR (5) Max event lines written to memory per simulated year
-    flood_threshold (m, [0.001..1.0+])  Per-household physical depth threshold triggering flood damage
+    flood_threshold ([0, 1], prob)     Dimensionless conditional damage probability given a basin flood (damage if Uniform(0,1) < flood_threshold; reduced 5x on elevation)
 
 Primary inputs (relative to this directory or --config-root / --initial-agents):
     agent_types.yaml                  Agent config, PMT construct regexes, memory/governance settings
     skill_registry.yaml               Available household actions (buy_insurance, elevate_house, relocate, do_nothing)
-    agent_initial_profiles.csv        Default initial household demographics and flood_threshold [m]
+    agent_initial_profiles.csv        Default initial household demographics and conditional damage probability flood_threshold ([0, 1])
     flood_years.csv                   Deterministic 1-based flood year indices when --flood-mode=fixed
 
 Primary outputs (written under --output or examples/single_agent/results/):

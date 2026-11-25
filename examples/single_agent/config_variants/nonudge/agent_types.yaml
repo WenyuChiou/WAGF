@@ -6,7 +6,7 @@
 #   relocated            : [bool] true once household relocates out of the floodplain (terminal)
 #   trust_in_insurance   : [float, 0..1] trust score in the flood insurer
 #   trust_in_neighbors   : [float, 0..1] trust score in neighbors' risk judgment
-#   flood_threshold      : [m, >0] house flood depth threshold above which flood damage occurs
+#   flood_threshold      : [float, 0..1] conditional flood damage probability when a basin flood occurs (damage if Uniform(0,1) < flood_threshold; larger = higher risk)
 #   income_level / savings: [$] household economic state used in financial/affordability checks
 # Prompt & parsed PMT constructs (scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High):
 #   TP_LABEL (threat_appraisal) : [VL|L|M|H|VH] perceived flood threat severity/vulnerability

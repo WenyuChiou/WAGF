@@ -45,7 +45,7 @@ Edit these only after the three files above make sense:
 | `trust_in_insurance` | float `[0, 1]` | Initial trust in the flood insurer |
 | `trust_in_neighbors` | float `[0, 1]` | Initial trust in neighbors' judgment |
 | `memory` | pipe-delimited string | Initial historical memory sentences (` \| ` separated) |
-| `flood_threshold` | float `> 0` (m) | Flood depth threshold above which house damage occurs |
+| `flood_threshold` | float `[0, 1]` (dimensionless probability) | Conditional damage probability given a basin flood (`damage_draw < flood_threshold` in `FinalParityHook.pre_year`; higher values cause more frequent damage, and house elevation scales it by `0.2` down to a `0.001` floor) |
 
 ### `../flood_years.csv`
 
