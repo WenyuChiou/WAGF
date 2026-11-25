@@ -281,6 +281,8 @@ Command-line overrides: `--model`, `--years`, `--agents`, `--seed`, `--output`, 
 
 **Multi-agent cases.** Only `phase_order` comes from the YAML. A social graph and other memory engines still need the case's own runner, as the paper runners have.
 
+**Provenance.** The manifest's `run_environment` records the WAGF version, the versions of its dependencies, the operating system, the Ollama server version (Ollama models only), and the WAGF source commit when WAGF is a git checkout. `broker.run` also records four checks in `broker_run.json`: a clean git tree (both the current directory's tree and the WAGF source tree), a model digest, the metadata lookups, and the manifest write. Add `--strict-provenance` to turn a failed check into a refusal. A dirty tree, a missing digest or a failed metadata lookup stops the run before it starts (exit 2). A failed manifest write is reported after the run (exit 1). Mock and cloud models have no digest, so that check is marked not applicable; the other three still apply. The git checks read the working tree of the current directory, so run from inside a git checkout. To share a run, use `python reproduction/check_share.py --stage <dest> <output folder>`.
+
 ### Pre-flight check before first run (Phase 6C-v4 cycle 3, 2026-05-10)
 
 Before running your first experiment, run the static validator to catch the 6 BLOCKERs at config time:

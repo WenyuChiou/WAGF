@@ -776,6 +776,9 @@ class TestModelDigestSkipsMockAndUsesOllamaHost:
              patch(
                  "broker.utils.llm_utils.capture_ollama_modelfile_defaults",
                  return_value=(None, "stubbed for this test"),
+             ), patch(
+                 "broker.utils.run_environment.ollama_server_version",
+                 return_value={"version": None, "error": "stubbed for this test"},
              ):
             metadata = runner._collect_reproducibility_metadata()
 
@@ -797,6 +800,9 @@ class TestModelDigestSkipsMockAndUsesOllamaHost:
              patch(
                  "broker.utils.llm_utils.capture_ollama_modelfile_defaults",
                  return_value=(None, "stubbed for this test"),
+             ), patch(
+                 "broker.utils.run_environment.ollama_server_version",
+                 return_value={"version": None, "error": "stubbed for this test"},
              ):
             metadata = runner._collect_reproducibility_metadata()
 

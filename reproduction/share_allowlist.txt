@@ -10,6 +10,8 @@
 # scripts read. Run records, configuration, and per-decision audit tables only.
 
 reproducibility_manifest.json
+# broker.run's record of how the case was built (slots, flags, argv); --stage blanks its absolute paths.
+broker_run.json
 run_integrity.json
 config_snapshot.yaml
 resolved_agent_types.yaml
