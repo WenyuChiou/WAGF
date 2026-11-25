@@ -346,7 +346,7 @@ When the broker receives a skill proposal from an agent, it checks
 that skill's `eligible_agent_types`. This acts as a first-pass type-safety check.
 
 For more details on skill configuration, see the
-[Customization Guide](customization_guide_en.md), Section 5.
+[Customization Guide](customization_guide.md), Section 5.
 
 ---
 
@@ -1114,7 +1114,7 @@ def basin_physical_validator(proposal, context, skill_registry=None):
 builder.with_custom_validators([basin_physical_validator])
 ```
 
-See the [Customization Guide](customization_guide_en.md), Section 1 for the
+See the [Customization Guide](customization_guide.md), Section 1 for the
 full validator signature and registration pattern.
 
 ---
@@ -1222,7 +1222,7 @@ When debugging a multi-agent experiment, check these items in order:
 
 - [Advanced Patterns Guide](advanced_patterns.md) — State hierarchy, two-way coupling, per-type LLM config
 - [Quickstart Guide](quickstart_guide.md) — Tiers 1-2 fundamentals
-- [Customization Guide](customization_guide_en.md) — Custom validators, memory engines, prompts
+- [Customization Guide](customization_guide.md) — Custom validators, memory engines, prompts
 - [Troubleshooting Guide](troubleshooting_guide.md) — Full error catalog with solutions
 - [Experiment Design Guide](experiment_design_guide.md) — End-to-end design process
 

@@ -1,14 +1,16 @@
-# 自定義指南 — Water Agent Governance Framework
+# Customization Guide - Water Agent Governance Framework
 
-## 概述
+[中文](customization_guide_zh.md)
 
-本指南說明如何自定義框架的各個組件以適應新的領域。所有範例同時展示洪水適應（PMT）與灌溉需求（雙評估）兩個領域的配置模式。
+## Overview
+
+This guide explains how to customize each WAGF component for a new domain. All examples illustrate patterns from both flood adaptation (PMT) and irrigation demand (Cognitive Appraisal Theory) domains.
 
 ---
 
-## 1. 自定義驗證器 (Validators)
+## 1. Custom Validators
 
-每個檢查函數遵循 `BuiltinCheck` 可調用簽名：`(skill_name, rules, context) -> List[ValidationResult]`：
+Each check function follows the `BuiltinCheck` callable signature: `(skill_name, rules, context) -> List[ValidationResult]`:
 
 ```python
 from typing import List, Dict, Any
@@ -20,39 +22,39 @@ def my_physical_check(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """物理約束檢查 — 超出容量時阻止增加。"""
+    """Physical constraint check - block increase when at capacity."""
     if skill_name != "increase_demand":
         return []
     if not context.get("at_cap", False):
         return []
     return [ValidationResult(
-        valid=False,                  # ERROR = 阻止並重試
+        valid=False,                  # ERROR = block and retry
         validator_name="DomainPhysicalValidator",
-        errors=["已達到最大容量，無法增加需求。"],
+        errors=["At maximum capacity - cannot increase demand."],
         warnings=[],
         metadata={"rule_id": "capacity_cap_check", "level": "ERROR"},
     )]
 ```
 
-驗證器分為五大類別：
+Validators fall into five categories:
 
-| 類別 | 用途 | 範例 |
-|------|------|------|
-| **Physical** | 物理狀態約束 | 不能重複高架房屋、不能超過水權上限 |
-| **Personal** | 個人資源約束 | 儲蓄不足以支付高架費用 |
-| **Social** | 社區規範檢查 | 鄰居多數已適應但代理未行動 |
-| **Semantic** | 推理一致性 | 引用不存在的鄰居、引用未發生的事件 |
-| **Thinking** | 評估-行動一致性 | YAML 規則驅動（見 agent_types.yaml） |
+| Category | Purpose | Example |
+|----------|---------|---------|
+| **Physical** | Physical state constraints | Cannot re-elevate a house; cannot exceed water right cap |
+| **Personal** | Individual resource constraints | Savings insufficient for elevation cost |
+| **Social** | Community norm checks | Most neighbors adapted but agent has not |
+| **Semantic** | Reasoning consistency | Cites a nonexistent neighbor; references an event that didn't happen |
+| **Thinking** | Appraisal-action coherence | YAML rule-driven (see agent_types.yaml) |
 
-### 註冊驗證器
+### Registering Validators
 
-聚合所有檢查函數並使用橋接函數連接到 `ExperimentBuilder`：
+Aggregate all check functions and connect them to `ExperimentBuilder` via a bridge function:
 
 ```python
 ALL_CHECKS = [my_physical_check, my_social_check, my_semantic_check]
 
 def my_domain_validator(proposal, context, skill_registry=None):
-    """橋接領域檢查到 SkillBrokerEngine custom_validators。"""
+    """Bridge domain checks to SkillBrokerEngine custom_validators."""
     skill_name = getattr(proposal, "skill_name", str(proposal))
     results = []
     for check in ALL_CHECKS:
@@ -60,7 +62,7 @@ def my_domain_validator(proposal, context, skill_registry=None):
     return results
 ```
 
-在 `ExperimentBuilder` 中注入：
+Inject into `ExperimentBuilder`:
 
 ```python
 builder.with_custom_validators([my_domain_validator])
@@ -68,9 +70,9 @@ builder.with_custom_validators([my_domain_validator])
 
 ---
 
-## 2. 自定義回應格式 (Response Format)
+## 2. Custom Response Format
 
-在 `agent_types.yaml` 的 `shared.response_format.fields` 中定義 LLM 輸出欄位：
+Define LLM output fields in `agent_types.yaml` under `shared.response_format.fields`:
 
 ```yaml
 shared:
@@ -84,31 +86,34 @@ shared:
           type: "appraisal",
           required: true,
           construct: "THREAT_LABEL",
-          reason_hint: "一句話說明威脅程度。"
+          reason_hint: "One sentence explaining the threat level."
         }
       - { key: "decision", type: "choice", required: true }
-      # 可選：數值型態欄位
+      # Optional: numeric field
       - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false }
 ```
 
-**欄位型態**：
-- `text`：自由文字（推理分析）
-- `appraisal`：JSON 物件 `{LABEL: "VL"..."VH", REASON: "..."}`
-- `choice`：整數技能 ID
-- `numeric`：有界數值（如百分比幅度）
+**Field types**:
+
+| Type | Description | Output Format |
+|------|-------------|---------------|
+| `text` | Free-text reasoning | String |
+| `appraisal` | JSON object with label + reason | `{"LABEL": "VL"..."VH", "REASON": "..."}` |
+| `choice` | Integer skill ID (maps to skill_registry order) | Integer |
+| `numeric` | Bounded numeric value (e.g., magnitude percentage) | Number |
 
 ---
 
-## 3. 自定義記憶引擎 (Memory Engine)
+## 3. Custom Memory Engine
 
-### WRR 驗證配置（HumanCentric 基本排名模式）
+### Production Configuration (HumanCentric weighted ranking mode)
 
 ```yaml
 your_agent_type:
   memory:
     engine_type: "human_centric"
-    window_size: 5                    # 短期記憶緩衝區
-    top_k_significant: 2             # 按衰減重要性排名的頂部記憶
+    window_size: 5                    # Short-term memory buffer
+    top_k_significant: 2             # Top memories by decayed importance
 
     emotion_keywords:
       crisis: ["drought", "shortage", "flood", "damage"]
@@ -129,77 +134,107 @@ your_agent_type:
       community: ["basin", "community", "region"]
 ```
 
-**重要性計算**：`importance = emotional_weight * source_weight`
+**Importance calculation**: `importance = emotional_weight ? source_weight`
 
-**檢索模式**：基本排名模式結合最近 window（5 條最新記憶）與 top-k（2 條最高衰減重要性記憶）。
+**Retrieval mode**: Basic ranking combines the recent window (5 newest memories) with top-k (2 highest decayed-importance memories).
 
-### 可用引擎
+### Available Engines
 
-| 引擎 | 模式 | 適用情境 |
-|------|------|----------|
-| `HumanCentricMemoryEngine` | 基本排名 | **WRR 驗證**。推薦用於所有正式實驗。 |
-| `ImportanceMemoryEngine` | 加權評分 | 實驗性。使用 recency/importance/context 權重。 |
-| `WindowMemoryEngine` | FIFO | 基線。固定大小滑動窗口。 |
+| Engine | Mode | Use Case |
+|--------|------|----------|
+| `HumanCentricMemoryEngine` | Basic ranking | **Recommended** for all formal experiments |
+| `ImportanceMemoryEngine` | Weighted scoring | Experimental. Uses recency/importance/context weights |
+| `WindowMemoryEngine` | FIFO | Baseline. Fixed-size sliding window |
+
+### Registering a Custom Memory Engine
+
+With the `MemoryEngineRegistry`, you can add custom engines without modifying framework source code:
+
+```python
+from broker.components.memory_engine import MemoryEngine
+from broker.components.memory_registry import MemoryEngineRegistry
+
+class MyCustomMemoryEngine(MemoryEngine):
+    def __init__(self, window_size: int = 5, custom_param: float = 0.5, **kwargs):
+        self.window_size = window_size
+        self.custom_param = custom_param
+        self._memories = {}
+
+    def add_memory(self, agent_id: str, content: str, **kwargs):
+        if agent_id not in self._memories:
+            self._memories[agent_id] = []
+        self._memories[agent_id].append(content)
+
+    def get_memories(self, agent_id: str, **kwargs):
+        return self._memories.get(agent_id, [])[-self.window_size:]
+
+# Register before building experiment
+MemoryEngineRegistry.register("my_custom", MyCustomMemoryEngine)
+
+# Use in experiment
+from broker.components.memory_factory import create_memory_engine
+engine = create_memory_engine("my_custom", {"window_size": 10, "custom_param": 0.8})
+```
 
 ---
 
-## 4. 自定義反思引擎 (Reflection)
+## 4. Custom Reflection Engine
 
-### 配置反思引導問題
+### Configuring Reflection Guiding Questions
 
-在 `agent_types.yaml` 中定義領域特定的反思引導問題：
+Define domain-specific reflection questions in `agent_types.yaml`:
 
 ```yaml
 global_config:
   reflection:
-    interval: 1                      # 每年反思一次
-    batch_size: 10                   # 每批代理人數
-    importance_boost: 0.9            # 反思見解的重要性分數
+    interval: 1                      # Reflect every year
+    batch_size: 10                   # Agents per batch
+    importance_boost: 0.9            # Importance score for reflection insights
     method: hybrid
     questions:
-      - "你的策略在當前條件下是否有效？"
-      - "你的行動幅度與結果之間有什麼模式？"
-      - "你應該如何調整未來的做法？"
+      - "Is your strategy effective under current conditions?"
+      - "What patterns exist between your action magnitude and outcomes?"
+      - "How should you adjust your approach going forward?"
 ```
 
-### 行動-結果回饋
+### Action-Outcome Feedback
 
-每年代理人會收到結合記憶，將決策與結果連結：
+Each year, agents receive consolidated memories linking decisions to outcomes:
 
-> "第 5 年：你選擇了 decrease_demand 15%。結果：供水充足，利用率降至 65%。"
+> "Year 5: You chose decrease_demand 15%. Result: Water supply adequate, utilization dropped to 65%."
 
-這通過反思循環實現因果學習。
+This enables causal learning through the reflection loop.
 
 ---
 
-## 5. 自定義技能 (Skills)
+## 5. Custom Skills
 
-在 `skill_registry.yaml` 中定義新技能：
+Define new skills in `skill_registry.yaml`:
 
 ```yaml
 skills:
   - skill_id: your_new_skill
-    description: "技能描述（會顯示在 LLM 提示中）。"
+    description: "Skill description (shown in LLM prompt)."
     eligible_agent_types: ["your_agent_type"]
     preconditions:
-      - "not already_done"            # 布林狀態檢查
+      - "not already_done"            # Boolean state check
     institutional_constraints:
-      once_only: true                 # 僅可執行一次
+      once_only: true                 # Can only execute once
       cost_type: "one_time"
     allowed_state_changes:
-      - has_done_it                   # 此技能修改的代理屬性
+      - has_done_it                   # Agent attributes this skill modifies
     implementation_mapping: "env.execute_skill"
     conflicts_with: [conflicting_skill]
 ```
 
-**關鍵欄位**：
-- `preconditions`：控制技能是否可用（如 `"not elevated"` 表示尚未高架）
-- `institutional_constraints`：制度規則（如 `once_only`, `annual`, `max_magnitude_pct`）
-- `conflicts_with`：互斥技能（如 increase_demand 與 decrease_demand）
+**Key fields**:
+- `preconditions`: Control skill availability (e.g., `"not elevated"` = not yet elevated)
+- `institutional_constraints`: Institutional rules (e.g., `once_only`, `annual`, `max_magnitude_pct`)
+- `conflicts_with`: Mutually exclusive skills (e.g., increase_demand vs decrease_demand)
 
-### 幅度參數化（magnitude_pct）
+### Magnitude Parameterization (magnitude_pct)
 
-對於需要量化決策的技能（如灌溉需求變化百分比），在回應格式中添加 `numeric` 欄位：
+For skills requiring quantitative decisions (e.g., irrigation demand change percentage), add a `numeric` field to the response format:
 
 ```yaml
 # agent_types.yaml
@@ -210,27 +245,27 @@ fields:
 institutional_constraints:
   magnitude_type: "percentage"
   max_magnitude_pct: 30
-  magnitude_default: 10              # LLM 省略時的預設值
+  magnitude_default: 10              # Default when LLM omits the value
 ```
 
 ---
 
-## 6. 自定義治理規則 (Governance Rules)
+## 6. Custom Governance Rules
 
-### Thinking Rules（評估一致性）
+### Thinking Rules (Appraisal Coherence)
 
-基於 LLM 生成的構念標籤阻止不一致的行動：
+Block inconsistent actions based on LLM-generated construct labels:
 
 ```yaml
 thinking_rules:
   - id: my_rule_id
-    construct: THREAT_LABEL           # 單一構念
-    when_above: ["VH"]                # 觸發條件
-    blocked_skills: ["do_nothing"]    # 被阻止的技能
-    level: ERROR                      # ERROR = 阻止; WARNING = 記錄
-    message: "威脅極高時必須採取行動。"
+    construct: THREAT_LABEL           # Single construct
+    when_above: ["VH"]                # Trigger conditions
+    blocked_skills: ["do_nothing"]    # Skills to block
+    level: ERROR                      # ERROR = block; WARNING = log only
+    message: "Must take action when threat is very high."
 
-  # 多構念規則
+  # Multi-construct rule
   - id: multi_construct_rule
     conditions:
       - { construct: THREAT_LABEL, values: ["H", "VH"] }
@@ -239,63 +274,63 @@ thinking_rules:
     level: WARNING
 ```
 
-### Identity Rules（狀態約束）
+### Identity Rules (State Constraints)
 
-基於代理物理狀態阻止不可能的行動：
+Block impossible actions based on agent physical state:
 
 ```yaml
 identity_rules:
   - id: physical_block
-    precondition: already_done        # 布林狀態欄位
+    precondition: already_done        # Boolean state field
     blocked_skills: ["that_action"]
     level: ERROR
-    message: "物理上不可能重複此行動。"
+    message: "Physically impossible to repeat this action."
 ```
 
-### 規則評估順序
+### Rule Evaluation Order
 
-```
-1. Identity Rules    → 物理狀態約束（總是最先評估）
-2. Thinking Rules    → 評估一致性（按 YAML 順序）
-3. Domain Validators → 自定義檢查（物理、社會、語義）
+```text
+1. Identity Rules    - Physical state constraints (always evaluated first)
+2. Thinking Rules    - Appraisal coherence (in YAML order)
+3. Domain Validators - Custom checks (physical, social, semantic)
 ```
 
-第一個 ERROR 級別違規終止評估並觸發重新提示（最多 3 次治理重試）。
+The first ERROR-level violation stops evaluation and triggers a re-prompt (up to 3 governance retries).
 
 ---
 
-## 7. 自定義提示模板 (Prompt Templates)
+## 7. Custom Prompt Templates
 
-在 `config/prompts/` 目錄中創建模板文件：
+Create template files in the `config/prompts/` directory:
 
 ```text
 You are {persona_narrative}.
 
-=== 當前情況 (第 {year} 年) ===
+=== Current Situation (Year {year}) ===
 {situation_context}
 
-=== 你的近期記憶 ===
+=== Your Recent Memories ===
 {memory_text}
 
-=== 可用行動 ===
+=== Available Actions ===
 {skills_text}
 
-=== 你的任務 ===
-以以下格式回應：
+=== Your Task ===
+Respond in the following format:
 <<<DECISION_START>>>
-reasoning: [你的分析]
+reasoning: [your analysis]
 threat_assessment: {"THREAT_LABEL": "...", "THREAT_REASON": "..."}
-decision: [數字]
+decision: [number]
 <<<DECISION_END>>>
 ```
 
-`TieredContextBuilder` 在運行時填充佔位符。
+`TieredContextBuilder` fills placeholders at runtime.
 
 ---
 
-## 8. 自定義環境 (Simulation Environment)
+## 8. Custom Environment (Simulation Engine)
 
-環境管理物理狀態並執行已批准的技能：
+The environment manages physical state and executes approved skills:
 
 ```python
 class YourEnvironment:
@@ -304,12 +339,12 @@ class YourEnvironment:
         self.year = 0
 
     def advance_year(self):
-        """更新環境狀態。"""
+        """Update environment state."""
         self.year += 1
-        # 生成隨機事件、更新條件等
+        # Generate random events, update conditions, etc.
 
     def execute_skill(self, agent_id: str, skill_name: str, parameters: dict):
-        """執行已批准的技能。"""
+        """Execute an approved skill."""
         agent = self.agents[agent_id]
         if skill_name == "increase_demand":
             magnitude = parameters.get("magnitude_pct", 10) / 100
@@ -320,13 +355,13 @@ class YourEnvironment:
 
 ---
 
-## 9. 生命週期掛鈎 (Lifecycle Hooks)
+## 9. Lifecycle Hooks
 
-| 掛鈎 | 時機 | 用途 |
-|------|------|------|
-| `pre_year` | 每年開始前 | 注入記憶、更新上下文、同步狀態標誌 |
-| `post_step` | 每個代理決策後 | 記錄決策到模擬日誌 |
-| `post_year` | 每年結束後 | 觸發反思、保存輸出文件 |
+| Hook | Timing | Use Cases |
+|------|--------|-----------|
+| `pre_year` | Before each year | Inject memories, update context, synchronize state flags |
+| `post_step` | After each agent decision | Log decisions to simulation records |
+| `post_year` | After each year ends | Trigger reflection, save output files |
 
 ```python
 runner.hooks = {
@@ -338,11 +373,68 @@ runner.hooks = {
 
 ---
 
-## 10. 參考實現
+## 10. Common Customization Recipes
 
-| 實驗 | 理論 | 配置目錄 |
-|------|------|----------|
-| 洪水適應 | PMT (Rogers, 1983) | `examples/governed_flood/config/` |
-| 灌溉 ABM | 雙評估 (Hung & Yang, 2021) | `examples/irrigation_abm/config/` |
+### Recipe 1: Add a New Skill (5 steps)
 
-詳見 [實驗設計指南](experiment_design_guide.md) 了解完整的建構流程。
+1. Define the skill in `skill_registry.yaml` (see Section 5)
+2. Add the skill's state field to your agent's `state_params`
+3. Update the prompt template to list the new action
+4. Implement `execute_skill()` handling in your environment
+5. Test: run 1 agent, 1 year - verify skill appears in audit trace
+
+### Recipe 2: Add a Governance Rule (3 steps)
+
+1. Add the rule to `agent_types.yaml` under `governance.strict.thinking_rules`
+2. Choose severity: `ERROR` (blocks action) or `WARNING` (logs only)
+3. Test: create a scenario where the rule should trigger - verify in audit trace
+
+### Recipe 3: Switch Memory Engines (2 steps)
+
+1. Change `engine_type` in your agent type's `memory` config
+2. Adjust engine-specific parameters (window_size, emotion_keywords, etc.)
+
+### Recipe 4: Add a Domain Validator (4 steps)
+
+1. Write a check function following the `BuiltinCheck` signature (see Section 1)
+2. Create a bridge function that aggregates your checks
+3. Register via `builder.with_custom_validators([bridge_fn])`
+4. Test: create a scenario where validation should fail - verify ERROR in audit trace
+
+---
+
+## 11. Testing Your Customization
+
+### Smoke Test (1 agent, 1 year, mock LLM)
+
+```bash
+python examples/quickstart/01_barebone.py
+```
+
+Verify: experiment completes, audit CSV generated.
+
+### Validation Test (5 agents, 3 years, real LLM)
+
+```bash
+python your_experiment/run.py --model gemma3:4b --years 3 --agents 5 --verbose
+```
+
+Verify: governance rules trigger, retries work, final decisions are plausible.
+
+### Profile Test (governance coverage)
+
+Check the `governance_summary.json` output for:
+- `approved_rate` > 0 (governance is not blocking everything)
+- `retry_rate` < 50% (rules are not too restrictive)
+- All agent types appear in the audit trace
+
+---
+
+## 12. Reference Implementations
+
+| Experiment | Theory | Config Directory |
+|-----------|--------|-----------------|
+| Flood Adaptation | PMT (Rogers, 1983) | `examples/single_agent/` or `examples/governed_flood/config/` |
+| Irrigation ABM | Cognitive Appraisal Theory (Hung & Yang, 2021) | `examples/irrigation_abm/config/` |
+
+See the [Experiment Design Guide](experiment_design_guide.md) for the full build process and the [YAML Configuration Reference](../references/yaml_configuration_reference.md) for field-by-field documentation.

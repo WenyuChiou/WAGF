@@ -72,26 +72,26 @@ The framework separates concerns into three distinct layers with strict data flo
 ## Information Flow (6 Steps)
 
 ```
-┌─────────┬─────────────┼──────────────────────────┼─────────────────────────┐
-│  STEP   │  LAYER      │  ACTION                  │  REPO COMPONENT         │
-├─────────┼─────────────┼──────────────────────────┼─────────────────────────┤
-│   ①    │  Broker     │  Build bounded context   │  broker/context_builder │
-│         │             │  (READ-ONLY tiered signals)│  broker/interaction_hub │
-├─────────┼─────────────┼──────────────────────────┼─────────────────────────┤
-│   ②    │  LLM        │  Generate reasoning      │  examples/.../prompts.py│
-│         │             │  and Proposed Skill      │  broker/utils/model_adapter.py│
-├─────────┼─────────────┼──────────────────────────┼─────────────────────────┤
-│   ③    │  Broker     │  Validate output         │  broker/core/validator.py│
-│         │             │  (schema, policy, theory)│  examples/.../rules.yaml│
-├─────────┼─────────────┼──────────────────────────┼─────────────────────────┤
-│   ④    │  Broker     │  Create action request   │  broker/types.py        │
-│         │             │  (Intent ONLY)          │                          │
-├─────────┼─────────────┼──────────────────────────┼─────────────────────────┤
-│   ⑤    │  Engine     │  Check admissibility     │  simulation/engine.py   │
-├─────────┼─────────────┼──────────────────────────┼─────────────────────────┤
-│   ⑥    │  Engine     │  Execute & update state  │  simulation/engine.py   │
-│         │             │  ⬅️ ONLY MUTATION POINT │                          │
-└─────────┴─────────────┴──────────────────────────┴─────────────────────────┘
+┌─────────┬─────────────┼──────────────────────────┼──────────────────────────────────────┐
+│  STEP   │  LAYER      │  ACTION                  │  REPO COMPONENT                      │
+├─────────┼─────────────┼──────────────────────────┼──────────────────────────────────────┤
+│   ①    │  Broker     │  Build bounded context   │  broker/components/context/          │
+│         │             │  (READ-ONLY tiered signals)│  broker/components/analytics/interaction.py │
+├─────────┼─────────────┼──────────────────────────┼──────────────────────────────────────┤
+│   ②    │  LLM        │  Generate reasoning      │  examples/.../config/prompts/*.txt   │
+│         │             │  and Proposed Skill      │  broker/utils/model_adapter.py       │
+├─────────┼─────────────┼──────────────────────────┼──────────────────────────────────────┤
+│   ③    │  Broker     │  Validate output         │  broker/validators/                  │
+│         │             │  (schema, policy, theory)│  examples/.../config/agent_types.yaml│
+├─────────┼─────────────┼──────────────────────────┼──────────────────────────────────────┤
+│   ④    │  Broker     │  Create action request   │  broker/interfaces/skill_types.py    │
+│         │             │  (Intent ONLY)          │                                      │
+├─────────┼─────────────┼──────────────────────────┼──────────────────────────────────────┤
+│   ⑤    │  Engine     │  Check admissibility     │  broker/core/skill_broker_engine.py  │
+├─────────┼─────────────┼──────────────────────────┼──────────────────────────────────────┤
+│   ⑥    │  Engine     │  Execute & update state  │  broker/core/skill_broker_engine.py  │
+│         │             │  ⬅️ ONLY MUTATION POINT │                                      │
+└─────────┴─────────────┴──────────────────────────┴──────────────────────────────────────┘
 ```
 
 ---
