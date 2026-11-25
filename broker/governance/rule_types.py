@@ -46,7 +46,7 @@ class ConditionType(str, Enum):
     CONSTRUCT = "construct"      # Behavioral construct label comparison (e.g., THREAT_LABEL, CAPACITY_LABEL)
     PRECONDITION = "precondition"  # Boolean state check (e.g., at_capacity, adopted_technology)
     EXPRESSION = "expression"    # Field/operator test on a world variable, or a free expression string:
-    #   {expression: "storage_now > 0.9 * capacity and proposed_magnitude < 100", scope: auto}
+    #   {expression: "storage_now > 0.9 * capacity and proposed_magnitude < 1", scope: auto}
     SOCIAL = "social"            # Social context check (e.g., adoption_rate > 0.5)
 
 
@@ -62,7 +62,7 @@ class RuleCondition:
     - social: {type: "social", field: "adoption_rate", operator: ">", values: [0.6]}
     - free expression (whole test in one string, over world variables and the
       proposed number): {expression: "storage_now > 0.9 * capacity and
-      proposed_magnitude < 100", scope: "auto"}. ``type`` is ``expression``;
+      proposed_magnitude < 1", scope: "auto"}. ``type`` is ``expression``;
       ``field``/``operator``/``values`` stay unset. See
       ``broker.governance.expression_condition``.
     """

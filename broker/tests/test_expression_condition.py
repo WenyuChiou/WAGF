@@ -33,6 +33,9 @@ from broker.validators.governance.thinking_validator import ThinkingValidator
 from examples.reservoir_control import ops_case
 
 OVERFLOW = "storage_now > 0.9 * capacity and proposed_magnitude < 100"
+# The same rule as written in examples/reservoir_control, whose action number is a
+# fraction of demand on [0, 1]. OVERFLOW above keeps its own scale for the unit tests.
+RESERVOIR_OVERFLOW = "storage_now > 0.9 * capacity and proposed_magnitude < 1"
 
 
 # ---------------------------------------------------------------------------
@@ -553,14 +556,14 @@ def test_real_reservoir_config_blocks_set_release_when_nearly_full():
         v = AgentValidator(config_path=str(path))
         cap = ToyMassBalanceReservoir.CAPACITY
         ctx = _context({"storage_now": 0.95 * cap, "capacity": cap},
-                       flat={"proposed_magnitude": 50})
+                       flat={"proposed_magnitude": 0.5})
         ctx["agent_type"] = "operator"
         res = v.validate("operator", "OPERATOR", "set_release", ctx["state"], None, {}, "",
                          full_validation_context=ctx)
         blocked = [r for r in res if r.metadata.get("rule_id") == "flood_control_overflow"]
         assert len(blocked) == 1 and not blocked[0].valid
         assert "flood control" in blocked[0].errors[0]
-        ctx["proposed_magnitude"] = 100
+        ctx["proposed_magnitude"] = 1.0
         res = v.validate("operator", "OPERATOR", "set_release", ctx["state"], None, {}, "",
                          full_validation_context=ctx)
         assert "flood_control_overflow" not in _ids(res)
@@ -648,9 +651,9 @@ def zero_divisor_run_args(tmp_path):
     shutil.copytree(ops_case.CONFIG_PATH.parent, cfg_dir)
     yml = cfg_dir / ops_case.CONFIG_PATH.name
     text = yml.read_text(encoding="utf-8")
-    assert OVERFLOW in text
+    assert RESERVOIR_OVERFLOW in text
     yml.write_text(text.replace(
-        OVERFLOW, "storage_now / (capacity - capacity) > 0.9 and proposed_magnitude < 100"),
+        RESERVOIR_OVERFLOW, "storage_now / (capacity - capacity) > 0.9 and proposed_magnitude < 1"),
         encoding="utf-8")
     module = ops_case.__name__
     return [

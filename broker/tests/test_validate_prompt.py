@@ -1050,8 +1050,8 @@ class TestCheckMagnitudeScale:
         assert validate_main([str(path)]) == 0          # a WARN alone does not fail
         assert validate_main([str(path), "--strict"]) == 1  # --strict makes it an ERROR
 
-    def test_shipped_examples_only_warn_where_allowed(self):
-        """Paper YAMLs stay clean. Reservoir is the one example on the 0-100 scale."""
+    def test_shipped_examples_raise_no_magnitude_warning(self):
+        """No shipped example YAML declares a magnitude field above 1."""
         import glob
 
         import yaml as _yaml
@@ -1059,10 +1059,6 @@ class TestCheckMagnitudeScale:
         offenders = []
         for p in glob.glob(str(root / "examples" / "**" / "*.yaml"), recursive=True):
             rel = Path(p).relative_to(root).as_posix()
-            # Remove this allowance when examples/reservoir_control moves to [0, 1]
-            # (the follow-up PR to R3).
-            if rel.startswith("examples/reservoir_control/"):
-                continue
             try:
                 cfg = _yaml.safe_load(open(p, encoding="utf-8"))
             except Exception:
@@ -1071,11 +1067,9 @@ class TestCheckMagnitudeScale:
                 offenders.extend(f"{rel}: {i.format()}" for i in check_magnitude_scale(cfg))
         assert not offenders, "\n".join(offenders)
 
-    def test_reservoir_is_the_single_allowed_warning(self):
+    def test_reservoir_magnitude_scale_has_no_warnings(self):
         import yaml as _yaml
         root = Path(__file__).resolve().parents[2]
         path = root / "examples" / "reservoir_control" / "config" / "reservoir_agent_types.yaml"
         cfg = _yaml.safe_load(path.read_text(encoding="utf-8"))
-        # Remove with the allowance above when reservoir moves to [0, 1].
-        assert all("max 100" in i.message for i in check_magnitude_scale(cfg))
-        assert check_magnitude_scale(cfg)
+        assert check_magnitude_scale(cfg) == []

@@ -24,8 +24,8 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true,
-          description: "REQUIRED number 0-100: monthly release as % of demand (digits only, e.g. 60)" }
+      - { key: "magnitude", type: "numeric", min: 0, max: 1, unit: "fraction", required: true,
+          description: "REQUIRED number from 0 to 1: monthly release as a fraction of demand (0.5 means half, e.g. 0.6)" }
       # Explicit description overrides the format builder's hardcoded
       # "1, 2, or 3" default (this menu has TWO actions; real-LLM e4b
       # finding 2026-06-10).
@@ -80,7 +80,7 @@ operator:
     - Capacity: {capacity} maf
 
     ### DECISION
-    Choose the monthly release as a percentage of demand from 0 to 100.
+    Choose the monthly release as a fraction of demand from 0 to 1.
 
     ### OPTIONS
     {options_text}
@@ -90,15 +90,15 @@ operator:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true,
-          description: "REQUIRED number 0-100: monthly release as % of demand (digits only, e.g. 60)" }
+      - { key: "magnitude", type: "numeric", min: 0, max: 1, unit: "fraction", required: true,
+          description: "REQUIRED number from 0 to 1: monthly release as a fraction of demand (0.5 means half, e.g. 0.6)" }
       - { key: "decision", type: "choice", required: true,
           description: "Numeric ID, choose ONE from: 1 (set_release) or 2 (maintain_release)" }
       - { key: "reasoning", type: "text", required: false }
   actions:
     - id: set_release
       aliases: ["1", "set_release", "set release", "release"]
-      description: "Set a monthly release target as a percentage of demand"
+      description: "Set a monthly release target as a fraction of demand (0 to 1)"
     - id: maintain_release
       aliases: ["2", "maintain_release", "maintain release", "maintain"]
       description: "Keep the previous monthly release target"
@@ -120,9 +120,9 @@ operator:
       thinking_rules:
         - id: flood_control_overflow
           conditions:
-            - expression: "storage_now > 0.9 * capacity and proposed_magnitude < 100"
+            - expression: "storage_now > 0.9 * capacity and proposed_magnitude < 1"
           blocked_skills: [set_release]
           level: ERROR
-          message: "set_release below 100% demand is invalid while storage is above 90% capacity; release at least demand for flood control."
+          message: "set_release below full demand (magnitude 1) is invalid while storage is above 90% capacity; release at least demand for flood control."
       documented_unconstrained_skills:
         - maintain_release

@@ -17,8 +17,11 @@ year's inflow forecast (rationale: `ops_modules.py` module docstring).
 - `ops_modules.py` — the toy solver and its bundle (`apply_forecast`, `inputs_for_skill`).
 - `ops_validators.py` — no checks any more; the dead-pool limit is a `feasibility:` bound in the contract.
 - `config/reservoir_agent_types.yaml`, `config/reservoir_skill_registry.yaml`. The
-  flood-control overflow limit (block `set_release` below 100% of demand while storage is
-  above 90% of capacity) is one `expression:` rule in the YAML, under the `strict` profile.
+  flood-control overflow limit (block `set_release` below full demand, magnitude 1, while
+  storage is above 90% of capacity) is one `expression:` rule in the YAML, under the
+  `strict` profile.
+- The operator's action number is the response field `magnitude`, a fraction of demand
+  from 0 to 1 (0.5 means half). `ops_modules.py` turns it into the release target.
 
 ## Run it
 
@@ -28,8 +31,8 @@ This is the first-run demo in the front-page [quickstart](../../README.md#quicks
 python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
-The mock operator asks for 100% of demand, the dead-pool rule blocks that in year 3,
-and the operator's retry at 50% is approved and executed. The run ends by printing
+The mock operator asks for all of demand (magnitude 1.0), the dead-pool rule blocks that
+in year 3, and the operator's retry at 0.5 (half of demand) is approved and executed. The run ends by printing
 the blocked attempt with its reason, the approved retry, the executed release target
 and the storage before and after. `--output` must be a new directory.
 

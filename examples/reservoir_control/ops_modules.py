@@ -6,7 +6,7 @@ decides for the COMING year. The dead-pool projection therefore combines the
 end-of-year storage just observed with NEXT year's inflow forecast
 (``inflow_forecast_for_year(year + 1)``).
 
-DESIGN arithmetic. Years 1-3 run under the default 100% release target
+DESIGN arithmetic. Years 1-3 run under the default release fraction of 1.0 (all of demand)
 (0.75 maf/month); year factors are (1.0, 0.7, 0.4, 0.4) — a two-year
 drought tail:
 
@@ -27,16 +27,16 @@ Per-decision what-if run (the contract's ``dead_pool_violation`` feasibility
 bound: ``storage_unclamped >= 6.0`` at every month of the coming year, on a copy
 of this model fed the forecast the operator saw):
 
-* Decision 1 (S=17.276, F2=7.35):  100% passes.
-* Decision 2 (S=13.682, F3=4.20):  100% passes.
-* Decision 3 (S=7.543,  F4=4.20):  100% -> storage_unclamped 5.434 at month 6
-  (2.102 at month 12) < 6.0 dead pool -> WALL fires (a release of about 53.6%
-  or less passes); the scripted retry at 50% ends the year at 6.362 maf and is
+* Decision 1 (S=17.276, F2=7.35):  1.0 passes.
+* Decision 2 (S=13.682, F3=4.20):  1.0 passes.
+* Decision 3 (S=7.543,  F4=4.20):  1.0 -> storage_unclamped 5.434 at month 6
+  (2.102 at month 12) < 6.0 dead pool -> WALL fires (a release fraction of about 0.536
+  or less passes); the scripted retry at 0.5 ends the year at 6.362 maf and is
   APPROVED — wall -> retry -> resolves.
 * Year 4 then runs at the curtailed 0.375 maf/month and ends at
   6.362 maf, above dead pool.
 * Decision 4 (S=6.362, F5=10.50 — the factor cycle wraps to wet):
-  100% passes (recovery year).
+  1.0 passes (recovery year).
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ INFLOW_PATTERN_MONTHLY = (
 # Two-year drought tail (review C1 redesign): the wall must fire from a
 # GENUINE forward forecast, so the drought continues into year 4 — at the
 # year-3 decision the coming year's forecast (0.4 x 10.5 = 4.2 maf) is what
-# makes a 100% release physically unsafe.
+# makes a release fraction of 1.0 physically unsafe.
 YEAR_FACTORS = (1.0, 0.7, 0.4, 0.4)
 
 
@@ -232,7 +232,7 @@ class ToyLinearEvapReservoir(ToyMassBalanceReservoir):
 
 
 class ReservoirOpsBundle(ContinuousBundle):
-    """Map governed percentage releases onto the solver setpoint input."""
+    """Map the governed release fraction (0 to 1) onto the solver setpoint input."""
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -241,10 +241,10 @@ class ReservoirOpsBundle(ContinuousBundle):
     def _release_target_for(self, approved_skill: Any) -> float:
         """The release target a skill asks for (no side effects)."""
         params = getattr(approved_skill, "parameters", None) or {}
-        pct = params.get("magnitude_pct")
-        if pct is None:
+        fraction = params.get("magnitude_pct")
+        if fraction is None:
             return self._last_release_target
-        return (float(pct) / 100.0) * ToyMassBalanceReservoir.DEMAND_M
+        return float(fraction) * ToyMassBalanceReservoir.DEMAND_M
 
     def inputs_for_skill(self, approved_skill: Any) -> Dict[str, float]:
         """magnitude_pct -> release_target; no magnitude -> the last target.

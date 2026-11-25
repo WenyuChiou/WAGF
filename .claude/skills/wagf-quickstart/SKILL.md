@@ -96,7 +96,7 @@ python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yam
 under `Block and repair in this run:`
 
 - `attempt 1  BLOCKED:` the dead-pool rule's reason (year 3);
-- `attempt 2  APPROVED:` the repaired answer (50% of demand);
+- `attempt 2  APPROVED:` the repaired answer (magnitude 0.5, half of demand);
 - `executed` the toy reservoir's release target before and after;
 - `effect` storage before and after, against the dead pool.
 

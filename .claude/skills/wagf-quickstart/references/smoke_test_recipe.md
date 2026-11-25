@@ -20,13 +20,14 @@ The run ends with a summary block:
 Block and repair in this run:
 Year 3, agent OPERATOR:
   attempt 1  BLOCKED: set_release (requested release_target=0.75) breaks dead_pool_violation: storage_unclamped >= 6.0 does not hold; the model projects storage_unclamped=5.43401 at sub-step 6 of 12 (copy projection).
-  attempt 2  APPROVED: set_release at 50% of demand
+  attempt 2  APPROVED: set_release at 0.5 of demand
   executed   toy reservoir release target: 0.750 -> 0.375 maf/month
   effect     storage 7.543 maf at year 3, 6.362 maf at year 4 (dead pool 6.000 maf)
 ```
 
-- The scripted operator asks for 100% of demand every year. In year 3 the
-  dead-pool rule blocks it, and the operator retries at 50%, which is approved.
+- The scripted operator asks for all of demand every year (magnitude 1.0, a
+  fraction from 0 to 1). In year 3 the dead-pool rule blocks it, and the
+  operator retries at 0.5 (half of demand), which is approved.
 - `operator_governance_audit.csv`: four rows, all `APPROVED`; the year 3 row has
   `retry_count` 1 and `failed_rules` `dead_pool_violation`.
 - `raw/operator_traces.jsonl`: the year 3 record keeps the block reason
