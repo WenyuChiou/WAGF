@@ -1,6 +1,6 @@
 # WAGF governance modes (per domain)
 
-New cases run via `python -m broker.run CONFIG --governance PROFILE` (`broker/run/_entry.py`); the shipped paper runners (`examples/single_agent/run_flood.py`, `examples/irrigation_abm/run_experiment.py`, `examples/multi_agent/flood/run_unified_experiment.py`) select modes via `--governance-mode`. The skill must NOT include a mode in the
+New cases run via `python -m broker.run CONFIG --governance PROFILE` (`broker/run/_entry.py`); the single-agent flood and irrigation paper runners (`examples/single_agent/run_flood.py`, `examples/irrigation_abm/run_experiment.py`) select modes via `--governance-mode`; the multi-agent flood runner (`examples/multi_agent/flood/run_unified_experiment.py`) has no `--governance-mode` and runs `strict` unless `--disable-governance` is given. The skill must NOT include a mode in the
 matrix that is not configured in the domain's `agent_types.yaml`.
 
 ## Single-agent flood (`examples/single_agent/`)
