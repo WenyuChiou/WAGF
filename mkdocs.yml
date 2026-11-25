@@ -1,8 +1,11 @@
 site_name: WAGF User Manual
 site_description: Water Agent Governance Framework documentation, tutorials, guides, and schema reference
+repo_url: https://github.com/WenyuChiou/WAGF
 docs_dir: docs
 site_dir: site
 use_directory_urls: false
+hooks:
+  - mkdocs_hooks.py
 
 nav:
   - Home:

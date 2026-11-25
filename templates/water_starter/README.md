@@ -1,6 +1,6 @@
 # Water Starter Template (`templates/water_starter/`)
 
-A minimal, copy-and-adapt WAGF case modeling a single reservoir operator choosing a monthly water release fraction (`magnitude` in `[0, 1]`) under a physical dead-pool constraint.
+A minimal, copy-and-adapt WAGF case modeling a single reservoir operator choosing an annual water release fraction (`magnitude` in `[0, 1]`) under a physical dead-pool constraint.
 
 ## Directory Layout
 

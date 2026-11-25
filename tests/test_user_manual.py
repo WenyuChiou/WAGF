@@ -87,10 +87,19 @@ def test_water_starter_validates_and_runs_mock(tmp_path):
 
 
 def test_mkdocs_build_succeeds(tmp_path):
-    """If mkdocs is installed, building static HTML into a temp dir succeeds."""
+    """If mkdocs is installed, strict build succeeds with repo-external links rewritten."""
     pytest.importorskip("mkdocs")
     site_dir = tmp_path / "site"
-    res = _run_module(["-m", "mkdocs", "build", "-d", str(site_dir)])
-    assert res.returncode == 0, f"mkdocs build failed:\n{res.stdout}\n{res.stderr}"
+    res = _run_module(["-m", "mkdocs", "build", "--strict", "-d", str(site_dir)])
+    output = f"{res.stdout}\n{res.stderr}"
+    assert res.returncode == 0, f"mkdocs build --strict failed:\n{output}"
+    assert "not found among documentation files" not in output
     assert (site_dir / "index.html").is_file()
     assert (site_dir / "index_zh.html").is_file()
+
+    tutorial_html = (site_dir / "tutorial" / "index.html").read_text(encoding="utf-8")
+    assert "https://github.com/WenyuChiou/WAGF/blob/main/README.md#quickstart" in tutorial_html
+    assert "https://github.com/WenyuChiou/WAGF/blob/main/examples/single_agent/README.md" in tutorial_html
+
+    qs_html = (site_dir / "guides" / "quickstart_guide.html").read_text(encoding="utf-8")
+    assert "https://github.com/WenyuChiou/WAGF/tree/main/examples/multi_agent/flood" in qs_html
