@@ -43,9 +43,19 @@ If you are an ABM developer, use this order:
 
 ## Minimal Run
 
+**Zero-setup mock smoke check** (from repository root; no Ollama or API key required):
+
 ```bash
-python examples/single_agent/run_flood.py --model gemma3:4b --agents 5 --years 3
+python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --workers 1 --seed 42 --governance-mode strict --output .tmp/flood-smoke
 ```
+
+**Real local-model run** (requires [Ollama](https://ollama.com/) with `gemma3:4b` pulled):
+
+```bash
+python examples/single_agent/run_flood.py --model gemma3:4b --agents 5 --years 3 --output .tmp/flood-ollama
+```
+
+Note: `run_flood.py` and the `run_*.bat` batch scripts in this folder are frozen single-agent paper launchers; use a fresh `--output` directory for each run. To build a **new domain**, use `python -m broker.run CONFIG` instead (see [HOW_TO_ADD_A_NEW_DOMAIN.md](../../docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
 
 Thinking is disabled by default for Ollama models that advertise the
 capability. Pass `--thinking-mode enabled` to opt in for a run, or

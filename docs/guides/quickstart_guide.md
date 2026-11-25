@@ -1,7 +1,7 @@
 # Quickstart Guide
 
-Get up and running with the WAGF governance framework in 3 progressive tiers.
-Each tier adds complexity, building on the previous one.
+> **Recommended entry for new water cases:** Use the [front-page quickstart](../../README.md#quickstart) (`python -m broker.run CONFIG`) and the [six-chapter tutorial](../tutorial/README.md).
+> **Low-level Python API (`ExperimentBuilder`):** The scripts below demonstrate assembling an experiment directly in Python without YAML `global_config.run` slots. Run all commands from the repository root with fresh `--output` directories.
 
 ---
 
@@ -11,7 +11,7 @@ See the core governance loop with 1 agent, 2 skills, and a mock LLM.
 No Ollama installation required.
 
 ```bash
-python examples/quickstart/01_barebone.py
+python examples/quickstart/01_barebone.py --output .tmp/quickstart-barebone
 ```
 
 **What you'll see:**
@@ -43,7 +43,7 @@ Done!
 See how governance rules **block** invalid decisions and trigger retries.
 
 ```bash
-python examples/quickstart/02_governance.py
+python examples/quickstart/02_governance.py --output .tmp/quickstart-gov
 ```
 
 **What you'll see:**
@@ -64,16 +64,20 @@ WAGF Quickstart - Governance in Action
 - Year 2: Agent proposes `take_action` again -> BLOCKED by `already_protected` rule
 - Broker sends intervention report to LLM -> LLM retries with `do_nothing` -> APPROVED
 
-**Source:** `examples/quickstart/02_governance.py` (< 130 lines)
+**Source:** `examples/quickstart/02_governance.py` (< 140 lines)
 
 ---
 
 ## Tier 3: Real LLM Experiment
 
-Run a governed flood experiment with a real LLM (requires Ollama).
+Run the `broker.run` reservoir case or the flood benchmark with a real local LLM (requires [Ollama](https://ollama.com/) and `ollama pull gemma3:4b`):
 
 ```bash
-python examples/governed_flood/run_experiment.py --model gemma3:4b --years 5
+# Generic broker.run entry (reservoir control):
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model gemma3:4b --years 4 --seed 42 --output .tmp/reservoir-llm
+
+# Flood benchmark runner:
+python examples/single_agent/run_flood.py --model gemma3:4b --years 5 --output .tmp/flood-ollama
 ```
 
 **What it demonstrates:**
