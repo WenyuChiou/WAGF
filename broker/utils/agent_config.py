@@ -9,6 +9,7 @@ Task-035: Added SDK UnifiedConfigLoader integration for experiment configs.
 
 import yaml
 import os
+import sys
 import json
 import threading
 from pathlib import Path
@@ -131,6 +132,23 @@ AGENT_BLOCK_KEYS = frozenset({
     "rules", "prompt_information", "beneficial_use_limit", "keepfix_package",
 })
 _warned_unknown_config_keys: set = set()
+
+
+class UnknownConfigKeysError(ValueError):
+    """``AgentTypeConfig.load(strict_keys=True)`` found keys no code reads.
+
+    ``keys`` lists every unknown key as its YAML path, from three checks in
+    order: agent-block keys, ``global_config`` keys, and keys inside the
+    sections the parameter table covers.
+    """
+
+    def __init__(self, yaml_path: Optional[str], keys: List[str]):
+        self.yaml_path = yaml_path
+        self.keys = list(keys)
+        super().__init__(
+            f"{len(self.keys)} unknown key(s) in {yaml_path}: " + ", ".join(self.keys)
+        )
+
 _warned_unknown_blocked_skills: set = set()
 _warned_missing_frameworks: set = set()
 _missing_framework_warning_lock = threading.Lock()
@@ -383,14 +401,28 @@ class AgentTypeConfig:
         return str((Path(__file__).parent / "agent_types.yaml").resolve())
     
     @classmethod
-    def load(cls, yaml_path: Optional[str] = None, force_reload: bool = False) -> "AgentTypeConfig":
-        """Load config from a path-aware cache to avoid cross-domain leakage."""
+    def load(cls, yaml_path: Optional[str] = None, force_reload: bool = False,
+             strict_keys: bool = False) -> "AgentTypeConfig":
+        """Load config from a path-aware cache to avoid cross-domain leakage.
+
+        ``strict_keys=True`` raises one ``UnknownConfigKeysError`` listing every
+        key no code reads (agent-block keys, ``global_config`` keys, and keys
+        inside the sections ``broker.config.parameter_table`` covers). Without
+        it each such key is only logged, once per file. A cached instance is
+        checked again when strict keys are requested, so an earlier non-strict
+        load never lets a strict caller skip the check.
+        """
         resolved = cls._resolve_yaml_path(yaml_path)
         with cls._lock:
             if force_reload or resolved not in cls._instances:
                 inst = cls()
-                inst._load_yaml(resolved)
+                inst._load_yaml(resolved, strict_keys=strict_keys)
                 cls._instances[resolved] = inst
+            elif strict_keys:
+                cached = cls._instances[resolved]
+                unknown = cached._unknown_config_keys(strict=True)
+                if unknown:
+                    raise UnknownConfigKeysError(cached._yaml_path, unknown)
             cls._instance = cls._instances[resolved]  # backward-compatible handle
             return cls._instance
 
@@ -401,7 +433,7 @@ class AgentTypeConfig:
             cls._instances.clear()
             cls._instance = None
     
-    def _load_yaml(self, yaml_path: Optional[str] = None):
+    def _load_yaml(self, yaml_path: Optional[str] = None, strict_keys: bool = False):
         """Load from YAML file."""
         yaml_path = self._resolve_yaml_path(yaml_path)
         # PR-8: answered once per loaded config and consulted per audit row.
@@ -439,27 +471,119 @@ class AgentTypeConfig:
         # is a configuration error, never an empty-config fallback.
         self._validate_rule_exceptions(self._config)
         self._warn_missing_rule_messages()
-        self._warn_unknown_keys()
+        unknown = self._unknown_config_keys(strict=strict_keys)
+        if not strict_keys:
+            self._warn_unknown_keys(unknown)
         self._validate_supplied_fractions()
         self._validate_expression_conditions()
+        if strict_keys and unknown:
+            raise UnknownConfigKeysError(self._yaml_path, unknown)
 
-    def _warn_unknown_keys(self) -> None:
+    def _unknown_agent_block_keys(self) -> List[str]:
+        """Check (a): agent-block top-level keys no accessor reads."""
+        unknown: List[str] = []
         for name, block in self._config.items():
             if name in NON_AGENT_TOP_LEVEL_KEYS:
                 continue
             if not isinstance(block, dict) or (name != "default" and not AGENT_BLOCK_KEYS.intersection(block)):
-                unknown = [str(name)]
+                unknown.append(str(name))
             else:
-                unknown = [f"{name}.{key}" for key in block if key not in AGENT_BLOCK_KEYS]
-            for key in unknown:
-                identity = (self._yaml_path, key)
-                if identity not in _warned_unknown_config_keys:
-                    _warned_unknown_config_keys.add(identity)
-                    logger.warning("[Config] Unknown key %r in %s", key, self._yaml_path)
+                unknown.extend(f"{name}.{key}" for key in block if key not in AGENT_BLOCK_KEYS)
+        return unknown
+
+    def _unknown_global_config_keys(self) -> List[str]:
+        """Check (b): ``global_config`` keys outside the validator's known set."""
+        block = self._config.get("global_config")
+        if not isinstance(block, dict):
+            return []
+        from broker.tools.validate_prompt import KNOWN_GLOBAL_CONFIG_KEYS
+
+        return [
+            f"global_config.{key}" for key in block
+            if key not in KNOWN_GLOBAL_CONFIG_KEYS and not str(key).endswith("_system")
+        ]
+
+    def _unknown_section_keys(self) -> List[str]:
+        """Check (c): keys inside the sections the parameter table covers.
+
+        ``memory`` and ``reflection`` are read from ``global_config``, the legacy
+        ``shared`` block and every agent block; the ``governance`` sub-blocks
+        from ``global_config`` and ``shared``; ``llm_safeguard`` from
+        ``global_config`` only. Those are the places the accessors look.
+        """
+        from broker.config.parameter_table import accepted_section_keys
+
+        accepted = accepted_section_keys()
+        unknown: List[str] = []
+
+        def check(block, path, section):
+            if isinstance(block, dict):
+                allowed = accepted[section]
+                unknown.extend(f"{path}.{key}" for key in block if key not in allowed)
+
+        for scope, body in self._config.items():
+            if not isinstance(body, dict):
+                continue
+            is_agent = scope not in NON_AGENT_TOP_LEVEL_KEYS
+            if not (is_agent or scope in ("global_config", "shared")):
+                continue
+            check(body.get("memory"), f"{scope}.memory", "memory")
+            reflection = body.get("reflection")
+            check(reflection, f"{scope}.reflection", "reflection")
+            if isinstance(reflection, dict):
+                check(reflection.get("triggers"), f"{scope}.reflection.triggers",
+                      "reflection.triggers")
+            if is_agent:
+                continue
+            governance = body.get("governance")
+            if isinstance(governance, dict):
+                for name in ("retrieval", "drift", "population"):
+                    check(governance.get(name), f"{scope}.governance.{name}", f"governance.{name}")
+                memory = governance.get("memory")
+                if isinstance(memory, dict):
+                    check(memory.get("resolution_importance_policy"),
+                          f"{scope}.governance.memory.resolution_importance_policy",
+                          "governance.memory.resolution_importance_policy")
+            if scope == "global_config":
+                check(body.get("llm_safeguard"), "global_config.llm_safeguard", "llm_safeguard")
+        return unknown
+
+    def _unknown_config_keys(self, strict: bool = False) -> List[str]:
+        """Every unknown key, as a YAML path, from checks (a), (b) and (c).
+
+        Checks (b) and (c) import engine and validator modules. ``llm_utils``
+        loads the config while it is itself importing (``LLM_CONFIG``), and an
+        import at that moment would hit half-built modules and make
+        ``_load_global_config`` fall back to defaults without a word. So while
+        ``llm_utils`` is still importing, or when those imports fail on a
+        non-strict load, only check (a) runs and the rest waits for the next
+        load. A strict load never skips: it raises instead.
+        """
+        unknown = self._unknown_agent_block_keys()
+        llm_utils = sys.modules.get("broker.utils.llm_utils")
+        if not strict and llm_utils is not None and not hasattr(llm_utils, "LLM_CONFIG"):
+            return unknown
+        try:
+            return (unknown + self._unknown_global_config_keys()
+                    + self._unknown_section_keys())
+        except Exception as exc:  # noqa: BLE001 - an import problem must not break a load
+            if strict:
+                raise
+            logger.warning("[Config] key check skipped for %s: %s", self._yaml_path, exc)
+            return unknown
+
+    def _warn_unknown_keys(self, unknown: Optional[List[str]] = None) -> None:
+        """Log each unknown key once per (file, key)."""
+        for key in (self._unknown_config_keys() if unknown is None else unknown):
+            identity = (self._yaml_path, key)
+            if identity not in _warned_unknown_config_keys:
+                _warned_unknown_config_keys.add(identity)
+                logger.warning("[Config] Unknown key %r in %s", key, self._yaml_path)
 
     def _validate_supplied_fractions(self) -> None:
         from broker.components.memory.factory import (
-            FRACTION_PARAMETERS, validate_fraction, validate_nonnegative,
+            FRACTION_PARAMETERS, GOVERNANCE_FRACTION_KEYS, RETRIEVAL_WEIGHT_KEYS,
+            validate_fraction, validate_nonnegative,
         )
 
         def check(block, prefix):
@@ -467,6 +591,11 @@ class AgentTypeConfig:
                 return
             for key in FRACTION_PARAMETERS.intersection(block):
                 validate_fraction(f"{prefix}.{key}", block[key])
+            weights = block.get("retrieval_weights")
+            if isinstance(weights, dict):
+                for key in RETRIEVAL_WEIGHT_KEYS:
+                    if key in weights:
+                        validate_fraction(f"{prefix}.retrieval_weights.{key}", weights[key])
 
         for scope, body in self._config.items():
             if not isinstance(body, dict):
@@ -481,6 +610,15 @@ class AgentTypeConfig:
                 retrieval = governance.get("retrieval", {})
                 if isinstance(retrieval, dict) and "min_score" in retrieval:
                     validate_nonnegative(f"{scope}.governance.retrieval.min_score", retrieval["min_score"])
+                for path, keys in GOVERNANCE_FRACTION_KEYS.items():
+                    node = governance
+                    for part in path:
+                        node = node.get(part, {}) if isinstance(node, dict) else {}
+                    if isinstance(node, dict):
+                        for key in keys:
+                            if key in node:
+                                validate_fraction(
+                                    f"{scope}.governance.{'.'.join(path)}.{key}", node[key])
 
     def _validate_expression_conditions(self) -> None:
         """Compile every ``expression:`` rule condition at load time.

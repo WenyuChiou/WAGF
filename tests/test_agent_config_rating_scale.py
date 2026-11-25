@@ -313,7 +313,13 @@ class TestAgentTypeConfigDriftPolicy:
             "    drift:\n"
             "      entropy_threshold: 'not-a-float'\n"
         )
-        config = AgentTypeConfig.load(str(yaml_file))
+        # R3: the [0, 1] check at load now refuses the file first.
+        with pytest.raises(ValueError, match="governance.drift"):
+            AgentTypeConfig.load(str(yaml_file))
+        # The accessor keeps its own check for a config built without load().
+        config = AgentTypeConfig()
+        config._config = {"global_config": {"governance": {"drift": {
+            "entropy_threshold": "not-a-float"}}}}
         with pytest.raises(ValueError, match="governance.drift"):
             config.get_drift_config()
 
@@ -418,7 +424,13 @@ class TestAgentTypeConfigPopulationGovernance:
             "    population:\n"
             "      quorum_threshold: 'not-a-float'\n"
         )
-        config = AgentTypeConfig.load(str(yaml_file))
+        # R3: the [0, 1] check at load now refuses the file first.
+        with pytest.raises(ValueError, match="governance.population"):
+            AgentTypeConfig.load(str(yaml_file))
+        # The accessor keeps its own check for a config built without load().
+        config = AgentTypeConfig()
+        config._config = {"global_config": {"governance": {"population": {
+            "quorum_threshold": "not-a-float"}}}}
         with pytest.raises(ValueError, match="governance.population"):
             config.get_population_governance_config()
 
@@ -501,7 +513,15 @@ class TestAgentTypeConfigBridgeImportance:
             "      resolution_importance_policy:\n"
             "        approved: 'not-a-float'\n"
         )
-        config = AgentTypeConfig.load(str(yaml_file))
+        # R3: the [0, 1] check at load now refuses the file first.
+        with pytest.raises(
+            ValueError, match="governance.memory.resolution_importance_policy"
+        ):
+            AgentTypeConfig.load(str(yaml_file))
+        # The accessor keeps its own check for a config built without load().
+        config = AgentTypeConfig()
+        config._config = {"global_config": {"governance": {"memory": {
+            "resolution_importance_policy": {"approved": "not-a-float"}}}}}
         with pytest.raises(
             ValueError, match="governance.memory.resolution_importance_policy"
         ):

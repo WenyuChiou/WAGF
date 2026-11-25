@@ -15,6 +15,7 @@
 1. [Overview](#1-overview)
 2. [Part 1 -- agent_types.yaml](#2-part-1----agent_typesyaml)
    - [global_config](#21-global_config) (including `global_config.run`)
+   - [Parameter table](parameter_table.md) (generated: every number, its range and its defaults)
    - [shared](#22-shared)
    - [Agent Type Blocks](#23-agent-type-blocks)
    - [Governance Rules](#24-governance-rules)
@@ -71,6 +72,7 @@ Read by `python -m broker.run CONFIG`. Every key is optional, command-line flags
 | `years`, `agent_count`, `workers` | int | 1 | Years, agents per agent type, workers |
 | `seed` | int | 42 | Simulation seed |
 | `governance` | string | `default` | Governance profile |
+| `strict_keys` | bool | `false` | Refuse the YAML, with exit code 2, when it holds a key no code reads. `--strict-keys` and `--no-strict-keys` override it. Without it the same keys are only logged, once per file and key. |
 | `output` | string | `results/<config file name>` | Output folder, relative to the case folder |
 | `skill_registry` | string | `skill_registry.yaml` | Registry file, relative to this YAML's folder |
 | `phase_order` | list of lists | none | Multi-agent only: agent types per phase |
@@ -81,17 +83,21 @@ Slots, the import rule and defaults are explained in the [new-domain guide](../g
 
 Controls the sliding-window episodic memory system.
 
+Every number in this block, its range and the default each piece of code applies is in the generated
+[parameter table](parameter_table.md). Where two pieces of code apply different defaults, the table lists both;
+the defaults below are the ones the engines apply when built directly.
+
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `window_size` | int | No | 5 | Number of recent time-steps retained in working memory |
+| `window_size` | int | No | 3 | Number of recent time-steps retained in working memory. 3 in the engines, in `get_global_memory_config` and on `broker.run`; the registry factories (`create_memory_engine`) pass 5. `broker.run` keeps the value but its window engine returns the last `retrieval_top_k` items |
 | `consolidation_threshold` | float | No | 0.6 | Importance score above which a memory is consolidated to long-term store |
 | `consolidation_probability` | float | No | 0.7 | Probability of consolidation when threshold is met |
 | `top_k_significant` | int | No | 2 | Number of most-significant memories surfaced per retrieval |
 | `decay_rate` | float | No | 0.1 | Exponential decay rate for memory importance over time |
-| `arousal_threshold` | float | No | 1.0 | Stimulus intensity above which arousal-based encoding triggers |
+| `arousal_threshold` | float | No | 2.0 | Universal engine only: a stimulus whose surprise score exceeds this switches the engine to its slow, deliberate mode. It is compared with an unbounded surprise score, so it is not a fraction (99.0 keeps every year in the fast mode). The universal engine defaults to 2.0 and `HumanCentricMemoryEngine` to 0.5 |
 | `ema_alpha` | float | No | 0.3 | Exponential moving average smoothing factor for arousal tracking |
 | `stimulus_key` | string | No | (none) | Environment variable key that drives arousal (e.g., `flood_depth_m`) |
-| `ranking_mode` | string | No | `"weighted"` | Memory ranking strategy. Valid values: `weighted`, `recency` |
+| `ranking_mode` | string | No | `"legacy"` | Memory ranking strategy of `HumanCentricMemoryEngine` (the universal engine defaults to `"weighted"`). Valid values: `legacy` and `weighted`; any value other than `legacy` runs weighted |
 
 **Example:**
 
@@ -107,7 +113,10 @@ global_config:
 
 #### 2.1.2 global_config.cognitive_config
 
-Per-agent-type cognitive arousal configuration. Keyed by agent type name.
+**No code reads this block.** It is kept in some multi-agent YAML files, but editing it changes nothing; the
+arousal settings that take effect are `arousal_threshold`, `ema_alpha` and `stimulus_key` under `memory`.
+`AgentTypeConfig.load(strict_keys=True)` reports it as an unknown key. The table below describes what the
+block was meant to hold.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -136,8 +145,8 @@ from accumulated memories.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `interval` | int | No | 1 | Reflect every N time-steps |
-| `batch_size` | int | No | 10 | Max memories processed per reflection |
-| `importance_boost` | float | No | 0.9 | Importance score assigned to reflection-generated memories |
+| `batch_size` | int | No | 10 | Number of agents that reflect in one model call |
+| `importance_boost` | float | No | 0.9 | Importance score assigned to reflection-generated memories. 0.9 in `get_reflection_config` and `ReflectionEngine`; `ReflectionTriggerConfig.importance_boost` (read by `load_trigger_config`) defaults to 0.85 |
 | `persona_instruction` | string | No | (none) | System instruction for persona-aware reflection prompts |
 | `questions` | list[string] | No | [] | Guiding reflection questions injected into the prompt |
 | `method` | string | No | `"hybrid"` | Reflection strategy. Valid values: `hybrid`, `periodic`, `crisis` |
@@ -147,7 +156,7 @@ from accumulated memories.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `crisis` | bool | No | false | Enable crisis-triggered reflection |
+| `crisis` | bool | No | true | Enable crisis-triggered reflection |
 | `periodic_interval` | int | No | 5 | Reflect every N time-steps (periodic trigger) |
 | `decision_types` | list[string] | No | [] | Skill names that trigger post-decision reflection |
 | `institutional_threshold` | float | No | 0.05 | Policy change magnitude that triggers reflection |
@@ -732,6 +741,8 @@ Defines the structured output delimiters and fields the LLM must produce.
 | `min` | number | No | -- | Minimum value (for `type: numeric`) |
 | `max` | number | No | -- | Maximum value (for `type: numeric`) |
 | `unit` | string | No | -- | Unit label (for `type: numeric`) |
+
+The agent's action number in a new case is a numeric field named `magnitude` with `min: 0` and `max: 1`; `validate_prompt` warns when a field of that name allows more than 1, and `broker.run --strict-keys` refuses it. See "The action number" in `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`.
 
 **Example:**
 

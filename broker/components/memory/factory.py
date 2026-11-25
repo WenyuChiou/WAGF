@@ -34,7 +34,27 @@ FRACTION_PARAMETERS = frozenset({
     "decay_rate", "consolidation_prob", "consolidation_probability",
     "consolidation_threshold", "forgetting_threshold",
     "W_recency", "W_importance", "W_context", "importance_boost", "base_importance",
+    "W_relevance", "W_interference", "interference_cap", "ema_alpha",
+    "institutional_threshold",
 })
+
+# Fractions read from ``governance`` sub-blocks (global_config or the legacy
+# shared block), keyed by the path below ``governance``. Checked at load by
+# ``AgentTypeConfig._validate_supplied_fractions``.
+GOVERNANCE_FRACTION_KEYS = {
+    ("drift",): (
+        "entropy_threshold", "stagnation_threshold", "collapse_threshold",
+        "jaccard_stagnation_threshold",
+    ),
+    ("population",): (
+        "echo_threshold", "entropy_threshold", "deadlock_threshold", "quorum_threshold",
+    ),
+    ("memory", "resolution_importance_policy"): ("approved", "denied"),
+}
+
+# The weights inside ``memory.retrieval_weights`` (mapped by runners to
+# W_recency, W_importance and W_context) are fractions too.
+RETRIEVAL_WEIGHT_KEYS = ("recency", "importance", "context")
 
 
 def validate_fraction(name: str, value: Any) -> None:

@@ -126,6 +126,11 @@ class EnvironmentProvider(ContextProvider):
         context["perception"] = agent.observe(self.environment, agents)
 
 
+# Items a prompt's memory section holds when the agent's memory block has no
+# ``retrieval_top_k``. Named so the parameter table can read it.
+DEFAULT_RETRIEVAL_TOP_K = 3
+
+
 class MemoryProvider(ContextProvider):
     """Provides historical traces via MemoryEngine."""
 
@@ -160,7 +165,7 @@ class MemoryProvider(ContextProvider):
         context["memory"] = self.engine.retrieve(
             agent,
             query=query,
-            top_k=int(mem_cfg.get("retrieval_top_k", 3)),
+            top_k=int(mem_cfg.get("retrieval_top_k", DEFAULT_RETRIEVAL_TOP_K)),
             contextual_boosters=contextual_boosters,
             world_state=env_context,
             **extra,

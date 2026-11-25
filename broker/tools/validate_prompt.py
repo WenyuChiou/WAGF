@@ -193,6 +193,8 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
                       # sub-block here -- same shape as "llm" / "memory" / "reflection".
     "run",          # `python -m broker.run` slots and defaults; broker/run/_entry.py
                     # (_run_block) refuses unknown sub-keys itself.
+    "memory_write_policy",  # broker/config/memory_policy.py (load_from_config), read by
+                            # the multi-agent flood runner; was missing from this set.
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {
@@ -732,6 +734,67 @@ def check_decider_declarations(cfg: Dict[str, Any]) -> List[Issue]:
             f"domain decider, check `global_config.governance.domain`.",
         ))
     return issues
+
+
+# Response-field names the parser reads as the agent's action number
+# (UnifiedAdapter.parse_output looks for magnitude_pct, then magnitude).
+MAGNITUDE_FIELD_NAMES = ("magnitude", "magnitude_pct")
+
+
+def magnitude_scale_problems(cfg: Dict[str, Any]) -> List[Tuple[str, str, str]]:
+    """(location, field key, reason) for each magnitude field that is not capped at 1.
+
+    Looks at ``shared.response_format`` and at every top-level block that carries
+    its own ``response_format``. A numeric field named ``magnitude`` or
+    ``magnitude_pct`` whose ``max`` is above 1, or that has no ``max``, is listed.
+    ``broker.run --strict-keys`` reuses this so both tools agree.
+    """
+    found: List[Tuple[str, str, str]] = []
+    for name, block in cfg.items():
+        if not isinstance(block, dict):
+            continue
+        fmt = block.get("response_format")
+        if not isinstance(fmt, dict):
+            continue
+        fields = fmt.get("fields")
+        if not isinstance(fields, list):
+            continue
+        where = name
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            key = field.get("key")
+            if key not in MAGNITUDE_FIELD_NAMES or str(field.get("type", "")).lower() != "numeric":
+                continue
+            top = field.get("max")
+            if top is None:
+                found.append((where, key, "no max"))
+            elif isinstance(top, bool) or not isinstance(top, (int, float)):
+                found.append((where, key, f"max {top!r} is not a number"))
+            elif top > 1:
+                found.append((where, key, f"max {top}"))
+    return found
+
+
+def check_magnitude_scale(cfg: Dict[str, Any]) -> List[Issue]:
+    """WARN on a numeric ``magnitude`` / ``magnitude_pct`` field that is not on [0, 1].
+
+    The action number of a new case is a fraction from 0 to 1, declared as
+    ``{key: magnitude, type: numeric, min: 0, max: 1}``. The parser clamps the
+    model's answer to the declared range, so a field with a larger max (or none)
+    lets another scale in. A case that keeps another scale should name its field
+    something else, for example ``release_rate_cms``.
+    """
+    return [
+        Issue(
+            "WARN", f"yaml: {where}.response_format.fields",
+            f"numeric field {key!r} ({reason}) is not capped at 1. The action number of a "
+            f"new case is on [0, 1]: declare it with min: 0 and max: 1 and ask the model for "
+            f"a fraction. A case that keeps another scale should name its field something "
+            f"other than magnitude or magnitude_pct.",
+        )
+        for where, key, reason in magnitude_scale_problems(cfg)
+    ]
 
 
 def check_world_condition_scopes(cfg: Dict[str, Any]) -> List[Issue]:
@@ -1530,6 +1593,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     # PR-8: every declared `decider:` must name a registered one, and the
     # key must be where something reads it.
     all_issues.extend(check_decider_declarations(cfg))
+    # R3: the action number of a new case is on [0, 1].
+    all_issues.extend(check_magnitude_scale(cfg))
 
     # Load runtime configuration only when a selected block declares none.
     # This keeps loader diagnostics out of the existing CLI path for other configs.

@@ -68,11 +68,21 @@ def gen_package_init(domain: str, framework: str) -> str:
         """).lstrip()
 
 
-def gen_readme(domain: str, skills: List[str], *, output_dir: Path | None = None) -> str:
+def gen_readme(
+    domain: str, skills: List[str], *, output_dir: Path | None = None, magnitude: bool = False,
+) -> str:
     config_path = ((output_dir or Path(domain)) / "config" / "agent_types.yaml").as_posix()
     if any(char.isspace() for char in config_path):
         config_path = f'"{config_path}"'
     skill_list = "\n        ".join(f"- `{skill}`" for skill in skills)
+    magnitude_step = (
+        "\n"
+        "        6. The action number: this skeleton was scaffolded with `--magnitude`. The\n"
+        "           response field `magnitude` (`min: 0`, `max: 1`) is the fraction the agent\n"
+        '           names, and `world.py` reads it as `parameters["magnitude_pct"]`.\n'
+        "           `mock_llm.py` supplies a fixed fraction under `--model mock`. Keep the\n"
+        "           prompt asking for a fraction, and do not turn on `multi_skill` with it."
+    ) if magnitude else ""
     return dedent(f"""
         # {domain} — WAGF domain skeleton
 
@@ -107,7 +117,7 @@ def gen_readme(domain: str, skills: List[str], *, output_dir: Path | None = None
            `event_handlers`, and any domain-specific hooks.
         5. Edit `world.py` to plug in your case's world model. Add `agents`,
            `hooks`, `validators` or `mock` slots under `global_config.run` when
-           the case needs them (see `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`).
+           the case needs them (see `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`).{magnitude_step}
 
         ## Reference
         - `examples/irrigation_abm/` — water demand reference
@@ -151,6 +161,7 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
 
 def gen_agent_types_yaml(
     domain: str, skills: List[str], framework: str, *, physical_only: bool = False,
+    magnitude: bool = False,
 ) -> str:
     if physical_only:
         framework = "none"
@@ -205,6 +216,20 @@ def gen_agent_types_yaml(
             reason_hint: "One sentence on your primary appraisal of the situation.",
           }
         """, 6)
+    # R3: the agent's action number, on [0, 1]. The parser reads the first
+    # numeric field (magnitude_pct, then magnitude) and clamps it to min/max.
+    magnitude_field = indent(dedent("""\
+        - {
+            key: "magnitude",
+            type: "numeric",
+            min: 0,
+            max: 1,
+            unit: "fraction",
+            required: true,
+            description: "Fraction from 0 to 1 (0.5 means half), for example 0.5",
+          }
+        """), " " * 6) if magnitude else ""
+    mock_slot = "\n    mock: mock_llm:build_mock" if magnitude else ""
     constructs = behavioral_section("""\
         constructs:
           primary: ["PRIMARY_LABEL"]
@@ -239,7 +264,7 @@ def gen_agent_types_yaml(
             governance: default
             years: 3
             agent_count: 5
-            output: results/smoke
+            output: results/smoke{mock_slot}
 
           audit:
             initial_proposal_columns: {audit_appraisals}
@@ -274,7 +299,7 @@ def gen_agent_types_yaml(
             fields:
               - {{ key: "reasoning", type: "text", required: true,
                   description: "Explain your thought process in 2-3 sentences BEFORE choosing." }}
-        {appraisal_field}      - {{
+        {appraisal_field}{magnitude_field}      - {{
                   key: "decision",
                   type: "choice",
                   required: true,
@@ -300,6 +325,8 @@ def gen_agent_types_yaml(
         """).lstrip()
     return template.format(
         domain=domain,
+        mock_slot=mock_slot,
+        magnitude_field=magnitude_field,
         framework_value=framework_value,
         # Both opt-ins emit appraisal columns even when there are no labels.
         audit_appraisals="false" if physical_only else "true",
@@ -316,7 +343,9 @@ def gen_agent_types_yaml(
     )
 
 
-def gen_prompt(domain: str, skills: List[str], *, physical_only: bool = False) -> str:
+def gen_prompt(
+    domain: str, skills: List[str], *, physical_only: bool = False, magnitude: bool = False,
+) -> str:
     # Options-text parity fix (2026-09): the scaffolder used to render
     # ``Available actions: {skills}`` plus a hand-written, hardcoded
     # "1 = skill_a / 2 = skill_b" digit legend — exactly the
@@ -342,6 +371,11 @@ def gen_prompt(domain: str, skills: List[str], *, physical_only: bool = False) -
         )
         rating_scale = "{rating_scale}\n\n"
         appraisal_instruction = "- Use EXACTLY one of: VL, L, M, H, VH for the appraisal label.\n"
+    if magnitude:
+        # The action number is a fraction: the parser clamps anything above 1.
+        appraisal_instruction += (
+            '- "magnitude" MUST be a fraction from 0 to 1: 0.5 means half, 1 means all of it.\n'
+        )
     return dedent("""
         {{narrative_persona}}
 
@@ -531,7 +565,9 @@ def gen_domain_pack(domain: str, framework: str = "pmt") -> str:
         """).lstrip()
 
 
-def gen_world(domain: str) -> str:
+def gen_world(domain: str, *, magnitude: bool = False) -> str:
+    if magnitude:
+        return gen_world_magnitude(domain)
     return dedent(f"""
         \"\"\"World model for the {domain} domain.\"\"\"
 
@@ -562,6 +598,87 @@ def gen_world(domain: str) -> str:
         """).lstrip()
 
 
+_WORLD_MAGNITUDE = '''\
+"""World model for the __DOMAIN__ domain (scaffolded with --magnitude)."""
+
+from broker.interfaces.skill_types import ExecutionResult
+
+
+class SyntheticEnvironment:
+    """Small stand-in for the domain ABM used by scaffold smoke runs."""
+
+    def __init__(self):
+        self.current_year = 0
+        self.last_fraction = None
+
+    def advance_step(self):
+        self.current_year += 1
+        return {
+            "current_year": self.current_year,
+            # TODO: replace with a domain variable from your ABM.
+            "domain_signal": 0.5,
+        }
+
+    def execute_skill(self, approved_skill):
+        # "magnitude_pct" is only the name of the carrier. It holds the agent's
+        # action number as the response field `magnitude` declares it: a fraction
+        # on [0, 1]. It is absent when the model gave none.
+        fraction = approved_skill.parameters.get("magnitude_pct")
+        if fraction is None:
+            return ExecutionResult(success=True, state_changes={})
+        self.last_fraction = fraction
+        # TODO: replace with the real effect of the action, scaled by `fraction`.
+        return ExecutionResult(success=True, state_changes={"applied_fraction": fraction})
+
+
+def build_world(ctx):
+    """Build the case's own model here. ctx is a broker.run.RunContext."""
+    return SyntheticEnvironment()
+'''
+
+_MOCK_LLM = '''\
+"""Scripted model for `--model mock` runs of the __DOMAIN__ domain.
+
+The built-in mock answers only the decision. This one also gives the action
+number, a fixed fraction, so a smoke run shows a number on [0, 1] reaching
+`world.py`. broker.run loads it through the `run.mock` slot and uses it only
+with `--model mock`.
+"""
+
+import json
+import re
+
+from broker.utils.llm_utils import LLMStats
+
+MOCK_FRACTION = 0.35
+
+
+def _scripted(prompt):
+    options = re.findall(r"(\\d+)\\.\\s+\\w+", prompt)
+    payload = {
+        "reasoning": "scripted mock answer",__APPRAISAL__
+        "decision": int(options[0]) if options else 1,
+        "magnitude": MOCK_FRACTION,
+    }
+    text = "<<<DECISION_START>>>\\n" + json.dumps(payload) + "\\n<<<DECISION_END>>>"
+    return text, LLMStats(retries=0, success=True)
+
+
+def build_mock(ctx):
+    """Return one scripted responder for every agent type."""
+    return _scripted
+'''
+
+
+def gen_world_magnitude(domain: str) -> str:
+    return _WORLD_MAGNITUDE.replace("__DOMAIN__", domain)
+
+
+def gen_mock_llm(domain: str, *, physical_only: bool = False) -> str:
+    appraisal = "" if physical_only else '\n        "primary_assessment": "M",'
+    return _MOCK_LLM.replace("__DOMAIN__", domain).replace("__APPRAISAL__", appraisal)
+
+
 # ---------------------------------------------------------------------------
 # File-system writer
 # ---------------------------------------------------------------------------
@@ -574,6 +691,7 @@ def scaffold(
     force: bool = False,
     *,
     physical_only: bool = False,
+    magnitude: bool = False,
 ) -> List[Path]:
     """Write the full skeleton. Returns the list of created paths.
 
@@ -601,18 +719,22 @@ def scaffold(
         written.append(full)
 
     write("__init__.py", gen_package_init(domain, framework))
-    write("README.md", gen_readme(domain, skills, output_dir=output_dir))
+    write("README.md", gen_readme(domain, skills, output_dir=output_dir, magnitude=magnitude))
     write("config/skill_registry.yaml", gen_skill_registry(domain, skills))
     write(
         "config/agent_types.yaml",
-        gen_agent_types_yaml(domain, skills, framework, physical_only=physical_only),
+        gen_agent_types_yaml(
+            domain, skills, framework, physical_only=physical_only, magnitude=magnitude,
+        ),
     )
-    write("config/prompts/agent.txt", gen_prompt(domain, skills, physical_only=physical_only))
+    write("config/prompts/agent.txt", gen_prompt(domain, skills, physical_only=physical_only, magnitude=magnitude))
     write("validators/__init__.py", gen_validators_init(domain))
     write(f"validators/{domain}_validators.py", gen_validators(domain))
     write("adapters/__init__.py", "")
     write(f"adapters/{domain}_pack.py", gen_domain_pack(domain, framework))
-    write("world.py", gen_world(domain))
+    write("world.py", gen_world(domain, magnitude=magnitude))
+    if magnitude:
+        write("mock_llm.py", gen_mock_llm(domain, physical_only=physical_only))
 
     if framework == "custom":
         cognition_dir = output_dir / "cognition"
@@ -713,6 +835,15 @@ def main(argv: List[str] | None = None) -> int:
         help="Scaffold decisions without cognitive appraisal (framework 'none').",
     )
     parser.add_argument(
+        "--magnitude",
+        action="store_true",
+        help=(
+            "Add a numeric 'magnitude' response field on [0, 1] (the agent's action "
+            "number), a prompt line asking for a fraction, a world.py that reads it, "
+            "and a mock model that answers it."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite non-empty output directory.",
@@ -752,7 +883,7 @@ def main(argv: List[str] | None = None) -> int:
     try:
         written = scaffold(
             args.domain, output_dir, skills, args.framework or "pmt", args.force,
-            physical_only=args.physical_only,
+            physical_only=args.physical_only, magnitude=args.magnitude,
         )
     except FileExistsError as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -768,6 +899,9 @@ def main(argv: List[str] | None = None) -> int:
     print(f"  2. Edit {output_dir}/config/prompts/agent.txt to describe the domain")
     print(f"  3. Edit {output_dir}/adapters/{args.domain}_pack.py to fill in domain hooks")
     print(f"  4. python -m broker.run {yaml_path} --model mock --years 2 --agents 3")
+    if args.magnitude:
+        print('  5. world.py reads the [0, 1] action number as parameters["magnitude_pct"]; '
+              "mock_llm.py supplies it under --model mock")
     return 0
 
 

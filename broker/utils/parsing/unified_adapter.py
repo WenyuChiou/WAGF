@@ -19,6 +19,10 @@ from ..parsing_audits import is_list_item, parse_numeric_value, audit_demographi
 from ..agent_config import load_agent_config
 from .base import ModelAdapter
 
+# Characters searched after a keyword for its value, when the agent's ``parsing``
+# block has no ``proximity_window``. Named so the parameter table can read it.
+DEFAULT_PROXIMITY_WINDOW = 35
+
 
 #: PR-4 (D7). One warning per REASON per process, keyed on the reason token
 #: alone. The earlier draft keyed on ``(f"the getter raised {exc}", type(config))``,
@@ -325,7 +329,7 @@ class UnifiedAdapter(ModelAdapter):
         parsing_warnings = []
         # Phase 0.3: Retrieve agent-specific normalization map
         custom_mapping = parsing_cfg.get("normalization", {})
-        proximity_window = parsing_cfg.get("proximity_window", 35)
+        proximity_window = parsing_cfg.get("proximity_window", DEFAULT_PROXIMITY_WINDOW)
 
         # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
         parse_layer = ""

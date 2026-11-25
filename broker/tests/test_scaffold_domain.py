@@ -440,3 +440,42 @@ class TestCLI:
         assert rc == 0
         assert "Scaffolded" in captured.out
         assert (tmp_path / "energy" / "config" / "agent_types.yaml").exists()
+
+
+
+class TestMagnitudeFlag:
+    """--magnitude adds the [0, 1] action number; without it nothing changes."""
+
+    def test_default_output_has_no_magnitude_and_no_mock_file(self, tmp_path: Path):
+        written = scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt")
+        names = {p.relative_to(tmp_path / "probe").as_posix() for p in written}
+        assert "mock_llm.py" not in names
+        text = (tmp_path / "probe" / "config" / "agent_types.yaml").read_text(encoding="utf-8")
+        assert "magnitude" not in text and "mock:" not in text
+        assert gen_agent_types_yaml("probe", ["a", "b"], "pmt") == gen_agent_types_yaml(
+            "probe", ["a", "b"], "pmt", magnitude=False)
+        assert "--magnitude" not in (tmp_path / "probe" / "README.md").read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("physical_only", [False, True])
+    def test_flag_writes_a_zero_to_one_field(self, tmp_path: Path, physical_only: bool):
+        written = scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt",
+                           physical_only=physical_only, magnitude=True)
+        names = {p.relative_to(tmp_path / "probe").as_posix() for p in written}
+        assert "mock_llm.py" in names
+        cfg = yaml.safe_load((tmp_path / "probe" / "config" / "agent_types.yaml").read_text(encoding="utf-8"))
+        field = next(f for f in cfg["shared"]["response_format"]["fields"] if f["key"] == "magnitude")
+        assert (field["type"], field["min"], field["max"]) == ("numeric", 0, 1)
+        assert "fraction" in field["description"].lower()
+        assert cfg["global_config"]["run"]["mock"] == "mock_llm:build_mock"
+        prompt = (tmp_path / "probe" / "config" / "prompts" / "agent.txt").read_text(encoding="utf-8")
+        assert "0.5 means half" in prompt
+        world = (tmp_path / "probe" / "world.py").read_text(encoding="utf-8")
+        assert 'parameters.get("magnitude_pct")' in world
+        assert "--magnitude" in (tmp_path / "probe" / "README.md").read_text(encoding="utf-8")
+        assert validate_main([str(tmp_path / "probe" / "config" / "agent_types.yaml"), "--strict"]) == 0
+        for name in ("world.py", "mock_llm.py"):
+            compile((tmp_path / "probe" / name).read_text(encoding="utf-8"), name, "exec")
+
+    def test_cli_flag(self, tmp_path: Path):
+        assert main(["probe", "--output", str(tmp_path / "probe"), "--magnitude"]) == 0
+        assert (tmp_path / "probe" / "mock_llm.py").is_file()

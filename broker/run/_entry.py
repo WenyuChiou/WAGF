@@ -18,7 +18,7 @@ from broker.components.context.builder import TieredContextBuilder
 from broker.components.memory.engine import WindowMemoryEngine
 from broker.core.experiment_builder import ExperimentBuilder
 from broker.interfaces.skill_types import ExecutionResult
-from broker.utils.agent_config import AgentTypeConfig, NON_AGENT_TOP_LEVEL_KEYS
+from broker.utils.agent_config import AgentTypeConfig, NON_AGENT_TOP_LEVEL_KEYS, UnknownConfigKeysError
 from broker.utils.llm_utils import LLM_CONFIG, is_mock_model
 
 from ._imports import SlotError, parse_slot, resolve_slot, valid_module_name, vet_import_target
@@ -77,6 +77,9 @@ class _Parser(argparse.ArgumentParser):
 
 
 _SLOT_NAMES = ("world", "agents", "hooks", "validators", "mock")
+# Short-term window of the WindowMemoryEngine built when the YAML has no
+# global_config.memory.window_size. Named so the parameter table can read it.
+DEFAULT_WINDOW_SIZE = 3
 _DEFAULTS = {
     "model": "mock",
     "years": 1,
@@ -84,6 +87,7 @@ _DEFAULTS = {
     "seed": 42,
     "governance": "default",
     "workers": 1,
+    "strict_keys": False,
 }
 _RUN_TYPES = {
     **{name: str for name in _SLOT_NAMES},
@@ -107,6 +111,9 @@ def _parse_args(argv):
     parser.add_argument("--skill-registry", metavar="PATH", help="registry YAML, relative to the current directory")
     parser.add_argument("--workers", type=int, help="number of workers")
     parser.add_argument("--thinking-mode", choices=("auto", "disabled", "enabled"))
+    parser.add_argument("--strict-keys", action=argparse.BooleanOptionalAction, default=None,
+                        help="refuse a YAML that holds a key no code reads (default: off; "
+                             "run.strict_keys in the YAML sets it, the command line wins)")
     parser.add_argument("--slot", action="append", default=[], metavar="NAME=MODULE:ATTR",
                         help=f"override a factory ({', '.join(_SLOT_NAMES)})")
     parser.add_argument("--allow-module", action="append", default=[], metavar="DOTTED.NAME",
@@ -191,7 +198,25 @@ def _prepare_run(argv):
         raise RunError(f"{output_dir} already holds a completed run "
                        f"(reproducibility_manifest.json is present); point --output at a "
                        f"new directory")
-    config = AgentTypeConfig.load(str(config_path), force_reload=True)
+    try:
+        config = AgentTypeConfig.load(str(config_path), force_reload=True,
+                                      strict_keys=settings["strict_keys"])
+    except UnknownConfigKeysError as exc:
+        raise RunError(
+            f"{config_path} holds {len(exc.keys)} key(s) no code reads: " + ", ".join(exc.keys)
+            + " (remove them, or leave out --strict-keys / run.strict_keys)"
+        ) from exc
+    except ImportError as exc:  # The strict key check imports its key lists lazily.
+        raise RunError(f"{config_path}: the strict key check could not run ({exc})") from exc
+    if settings["strict_keys"]:
+        from broker.tools.validate_prompt import magnitude_scale_problems
+
+        for where, key, reason in magnitude_scale_problems(raw):
+            raise RunError(
+                f"{config_path}: response field {key!r} in {where!r} has {reason}; the action "
+                f"number of a new case is on [0, 1] (set min: 0 and max: 1), or name the field "
+                f"something other than magnitude or magnitude_pct (--strict-keys is on)"
+            )
     ctx = RunContext(
         config_path=config_path, case_dir=case_dir, config=config, raw=raw,
         model=settings["model"], years=settings["years"], agent_count=settings["agent_count"],
@@ -332,7 +357,7 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     if len(agent_types) == 1 and templates:
         templates["default"] = templates[agent_types[0]]
     memory_cfg = ctx.raw.get("global_config", {}).get("memory", {}) or {}
-    memory = WindowMemoryEngine(window_size=memory_cfg.get("window_size", 3))
+    memory = WindowMemoryEngine(window_size=memory_cfg.get("window_size", DEFAULT_WINDOW_SIZE))
     config_path = str(ctx.config_path)
     context_builder = TieredContextBuilder(
         agents=ctx.agents, hub=None, prompt_templates=templates,

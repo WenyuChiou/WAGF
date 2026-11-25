@@ -991,3 +991,91 @@ class TestCheckRuleShapes:
                 for issue in check_rule_shapes(cfg):
                     offenders.append(f"{p}: {issue.format()}")
         assert not offenders, "\n".join(offenders)
+
+
+# ---------------------------------------------------------------------------
+# check_magnitude_scale (R3: the action number of a new case is on [0, 1])
+# ---------------------------------------------------------------------------
+
+from broker.tools.validate_prompt import check_magnitude_scale  # noqa: E402
+
+
+def _magnitude_cfg(**field):
+    field = {"key": "magnitude", "type": "numeric", **field}
+    return {"shared": {"response_format": {"fields": [field]}}}
+
+
+class TestCheckMagnitudeScale:
+    def test_max_one_is_clean(self):
+        assert check_magnitude_scale(_magnitude_cfg(min=0, max=1)) == []
+
+    def test_max_100_warns(self):
+        issues = check_magnitude_scale(_magnitude_cfg(min=0, max=100))
+        assert len(issues) == 1 and issues[0].severity == "WARN"
+        assert "[0, 1]" in issues[0].message and "max 100" in issues[0].message
+
+    def test_no_max_warns(self):
+        issues = check_magnitude_scale(_magnitude_cfg(min=0))
+        assert len(issues) == 1 and "no max" in issues[0].message
+
+    def test_magnitude_pct_name_is_checked_too(self):
+        cfg = _magnitude_cfg(max=100)
+        cfg["shared"]["response_format"]["fields"][0]["key"] = "magnitude_pct"
+        assert len(check_magnitude_scale(cfg)) == 1
+
+    def test_another_field_name_with_max_100_is_clean(self):
+        cfg = _magnitude_cfg(max=100)
+        cfg["shared"]["response_format"]["fields"][0]["key"] = "release_pct"
+        assert check_magnitude_scale(cfg) == []
+
+    def test_a_non_numeric_field_is_ignored(self):
+        assert check_magnitude_scale(_magnitude_cfg(type="text", max=100)) == []
+
+    def test_an_agent_block_is_checked(self):
+        cfg = {"agent": {"response_format": {"fields": [
+            {"key": "magnitude", "type": "numeric", "max": 100}]}}}
+        issues = check_magnitude_scale(cfg)
+        assert len(issues) == 1 and "agent" in issues[0].location
+
+    def test_strict_turns_the_warning_into_a_failure(self, tmp_path):
+        from broker.tools.scaffold_domain import scaffold
+        from broker.tools.validate_prompt import main as validate_main
+
+        scaffold("mag_probe", tmp_path / "mag_probe", ["a", "b"], "generic", magnitude=True)
+        path = tmp_path / "mag_probe" / "config" / "agent_types.yaml"
+        assert validate_main([str(path), "--strict"]) == 0
+        text = path.read_text(encoding="utf-8")
+        assert "max: 1," in text
+        path.write_text(text.replace("max: 1,", "max: 100,"), encoding="utf-8")
+        assert validate_main([str(path)]) == 0          # a WARN alone does not fail
+        assert validate_main([str(path), "--strict"]) == 1  # --strict makes it an ERROR
+
+    def test_shipped_examples_only_warn_where_allowed(self):
+        """Paper YAMLs stay clean. Reservoir is the one example on the 0-100 scale."""
+        import glob
+
+        import yaml as _yaml
+        root = Path(__file__).resolve().parents[2]
+        offenders = []
+        for p in glob.glob(str(root / "examples" / "**" / "*.yaml"), recursive=True):
+            rel = Path(p).relative_to(root).as_posix()
+            # Remove this allowance when examples/reservoir_control moves to [0, 1]
+            # (the follow-up PR to R3).
+            if rel.startswith("examples/reservoir_control/"):
+                continue
+            try:
+                cfg = _yaml.safe_load(open(p, encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(cfg, dict):
+                offenders.extend(f"{rel}: {i.format()}" for i in check_magnitude_scale(cfg))
+        assert not offenders, "\n".join(offenders)
+
+    def test_reservoir_is_the_single_allowed_warning(self):
+        import yaml as _yaml
+        root = Path(__file__).resolve().parents[2]
+        path = root / "examples" / "reservoir_control" / "config" / "reservoir_agent_types.yaml"
+        cfg = _yaml.safe_load(path.read_text(encoding="utf-8"))
+        # Remove with the allowance above when reservoir moves to [0, 1].
+        assert all("max 100" in i.message for i in check_magnitude_scale(cfg))
+        assert check_magnitude_scale(cfg)

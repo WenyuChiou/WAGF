@@ -139,3 +139,38 @@ def test_scaffolded_domain_validates_and_runs_with_mock(tmp_path, scaffold_flags
             for column, value in row.items()
             if value and any(marker in column.casefold() for marker in ("appraisal", "tp_", "cp_"))
         }
+
+
+@pytest.mark.parametrize(
+    "scaffold_flags", [["--framework", "generic"], ["--physical-only"]],
+    ids=["generic", "physical-only"],
+)
+def test_magnitude_scaffold_validates_strictly_and_a_fraction_reaches_the_world(tmp_path, scaffold_flags):
+    domain = "scaffold_mag_probe"
+    scaffold_dir = tmp_path / domain
+    config = scaffold_dir / "config" / "agent_types.yaml"
+    output_dir = tmp_path / "smoke_output"
+
+    _assert_ok(
+        _run([sys.executable, "-m", "broker.tools.scaffold_domain", domain,
+              "--output", str(scaffold_dir), "--magnitude", *scaffold_flags]),
+        "scaffold_domain --magnitude",
+    )
+    _assert_ok(
+        _run([sys.executable, "-m", "broker.tools.validate_prompt", str(config), "--strict"]),
+        "validate_prompt --strict",
+    )
+    _assert_ok(
+        _run([sys.executable, "-m", "broker.run", str(config), "--model", "mock",
+              "--years", "1", "--agents", "2", "--strict-keys", "--output", str(output_dir)]),
+        "broker.run --strict-keys",
+    )
+
+    lines = (output_dir / "raw" / "agent_traces.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines if '"step_id"' in line]
+    assert len(records) == 2
+    for record in records:
+        # The value the mock gave is the value the world applied, on [0, 1].
+        applied = record["execution_result"]["state_changes"]["applied_fraction"]
+        assert 0 < applied <= 1 and applied == 0.35
+    assert "fraction from 0 to 1" in records[0]["input"]
