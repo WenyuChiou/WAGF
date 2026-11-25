@@ -115,6 +115,15 @@ class TestGenAgentTypesYaml:
         data = yaml.safe_load(text)
         assert data["agent"]["psychological_framework"] == "pmt"
 
+    @pytest.mark.parametrize("framework,physical_only", [("pmt", False), ("custom", False), ("pmt", True)])
+    def test_no_reflection_block_because_broker_run_never_reads_it(self, framework, physical_only):
+        # python -m broker.run does not run reflection, so a scaffolded
+        # reflection block would only suggest settings that change nothing.
+        data = yaml.safe_load(gen_agent_types_yaml(
+            "energy", ["a", "b"], framework, physical_only=physical_only))
+        assert "reflection" not in data["global_config"]
+        assert "llm" in data["global_config"]
+
 
 class TestGenSkillRegistry:
     def test_valid_yaml(self):

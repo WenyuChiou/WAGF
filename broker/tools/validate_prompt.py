@@ -36,6 +36,7 @@ Added: 2026-05-10.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -1299,6 +1300,16 @@ def validate_agent_type(
                 "up to 4 parent levels)",
             ))
             return issues
+        primary = (yaml_path.parent / template_ref).resolve()
+        if not Path(template_ref).is_absolute() and prompt_path != primary:
+            suggested = Path(os.path.relpath(prompt_path, yaml_path.parent.resolve())).as_posix()
+            issues.append(Issue(
+                "WARN", f"yaml: {agent_type}.prompt_template_file",
+                f"{template_ref!r} is found only from a parent folder ({prompt_path}). "
+                "`python -m broker.run` looks only in the YAML file's folder and refuses "
+                f"this path; write it as {suggested!r}. (The irrigation paper runner "
+                "rewrites such paths itself.)",
+            ))
         template = prompt_path.read_text(encoding="utf-8")
         template_location = str(prompt_path)
     elif inline_template:

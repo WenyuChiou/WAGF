@@ -782,7 +782,7 @@ corresponding dictionary.
 |-------|------|----------|---------|-------------|
 | `description` | string | No | "" | Human-readable description of this agent type |
 | `prompt_template` | string | No | -- | Inline Jinja2/f-string prompt template. Mutually exclusive with `prompt_template_file` |
-| `prompt_template_file` | string | No | -- | Path to external prompt file, relative to the folder of this YAML file. On `python -m broker.run` a file not found there leaves the built-in default prompt, with no warning. |
+| `prompt_template_file` | string | No | -- | Path to external prompt file, relative to the folder of this YAML file. `python -m broker.run` refuses a file it cannot find there, and refuses `prompt_template` and `prompt_template_file` set together. |
 | `llm_params` | object | No | {} | Per-type LLM overrides (same fields as `global_config.llm`) |
 | `response_format` | object | No | (shared) | Per-type response format override (same schema as `shared.response_format`) |
 | `multi_skill` | object | No | {enabled: false} | Multi-skill configuration (see below) |

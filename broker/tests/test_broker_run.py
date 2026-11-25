@@ -531,3 +531,62 @@ def test_strict_keys_accepts_a_magnitude_on_zero_to_one(case):
     config, data = case
     _with_magnitude_field(config, data, max=1)
     assert main([str(config), "--strict-keys"]) == 0
+
+
+FILE_PROMPT = "Read this file prompt first.\nAvailable actions\n{options_text}\n\n{response_format}"
+
+
+def _write_prompt_file(config):
+    prompts = config.parent / "prompts"
+    prompts.mkdir(exist_ok=True)
+    (prompts / "agent.txt").write_text(FILE_PROMPT, encoding="utf-8")
+
+
+def _use_prompt_file(case, ref):
+    config, data = case
+    _write_prompt_file(config)
+    data["global_config"]["run"] = {"world": "world:build"}
+    del data["agent"]["prompt_template"]
+    data["agent"]["prompt_template_file"] = ref
+    _write_yaml(config, data)
+    return config
+
+
+def test_prompt_template_file_not_found_from_yaml_folder_is_refused(case, tmp_path, capsys):
+    # A path written from the case folder passes validate_prompt, which walks
+    # up parent folders, but broker.run resolves it from the YAML folder only.
+    # Before this check the run went on with the built-in default prompt.
+    config = _use_prompt_file(case, "config/prompts/agent.txt")
+    assert main([str(config), "--model", "mock", "--output", str(tmp_path / "out")]) == 2
+    err = capsys.readouterr().err
+    assert "agent.prompt_template_file 'config/prompts/agent.txt' was not found" in err
+    assert "for example prompts/agent.txt" in err
+
+
+def test_prompt_template_file_from_yaml_folder_is_rendered(case, tmp_path):
+    config = _use_prompt_file(case, "prompts/agent.txt")
+    output = tmp_path / "out"
+    assert main([str(config), "--model", "mock", "--years", "1", "--output", str(output)]) == 0
+    assert "Read this file prompt first." in _first_decision(output)["input"]
+
+
+def test_unreadable_prompt_template_file_is_refused(case, tmp_path, capsys):
+    # get_prompt_template only logs a failed read and falls back.
+    config = _use_prompt_file(case, "prompts/agent.txt")
+    (config.parent / "prompts" / "agent.txt").write_bytes(b"\xff\xfe\xfa not utf-8")
+    assert main([str(config), "--model", "mock", "--output", str(tmp_path / "out")]) == 2
+    err = capsys.readouterr().err
+    assert "agent.prompt_template_file" in err
+    assert "could not be read" in err
+
+
+def test_inline_and_file_prompt_together_are_refused(case, tmp_path, capsys):
+    # get_prompt_template prefers the file; ExperimentBuilder puts the inline
+    # template in the context builder, so the rendered prompt would not be
+    # the file the manifest names.
+    config, data = case
+    _write_prompt_file(config)
+    data["agent"]["prompt_template_file"] = "prompts/agent.txt"
+    _write_yaml(config, data)
+    assert main([str(config), "--model", "mock", "--output", str(tmp_path / "out")]) == 2
+    assert "set prompt_template or prompt_template_file, not both" in capsys.readouterr().err
