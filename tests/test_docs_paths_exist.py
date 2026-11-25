@@ -169,11 +169,14 @@ def _allowlisted_reason(candidate: str) -> str | None:
 def _exists_in_repo(rel_file: str, candidate: str, is_link: bool, tracked: set[str], dirs: set[str]) -> bool:
     rel = candidate.rstrip("/")
     md_path = ROOT / rel_file
-    bases = [ROOT]
+    # A Markdown link target resolves only against the doc's own folder, as GitHub
+    # renders it; a path in backticks is read from the repository root.
     if is_link:
-        bases.append(md_path.parent)
+        bases = [md_path.parent]
+    else:
+        bases = [ROOT]
     # Skill-folder-relative paths in .claude/skills/ are covered by tests/test_skill_paths_exist.py.
-    if rel_file.startswith(".claude/skills/"):
+    if not is_link and rel_file.startswith(".claude/skills/"):
         skills_root = ROOT / ".claude" / "skills"
         rel_parts = Path(rel_file).parts
         if len(rel_parts) >= 3:
@@ -241,3 +244,10 @@ def test_allowlist_skips_placeholders_and_flags_missing_repo_paths() -> None:
     assert all("ARCHITECTURE.md" in m and FAILURE_HINT in m for m in missing)
     assert any("broker/does_not_exist_xyz.py" in m for m in missing)
     assert any("no_such_sibling_xyz.md" in m for m in missing)
+
+
+def test_link_target_in_nested_doc_resolves_only_against_its_folder() -> None:
+    doc = "docs/tutorial/04-water-model.md"
+    sample = "Root file linked as if local [bad](DATA.md), correct link [ok](../../DATA.md)."
+    missing = find_missing_paths([doc], text_overrides={doc: sample})
+    assert missing == [f"{doc}: DATA.md ({FAILURE_HINT})"], missing
