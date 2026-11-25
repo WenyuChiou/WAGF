@@ -116,7 +116,7 @@ def test_copy_path_refuses_100_passes_50_and_leaves_live_state_alone():
     env = {"env_state": {"inflow_forecast_year": 4.2}, "storage_now": 7.54}
     env_before = copy.deepcopy(env)
     proposal100 = type("P", (), {"skill_name": "set_release", "agent_id": "OPERATOR",
-                                 "magnitude_pct": 100.0, "magnitude_fallback": False,
+                                 "magnitude_pct": 1.0, "magnitude_fallback": False,
                                  "parameters": {}})()
     res = check(proposal100, env)
     assert len(res) == 1 and not res[0].valid
@@ -127,7 +127,7 @@ def test_copy_path_refuses_100_passes_50_and_leaves_live_state_alone():
     assert meta["projected"]["storage_unclamped"] < 6.0
     assert solver.__dict__ == before and env == env_before
     proposal50 = type("P", (), {"skill_name": "set_release", "agent_id": "OPERATOR",
-                                "magnitude_pct": 50.0, "magnitude_fallback": False,
+                                "magnitude_pct": 0.5, "magnitude_fallback": False,
                                 "parameters": {}})()
     assert check(proposal50, env) == []
     assert solver.__dict__ == before
@@ -144,8 +144,8 @@ def test_linear_evap_model_is_judged_by_the_real_model_not_a_formula():
     assert solver.get_value("storage")[0] == pytest.approx(11.25)
     ctx = _ctx()
     # the deleted linear formula said ~5.55 at 95% (refuse); the model ends near 6.30
-    assert check.check_skill("set_release", {"magnitude_pct": 95}, ctx) == []
-    breaches = check.check_skill("set_release", {"magnitude_pct": 100}, ctx)
+    assert check.check_skill("set_release", {"magnitude_pct": 0.95}, ctx) == []
+    breaches = check.check_skill("set_release", {"magnitude_pct": 1.0}, ctx)
     assert len(breaches) == 1
     assert breaches[0].projected["storage_unclamped"] == pytest.approx(5.85, abs=1e-6)
 
@@ -161,7 +161,7 @@ def test_bound_is_judged_before_the_clamp_and_on_the_request():
     solver = ToyMassBalanceReservoir(storage0=0.2)
     _s, _b, _a, check = _reservoir(solver, contract_bounds, years_at_100=0)
     ctx = _ctx(0.0)
-    breaches = check.check_skill("set_release", {"magnitude_pct": 140}, ctx, stop_at_first=False)
+    breaches = check.check_skill("set_release", {"magnitude_pct": 1.4}, ctx, stop_at_first=False)
     names = {b.bound for b in breaches}
     # storage is clamped to 0.0 (so the clamped bound holds) but the request drove it below
     assert "unclamped" in names and "clamped" not in names
@@ -175,15 +175,15 @@ def test_bound_is_judged_before_the_clamp_and_on_the_request():
 def test_projection_uses_the_forecast_the_agent_saw():
     solver, _b, _a, check = _reservoir()
     solver._year_factors = (1.0, 0.7, 0.4, 1.0)  # year 4 is truly wet; same first 3 years
-    assert check.check_skill("set_release", {"magnitude_pct": 100}, _ctx(FORECAST_DROUGHT))
+    assert check.check_skill("set_release", {"magnitude_pct": 1.0}, _ctx(FORECAST_DROUGHT))
     solver2, _b2, _a2, check2 = _reservoir()  # year 4 is truly a drought
-    assert check2.check_skill("set_release", {"magnitude_pct": 100}, _ctx(FORECAST_WET)) == []
+    assert check2.check_skill("set_release", {"magnitude_pct": 1.0}, _ctx(FORECAST_WET)) == []
 
 
 def test_missing_forecast_stops_the_run():
     _s, _b, _a, check = _reservoir()
     with pytest.raises(CouplingViolation, match="inflow_forecast_year"):
-        check.check_skill("set_release", {"magnitude_pct": 100}, {"env_state": {}})
+        check.check_skill("set_release", {"magnitude_pct": 1.0}, {"env_state": {}})
 
 
 # --------------------------------------------------------- tiny BMI solvers ----
@@ -520,7 +520,7 @@ def test_global_rng_states_are_restored_after_a_projection():
 
 # ---------------------------------------------- 9. default after retries (e2e) ----
 def _always_100(prompt):
-    return ops_case.decision_payload("set_release", magnitude=100)
+    return ops_case.decision_payload("set_release", magnitude=1.0)
 
 
 def _run(monkeypatch, tmp_path, bounds, years=2, always_100=True):
@@ -589,7 +589,7 @@ def test_reservoir_bundle_passes_other_declared_inputs_through():
     from broker.interfaces.skill_types import ApprovedSkill
 
     skill = ApprovedSkill(skill_name="set_release", agent_id="op", approval_status="APPROVED",
-                          parameters={"magnitude_pct": 50, "gate": 0.1})
+                          parameters={"magnitude_pct": 0.5, "gate": 0.1})
     assert bundle.inputs_for_skill(skill) == {"release_target": pytest.approx(0.375), "gate": 0.1}
 
 

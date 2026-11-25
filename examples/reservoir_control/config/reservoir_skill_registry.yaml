@@ -4,14 +4,14 @@ skills:
     category: setpoint
     intensity: continuous
     reversibility: annual
-    description: "Set the monthly release target as a percentage of demand for the next reservoir operating period"
+    description: "Set the monthly release target as a fraction of demand (0 to 1) for the next reservoir operating period"
     eligible_agent_types: ["operator"]
     preconditions: []
     institutional_constraints:
       annual: true
-      magnitude_type: "percentage"
-      max_magnitude_pct: 100
-      magnitude_default: 100
+      magnitude_type: "fraction"
+      max_magnitude_pct: 1
+      magnitude_default: 1
     allowed_state_changes: []
     implementation_mapping: "set_release"
     # NOTE (review W1): the prompt's response field is "magnitude" (the
@@ -25,7 +25,7 @@ skills:
       required: [decision, magnitude_pct]
       properties:
         decision: { type: integer, enum: [1] }
-        magnitude_pct: { type: number, minimum: 0, maximum: 100 }
+        magnitude_pct: { type: number, minimum: 0, maximum: 1 }
     conflicts_with: []
 
   - skill_id: maintain_release

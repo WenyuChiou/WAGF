@@ -117,7 +117,7 @@ VarSpec's `observation_reduce` (mean/min/max/sum/last), and the approved
 skill's setpoint writes into the solver through a `ControlSink`
 (`BmiControlSink` adapts `set_value` automatically). Worked example:
 `examples/reservoir_control/` — annual decision × 12 monthly sub-steps,
-`magnitude_pct` (0-100% of demand) mapped to a named solver input in a small
+`magnitude_pct` (a fraction of demand, 0 to 1) mapped to a named solver input in a small
 bundle subclass, governed by a dead-pool projection wall BEFORE the commit.
 
 Three contracts the example pins (copy them, don't rediscover):
@@ -196,7 +196,7 @@ expression, its value, the period, the sub-step and the variable values used.
 
 - **A threshold on world values and the proposed number: an `expression:` rule.**
   Write it in the agent-types YAML, for example
-  `storage_now > 0.9 * capacity and proposed_magnitude < 100`. It is checked before
+  `storage_now > 0.9 * capacity and proposed_magnitude < 1`. It is checked before
   the proposal is executed; a breach blocks the proposal and the agent retries. See
   `docs/guides/governance_layers.md` for the syntax.
 - **An equation the model's own numbers must satisfy every step (e.g. the water

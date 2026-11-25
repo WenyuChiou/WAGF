@@ -323,7 +323,7 @@ class RuleCondition(BaseModel):
     expression: Optional[str] = Field(
         default=None,
         description="Free arithmetic/comparison string over world variables, e.g. "
-                    "'storage_now > 0.9 * capacity and proposed_magnitude < 100'. "
+                    "'storage_now > 0.9 * capacity and proposed_magnitude < 1'. "
                     "Stands alone: do not combine with construct/variable/value."
     )
     scope: Optional[str] = Field(

@@ -55,16 +55,17 @@ needed. Choose a fresh output directory for each run.
 python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
-The scripted operator asks to release 100% of demand each year. In year 3 the
-dead-pool rule blocks that request, because the toy reservoir's own trial run of
-the coming year ends below the dead pool. The operator then asks for 50%, which is approved and executed. The run
+The scripted operator asks to release all of demand each year (magnitude 1.0; the
+number is a fraction from 0 to 1). In year 3 the dead-pool rule blocks that request,
+because the toy reservoir's own trial run of the coming year ends below the dead
+pool. The operator then asks for 0.5 (half of demand), which is approved and executed. The run
 ends with this summary:
 
 ```text
 Block and repair in this run:
 Year 3, agent OPERATOR:
   attempt 1  BLOCKED: set_release (requested release_target=0.75) breaks dead_pool_violation: storage_unclamped >= 6.0 does not hold; the model projects storage_unclamped=5.43401 at sub-step 6 of 12 (copy projection).
-  attempt 2  APPROVED: set_release at 50% of demand
+  attempt 2  APPROVED: set_release at 0.5 of demand
   executed   toy reservoir release target: 0.750 -> 0.375 maf/month
   effect     storage 7.543 maf at year 3, 6.362 maf at year 4 (dead pool 6.000 maf)
 ```

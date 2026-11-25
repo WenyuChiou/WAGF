@@ -135,7 +135,7 @@ def test_magnitude_setpoint_mapping_and_absent_magnitude_repeats_last():
     solver = ToyMassBalanceReservoir()
     bundle = ReservoirOpsBundle(contract=ops_case.build_contract(), solver=solver)
 
-    first = bundle.commit_world_delta(_approved(magnitude_pct=80))
+    first = bundle.commit_world_delta(_approved(magnitude_pct=0.8))
     assert first.world_changes["release_target"] == pytest.approx(0.6)
     assert solver.release_target == pytest.approx(0.6)
 
@@ -208,7 +208,7 @@ def test_out_of_range_derived_setpoint_blocked_by_bundle_guard():
     )
 
     with pytest.raises(CouplingViolation, match="release_target"):
-        adapter.execute_skill(_approved(magnitude_pct=200))
+        adapter.execute_skill(_approved(magnitude_pct=2.0))
 
     assert solver.release_target == pytest.approx(0.75)
 

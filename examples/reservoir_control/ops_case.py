@@ -51,7 +51,7 @@ PROMPT_ENV_KEYS = (
 _OPTION_LABELS = {
     "set_release": (
         "set_release — set the coming year's monthly release target as a "
-        "percentage of demand (provide magnitude 0-100)"
+        "fraction of demand (provide magnitude from 0 to 1, e.g. 0.6)"
     ),
     "maintain_release": "maintain_release — keep the previously committed release target",
 }
@@ -71,15 +71,15 @@ def decision_payload(decision: str, **fields: Any):
 
 
 def scripted_operator(prompt: str):
-    # 50% clears the year-3 wall (passing threshold ~53.8% — see the
-    # ops_modules docstring arithmetic); review C2: 60% also projected below
+    # 0.5 clears the year-3 wall (passing threshold about 0.536 — see the
+    # ops_modules docstring arithmetic); review C2: 0.6 also projected below
     # dead pool, so the retry never resolved and the insurer-pattern
     # narrative (wall -> retry -> APPROVED) was broken.
-    magnitude = 50 if "BLOCKED" in prompt or "dead_pool_violation" in prompt else 100
+    magnitude = 0.5 if "BLOCKED" in prompt or "dead_pool_violation" in prompt else 1.0
     return decision_payload(
         "set_release",
         magnitude=magnitude,
-        reasoning=f"scripted reservoir release at {magnitude}% of demand",
+        reasoning=f"scripted reservoir release at {magnitude} of demand",
     )
 
 
@@ -98,7 +98,7 @@ def make_operator() -> BaseAgent:
         objectives=[],
         constraints=[],
         skills=[
-            Skill("set_release", "Set monthly release percentage", None, "none"),
+            Skill("set_release", "Set monthly release as a fraction of demand", None, "none"),
             Skill("maintain_release", "Maintain previous release", None, "none"),
         ],
     )
@@ -215,7 +215,7 @@ def build_contract() -> CouplingContract:
         # the operator saw. storage_unclamped is the storage before the clamp
         # to [0, capacity], so a request that would empty the reservoir cannot
         # hide behind the clamped value. The id stays dead_pool_violation: the
-        # scripted mock retries at 50% when the prompt carries it.
+        # scripted mock retries at 0.5 when the prompt carries it.
         feasibility=(
             FeasibilityBound(
                 name="dead_pool_violation",
@@ -357,7 +357,7 @@ def summarize_block_and_repair(output_dir) -> list:
         lines.append(f"Year {year}, agent {rec['agent_id']}:")
         lines.append(f"  {blocked} BLOCKED: " + (" ".join(reasons) or "validation failed"))
         if proposal and approved:
-            outcome = f"{approved.get('skill_name')} at {repaired}% of demand"
+            outcome = f"{approved.get('skill_name')} at {repaired} of demand"
         else:
             outcome = "no parsable proposal after the retries; see the trace for the fallback"
         lines.append(f"  attempt {retries + 1}  {approved.get('status', 'NO DECISION')}: {outcome}")

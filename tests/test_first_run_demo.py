@@ -50,7 +50,7 @@ def test_trace_keeps_the_block_reason_for_the_same_step(demo):
     assert step["approved_skill"]["status"] == "APPROVED"
     errors = [e for v in step["validation_issues"] for e in v["errors"]]
     assert any("dead_pool_violation" in e and "storage_unclamped" in e for e in errors)
-    assert step["skill_proposal"]["reasoning"]["magnitude"] == 50
+    assert step["skill_proposal"]["reasoning"]["magnitude"] == 0.5
 
 
 def test_executed_change_reaches_the_toy_reservoir(demo):
@@ -69,7 +69,7 @@ def test_console_summary_shows_block_reason_repair_and_effect(demo):
     summary = stdout.split("Block and repair in this run:")[1]
     assert "BLOCKED: set_release (requested release_target=0.75)" in summary
     assert "breaks dead_pool_violation" in summary
-    assert "APPROVED: set_release at 50% of demand" in summary
+    assert "APPROVED: set_release at 0.5 of demand" in summary
     assert "0.750 -> 0.375 maf/month" in summary
     assert "storage 7.543 maf at year 3, 6.362 maf at year 4" in summary
 
@@ -91,7 +91,7 @@ def _record(step_id, retry_count):
         "step_id": step_id, "year": step_id, "agent_id": "OPERATOR", "retry_count": retry_count,
         "validation_issues": [{"errors": ["below dead pool."]}] if retry_count else [],
         "environment_context": {"storage": 7.0, "release_actual": 0.75, "dead_pool": 6.0},
-        "skill_proposal": {"reasoning": {"magnitude": 40}},
+        "skill_proposal": {"reasoning": {"magnitude": 0.4}},
         "approved_skill": {"status": "APPROVED", "skill_name": "set_release"},
         "execution_result": {"action_context": {"world_delta": {"world_changes": {"release_target": 0.3}}}},
     }
@@ -111,7 +111,7 @@ def test_summary_counts_attempts_when_blocked_twice(tmp_path):
     _write_trace(tmp_path, [_record(1, 2)])
     lines = _summarize()(tmp_path)
     assert lines[1].startswith("  attempts 1-2 BLOCKED: below dead pool.")
-    assert lines[2].startswith("  attempt 3  APPROVED: set_release at 40% of demand")
+    assert lines[2].startswith("  attempt 3  APPROVED: set_release at 0.4 of demand")
 
 
 def test_summary_handles_a_retry_that_ends_without_a_proposal(tmp_path):

@@ -20,7 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   known `global_config` key.
   New cases put the agent's action number on [0, 1]: `scaffold_domain --magnitude` writes a `magnitude` field with
   `min: 0` and `max: 1`, `validate_prompt` warns when a `magnitude` field allows more than 1 (an error under
-  `--strict`), and `broker.run --strict-keys` refuses it. Paper cases and `examples/reservoir_control` keep their scales.
+  `--strict`), and `broker.run --strict-keys` refuses it. Paper cases keep their scales.
+
+### Changed
+
+- `examples/reservoir_control` declares its action number on [0, 1] (a fraction of demand): the
+  `magnitude` field, prompt, mock answers, the `flood_control_overflow` rule (`proposed_magnitude < 1`)
+  and the registry follow. Executed release targets are unchanged.
 
 ### Removed
 
