@@ -154,20 +154,22 @@ name (``gemma3:4b``, ``scripted-test``, or ``ExperimentConfig``'s own
 "provider:" prefix, so the reproducibility manifest's model-digest query
 treats them as real Ollama models) and only mock the ONE call they are
 actually testing -- leaving the OTHER of the digest query's
-``requests.post`` / the modelfile-defaults call's ``subprocess.run`` to hit
-a live daemon for real. Rather than hunt down and patch every such call
-site (and every one written after today), every test gets BOTH replaced by
-default: ``requests.post`` fails closed (a "daemon unreachable"
-``ConnectionError``) for a URL that targets the CURRENT Ollama base URL or
-port 11434 specifically -- any OTHER URL passes straight through to the
-real ``requests.post``, so a test using ``requests`` for something
-unrelated is unaffected; ``subprocess.run`` fails closed with
+``requests.post`` / the run-environment version query's ``requests.get`` /
+the modelfile-defaults call's ``subprocess.run`` to hit a live daemon for
+real (a finalize with such a model sends a GET to the dead port, which
+costs about 2 s per test on Windows). Rather than hunt down and patch
+every such call site (and every one written after today), every test gets
+ALL THREE replaced by default: ``requests.post`` and ``requests.get`` fail
+closed (a "daemon unreachable" ``ConnectionError``) for a URL that targets
+the CURRENT Ollama base URL or port 11434 specifically -- any OTHER URL
+passes straight through to the real ``requests.post`` / ``requests.get``,
+so a test using ``requests`` for something unrelated is unaffected; ``subprocess.run`` fails closed with
 ``FileNotFoundError`` the same way, but ONLY for a command whose argv0 is
 an ``ollama`` binary -- any other command (git, etc.) also passes straight
 through. A test mocking either function itself (to exercise
 ``capture_ollama_modelfile_defaults``'s OWN parsing, say) still works
 exactly as before: its own patch simply overrides this default for its
-``with`` block. A ``real_llm``-marked test is exempt from both stubs. Both
+``with`` block. A ``real_llm``-marked test is exempt from all stubs. Both
 intercept BEFORE the real ``subprocess``/socket call, so they and the
 audit-hook guard above cover two different layers of the same problem, not
 one problem twice: a properly-stubbed test never reaches the guard at all.
@@ -679,17 +681,20 @@ def _looks_like_an_ollama_url(url) -> bool:
         return False
 
 
-def _make_selective_requests_post_stub(real_post):
+def _make_selective_requests_stub(real_call, name="requests.post"):
+    """Stub factory for ``requests.post`` and ``requests.get``: an
+    Ollama-targeted URL raises ``ConnectionError``, any other URL goes to
+    ``real_call``."""
     def _stub(url, *args, **kwargs):
         if _looks_like_an_ollama_url(url):
             import requests
             raise requests.exceptions.ConnectionError(
                 "stubbed by the root conftest's default network fixture: no "
                 "test in this suite may depend on a live Ollama daemon; "
-                "patch requests.post locally if this test needs a specific "
+                "patch " + name + " locally if this test needs a specific "
                 "response"
             )
-        return real_post(url, *args, **kwargs)
+        return real_call(url, *args, **kwargs)
     return _stub
 
 
@@ -742,9 +747,9 @@ def _default_stub_no_test_needs_a_live_daemon(request, monkeypatch):
     """Default network stub so NO test needs a live Ollama daemon, whatever
     model name it happens to construct a runner with (see the module
     docstring's "DEFAULT NETWORK STUB" section): an Ollama-targeted
-    ``requests.post`` fails closed the same way an unreachable daemon
-    would, and an ``ollama`` ``subprocess.run`` call fails closed the same
-    way a missing binary would (any OTHER URL or command -- git, etc. -- is
+    ``requests.post`` or ``requests.get`` fails closed the same way an
+    unreachable daemon would, and an ``ollama`` ``subprocess.run`` call
+    fails closed the same way a missing binary would (any OTHER URL or command -- git, etc. -- is
     unaffected). A test that wants a specific response still overrides
     either locally, which applies on top of this default for that test
     only. A ``real_llm``-marked test is exempt: it intentionally wants the
@@ -756,7 +761,11 @@ def _default_stub_no_test_needs_a_live_daemon(request, monkeypatch):
     import requests as _requests_module
     monkeypatch.setattr(
         _requests_module, "post",
-        _make_selective_requests_post_stub(_requests_module.post),
+        _make_selective_requests_stub(_requests_module.post, "requests.post"),
+    )
+    monkeypatch.setattr(
+        _requests_module, "get",
+        _make_selective_requests_stub(_requests_module.get, "requests.get"),
     )
     monkeypatch.setattr(
         _subprocess_module, "run",

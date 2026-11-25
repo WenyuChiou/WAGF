@@ -101,7 +101,10 @@ def test_mock_run_renders_menu_and_records_provenance(case, tmp_path):
     assert "<<<DECISION_START>>>" in prompt
     assert (output / "reproducibility_manifest.json").is_file()
     case_dir = config.parents[1].resolve()
-    assert _manifest(output) == {
+    record = _manifest(output)
+    for key in ("strict_provenance", "provenance_checks", "provenance_problems"):  # see test_broker_run_strict_provenance.py
+        record.pop(key)
+    assert record == {
         "status": "completed",
         "config": str(config.resolve()), "case_dir": str(case_dir),
         "slots": {"world": "world:build"}, "slot_sources": {"world": "yaml"},

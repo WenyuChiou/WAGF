@@ -22,6 +22,7 @@ from broker.utils.agent_config import AgentTypeConfig, NON_AGENT_TOP_LEVEL_KEYS,
 from broker.utils.llm_utils import LLM_CONFIG, is_mock_model
 
 from ._imports import SlotError, parse_slot, resolve_slot, valid_module_name, vet_import_target
+from ._provenance import capture_launch_environment, launch_checks, manifest_problem
 
 
 @dataclass
@@ -114,6 +115,10 @@ def _parse_args(argv):
     parser.add_argument("--strict-keys", action=argparse.BooleanOptionalAction, default=None,
                         help="refuse a YAML that holds a key no code reads (default: off; "
                              "run.strict_keys in the YAML sets it, the command line wins)")
+    parser.add_argument("--strict-provenance", action="store_true",
+                        help="refuse a run with uncommitted changes, a missing Ollama model digest, a failed "
+                             "metadata query or a failed manifest write (mock and cloud models have no digest; "
+                             "that check does not apply to them)")
     parser.add_argument("--slot", action="append", default=[], metavar="NAME=MODULE:ATTR",
                         help=f"override a factory ({', '.join(_SLOT_NAMES)})")
     parser.add_argument("--allow-module", action="append", default=[], metavar="DOTTED.NAME",
@@ -434,7 +439,7 @@ def prepare(argv) -> Prepared:
     return Prepared(runner, ctx, after_run, slots, phase_order, args, loaded)
 
 
-def _write_run_record(prepared, argv, status):
+def _write_run_record(prepared, argv, status, provenance=None):
     ctx, args = prepared.ctx, prepared.args
     used = prepared.slot_files  # the mock slot is absent under a real model
     record = {
@@ -457,12 +462,19 @@ def _write_run_record(prepared, argv, status):
         "output_dir": str(ctx.output_dir),
         "argv": argv,
     }
+    if provenance:
+        record.update(provenance)
     ctx.output_dir.mkdir(parents=True, exist_ok=True)
     (ctx.output_dir / "broker_run.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
 def main(argv=None) -> int:
-    """Run a case, returning 2 for CLI, run-block, slot or build errors."""
+    """Run a case.
+
+    Returns 2 for CLI, run-block, slot or build errors, and for a run that
+    ``--strict-provenance`` refused before it started. Returns 1 when
+    ``--strict-provenance`` is set and the manifest write failed after the run.
+    """
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
         try:
@@ -476,12 +488,39 @@ def main(argv=None) -> int:
         return 2
     runner, ctx, after_run = prepared.runner, prepared.ctx, prepared.after_run
 
+    capture_launch_environment(runner)
+    checks, problems = launch_checks(runner, ctx.model)
+    strict = prepared.args.strict_provenance
+
+    def provenance():
+        return {"strict_provenance": strict, "provenance_checks": dict(checks),
+                "provenance_problems": list(problems)}
+
+    if strict and problems:
+        print(f"broker.run: --strict-provenance refused this run: {'; '.join(problems)}", file=sys.stderr)
+        _write_run_record(prepared, argv, "refused_provenance", provenance())
+        return 2
+    if problems:
+        print(f"broker.run: provenance check: {'; '.join(problems)} (add --strict-provenance to refuse)",
+              file=sys.stderr)
+
     print(f"[broker.run] {ctx.config_path} | model={ctx.model} years={ctx.years} "
           f"agents={len(ctx.agents)} output={ctx.output_dir}")
     # Written before the run so a failed run still leaves its record.
-    _write_run_record(prepared, argv, "started")
+    _write_run_record(prepared, argv, "started", provenance())
     runner.run()
     if after_run is not None:
         after_run(ctx.output_dir)
-    _write_run_record(prepared, argv, "completed")
+    problem = manifest_problem(ctx.output_dir)
+    checks["manifest_write"] = "pass" if problem is None else "fail"
+    if problem is not None:
+        problems.append(problem)
+        if not strict:
+            print(f"broker.run: provenance check: {problem} (add --strict-provenance to refuse)",
+                  file=sys.stderr)
+    if strict and problem is not None:
+        print(f"broker.run: --strict-provenance: {problem}", file=sys.stderr)
+        _write_run_record(prepared, argv, "provenance_failed", provenance())
+        return 1
+    _write_run_record(prepared, argv, "completed", provenance())
     return 0

@@ -1656,6 +1656,21 @@ class ExperimentRunner:
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
 
+        # 5.01. Run environment (WAGF and dependency versions, OS, Ollama server
+        #     version for Ollama models). broker.run captures this at launch (see
+        #     broker/run/_provenance.py) and the runner replays it here; every
+        #     other runner (the paper runners included) collects it at finalize.
+        try:
+            env = getattr(self, "_run_environment_at_launch", None)
+            if not isinstance(env, dict):
+                from broker.utils.run_environment import collect_run_environment
+                model = getattr(getattr(self, "config", None), "model", None)
+                env = collect_run_environment(
+                    model if isinstance(model, str) else None, captured_at="finalize")
+            metadata["run_environment"] = env
+        except Exception as exc:
+            metadata["run_environment"] = {"errors": {"_collection": type(exc).__name__}}
+
         # 5.05. Parallel worker count (ExperimentConfig.workers; F14/F41
         #     parallel-determinism review, F43 crash-resume journal review).
         #     Recorded so a provenance guard pooling runs after the fact
