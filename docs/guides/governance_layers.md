@@ -526,12 +526,14 @@ python examples/irrigation_abm/run_experiment.py --model mock --agents 3 \
     --years 3 --seed 42 --governance-mode strict
 ```
 
-The shipped `--model mock` emits `{"decision": N}` and no construct labels, so
-every row fails the response-format check first and no thinking rule of any kind
-can fire. The tables above come from runs driven by a mock that does emit
-labels. Nothing in `broker/` was changed to produce them; if you want to
-reproduce them, supply an LLM (or a stand-in) that returns the domain's
-construct fields.
+The shipped `--model mock` emits `{"decision": N}` (always picking option 1) and
+no construct labels, so every row fails the response-format check first and no
+thinking rule of any kind can fire. See
+[Model state in prompts and checks](model_state_in_prompt_and_checks.md) for how
+to trigger a block under `--model mock`. The tables above come from runs driven by
+a mock that does emit labels. Nothing in `broker/` was changed to produce them;
+if you want to reproduce them, supply an LLM (or a stand-in) that returns the
+domain's construct fields.
 
 `tests/integration/test_grounded_governance_e2e.py` does exactly that, and is
 the shortest way to see the whole path work: it drives `ExperimentRunner`
@@ -555,3 +557,5 @@ with the self-report identical on every row.
   `variable` / `scope` condition fields.
 - `broker/INVARIANTS.md` — Invariant 5 (domain genericity): the world variables
   live in the domain, never in `broker/`.
+
+See also: [Model state in prompts and checks](model_state_in_prompt_and_checks.md) — how world values reach the prompt, physical checks, and `expression:` rules.
