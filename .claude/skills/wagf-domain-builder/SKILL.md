@@ -46,10 +46,11 @@ Do NOT use this skill for:
   multi-agent, also read `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`
   "Building a multi-agent domain" section — covers the dual-dict
   gotcha (Phase 6E Finding #3) the scaffold doesn't auto-handle.
-- The scaffolded `run_experiment.py` is a single-agent template. For
-  multi-agent, the S5 edit-5 step (ExperimentBuilder wiring) is larger:
-  copy from `examples/multi_agent/flood/run_unified_experiment.py` rather than
-  the single-agent demo.
+- The scaffold writes no runner: `python -m broker.run` runs the case
+  from the `global_config.run` block (single-agent, or multi-agent with
+  `phase_order`). A multi-agent case that needs a social graph or other
+  memory engines still needs its own runner (S5 edit 5): copy from
+  `examples/multi_agent/flood/run_unified_experiment.py`.
 - **Cognitive framework**: PMT / Utility / Financial (pre-
   registered), HBM (custom registration), or custom (scaffolded by
   `scaffold_domain --framework custom`). **Phase 6Q-G (2026-05-26)
@@ -136,6 +137,12 @@ python -m broker.tools.scaffold_domain <domain> \
     --framework <pmt|custom>
 ```
 
+Add `--physical-only` instead of `--framework` when the decision has no
+appraisal (a pump schedule, a gate setting, a release rule). It writes
+`psychological_framework: none` explicitly: no rating scale, no appraisal
+fields or constructs, a prompt without appraisal wording. It cannot be
+combined with `--framework`.
+
 The `--framework` decision: `scaffold_domain` only accepts `pmt` or
 `custom`. Pick:
 - `--framework pmt` — only if S0 Q5 picked PMT (it is the one
@@ -157,15 +164,16 @@ Verify with `python -m broker.tools.validate_prompt examples/<domain>_demo/confi
 — must exit 0 clean. If not, halt and surface the diagnostic.
 
 Output: full directory at `examples/<domain>_demo/` with 10-12
-scaffolded files.
+scaffolded files, including `world.py` and a `global_config.run` block
+in `config/agent_types.yaml`. The folder name must be a Python
+identifier.
 
 ### S5 — Edit-pass guidance (60-90 min, the longest stage)
 
 Walk the user through 5 surgical edits using
 `references/edit_pass_checklist.md`. Edits 1-4 follow checklist
-order; edit 5 is the ExperimentBuilder wiring that turns the
-scaffolded `run_experiment.py` STUB into a working smoke entry
-point.
+order; edit 5 replaces the scaffold's stand-in world with your own
+and adds the optional slots under `global_config.run`.
 
 1. **Prompt template** (`config/prompts/<agent_type>.txt`) —
    replace generic narrative with domain-specific situation
@@ -189,47 +197,53 @@ point.
    ERROR level. WARNING-level rules have ~0% behavior effect
    on small LLMs (per MEMORY.md); use ERROR for actual
    enforcement.
-5. **`run_experiment.py` ExperimentBuilder wiring** — the
-   scaffolded `run_experiment.py` is intentionally a TODO stub
-   (just prints "TODO: replace this stub" and exits). Replace it
-   with a working entry point.
-
-   **Single-agent path**: use `examples/irrigation_abm/run_experiment.py`
-   as the canonical reference. Key elements: `ExperimentBuilder`
-   import, synthetic agent generator OR real-data loader,
-   `with_simulation(env)` instantiation, `builder.run()` invocation.
-   If coupling (S2/S3) is present, inject the `MockExternalModel` /
-   real adapter into the environment object at this step.
+5. **`world.py` and the `global_config.run` slots** — the scaffold
+   writes `world.py` (`SyntheticEnvironment` and `build_world(ctx)`)
+   and a `run:` block, and no runner. Replace the stand-in world with
+   your model, and add the slots the case needs under
+   `global_config.run` (each is `module:function`, the function takes
+   `ctx`): `agents` (dict of agents; default builds `agent_count`
+   agents for the one agent type), `hooks` (lifecycle hooks
+   `pre_year`, `pre_step`, `post_step`, `post_year`, `post_step_end`,
+   optional `after_run(output_dir)`), `validators` (custom validator
+   callables), `mock` (scripted responder per agent type, used only
+   with `--model mock`). A YAML slot may import only modules inside
+   the case folder; anything else needs `--allow-module` or
+   `--slot` on the command line. See "Running a case:
+   `python -m broker.run`" in `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`.
+   If coupling (S2/S3) is present, return
+   `broker.run.Coupled(contract, sources, domain)` from `build_world`
+   or inject the `MockExternalModel` / real adapter into the world.
 
    **Multi-agent path**: read `references/multi_agent_walkthrough.md`
-   in full before starting edit 5. The wiring is materially
-   different — uses `with_lifecycle_hooks(pre_year, post_step,
-   post_year)` instead of `with_simulation`, requires a
-   `dynamic_whitelist` declared with `TieredContextBuilder`, needs
-   `with_phase_order([[t1], [t2], [t3]])` for execution ordering,
+   in full before starting edit 5. `broker.run` takes only
+   `phase_order` (a list of lists of agent types) from the YAML. A
+   case that needs a social graph or other memory engines still
+   writes its own runner; the scaffold does not write one. That
+   runner uses `with_lifecycle_hooks(pre_year, post_step,
+   post_year)`, a `dynamic_whitelist` declared with
+   `TieredContextBuilder`, and `with_phase_order([[t1], [t2], [t3]])`,
    and has the **dual-dict gotcha** (Phase 6E Finding #3 — the
    `self.env = env` aliasing requirement in `pre_year`) that
    silently breaks cross-agent state propagation if missed. The
    canonical reference is `examples/multi_agent/flood/`. The
-   walkthrough doc covers all 5 multi-agent-specific additions, the
+   walkthrough doc covers the multi-agent-specific additions, the
    gotcha, and a per-symptom BLOCKER table.
-
-   Without this edit, S6 cannot produce an audit CSV — the stub
-   just prints TODO and exits.
 
 After EACH edit (1-4), automatically run:
 ```bash
 python -m broker.tools.validate_prompt examples/<domain>_demo/config/agent_types.yaml
 ```
 
-Edit 5 doesn't need `validate_prompt` (it's Python wiring, not
-config). Instead, verify edit 5 by running S6 immediately after.
+Edit 5 doesn't need `validate_prompt` for `world.py` (it's Python, not
+config); run it again if you changed the YAML slots. Verify edit 5 by
+running S6 immediately after.
 
 If `validate_prompt` doesn't return OK clean, halt the user there.
 Don't allow multiple edits to accumulate undetected drift.
 
 Output: 5 edited files + 4 clean validate_prompt runs (edits 1-4)
-+ a working `run_experiment.py` ready for S6 smoke (edit 5).
++ a `world.py` and `run:` block ready for S6 smoke (edit 5).
 
 #### S5 edit 6 (optional) — Social-media propagation (v0.5.1+)
 
@@ -326,17 +340,24 @@ for the verification pattern.
 
 ### S6 — Mock smoke run (5 min)
 
-Run the scaffolded `run_experiment.py`:
+Run the case through `broker.run` with the mock model:
 
 ```bash
-python examples/<domain>_demo/run_experiment.py --model gemma3:4b --years 2 --agents 3 --seed 42
+python -m broker.run examples/<domain>_demo/config/agent_types.yaml --model mock --years 2 --agents 3 --seed 42
 ```
+
+A finished output folder is never overwritten: pass a new `--output`
+or move the old folder aside. Before the run starts it prints a header
+line `[broker.run] <config> | model=... years=... agents=... output=<dir>`;
+the run worked if the command exits with code 0.
 
 Verify:
 - No `[Adapter:Error]` blocks in stdout (per Phase 6C-v4 cycle 1
   diagnostic).
-- Audit CSV at `results/smoke_42/individual_governance_audit.csv`
-  has N = years × agents = 6 rows.
+- Audit CSV under the output folder (`results/smoke/` unless you set
+  `--output`) has N = years × agents = 6 rows. Its name comes from the
+  agent type (`agent_governance_audit.csv` for the scaffold's default
+  `agent` type).
 - `proposed_skill` values are all from the declared skill list.
 - `raw_output` JSON keys match `response_format.fields[].key`.
 
@@ -373,11 +394,11 @@ examples/<domain>_demo/
 │   ├── skill_registry.yaml                    ← S4 scaffold
 │   ├── agent_types.yaml                       ← S4 scaffold, edited at S5 edit 4
 │   └── prompts/<agent_type>.txt               ← S4 scaffold, edited at S5 edit 1
-├── run_experiment.py                          ← S4 scaffold (STUB), rewritten at S5 edit 5
+├── world.py                                   ← S4 scaffold (stand-in world), replaced at S5 edit 5
 ├── lifecycle_hooks.py                         ← created at S3 by wagf-coupling-designer C2 (coupling only)
 ├── adapters/external_model_adapter.py         ← created at S7 by wagf-coupling-designer C3 (coupling only)
-└── results/smoke_42/                          ← S6 traces (path follows --output flag)
-    └── individual_governance_audit.csv
+└── results/smoke/                             ← S6 traces (path follows --output flag)
+    └── <agent_type>_governance_audit.csv
 
 .coupling/                                     ← coupling only
 └── contract.md                                ← created at S2 by wagf-coupling-designer C1

@@ -32,7 +32,7 @@ Why: this branches the workflow into the coupling path or the no-coupling path.
 
 Use: if yes, hand off to `.claude/skills/wagf-coupling-designer/SKILL.md` at S2 and S3; if no, skip straight from S1 to S4.
 
-Example answer: "No external model for the first build; flood severity is generated inside `run_experiment.py`."
+Example answer: "No external model for the first build; flood severity is generated inside `world.py`."
 
 ## Q5. "Which cognitive framework should govern the agent's reasoning?"
 

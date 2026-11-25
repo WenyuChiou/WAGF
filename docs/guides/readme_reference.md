@@ -59,7 +59,7 @@ Run the [first-run demo](../../README.md#quickstart) first: it shows a rule bloc
 python -m broker.tools.scaffold_domain my_water_model --framework generic --skills "action_a,action_b"
 ```
 
-Expect `Scaffolded` and `examples/my_water_model_demo/` with configuration, a prompt and a runner. `--skills` lists the actions an agent can choose; WAGF calls actions skills.
+Expect `Scaffolded` and `examples/my_water_model_demo/` with configuration, a prompt and a world file (`world.py`). `--skills` lists the actions an agent can choose; WAGF calls actions skills.
 
 Replace the placeholder actions with your water decisions, then follow [Build your own domain](#build-your-own-domain) below. To connect an existing hydrological or water-system model, follow the [coupling guide](../../docs/COUPLING_CONNECTORS.md).
 
@@ -71,14 +71,14 @@ After scaffolding your water application, check the prompt and run the generated
 
 ```bash
 python -m broker.tools.validate_prompt examples/my_water_model_demo/config/agent_types.yaml
-python examples/my_water_model_demo/run_experiment.py --model mock --years 1 --agents 1
+python -m broker.run examples/my_water_model_demo/config/agent_types.yaml --model mock --years 1 --agents 1
 ```
 
-The first command reports configuration errors and warnings. The second writes audit output under `examples/my_water_model_demo/results/smoke/`. The generated example is incomplete on purpose, so the run prints `Validation FAILED` and `Max retries (3) reached`. It worked if it ends with `Done. Audit + traces under: ...`.
+The first command reports configuration errors and warnings. The second writes audit output under `examples/my_water_model_demo/results/smoke/`. The generated example is incomplete on purpose, so the run prints `Validation FAILED` and `Max retries (3) reached`. Before the run starts, `broker.run` prints a header line that starts with `[broker.run]` and names the model, years, agents and output folder. It worked if the command exits with code 0. (`broker.run` does not print `Done. Audit + traces under:`.)
 
-To run it again, add `--output results/smoke2` (relative to `examples/my_water_model_demo/`) or delete `results/smoke/` first; WAGF refuses to overwrite a finished run.
+To run it again, add `--output examples/my_water_model_demo/results/smoke2` (relative to the current directory) or delete `results/smoke/` first; WAGF refuses to overwrite a finished run.
 
-Use the [new-domain guide](../../docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md) to supply model state, prompts, rules and action execution. Follow the [verification ladder](../../.claude/skills/wagf-verification-ladder/SKILL.md): environment, configuration, mock run, domain tests, real-model pilot, then acceptance before a larger study.
+For decisions with no appraisal step, add `--physical-only` to the scaffold command. Use the [new-domain guide](../../docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md) (see "Running a case") to supply model state, prompts, rules and action execution. Follow the [verification ladder](../../.claude/skills/wagf-verification-ladder/SKILL.md): environment, configuration, mock run, domain tests, real-model pilot, then acceptance before a larger study.
 
 If you use an AI coding assistant such as Claude Code, the repository includes step-by-step guides for it, called skills; see [WAGF skills](../../docs/skills/wagf-skills.md) and [AI-assisted setup](../../docs/AI_ASSISTED_SETUP.md).
 

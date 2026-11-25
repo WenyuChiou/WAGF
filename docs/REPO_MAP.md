@@ -11,6 +11,7 @@ describes structure; it does not change any Python/YAML behaviour.
 | Dir | What lives there | Entry points | Who edits it |
 |---|---|---|---|
 | `broker/` | Framework core: governance pipeline, memory engines, validators, audit writer, lifecycle hooks. Domain-agnostic. | `broker/core/experiment.py` (shim), `broker/core/skill_broker_engine.py::SkillBrokerEngine` | Framework maintainers only; see `broker/INVARIANTS.md` before touching. |
+| `broker/run/` | The single entry for every new case: `python -m broker.run CONFIG` reads `global_config.run` from the agent-types YAML, loads the `world`, `agents`, `hooks`, `validators` and `mock` slots, and writes the run manifest and `broker_run.json`. | `python -m broker.run <config>.yaml --model mock` (`broker/run/_entry.py`; import rule in `broker/run/_imports.py`) | Framework maintainers; case authors use the guide `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`. |
 | `broker/tools/` | 11 operator CLIs (scaffold, validate, calibrate, audit-compare, recovery). | `python -m broker.tools.<name> --help` | Framework maintainers. |
 | `broker/tests/` | Tests for `broker/` internals (126 `test_*.py` files). | `pytest broker/` | Whoever changes `broker/`. |
 | `examples/` | Domain packs and runnable experiments (9 example dirs). | `examples/README.md` | Domain researchers; each dir usually has one owner-experiment. |
@@ -112,7 +113,8 @@ One line per subpackage, main class or CLI read directly from the code:
 | `calibration/` | `optimize.py` (`OptimizeResult`, `TargetSplit`) + CLI `broker/tools/calibrate.py` |
 | `experiments/` | `replay.py` (`MaskSpec`, `FactorMap`), `ablation.py`, `metrics.py` |
 | `domains/` | `DomainPackRegistry` (`registry.py`); `default.py` (`DefaultDomainPack`); water reference packs under `domains/water/` |
-| `tools/` | 11 CLIs, each `if __name__ == "__main__"` runnable: `scaffold_domain`, `validate_prompt`, `gen_test_fixture`, `calibrate`, `ablate_factor`, `check_run_integrity`, `check_llm_transport` (read-only journal/log failure counts; `--all-steps` shows every step), `compare_audit_csv`, `readiness_report`, `recover_csv_from_jsonl`, `replay_shadow` |
+| `run/` | `main` and `RunContext` (`_entry.py`), `Coupled` (a coupled world), slot import rule (`_imports.py`); run with `python -m broker.run` |
+| `tools/` | 11 CLIs, each `if __name__ == "__main__"` runnable: `scaffold_domain` (writes `world.py` and a `global_config.run` block, no runner; `--physical-only` for decisions with no appraisal), `validate_prompt`, `gen_test_fixture`, `calibrate`, `ablate_factor`, `check_run_integrity`, `check_llm_transport` (read-only journal/log failure counts; `--all-steps` shows every step), `compare_audit_csv`, `readiness_report`, `recover_csv_from_jsonl`, `replay_shadow` |
 | `config/` | `GlobalConfig` (Pydantic, `schema.py`); `agent_types/registry.py` |
 | `utils/` | `model_adapter.py` re-exports `ModelAdapter` (defined in `parsing/base.py`) and `UnifiedAdapter` (defined in `parsing/unified_adapter.py`); also `data_loader.py`, `governance_auditor.py` |
 | `interfaces/` | `skill_types.py` (`SkillProposal`, `ApprovedSkill`, `ExecutionResult`, ...) — the framework's core Protocols and dataclasses |
@@ -149,7 +151,7 @@ this.
 | `multi_agent/flood/` | Separate multi-agent flood study; not a main case | yes (`README.md`, `README_research.md`, `README_zh.md`) | yes (24) | `run_unified_experiment.py`; `paper3/` has its own 6 `.bat` launchers | yes | `python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b` |
 | `governed_flood/` | Shared flood domain pack + small runner; imported by `single_agent/`, `multi_agent/`, core tests | yes | no | `run_experiment.py` | yes | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10` — also the fixture source imported by 15 `broker/tests/` files (`grep -rl "examples\.governed_flood" broker/tests/`), do not delete |
 | `cat_model/` | Coupling-layer demo (catastrophe insurance); used by core tests | yes | no | `run_cat.py` (single-agent insurer), `run_cat_ma.py` (multi-agent pool) | yes | `python examples/cat_model/run_cat.py --model mock --years 3` |
-| `reservoir_control/` | Worked example: connecting a new water model through `broker/coupling/` | yes | no | `run_reservoir_ops.py` | yes | `python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4` |
+| `reservoir_control/` | Worked example: connecting a new water model through `broker/coupling/` | yes | no | `broker.run` | yes | `python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output examples/reservoir_control/results_ops` |
 | `reservoir_control_multidim/` | Same, with three setpoints in one decision | yes | no | `run_reservoir_multidim.py` | yes | `python examples/reservoir_control_multidim/run_reservoir_multidim.py --model mock --years 4` |
 | `coupling_examples/` | Worked example of a coupling archetype | yes | no | `archetype_c_subprocess/run_archetype_c.py` | no (worked example, not a paper domain) | `python examples/coupling_examples/archetype_c_subprocess/run_archetype_c.py --model mock --years 4` |
 
@@ -171,10 +173,10 @@ python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --con
 ```
 
 plus a separate `scaffold-smoke` job that runs
-`scaffold_domain` → `validate_prompt` → the generated
-`run_experiment.py --model mock --years 1 --agents 1` end to end, to
-catch a class of bug no unit test can (a broken generated-runner
-import). The tests under `irrigation_abm/` and `multi_agent/` (67 files) are not invoked by either CI job; they
+`scaffold_domain` → `validate_prompt` → the generated case run through
+`python -m broker.run <config> --model mock --years 1 --agents 1` end to end, to
+catch a class of bug no unit test can (a broken generated `world.py`
+or adapter import). The tests under `irrigation_abm/` and `multi_agent/` (67 files) are not invoked by either CI job; they
 are for whoever is actively working in that example directory.
 
 ---

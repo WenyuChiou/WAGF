@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from broker.utils.agent_config import PMT_TEXT_MARKERS
+
 
 pytestmark = pytest.mark.slow
 
@@ -43,16 +45,15 @@ def _assert_ok(result: subprocess.CompletedProcess[str], label: str) -> None:
     assert result.returncode == 0, f"{label} failed with {result.returncode}\n{tail}"
 
 
-def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
-    """Ship tmp_path scaffolding.
-
-    The emitted runner inserts the generated package's parent into sys.path,
-    and each subprocess also receives PYTHONPATH={repo root}, so the scaffold
-    does not need to live under examples/. Keeping it in tmp_path avoids
-    repository cleanup while still exercising the CLI surface that regressed.
-    """
+@pytest.mark.parametrize(
+    "scaffold_flags", [["--framework", "generic"], ["--physical-only"]],
+    ids=["generic", "physical-only"],
+)
+def test_scaffolded_domain_validates_and_runs_with_mock(tmp_path, scaffold_flags):
+    """Run a case outside examples/ through the scaffold, validator, and broker CLIs."""
     domain = "scaffold_e2e_probe"
     scaffold_dir = tmp_path / domain
+    config = scaffold_dir / "config" / "agent_types.yaml"
     output_dir = tmp_path / "smoke_output"
 
     scaffold = _run(
@@ -63,8 +64,7 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
             domain,
             "--output",
             str(scaffold_dir),
-            "--framework",
-            "generic",
+            *scaffold_flags,
         ]
     )
     _assert_ok(scaffold, "scaffold_domain")
@@ -74,7 +74,7 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
             sys.executable,
             "-m",
             "broker.tools.validate_prompt",
-            str(scaffold_dir / "config" / "agent_types.yaml"),
+            str(config),
         ]
     )
     _assert_ok(validate, "validate_prompt")
@@ -82,7 +82,9 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
     run = _run(
         [
             sys.executable,
-            str(scaffold_dir / "run_experiment.py"),
+            "-m",
+            "broker.run",
+            str(config),
             "--model",
             "mock",
             "--years",
@@ -91,7 +93,7 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
             str(output_dir),
         ]
     )
-    _assert_ok(run, "generated runner")
+    _assert_ok(run, "broker.run")
 
     audit_csv = output_dir / "agent_governance_audit.csv"
     assert audit_csv.exists(), f"missing audit CSV: {audit_csv}"
@@ -99,21 +101,11 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
     with audit_csv.open("r", encoding="utf-8-sig", newline="") as fh:
         rows = list(csv.DictReader(fh))
 
-    # 5 == scaffold_domain's argparse default for --agents (see
-    # broker/tools/scaffold_domain.py); 1 == the --years we passed.
-    assert len(rows) == 5 * 1
+    # The YAML defaults to five agents and the CLI overrides years to one.
+    assert len(rows) == 5
 
-    # Round 3 (2026-09) regression lock: the scaffolded prompt renders
-    # {options_text} (broker/tools/scaffold_domain.py:gen_prompt), but the
-    # generated run_experiment.py used to rely on ExperimentBuilder's
-    # DEFAULT context builder (create_context_builder() with no hub ->
-    # plain BaseAgentContextBuilder), which does NOT fill {options_text}
-    # at all -- it falls through to SafeFormatter's "[N/A]" placeholder,
-    # so the LLM saw a completely empty menu despite validate_prompt and
-    # the options-text-parity guard both reporting clean (neither one
-    # checks RUNTIME rendering, only template-time and order-safety).
-    # gen_run_experiment() now pins an explicit TieredContextBuilder
-    # (hub=None), matching examples/irrigation_abm's established fix for the exact same gap.
+    # Runtime regression: a context builder that leaves {options_text} unfilled
+    # can still pass the static prompt validator.
     raw_trace = output_dir / "raw" / "agent_traces.jsonl"
     assert raw_trace.exists(), f"missing raw trace: {raw_trace}"
     trace_lines = raw_trace.read_text(encoding="utf-8").splitlines()
@@ -130,7 +122,7 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
     options_section = rendered_prompt.split("Available actions", 1)[1]
     assert "[N/A]" not in options_section.split("\n\n", 1)[0], (
         "the scaffolded prompt's {options_text} placeholder rendered as "
-        "SafeFormatter's unfilled default -- the generated runner is not "
+        "SafeFormatter's unfilled default -- broker.run is not "
         "wired to a context builder that actually fills it. Full options "
         f"section: {options_section[:300]!r}"
     )
@@ -138,3 +130,12 @@ def test_scaffolded_generic_domain_validates_and_runs_with_mock(tmp_path):
         "expected a live numbered options list (from {options_text}), got: "
         f"{options_section[:400]!r}"
     )
+
+    if "--physical-only" in scaffold_flags:
+        assert not any(term in rendered_prompt.casefold() for term in PMT_TEXT_MARKERS)
+        assert not {
+            column
+            for row in rows
+            for column, value in row.items()
+            if value and any(marker in column.casefold() for marker in ("appraisal", "tp_", "cp_"))
+        }

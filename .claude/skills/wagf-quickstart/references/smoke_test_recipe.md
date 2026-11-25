@@ -7,7 +7,7 @@ model download, and it takes a few seconds.
 ## Command
 
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
 `--output` must be a new directory; the runner refuses to reuse a finished one.

@@ -89,7 +89,7 @@ built-in mock, so it needs no Ollama and no model download.
 **Run** (the user picks a fresh `--output` directory each time):
 
 ```bash
-python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 4 --seed 42 --output .tmp/readme-reservoir
 ```
 
 **What to show the user after the run**: the summary the script prints

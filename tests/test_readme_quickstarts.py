@@ -106,7 +106,7 @@ def test_ch4_command_fails_on_missing_crss_with_the_path_the_docs_name(tmp_path)
 
 
 # --- The first-run demo: README's first command, and the places that repeat it ----------------
-RESERVOIR = "examples/reservoir_control/run_reservoir_ops.py"
+RESERVOIR = "-m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml"
 
 
 def test_readme_first_run_shows_block_reason_repair_and_effect(tmp_path):

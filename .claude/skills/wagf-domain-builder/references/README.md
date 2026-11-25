@@ -11,8 +11,8 @@ Use them with `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`; do not duplicate that gu
 | `domain_articulation_questions.md` | S0 interview script for domain, decision, cadence, coupling, framework, scope, and baseline. |
 | `skills_design_patterns.md` | S1 patterns for translating a domain decision into 3-5 WAGF skill IDs. |
 | `cognitive_framework_chooser.md` | S0 Q5 chooser for PMT, Utility, Financial, HBM, TPB, or custom frameworks. |
-| `edit_pass_checklist.md` | S5 surgical edit checklist (single-agent path) for prompt, DomainPack, validators, YAML rules, and ExperimentBuilder wiring. |
-| `multi_agent_walkthrough.md` | S5 multi-agent path — lifecycle_hooks env-dict-whitelist writes, `with_phase_order` execution ordering, dual-dict gotcha (Phase 6E Finding #3), Tier 1 (broadcast) and Tier 2 (spatial gossip) variants. Read in full before any multi-agent edit-5. |
+| `edit_pass_checklist.md` | S5 surgical edit checklist (single-agent path) for prompt, DomainPack, validators, YAML rules, and the `world.py` / `global_config.run` slots that `python -m broker.run` reads. |
+| `multi_agent_walkthrough.md` | S5 multi-agent path (a case with a social graph or memory engines writes its own runner; the scaffold does not) — lifecycle_hooks env-dict-whitelist writes, `with_phase_order` execution ordering, dual-dict gotcha (Phase 6E Finding #3), Tier 1 (broadcast) and Tier 2 (spatial gossip) variants. Read in full before any multi-agent edit-5. |
 | `stage_outputs.md` | One-page S0-S7 output table with verify-done checks. |
 | `README.md` | This index and routing map. |
 

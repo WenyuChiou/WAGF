@@ -48,8 +48,8 @@ they are observed.
 
 ## When all else fails
 
-1. Open `examples/reservoir_control/run_reservoir_ops.py` and read the
-   scripted mock (`_operator_mock`) and the summary function.
+1. Open `examples/reservoir_control/ops_case.py` and read the
+   scripted mock (`scripted_operator`) and the summary function.
 2. Run with `--verbose` if the script supports it.
 3. File an issue with: Python version, Ollama version, model tag,
    the first stack trace, the first 5 records of `raw/*.jsonl`.

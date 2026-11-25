@@ -43,7 +43,7 @@ WAGF treats each domain as a **plug-in** built from these registry-driven layers
 | **Validator rules** | YAML-driven cross-field veto rules | `examples/<your_domain>/config/agent_types.yaml` |
 | **Memory engine** | Choice of memory engine (window / humancentric / hierarchical) | YAML, references engines registered in `MemoryEngineRegistry` |
 | **Prompt template** | The chat template that frames each turn for the LLM | `examples/<your_domain>/config/prompts/<agent_type>.txt` |
-| **Lifecycle hooks** | Year-by-year orchestration (env update → agent context → reflection → memory) | `examples/<your_domain>/run_experiment.py` |
+| **Lifecycle hooks** | Year-by-year orchestration (env update → agent context → reflection → memory) | the `hooks` slot under `global_config.run` in `examples/<your_domain>/config/agent_types.yaml`, a function in your case folder (see [Running a case](#running-a-case-python--m-brokerrun)) |
 
 The broker pipeline calls into your `DomainPack` for any domain-specific decision; everything else is YAML-driven. **No `broker/` edits.**
 
@@ -202,11 +202,65 @@ This writes 10 files (12 with `--framework custom`) that already:
 - Pass `validate_prompt` clean on first run (no manual sync needed)
 - Use the broker-filled `{response_format}` placeholder (no hand-rolled JSON to drift)
 - Include all 6 required YAML blocks identified by the Phase 6C-v4 BLOCKER inventory
-- Wire up DomainPack registration, validator registry, and a stub `run_experiment.py`
+- Wire up DomainPack registration and the validator registry
+- Write `world.py` (a `SyntheticEnvironment` and `build_world(ctx)`) and a `global_config.run` block (`world: world:build_world`, governance `default`, 3 years, 5 agents, output `results/smoke`). There is no runner file: `python -m broker.run` runs the case.
+
+The output folder name must be a Python identifier, because `broker.run` imports the case folder as a package.
 
 Pass `--framework custom` to also scaffold a `cognition/` package with framework-registration boilerplate (use this when your domain needs a NEW psychological model like HBM, TPB, etc.). Otherwise the default uses pre-registered PMT and skips `cognition/` entirely.
 
-Next, edit `config/prompts/agent.txt`, the DomainPack adapter, and `run_experiment.py` to describe your specific domain. The scaffold is a starting point — not a finished example.
+Pass `--physical-only` for decisions with no appraisal step (a pump schedule, a gate setting). It writes `psychological_framework: none` explicitly: no rating scale, no appraisal fields or constructs, a prompt without appraisal wording, and one retry setting (`global_config.governance.max_retries: 3`). It cannot be combined with `--framework`.
+
+Next, edit `config/prompts/agent.txt`, the DomainPack adapter, and `world.py` to describe your specific domain. The scaffold is a starting point — not a finished example. Then run it:
+
+```bash
+python -m broker.run examples/energy_demo/config/agent_types.yaml --model mock --years 1 --agents 1
+```
+
+Before the run starts, `broker.run` prints a header line `[broker.run] <config> | model=mock years=1 agents=1 output=<dir>`. With the mock model the empty scaffold then prints retry warnings, including `Max retries (3) reached`; that is expected. The run worked if the command exits with code 0. A finished output folder is never overwritten: pass a new `--output`, or move the old folder aside.
+
+### Running a case: `python -m broker.run`
+
+`python -m broker.run CONFIG` is the single entry for every new case (`broker/run/_entry.py`). It reads defaults and Python slots from `global_config.run` in the agent-types YAML; command-line flags override them. It pins `TieredContextBuilder` and writes the reproducibility manifest plus `broker_run.json` (the settings and slots it used). The paper runners (`examples/irrigation_abm/run_experiment.py` and the flood runners) keep their own commands.
+
+```yaml
+global_config:
+  run:
+    world: world:build_world        # your model; default is a tiny stand-in world
+    agents: agents:build_agents     # optional
+    hooks: hooks:build_hooks        # optional
+    validators: checks:build_checks # optional
+    mock: mock:build_mock           # optional, used only with --model mock
+    model: mock
+    years: 3
+    agent_count: 5
+    seed: 42
+    output: results/smoke           # relative to the case folder
+    governance: default
+    skill_registry: skill_registry.yaml  # relative to this YAML's folder
+    workers: 1
+    phase_order: [[farmer], [regulator]] # multi-agent only
+```
+
+Every key is optional. An unknown `run:` key is refused. Each slot is `module:function`, and the function takes one argument, `ctx` (a `broker.run.RunContext` with the config, case folder, model, years, agent count, seed, output folder and the objects built so far).
+
+| Slot | The function returns | When absent |
+|---|---|---|
+| `world` | Your environment object (`advance_step()` and `execute_skill(...)`). For a coupled model, return `broker.run.Coupled(contract, sources, domain)`. | A tiny stand-in world that advances the year and executes every approved action successfully, with no state change |
+| `agents` | A dict of agent name to `BaseAgent` | `agent_count` agents are built for the one agent type in the YAML, with every skill in the skill registry that is eligible for that type. More than one agent type is refused until you set `agents`. |
+| `hooks` | A dict of lifecycle hooks: `pre_year`, `pre_step`, `post_step`, `post_year`, `post_step_end`. An optional `after_run(output_dir)` runs once after the run. | No hooks |
+| `validators` | A sequence of custom validator callables | None |
+| `mock` | A dict of agent type to scripted responder (a function that returns the model's reply) | The built-in mock model reply. Used only with `--model mock`. |
+
+Defaults when neither the YAML nor the command line sets a value: model `mock`, years 1, agents 1, seed 42, governance `default`, workers 1, output `results/<config file name without .yaml>` in the case folder, skill registry `skill_registry.yaml` next to the YAML.
+
+Command-line overrides: `--model`, `--years`, `--agents`, `--seed`, `--output`, `--governance`, `--skill-registry`, `--workers`, `--thinking-mode`, `--slot NAME=module:attr` and `--allow-module dotted.name`. On the command line `--output` and `--skill-registry` are relative to the current directory, not to the case folder.
+
+**Import rule.** A slot in the YAML may import only modules inside the case's own folder: the YAML's folder, or its parent when that folder is named `config`. Real paths are checked, so `..`, symlinks and junctions that leave the folder are refused with a clear error. Any other module needs a command-line flag: `--allow-module dotted.name` or `--slot name=dotted.name:attr`. The case folder name must be a Python identifier. The same rule covers `decider: {name: parametric, params: {target: module:attr}}` in an agent type: the target must name a module in the case folder by its importable dotted name (for example `examples.my_domain.decider:MyDecider`), or be allowed with `--allow-module`.
+
+**Physical-only cases.** For agents with no appraisal, set `psychological_framework: none`. `ExperimentBuilder.build()` and `validate_prompt` then refuse a `none` agent that still has appraisal fields, constructs (its own or inherited from the `default` block), `{rating_scale}` or PMT wording, or `construct` references in rules (`AgentTypeConfig.check_theory_free` in `broker/utils/agent_config.py`). An agent type with no declared framework still falls back to PMT, with one warning per agent type.
+
+**Multi-agent cases.** Only `phase_order` comes from the YAML. A social graph and other memory engines still need the case's own runner, as the paper runners have.
 
 ### Pre-flight check before first run (Phase 6C-v4 cycle 3, 2026-05-10)
 
@@ -275,7 +329,7 @@ WAGF multi-agent uses an **env-dict-whitelist** pattern. There is NO direct agen
 2. The `TieredContextBuilder` is constructed with `dynamic_whitelist=[...keys...]`. Whitelisted keys are auto-injected into EVERY agent's context.
 3. Each agent's prompt template references the keys as `{placeholder}` substitutions.
 
-This pipeline (`env → whitelist → context → template_vars → SafeFormatter`) has **zero flood-specific branching in broker/** per Phase 6E Phase 1 trace audit. The whitelist literal in your domain's `run_experiment.py` IS the abstraction point — declaring `crop_yield`, `advisory_strength`, `commute_congestion`, or any other domain-specific cross-agent variable is one-line.
+This pipeline (`env → whitelist → context → template_vars → SafeFormatter`) has **zero flood-specific branching in broker/** per Phase 6E Phase 1 trace audit. The whitelist literal in your multi-agent case's own runner IS the abstraction point — declaring `crop_yield`, `advisory_strength`, `commute_congestion`, or any other domain-specific cross-agent variable is one-line.
 
 **Concrete pattern (from `examples/multi_agent/flood/run_unified_experiment.py`)**:
 

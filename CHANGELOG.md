@@ -49,6 +49,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One entry for every new case: `python -m broker.run CONFIG`.** It reads
+  defaults and Python slots from a new `global_config.run` block in the
+  agent-types YAML (`model`, `years`, `agent_count`, `seed`, `output`,
+  `governance`, `skill_registry`, `workers`, `phase_order`, and the slots `world`,
+  `agents`, `hooks`, `validators`, `mock`); command-line flags override them.
+  It pins `TieredContextBuilder` and writes the reproducibility manifest and
+  `broker_run.json`. A slot in the YAML may import only modules inside the case's
+  own folder (real paths are checked, so `..`, symlinks and junctions that leave
+  it are refused); anything else needs `--allow-module` or `--slot`. The same
+  rule covers a `parametric` decider's `target`. Unknown `run:` keys are refused.
+- **Framework `none` for agents with no appraisal.** `psychological_framework:
+  none` skips the rating scale, appraisal fields and constructs. A `none` agent
+  that still has appraisal fields, constructs, `{rating_scale}` or PMT wording, or
+  rules that refer to a `construct`, is refused by `ExperimentBuilder.build()`
+  and `validate_prompt`. `scaffold_domain --physical-only` writes such a case
+  (it cannot be combined with `--framework`).
 - Gated `execution_success` audit values; `executed_decision` in example simulation
   logs; manifest default-skill, launch-command, dirty-file and loaded-input hashes;
   bounded model-digest retries with a recorded failure reason.
@@ -227,6 +243,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The scaffold writes `world.py` and no runner.** `scaffold_domain` now writes
+  `world.py` (`SyntheticEnvironment` and `build_world(ctx)`) and a
+  `global_config.run` block instead of `run_experiment.py`; run the case with
+  `python -m broker.run`. The output folder name must be a Python identifier.
+  `examples/reservoir_control` runs through `python -m broker.run`, and its
+  `run_reservoir_ops.py` is removed (its Python pieces are in `ops_case.py`).
+  An agent type with no declared `psychological_framework` still falls back to
+  `pmt`, now with one warning per agent type.
 - **Ollama thinking is disabled by default with a per-run override.** Request
   builders inspect each model's advertised capability and levels before adding
   a top-level `think` field. Thinking-capable models receive `think: false` by

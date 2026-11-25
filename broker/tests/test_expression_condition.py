@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import itertools
 import math
+import shutil
 from types import SimpleNamespace
 
 import pytest
 import yaml
 
+import broker.run
 from broker.components.analytics.feedback import SafeExpressionEvaluator
 from broker.config.schema import RuleCondition as PydanticRuleCondition
 from broker.governance.expression_condition import (
@@ -28,6 +30,7 @@ from broker.governance.rule_types import RuleCondition
 from broker.utils.agent_config import AgentTypeConfig, resolve_rule_grounding
 from broker.validators.agent.agent_validator import AgentValidator
 from broker.validators.governance.thinking_validator import ThinkingValidator
+from examples.reservoir_control import ops_case
 
 OVERFLOW = "storage_now > 0.9 * capacity and proposed_magnitude < 100"
 
@@ -639,51 +642,47 @@ def test_validate_prompt_accepts_an_expression_condition():
     assert not any("ignored key" in m for m in msgs), msgs
 
 
-def test_zero_divisor_stops_a_real_run(tmp_path, monkeypatch):
-    """Through ExperimentRunner: the step handler must not turn it into an
-    ABORTED row and keep going."""
-    import shutil
-    import examples.reservoir_control.run_reservoir_ops as ops
+@pytest.fixture
+def zero_divisor_run_args(tmp_path):
     cfg_dir = tmp_path / "cfg"
-    shutil.copytree(ops.CONFIG, cfg_dir)
-    yml = cfg_dir / "reservoir_agent_types.yaml"
+    shutil.copytree(ops_case.CONFIG_PATH.parent, cfg_dir)
+    yml = cfg_dir / ops_case.CONFIG_PATH.name
     text = yml.read_text(encoding="utf-8")
     assert OVERFLOW in text
     yml.write_text(text.replace(
         OVERFLOW, "storage_now / (capacity - capacity) > 0.9 and proposed_magnitude < 100"),
         encoding="utf-8")
-    monkeypatch.setattr(ops, "CONFIG", cfg_dir)
+    module = ops_case.__name__
+    return [
+        str(yml), "--years", "2", "--output", str(tmp_path / "out"),
+        "--slot", f"world={module}:build_world",
+        "--slot", f"agents={module}:build_agents",
+        "--slot", f"hooks={module}:build_hooks",
+        "--slot", f"mock={module}:operator_mock",
+    ]
+
+
+def test_zero_divisor_stops_a_real_run(zero_divisor_run_args):
+    """Through ExperimentRunner: the step handler must not turn it into an
+    ABORTED row and keep going."""
     AgentTypeConfig.clear_cache()
     try:
         with pytest.raises(ExpressionEvaluationError, match="flood_control_overflow"):
-            ops.main(["--years", "2", "--output", str(tmp_path / "out")])
+            broker.run.main(zero_divisor_run_args)
     finally:
         AgentTypeConfig.clear_cache()
 
 
-def test_zero_divisor_stops_a_parallel_run(tmp_path, monkeypatch):
+def test_zero_divisor_stops_a_parallel_run(zero_divisor_run_args, monkeypatch):
     """Same as above on the parallel step handler (workers=2)."""
-    import shutil
-    import examples.reservoir_control.run_reservoir_ops as ops
-    from broker.core.experiment import ExperimentBuilder
+    import dataclasses
     from broker.core.experiment_runner import ExperimentRunner
-    cfg_dir = tmp_path / "cfg"
-    shutil.copytree(ops.CONFIG, cfg_dir)
-    yml = cfg_dir / "reservoir_agent_types.yaml"
-    text = yml.read_text(encoding="utf-8")
-    yml.write_text(text.replace(
-        OVERFLOW, "storage_now / (capacity - capacity) > 0.9 and proposed_magnitude < 100"),
-        encoding="utf-8")
-    monkeypatch.setattr(ops, "CONFIG", cfg_dir)
+
     # The builder refuses workers>1 for a contract with feasibility bounds
     # (R1 slice 2); this test is about the expression path, so drop them.
-    import dataclasses
-    orig_contract = ops._build_contract
-    monkeypatch.setattr(ops, "_build_contract",
+    orig_contract = ops_case.build_contract
+    monkeypatch.setattr(ops_case, "build_contract",
                         lambda: dataclasses.replace(orig_contract(), feasibility=()))
-    orig_workers = ExperimentBuilder.with_workers
-    monkeypatch.setattr(ExperimentBuilder, "with_workers",
-                        lambda self, n: orig_workers(self, 2))
     calls = []
     orig_parallel = ExperimentRunner._run_agents_parallel
 
@@ -695,7 +694,7 @@ def test_zero_divisor_stops_a_parallel_run(tmp_path, monkeypatch):
     AgentTypeConfig.clear_cache()
     try:
         with pytest.raises(ExpressionEvaluationError, match="flood_control_overflow"):
-            ops.main(["--years", "2", "--output", str(tmp_path / "out")])
+            broker.run.main([*zero_divisor_run_args, "--workers", "2"])
     finally:
         AgentTypeConfig.clear_cache()
     assert calls, "the parallel step handler was not used"

@@ -1,7 +1,4 @@
-"""Runnable reservoir continuous-control experiment.
-
-Usage:
-  python examples/reservoir_control/run_reservoir_ops.py --model mock --years 4
+"""Reservoir continuous-control factories for the broker.run entry point.
 
 DECISION TIMING (hindcast-then-set): each year the runner first advances the
 solver 12 monthly sub-steps under the LAST committed release target, THEN the
@@ -13,39 +10,30 @@ the wall fire for the wrong physical reason).
 """
 from __future__ import annotations
 
-import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any, Dict
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-
-import yaml  # noqa: E402
-
-import examples.reservoir_control  # noqa: E402,F401
-from broker.agents import AgentConfig, BaseAgent  # noqa: E402
-from broker.agents.base import Skill  # noqa: E402
-from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
-from broker.coupling import (  # noqa: E402
+from broker.agents import AgentConfig, BaseAgent
+from broker.agents.base import Skill
+from broker.coupling import (
     CouplingContract,
     FeasibilityBound,
     Relation,
     VarSpec,
     resolve_coupling_enabled,
 )
-from broker.core.experiment import ExperimentBuilder  # noqa: E402
-from broker.domains.registry import DomainPackRegistry  # noqa: E402
-from broker.utils.llm_utils import LLMStats  # noqa: E402
-from examples.reservoir_control.ops_modules import (  # noqa: E402
+from broker.domains.registry import DomainPackRegistry
+from broker.run import Coupled, RunContext
+from broker.utils.llm_utils import LLMStats
+
+from .ops_modules import (
     ReservoirOpsBundle,
     ToyLinearEvapReservoir,
     ToyMassBalanceReservoir,
 )
 
-HERE = Path(__file__).resolve().parent
-CONFIG = HERE / "config"
+CONFIG_PATH = Path(__file__).resolve().parent / "config" / "reservoir_agent_types.yaml"
 PROMPT_ENV_KEYS = (
     "current_year",
     "storage",
@@ -59,20 +47,20 @@ PROMPT_ENV_KEYS = (
     "storage_now",
 )
 
-# {options_text} menu, injected via dynamic_state (real-LLM e4b finding,
-# 2026-06-10): the hub-less builder path (BaseAgentContextBuilder) does not
-# populate options_text, so the placeholder rendered "[N/A]" and the format
-# example's hardcoded default claimed "choose ONE from: 1, 2, or 3" for a
-# 2-action menu — the LLM was deciding blind. Keep numbering in lockstep
-# with parsing.skill_map in reservoir_agent_types.yaml.
-OPTIONS_TEXT = (
-    "1. set_release — set the coming year's monthly release target as a "
-    "percentage of demand (provide magnitude 0-100)\n"
-    "2. maintain_release — keep the previously committed release target"
+# Keep the static prompt menu in lockstep with parsing.skill_map in the YAML.
+_OPTION_LABELS = {
+    "set_release": (
+        "set_release — set the coming year's monthly release target as a "
+        "percentage of demand (provide magnitude 0-100)"
+    ),
+    "maintain_release": "maintain_release — keep the previously committed release target",
+}
+OPTIONS_TEXT = "\n".join(
+    f"{i}. {label}" for i, label in enumerate(_OPTION_LABELS.values(), 1)
 )
 
 
-def _decision_payload(decision: str, **fields: Any):
+def decision_payload(decision: str, **fields: Any):
     payload = dict(fields)
     payload["decision"] = decision
     payload.setdefault("reasoning", f"scripted mock chose {decision}")
@@ -82,31 +70,27 @@ def _decision_payload(decision: str, **fields: Any):
     )
 
 
-def _operator_mock(prompt: str):
+def scripted_operator(prompt: str):
     # 50% clears the year-3 wall (passing threshold ~53.8% — see the
     # ops_modules docstring arithmetic); review C2: 60% also projected below
     # dead pool, so the retry never resolved and the insurer-pattern
     # narrative (wall -> retry -> APPROVED) was broken.
     magnitude = 50 if "BLOCKED" in prompt or "dead_pool_violation" in prompt else 100
-    return _decision_payload(
+    return decision_payload(
         "set_release",
         magnitude=magnitude,
         reasoning=f"scripted reservoir release at {magnitude}% of demand",
     )
 
 
-def _install_scripted_mock(runner) -> None:
-    runner._llm_cache["operator"] = _operator_mock
-
-
-def _sync_prompt_env(agent: BaseAgent, env: Dict[str, Any]) -> None:
+def sync_prompt_env(agent: BaseAgent, env: Dict[str, Any]) -> None:
     for key in PROMPT_ENV_KEYS:
         if key in env:
             agent.dynamic_state[key] = env[key]
     agent.dynamic_state["options_text"] = OPTIONS_TEXT
 
 
-def _make_operator() -> BaseAgent:
+def make_operator() -> BaseAgent:
     cfg = AgentConfig(
         name="OPERATOR",
         agent_type="operator",
@@ -118,10 +102,13 @@ def _make_operator() -> BaseAgent:
             Skill("maintain_release", "Maintain previous release", None, "none"),
         ],
     )
-    return BaseAgent(cfg)
+    agent = BaseAgent(cfg)
+    # The broker numbers these labels using the same order as the live skill map.
+    agent.custom_attributes["option_text_overrides"] = _OPTION_LABELS.copy()
+    return agent
 
 
-def _build_contract() -> CouplingContract:
+def build_contract() -> CouplingContract:
     return CouplingContract(
         observations=(
             # Cadence vocabulary (review W4): "per_decision" here describes
@@ -239,25 +226,30 @@ def _build_contract() -> CouplingContract:
     )
 
 
-def _make_solver(model: str):
+def make_solver(model: str):
     if "linear" in model.lower():
         return ToyLinearEvapReservoir()
     return ToyMassBalanceReservoir()
 
 
-def _build_runner(args):
-    agents = {"OPERATOR": _make_operator()}
-    solver = _make_solver(args.model)
-    bundle = ReservoirOpsBundle(contract=_build_contract(), solver=solver)
-
-    with open(CONFIG / "reservoir_agent_types.yaml", encoding="utf-8") as fh:
-        yaml_cfg = yaml.safe_load(fh)
+def build_world(ctx: RunContext) -> Coupled:
     pack = DomainPackRegistry.get("reservoir_control")
-    enabled, source = resolve_coupling_enabled(yaml_cfg, pack)
+    enabled, source = resolve_coupling_enabled(ctx.raw, pack)
     if not enabled:
         raise SystemExit("reservoir_control requires global_config.coupling.enable: true")
     print(f"[coupling] enable=True (source={source}); adapter injected by the builder")
 
+    contract = build_contract()
+    bundle = ReservoirOpsBundle(contract=contract, solver=make_solver(ctx.model))
+    return Coupled(contract, bundle, domain="reservoir_control")
+
+
+def build_agents(ctx: RunContext) -> dict[str, BaseAgent]:
+    return {"OPERATOR": make_operator()}
+
+
+def build_hooks(ctx: RunContext):
+    solver = ctx.world.solver
     env_holder: Dict[str, Dict[str, Any]] = {}
 
     def on_pre_year(year, env, all_agents):
@@ -275,7 +267,10 @@ def _build_runner(args):
         )
         env_holder["env"] = env
         for agent in all_agents.values():
-            _sync_prompt_env(agent, env)
+            # The old hub-less builder did not retrieve generic decision lines
+            # and this prompt uses only the reservoir's observed outcomes.
+            agent.memory_config = {**agent.memory_config, "runner_decision_line": False}
+            sync_prompt_env(agent, env)
         print(
             f"\n--- Year {year} --- storage={env.get('storage'):.3f} maf "
             f"spill={env.get('spill'):.3f} shortfall={env.get('shortfall'):.3f} "
@@ -302,27 +297,23 @@ def _build_runner(args):
     def on_post_step_end(year, all_agents):
         return None
 
-    runner = (
-        ExperimentBuilder()
-        .with_model(args.model)
-        .with_years(args.years)
-        .with_agents(agents)
-        .with_coupling(bundle.contract, bundle, domain="reservoir_control")
-        .with_governance("strict", str(CONFIG / "reservoir_agent_types.yaml"))
-        .with_skill_registry(str(CONFIG / "reservoir_skill_registry.yaml"))
-        .with_memory_engine(WindowMemoryEngine(window_size=3))
-        .with_lifecycle_hooks(
-            pre_year=on_pre_year,
-            post_step=on_post_step,
-            post_step_end=on_post_step_end,
-        )
-        .with_exact_output(args.output)
-        # workers=1 is a HARD requirement here (INVARIANTS.md AR-3): hooks
-        # mutate the shared env dict for prompt/governance visibility.
-        .with_workers(1)
-        .with_seed(args.seed)
-    ).build()
-    return runner, bundle
+    def after_run(output_dir):
+        print(f"\nDone. Audit + traces under: {output_dir}")
+        summary = summarize_block_and_repair(output_dir)
+        print("\nBlock and repair in this run:" if summary else "\nNo decision was blocked in this run.")
+        for line in summary:
+            print(line)
+
+    return {
+        "pre_year": on_pre_year,
+        "post_step": on_post_step,
+        "post_step_end": on_post_step_end,
+        "after_run": after_run,
+    }
+
+
+def operator_mock(ctx: RunContext):
+    return {"operator": scripted_operator}
 
 
 def summarize_block_and_repair(output_dir) -> list:
@@ -383,39 +374,3 @@ def summarize_block_and_repair(output_dir) -> list:
                 f"(dead pool {env['dead_pool']:.3f} maf)"
             )
     return lines
-
-
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Reservoir continuous-control experiment")
-    ap.add_argument("--model", default="mock", help="LLM model or 'mock'")
-    ap.add_argument("--thinking-mode", choices=["auto", "disabled", "enabled"],
-                    default=None, help="Ollama thinking policy (default: framework setting)")
-    ap.add_argument("--years", type=int, default=4)
-    ap.add_argument("--output", default=str(HERE / "results_ops"))
-    ap.add_argument("--seed", type=int, default=42)
-    args = ap.parse_args(argv)
-
-    if args.thinking_mode is not None:
-        from broker.utils.llm_utils import LLM_CONFIG
-        LLM_CONFIG.thinking_mode = args.thinking_mode
-
-    runner, _bundle = _build_runner(args)
-    if args.model.lower().startswith("mock"):
-        _install_scripted_mock(runner)
-
-    print(
-        "Reservoir continuous-control run | "
-        f"model={args.model} years={args.years}"
-    )
-    print("=" * 72)
-    runner.run()
-    print(f"\nDone. Audit + traces under: {args.output}")
-    summary = summarize_block_and_repair(args.output)
-    print("\nBlock and repair in this run:" if summary else "\nNo decision was blocked in this run.")
-    for line in summary:
-        print(line)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

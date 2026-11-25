@@ -34,6 +34,18 @@ shared:
       - { key: "reasoning", type: "text", required: false }
 
 global_config:
+  run:
+    # python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml
+    world: ops_case:build_world
+    agents: ops_case:build_agents
+    hooks: ops_case:build_hooks
+    mock: ops_case:operator_mock
+    skill_registry: reservoir_skill_registry.yaml
+    governance: strict
+    years: 4
+    seed: 42
+    output: results_ops
+    workers: 1   # hooks mutate the shared env dict (INVARIANTS.md AR-3)
   coupling:
     enable: true
   memory:
@@ -104,7 +116,7 @@ operator:
       # here as an `expression:` rule (storage_now and capacity come from the
       # reservoir, proposed_magnitude is the number the operator just proposed).
       # The dead-pool limit is a feasibility bound on the coupling contract
-      # (run_reservoir_ops._build_contract), judged on the model's own what-if run.
+      # (ops_case.build_contract), judged on the model's own what-if run.
       thinking_rules:
         - id: flood_control_overflow
           conditions:

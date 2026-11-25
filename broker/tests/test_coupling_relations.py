@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-import examples.reservoir_control  # noqa: F401 - registers reservoir_control
+import broker.run
 from broker.coupling import (
     CouplingContract,
     CouplingViolation,
@@ -17,7 +17,7 @@ from broker.coupling import (
     VarSpec,
 )
 from broker.coupling.interfaces import InterfaceBundle
-from examples.reservoir_control import run_reservoir_ops
+from examples.reservoir_control import ops_case
 from examples.reservoir_control.ops_modules import (
     ReservoirOpsBundle,
     ToyMassBalanceReservoir,
@@ -32,7 +32,7 @@ BALANCE = (
 # helpers
 # --------------------------------------------------------------------------
 def _reservoir_adapter(solver=None, contract=None) -> EnvironmentCouplingAdapter:
-    contract = contract or run_reservoir_ops._build_contract()
+    contract = contract or ops_case.build_contract()
     solver = solver or ToyMassBalanceReservoir()
     bundle = ReservoirOpsBundle(contract=contract, solver=solver)
     return EnvironmentCouplingAdapter(None, contract, bundle)
@@ -123,7 +123,7 @@ def test_residual_with_surrounding_whitespace_is_checked_not_refused():
 def test_first_step_prev_relation_skipped_and_plain_relation_checked():
     plain = Relation("storage_nonneg_gap", "storage - storage", 0.0)
     contract = dataclasses.replace(
-        run_reservoir_ops._build_contract(),
+        ops_case.build_contract(),
         relations=(Relation("storage_balance", BALANCE, 1e-9), plain),
     )
     adapter = _reservoir_adapter(contract=contract)
@@ -315,7 +315,7 @@ def test_mixed_declared_undeclared_reports_observations_in_no_relation():
 
 
 def test_reservoir_contract_reports_shortfall_in_no_relation():
-    cov = run_reservoir_ops._build_contract().relation_coverage()
+    cov = ops_case.build_contract().relation_coverage()
     assert cov["declared"] == ["storage_balance"]
     assert cov["observations_in_no_relation"] == ["shortfall"]
 
@@ -360,7 +360,7 @@ def test_declared_relations_change_the_contract_hash():
 # --------------------------------------------------------------------------
 def test_dict_form_equals_dataclass_form():
     as_dict = {"name": "storage_balance", "residual": BALANCE, "tolerance": 1e-9}
-    base = run_reservoir_ops._build_contract()
+    base = ops_case.build_contract()
     from_dict = dataclasses.replace(base, relations=(as_dict,))
     assert from_dict.relations == base.relations
     assert from_dict.relations[0] == Relation(**as_dict)
@@ -374,10 +374,10 @@ def test_dict_form_equals_dataclass_form():
 # 2b: a breach stops the run (does not become an ABORTED row)
 # --------------------------------------------------------------------------
 def test_reservoir_main_with_leaking_solver_raises_coupling_violation(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_reservoir_ops, "_make_solver", lambda model: _LeakyReservoir())
+    monkeypatch.setattr(ops_case, "make_solver", lambda model: _LeakyReservoir())
     with pytest.raises(CouplingViolation, match="storage_balance"):
-        run_reservoir_ops.main(
-            ["--model", "mock", "--years", "2", "--output", str(tmp_path / "leak")]
+        broker.run.main(
+            [str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "2", "--output", str(tmp_path / "leak")]
         )
 
 
@@ -385,7 +385,7 @@ def test_reservoir_manifest_carries_final_relation_counts(tmp_path):
     import json
 
     out = tmp_path / "ok"
-    assert run_reservoir_ops.main(["--model", "mock", "--years", "4", "--output", str(out)]) == 0
+    assert broker.run.main([str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "4", "--output", str(out)]) == 0
     manifest = json.loads((out / "reproducibility_manifest.json").read_text(encoding="utf-8"))
     rel = manifest["coupling_provenance"]["relations"]
     assert rel["checks_run"] == 47
