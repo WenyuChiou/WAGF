@@ -15,13 +15,22 @@ import yaml
 
 from broker.agents import AgentConfig, BaseAgent, Skill
 from broker.components.context.builder import TieredContextBuilder
-from broker.components.memory.engine import WindowMemoryEngine
+from broker.components.context.providers import DEFAULT_RETRIEVAL_TOP_K
 from broker.core.experiment_builder import ExperimentBuilder
 from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.agent_config import AgentTypeConfig, NON_AGENT_TOP_LEVEL_KEYS, UnknownConfigKeysError
 from broker.utils.llm_utils import LLM_CONFIG, is_mock_model
 
 from ._imports import SlotError, parse_slot, resolve_slot, valid_module_name, vet_import_target
+from ._memory import (
+    DEFAULT_WINDOW_SIZE,  # re-exported: the parameter table reads it here
+    MemorySettings,
+    ReflectionHook,
+    ReflectionSettings,
+    build_memory_engine,
+    memory_settings,
+    reflection_settings,
+)
 from ._provenance import capture_launch_environment, launch_checks, manifest_problem
 
 
@@ -50,6 +59,8 @@ class RunContext:
     skill_registry_path: Path
     profile: str
     workers: int
+    memory: MemorySettings = None
+    reflection: ReflectionSettings = None
     world: Any = None
     agents: dict[str, BaseAgent] | None = None
 
@@ -78,9 +89,6 @@ class _Parser(argparse.ArgumentParser):
 
 
 _SLOT_NAMES = ("world", "agents", "hooks", "validators", "mock")
-# Short-term window of the WindowMemoryEngine built when the YAML has no
-# global_config.memory.window_size. Named so the parameter table can read it.
-DEFAULT_WINDOW_SIZE = 3
 _DEFAULTS = {
     "model": "mock",
     "years": 1,
@@ -213,6 +221,8 @@ def _prepare_run(argv):
         ) from exc
     except ImportError as exc:  # The strict key check imports its key lists lazily.
         raise RunError(f"{config_path}: the strict key check could not run ({exc})") from exc
+    except ValueError as exc:  # e.g. a memory fraction outside [0, 1]
+        raise RunError(f"{config_path}: {exc}") from exc
     if settings["strict_keys"]:
         from broker.tools.validate_prompt import magnitude_scale_problems
 
@@ -222,11 +232,17 @@ def _prepare_run(argv):
                 f"number of a new case is on [0, 1] (set min: 0 and max: 1), or name the field "
                 f"something other than magnitude or magnitude_pct (--strict-keys is on)"
             )
+    try:
+        memory = memory_settings(raw, settings["seed"])
+        reflection = reflection_settings(raw, config, memory)
+    except ValueError as exc:
+        raise RunError(f"{config_path}: {exc}") from exc
     ctx = RunContext(
         config_path=config_path, case_dir=case_dir, config=config, raw=raw,
         model=settings["model"], years=settings["years"], agent_count=settings["agent_count"],
         seed=settings["seed"], output_dir=output_dir, skill_registry_path=registry_path,
         profile=settings["governance"], workers=settings["workers"],
+        memory=memory, reflection=reflection,
     )
     return ctx, slots, run.get("phase_order"), args
 
@@ -386,8 +402,15 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
             templates[agent_type] = template
     if len(agent_types) == 1 and templates:
         templates["default"] = templates[agent_types[0]]
-    memory_cfg = ctx.raw.get("global_config", {}).get("memory", {}) or {}
-    memory = WindowMemoryEngine(window_size=memory_cfg.get("window_size", DEFAULT_WINDOW_SIZE))
+    memory = build_memory_engine(ctx.memory)
+    reflection_hook = None
+    if ctx.reflection.enabled:
+        # Runs after the case's own post_year, once the year's state is settled.
+        reflection_hook = ReflectionHook(
+            ctx.reflection, ctx.config, memory, ctx.model, ctx.output_dir,
+            inner=hooks.get("post_year"),
+        )
+        hooks["post_year"] = reflection_hook
     config_path = str(ctx.config_path)
     context_builder = TieredContextBuilder(
         agents=ctx.agents, hub=None, prompt_templates=templates,
@@ -422,6 +445,8 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         builder.with_custom_validators(list(validators))
     if phase_order is not None:
         builder.with_phase_order(phase_order)
+    if reflection_hook is not None:
+        builder.with_reflection_engine(reflection_hook.engine)
     if not ctx.skill_registry_path.is_file():
         raise RunError(f"skill registry file does not exist: {ctx.skill_registry_path}")
     if ctx.output_dir.exists() and not ctx.output_dir.is_dir():
@@ -433,7 +458,10 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     except ValueError as exc:  # The builder's own configuration checks.
         raise RunError(f"the case could not be built: {exc}") from exc
     runner._llm_cache.update(invokes)
-    return runner, after_run
+    if reflection_hook is not None:
+        reflection_hook.runner = runner
+        runner.reflection_enabled = True  # run_integrity.json records it
+    return runner, after_run, reflection_hook
 
 
 @dataclass
@@ -447,6 +475,7 @@ class Prepared:
     phase_order: Any
     args: argparse.Namespace
     slot_files: dict = field(default_factory=dict)  # slot name -> file it was loaded from
+    reflection_hook: Any = None  # the post_year reflection hook, when reflection is on
 
 
 def prepare(argv) -> Prepared:
@@ -460,8 +489,18 @@ def prepare(argv) -> Prepared:
         LLM_CONFIG.thinking_mode = args.thinking_mode
     _vet_decider_targets(ctx.raw, ctx, args.allow_module)
     loaded = {}
-    runner, after_run = _build_runner(ctx, slots, phase_order, args.allow_module, loaded)
-    return Prepared(runner, ctx, after_run, slots, phase_order, args, loaded)
+    runner, after_run, reflection_hook = _build_runner(ctx, slots, phase_order, args.allow_module, loaded)
+    return Prepared(runner, ctx, after_run, slots, phase_order, args, loaded, reflection_hook)
+
+
+def _retrieval_top_k(ctx):
+    """Per agent type: how many memories its prompt asks the engine for."""
+    types = dict.fromkeys(agent.agent_type for agent in (ctx.agents or {}).values())
+    return {
+        agent_type: (ctx.config.get_memory_config(agent_type) or {}).get(
+            "retrieval_top_k", DEFAULT_RETRIEVAL_TOP_K)
+        for agent_type in types
+    }
 
 
 def _write_run_record(prepared, argv, status, provenance=None):
@@ -486,7 +525,11 @@ def _write_run_record(prepared, argv, status, provenance=None):
         "skill_registry": str(ctx.skill_registry_path),
         "output_dir": str(ctx.output_dir),
         "argv": argv,
+        "memory": ctx.memory.record(_retrieval_top_k(ctx)),
+        "reflection": ctx.reflection.record(),
     }
+    if prepared.reflection_hook is not None:
+        record["reflection"].update(prepared.reflection_hook.counts)
     if provenance:
         record.update(provenance)
     ctx.output_dir.mkdir(parents=True, exist_ok=True)
@@ -536,6 +579,11 @@ def main(argv=None) -> int:
     runner.run()
     if after_run is not None:
         after_run(ctx.output_dir)
+    counts = prepared.reflection_hook.counts if prepared.reflection_hook is not None else {}
+    if counts.get("failed_calls") or counts.get("replies_not_stored"):
+        print(f"broker.run: reflection: {counts['reflections_stored']} stored, "
+              f"{counts['failed_calls']} model calls failed, {counts['replies_not_stored']} replies "
+              f"too short to store (see broker_run.json)", file=sys.stderr)
     problem = manifest_problem(ctx.output_dir)
     checks["manifest_write"] = "pass" if problem is None else "fail"
     if problem is not None:

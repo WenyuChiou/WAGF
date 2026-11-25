@@ -116,12 +116,13 @@ class TestGenAgentTypesYaml:
         assert data["agent"]["psychological_framework"] == "pmt"
 
     @pytest.mark.parametrize("framework,physical_only", [("pmt", False), ("custom", False), ("pmt", True)])
-    def test_no_reflection_block_because_broker_run_never_reads_it(self, framework, physical_only):
-        # python -m broker.run does not run reflection, so a scaffolded
-        # reflection block would only suggest settings that change nothing.
+    def test_memory_engine_and_reflection_switch_are_scaffolded_with_reflection_off(self, framework, physical_only):
+        # python -m broker.run reads both blocks; reflection stays off until
+        # the author sets enabled: true.
         data = yaml.safe_load(gen_agent_types_yaml(
             "energy", ["a", "b"], framework, physical_only=physical_only))
-        assert "reflection" not in data["global_config"]
+        assert data["global_config"]["memory"]["engine_type"] == "window"
+        assert data["global_config"]["reflection"] == {"enabled": False, "interval": 1, "importance_boost": 0.9}
         assert "llm" in data["global_config"]
 
 
@@ -322,7 +323,7 @@ class TestScaffoldEndToEnd:
         assert agent["psychological_framework"] == "none"
         assert "rating_scale" not in yaml_text
         assert "constructs" not in keys
-        assert "reflection" not in data["global_config"]
+        assert data["global_config"]["reflection"]["enabled"] is False
         assert "preprocessor" not in agent["parsing"]
         assert "proximity_window" not in agent["parsing"]
         assert agent["log_fields"] == []

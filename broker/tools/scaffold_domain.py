@@ -262,10 +262,23 @@ def gen_agent_types_yaml(
             corrected_status_columns: true
 
           memory:
+            # python -m broker.run builds this engine: window (keeps the last
+            # window_size memories) or humancentric (recent memories plus the
+            # important ones it keeps in long-term memory). The last three keys
+            # are read only by humancentric.
+            engine_type: window
             window_size: 5
             consolidation_threshold: 0.6
             top_k_significant: 2
             decay_rate: 0.1
+
+          reflection:
+            # Off until enabled is true. When on, each agent writes a short
+            # lesson every interval years; it is stored as a memory with
+            # importance importance_boost.
+            enabled: false
+            interval: 1
+            importance_boost: 0.9
 
           llm:
             model: "command-line-override"

@@ -83,7 +83,12 @@ Slots, the import rule and defaults are explained in the [new-domain guide](../g
 
 Controls the sliding-window episodic memory system.
 
-These fields are read by the engines the paper runners build. `python -m broker.run` always uses the window engine, and none of them changes what it returns: the number of memories in the prompt is `retrieval_top_k` in the agent type's `memory` block (§2.3, default 3).
+These fields are read by the engines the paper runners build, and by `python -m broker.run`, which builds the engine `engine_type` names for the whole run:
+
+- `window` (the default): the prompt gets the most recent `retrieval_top_k` memories (the agent type's `memory` block, §2.3, default 3). Only `window_size` below applies, and only when written: it then caps how many memories the engine keeps, so the prompt holds the smaller of `window_size` and `retrieval_top_k`. Without it the engine keeps the last 100.
+- `humancentric`: the prompt gets the `window_size` most recent memories plus the `top_k_significant` most important long-term ones; `retrieval_top_k` does not apply. `broker.run` passes window_size 3, top_k_significant 2 and ranking_mode `legacy` unless the YAML sets them, and seeds the engine with the run seed unless `seed` is set. The other keys below, and the weights `W_recency`, `W_importance`, `W_context`, are passed to the engine as written.
+
+`broker.run` refuses any other `engine_type` (`universal` needs the multi-agent flood runner; `importance` and `hierarchical` are deprecated) and records the engine and its settings under `memory` in `broker_run.json`.
 
 Every number in this block, its range and the default each piece of code applies is in the generated
 [parameter table](parameter_table.md). Where two pieces of code apply different defaults, the table lists both;
@@ -91,7 +96,8 @@ the defaults below are the ones the engines apply when built directly.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `window_size` | int | No | 3 | Number of recent time-steps retained in working memory. 3 in the engines, in `get_global_memory_config` and on `broker.run`; the registry factories (`create_memory_engine`) pass 5. `broker.run` keeps the value but its window engine returns the last `retrieval_top_k` items |
+| `engine_type` | string | No | `"window"` | Memory engine. On `broker.run`: `window` or `humancentric` (`human_centric` is accepted too) |
+| `window_size` | int | No | 3 | Number of recent time-steps retained in working memory. 3 in the engines, in `get_global_memory_config` and on `broker.run`; the registry factories (`create_memory_engine`) pass 5. On `broker.run` the window engine applies it only when written (see above) |
 | `consolidation_threshold` | float | No | 0.6 | Importance score above which a memory is consolidated to long-term store |
 | `consolidation_probability` | float | No | 0.7 | Probability of consolidation when threshold is met |
 | `top_k_significant` | int | No | 2 | Number of most-significant memories surfaced per retrieval |
@@ -144,16 +150,35 @@ global_config:
 Controls the periodic reflection subsystem where agents synthesize lessons
 from accumulated memories.
 
-Only the paper runners read this block. `python -m broker.run` does not run
-reflection, so the block changes nothing there. The `triggers` sub-block and
-`method` are read only by `ReflectionEngine.load_trigger_config`, which no
-runner calls.
+The paper runners read this block, and `python -m broker.run` reads it when
+`enabled` is true; without `enabled: true` the block changes nothing on
+`broker.run`. There, after the case's own `post_year` hook, each agent whose
+turn it is (every `interval` years, and in a year it ran a skill listed in
+`triggers.decision_types`) gets one reflection prompt built from its retrieved
+memories (earlier reflections left out), its agent type's `questions` and, at
+the top, `persona_instruction`. The reply is stored as the memory
+`Reflection (year N): ...` with importance `importance_boost`, so the
+humancentric engine keeps it in long-term memory, and is logged in
+`reflection_log.jsonl`. Under `--model mock` the reply is a fixed line. A
+failed model call is counted and the run goes on. `broker_run.json` records
+the settings under `reflection`, with how many reflections were stored, how
+many replies were too short to store and how many calls failed.
+
+On `broker.run` these are refused when `enabled` is true: `batch_size` other
+than 1, `triggers.crisis: true`, `triggers.periodic_interval` (use `interval`),
+`triggers.institutional_threshold`, the grounded-reflection keys
+(`year_outcome`, `year_lines`, `program_facts`, `lesson_no_numbers`) and
+`keep_latest_only` with the window engine. `method` is not read by any runner;
+the paper runners read the `triggers` sub-block only through
+`ReflectionEngine.load_trigger_config`, which no runner calls.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| `enabled` | bool | No | false | `broker.run` runs reflection only when true |
 | `interval` | int | No | 1 | Reflect every N time-steps |
-| `batch_size` | int | No | 10 | Number of agents that reflect in one model call |
-| `importance_boost` | float | No | 0.9 | Importance score assigned to reflection-generated memories. 0.9 in `get_reflection_config` and `ReflectionEngine`; `ReflectionTriggerConfig.importance_boost` (read by `load_trigger_config`) defaults to 0.85 |
+| `batch_size` | int | No | 10 | Number of agents that reflect in one model call (`broker.run`: only 1) |
+| `importance_boost` | float | No | 0.9 | Importance score assigned to reflection-generated memories. 0.9 in `get_reflection_config`, `ReflectionEngine` and `broker.run`; `ReflectionTriggerConfig.importance_boost` (read by `load_trigger_config`) defaults to 0.85 |
+| `keep_latest_only` | bool | No | false | Storing a new reflection first removes the agent's earlier ones (needs the humancentric engine) |
 | `persona_instruction` | string | No | (none) | System instruction for persona-aware reflection prompts |
 | `questions` | list[string] | No | [] | Guiding reflection questions injected into the prompt |
 | `method` | string | No | `"hybrid"` | Reflection strategy. Valid values: `hybrid`, `periodic`, `crisis` |
@@ -163,9 +188,9 @@ runner calls.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `crisis` | bool | No | true | Enable crisis-triggered reflection |
+| `crisis` | bool | No | true | Enable crisis-triggered reflection (`broker.run`: only `false`) |
 | `periodic_interval` | int | No | 5 | Reflect every N time-steps (periodic trigger) |
-| `decision_types` | list[string] | No | [] | Skill names that trigger post-decision reflection |
+| `decision_types` | list[string] | No | [] | Skill names that trigger post-decision reflection (`broker.run`: the agent reflects at the end of a year in which one of these skills ran) |
 | `institutional_threshold` | float | No | 0.05 | Policy change magnitude that triggers reflection |
 
 **Example:**
@@ -212,7 +237,8 @@ read by `examples.irrigation_abm.run_experiment`; it constructs
 `WaterSystemConfig` from code and supported CLI arguments. Editing that YAML
 block does not configure the water system. Reflection `triggers` and `method`
 are read only by `ReflectionEngine.load_trigger_config`, which no runner calls; the two paper runners
-schedule their batch reflection with `reflection.interval` instead. Flood
+schedule their batch reflection with `reflection.interval` instead (`broker.run` reads
+`triggers.decision_types` itself, see §2.1.3). Flood
 `consolidation_threshold` is read when its memory engine is constructed.
 
 **Example:**
@@ -788,7 +814,7 @@ corresponding dictionary.
 | `multi_skill` | object | No | {enabled: false} | Multi-skill configuration (see below) |
 | `parsing` | object | No | {} | LLM output parsing configuration (see below) |
 | `log_fields` | list[string] | No | [] | Construct field names to log per decision |
-| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included. `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. |
+| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included, with the window engine (the humancentric engine in legacy ranking uses `window_size` and `top_k_significant` instead, §2.1.1). `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. |
 | `feedback` | object | No | {} | Feedback dashboard configuration |
 | `actions` | list[object] | No | [] | Action definitions (legacy path -- may also be under `parsing.actions`) |
 | `governance` | object | No | {} | Inline governance profile (for agent types that nest rules inside their block) |
