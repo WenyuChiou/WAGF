@@ -107,7 +107,7 @@ If your application needs to score agent outputs (e.g., whether the reasoning is
 
 ## 3. Inter-Agent Messages (Multi-Agent Layer)
 
-In multi-agent simulations, a fifth context layer is injected by `MessagePoolProvider` (`broker/components/message_provider.py`):
+In multi-agent simulations, a fifth context layer is injected by `MessagePoolProvider` (`broker/components/coordination/provider.py`):
 
 5.  **Inter-Agent Messages**:
     - Delivers unread messages from the `MessagePool` to each agent's context.
@@ -123,7 +123,7 @@ In multi-agent simulations, a fifth context layer is injected by `MessagePoolPro
 
 ### Skill Ordering Randomization
 
-To prevent positional bias (LLMs tend to favor options listed first), the `TieredBuilder` (`broker/components/tiered_builder.py`) optionally shuffles the skill list order per-agent per-year. Controlled by the `_shuffle_skills` context flag.
+To prevent positional bias (LLMs tend to favor options listed first), `TieredContextBuilder` (`broker/components/context/tiered.py`) optionally shuffles the skill list order per-agent per-year. Controlled by the `_shuffle_skills` context flag.
 
 ---
 
@@ -131,6 +131,6 @@ To prevent positional bias (LLMs tend to favor options listed first), the `Tiere
 
 If you need to modify the context structure:
 
-1.  **Modify Template**: Edit `broker/utils/prompts/household_template.txt`.
+1.  **Modify Template**: Edit the domain prompt template (for example `examples/single_agent/config/prompts/household.txt`).
 2.  **Modify Builder**: Inherit from `ContextBuilder` and override the `format_prompt` method.
-3.  **Add Provider**: Implement a new `ContextProvider` and register it in the `TieredBuilder`.
+3.  **Add Provider**: Implement a new `ContextProvider` and register it in `TieredContextBuilder`.

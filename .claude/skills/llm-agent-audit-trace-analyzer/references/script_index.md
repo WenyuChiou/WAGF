@@ -49,7 +49,7 @@ counts.
 python examples/single_agent/analysis/compute_retry_compliance.py
 ```
 
-Emits `.ai/retry_compliance_gemma4_v2_*.md` with Pattern A/B/C counts
+Writes `retry_compliance_gemma4_v2_*.md` with Pattern A/B/C counts to a local `.ai/` folder (not in the public repo)
 across the Gemma-4 family governed runs.
 
 ## Irrigation IBR / governance comparison

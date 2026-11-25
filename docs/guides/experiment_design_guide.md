@@ -19,7 +19,7 @@ python -m broker.tools.scaffold_domain your_domain --output examples/your_domain
 cd examples/your_domain
 ```
 
-See the `wagf-domain-builder` Claude Code skill (`SKILL.md` + `references/edit_pass_checklist.md`) for a checklist of what to customize.
+See the `wagf-domain-builder` Claude Code skill (`.claude/skills/wagf-domain-builder/SKILL.md` + `.claude/skills/wagf-domain-builder/references/edit_pass_checklist.md`) for a checklist of what to customize.
 
 ---
 

@@ -100,63 +100,41 @@ The framework separates concerns into three distinct layers with strict data flo
 
 ### Broker Layer (`broker/`)
 
-Paths below are historical (early flat layout) and most no longer exist
-at these exact locations; see `docs/REPO_MAP.md` for the current module
-map.
+See `docs/REPO_MAP.md` for the complete current module map:
 
-| File                    | Purpose                                    |
-| ----------------------- | ------------------------------------------ |
-| `engine.py`             | Main orchestrator, coordinates 6-step flow |
-| `context_builder.py`    | Builds bounded context for LLM             |
-| `types.py`              | Core data types (SkillProposal, etc.)      |
-| `interfaces/schemas.py` | Pydantic schemas for strict validation     |
-| `plugins.py`            | Plugin registry for third-party additions  |
-| `audit_writer.py`       | Writes JSONL audit traces                  |
+| File | Purpose |
+| ---- | ------- |
+| `broker/core/skill_broker_engine.py` | Main orchestrator, coordinates 6-step flow |
+| `broker/components/context/tiered.py` | Builds bounded context for LLM |
+| `broker/interfaces/skill_types.py` | Core data types (`SkillProposal`, etc.) |
+| `broker/interfaces/schemas.py` | Pydantic schemas for strict validation |
+| `broker/components/analytics/audit.py` | Writes CSV and JSONL audit traces |
 
-**Removed 2026-09 as unused expansion** (org-3 cleanup, on top of the
-async_adapter/ReplayEngine/duplicate-BaseValidator removal above):
-`broker/core/unified_context_builder.py` (`UnifiedContextBuilder`;
-superseded in production by `TieredContextBuilder`), the unified/FAISS
-memory stack in `broker/memory/` (`unified_engine.py` / `store.py` /
-`retrieval.py` / `graph.py` / `persistence.py` / `vector_db.py` /
-`embeddings.py` — `broker/memory/strategies/` and `broker/memory/config/`
-stayed, they're live), `broker/components/events/ma_manager.py`
-(`MAEventManager`, grep-confirmed test-only), `broker/components/cognitive/reflection_orchestrator.py`
-(`ReflectionOrchestrator`), `broker/components/orchestration/phases.py`
-(`PhaseOrchestrator`), `broker/components/events/generators/impact.py`
-+ `policy.py` (`ImpactEventGenerator` / `PolicyEventGenerator`, reachable
-only via the removed `MAEventManager`), `broker/components/social/dedup.py`
-(`dedup_by_canonical_event`), `broker/components/governance/permissions.py`
-(`RoleEnforcer`), and `broker/interfaces/validation_metadata.py`
-(`ValidatorMetadata`). Each had no production importer; where a module
-had its own test suite, that suite was removed with it. Full per-module
-LOC + verification detail: `CHANGELOG.md` `[Unreleased] > Removed`.
-`broker/modules/` was investigated as a removal candidate and KEPT —
-it has real production importers (survey loading for the flood domain).
+`broker/modules/`, `broker/memory/strategies/` and `broker/memory/config/` were checked as removal candidates in 2026-09 and kept: they have production importers. Modules removed as unused are listed in `CHANGELOG.md` `[Unreleased] > Removed`.
 
-### Interfaces (`interfaces/`)
+### Interfaces (`broker/interfaces/`)
 
-| File                          | Purpose                           |
-| ----------------------------- | --------------------------------- |
-| `read_interface.py`           | Read-only state access (Step ①)   |
-| `action_request_interface.py` | Action intent submission (Step ④) |
-| `execution_interface.py`      | System-only execution (Step ⑥)    |
+| File | Purpose |
+| ---- | ------- |
+| `broker/interfaces/skill_types.py` | Core decision, validation, and execution types |
+| `broker/interfaces/simulation_protocols.py` | Simulation and skill execution protocols |
+| `broker/interfaces/lifecycle_protocols.py` | Pre/post year and step hook protocols |
 
 ### Tiered Interaction Layer (`broker/components/`)
 
-| File                 | Purpose                                               |
-| -------------------- | ----------------------------------------------------- |
-| `interaction_hub.py` | Tiered data aggregation (Institutional/Social/Global) |
-| `context_builder.py` | Pipeline of providers for prompt construction         |
-| `memory_engine.py`   | RAG-based context retrieval                           |
+| File | Purpose |
+| ---- | ------- |
+| `broker/components/analytics/interaction.py` | Tiered data aggregation (Institutional/Social/Global) |
+| `broker/components/context/tiered.py` | Pipeline of providers for prompt construction |
+| `broker/components/memory/engine.py` | RAG-based context retrieval |
 
-### Validators (`broker/core/validator.py`)
+### Validators (`broker/validators/`)
 
-| Validator           | Purpose                                   |
-| ------------------- | ----------------------------------------- |
-| `SkillValidator`    | Structural and semantic skill checks      |
-| `ContextValidator`  | Ensures no hidden state leak to LLM       |
-| `ThinkingValidator` | Analyzes TP/CP consistency (PMT specific) |
+| Validator | Source | Purpose |
+| --------- | ------ | ------- |
+| `AgentValidator` | `broker/validators/agent/agent_validator.py` | Schema, identity, and thinking rule checks |
+| `BaseValidator` | `broker/validators/governance/base_validator.py` | Governance validator base class |
+| `ThinkingValidator` | `broker/validators/governance/thinking_validator.py` | Behavioral construct consistency |
 
 ---
 

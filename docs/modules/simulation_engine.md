@@ -2,7 +2,7 @@
 
 **🌐 Language: [English](simulation_engine.md) | [中文](simulation_engine_zh.md)**
 
-The `simulation/` directory handles the "Ground Truth" of the world. It manages time-stepping, environmental state (floods), and executes the physical consequences of agent actions.
+The `broker/simulation/` directory handles the "Ground Truth" of the world. It manages time-stepping, environmental state (floods), and executes the physical consequences of agent actions.
 
 ## 🌍 Simulation Engine (`simulation_engine.py`)
 
@@ -115,7 +115,7 @@ Removed 2026-09 (unused expansion); see CHANGELOG [Unreleased]. (`PhaseOrchestra
 
 ### GameMaster Coordination
 
-The `GameMaster` (`broker/components/coordinator.py`) manages the RESOLUTION phase with pluggable strategies:
+The `GameMaster` (`broker/components/coordination/coordinator.py`) manages the RESOLUTION phase with pluggable strategies:
 
 - **Passthrough**: Accept all proposals (single-agent default)
 - **ConflictAware**: Detect resource conflicts using `ConflictDetector` and resolve via priority or proportional allocation
@@ -123,7 +123,7 @@ The `GameMaster` (`broker/components/coordinator.py`) manages the RESOLUTION pha
 
 ### Conflict Resolution
 
-The `ConflictDetector` (`broker/components/conflict_resolver.py`) detects resource over-allocation (e.g., more agents requesting government grants than the budget allows). Resolution strategies include `PriorityResolution` (highest-need agents first) and `ProportionalResolution` (distribute proportionally).
+The `ConflictDetector` (`broker/components/coordination/conflict.py`) detects resource over-allocation (e.g., more agents requesting government grants than the budget allows). Resolution strategies include `PriorityResolution` (highest-need agents first) and `ProportionalResolution` (distribute proportionally).
 
 ---
 

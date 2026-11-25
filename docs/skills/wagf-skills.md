@@ -196,7 +196,7 @@ semantics.
 `adapters/external_model_adapter.py` (pattern-specific).
 
 **Reuses**: pattern A (CSV replay) and pattern B (Python library)
-templates from `references/coupling_patterns/`; pairs with
+templates from `.claude/skills/wagf-coupling-designer/references/coupling_patterns/`; pairs with
 `model-coupling-contract-checker` (this skill DRAFTS the contract;
 that skill AUDITS it).
 
@@ -264,10 +264,5 @@ Every WAGF skill must:
 
 ## See also
 
-- `.ai/wagf_skills_brief_2026-04-25.md` — the original Codex brief
-  that motivated these four skills.
-- `.ai/wagf_audit_summary_2026-04-24.md` — the 2026-04-24 audit
-  that produced the failure-pattern catalogue used by
-  `abm-reproducibility-checker`.
 - `broker/INVARIANTS.md` — the framework invariants every skill
   cross-references.

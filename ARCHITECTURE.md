@@ -507,8 +507,7 @@ slower to.
 
 ## Appraisal freeze and the per-attempt audit options
 
-Five generic, opt-in options, added for the irrigation v3 governance (WP3 of
-`.research/design_specs/irrigation_v3_spec_2026-09-28.md`). Each default
+Five generic, opt-in options, added for the irrigation v3 governance. Each default
 reproduces the shipped behaviour, so a domain that sets none of them (flood
 included) writes a byte-identical audit CSV (checked with
 `broker.tools.compare_audit_csv` on flood mock runs):
@@ -602,8 +601,7 @@ like `llm_safeguard`). Tested in `broker/tests/test_appraisal_freeze.py`
 
 ## Retry-text, dashboard and reflection options
 
-Four more generic, opt-in options, added for the irrigation v3 prompt (WP4 of
-`.research/design_specs/irrigation_v3_spec_2026-09-28.md`). Each default
+Four more generic, opt-in options, added for the irrigation v3 prompt. Each default
 reproduces the shipped behaviour; on flood mock runs the audit CSVs compare
 IDENTICAL and the raw traces, prompts included, are unchanged:
 
@@ -708,8 +706,7 @@ historical migrations:
   2. AgentProfile uses extensions dict → access via
      `profile.extensions["flood"]`.
   3. Enrichers use Protocol pattern → pass domain-specific enrichers
-     explicitly. (Original migration guide:
-     `.tasks/handoff/task-029-migration-guide.md`.)
+     explicitly.
 
 ---
 
@@ -726,7 +723,7 @@ historical migrations:
 
 **Current water domains**:
 - `examples/single_agent/` — Flood household adaptation (100 agents, PMT-based decisions)
-- `examples/multi_agent/irrigation_abm/` — Irrigation water management (78 CRSS agents)
+- `examples/irrigation_abm/` — Irrigation water management (78 CRSS agents)
 
 ---
 
@@ -764,23 +761,20 @@ live injection is deferred to follow-up work.
 ### Domain adapter (`DomainReflectionAdapter`)
 
 Defined at `broker/components/cognitive/adapters.py`. Concrete adapter for
-flood at `examples/single_agent/adapters/flood_adapter.py`. New domains plug
+flood at `examples/governed_flood/adapters/flood_adapter.py`. New domains plug
 in by implementing `compute_importance()` and `classify_emotion()` callbacks;
 framework code is never domain-specific.
 
 ### Full design specification
 
-The complete reflection taxonomy, V2 temporal extension path, edge-case
-handling, and cross-domain integration guidelines are documented in
-`.ai/reflection_taxonomy_design_2026-04-19.md`.
+The extended reflection taxonomy, V2 temporal extension notes, edge-case
+handling, and cross-domain integration notes were drafted in the maintainer's
+local workspace and are not distributed in the public repository.
 
 ---
 
 ## Related Documents
 
-- Reflection Taxonomy Design: `.ai/reflection_taxonomy_design_2026-04-19.md` — current + V2 extension spec
 - [Framework Invariants](broker/INVARIANTS.md) — architectural contracts
-- Task-029 Migration Guide: `.tasks/handoff/task-029-migration-guide.md`
-- Task-029 Audit Report: `.tasks/handoff/task-029-audit-report.md`
 - [MA Experiment Guide](examples/multi_agent/README.md)
 - [Mixed Populations](docs/guides/mixed_populations.md) — declaring rule-based, hybrid and LLM deciders per agent type, and how to read the resulting audit rows

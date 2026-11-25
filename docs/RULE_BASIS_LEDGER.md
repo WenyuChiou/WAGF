@@ -8,7 +8,7 @@ either (L) a literature source or (A) a stated reasonable assumption. A number d
 from our own corpus (a quantile) is neither and is not allowed. This file is the working
 record; nothing here is manuscript prose. Code is cited by file and symbol, not line number.
 
-## Irrigation (the rules of the irrigation paper runs, `config/agent_types.yaml`)
+## Irrigation (the rules of the irrigation paper runs, `examples/irrigation_abm/config/agent_types.yaml`)
 
 The thinking rules TR1 and TR3 run in the `strict` profile only. The identity rules are menu
 filters in every profile. The supply rule runs in every profile except `disabled`.
@@ -20,13 +20,13 @@ and `grounded_tier1eq` variants are not part of the paper runs and are not liste
 |---|---|---|---|---|
 | Shortage tiers | Mead 1,075 / 1,050 / 1,025 ft | L | Bureau of Reclamation 2007 Interim Guidelines (Record of Decision); 2019 Drought Contingency Plan (verify citations before use) | `irrigation_env.py` (`WaterSystemConfig.mead_shortage_tier1` to `tier3`, `_compute_shortage_tier`) |
 | Lower Basin shortage volumes | 333 / 417 / 500 kaf (Arizona share 320 / 400 / 480 kaf) | L | 2007 Interim Guidelines Record of Decision, Section 2.D.1; the Arizona priority-4 fraction is not independently verified | `irrigation_env.py` (`_tier_shortage_volume_maf`, `_AZ_LB_TIER_VOLUME_AF`, `_lb_junior_tier_fraction`) |
-| TR1 `high_scarcity_no_increase` | WSA in {H, VH} blocks `increase_demand` (ERROR, strict only) | L (theory) + A | dual-appraisal theory: an increase on a shared supply when the user judges water scarce is a maladaptive response; mapping the theory onto this menu is our assumption | `config/agent_types.yaml` (`governance.strict.thinking_rules`) |
+| TR1 `high_scarcity_no_increase` | WSA in {H, VH} blocks `increase_demand` (ERROR, strict only) | L (theory) + A | dual-appraisal theory: an increase on a shared supply when the user judges water scarce is a maladaptive response; mapping the theory onto this menu is our assumption | `examples/irrigation_abm/config/agent_types.yaml` (`governance.strict.thinking_rules`) |
 | TR3 `low_scarcity_no_decrease` | WSA in {VL, L} blocks `decrease_demand` (ERROR, strict only) | L (theory) + A | same, kept for symmetry with the flood over-reaction rules; support weak to moderate | same |
 | TR2 (WSA and ACA both H or VH, keep) | not enforced in any profile | - | - | - |
-| Supply rule `supply_gap_block_increase` | blocks `increase_demand` when the expected delivery of last year's request is below `FULL_SUPPLY_RATIO` of it | A | world-state rule; reads only water-system state; no other numeric threshold | `validators/irrigation_validators.py` (`supply_gap_block_increase`, `supply_rule_fields`) |
-| `water_right_cap` | no increase at or above 0.99 of the water right | L + A | Colorado River Compact (1922) allocation and CRSS water rights (Hung & Yang 2021); the 0.99 margin is an assumption | `config/agent_types.yaml` (`identity_rules`), skill-registry precondition |
-| `beneficial_use_limit` | no increase at about the most water the fields can use | L + A | beneficial use as the basis and limit of a water right (A.R.S. 45-141(B); Upper Colorado River Basin Compact 1948, Art. III(b)(2)); the per-agent limit comes from the model's data | `config/agent_types.yaml`, `irrigation_env.py` (`at_beneficial_use_limit`) |
-| `minimum_utilisation_floor` | no decrease at or below 1.01 × 10 % of the water right | A | the legal basis (forfeiture of unused rights after years of non-use) sets multi-year periods, not an annual fraction, so the 10 % is this model's assumption; the source model has no floor; sensitivities at 0 and 0.05 are recorded | `config/agent_types.yaml`, `irrigation_env.py` (`WaterSystemConfig.min_utilisation_fraction`) |
+| Supply rule `supply_gap_block_increase` | blocks `increase_demand` when the expected delivery of last year's request is below `FULL_SUPPLY_RATIO` of it | A | world-state rule; reads only water-system state; no other numeric threshold | `examples/irrigation_abm/validators/irrigation_validators.py` (`supply_gap_block_increase`, `supply_rule_fields`) |
+| `water_right_cap` | no increase at or above 0.99 of the water right | L + A | Colorado River Compact (1922) allocation and CRSS water rights (Hung & Yang 2021); the 0.99 margin is an assumption | `examples/irrigation_abm/config/agent_types.yaml` (`identity_rules`), skill-registry precondition |
+| `beneficial_use_limit` | no increase at about the most water the fields can use | L + A | beneficial use as the basis and limit of a water right (A.R.S. 45-141(B); Upper Colorado River Basin Compact 1948, Art. III(b)(2)); the per-agent limit comes from the model's data | `examples/irrigation_abm/config/agent_types.yaml`, `irrigation_env.py` (`at_beneficial_use_limit`) |
+| `minimum_utilisation_floor` | no decrease at or below 1.01 × 10 % of the water right | A | the legal basis (forfeiture of unused rights after years of non-use) sets multi-year periods, not an annual fraction, so the 10 % is this model's assumption; the source model has no floor; sensitivities at 0 and 0.05 are recorded | `examples/irrigation_abm/config/agent_types.yaml`, `irrigation_env.py` (`WaterSystemConfig.min_utilisation_fraction`) |
 | `drought_index` | legacy proxy | A | no prompt, rule or metric reads it in the paper runs; it still scales the legacy `total_available_water` term | `irrigation_env.py` (`_compute_drought_index`) |
 
 ## Flood single-agent (the `strict` profile of the paper runs, `examples/single_agent/agent_types.yaml`)

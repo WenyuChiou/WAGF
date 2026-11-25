@@ -86,7 +86,7 @@ trading agent).
 twice; state gets double-mutated.
 
 **Detection recipe**:
-1. Trace the retry loop in `examples/<domain>/run_*.py`.
+1. Trace the retry loop in `broker/core/_retry_loop.py` and `broker/core/skill_broker_engine.py` (new cases run via `python -m broker.run CONFIG`).
 2. Confirm that on retry, the external model is NOT re-invoked
    (or is invoked with explicit roll-back of the prior call).
 3. Confirm the audit CSV records ONLY the final post-retry state,

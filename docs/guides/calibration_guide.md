@@ -396,7 +396,7 @@ reports enough to see them:
 sets `rates["insurance_rate_all"] = rates["insurance_rate"]` on the
 real-ABM metric path — the flood-prone-only rate and the all-zone rate
 emitted as one number under two names. The equivalent bug in
-`parametric/parametric_decider.py` is fixed (the prone-only rate is now
+`examples/multi_agent/flood/parametric/parametric_decider.py` is fixed (the prone-only rate is now
 accumulated over flood-prone households only); `calibration_hooks.py`
 is out of this PR's scope and still aliases them.
 
