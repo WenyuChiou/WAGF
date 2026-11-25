@@ -211,6 +211,8 @@ Pass `--framework custom` to also scaffold a `cognition/` package with framework
 
 Pass `--physical-only` for decisions with no appraisal step (a pump schedule, a gate setting). It writes `psychological_framework: none` explicitly: no rating scale, no appraisal fields or constructs, a prompt without appraisal wording, and one retry setting (`global_config.governance.max_retries: 3`). It cannot be combined with `--framework`.
 
+Pass `--magnitude` to also scaffold the agent's action number on [0, 1] (see [The action number](#the-action-number)). It combines with `--framework` and with `--physical-only`.
+
 Next, edit `config/prompts/agent.txt`, the DomainPack adapter, and `world.py` to describe your specific domain. The scaffold is a starting point — not a finished example. Then run it:
 
 ```bash
@@ -218,6 +220,23 @@ python -m broker.run examples/energy_demo/config/agent_types.yaml --model mock -
 ```
 
 Before the run starts, `broker.run` prints a header line `[broker.run] <config> | model=mock years=1 agents=1 output=<dir>`. With the mock model the empty scaffold then prints retry warnings, including `Max retries (3) reached`; that is expected. The run worked if the command exits with code 0. A finished output folder is never overwritten: pass a new `--output`, or move the old folder aside.
+
+### The action number
+
+When an agent chooses how much to do (how much to release, how much to cut), that number is its action number. A new case puts it on [0, 1], so 0.5 means half. Declare it as a numeric response field:
+
+```yaml
+response_format:
+  fields:
+    - { key: "magnitude", type: "numeric", min: 0, max: 1, unit: "fraction", required: true,
+        description: "Fraction from 0 to 1 (0.5 means half), for example 0.5" }
+```
+
+- **The scaffold writes it for you.** `python -m broker.tools.scaffold_domain <domain> --magnitude` adds this field, a prompt line asking for a fraction, a `world.py` that uses the number, and a `mock_llm.py` (wired through the `mock` slot) so `--model mock` answers with 0.35 and you can see a number on [0, 1] reach the world. It works with the default framework and with `--physical-only`. Without the flag the output is unchanged.
+- **The parser clamps.** It reads the response field of `type: numeric` (named `magnitude_pct`, then `magnitude`, else the first numeric field) and clamps the model's answer to the field's `min` and `max`, with a parsing warning. A model that answers 50 on a 0 to 1 field is recorded as 1.0. So the prompt must ask for a fraction in plain words; the `max: 1` is a safety net, not the instruction.
+- **The world reads `parameters["magnitude_pct"]`.** In `execute_skill(approved_skill)`, `approved_skill.parameters.get("magnitude_pct")` holds the number. That name is only the carrier: it holds the [0, 1] value, and rules see it as `proposed_magnitude`. It is absent when the model gave none.
+- **Checks.** `validate_prompt` warns on a field named `magnitude` or `magnitude_pct` whose `max` is above 1 or missing, and `--strict` makes that an error. `python -m broker.run CONFIG --strict-keys` (or `run.strict_keys: true`) refuses it with exit code 2. A case that keeps another scale, such as a percent or a flow in cubic metres per second, should name its field something else (`release_pct`, `release_rate_cms`).
+- **Limit: do not turn on `multi_skill` with a [0, 1] action number.** The second action's number is read as a whole number, and a field `min` of 0 counts as unset, so it must lie from 1 to the field's `max` (1 to 100 when none is declared). An answer of 0.35 becomes 0 and is dropped with a warning. Paper cases keep their own scales and are not affected.
 
 ### Running a case: `python -m broker.run`
 

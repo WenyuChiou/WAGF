@@ -446,3 +446,85 @@ def test_case_parent_is_appended_not_prepended(case, tmp_path):
     assert sys.path[0] == first
     assert [p for p in sys.path if p == parent] == [parent]
     assert sys.path[-1] == parent
+
+
+# --- strict keys ----------------------------------------------------------------
+
+def _with_unknown_key(config, data, run=None):
+    data["global_config"]["unread_flag"] = True
+    if run is not None:
+        data["global_config"]["run"] = run
+    _write_yaml(config, data)
+
+
+def test_strict_keys_is_off_by_default(case, capsys):
+    config, data = case
+    _with_unknown_key(config, data)
+    assert main([str(config)]) == 0
+    assert _manifest(config.parents[1] / "results" / config.stem)["status"] == "completed"
+
+
+def test_strict_keys_flag_refuses_a_yaml_with_an_unknown_key(case, capsys):
+    config, data = case
+    _with_unknown_key(config, data)
+    assert main([str(config), "--strict-keys"]) == 2
+    error = capsys.readouterr().err
+    assert error.startswith("broker.run: ") and "global_config.unread_flag" in error
+    assert not (config.parents[1] / "results" / config.stem).exists()
+
+
+def test_run_strict_keys_true_does_the_same(case, capsys):
+    config, data = case
+    _with_unknown_key(config, data, run={"strict_keys": True})
+    assert main([str(config)]) == 2
+    assert "global_config.unread_flag" in capsys.readouterr().err
+
+
+def test_no_strict_keys_overrides_a_yaml_true(case):
+    config, data = case
+    _with_unknown_key(config, data, run={"strict_keys": True})
+    assert main([str(config), "--no-strict-keys"]) == 0
+
+
+def test_strict_keys_passes_a_clean_yaml(case):
+    config, data = case
+    _write_yaml(config, data)
+    assert main([str(config), "--strict-keys"]) == 0
+
+
+def test_run_strict_keys_must_be_a_bool(case, capsys):
+    config, data = case
+    data["global_config"]["run"] = {"strict_keys": "yes"}
+    _write_yaml(config, data)
+    assert main([str(config)]) == 2
+    assert "strict_keys" in capsys.readouterr().err
+
+
+# --- strict keys: the action number is on [0, 1] -----------------------------------
+
+def _with_magnitude_field(config, data, **field):
+    data["agent"]["response_format"]["fields"].append(
+        {"key": "magnitude", "type": "numeric", "min": 0, **field})
+    _write_yaml(config, data)
+
+
+def test_strict_keys_refuses_a_magnitude_with_max_100(case, capsys):
+    config, data = case
+    _with_magnitude_field(config, data, max=100)
+    assert main([str(config), "--strict-keys"]) == 2
+    error = capsys.readouterr().err
+    assert error.startswith("broker.run: ") and "'magnitude'" in error and "'agent'" in error
+    assert "[0, 1]" in error
+    assert not (config.parents[1] / "results" / config.stem).exists()
+
+
+def test_without_strict_keys_the_same_magnitude_case_runs(case):
+    config, data = case
+    _with_magnitude_field(config, data, max=100)
+    assert main([str(config)]) == 0
+
+
+def test_strict_keys_accepts_a_magnitude_on_zero_to_one(case):
+    config, data = case
+    _with_magnitude_field(config, data, max=1)
+    assert main([str(config), "--strict-keys"]) == 0

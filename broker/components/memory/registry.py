@@ -95,6 +95,23 @@ class MemoryEngineRegistry:
 # Auto-register built-in engines
 # ---------------------------------------------------------------------------
 
+# Constructor options of HumanCentricMemoryEngine that the "humancentric"
+# factory below passes through from a config dict. Lifted from the factory body
+# so the parameter table can read it; the contents are unchanged.
+HUMANCENTRIC_PASSTHROUGH_KEYS = (
+    "consolidation_threshold", "emotional_weights", "source_weights",
+    "W_recency", "W_importance", "W_context",
+    "W_relevance", "W_interference",
+    "ranking_mode", "seed", "forgetting_threshold",
+    "max_working", "max_longterm", "interference_cap",
+    "emotion_keywords",
+    # Item 36b: generic, opt-in memory options (default off).
+    "deterministic_consolidation", "decay_ignore_emotion",
+    "decay_by_calendar_year",
+    "reflection_slot", "significant_tie_break", "recall_skip_key",
+)
+
+
 def _register_builtins():
     """Register all built-in memory engines."""
     from .engines.window import WindowMemoryEngine
@@ -120,18 +137,7 @@ def _register_builtins():
         # emotion_keywords never reached the engine on this path). Unknown
         # kwargs are still ignored for backward compatibility.
         passthrough = {
-            k: kwargs[k] for k in (
-                "consolidation_threshold", "emotional_weights", "source_weights",
-                "W_recency", "W_importance", "W_context",
-                "W_relevance", "W_interference",
-                "ranking_mode", "seed", "forgetting_threshold",
-                "max_working", "max_longterm", "interference_cap",
-                "emotion_keywords",
-                # Item 36b: generic, opt-in memory options (default off).
-                "deterministic_consolidation", "decay_ignore_emotion",
-                "decay_by_calendar_year",
-                "reflection_slot", "significant_tie_break", "recall_skip_key",
-            ) if k in kwargs
+            k: kwargs[k] for k in HUMANCENTRIC_PASSTHROUGH_KEYS if k in kwargs
         }
         return HumanCentricMemoryEngine(
             window_size=window_size,

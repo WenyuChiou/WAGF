@@ -40,7 +40,7 @@ class SkillProposal:
     parse_layer: str = ""        # Which parsing method succeeded (enclosure/json/regex/digit/default)
     parse_confidence: float = 0.0  # Parse confidence [0.0-1.0]
     construct_completeness: float = 0.0  # Construct coverage [0.0-1.0]
-    magnitude_pct: Optional[float] = None         # LLM-proposed magnitude (0-100%)
+    magnitude_pct: Optional[float] = None         # LLM-proposed action number: unitless; its scale is the response field's declared min/max (new cases use [0, 1])
     magnitude_fallback: bool = False               # True if magnitude from cluster default after failed retries
     # Phase 6W-B (default-OFF): typed multi-field setpoint dict for multi-dimensional
     # actions (e.g. a reservoir operator setting {release, hydropower, flood_pool}).

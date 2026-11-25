@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Generated parameter table and strict keys.** `docs/references/parameter_table.md` lists every tunable number,
+  its range and the default each piece of code applies, read from the code by
+  `python -m broker.config.parameter_table`. Loading now refuses `W_relevance`, `W_interference`,
+  `interference_cap`, `ema_alpha`, `reflection.triggers.institutional_threshold`, the `governance.drift`,
+  `governance.population` and `resolution_importance_policy` thresholds, and `memory.retrieval_weights` outside
+  [0, 1]. `AgentTypeConfig.load(strict_keys=True)`, `broker.run --strict-keys` and `global_config.run.strict_keys`
+  refuse a YAML with a key no code reads; without them such keys are logged once. `memory_write_policy` is now a
+  known `global_config` key.
+  New cases put the agent's action number on [0, 1]: `scaffold_domain --magnitude` writes a `magnitude` field with
+  `min: 0` and `max: 1`, `validate_prompt` warns when a `magnitude` field allows more than 1 (an error under
+  `--strict`), and `broker.run --strict-keys` refuses it. Paper cases and `examples/reservoir_control` keep their scales.
+
 ### Removed
 
 - Removed the vaccination demo and its example-specific loading and tests.
