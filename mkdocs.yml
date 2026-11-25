@@ -1,0 +1,76 @@
+site_name: WAGF User Manual
+site_description: Water Agent Governance Framework documentation, tutorials, guides, and schema reference
+repo_url: https://github.com/WenyuChiou/WAGF
+docs_dir: docs
+site_dir: site
+use_directory_urls: false
+hooks:
+  - mkdocs_hooks.py
+
+nav:
+  - Home:
+      - User Manual: index.md
+      - 使用手冊 (繁體中文): index_zh.md
+      - Repository Map: REPO_MAP.md
+  - Tutorial:
+      - Overview: tutorial/README.md
+      - 1. First Run: tutorial/01-first-run.md
+      - 2. Rules and Retries: tutorial/02-rules-and-retries.md
+      - 3. Audit Record: tutorial/03-audit.md
+      - 4. Water Model Coupling: tutorial/04-water-model.md
+      - 5. Resume from Journal: tutorial/05-resume.md
+      - 6. Measures (IBR & EHE): tutorial/06-measures.md
+  - Build Your Case:
+      - Quickstart Guide: guides/quickstart_guide.md
+      - Add a New Domain: guides/HOW_TO_ADD_A_NEW_DOMAIN.md
+      - Agent Assembly: guides/agent_assembly.md
+      - Agent Type Specification: guides/agent_type_specification_guide.md
+      - DomainPack Guide: guides/domain_pack_guide.md
+      - Model State in Prompts & Checks: guides/model_state_in_prompt_and_checks.md
+      - Coupling Connectors: COUPLING_CONNECTORS.md
+      - Governance Layers: guides/governance_layers.md
+      - Retry Feedback: guides/retry_feedback_guide.md
+      - Customization Guide: guides/customization_guide.md
+      - Multi-Agent Setup: guides/multi_agent_setup_guide.md
+      - Mixed Populations: guides/mixed_populations.md
+      - Experiment Design: guides/experiment_design_guide.md
+      - Ablation Guide: guides/ablation_guide.md
+      - Calibration Guide: guides/calibration_guide.md
+      - Integration Guide: guides/integration_guide.md
+      - Advanced Patterns: guides/advanced_patterns.md
+      - CLI & Environment Reference: guides/readme_reference.md
+      - Troubleshooting: guides/troubleshooting_guide.md
+  - Architecture & Modules:
+      - Runtime Architecture: architecture/architecture.md
+      - Five-Layer MAS Stack: architecture/mas-five-layers.md
+      - Agent Pipeline Architecture: architecture/agent_pipeline_architecture.md
+      - Theoretical Basis Overview: modules/00_theoretical_basis_overview.md
+      - Context System: modules/context_system.md
+      - Governance Core: modules/governance_core.md
+      - Skill Registry: modules/skill_registry.md
+      - Memory Components: modules/memory_components.md
+      - Reflection Engine: modules/reflection_engine.md
+      - Simulation Engine: modules/simulation_engine.md
+  - Reference:
+      - Audit Schema: AUDIT_SCHEMA.md
+      - YAML Configuration Reference: references/yaml_configuration_reference.md
+      - Parameter Table: references/parameter_table.md
+      - DomainPack Protocol: references/domain_pack_protocol_reference.md
+      - Rule Basis Ledger: RULE_BASIS_LEDGER.md
+      - Literature Integration: references/literature_integration.md
+      - PMT Validator References: references/pmt_validator_references.md
+      - PMT Study Mapping: references/pmt_validator_study_mapping.md
+      - AI-Assisted Setup: AI_ASSISTED_SETUP.md
+      - WAGF Claude Skills: skills/wagf-skills.md
+      - Regression Gate Checklist: checklists/abm_generalization_regression_gate.md
+  - 繁體中文手冊:
+      - 使用手冊首頁: index_zh.md
+      - Agent 組裝指南: guides/agent_assembly_zh.md
+      - 客製化指南: guides/customization_guide_zh.md
+      - 理論基礎總覽: modules/00_theoretical_basis_overview_zh.md
+      - Context 系統: modules/context_system_zh.md
+      - Governance 核心: modules/governance_core_zh.md
+      - Skill Registry: modules/skill_registry_zh.md
+      - Memory 元件: modules/memory_components_zh.md
+      - Reflection 引擎: modules/reflection_engine_zh.md
+      - Simulation 引擎: modules/simulation_engine_zh.md

@@ -148,6 +148,7 @@ toy_output/
 .pytest_cache/
 .coverage
 htmlcov/
+/site/
 .tmp/
 .pytest_tmp/
 broker/_audit_tmp_*/

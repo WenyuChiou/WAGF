@@ -1,0 +1,50 @@
+# Skill registry for templates/water_starter.
+#
+# === VARIABLE & UNIT DICTIONARY ===
+# Normalized proposal fields validated here:
+#   decision      : [int, 1|2] numeric action selector (1=set_release, 2=maintain_release)
+#   magnitude_pct : [number, 0.0..1.0] annual release fraction of ANNUAL_DEMAND_MAF
+# ==================================
+domain: water_starter
+default_skill: maintain_release
+skills:
+  - skill_id: set_release
+    domain: water_starter
+    category: setpoint
+    intensity: continuous
+    reversibility: annual
+    description: "Set annual release target as a fraction [0, 1] of annual demand"
+    eligible_agent_types: ["operator"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      magnitude_type: "fraction"
+      max_magnitude_pct: 1
+      magnitude_default: 1
+    allowed_state_changes: []
+    implementation_mapping: "set_release"
+    output_schema:
+      type: object
+      required: [decision, magnitude_pct]
+      properties:
+        decision: { type: integer, enum: [1] }
+        magnitude_pct: { type: number, minimum: 0, maximum: 1 }
+    conflicts_with: []
+
+  - skill_id: maintain_release
+    domain: water_starter
+    category: maintain
+    intensity: none
+    reversibility: annual
+    description: "Maintain the previously committed release fraction"
+    eligible_agent_types: ["operator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [2] }
+    conflicts_with: []
