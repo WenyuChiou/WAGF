@@ -9,14 +9,11 @@ from __future__ import annotations
 from broker.components.governance.validator_registry import ValidatorRegistry
 from broker.domains.registry import DomainPackRegistry
 
-from examples.reservoir_control.ops_validators import RESERVOIR_CONTROL_PHYSICAL_CHECKS
 from examples.reservoir_control.reservoir_pack import ReservoirControlDomainPack
 
-ValidatorRegistry.register(
-    "reservoir_control",
-    "physical",
-    list(RESERVOIR_CONTROL_PHYSICAL_CHECKS),
-)
+# Dead-pool and overflow limits are declared on the coupling contract and in
+# YAML expression rules, so no Python physical check is registered here.
+ValidatorRegistry.register("reservoir_control", "physical", [])
 DomainPackRegistry.register("reservoir_control", ReservoirControlDomainPack())
 
 __all__ = ["ReservoirControlDomainPack"]

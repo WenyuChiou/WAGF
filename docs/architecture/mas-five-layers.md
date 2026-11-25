@@ -229,7 +229,7 @@ class ReflectionEngine:
 #### Skill/Tool Use: SkillRegistry
 
 ```python
-# broker/components/skill_registry.py
+# broker/components/governance/registry.py
 @dataclass
 class SkillDefinition:
     name: str
@@ -644,7 +644,7 @@ broker/components/
 ├── memory.py                 # CognitiveMemory
 ├── memory_engine.py          # MemoryEngine wrapper
 ├── reflection_engine.py      # ReflectionEngine
-├── skill_registry.py         # SkillRegistry
+├── governance/registry.py    # SkillRegistry
 └── skill_retriever.py        # SkillRetriever
 
 broker/memory/

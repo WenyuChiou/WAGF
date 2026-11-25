@@ -15,7 +15,6 @@ year's inflow forecast (rationale: `ops_modules.py` module docstring).
 - `reservoir_pack.py` — `ReservoirControlDomainPack` (coupling OFF by default).
 - `ops_case.py` — the world, agents, hooks and scripted mock that `broker.run` loads.
 - `ops_modules.py` — the toy solver and its bundle (`apply_forecast`, `inputs_for_skill`).
-- `ops_validators.py` — no checks any more; the dead-pool limit is a `feasibility:` bound in the contract.
 - `config/reservoir_agent_types.yaml`, `config/reservoir_skill_registry.yaml`. The
   flood-control overflow limit (block `set_release` below full demand, magnitude 1, while
   storage is above 90% of capacity) is one `expression:` rule in the YAML, under the
