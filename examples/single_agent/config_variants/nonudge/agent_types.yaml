@@ -1,3 +1,19 @@
+# === VARIABLE & UNIT DICTIONARY ===
+# Domain: Household flood adaptation (Protection Motivation Theory, PMT).
+# Household state variables (initialized from agent_initial_profiles.csv or survey):
+#   elevated             : [bool] true once household has elevated its house (reduces options to 1..3)
+#   has_insurance        : [bool] whether flood insurance is currently active for the year
+#   relocated            : [bool] true once household relocates out of the floodplain (terminal)
+#   trust_in_insurance   : [float, 0..1] trust score in the flood insurer
+#   trust_in_neighbors   : [float, 0..1] trust score in neighbors' risk judgment
+#   flood_threshold      : [float, 0..1] conditional flood damage probability when a basin flood occurs (damage if Uniform(0,1) < flood_threshold; larger = higher risk)
+#   income_level / savings: [$] household economic state used in financial/affordability checks
+# Prompt & parsed PMT constructs (scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High):
+#   TP_LABEL (threat_appraisal) : [VL|L|M|H|VH] perceived flood threat severity/vulnerability
+#   CP_LABEL (coping_appraisal) : [VL|L|M|H|VH] perceived efficacy and ability to adapt
+#   decision                    : [choice, 1..4 or 1..3 when elevated] action ID in skill_map
+# Note: Inline "Spec item ..." / "WRR26" / "design record" notes below are paper-reproduction provenance.
+#
 # =============================================================================
 # GLOBAL CONFIGURATION (Experiment-level parameters)
 # =============================================================================

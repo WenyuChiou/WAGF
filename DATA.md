@@ -36,9 +36,9 @@ expect `Initial_Files/All-1109/` inside that CRSS data directory.
 
 | File | Contents | Source |
 |------|----------|--------|
-| `input/PRB/maxDepth*.asc` | Passaic River Basin (PRB) maximum flood depth grids by year (ASCII raster) | Not recorded in this repository; ask the authors |
-| `data/agents_init.csv` | Initial household table for the multi-agent flood example | Not recorded in this repository; ask the authors |
-| `data/initial_memories*.json` | Initial household memories | Not recorded in this repository; ask the authors |
+| `input/PRB/maxDepth*.asc` | Passaic River Basin (PRB) maximum flood depth grids by year (ASCII raster) | Tracked in this repository; upstream hydrology provenance available from the authors |
+| `data/agents_init.csv` | Initial household table for the multi-agent flood example | Tracked in this repository; upstream survey provenance available from the authors |
+| `data/initial_memories*.json` | Initial household memories | Tracked in this repository; upstream survey provenance available from the authors |
 
 ### Configuration Reference
 

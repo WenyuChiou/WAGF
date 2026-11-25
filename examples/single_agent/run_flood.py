@@ -1,3 +1,29 @@
+"""Single-agent household flood adaptation experiment runner (legacy paper runner).
+
+Run from the repository root:
+    Mock smoke run:
+        python examples/single_agent/run_flood.py --model mock --years 2 --agents 5 --output results/flood_smoke
+    Ollama / real LLM run:
+        python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100 --workers 1
+
+Key simulation constants (defined below):
+    FLOOD_PROBABILITY (0.2)            Annual basin flood probability when --flood-mode=prob
+    GRANT_PROBABILITY (0.5)            Annual elevation-grant availability probability per year
+    RANDOM_MEMORY_RECALL_CHANCE (0.2)  Probability of recalling a historical PAST_EVENTS line
+    MAX_FLOOD_EVENT_LINES_PER_YEAR (5) Max event lines written to memory per simulated year
+    flood_threshold ([0, 1], prob)     Dimensionless conditional damage probability given a basin flood (damage if Uniform(0,1) < flood_threshold; reduced 5x on elevation)
+
+Primary inputs (relative to this directory or --config-root / --initial-agents):
+    agent_types.yaml                  Agent config, PMT construct regexes, memory/governance settings
+    skill_registry.yaml               Available household actions (buy_insurance, elevate_house, relocate, do_nothing)
+    agent_initial_profiles.csv        Default initial household demographics and conditional damage probability flood_threshold ([0, 1])
+    flood_years.csv                   Deterministic 1-based flood year indices when --flood-mode=fixed
+
+Primary outputs (written under --output or examples/single_agent/results/):
+    simulation_log.csv / *_governance_audit.csv / raw/*.jsonl / governance_summary.json
+
+Note: Newer standalone domains should prefer ``python -m broker.run CONFIG``.
+"""
 import sys
 import json
 import yaml

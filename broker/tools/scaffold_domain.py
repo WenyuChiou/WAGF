@@ -152,6 +152,8 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
         f"# Skill registry for the {domain} domain.\n"
         f"# Scaffolded by broker.tools.scaffold_domain. Edit descriptions to\n"
         f"# match your decision semantics.\n"
+        f"# Variable & unit checklist: document each state/action field's unit,\n"
+        f"# range, and meaning above skills (e.g. storage [maf], magnitude [0..1]).\n"
         f"domain: {domain}\n"
         f"default_skill: {default}\n"
         f"skills:\n"
@@ -255,6 +257,8 @@ def gen_agent_types_yaml(
         # Scaffolded by broker.tools.scaffold_domain. EVERY block below is
         # required for the parser/validator pipeline to work — do NOT delete
         # one without consulting docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md.
+        # Variable & unit checklist: document prompt variables, state bounds/units,
+        # and appraisal label meanings here before adding rules or custom validators.
 
         global_config:
           run:

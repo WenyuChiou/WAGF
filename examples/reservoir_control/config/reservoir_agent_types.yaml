@@ -1,4 +1,22 @@
 # Reservoir continuous-control agent config.
+#
+# === VARIABLE & UNIT DICTIONARY ===
+# Prompt & rule state variables (supplied per year by ops_case.sync_prompt_env):
+#   current_year         : [int] 1-based simulation water year
+#   storage              : [maf] reservoir storage at the end of the just-finished year
+#   storage_now          : [maf] alias of end-of-year storage read by flood_control_overflow
+#   spill                : [maf] excess release over capacity during the last water year
+#   shortfall            : [maf] unmet annual water demand during the last water year
+#   release_actual       : [maf/month] mean monthly release achieved in the last water year
+#   inflow_forecast_year : [maf] forecast total inflow for the COMING water year
+#   dead_pool            : [maf] minimum physical storage (6.0 maf in ToyMassBalanceReservoir)
+#   capacity             : [maf] maximum reservoir capacity (24.0 maf in ToyMassBalanceReservoir)
+#   demand_year          : [maf] annual target demand (9.0 maf = 0.75 maf/month * 12)
+# LLM response fields & timing:
+#   magnitude            : [fraction, 0.0..1.0] monthly release target as a share of demand
+#   decision             : [choice, 1|2] 1=set_release (commits magnitude), 2=maintain_release
+#   Timing               : hindcast-then-set (year t advances first, then operator sets year t+1)
+# ==================================
 shared:
   rating_scales:
     utility:
