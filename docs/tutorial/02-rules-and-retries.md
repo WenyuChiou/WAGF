@@ -1,8 +1,8 @@
 # 2. See a rule block a decision and retry
 
-Use the flood output from [chapter 1](01-first-run.md). The existing skill output
-schema requires `threat_appraisal` and `coping_appraisal`; the built-in mock
-returns only `{"decision": 1}`. No new rule or scripted answer is needed.
+Use the flood output from [chapter 1](01-first-run.md). The response format in
+`agent_types.yaml` requires `threat_appraisal` and `coping_appraisal`; the built-in
+mock returns only `{"decision": 1}`. No new rule or scripted answer is needed.
 
 Inspect the first household's audit:
 
@@ -16,8 +16,8 @@ Expected output:
 {'agent_id': 'Agent_1', 'initial_skill': 'buy_insurance', 'retry_count': '3', 'failed_rules': 'Unknown', 'error_messages': 'Response missing required fields: threat_appraisal, coping_appraisal', 'executed_skill': 'do_nothing', 'execution_path': 'rejected_default'}
 ```
 
-The skill output-schema check blocks the missing fields. In these rows the
-audit records the blocking message, but `failed_rules` and the per-attempt rule
+The response-format check blocks the missing fields. In these rows the audit
+records the blocking message, but `failed_rules` and the per-attempt rule
 IDs are `Unknown`; it does not retain a named study rule for this failure.
 The console shows `Governance:Retry` attempts 1, 2 and 3;
 the mock repeats its incomplete response, so it never supplies a corrected
