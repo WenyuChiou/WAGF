@@ -41,9 +41,9 @@ You see these log lines in sequence:
 [Governance:Fallout] CRITICAL: Max retries (3) reached for agent_42.
   - Final Choice Rejected: 'elevate_house'
   - Blocked By: ['Precondition failed: ...']
-  - Ratings: TP_LABEL=H | TP_LABEL=L
+  - Ratings: TP_LABEL=H | CP_LABEL=L
   - Agent Motivation: "I want to protect my house..."
-  - Action: Proceeding with 'do_nothing' (Result: REJECTED)
+  - Action: Executing 'do_nothing' (policy=default, Result: REJECTED)
 ```
 
 The broker logs `[Governance:Exhausted]` and the audit CSV shows `status=REJECTED`
@@ -97,8 +97,10 @@ dispatched, or report `No action executed.` when nothing runs.
    trace file (`<output_dir>/raw/<agent_type>_traces.jsonl`). If yes, the rule is
    likely deterministic.
 
-3. Review the governance summary JSON (`<output_dir>/audit_summary.json` and the
-   `GovernanceAuditor.print_summary()` output) for the top rule violations:
+3. Review the governance summary JSON (`<output_dir>/governance_summary.json` and the
+   `GovernanceAuditor.print_summary()` output) for the top rule violations (note
+   that `<output_dir>/audit_summary.json` is the separate schema and sentinel
+   summary from `GenericAuditWriter.finalize()`):
    ```
    GOVERNANCE AUDIT SUMMARY
    ================================================
@@ -311,6 +313,10 @@ The framework provides structured access via `validation_context["agent_state"]`
 `validation_context["env_state"]` for validators that need to disambiguate. Prefer
 these nested accessors over flat key lookups in custom validators.
 
+See [How Model State Reaches the Prompt and the Checks](model_state_in_prompt_and_checks.md)
+for how lifecycle hooks copy world values into prompts and how checks read
+`env_state` versus agent state.
+
 ### 1.5 "Output schema violation"
 
 **Symptom**
@@ -326,8 +332,8 @@ The LLM output a numeric value outside the bounds defined in the skill's
 
 **Solution**
 
-The framework already clamps numeric values via `_parse_numeric_value()` in the
-model adapter. If you see this error, check that:
+The framework already clamps numeric values via `parse_numeric_value()` in
+`broker/utils/parsing_audits.py`. If you see this error, check that:
 1. The `output_schema` bounds in the skill registry match the `response_format`
    numeric field bounds in `agent_types.yaml`.
 2. The numeric field's `min`/`max` are realistic for your domain.
@@ -355,7 +361,8 @@ allow the combination, remove the `conflicts_with` entry from the skill registry
 
 ## 2. LLM Output Parsing Errors
 
-The `UnifiedAdapter` in `model_adapter.py` uses a multi-layer parsing strategy:
+The `UnifiedAdapter` in `broker/utils/parsing/unified_adapter.py` (re-exported by
+`broker/utils/model_adapter.py`) uses a multi-layer parsing strategy:
 enclosure extraction, JSON parsing, keyword search, digit extraction, and finally
 a default fallback. Errors here mean the LLM's output could not be converted into
 a valid `SkillProposal`. "Digit extraction" is not one stage: it is five
@@ -373,10 +380,11 @@ audit consequences in `docs/AUDIT_SCHEMA.md` "Parsing hardening".
 [LLM:Error] Model returned unparsable output after retries for agent_42.
 ```
 
-Or:
+Or (when the response is empty vs. non-empty but unparseable):
 
 ```
-[Broker:Retry] Empty/Null response received (Attempt 1/2)
+[Broker:Retry] LLM returned empty response (Attempt 1/2) — model timed out or refused.
+[Broker:Retry] LLM responded (142 chars) but parser rejected (Attempt 1/2) — see [Adapter:Error] diagnostic above for cause.
 ```
 
 If the first answer remains unparseable after format retries, the result is
@@ -467,8 +475,10 @@ return a usable default proposal with `parse_layer=default`.
   ```
 
 - **Increase format retries**: The broker already retries 2 times for format issues
-  before entering governance validation. The LLM receives a message:
+  before entering governance validation. For an empty response, the LLM receives:
   `"Response was empty or unparsable. Please output a valid JSON decision."`
+  When text was returned but could not be parsed, it receives:
+  `"Response was unparsable. Please output a valid JSON decision matching the expected format."`
 
 ### 2.2 "Choice not in skill registry" / Hallucinated Action
 
@@ -515,12 +525,12 @@ the fallback.
 - For persistent hallucination issues, add the hallucinated name as an alias mapping
   to the correct skill if it makes semantic sense.
 
-### 2.3 "Parse layer: default" / All Parsers Failed
+### 2.3 "Parse layer: fallback" / All Parsers Failed
 
 **Symptom**
 
-The audit CSV shows `parse_layer=default` or `parse_layer=digit_fallback`. The
-`parse_confidence` is 0.20 (lowest).
+The audit CSV shows `parse_layer=fallback` (with `parse_confidence=0.20`) or
+`parse_layer=digit` (`parse_confidence=0.50`, from raw adapter layer `digit_fallback`).
 
 **Root Causes**
 
@@ -564,8 +574,8 @@ model echoed the allowed values list) instead of a single valid label.
 
 **Solution**
 
-- Add the `_is_list_item()` guard's list delimiters to your config if the model uses
-  unusual separators:
+- Add the `is_list_item()` guard's list delimiters (in `broker/utils/parsing_audits.py`)
+  to your config if the model uses unusual separators:
   ```yaml
   parsing:
     list_delimiters: ['/', '|', '\\']
@@ -688,8 +698,10 @@ on CPU or with limited GPU memory.
 
 **Solution**
 
-- The framework auto-detects large models and applies `timeout_large_model` (default
-  600s). If your model is not detected, add its size pattern:
+- The framework auto-detects large models (`LLMConfig` defaults to
+  `("26b", "27b", "30b", "32b", "70b")`; `_load_global_config()` falls back to
+  `("27b", "30b", "32b", "70b")` when unset) and applies `timeout_large_model`
+  (default 600s). If your model is not detected, add its size pattern:
   ```yaml
   global_config:
     llm:
@@ -810,10 +822,11 @@ The GovernanceAuditor reports `empty_content_retries` and/or
   ```yaml
   global_config:
     llm:
-      num_predict: 2048  # Default is -1 (unlimited) for LLMConfig, but 2048 for direct API
+      num_predict: 2048  # LLMConfig default is -1 (unlimited); _load_global_config() and direct API default to 2048
   ```
-- For Qwen3 models, the framework automatically appends `/no_think` and strips
-  thinking tokens. If issues persist, increase `max_retries` in LLM config:
+- For Qwen3 models, the default `thinking_mode: disabled` in `LLMConfig` appends
+  `/no_think` and strips `<think>` tokens. If issues persist, increase `max_retries`
+  in LLM config:
   ```yaml
   global_config:
     llm:
@@ -824,9 +837,9 @@ The GovernanceAuditor reports `empty_content_retries` and/or
 
 ## 4. Memory System Issues
 
-WAGF supports multiple memory engines: `window` (simple sliding window),
-`humancentric` (working + long-term with consolidation), `hierarchical` (deprecated),
-and `importance` (deprecated).
+WAGF supports multiple memory engines in `MemoryEngineRegistry` (`broker/components/memory/registry.py`):
+`window` (simple sliding window), `humancentric` (working + long-term with consolidation),
+`universal` (cognitive surprise engine), `hierarchical` (deprecated), and `importance` (deprecated).
 
 ### 4.1 Memory Not Retrieving Expected Events
 
@@ -839,7 +852,9 @@ irrelevant memories.
 **Root Causes**
 
 1. **Window engine with small window_size**: The `WindowMemoryEngine` uses a fixed
-   sliding window (default 3). Events older than `window_size` steps are dropped.
+   sliding window (`window_size=3` on direct instantiation, `5` via `MemoryConfig`
+   and `MemoryEngineRegistry`). Events older than `window_size` steps are dropped,
+   and `WindowMemoryEngine` ignores `metadata` (use `humancentric` if metadata is required).
 
 2. **Memory not added**: The experiment layer did not call `memory_engine.add_memory()`
    after the event occurred.
@@ -861,11 +876,12 @@ irrelevant memories.
 
 **Solution**
 
-- Increase window size for WindowMemoryEngine:
+- Increase window size for `WindowMemoryEngine` (default is `5` in `MemoryConfig` and
+  `MemoryEngineRegistry`, or `3` when instantiated directly):
   ```yaml
   global_config:
     memory:
-      window_size: 10  # Default is 3
+      window_size: 10
   ```
 
 - For HumanCentric engines, lower the consolidation threshold to retain more
@@ -890,28 +906,27 @@ irrelevant memories.
 **Symptom**
 
 ```
-ValueError: Unknown memory engine type: 'advanced'. Available engines: hierarchical,
-  humancentric, importance, window. Register custom engines with
-  MemoryEngineRegistry.register().
+ValueError: Unknown memory engine type: 'advanced'. Available engines: hierarchical, humancentric, importance, universal, window. Register custom engines with MemoryEngineRegistry.register().
 ```
 
 **Root Causes**
 
-The `engine` field in your memory configuration specifies a type that is not
-registered in the `MemoryEngineRegistry`.
+The `engine_type` field in `global_config.memory` (or `engine` in legacy agent-level
+configs) specifies a type that is not registered in `MemoryEngineRegistry`.
 
 **Solution**
 
 Use one of the supported engine types:
-- `window` -- Simple sliding window (default, best for baselines)
+- `window` -- Simple sliding window (content-only, best for baselines)
 - `humancentric` -- Working + long-term with emotional consolidation (recommended
   for production)
-- `importance` -- Deprecated, use humancentric
-- `hierarchical` -- Deprecated, use humancentric
+- `universal` -- Universal cognitive engine (system 1 / system 2 surprise activation)
+- `importance` -- Deprecated, use `humancentric`
+- `hierarchical` -- Deprecated, use `humancentric`
 
 Or register a custom engine:
 ```python
-from broker.components.memory_registry import MemoryEngineRegistry
+from broker.components.memory.registry import MemoryEngineRegistry
 MemoryEngineRegistry.register("my_engine", MyCustomEngine)
 ```
 
@@ -941,8 +956,8 @@ In long runs, agents only have recent memories and no long-term memories. The
   ```yaml
   global_config:
     memory:
-      consolidation_threshold: 0.5    # Lower = more memories consolidated
-      consolidation_probability: 0.8  # Higher = more frequent consolidation
+      consolidation_threshold: 0.5    # Lower = more memories consolidated (default 0.6)
+      consolidation_probability: 0.8  # Higher = more frequent consolidation (default 0.7)
     reflection:
       interval: 1  # Reflect every step (default)
   ```
@@ -988,7 +1003,10 @@ certain agents. No audit traces are written for those agents in that phase.
 **Solution**
 
 - Verify agent type membership in phase dispatch logic.
-- Check `_prune_agent_from_graph()` if agents are being removed after relocation.
+- Check `_prune_agent_from_graph()` in multi-agent flood hooks
+  (`examples/multi_agent/flood/orchestration/lifecycle_hooks.py`), or
+  `social_graph.remove_edge()` in `broker/components/social/graph.py`, if agents
+  are being removed after relocation.
 - Ensure lifecycle hooks do not inadvertently skip agents.
 
 ### 5.2 Social Graph Edges Missing
@@ -1018,23 +1036,20 @@ observation context are empty. The social audit shows no visible actions.
 1. Check graph initialization in your experiment setup code.
 2. Log the graph's edge count after initialization:
    ```python
-   print(f"Graph edges: {len(social_graph.graph.edges())}")
+   print(f"Graph edges: {social_graph.summary()['num_edges']}")
    ```
 3. Check the `social_neighbor_count` column in the audit CSV.
 
 **Solution**
 
-- Increase the spatial radius:
-  ```yaml
-  social_graph:
-    type: spatial
-    radius: 5  # Default is 3 grid cells
-  ```
+- Increase the spatial radius when constructing `SpatialNeighborhoodGraph` (default
+  `radius=3.0`) or `SocialGraphSpec` (default `radius=2`):
+  ```python
+  from broker.components.social.graph import create_social_graph
+  from broker.components.social.config import SocialGraphSpec
 
-- Remove or increase `max_connections`:
-  ```yaml
-  social_graph:
-    max_connections: 0  # 0 = unlimited
+  graph = create_social_graph("spatial", agent_ids, positions=positions, radius=5.0)
+  spec = SocialGraphSpec(graph_type="spatial", radius=5, max_connections=0)  # 0 = unlimited
   ```
 
 - Verify graph construction uses the correct agent coordinates.
@@ -1048,8 +1063,8 @@ neighbors.
 
 **Root Causes**
 
-1. **max_gossip set to 0**: The `InteractionHub.build_social_context()` call has
-   `max_gossip=0`.
+1. **max_gossip set to 0**: The `InteractionHub.get_social_context()` or
+   `InteractionHub.get_social_context_v2()` call has `max_gossip=0`.
 
 2. **No gossip-producing observer**: If using SDK observers, the observer may not
    produce gossip content.
@@ -1083,7 +1098,7 @@ diagnostic tool. Key columns:
 | `validated` | `True` if governance approved |
 | `retry_count` | Number of governance retries used |
 | `format_retries` | Number of structural/format retries used |
-| `parse_layer` | Which parsing layer succeeded (`json`, `keyword`, `digit`, `default`) |
+| `parse_layer` | Normalized parsing tier (`enclosure`, `json`, `keyword`, `digit`, `fuzzy_name`, `fallback`) |
 | `parse_confidence` | Confidence of parse (0.20-0.95) |
 | `construct_completeness` | Fraction of required constructs found (0.0-1.0) |
 | `failed_rules` | Pipe-separated list of blocking rule IDs |
@@ -1143,15 +1158,23 @@ with open("output/raw/household_traces.jsonl", "r", encoding="utf-8") as f:
 ### 6.3 Log Level Configuration
 
 WAGF uses the `BROKER_LOG_LEVEL` environment variable to control log verbosity.
+New cases run through `python -m broker.run CONFIG`:
 
 ```bash
-# Windows
+# PowerShell
+$env:BROKER_LOG_LEVEL = "DEBUG"
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 1 --agents 1 --output .tmp/debug-run
+
+# Windows cmd
 set BROKER_LOG_LEVEL=DEBUG
-python run_experiment.py
+python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 1 --agents 1 --output .tmp/debug-run
 
 # Unix/Mac
-BROKER_LOG_LEVEL=DEBUG python run_experiment.py
+BROKER_LOG_LEVEL=DEBUG python -m broker.run examples/reservoir_control/config/reservoir_agent_types.yaml --model mock --years 1 --agents 1 --output .tmp/debug-run
 ```
+
+For paper cases, pass the case's runner script under `examples/` (for example,
+`BROKER_LOG_LEVEL=DEBUG python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --output .tmp/debug-flood`).
 
 Available levels (from most to least verbose):
 - `DEBUG` -- Parser internals, RAG retrieval, construct matching details
@@ -1171,29 +1194,38 @@ Available levels (from most to least verbose):
 | Debugging parsing | `DEBUG` | Full adapter trace with regex matches |
 | Debugging governance | `INFO` | Retry attempts, rule hits, EarlyExit |
 
-### 6.4 Using `--verbose` Flag and `log_prompt`
+### 6.4 Using `--verbose` Flag (Paper Runners) and `log_prompt`
 
-Many WAGF experiments support a `--verbose` flag that enables detailed LLM I/O
-logging:
+`python -m broker.run` does **not** have a `--verbose` flag: for new cases, use
+`BROKER_LOG_LEVEL=DEBUG` (§6.3) and inspect full prompts/responses in
+`<output_dir>/raw/<agent_type>_traces.jsonl` (§6.2).
+
+Some paper runners (`examples/single_agent/run_flood.py` and
+`examples/multi_agent/flood/run_unified_experiment.py`, though not
+`examples/irrigation_abm/run_experiment.py`) accept a `--verbose` flag that enables
+detailed LLM I/O logging:
 
 ```bash
-python run_experiment.py --verbose
+python examples/single_agent/run_flood.py --model mock --years 1 --agents 2 --output .tmp/flood-debug --verbose
 ```
 
-This sets `log_prompt=True` in the `SkillBrokerEngine`, which enables:
+When passed to those runners, `--verbose` sets `log_prompt=True` in
+`SkillBrokerEngine`, which enables:
 - Full prompt logging before each LLM call.
 - Reasoning summary with dynamic label extraction.
 - LLM input/output character counts.
 
-Additionally, the `verbose` flag on `create_llm_invoke()` enables:
+Additionally, `verbose=True` on `create_llm_invoke()` enables:
 - Prompt preview: first 100 characters of each prompt.
 - Raw output preview: first 200 characters of each response.
 - Think-token stripping diagnostics for Qwen3 models.
 
 ### 6.5 Governance Audit Summary
 
-At the end of a run, call `GovernanceAuditor().print_summary()` to see aggregated
-statistics:
+At the end of a run, `ExperimentRunner._finalize_experiment()` prints
+`GovernanceAuditor.print_summary()` (when interventions occur in runners that call
+it) and writes the summary JSON to `<output_dir>/governance_summary.json` via
+`auditor.save_summary(summary_path)`:
 
 ```
 ==================================================
@@ -1213,6 +1245,7 @@ statistics:
   - Empty Content Retries:   4
   - Empty Content Failures:  1
   - Invalid Label Retries:   8
+  - Backoff Retries:         0
   - Total Extra LLM Calls:   27
 --------------------------------------------------
   Top Rule Violations (ERROR):
@@ -1226,8 +1259,10 @@ statistics:
 ==================================================
 ```
 
-This summary is also saved as JSON to `<output_dir>/governance_auditor_summary.json`
-when you call `auditor.save_summary(path)`.
+Each completed `python -m broker.run` output directory also contains
+`audit_summary.json` (audit schema & sentinel summary from `GenericAuditWriter`),
+`run_integrity.json`, `reproducibility_manifest.json`, `config_snapshot.yaml`, and
+`broker_run.json`.
 
 ### 6.6 Quick Diagnostic Checklist
 
@@ -1239,10 +1274,12 @@ When something goes wrong, work through this checklist:
    found` warnings at startup.
 4. **Is the skill registry valid?** Check for `Skill registry configuration not found`
    or `Invalid YAML` errors.
-5. **Are governance rules loading?** Set `GOVERNANCE_PROFILE` env var if using
-   non-default profiles.
+5. **Are governance rules loading?** Pass `--governance PROFILE` to
+   `python -m broker.run` (or `--governance-mode` on flood/irrigation paper runners),
+   or set the `GOVERNANCE_PROFILE` environment variable when using non-default
+   profiles.
 6. **Are agents getting parsed?** Check `parse_layer` distribution in audit CSV.
-   If mostly `default`, the prompt/model combination is not working.
+   If mostly `fallback`, the prompt/model combination is not working.
 7. **Are agents getting approved?** Check `validated` column. If approval rate < 50%,
    governance rules may be too strict.
 8. **Is memory working?** Check `mem_retrieved_count`. If always 0, memory engine
@@ -1258,27 +1295,27 @@ When something goes wrong, work through this checklist:
 
 | Error Message | Source | Section |
 |---------------|--------|---------|
-| `[Governance:Fallout] CRITICAL: Max retries (N) reached` | `skill_broker_engine.py` | [1.1](#11-max-retries-reached-governance-fallout) |
-| `[Governance:EarlyExit] Deterministic rules blocked` | `skill_broker_engine.py` | [1.1](#11-max-retries-reached-governance-fallout) |
-| `[Governance:Exhausted] Parsing failed. Forcing fallback` | `skill_broker_engine.py` | [1.1](#11-max-retries-reached-governance-fallout) |
-| `[Governance:Diagnostic] Key collision in validation context` | `skill_broker_engine.py` | [1.4](#14-key-collision-in-validation-context) |
-| `[Precondition] skill: Precondition failed` | `skill_registry.py` | [1.2](#12-precondition-failed) |
-| `[OutputSchema] skill: Field exceeds bounds` | `skill_registry.py` | [1.5](#15-output-schema-violation) |
-| `[Multi-Skill] Composite conflict` | `skill_broker_engine.py` | [1.6](#16-composite-conflict-multi-skill) |
-| `[LLM:Error] Model returned unparsable output after retries` | `skill_broker_engine.py` | [2.1](#21-unparsable-output--parse-error-after-retries) |
-| `[Broker:Retry] Empty/Null response received` | `skill_broker_engine.py` | [2.1](#21-unparsable-output--parse-error-after-retries) |
-| `[Broker:Retry] Missing required constructs` | `skill_broker_engine.py` | [1.3](#13-construct-missing--missing-required-constructs) |
-| `[Adapter:Error] STRICT_MODE: Failed to parse` | `model_adapter.py` | [2.1](#21-unparsable-output--parse-error-after-retries) |
-| `[Adapter:Diagnostic] Warning: Missing constructs` | `model_adapter.py` | [1.3](#13-construct-missing--missing-required-constructs) |
-| `[LLM:Direct] connection refused` | `llm_utils.py` | [3.1](#31-connection-refused) |
-| `[LLM:Direct] HTTP Error 404` | `llm_utils.py` | [3.2](#32-model-not-found) |
-| `[LLM:Direct] timed out after Ns` | `llm_utils.py` | [3.4](#34-timeout-issues) |
-| `[LLM:Retry] returned truly empty content` | `llm_utils.py` | [3.5](#35-empty-content-from-llm) |
-| `[LLM:Error] returned empty content after N attempts` | `llm_utils.py` | [3.5](#35-empty-content-from-llm) |
-| `[Config] Agent type configuration not found` | `agent_config.py` | [6.6](#66-quick-diagnostic-checklist) |
-| `[Config] Invalid YAML` | `agent_config.py` | [6.6](#66-quick-diagnostic-checklist) |
-| `Skill registry configuration not found` | `skill_registry.py` | [6.6](#66-quick-diagnostic-checklist) |
-| `Invalid YAML in skill registry` | `skill_registry.py` | [6.6](#66-quick-diagnostic-checklist) |
-| `Unknown memory engine type` | `memory_registry.py` | [4.2](#42-unknown-memory-engine-type) |
-| `Default skill 'X' not in registry` | `skill_broker_engine.py` | [1.1](#11-max-retries-reached-governance-fallout) |
-| `YAML default_skill='X' not found in registry` | `skill_registry.py` | [6.6](#66-quick-diagnostic-checklist) |
+| `[Governance:Fallout] CRITICAL: Max retries (N) reached` | `broker/core/_retry_loop.py` | [1.1](#11-max-retries-reached-governance-fallout) |
+| `[Governance:EarlyExit] Deterministic rules blocked` | `broker/core/_retry_loop.py` | [1.1](#11-max-retries-reached-governance-fallout) |
+| `[Governance:Exhausted] agent_id \| Parsing failed. Forcing fallback` | `broker/core/skill_broker_engine.py` | [1.1](#11-max-retries-reached-governance-fallout) |
+| `[Governance:Diagnostic] Key collision in validation context` | `broker/core/skill_broker_engine.py` | [1.4](#14-key-collision-in-validation-context) |
+| `[Precondition] skill: ['Precondition failed: ...']` | `broker/core/skill_broker_engine.py` | [1.2](#12-precondition-failed) |
+| `[OutputSchema] skill: ['Field ...']` | `broker/core/skill_broker_engine.py` | [1.5](#15-output-schema-violation) |
+| `[Multi-Skill] agent_id \| Composite conflict:` | `broker/core/skill_broker_engine.py` | [1.6](#16-composite-conflict-multi-skill) |
+| `[LLM:Error] Model returned unparsable output after retries` | `broker/core/skill_broker_engine.py` | [2.1](#21-unparsable-output--parse-error-after-retries) |
+| `[Broker:Retry] LLM returned empty response` / `LLM responded (N chars) but parser rejected` | `broker/core/_retry_loop.py` | [2.1](#21-unparsable-output--parse-error-after-retries) |
+| `[Broker:Retry] Missing required constructs` | `broker/core/_retry_loop.py` | [1.3](#13-construct-missing--missing-required-constructs) |
+| `[Adapter:Error] STRICT_MODE: Failed to parse` | `broker/utils/parsing/unified_adapter.py` | [2.1](#21-unparsable-output--parse-error-after-retries) |
+| `[Adapter:Diagnostic] Warning: Missing constructs` | `broker/utils/parsing/unified_adapter.py` | [1.3](#13-construct-missing--missing-required-constructs) |
+| `[LLM:Direct] Model '...' connection refused` | `broker/utils/llm_utils.py` | [3.1](#31-connection-refused) |
+| `[LLM:Direct] Model '...' HTTP Error 404` | `broker/utils/llm_utils.py` | [3.2](#32-model-not-found) |
+| `[LLM:Direct] Model '...' timed out after Ns` | `broker/utils/llm_utils.py` | [3.4](#34-timeout-issues) |
+| `[LLM:Retry] Model '...' returned truly empty content. Retrying...` | `broker/utils/llm_utils.py` | [3.5](#35-empty-content-from-llm) |
+| `[LLM:Error] Model '...' returned empty content after N attempts.` | `broker/utils/llm_utils.py` | [3.5](#35-empty-content-from-llm) |
+| `[Config] Agent type configuration not found` | `broker/utils/agent_config.py` | [6.6](#66-quick-diagnostic-checklist) |
+| `[Config] Invalid YAML` | `broker/utils/agent_config.py` | [6.6](#66-quick-diagnostic-checklist) |
+| `Skill registry configuration not found` | `broker/components/governance/registry.py` | [6.6](#66-quick-diagnostic-checklist) |
+| `Invalid YAML in skill registry` | `broker/components/governance/registry.py` | [6.6](#66-quick-diagnostic-checklist) |
+| `Unknown memory engine type` | `broker/components/memory/registry.py` | [4.2](#42-unknown-memory-engine-type) |
+| `Default skill 'X' not in registry` | `broker/core/skill_broker_engine.py` | [1.1](#11-max-retries-reached-governance-fallout) |
+| `YAML default_skill='X' not found in registry` | `broker/components/governance/registry.py` | [6.6](#66-quick-diagnostic-checklist) |
