@@ -110,8 +110,8 @@ Adds a new skill to the registry programmatically.
 ## 5. Role-Based Permissions (Multi-Agent) — removed
 
 A `RoleEnforcer` per-agent-type skill/state permission layer was built
-(`broker/components/governance/permissions.py`) but never wired into any
-production pipeline — removed 2026-09 as unused (see CHANGELOG). Skill
+but never wired into any production pipeline — removed 2026-09 as unused
+(see CHANGELOG). Skill
 eligibility is enforced by the Skill Registry (§4 above).
 
 ---

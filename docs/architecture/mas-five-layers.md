@@ -49,25 +49,25 @@ This document maps the Water Agent Governance Framework to the standard MAS (Mul
 
 | Agent Type | State Class | Key Attributes | File |
 |------------|-------------|----------------|------|
-| **Household** | `HouseholdAgentState` | elevated, relocated, trust_*, TP_LABEL, CP_LABEL | `ma_agents/household.py` |
-| **Government** | `GovernmentAgentState` | budget, policy_enacted, subsidy_rate | `ma_agents/government.py` |
-| **Insurance** | `InsuranceAgentState` | premium_pool, claim_ratio, risk_model | `ma_agents/insurance.py` |
+| **Household** | `HouseholdAgentState` | elevated, relocated, trust_*, TP_LABEL, CP_LABEL | `examples/multi_agent/flood/ma_agents/household.py` |
+| **Government** | `GovernmentAgentState` | budget, policy_enacted, subsidy_rate | `examples/multi_agent/flood/ma_agents/government.py` |
+| **Insurance** | `InsuranceAgentState` | premium_pool, claim_ratio, risk_model | `examples/multi_agent/flood/ma_agents/insurance.py` |
 
 #### S_Ob: Objects
 
 | Object | Class | Purpose | File |
 |--------|-------|---------|------|
-| **Threat Perception** | `TPState` | Track TP values per agent | `environment/tp_state.py` |
-| **Social Network** | `SocialGraph` | Agent relationships | `broker/components/social_graph.py` |
-| **Position Assignment** | `PositionAssignment` | Spatial locations | `environment/settlement.py` |
+| **Threat Perception** | `TPState` | Track TP values per agent | `examples/multi_agent/flood/environment/tp_state.py` |
+| **Social Network** | `SocialGraph` | Agent relationships | `broker/components/social/graph.py` |
+| **Position Assignment** | `PositionAssignment` | Spatial locations | `examples/multi_agent/flood/environment/settlement.py` |
 
 #### S_Env: Environment
 
 | Entity | Class | Purpose | File |
 |--------|-------|---------|------|
-| **Flood Events** | `FloodEvent` | Hazard specifications | `environment/hazard.py` |
-| **Damage Results** | `DamageResult` | Post-flood damage | `environment/core.py` |
-| **Settlement Reports** | `SettlementReport` | Insurance settlements | `environment/settlement.py` |
+| **Flood Events** | `FloodEvent` | Hazard specifications | `examples/multi_agent/flood/environment/hazard.py` |
+| **Damage Results** | `DamageResult` | Post-flood damage | `examples/multi_agent/flood/environment/core.py` |
+| **Settlement Reports** | `SettlementReport` | Insurance settlements | `examples/multi_agent/flood/environment/settlement.py` |
 
 #### Grounded Variables
 

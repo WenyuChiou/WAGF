@@ -91,7 +91,7 @@ Manages skill definitions and provides:
 - Eligibility verification
 - Precondition validation
 
-### 4. Validators (`validators/skill_validators.py`)
+### 4. Validators (`broker/validators/`)
 
 Multi-layer validation pipeline:
 
@@ -191,8 +191,8 @@ Multi-layer validation pipeline:
 
 | File | Purpose |
 |------|---------|
-| `skill_types.py` | Core type definitions |
-| `model_adapter.py` | LLM output parsing |
-| `skill_registry.py` | Skill definitions |
-| `validators/skill_validators.py` | Validation pipeline |
-| `run_experiment.py` | Main orchestration |
+| `broker/interfaces/skill_types.py` | Core type definitions |
+| `broker/utils/model_adapter.py` | LLM output parsing |
+| `broker/components/governance/registry.py` | Skill definitions |
+| `broker/validators/agent/agent_validator.py` | Validation pipeline |
+| `broker/run/_entry.py` | Unified runner (`python -m broker.run CONFIG`) |

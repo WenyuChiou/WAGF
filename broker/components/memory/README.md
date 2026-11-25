@@ -4,7 +4,7 @@
 
 **TL;DR** (30 seconds): wrap your memory engine with `PolicyFilteredMemoryEngine`, register a category mapping dict for your domain, and tag each `add_memory` call with a `content_type` in metadata. The default policy (`CLEAN_POLICY`) blocks three risky content types that cause self-reinforcing construct labels. Existing experiments that omit the policy block reproduce legacy behavior exactly.
 
-For the full architectural rationale and the Gemma 4 ratchet evidence, see `.ai/broker_memory_governance_architecture.md` and the `gemma4_pa_saturation` project memory.
+The architectural rationale and Gemma 4 ratchet evidence are summarized in the sections below (the internal design memo is not part of the public repository).
 
 ## What problem does this solve?
 

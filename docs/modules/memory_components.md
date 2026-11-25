@@ -244,8 +244,6 @@ The following capabilities exist in the `broker/memory/` research prototype pack
 - **EMA Surprise** (`broker/memory/strategies/ema.py`): Scalar EMA-based surprise. Integrated via P1 SurprisePlugin.
 - **Symbolic Surprise** (`broker/memory/strategies/symbolic.py`): Frequency-based state signature surprise. Integrated via P1 SurprisePlugin.
 - **Multi-dimensional Surprise** (`broker/memory/strategies/multidimensional.py`): Extends scalar PE to a vector of surprise dimensions for richer arousal modeling.
-- **Embedding-based Retrieval** (`broker/memory/embeddings.py`): Vector similarity search using `all-MiniLM-L6-v2` via `SentenceTransformerProvider`. Alternative to keyword/tag matching.
-- **Memory Graph** (`broker/memory/graph.py`): Bidirectional linking between memories for associative retrieval.
 
 ---
 

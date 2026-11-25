@@ -393,7 +393,6 @@ No changes to the `broker/domains/water/calibration/` code are needed.
 
 If migrating from an earlier version:
 
-- The `broker/domains/water/calibration/vignettes/` directory has been removed.
 - `PsychometricBattery()` no longer has a default vignette directory.
 - **Action required:** Explicitly provide `vignette_dir` when calling
   `PsychometricBattery(vignette_dir="path/to/your/domain/vignettes")`.

@@ -92,12 +92,12 @@ Version 0.3 adds **Multi-LLM Extensibility** with YAML-driven configuration.
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `LLMProviderRegistry` | `interfaces/llm_provider.py` | Multi-LLM management |
+| `LLMProviderRegistry` | `providers/llm_provider.py` | Multi-LLM management |
 | `OllamaProvider` | `providers/ollama.py` | Local model support |
 | `OpenAIProvider` | `providers/openai_provider.py` | Cloud API support |
 | `RateLimiter` | `providers/rate_limiter.py` | API rate control |
-| `DomainConfigLoader` | `config/loader.py` | YAML domain loading |
-| `ValidatorFactory` | `validators/factory.py` | Dynamic validator loading |
+| `AgentTypeConfig` | `broker/utils/agent_config.py` | YAML domain loading |
+| `ValidatorRegistry` | `broker/components/governance/validator_registry.py` | Dynamic validator loading |
 
 ---
 
