@@ -20,7 +20,7 @@ This guide describes adding a water-resource domain to the WAGF framework. After
 | # | Method | Why it's required |
 |---|---|---|
 | 1 | `name` (class attribute) | Registry key — used by `DomainPackRegistry.register("<name>", pack)` and every downstream `get_or_default(domain)` lookup. |
-| 2 | `reflection_status_text(context)` | Without this the reflection prompt collapses to a generic identity line; the LLM has nothing domain-flavoured to reason from. |
+| 2 | `reflection_status_text(context)` | Used only where reflection runs: the paper runners. `python -m broker.run` does not run reflection. Without this the reflection prompt collapses to a generic identity line; the LLM has nothing domain-flavoured to reason from. |
 | 3 | `importance_profiles()` | Without this every memory carries the same baseline (0.5), so retrieval loses domain salience. |
 
 Override additional methods only as your domain needs them — common second-tier additions are `event_handlers()` (env mutations from policy/hazard events), `extreme_actions()` (one-way actions for `ThinkingValidator`), and `affordability_constraints()` (Tier-0 financial gates). The full surface is documented inline at `broker/domains/protocol.py::DomainPack`.
@@ -41,8 +41,8 @@ WAGF treats each domain as a **plug-in** built from these registry-driven layers
 | **Skill registry** | YAML-driven list of available skills with preconditions and conflicts | `examples/<your_domain>/config/skill_registry.yaml` |
 | **Validator checks** | Python functions that veto invalid skill proposals | `examples/<your_domain>/validators/` |
 | **Validator rules** | YAML-driven cross-field veto rules | `examples/<your_domain>/config/agent_types.yaml` |
-| **Memory engine** | Choice of memory engine (window / humancentric / hierarchical) | YAML, references engines registered in `MemoryEngineRegistry` |
-| **Prompt template** | The chat template that frames each turn for the LLM | `examples/<your_domain>/config/prompts/<agent_type>.txt` |
+| **Memory engine** | Stores each agent's memories and returns the ones put in the prompt | `python -m broker.run` always uses the window engine (see [Running a case](#running-a-case-python--m-brokerrun)). Other engines (humancentric, universal) need the case's own runner, as the paper runners have. |
+| **Prompt template** | The chat template that frames each turn for the LLM | `examples/<your_domain>/config/prompts/<agent_type>.txt`, set as `prompt_template_file: prompts/<agent_type>.txt` (relative to the YAML file's folder) |
 | **Lifecycle hooks** | Year-by-year orchestration (env update → agent context → reflection → memory) | the `hooks` slot under `global_config.run` in `examples/<your_domain>/config/agent_types.yaml`, a function in your case folder (see [Running a case](#running-a-case-python--m-brokerrun)) |
 
 The broker pipeline calls into your `DomainPack` for any domain-specific decision; everything else is YAML-driven. **No `broker/` edits.**
@@ -281,6 +281,8 @@ Command-line overrides: `--model`, `--years`, `--agents`, `--seed`, `--output`, 
 
 **Multi-agent cases.** Only `phase_order` comes from the YAML. A social graph and other memory engines still need the case's own runner, as the paper runners have.
 
+**Memory, reflection and prompt size.** `broker.run` always uses the window memory engine. It keeps each agent's last 100 memories and puts the most recent `retrieval_top_k` of them in the prompt. Set `retrieval_top_k` (default 3) under `memory:` in the agent type block, or in the `default` block; it is not read from `global_config.memory`, and `window_size` has no effect on this engine. `broker.run` does not run reflection, so a `reflection:` block changes nothing there (the scaffold does not write one); only the paper runners, which build their own `ReflectionEngine`, read it. The context builder refuses a prompt whose estimated size (characters ÷ 4) is over 16384 tokens, a default with no YAML key, and never cuts a prompt short. `llm.num_ctx` is not checked against the prompt.
+
 **Provenance.** The manifest's `run_environment` records the WAGF version, the versions of its dependencies, the operating system, the Ollama server version (Ollama models only), and the WAGF source commit when WAGF is a git checkout. `broker.run` also records four checks in `broker_run.json`: a clean git tree (both the current directory's tree and the WAGF source tree), a model digest, the metadata lookups, and the manifest write. Add `--strict-provenance` to turn a failed check into a refusal. A dirty tree, a missing digest or a failed metadata lookup stops the run before it starts (exit 2). A failed manifest write is reported after the run (exit 1). Mock and cloud models have no digest, so that check is marked not applicable; the other three still apply. The git checks read the working tree of the current directory, so run from inside a git checkout. To share a run, use `python reproduction/check_share.py --stage <dest> <output folder>`.
 
 ### Pre-flight check before first run (Phase 6C-v4 cycle 3, 2026-05-10)
@@ -302,7 +304,9 @@ The CLI checks:
 2. Every `response_format.fields[].construct` has a matching `parsing.constructs:` entry
 3. Inline JSON example keys in the prompt match `response_format.fields[].key` (catches the Finding 4 typo case — `susceptibility_appraisal` vs `susceptibility_assessment`)
 4. Every `{placeholder}` in the prompt is either broker-filled or YAML-declared (WARN; many domains intentionally fill custom placeholders via lifecycle hooks)
-5. The `prompt_template_file` path actually resolves (handles both `yaml-dir-relative` and `example-root-relative` conventions)
+5. The `prompt_template_file` path actually resolves (handles both `yaml-dir-relative` and `example-root-relative` conventions). A path found only from a parent folder gets a WARN, because `python -m broker.run` looks only in the YAML file's folder.
+
+   `broker.run` refuses (exit 2) a `prompt_template_file` it cannot find there, and an agent type that sets both `prompt_template` and `prompt_template_file`. Write the path from the YAML file's folder, for example `prompts/<agent_type>.txt`.
 
 To restrict checking to one agent type:
 

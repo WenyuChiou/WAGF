@@ -356,6 +356,31 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     templates = {}
     for agent_type in agent_types:
         ctx.config.get_framework_for_agent_type(agent_type)
+        # get_prompt_template() falls back to the inline template, or to "",
+        # when the declared file is missing, so the run would quietly use a
+        # built-in prompt. Refuse instead. With both forms set, the loaders
+        # disagree (get_prompt_template prefers the file, ExperimentBuilder
+        # puts the inline one in the context builder), so refuse that too.
+        block = ctx.config.get(agent_type)
+        template_file = block.get("prompt_template_file")
+        if template_file and block.get("prompt_template"):
+            raise RunError(
+                f"{agent_type}: set prompt_template or prompt_template_file, not both"
+            )
+        if template_file:
+            resolved = ctx.config._resolve_template_path(str(template_file))
+            if resolved is None or not resolved.is_file():
+                raise RunError(
+                    f"{agent_type}.prompt_template_file {str(template_file)!r} was not found at "
+                    f"{resolved}. Write the path from the YAML file's folder, for example "
+                    f"prompts/{agent_type}.txt"
+                )
+            try:
+                resolved.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise RunError(
+                    f"{agent_type}.prompt_template_file {resolved} could not be read: {exc}"
+                ) from exc
         template = ctx.config.get_prompt_template(agent_type)
         if template:
             templates[agent_type] = template

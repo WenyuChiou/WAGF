@@ -189,20 +189,6 @@ def gen_agent_types_yaml(
     def behavioral_section(text: str, spaces: int) -> str:
         return "" if physical_only else indent(dedent(text), " " * spaces)
 
-    reflection = behavioral_section("""\
-        reflection:
-          interval: 1
-          batch_size: 5
-          importance_boost: 0.85
-          persona_instruction: >
-            Summarize each agent's recent decisions in first person, 2-3 sentences.
-          questions:
-            - "What changed in your situation this period?"
-            - "Did your previous decision turn out as expected?"
-          triggers:
-            periodic_interval: 2
-
-        """, 2)
     rating_scale = behavioral_section("""\
         rating_scale: |
           ### RATING SCALE (You MUST use EXACTLY one of these codes):
@@ -281,7 +267,7 @@ def gen_agent_types_yaml(
             top_k_significant: 2
             decay_rate: 0.1
 
-        {reflection}  llm:
+          llm:
             model: "command-line-override"
             num_ctx: 4096
             num_predict: 1024
@@ -336,7 +322,6 @@ def gen_agent_types_yaml(
         audit_appraisals="false" if physical_only else "true",
         skill_actions=skill_actions,
         default_skill=skills[0] if skills else "TODO_default_skill",
-        reflection=reflection,
         llm_retries="" if physical_only else "    max_retries: 2\n",
         reports_per_retry="" if physical_only else "    max_reports_per_retry: 3\n",
         rating_scale=rating_scale,

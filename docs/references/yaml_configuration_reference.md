@@ -83,6 +83,8 @@ Slots, the import rule and defaults are explained in the [new-domain guide](../g
 
 Controls the sliding-window episodic memory system.
 
+These fields are read by the engines the paper runners build. `python -m broker.run` always uses the window engine, and none of them changes what it returns: the number of memories in the prompt is `retrieval_top_k` in the agent type's `memory` block (§2.3, default 3).
+
 Every number in this block, its range and the default each piece of code applies is in the generated
 [parameter table](parameter_table.md). Where two pieces of code apply different defaults, the table lists both;
 the defaults below are the ones the engines apply when built directly.
@@ -141,6 +143,11 @@ global_config:
 
 Controls the periodic reflection subsystem where agents synthesize lessons
 from accumulated memories.
+
+Only the paper runners read this block. `python -m broker.run` does not run
+reflection, so the block changes nothing there. The `triggers` sub-block and
+`method` are read only by `ReflectionEngine.load_trigger_config`, which no
+runner calls.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -204,7 +211,7 @@ exception: when the working directory holds an `agent_types.yaml` whose
 read by `examples.irrigation_abm.run_experiment`; it constructs
 `WaterSystemConfig` from code and supported CLI arguments. Editing that YAML
 block does not configure the water system. Reflection `triggers` and `method`
-have consumers in `ReflectionEngine.load_trigger_config`; the two paper runners
+are read only by `ReflectionEngine.load_trigger_config`, which no runner calls; the two paper runners
 schedule their batch reflection with `reflection.interval` instead. Flood
 `consolidation_threshold` is read when its memory engine is constructed.
 
@@ -775,13 +782,13 @@ corresponding dictionary.
 |-------|------|----------|---------|-------------|
 | `description` | string | No | "" | Human-readable description of this agent type |
 | `prompt_template` | string | No | -- | Inline Jinja2/f-string prompt template. Mutually exclusive with `prompt_template_file` |
-| `prompt_template_file` | string | No | -- | Path to external prompt file (relative to config directory) |
+| `prompt_template_file` | string | No | -- | Path to external prompt file, relative to the folder of this YAML file. `python -m broker.run` refuses a file it cannot find there, and refuses `prompt_template` and `prompt_template_file` set together. |
 | `llm_params` | object | No | {} | Per-type LLM overrides (same fields as `global_config.llm`) |
 | `response_format` | object | No | (shared) | Per-type response format override (same schema as `shared.response_format`) |
 | `multi_skill` | object | No | {enabled: false} | Multi-skill configuration (see below) |
 | `parsing` | object | No | {} | LLM output parsing configuration (see below) |
 | `log_fields` | list[string] | No | [] | Construct field names to log per decision |
-| `memory` | object | No | {} | Per-type memory configuration overrides |
+| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included. `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. |
 | `feedback` | object | No | {} | Feedback dashboard configuration |
 | `actions` | list[object] | No | [] | Action definitions (legacy path -- may also be under `parsing.actions`) |
 | `governance` | object | No | {} | Inline governance profile (for agent types that nest rules inside their block) |

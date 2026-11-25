@@ -1073,3 +1073,24 @@ class TestCheckMagnitudeScale:
         path = root / "examples" / "reservoir_control" / "config" / "reservoir_agent_types.yaml"
         cfg = _yaml.safe_load(path.read_text(encoding="utf-8"))
         assert check_magnitude_scale(cfg) == []
+
+
+def test_prompt_file_found_only_from_parent_folder_warns(good_config: Path):
+    """validate_prompt still finds a path written from a parent folder, but
+    python -m broker.run looks only in the YAML folder, so it warns."""
+    import yaml
+    case = good_config.parent
+    config_dir = case / "config"
+    config_dir.mkdir()
+    yaml_path = config_dir / "agent_types.yaml"
+    text = good_config.read_text(encoding="utf-8").replace(
+        "prompt_template_file: prompts/individual.txt",
+        "prompt_template_file: config/prompts/individual.txt",
+    )
+    yaml_path.write_text(text, encoding="utf-8")
+    (case / "prompts").rename(config_dir / "prompts")
+    cfg = yaml.safe_load(text)
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    assert [i.severity for i in issues] == ["WARN"]
+    assert "'prompts/individual.txt'" in issues[0].message
+    assert "broker.run" in issues[0].message
