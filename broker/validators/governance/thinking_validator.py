@@ -68,8 +68,7 @@ _WARNED_UNUSABLE_WORLD_VARIABLE: Set[Tuple[str, str]] = set()
 # ──────────────────────────────────────────────────────────────────────
 # Framework Metadata Registry
 # ──────────────────────────────────────────────────────────────────────
-# Domain packs populate these at import time via register_framework_metadata().
-# Start empty — no hardcoded domain content.
+# The core and domain packs populate these via register_framework_metadata().
 # ──────────────────────────────────────────────────────────────────────
 
 FRAMEWORK_LABEL_ORDERS: Dict[str, Dict[str, int]] = {}
@@ -97,6 +96,7 @@ _GENERIC_LABEL_MAPPINGS: Dict[str, str] = {
 # tolerates this value; non-empty unregistered framework names still
 # raise.
 FRAMEWORK_ESCAPE_HATCH: str = ""
+FRAMEWORK_NONE: str = "none"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -176,6 +176,13 @@ def register_framework_metadata(
         _LABEL_MAPPINGS[name] = label_mappings
 
 
+register_framework_metadata(
+    FRAMEWORK_NONE,
+    constructs={"primary": None, "secondary": None, "all": []},
+    label_order={},
+)
+
+
 class ThinkingValidator(BaseValidator):
     """
     Validates reasoning consistency for multiple psychological frameworks.
@@ -231,7 +238,8 @@ class ThinkingValidator(BaseValidator):
             framework: Psychological framework — **REQUIRED**. One of
                 ``"pmt"``, ``"cognitive_appraisal"``, ``"hbm"``,
                 ``"utility"``, ``"financial"`` (pre-registered by their
-                respective domain packs), OR the empty string ``""``
+                respective domain packs), ``"none"`` for agents without
+                appraisal, OR the empty string ``""``
                 (the explicit escape-hatch that uses the generic
                 5-level VL/L/M/H/VH label ordering without framework
                 metadata). Phase 6Q-D (2026-05-26): previously

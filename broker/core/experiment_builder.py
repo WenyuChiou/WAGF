@@ -431,6 +431,21 @@ class ExperimentBuilder:
             )
             raise ValueError(msg)
 
+        if self.agent_types_path:
+            from broker.utils.agent_config import AgentTypeConfig
+
+            config = AgentTypeConfig.load(self.agent_types_path)
+            problems = [
+                problem
+                for agent_type in config.agent_type_names()
+                for problem in config.check_theory_free(agent_type)
+            ]
+            if problems:
+                raise ValueError(
+                    "ExperimentBuilder: theory-free agent types are not theory-free:\n  - "
+                    + "\n  - ".join(problems)
+                )
+
         # Phase 6V: resolve a declared coupling intent BEFORE the sim engine is
         # consumed (SkillBrokerEngine + ExperimentRunner both receive it below).
         self._apply_coupling()

@@ -24,11 +24,13 @@ class PsychologicalFramework(str, Enum):
     - COGNITIVE_APPRAISAL: Cognitive Appraisal Theory (irrigation agents)
     - UTILITY: Utility Theory (government agents)
     - FINANCIAL: Financial Risk Theory (insurance agents)
+    - NONE: Theory-free agents without appraisal
     """
     PMT = "pmt"
     COGNITIVE_APPRAISAL = "cognitive_appraisal"
     UTILITY = "utility"
     FINANCIAL = "financial"
+    NONE = "none"
     CUSTOM = "custom"
 
 

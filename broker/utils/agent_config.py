@@ -132,6 +132,15 @@ AGENT_BLOCK_KEYS = frozenset({
 })
 _warned_unknown_config_keys: set = set()
 _warned_unknown_blocked_skills: set = set()
+_warned_missing_frameworks: set = set()
+_missing_framework_warning_lock = threading.Lock()
+
+_PMT_APPRAISAL_PHRASES = ("threat appraisal", "coping appraisal")
+PMT_TEXT_MARKERS = (
+    *_PMT_APPRAISAL_PHRASES,
+    *(phrase.replace(" ", "_") for phrase in _PMT_APPRAISAL_PHRASES),
+    "tp_label", "cp_label", "protection motivation", "self-efficacy", "response efficacy",
+)
 
 # Warn-once keys for scope coercion (W5). ``world_condition_target`` runs per
 # condition per rule per agent per step, so an unconditional warning would print
@@ -740,6 +749,13 @@ class AgentTypeConfig:
     def keys(self):
         """Allow checking agent types."""
         return self._config.keys()
+
+    def agent_type_names(self) -> List[str]:
+        """Return agent-type block names in YAML order."""
+        return [
+            name for name, block in self._config.items()
+            if name not in NON_AGENT_TOP_LEVEL_KEYS and isinstance(block, dict)
+        ]
     
     def get_shared(self, key: str, default: Any = "") -> Any:
         """Get shared config value (e.g., rating_scale)."""
@@ -2821,6 +2837,9 @@ class AgentTypeConfig:
         Returns:
             Rating scale template string for prompt injection
         """
+        if framework.lower() == "none":
+            return ""
+
         from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
 
         # 1. Try framework-specific from YAML
@@ -2852,7 +2871,10 @@ class AgentTypeConfig:
         Returns:
             List of valid levels, e.g., ["VL", "L", "M", "H", "VH"]
         """
-        from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
+        if framework.lower() == "none":
+            return []
+
+        from broker.interfaces.rating_scales import RatingScaleRegistry
 
         shared = self._config.get("shared", {})
         scales = shared.get("rating_scales", {})
@@ -2870,18 +2892,102 @@ class AgentTypeConfig:
             return ["VL", "L", "M", "H", "VH"]
 
     def get_framework_for_agent_type(self, agent_type: str) -> str:
-        """
-        Get psychological framework for agent type.
-
-        Returns:
-            Framework name: "pmt", "utility", "financial", or "generic"
-        """
+        """Return the declared framework, or warn once and fall back to PMT."""
         cfg = self.get(agent_type)
-        # TODO(Phase 6J-A part 2): flip this default to "generic" once the
-        # flood example YAMLs declare `psychological_framework: pmt`
-        # explicitly — until then an undeclared flood agent type must keep
-        # resolving to PMT.
-        return cfg.get("psychological_framework", "pmt")
+        if "psychological_framework" in cfg:
+            return cfg["psychological_framework"]
+
+        yaml_path = getattr(self, "_yaml_path", None)
+        identity = (yaml_path, agent_type)
+        with _missing_framework_warning_lock:
+            if identity in _warned_missing_frameworks:
+                return "pmt"
+            _warned_missing_frameworks.add(identity)
+
+        logger.warning(
+            "[Config] agent type '%s' in %s declares no psychological_framework; "
+            "falling back to pmt. Declare one explicitly "
+            "(psychological_framework: none for an agent with no appraisal).",
+            agent_type, yaml_path,
+        )
+        return "pmt"
+
+    def check_theory_free(self, agent_type: str) -> List[str]:
+        """Report appraisal configuration on an explicitly theory-free agent."""
+        cfg = self.get(agent_type)
+        framework = cfg.get("psychological_framework") if isinstance(cfg, dict) else None
+        if not isinstance(framework, str) or framework.strip().lower() != "none":
+            return []
+
+        prefix = f"agent type '{agent_type}' declares psychological_framework: none, but "
+        problems = []
+
+        # The effective response format: the agent's own over `shared`'s, as
+        # get_response_format merges them. Read defensively: a malformed block
+        # must come back as a problem, not a traceback from build().
+        shared = self._config.get("shared")
+        shared_fmt = shared.get("response_format") if isinstance(shared, dict) else None
+        own_fmt = cfg.get("response_format")
+        for name, block in (("shared.response_format", shared_fmt), ("response_format", own_fmt)):
+            if block is not None and not isinstance(block, dict):
+                problems.append(prefix + f"its {name} is not a mapping.")
+        merged = {
+            **(shared_fmt if isinstance(shared_fmt, dict) else {}),
+            **(own_fmt if isinstance(own_fmt, dict) else {}),
+        }
+        fields = merged.get("fields") or []
+        if not isinstance(fields, list):
+            problems.append(prefix + "its response format fields are not a list.")
+            fields = []
+        for field in fields:
+            if isinstance(field, dict) and field.get("type") == "appraisal":
+                problems.append(prefix + f"response format field {field.get('key')!r} is an appraisal.")
+
+        if cfg.get("constructs"):
+            problems.append(prefix + "it declares constructs.")
+        # The parser falls back to the `default` block's parsing constructs
+        # (get_parsing_config), so an inherited block counts too.
+        default_block = self._config.get("default")
+        default_parsing = default_block.get("parsing") if isinstance(default_block, dict) else None
+        default_parsing = default_parsing if isinstance(default_parsing, dict) else {}
+        parsing = cfg.get("parsing")
+        if isinstance(parsing, dict) and parsing.get("constructs"):
+            problems.append(prefix + "it declares parsing.constructs.")
+        elif (not parsing or (isinstance(parsing, dict) and "constructs" not in parsing)) \
+                and default_parsing.get("constructs"):
+            problems.append(prefix + "it inherits parsing.constructs from the default block.")
+
+        template = self.get_prompt_template(agent_type)
+        if template is None:
+            template = ""
+        if not isinstance(template, str):
+            problems.append(prefix + "its prompt template is not text.")
+            template = ""
+        if "{rating_scale}" in template:
+            problems.append(prefix + "the prompt contains {rating_scale}.")
+        template = template.casefold()
+        for term in PMT_TEXT_MARKERS:
+            if term in template:
+                problems.append(prefix + f"the prompt contains the PMT term {term!r}.")
+
+        def check_rules(node, subtree):
+            if isinstance(node, dict):
+                if "construct" in node:
+                    problems.append(prefix + f"a rule in {subtree} refers to construct {node['construct']!r}.")
+                for value in node.values():
+                    check_rules(value, subtree)
+            elif isinstance(node, list):
+                for item in node:
+                    check_rules(item, subtree)
+
+        # Every other block of the agent, so a rule list under any key
+        # (validation_rules, identity_rules, governance, ...) is covered.
+        checked_apart = {"psychological_framework", "prompt_template", "prompt_template_file",
+                         "response_format", "constructs", "parsing"}
+        for key, value in cfg.items():
+            if key not in checked_apart:
+                check_rules(value, key)
+        return problems
 
     def get_rating_scale_for_agent_type(self, agent_type: str) -> str:
         """
