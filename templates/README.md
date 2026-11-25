@@ -12,7 +12,7 @@ Unlike the research paper benchmarks under `examples/`, files here carry zero hi
 
 ## Alternative: CLI Domain Generator
 
-If you prefer generating files interactively from domain and skill names, see the scaffolder CLI instead of copying a folder:
+If you prefer generating the files from a domain name and skill names, use the scaffolder CLI instead of copying a folder:
 
 ```bash
 python -m broker.tools.scaffold_domain my_domain --skills skill_a,skill_b --output my_domain

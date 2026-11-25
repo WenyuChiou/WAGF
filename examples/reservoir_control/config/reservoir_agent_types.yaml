@@ -5,7 +5,7 @@
 #   current_year         : [int] 1-based simulation water year
 #   storage              : [maf] reservoir storage at the end of the just-finished year
 #   storage_now          : [maf] alias of end-of-year storage read by flood_control_overflow
-#   spill                : [maf] excess release over capacity during the last water year
+#   spill                : [maf] storage that did not fit above capacity, summed over the last water year
 #   shortfall            : [maf] unmet annual water demand during the last water year
 #   release_actual       : [maf/month] mean monthly release achieved in the last water year
 #   inflow_forecast_year : [maf] forecast total inflow for the COMING water year

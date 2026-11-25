@@ -4,6 +4,10 @@ repo_url: https://github.com/WenyuChiou/WAGF
 docs_dir: docs
 site_dir: site
 use_directory_urls: false
+# docs/internal/ is gitignored maintainer material; a local copy can hold
+# non-UTF-8 files that stop `mkdocs build --strict`.
+exclude_docs: |
+  internal/
 hooks:
   - mkdocs_hooks.py
 

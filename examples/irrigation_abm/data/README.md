@@ -18,7 +18,7 @@ Unless noted otherwise, volumes are in **acre-feet (`af`)** (`1 MAF = 1,000,000 
 | `ub_subbasin_supply_v3_tributary.csv` | Same as `ub_subbasin_supply_v3.csv` | Sensitivity variant (`tributary_gauges`) |
 | `ub_subbasin_variant_means_v3.csv` | `variant`, `q_<S>_mean_af` | 1971–2018 baseline mean flow (`af/yr`) per subbasin for each variant |
 
-## Historical Hindcast Inputs (1998–2018)
+## Historical Hindcast Inputs (observed 1999–2018, precipitation 1998–2018)
 
 | File | Key Columns | Units / Meaning |
 |---|---|---|

@@ -77,6 +77,10 @@ ALLOWLIST_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         "Gitignored paper experiment output and archived run directories.",
     ),
     (
+        re.compile(r"^site/$"),
+        "MkDocs build output folder (gitignored), named in docs/index.md.",
+    ),
+    (
         re.compile(r"^code/chapter8/"),
         "External Hello-Agents book code folder cited in docs/references/Chapter8-Memory-and-Retrieval.md.",
     ),
@@ -96,7 +100,8 @@ def _has_chinese_prose(path: Path) -> bool:
     if path.name.endswith("_zh.md") or path.name == "README_zh.md":
         return True
     text = path.read_text(encoding="utf-8", errors="replace")
-    stripped = re.sub(r"\[中文\]\([^)]+\)", "", text)
+    # A language-switch link ([中文](...), [繁體中文](...)) is not Chinese prose.
+    stripped = re.sub(r"\[(?:中文|繁體中文|简体中文)\]\([^)]+\)", "", text)
     return bool(re.search(r"[\u4e00-\u9fff]", stripped))
 
 
