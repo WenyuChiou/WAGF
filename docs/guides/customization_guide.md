@@ -134,7 +134,7 @@ your_agent_type:
       community: ["basin", "community", "region"]
 ```
 
-**Importance calculation**: `importance = emotional_weight ? source_weight`
+**Importance calculation**: `importance = emotional_weight × source_weight`
 
 **Retrieval mode**: Basic ranking combines the recent window (5 newest memories) with top-k (2 highest decayed-importance memories).
 
@@ -151,28 +151,34 @@ your_agent_type:
 With the `MemoryEngineRegistry`, you can add custom engines without modifying framework source code:
 
 ```python
-from broker.components.memory_engine import MemoryEngine
-from broker.components.memory_registry import MemoryEngineRegistry
+from broker.components.memory.engine import MemoryEngine
+from broker.components.memory.registry import MemoryEngineRegistry
 
 class MyCustomMemoryEngine(MemoryEngine):
+    # MemoryEngineRegistry.create() calls the class with the config dict as
+    # keyword arguments. add_memory, retrieve and clear are abstract.
     def __init__(self, window_size: int = 5, custom_param: float = 0.5, **kwargs):
         self.window_size = window_size
         self.custom_param = custom_param
         self._memories = {}
 
-    def add_memory(self, agent_id: str, content: str, **kwargs):
-        if agent_id not in self._memories:
-            self._memories[agent_id] = []
-        self._memories[agent_id].append(content)
+    def add_memory(self, agent_id, content, metadata=None):
+        self._memories.setdefault(agent_id, []).append(
+            {"content": content, **(metadata or {})})
 
-    def get_memories(self, agent_id: str, **kwargs):
-        return self._memories.get(agent_id, [])[-self.window_size:]
+    def retrieve(self, agent, query=None, top_k=3, **kwargs):
+        # agent is a BaseAgent; agent.id is the same id add_memory was given.
+        # Returns a list of dicts (broker/INVARIANTS.md, Invariant 1).
+        return self._memories.get(agent.id, [])[-self.window_size:]
+
+    def clear(self, agent_id):
+        self._memories.pop(agent_id, None)
 
 # Register before building experiment
 MemoryEngineRegistry.register("my_custom", MyCustomMemoryEngine)
 
 # Use in experiment
-from broker.components.memory_factory import create_memory_engine
+from broker.components.memory.factory import create_memory_engine
 engine = create_memory_engine("my_custom", {"window_size": 10, "custom_param": 0.8})
 ```
 
@@ -423,9 +429,9 @@ Verify: governance rules trigger, retries work, final decisions are plausible.
 
 ### Profile Test (governance coverage)
 
-Check the `governance_summary.json` output for:
-- `approved_rate` > 0 (governance is not blocking everything)
-- `retry_rate` < 50% (rules are not too restrictive)
+Check the `governance_summary.json` output:
+- `outcome_stats.retry_exhausted` is small next to the number of decisions (one row per decision in `*_governance_audit.csv`), so rules are not blocking everything
+- `rule_frequency` shows which rules fire, so a rule that never fires or fires on every step stands out
 - All agent types appear in the audit trace
 
 ---
