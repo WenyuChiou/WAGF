@@ -36,7 +36,7 @@ Every WAGF experiment requires two YAML files passed at initialization:
 | File | Purpose | Loaded by |
 |------|---------|-----------|
 | `agent_types.yaml` | Agent prompts, parsing, governance rules, memory, LLM params | `AgentTypeConfig.load(path)` in `broker/utils/agent_config.py` |
-| `skill_registry.yaml` | Available skills (action space), preconditions, constraints | `SkillRegistry.register_from_yaml(path)` in `broker/components/skill_registry.py` |
+| `skill_registry.yaml` | Available skills (action space), preconditions, constraints | `SkillRegistry.register_from_yaml(path)` in `broker/components/governance/registry.py` |
 
 Both files are loaded with `yaml.safe_load()` using UTF-8 encoding. YAML parse
 errors surface with line-number diagnostics.
@@ -1431,7 +1431,7 @@ resolves to `household`).
 
 ### SkillRegistry (skill_registry.yaml)
 
-Implemented in `broker/components/skill_registry.py`. Key methods:
+Implemented in `broker/components/governance/registry.py`. Key methods:
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -1567,5 +1567,5 @@ ensures robust rule matching regardless of how the LLM phrases its appraisals.
 ---
 
 *Document generated for WAGF v2. See `broker/governance/rule_types.py`,
-`broker/components/skill_registry.py`, and `broker/utils/agent_config.py`
+`broker/components/governance/registry.py`, and `broker/utils/agent_config.py`
 for authoritative implementation details.*

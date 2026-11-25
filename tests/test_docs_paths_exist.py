@@ -1,10 +1,9 @@
 """Regression check: repo-relative paths named in public docs must exist.
 
-In-scope markdown files match Task B of the docs cleanup:
+In-scope markdown files:
   * ARCHITECTURE.md and broker/INVARIANTS.md
   * broker/**/README.md
-  * docs/**/*.md except docs/references/, docs/internal/,
-    docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md, and docs/guides/governance_layers.md
+  * docs/**/*.md except docs/internal/
   * .claude/skills/**/*.md
   * English files only (*_zh.md, README_zh.md, and Chinese prose excluded)
 
@@ -28,11 +27,8 @@ BACKTICK_RE = re.compile(r"(?<!`)`([^`\n]+)`(?!`)")
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 EXT_RE = re.compile(r"\.[A-Za-z][A-Za-z0-9_]{0,9}$")
 
-OUT_OF_SCOPE_DIRS = ("docs/references/", "docs/internal/")
-OUT_OF_SCOPE_FILES = frozenset({
-    "docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md",
-    "docs/guides/governance_layers.md",
-})
+OUT_OF_SCOPE_DIRS = ("docs/internal/",)
+OUT_OF_SCOPE_FILES: frozenset[str] = frozenset()
 
 FAILURE_HINT = "fix the path, or add a pattern with a reason"
 
@@ -78,6 +74,10 @@ ALLOWLIST_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"^(?:JOH_[A-Za-z0-9_]*|_archive_[A-Za-z0-9_.-]*)/$|^examples/(?:single_agent|irrigation_abm)/results/"),
         "Gitignored paper experiment output and archived run directories.",
+    ),
+    (
+        re.compile(r"^code/chapter8/"),
+        "External Hello-Agents book code folder cited in docs/references/Chapter8-Memory-and-Retrieval.md.",
     ),
 )
 
