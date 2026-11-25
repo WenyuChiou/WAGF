@@ -80,10 +80,6 @@ ALLOWLIST_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         re.compile(r"^site/$"),
         "MkDocs build output folder (gitignored), named in docs/index.md.",
     ),
-    (
-        re.compile(r"^code/chapter8/"),
-        "External Hello-Agents book code folder cited in docs/references/Chapter8-Memory-and-Retrieval.md.",
-    ),
 )
 
 
