@@ -8,7 +8,7 @@ The Water Agent Governance Framework is a cognitive governance middleware for LL
 
 New cases plug into the generic `broker/` core without editing `broker/` source code: define a skill registry YAML, YAML validation rules, and a world/hook module loaded through `python -m broker.run CONFIG` (see [how to add a domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
 
-**Version**: v0.6.0 (semver). Pre-v0.3.0 the project used a different
+**Version**: v0.7.0 (semver). Pre-v0.3.0 the project used a different
 internal versioning scheme; v0.29.0 → v0.3.0 (2026-05-27) was a
 deliberate semver reset. See `CHANGELOG.md` for the full release
 timeline.
@@ -583,7 +583,18 @@ closer. Tested in `broker/tests/test_wp4_framework_options.py` (generic) and
 For release-to-release migration notes see `CHANGELOG.md`. Notable
 historical migrations:
 
-- **Unreleased**: `initial_proposal_columns` (opt-in via
+- **v0.7.0 (2026-11-26)**: `python -m broker.run CONFIG` as the one entry
+  point for new cases (memory engine and reflection read from the YAML; prompt-file
+  checks; the run environment recorded in every manifest, with the
+  `--strict-provenance` flag to refuse an unclean run) + Invariant 7 (governance
+  leaves no trace in memory:
+  `executed` memory lines, `memory_log.jsonl`, the `governance_carryover` block in
+  `run_integrity.json`, the twin-run check `check_governance_carryover`) +
+  coupling relations, feasibility bounds and `expression:` rules + the irrigation
+  v3 case and the `reproduction/` kit with its frozen guard. 6W
+  multi-dimensional actions (June) are released here. See `CHANGELOG.md` for the
+  full list.
+- **v0.7.0, audit columns**: `initial_proposal_columns` (opt-in via
   `global_config.audit.initial_proposal_columns`, default OFF) adds three
   key-gated audit CSV columns, `initial_skill`, `initial_labels`, and
   `attempt_skills`, recording the agent's FIRST proposal before any
