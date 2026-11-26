@@ -132,11 +132,20 @@ trace covers the standard audit projection.
 | `executed_via_fallback` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `execution_path` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `projection_default_breach` | feasibility mark (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `projection_kept_proposal` | feasibility mark (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 
 `projection_default_breach` (R1 slice 2): present only when the coupled contract declares
 `feasibility` bounds and the retries ran out. It names the bounds the default skill (which runs
 anyway) breaches on the model's own what-if run, joined by `;`, empty when the default passes.
 A run without bounds has no such column.
+
+`projection_kept_proposal` (R5 walk finding 16): written only when the default breaches too,
+only feasibility bounds blocked the agent's last proposal, and the two were compared. `True`
+when the proposal's margin on every bound is no worse than the default's, so the proposal ran
+in the default's place (`execution_path` `no_worse_than_default`); `False` when it was worse
+and the default ran. Empty when no comparison was made: the default passed, another rule
+blocked the proposal, or the parser produced no usable choice. See "Feasibility bounds" in
+`docs/COUPLING_CONNECTORS.md`. The row's `status` stays `REJECTED`.
 
 ## Reserved Or Dead Columns
 
@@ -234,7 +243,7 @@ YAML placement and precedence are in
 ### The deterministic remap rule
 
 `status` alone does not say what ran, because the REJECTED branch of
-`broker/core/skill_broker_engine.py:process_step` has three exits. With the
+`broker/core/skill_broker_engine.py:process_step` has several exits. With the
 flag ON, `execution_path` states which one the row took:
 
 | `execution_path` | When | `executed_skill` | Relationship to `final_skill` |
@@ -243,6 +252,7 @@ flag ON, `execution_path` states which one the row took:
 | `approved_no_engine` | `status` is `APPROVED` but the run wired NO simulation engine, so nothing executed — the broker records a pseudo-execution | the approved skill | identical |
 | `rejected_default` | `status` is `REJECTED` and the domain's `governance.on_retry_exhausted` is `default` (the default) | the registry `default_skill` | **differs** — `final_skill` is the BLOCKED proposal |
 | `rejected_proposal` | `status` is `REJECTED` and `on_retry_exhausted` is `keep_proposal` | the blocked proposal itself | identical |
+| `no_worse_than_default` | `status` is `REJECTED` under `on_retry_exhausted: default` in a coupled run: only feasibility bounds blocked the last proposal, the default breaches a bound too, and the proposal projects no worse (`projection_kept_proposal` is `True`) | the blocked proposal itself | identical |
 | `fallback` | `status` is `REJECTED_FALLBACK` — the parser never produced a usable choice | the registry `default_skill` | **may differ** — `final_skill` usually already holds the registry default, but a domain whose per-agent-type parsing supplies its own `default_skill` (the `ma_agent_types.yaml` case) can leave a different name there. `executed_skill` is authoritative |
 | `aborted` | the step's output never parsed at all; sentinel row, nothing executed | `""` | both empty |
 | `not_executed` | a blocked proposal whose configured default skill is not in the registry, so nothing ran | `None` | n/a |

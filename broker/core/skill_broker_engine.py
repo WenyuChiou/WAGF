@@ -36,7 +36,7 @@ out-of-range magnitudes are corrected at execution time via bounded Gaussian
 resampling rather than rejected. The audit trail records advisory flags
 alongside binding rejections so reviewers can distinguish the two.
 """
-from typing import Callable, Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
 from ..interfaces.skill_types import (
@@ -1119,6 +1119,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # coupled model declares feasibility bounds); None keeps the audit row
         # free of the key, so runs without bounds keep their exact columns.
         projection_default_breach: Optional[str] = None
+        # R5 walk finding 16: set with projection_default_breach; True when the
+        # agent's last proposal ran in place of a default that breaches too.
+        projection_kept_proposal: Optional[bool] = None
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
             executed_skill = approved_skill.skill_name
@@ -1155,18 +1158,37 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     projection_default_breach = self._project_default_skill(
                         fallback, validation_context, agent_id
                     )
-                    execution_result = self.simulation_engine.execute_skill(fallback)
-                    executed_skill = fallback_skill
-                    executed_via_fallback = True
-                    # UNCERTAIN = the parser never produced a usable choice
-                    # (approval_status is already REJECTED_FALLBACK);
-                    # REJECTED = a real proposal was blocked and the registry
-                    # default took its place. Both run the default skill, but
-                    # only the second is the row where `final_skill` lies.
-                    execution_path = (
-                        "fallback" if outcome is SkillOutcome.UNCERTAIN
-                        else "rejected_default"
-                    )
+                    compared, kept = False, None
+                    if projection_default_breach and outcome is SkillOutcome.REJECTED:
+                        compared, kept = self._no_worse_than_default(
+                            skill_proposal, fallback, validation_results,
+                            validation_context, agent_id,
+                        )
+                    if kept is not None:
+                        # R5 walk finding 16: the default breaches too, and the
+                        # agent's last proposal (blocked by feasibility bounds
+                        # only) projects no worse, so it runs instead of the
+                        # default. The row stays REJECTED and is marked.
+                        projection_kept_proposal = True
+                        execution_result = self.simulation_engine.execute_skill(kept)
+                        executed_skill = kept.skill_name
+                        executed_via_fallback = False
+                        execution_path = "no_worse_than_default"
+                    else:
+                        if compared:
+                            projection_kept_proposal = False
+                        execution_result = self.simulation_engine.execute_skill(fallback)
+                        executed_skill = fallback_skill
+                        executed_via_fallback = True
+                        # UNCERTAIN = the parser never produced a usable choice
+                        # (approval_status is already REJECTED_FALLBACK);
+                        # REJECTED = a real proposal was blocked and the registry
+                        # default took its place. Both run the default skill, but
+                        # only the second is the row where `final_skill` lies.
+                        execution_path = (
+                            "fallback" if outcome is SkillOutcome.UNCERTAIN
+                            else "rejected_default"
+                        )
                 else:
                     logger.warning(f"Default skill '{fallback_skill}' not in registry for {approved_skill.agent_id}")
                     execution_result = ExecutionResult(success=False, state_changes={})
@@ -1196,6 +1218,11 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         if outcome is SkillOutcome.REJECTED:
             if execution_path == "rejected_proposal":
                 action = "executing it anyway"
+            elif execution_path == "no_worse_than_default":
+                action = (
+                    "executing it: the default breaches the feasibility bounds too, "
+                    "and this proposal projects no worse"
+                )
             elif executed_skill is not None:
                 action = f"executing default '{executed_skill}'"
             else:
@@ -1241,6 +1268,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_failed_rules=attempt_failed_rules,
                 attempt_prompts=attempt_prompts,
                 projection_default_breach=projection_default_breach,
+                projection_kept_proposal=projection_kept_proposal,
             )
 
         # Spec item 24: this decision's outcome for the abort-rate window --
@@ -1283,6 +1311,86 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         )
         return result
     
+    def _projection_check(self):
+        """The coupling adapter's projection check, or None. The coupling module
+        is looked up in ``sys.modules`` rather than imported, so a run without
+        coupling never loads it."""
+        import sys
+
+        adapter_mod = sys.modules.get("broker.coupling.adapter")
+        if adapter_mod is None:
+            return None
+        engine = self.simulation_engine
+        if not isinstance(engine, adapter_mod.EnvironmentCouplingAdapter):
+            return None
+        return getattr(engine, "projection_check", None)
+
+    def _no_worse_than_default(
+        self, skill_proposal, fallback: ApprovedSkill, validation_results: List,
+        validation_context: Dict[str, Any], agent_id: str,
+    ) -> Tuple[bool, Optional[ApprovedSkill]]:
+        """R5 walk finding 16: after the retries, run the agent's last proposal
+        instead of the default when blocking it would gain nothing.
+
+        Called only when the default breaches a feasibility bound too. Returns
+        ``(compared, kept)``. ``compared`` is False when the comparison did not
+        apply: no projection check, no registered proposal, or a blocking
+        result of the last attempt that is not a feasibility bound (any other
+        rule keeps the default). Otherwise the margins are compared, and
+        ``kept`` is the proposal as an ``ApprovedSkill`` when, for every bound
+        that judges it, its margin over the coming period
+        (``ProjectionCheck.margins``) is no worse than the default's; a bound
+        that judges the proposal but not the default must hold. ``kept`` is
+        None when the default runs as before.
+
+        In a shared resource each agent is projected against the others' held
+        controls, so a cut can breach while still being better than holding;
+        before this, every cut was blocked and the default kept the higher
+        control.
+        """
+        check = self._projection_check()
+        if check is None or skill_proposal is None:
+            return False, None
+        if not self.skill_registry.exists(skill_proposal.skill_name):
+            return False, None
+        bound_names = {b.name for b in check.contract.feasibility}
+        blocking = [r for r in (validation_results or []) if r is not None and not r.valid]
+        if not blocking or any(
+            r.metadata.get("rule_id") not in bound_names or "projected" not in r.metadata
+            for r in blocking
+        ):
+            return False, None
+        params = parameters_from_proposal(skill_proposal)
+        mine = check.margins(skill_proposal.skill_name, params, validation_context, agent_id)
+        if not mine:
+            return False, None
+        default = check.margins(
+            fallback.skill_name, dict(fallback.parameters or {}), validation_context, agent_id
+        )
+        for name, score in mine.items():
+            if name not in default:
+                if not check.bound_holds(name, score):
+                    return True, None
+                continue
+            floor = default[name]
+            if score < floor - 1e-9 * max(1.0, abs(floor)):
+                return True, None
+        logger.warning(
+            f" [Projection] {agent_id} | '{skill_proposal.skill_name}' was blocked by "
+            f"{sorted({r.metadata.get('rule_id') for r in blocking})}, but the default "
+            f"'{fallback.skill_name}' breaches too and this proposal projects no worse "
+            f"(margins {mine} vs default {default}); it runs in place of the default."
+        )
+        return True, ApprovedSkill(
+            skill_name=skill_proposal.skill_name,
+            agent_id=agent_id,
+            approval_status="REJECTED",
+            validation_results=validation_results,
+            execution_mapping=self.skill_registry.get_execution_mapping(
+                skill_proposal.skill_name) or "",
+            parameters=params,
+        )
+
     def _project_default_skill(
         self, fallback: ApprovedSkill, validation_context: Dict[str, Any], agent_id: str
     ) -> Optional[str]:
@@ -1296,15 +1404,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         up in ``sys.modules`` rather than imported, so a run without coupling
         never loads it.
         """
-        import sys
-
-        adapter_mod = sys.modules.get("broker.coupling.adapter")
-        if adapter_mod is None:
-            return None
-        engine = self.simulation_engine
-        if not isinstance(engine, adapter_mod.EnvironmentCouplingAdapter):
-            return None
-        check = getattr(engine, "projection_check", None)
+        check = self._projection_check()
         if check is None:
             return None
         breaches = check.check_skill(

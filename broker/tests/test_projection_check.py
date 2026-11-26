@@ -743,3 +743,164 @@ def test_builder_warns_for_a_skill_a_bound_leaves_out(caplog):
     adapter.contract = _contract([_bound("storage_unclamped >= 6", "typo", ("set_relase",))])
     with pytest.raises(ValueError, match="typo.*set_relase"):
         builder._check_feasibility_scope(reg)
+
+
+# ------------------------------- 13. no worse than the default (finding 16) ----
+def _rows_by_year(rows):
+    return {r["year"]: r for r in rows}
+
+
+def test_margins_score_slack_for_one_comparison_and_failures_otherwise():
+    _solver, _bundle, _adapter, check = _reservoir(bounds=[
+        _bound("storage_unclamped >= 6.0", "slack", ()),
+        _bound("storage_unclamped >= 6.0 and requested_release_target >= 0", "compound", ()),
+    ])
+    low = check.margins("set_release", {"magnitude_pct": 0.5}, _ctx())
+    high = check.margins("set_release", {"magnitude_pct": 1.0}, _ctx())
+    assert high["slack"] < 0 < low["slack"]
+    assert low["compound"] == 0.0 and high["compound"] < 0  # minus failing sub-steps
+    assert high["compound"] >= -12 and float(high["compound"]).is_integer()
+    # the hold is scored with the held target, like the 1.0 request (0.75 maf/month)
+    hold = check.margins("maintain_release", {}, _ctx())
+    assert hold["slack"] == pytest.approx(high["slack"])
+
+
+def _year_mock(first_by_year, retry):
+    def respond(prompt):
+        import re as _re
+        year = int(_re.search(r"Year: (\d+)", prompt).group(1))
+        blocked = "BLOCKED" in prompt or "dead_pool_violation" in prompt
+        return ops_case.decision_payload(
+            "set_release", magnitude=retry if blocked else first_by_year.get(year, 1.0))
+    return respond
+
+
+def _run_with(monkeypatch, tmp_path, mock, years=3):
+    contract = ops_case.build_contract()
+    monkeypatch.setattr(ops_case, "build_contract", lambda: contract)
+    out = tmp_path / "out"
+    AgentTypeConfig.clear_cache()
+    try:
+        runner = broker.run.prepare([
+            str(ops_case.CONFIG_PATH), "--model", "mock", "--years", str(years),
+            "--output", str(out), "--seed", "42",
+        ]).runner
+        runner._llm_cache["operator"] = mock
+        runner.run()
+    finally:
+        AgentTypeConfig.clear_cache()
+    with (out / "operator_governance_audit.csv").open(encoding="utf-8-sig", newline="") as fh:
+        return runner, _rows_by_year(csv.DictReader(fh))
+
+
+def _corrected_columns_on(monkeypatch):
+    monkeypatch.setattr(AgentTypeConfig, "get_audit_corrected_status_columns",
+                        lambda self: True)
+
+
+def test_blocked_proposal_that_is_no_worse_than_the_default_runs_instead(monkeypatch, tmp_path):
+    """Year 3 is a drought: 1.0 breaches the dead pool, the retries at 0.7 breach
+    too (0.536 passes), and the default holds 1.0 (0.75 maf/month). 0.7 is
+    better than the hold, so it runs instead of the default."""
+    _corrected_columns_on(monkeypatch)
+    runner, rows = _run_with(monkeypatch, tmp_path, _year_mock({}, retry=0.7))
+    y3 = rows["3"]
+    # 0.7 of 0.75 maf/month ran, not the held 0.75
+    assert runner.sim_engine.sources.solver.release_target == pytest.approx(0.7 * 0.75)
+    assert y3["status"] == "REJECTED"
+    assert y3["execution_path"] == "no_worse_than_default"
+    assert y3["executed_skill"] == "set_release"
+    assert y3["executed_via_fallback"] == "False"
+    assert y3["execution_success"] == "True"
+    assert y3["projection_default_breach"] == "dead_pool_violation"
+    assert y3["projection_kept_proposal"] == "True"
+    for y in ("1", "2"):
+        assert rows[y]["status"] == "APPROVED" and rows[y]["projection_kept_proposal"] == ""
+
+
+def test_blocked_proposal_worse_than_the_default_keeps_the_default(monkeypatch, tmp_path):
+    """Years 1-2 commit 0.9; in year 3 the operator keeps asking 1.0, which is
+    worse than holding 0.9, so the default (hold 0.9) runs and is marked."""
+    _corrected_columns_on(monkeypatch)
+    runner, rows = _run_with(monkeypatch, tmp_path, _year_mock({1: 0.9, 2: 0.9}, retry=1.0))
+    y3 = rows["3"]
+    assert y3["status"] == "REJECTED"
+    assert y3["execution_path"] == "rejected_default"
+    assert y3["projection_default_breach"] == "dead_pool_violation"
+    assert y3["projection_kept_proposal"] == "False"
+    assert runner.sim_engine.sources.solver.release_target == pytest.approx(0.9 * 0.75)
+
+
+def test_no_comparison_when_the_default_passes(monkeypatch, tmp_path):
+    """Year 2 commits 0.5, which holds in the year-3 drought; in year 3 the
+    operator keeps asking 1.0. The default passes, so nothing is compared: the
+    column is empty, not False."""
+    runner, rows = _run_with(monkeypatch, tmp_path, _year_mock({1: 1.0, 2: 0.5}, retry=1.0))
+    y3 = rows["3"]
+    assert y3["status"] == "REJECTED"
+    assert y3["projection_default_breach"] == ""
+    # no row of this run made the comparison, so the column is not written at all
+    assert "projection_kept_proposal" not in y3
+    assert runner.sim_engine.sources.solver.release_target == pytest.approx(0.5 * 0.75)
+
+
+def _no_worse_parts():
+    from types import SimpleNamespace
+
+    from broker.interfaces.skill_types import ApprovedSkill, ValidationResult
+
+    fake_registry = SimpleNamespace(exists=lambda name: True,
+                                    get_execution_mapping=lambda name: name)
+    fallback = ApprovedSkill(skill_name="maintain_release", agent_id="O",
+                             approval_status="REJECTED_FALLBACK")
+    bound_hit = ValidationResult(valid=False, validator_name="dead_pool_violation",
+                                 errors=["x"], metadata={"rule_id": "dead_pool_violation",
+                                                         "projected": {}})
+    ctx = {"env_state": {"inflow_forecast_year": FORECAST_DROUGHT}}
+    return SimpleNamespace, fake_registry, fallback, bound_hit, ctx
+
+
+def test_no_worse_rule_needs_feasibility_bounds_to_be_the_only_blockers():
+    from broker.core.skill_broker_engine import SkillBrokerEngine
+    from broker.interfaces.skill_types import ValidationResult
+
+    SimpleNamespace, registry, fallback, bound_hit, ctx = _no_worse_parts()
+    _solver, _bundle, _adapter, check = _reservoir()
+    fake = SimpleNamespace(_projection_check=lambda: check, skill_registry=registry)
+    proposal = SimpleNamespace(skill_name="set_release", magnitude_pct=0.7,
+                               magnitude_fallback=False, parameters={})
+    rule_hit = ValidationResult(valid=False, validator_name="flood_control_overflow",
+                                errors=["y"], metadata={"rule_id": "flood_control_overflow"})
+    compared, kept = SkillBrokerEngine._no_worse_than_default(
+        fake, proposal, fallback, [bound_hit], ctx, "O")
+    assert compared and kept is not None and kept.parameters["magnitude_pct"] == 0.7
+    # another rule blocked it: no comparison, the default runs
+    assert SkillBrokerEngine._no_worse_than_default(
+        fake, proposal, fallback, [bound_hit, rule_hit], ctx, "O") == (False, None)
+    # worse than holding 1.0 is impossible for set_release (1.0 is the most);
+    # a request equal to the hold is no worse and runs
+    same = SimpleNamespace(skill_name="set_release", magnitude_pct=1.0,
+                           magnitude_fallback=False, parameters={})
+    compared, kept = SkillBrokerEngine._no_worse_than_default(
+        fake, same, fallback, [bound_hit], ctx, "O")
+    assert compared and kept is not None
+
+
+def test_a_bound_that_skips_the_default_must_hold_strictly_for_a_strict_comparison():
+    from broker.core.skill_broker_engine import SkillBrokerEngine
+
+    SimpleNamespace, registry, fallback, bound_hit, ctx = _no_worse_parts()
+    _solver, _bundle, _adapter, check = _reservoir(bounds=[
+        _bound("storage_unclamped >= 6.0", "dead_pool_violation", ("set_release",)),
+    ])
+    fake = SimpleNamespace(_projection_check=lambda: check, skill_registry=registry)
+    breach = SimpleNamespace(skill_name="set_release", magnitude_pct=0.7,
+                             magnitude_fallback=False, parameters={})
+    # the hold is not judged by this bound, so the proposal must hold, and 0.7 does not
+    assert SkillBrokerEngine._no_worse_than_default(
+        fake, breach, fallback, [bound_hit], ctx, "O") == (True, None)
+    # a strict bound at slack exactly 0 does not hold; a non-strict one does
+    strict = _reservoir(bounds=[_bound("storage_unclamped > 6.0", "s", ())])[3]
+    loose = _reservoir(bounds=[_bound("storage_unclamped >= 6.0", "s", ())])[3]
+    assert not strict.bound_holds("s", 0.0) and strict.bound_holds("s", 1e-6)
+    assert loose.bound_holds("s", 0.0) and not loose.bound_holds("s", -1e-6)
