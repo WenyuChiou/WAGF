@@ -1213,6 +1213,18 @@ class UnifiedAdapter(ModelAdapter):
                         f"{_key}={_dropped} dropped: {skill_name} does not take it "
                         f"(the field lists {list(_takes)})"
                     )
+            if _magnitude_pct is None and _extracted_numerics:
+                _sec_key = (sec_mag_field if ms_cfg else None) or ""
+                _remaining = {
+                    k: v for k, v in _extracted_numerics.items()
+                    if k.lower() != _sec_key.lower()
+                }
+                if "magnitude_pct" in _remaining:
+                    _magnitude_pct = _remaining["magnitude_pct"]
+                elif "magnitude" in _remaining:
+                    _magnitude_pct = _remaining["magnitude"]
+                elif _remaining:
+                    _magnitude_pct = next(iter(_remaining.values()))
 
         reasoning["_parse_metadata"] = parse_metadata
 

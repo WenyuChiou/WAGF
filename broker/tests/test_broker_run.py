@@ -729,6 +729,24 @@ def test_number_is_dropped_for_a_skill_the_field_does_not_list(case):
                for w in record["skill_proposal"]["parsing_warnings"])
 
 
+def test_dropping_initial_primary_field_selects_remaining_scoped_field(case):
+    """Codex P2 on #136: dropping `magnitude` (wait-only) on `inspect` must
+    select the remaining valid field (`inspect_share`) as `magnitude_pct`."""
+    config = _magnitude_case(case, ["wait"])
+    _, data = case
+    data["agent"]["response_format"]["fields"].insert(1, {
+        "key": "inspect_share", "type": "numeric", "min": 0, "max": 1,
+        "required": True, "skills": ["inspect"]})
+    _write_yaml(config, data)
+    recording = config.parents[1] / "recording.py"
+    recording.write_text(recording.read_text(encoding="utf-8").replace(
+        '{"decision": next(answers), "magnitude": 0.4}',
+        '{"decision": next(answers), "magnitude": 0.2, "inspect_share": 0.4}'), encoding="utf-8")
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [(n, p.get("magnitude_pct")) for n, p in seen] == [("wait", 0.2), ("inspect", 0.4)]
+
+
 def test_keyword_parsed_number_keeps_the_scope_of_the_field_it_matched(case):
     """Codex P2 on #136: a number the keyword fallback found was scoped by the
     first declared numeric field (magnitude, wait only), not by the field it
