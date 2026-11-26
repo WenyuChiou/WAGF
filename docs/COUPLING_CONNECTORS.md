@@ -107,6 +107,23 @@ individually-valid commits jointly overdraw; project the settlement summary
 into NEXT period's env. If your research question needs within-period
 feedback, that is a different framework regime, not a missing WAGF feature.
 
+#### Homogeneous shared-basin populations (1 agent type, N agents)
+
+A single-agent-type configuration still supports a population of ``N`` agents
+drawing on one shared resource (e.g. ``examples/irrigation_abm/``). Governance
+separates two stages cleanly across that boundary:
+
+1. **Ex-ante per-agent validation**: before any world state mutates, each
+   agent's proposal is checked against its own observable state and the
+   current period's shared environment snapshot (see
+   ``docs/guides/model_state_in_prompt_and_checks.md``).
+2. **Ex-post period-end mass-balance settlement**: approved individual
+   proposals are aggregated and reconciled once per period by the physical
+   simulator's allocation and shortage equations (or guarded by an explicit
+   aggregate validator in ``broker/coupling/``). Independent per-agent rules
+   do not automatically prevent ``N`` individually-valid requests from jointly
+   exceeding shared basin supply within the same step.
+
 ## Continuous control (archetype A extension — PROVEN)
 
 When the decision is a NUMERIC setpoint rather than a discrete skill choice,

@@ -426,6 +426,7 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
                 ) from exc
         template = ctx.config.get_prompt_template(agent_type)
         if template:
+            _warn_undeclared_prompt_placeholders(ctx, agent_type, template)
             templates[agent_type] = template
     if len(agent_types) == 1 and templates:
         templates["default"] = templates[agent_types[0]]
@@ -517,6 +518,56 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         reflection_hook.runner = runner
         runner.reflection_enabled = True  # run_integrity.json records it
     return runner, after_run, reflection_hook
+
+
+def _warn_undeclared_prompt_placeholders(
+    ctx: RunContext, agent_type: str, template: str
+) -> None:
+    """Warn on stderr when YAML-declared ``template_vars`` omits a prompt placeholder."""
+    from broker.tools.validate_prompt import (
+        BROKER_FILLED_PLACEHOLDERS,
+        _resolve_domain_extensions,
+        collect_template_vars,
+        extract_placeholders,
+    )
+
+    raw = ctx.raw if isinstance(ctx.raw, Mapping) else {}
+    block = raw.get(agent_type)
+    if not isinstance(block, Mapping):
+        return
+    inherit_shared = block.get("inherit_shared", True) is not False
+    shared = (
+        raw.get("shared")
+        if inherit_shared and isinstance(raw.get("shared"), Mapping)
+        else {}
+    )
+    if "template_vars" not in shared and "template_vars" not in block:
+        return
+    declared_vars = (
+        collect_template_vars(shared.get("template_vars"))
+        | collect_template_vars(block.get("template_vars"))
+    )
+    response_format = block.get("response_format") or shared.get("response_format") or {}
+    fields = (response_format.get("fields") if isinstance(response_format, Mapping) else None) or []
+    field_keys = {
+        f["key"] for f in fields
+        if isinstance(f, Mapping) and isinstance(f.get("key"), str) and f["key"]
+    }
+    known = (
+        BROKER_FILLED_PLACEHOLDERS
+        | _resolve_domain_extensions(dict(raw))
+        | field_keys
+        | declared_vars
+    )
+    unknown = sorted(p for p in extract_placeholders(template) if p not in known)
+    if unknown:
+        print(
+            f"broker.run: warning: {agent_type}: prompt contains undeclared placeholder(s) "
+            f"{unknown} (not in template_vars or broker-filled set; SafeFormatter renders "
+            f"missing keys as [N/A]). Run `python -m broker.tools.validate_prompt "
+            f"{ctx.config_path}` to inspect.",
+            file=sys.stderr,
+        )
 
 
 @dataclass
