@@ -76,3 +76,18 @@ def test_truncated_run_logs_warning_and_surfaces_in_cli(tmp_path, caplog, capsys
         assert exc.code == 0
     out = capsys.readouterr().out
     assert "ctx_truncated=1" in out
+
+
+def test_invalid_utf8_trace_line_is_skipped_without_dropping_integrity(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    trace_file = raw_dir / "operator_traces.jsonl"
+    trace_file.write_bytes(
+        b'{"_metadata": {"audit_schema_version": "2"}}\n'
+        b"\xff\xfecorrupt\n"
+        b'{"step_id": 1, "llm_stats": {"prompt_tokens": 4200, "num_ctx": 4096}}\n'
+    )
+    audit = record_run_integrity(tmp_path, verbose=False)
+    assert (tmp_path / "run_integrity.json").is_file()
+    assert audit["context_budget_truncated_rows"] == 1
+

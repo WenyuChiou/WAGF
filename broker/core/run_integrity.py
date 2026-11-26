@@ -24,6 +24,7 @@ See broker/INVARIANTS.md Invariant 6.
 from __future__ import annotations
 
 import json
+import math
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -294,16 +295,24 @@ def scan_context_budget(output_dir) -> Dict[str, Any]:
     files byte-identical. Never raises.
     """
     raw_dir = Path(output_dir) / "raw"
-    if not raw_dir.is_dir():
+    try:
+        if not raw_dir.is_dir():
+            return {}
+        trace_paths = sorted(raw_dir.glob("*_traces.jsonl"))
+    except OSError as exc:
+        logger.debug(f"[Integrity] context-budget trace scan skipped: {exc}")
         return {}
     near_limit = 0
     truncated = 0
     max_ratio = 0.0
-    try:
-        for trace_path in sorted(raw_dir.glob("*_traces.jsonl")):
-            with trace_path.open(encoding="utf-8") as fh:
-                for line in fh:
-                    text = line.strip()
+    for trace_path in trace_paths:
+        try:
+            with trace_path.open("rb") as fh:
+                for raw_line in fh:
+                    try:
+                        text = raw_line.decode("utf-8").strip()
+                    except UnicodeDecodeError:
+                        continue
                     if not text:
                         continue
                     try:
@@ -322,6 +331,7 @@ def scan_context_budget(output_dir) -> Dict[str, Any]:
                         or isinstance(nc, bool)
                         or not isinstance(pt, (int, float))
                         or not isinstance(nc, (int, float))
+                        or not (math.isfinite(pt) and math.isfinite(nc))
                     ):
                         continue
                     if nc <= 0 or pt <= 0:
@@ -333,9 +343,9 @@ def scan_context_budget(output_dir) -> Dict[str, Any]:
                             truncated += 1
                         if ratio > max_ratio:
                             max_ratio = ratio
-    except OSError as exc:
-        logger.debug(f"[Integrity] context-budget trace scan skipped: {exc}")
-        return {}
+        except OSError as exc:
+            logger.debug(f"[Integrity] context-budget trace read skipped ({trace_path}): {exc}")
+            continue
     if near_limit == 0:
         return {}
     return {
