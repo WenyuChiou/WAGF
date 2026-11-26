@@ -172,6 +172,10 @@ def test_humancentric_yaml_values_win_and_reach_the_run_record(case, tmp_path):
     ({"engine_type": "humancentric", "top_k_significant": -1}, "top_k_significant"),
     ({"engine_type": "humancentric", "window_size": 0}, "window_size must be an integer >= 1"),
     ({"engine_type": "humancentric", "decay_rate": 2}, "decay_rate"),
+    # The decision memories ExperimentRunner writes carry no year, so the
+    # engine would raise on the year-2 retrieval; refused before the run.
+    ({"engine_type": "humancentric", "decay_by_calendar_year": True},
+     "decay_by_calendar_year needs a year on every memory"),
 ])
 def test_memory_settings_broker_run_cannot_honour_are_refused(case, tmp_path, capsys, memory, message):
     config, data = case
@@ -312,6 +316,67 @@ def test_reflection_prompt_and_reply_under_a_real_model(case, tmp_path):
     hook.runner = SimpleNamespace(get_llm_invoke=lambda agent_type: failing)
     hook(2, {agent.id: agent})
     assert hook.counts == {"reflections_stored": 1, "replies_not_stored": 0, "failed_calls": 1}
+
+
+def test_an_agent_type_with_its_own_real_model_reflects_with_that_model(case, tmp_path, monkeypatch):
+    # The run model is mock, but llm_params.model gives this agent type a real
+    # model: its decisions use that model, so its reflection must too.
+    from broker.utils import llm_utils
+    mock_invoke, models, reflection_prompts = llm_utils.create_llm_invoke("mock"), [], []
+
+    def fake_create_llm_invoke(model, verbose=False, overrides=None):
+        models.append(model)
+
+        def invoke(prompt):
+            if "What did the inspection show?" in prompt:
+                reflection_prompts.append(prompt)
+                return "Waiting kept the site safe this year.", {"tokens": 1}
+            return mock_invoke(prompt)
+        return invoke
+
+    monkeypatch.setattr(llm_utils, "create_llm_invoke", fake_create_llm_invoke)
+    case[1]["agent"]["llm_params"] = {"model": "openai:site-model"}
+    prepared, output = _prepare(case, tmp_path, years=1, reflection={
+        "enabled": True, "questions": ["What did the inspection show?"],
+    })
+    prepared.runner.run()
+    assert "openai:site-model" in models  # the decisions' invoke for this agent type
+    assert len(reflection_prompts) == 1
+    log = [json.loads(line) for line in (output / "reflection_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [entry["summary"] for entry in log] == ["Waiting kept the site safe this year."]
+
+
+def test_an_agent_type_on_the_mock_model_under_a_real_run_model_gets_the_fixed_reflection(
+        case, tmp_path, monkeypatch):
+    from broker.utils import llm_utils
+    mock_invoke = llm_utils.create_llm_invoke("mock")
+    monkeypatch.setattr(llm_utils, "create_llm_invoke", lambda model, verbose=False, overrides=None: mock_invoke)
+    config, data = case
+    data["agent"]["llm_params"] = {"model": "mock"}
+    data["global_config"]["reflection"] = {"enabled": True}
+    _write_yaml(config, data)
+    output = tmp_path / "output"
+    argv = _argv(config, output, years=1)
+    argv[argv.index("--model") + 1] = "openai:site-model"
+    _entry.prepare(argv).runner.run()
+    log = [json.loads(line) for line in (output / "reflection_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [entry["summary"] for entry in log] == ["(mock model) Year 1 reflection over 1 memories."]
+
+
+def test_an_agent_type_answered_by_the_run_mock_slot_gets_the_fixed_reflection(case, tmp_path):
+    config, data = case
+    (config.parents[1] / "scripted.py").write_text(dedent('''
+        from broker.utils.llm_utils import create_llm_invoke
+
+        def build(ctx):
+            return create_llm_invoke("mock")
+    '''), encoding="utf-8")
+    data["global_config"]["run"]["mock"] = "scripted:build"
+    data["agent"]["llm_params"] = {"model": "openai:site-model"}  # the slot answers instead
+    prepared, output = _prepare(case, tmp_path, years=1, reflection={"enabled": True})
+    prepared.runner.run()
+    log = [json.loads(line) for line in (output / "reflection_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [entry["summary"] for entry in log] == ["(mock model) Year 1 reflection over 1 memories."]
 
 
 def test_a_failed_reflection_log_write_stops_the_run_and_is_not_counted(case, tmp_path):

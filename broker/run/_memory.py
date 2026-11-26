@@ -137,6 +137,14 @@ def memory_settings(raw, seed) -> MemorySettings:
     for key in ("consolidation_probability", "decay_rate"):
         if key in params:
             validate_fraction(f"global_config.memory.{key}", params[key])
+    if params.get("decay_by_calendar_year") is True:
+        # The engine raises on any memory without metadata['year'], and the
+        # decision memories ExperimentRunner writes have none: every agent
+        # turn from year 2 on would fail.
+        raise ValueError(
+            "global_config.memory.decay_by_calendar_year needs a year on every memory, and the "
+            "decision memories python -m broker.run writes carry none; leave it off"
+        )
     return MemorySettings("humancentric", params)
 
 
@@ -300,10 +308,24 @@ class ReflectionHook:
         items = self.memory_engine.retrieve(agent, top_k=top_k)
         return [m for m in items if not _memory_text(m).startswith(REFLECTION_PREFIX)]
 
+    def _uses_mock(self, agent_type):
+        """Whether this agent type's decisions run on the mock model.
+
+        get_llm_invoke records the model it resolved for the type
+        (llm_params.model, else the run model). A type it has no record for
+        got its invoke from the case's run.mock slot, which is loaded only
+        under a mock run model, so the run model decides.
+        """
+        resolved = (getattr(self.runner, "_llm_resolved_params", None) or {}).get(agent_type) or {}
+        return is_mock_model(resolved.get("model") or self.model)
+
     def _call(self, agent_type, prompt, year, count):
-        if is_mock_model(self.model):
+        # The invoke this type's decisions use. Fetched first, even on the mock
+        # path, so get_llm_invoke has recorded the model _uses_mock reads.
+        invoke = self.runner.get_llm_invoke(agent_type)
+        if self._uses_mock(agent_type):
             return f"(mock model) Year {year} reflection over {count} memories."
-        raw = self.runner.get_llm_invoke(agent_type)(prompt)
+        raw = invoke(prompt)
         return raw[0] if isinstance(raw, tuple) else raw
 
     def _reflect(self, agent, year):

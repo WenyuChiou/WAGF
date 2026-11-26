@@ -88,7 +88,7 @@ These fields are read by the engines the paper runners build, and by `python -m 
 - `window` (the default): the prompt gets the most recent `retrieval_top_k` memories (the agent type's `memory` block, §2.3, default 3). Only `window_size` below applies, and only when written: it then caps how many memories the engine keeps, so the prompt holds the smaller of `window_size` and `retrieval_top_k`. Without it the engine keeps the last 100.
 - `humancentric`: the prompt gets the `window_size` most recent memories plus the `top_k_significant` most important long-term ones; `retrieval_top_k` does not apply. `broker.run` passes window_size 3, top_k_significant 2 and ranking_mode `legacy` unless the YAML sets them, and seeds the engine with the run seed unless `seed` is set. The other keys below, and the weights `W_recency`, `W_importance`, `W_context`, are passed to the engine as written.
 
-`broker.run` refuses any other `engine_type` (`universal` needs the multi-agent flood runner; `importance` and `hierarchical` are deprecated) and records the engine and its settings under `memory` in `broker_run.json`.
+`broker.run` refuses any other `engine_type` (`universal` needs the multi-agent flood runner; `importance` and `hierarchical` are deprecated), refuses `decay_by_calendar_year: true` (it needs a year on every memory, and the decision memories `broker.run` writes carry none), and records the engine and its settings under `memory` in `broker_run.json`.
 
 Every number in this block, its range and the default each piece of code applies is in the generated
 [parameter table](parameter_table.md). Where two pieces of code apply different defaults, the table lists both;
@@ -159,7 +159,9 @@ memories (earlier reflections left out), its agent type's `questions` and, at
 the top, `persona_instruction`. The reply is stored as the memory
 `Reflection (year N): ...` with importance `importance_boost`, so the
 humancentric engine keeps it in long-term memory, and is logged in
-`reflection_log.jsonl`. Under `--model mock` the reply is a fixed line. A
+`reflection_log.jsonl`. The reply comes from the model the agent type's
+decisions use (its `llm_params.model`, else `--model`), and is a fixed line
+when that is the mock model. A
 failed model call is counted and the run goes on. `broker_run.json` records
 the settings under `reflection`, with how many reflections were stored, how
 many replies were too short to store and how many calls failed.
