@@ -1185,3 +1185,209 @@ class TestRunIntegrityContract:
         audit = record_run_integrity(missing, memory_engine=object(), verbose=False)
         assert isinstance(audit, dict)
         assert audit["memory_engine_class"] == "object"
+
+
+# =============================================================================
+# T7: governance leaves no trace — Invariant 7
+# =============================================================================
+
+
+class TestGovernanceLeavesNoTrace:
+    """Invariant 7 (broker/INVARIANTS.md): under
+    ``memory.rejection_line_style: executed`` the runner's memory line, its
+    metadata and ``agent._last_action_context`` depend only on the action that
+    ran, never on whether governance stepped in.
+
+    Rows go through the real ``SkillBrokerEngine.process_step`` and the real
+    ``ExperimentRunner._apply_state_changes``; only the parse, the validator
+    and the simulation are scripted.
+    """
+
+    PROPOSED = "take_action"
+    DEFAULT = "default_action"
+
+    # -- helpers -----------------------------------------------------------
+
+    def _process(self, *, proposed, valid_by_attempt, parse_layer="mock",
+                 magnitude=None, policy="default"):
+        from unittest.mock import MagicMock
+
+        from broker.components.governance.registry import SkillRegistry
+        from broker.core.skill_broker_engine import SkillBrokerEngine
+        from broker.interfaces.skill_types import (
+            ExecutionResult, SkillDefinition, SkillProposal, ValidationResult,
+        )
+        from broker.utils.model_adapter import UnifiedAdapter
+
+        registry = SkillRegistry()
+        for sid in (self.PROPOSED, self.DEFAULT):
+            registry.register(SkillDefinition(
+                skill_id=sid, description=sid, eligible_agent_types=["*"],
+                preconditions=[], institutional_constraints={},
+                allowed_state_changes=[], implementation_mapping=sid,
+            ))
+        registry.set_default_skill(self.DEFAULT)
+
+        adapter = UnifiedAdapter.__new__(UnifiedAdapter)
+        adapter.parse_output = lambda *_a, **_k: SkillProposal(
+            skill_name=proposed, agent_id="A1", reasoning={},
+            parse_layer=parse_layer, magnitude_pct=magnitude,
+        )
+
+        # One verdict per attempt; the last one repeats.
+        verdicts = list(valid_by_attempt)
+
+        def _validate(*_a, **_k):
+            valid = verdicts.pop(0) if len(verdicts) > 1 else verdicts[0]
+            return ValidationResult(
+                valid=valid, validator_name="AgentValidator:thinking_error",
+                errors=[] if valid else ["blocked"],
+                metadata={} if valid else {"rules_hit": ["r1"], "level": "ERROR",
+                                           "rule_id": "r1"})
+
+        validator = MagicMock()
+        validator.validate.side_effect = _validate
+
+        config = MagicMock()
+        config.get_log_fields.return_value = []
+        config.get_governance_retries.return_value = 2
+        config.get_governance_max_reports.return_value = 3
+        config.get_multi_skill_config.return_value = {}
+        config.get_audit_executed_columns.return_value = True
+        config.get_governance_on_retry_exhausted.return_value = policy
+        config.get_parsing_config.return_value = {}
+
+        executed = []
+
+        class _Sim:
+            def execute_skill(self, approved_skill):
+                executed.append(approved_skill.skill_name)
+                return ExecutionResult(success=True, state_changes={})
+
+        class _Writer:
+            def write_trace(self, *a, **k):
+                pass
+
+        ctx_builder = SimpleNamespace(
+            build=lambda agent_id, env_context=None, **kw: {
+                "agent_id": agent_id, "state": {}},
+            format_prompt=lambda context: "PROMPT",
+        )
+        eng = SkillBrokerEngine(
+            skill_registry=registry, model_adapter=adapter, validators=[validator],
+            simulation_engine=_Sim(), context_builder=ctx_builder, config=config,
+        )
+        eng.audit_writer = _Writer()
+        result = eng.process_step(agent_id="A1", step_id=1, run_id="r", seed=42,
+                                  llm_invoke=lambda p: "raw", agent_type="agent")
+        return result, executed
+
+    def _apply(self, result, style):
+        from broker.core.experiment_runner import ExperimentRunner
+
+        runner = ExperimentRunner.__new__(ExperimentRunner)
+        runner._current_year = 3
+        runner.config = SimpleNamespace(domain=None)
+        stored = []
+        runner.memory_engine = SimpleNamespace(
+            add_memory_for_agent=lambda agent, content, meta: stored.append(
+                (content, dict(meta))))
+        memory_config = {} if style is None else {"rejection_line_style": style}
+        agent = SimpleNamespace(id="A1", apply_delta=lambda d: None,
+                                memory_config=memory_config)
+        runner._apply_state_changes(agent, result)
+        assert len(stored) == 1
+        return stored[0][0], stored[0][1], agent._last_action_context
+
+    def _rows(self):
+        """Approved, default after a rejection, default after an unreadable
+        answer; all three execute DEFAULT."""
+        from broker.interfaces.skill_types import SkillOutcome
+
+        approved, ex1 = self._process(proposed=self.DEFAULT, valid_by_attempt=[True])
+        rejected, ex2 = self._process(
+            proposed=self.PROPOSED, valid_by_attempt=[False], magnitude=0.7)
+        unreadable, ex3 = self._process(
+            proposed=self.PROPOSED, valid_by_attempt=[False], parse_layer="default")
+        assert approved.outcome is SkillOutcome.APPROVED and ex1 == [self.DEFAULT]
+        assert rejected.outcome is SkillOutcome.REJECTED and ex2 == [self.DEFAULT]
+        assert rejected.executed_via_fallback is True
+        assert unreadable.outcome is SkillOutcome.UNCERTAIN and ex3 == [self.DEFAULT]
+        return approved, rejected, unreadable
+
+    # -- (a) executed: one form, one key set -------------------------------
+
+    def test_executed_default_rows_match_approved_row(self):
+        approved, rejected, unreadable = self._rows()
+        a_line, a_meta, a_ctx = self._apply(approved, "executed")
+        assert a_line == "Year 3: Action carried out: Default action."
+        assert set(a_ctx) == {"skill_name", "year"}
+        for res in (rejected, unreadable):
+            assert self._apply(res, "executed") == (a_line, a_meta, a_ctx)
+
+    def test_executed_retry_success_matches_first_try_approval(self):
+        from broker.interfaces.skill_types import SkillOutcome
+
+        first_try, ex1 = self._process(
+            proposed=self.PROPOSED, valid_by_attempt=[True], magnitude=0.3)
+        after_retry, ex2 = self._process(
+            proposed=self.PROPOSED, valid_by_attempt=[False, True], magnitude=0.3)
+        assert first_try.outcome is SkillOutcome.APPROVED and ex1 == [self.PROPOSED]
+        assert after_retry.outcome is SkillOutcome.RETRY_SUCCESS
+        assert ex2 == [self.PROPOSED]
+        a = self._apply(first_try, "executed")
+        assert self._apply(after_retry, "executed") == a
+        assert a[0] == "Year 3: Action carried out: Take action (number 0.3)."
+
+    def test_executed_line_never_names_the_blocked_proposal_or_its_number(self):
+        _, rejected, _ = self._rows()
+        line, _, ctx = self._apply(rejected, "executed")
+        assert "take action" not in line.lower()
+        assert "0.7" not in line
+        assert "magnitude_pct" not in ctx
+        for word in ("reject", "default action applied", "rule", "proposal", "blocked"):
+            assert word not in line.lower()
+
+    def test_executed_kept_proposal_matches_approval_with_same_number(self):
+        """on_retry_exhausted: keep_proposal runs the blocked proposal with its
+        own number (6fc383b4); under executed it reads like an approval."""
+        from broker.interfaces.skill_types import SkillOutcome
+
+        approved, ex1 = self._process(
+            proposed=self.PROPOSED, valid_by_attempt=[True], magnitude=0.7)
+        kept, ex2 = self._process(
+            proposed=self.PROPOSED, valid_by_attempt=[False], magnitude=0.7,
+            policy="keep_proposal")
+        assert kept.outcome is SkillOutcome.REJECTED and ex2 == [self.PROPOSED]
+        assert kept.executed_via_fallback is False and ex1 == [self.PROPOSED]
+        a = self._apply(approved, "executed")
+        assert self._apply(kept, "executed") == a
+        assert a[0] == "Year 3: Action carried out: Take action (number 0.7)."
+
+    def test_unknown_style_still_raises(self):
+        approved, _, _ = self._rows()
+        with pytest.raises(ValueError, match="executed"):
+            self._apply(approved, "silent")
+
+    # -- (b) explicit and neutral unchanged --------------------------------
+
+    def test_explicit_and_neutral_unchanged(self):
+        approved, rejected, unreadable = self._rows()
+        for style in (None, "explicit"):
+            line, _, ctx = self._apply(approved, style)
+            assert line == "Year 3: Decided to: Default action"
+            assert ctx == {"skill_name": self.DEFAULT, "year": 3}
+            line, _, ctx = self._apply(rejected, style)
+            assert line == ("Year 3: Proposal to take action was rejected; "
+                            "default action applied: Default action")
+            assert ctx == {"skill_name": self.DEFAULT, "year": 3,
+                           "was_fallback": True, "proposed_skill": self.PROPOSED}
+            line, _, ctx = self._apply(unreadable, style)
+            assert line == ("Year 3: No valid proposal; "
+                            "default action applied: Default action")
+            assert ctx == {"skill_name": self.DEFAULT, "year": 3,
+                           "was_fallback": True, "proposed_skill": None}
+        line, _, ctx = self._apply(rejected, "neutral")
+        assert line == "Year 3: under rule r1, default action applied: Default action"
+        assert ctx == {"skill_name": self.DEFAULT, "year": 3, "was_fallback": True,
+                       "proposed_skill": self.PROPOSED, "blocking_rules": ["r1"]}
