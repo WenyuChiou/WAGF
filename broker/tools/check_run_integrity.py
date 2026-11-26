@@ -62,7 +62,9 @@ def main(argv=None):
         status, info = check_one(d)
         n = info.get("reflection_log_entries", "?")
         mem = info.get("memory_engine_type") or info.get("memory_engine_class") or "?"
-        print(f"  {status:11} | reflection={str(n):>5} | mem={mem} | {d}")
+        ctx_trunc = info.get("context_budget_truncated_rows")
+        extra = f" | ctx_truncated={ctx_trunc}" if ctx_trunc else ""
+        print(f"  {status:11} | reflection={str(n):>5} | mem={mem}{extra} | {d}")
         if status == "DEFECT" or (args.strict and status == "NO_MANIFEST"):
             bad += 1
     print(f"=== {bad} defect(s) over {len(dirs)} run dir(s) ===")

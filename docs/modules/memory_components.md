@@ -146,7 +146,7 @@ A **domain-agnostic** surprise strategy based on the agent's own action history.
 - **Unigram mode**: `Surprise = 1 - P(action | history)` with Laplace smoothing
 - **Bigram mode**: `Surprise = 1 - P(action | prev_action)` for transition-aware detection
 
-Available at `cognitive_governance.memory.strategies.DecisionConsistencySurprise`.
+Available at `broker.memory.strategies.DecisionConsistencySurprise` (`broker/memory/strategies/decision_consistency.py`).
 
 **Reference**: Itti & Baldi (2009) Bayesian Surprise; Sun et al. (2016) KISS principle.
 

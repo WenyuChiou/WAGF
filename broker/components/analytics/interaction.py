@@ -1,19 +1,13 @@
-"""
-Interaction Hub Component - PR 2
-Handles information diffusion across Institutional, Social, and Spatial tiers.
+"""Interaction Hub Component.
 
-Phase 8 Update: Supports SDK observers for domain-agnostic observation.
+Handles information diffusion across Institutional, Social, and Spatial tiers,
+with optional observer plugins for domain-agnostic observation.
 """
-from typing import List, Dict, Any, Optional, TYPE_CHECKING, Callable
+from typing import List, Dict, Any, Optional, Callable
 import random
 from broker.components.social.graph import SocialGraph
 from broker.components.memory.engine import MemoryEngine
 from broker.simulation.environment import TieredEnvironment
-
-# SDK observer imports (optional, for v2 methods)
-if TYPE_CHECKING:
-    from cognitive_governance.v1_prototype.social import SocialObserver
-    from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 
 def _action_label(action: str, label_map: Optional[Dict[str, str]] = None) -> str:
@@ -29,12 +23,10 @@ def _action_label(action: str, label_map: Optional[Dict[str, str]] = None) -> st
 
 
 class InteractionHub:
-    """
-    Manages the 'Worldview' of agents by aggregating tiered information.
+    """Manages the worldview of agents by aggregating tiered information.
 
-    Phase 8: Now supports SDK observers for domain-agnostic observation.
-    Use `social_observer` and `environment_observer` params for SDK integration,
-    or omit them to use legacy hardcoded observation logic.
+    Use ``social_observer`` and ``environment_observer`` params for custom
+    observer integration, or omit them for default observation logic.
     """
     def __init__(
         self,
@@ -43,11 +35,9 @@ class InteractionHub:
         environment: Optional[TieredEnvironment] = None,
         spatial_observables: List[str] = None,
         social_graph: Optional[SocialGraph] = None,
-        # Phase 8: SDK observer support
-        social_observer: Optional["SocialObserver"] = None,
-        environment_observer: Optional["EnvironmentObserver"] = None,
-        # Phase 6I-C: domain vocabulary supplied by the caller (no flood
-        # tokens in generic broker code).
+        social_observer: Optional[Any] = None,
+        environment_observer: Optional[Any] = None,
+        # Domain vocabulary supplied by the caller (keeps generic broker free of domain tokens).
         action_labels: Optional[Dict[str, str]] = None,
         visible_action_specs: Optional[List[Dict[str, Any]]] = None,
         # Optional keyed random source for draws that must not depend on
@@ -140,21 +130,9 @@ class InteractionHub:
         self,
         agent_id: str,
         agents: Dict[str, Any],
-        observer: Optional["SocialObserver"] = None,
+        observer: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Get visible neighbor actions using SDK SocialObserver.
-
-        Phase 8: Uses domain-agnostic observer pattern instead of hardcoded checks.
-
-        Args:
-            agent_id: The observing agent's ID
-            agents: Dictionary of all agents
-            observer: SDK SocialObserver instance (uses self.social_observer if None)
-
-        Returns:
-            List of visible action dicts from SDK observer
-        """
+        """Get visible neighbor actions using an injected SocialObserver."""
         obs = observer or self.social_observer
         if obs is None:
             # Fallback to legacy method
@@ -225,23 +203,10 @@ class InteractionHub:
         self,
         agent_id: str,
         agents: Dict[str, Any],
-        observer: Optional["SocialObserver"] = None,
+        observer: Optional[Any] = None,
         max_gossip: int = 2,
     ) -> Dict[str, Any]:
-        """
-        Get social context using SDK SocialObserver.
-
-        Phase 8: Uses domain-agnostic observer pattern for visible actions and gossip.
-
-        Args:
-            agent_id: The observing agent's ID
-            agents: Dictionary of all agents
-            observer: SDK SocialObserver instance (uses self.social_observer if None)
-            max_gossip: Maximum number of gossip snippets
-
-        Returns:
-            Dict with 'gossip', 'visible_actions', 'neighbor_count', 'observable_attrs'
-        """
+        """Get social context using an injected SocialObserver."""
         obs = observer or self.social_observer
         if obs is None:
             # Fallback to legacy method
@@ -295,21 +260,9 @@ class InteractionHub:
         self,
         agent_id: str,
         agents: Dict[str, Any],
-        observer: Optional["EnvironmentObserver"] = None,
+        observer: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """
-        Get environment observation using SDK EnvironmentObserver.
-
-        Phase 8: Uses domain-agnostic observer pattern for environment sensing.
-
-        Args:
-            agent_id: The observing agent's ID
-            agents: Dictionary of all agents
-            observer: SDK EnvironmentObserver instance (uses self.environment_observer if None)
-
-        Returns:
-            Dict with 'sensed_state', 'detected_events', 'observation_accuracy'
-        """
+        """Get environment observation using an injected EnvironmentObserver."""
         obs = observer or self.environment_observer
         if obs is None or self.environment is None:
             return {}

@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from broker.utils.logging import logger
 
 # ──────────────────────────────────────────────────────────────────────
-# PR-6 P1-a: world-rule EVALUABILITY tally
+# World-rule evaluability tally
 # ──────────────────────────────────────────────────────────────────────
 # A world-grounded rule whose variable the environment never published does not
 # fire — the safe direction, and the documented one. But a run where that is
@@ -77,7 +77,7 @@ def reset_world_rule_evaluability() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# PR-8: rows per decider
+# Per-decider census
 # ──────────────────────────────────────────────────────────────────────
 # A mixed-population run is a claim about composition: so many agents
 # decided by rule, so many by a model. The claim is checkable only if the
@@ -110,14 +110,11 @@ _RULE_FIELD_UNRESOLVED: Dict[str, Dict[str, int]] = {}
 # census can only see arms that produced a row; this is how it knows about
 # the arm that produced none.
 _DECLARED_DECIDERS: List[str] = []
-# Round 6 (2026-09): rows where SkillBrokerEngine.process_step ran with
-# render_check=False (broker/experiments/replay.py's documented opt-out
-# from the options-text-parity POST-RENDER check). A replayed decision
-# was previously distinguishable only by its `replay_` run_id prefix —
-# a convention, not a checkable field. Zero for every live run (the only
-# caller of render_check=False is replay.py), so this stays absent from
-# run_integrity.json outside a replay run — byte-neutral for the mock
-# recipes.
+# Rows where SkillBrokerEngine.process_step ran with render_check=False
+# (broker/experiments/replay.py's documented opt-out from the
+# options-text-parity POST-RENDER check). A replayed decision was previously
+# distinguishable only by its `replay_` run_id prefix. Zero for live runs,
+# so this stays absent from run_integrity.json outside replay runs.
 _RENDER_CHECK_SKIPPED_ROWS = 0
 
 
@@ -260,11 +257,9 @@ def configured_grid_expectation(agents, iterations) -> Dict[str, Any]:
     multiplies one type's agents by another type's years — an expectation no
     run could meet.
 
-    S2: this lives here, not on ``ExperimentRunner``, so the single-agent
-    ``run_flood`` path computes the same number the same way instead of
-    carrying a second inline copy that could drift. It NEVER raises: both
-    callers run it after the experiment is finished, and a helper that computed
-    a side-artifact number must not be able to abort a completed run.
+    Shared here rather than duplicated on ``ExperimentRunner`` so single-agent
+    and multi-step runners compute configured expectations identically. Never
+    raises: callers run it after the experiment finishes.
 
     A shortfall against this number is a NUMBER TO EXPLAIN, not a verdict — a
     flood household that relocates legitimately stops producing rows. Nothing
@@ -287,6 +282,67 @@ def configured_grid_expectation(agents, iterations) -> Dict[str, Any]:
     except Exception as exc:
         logger.debug(f"[Integrity] configured expectation unavailable: {exc}")
         return {}
+
+
+def scan_context_budget(output_dir) -> Dict[str, Any]:
+    """Summarize near-limit and truncated LLM calls from ``raw/*_traces.jsonl``.
+
+    Uses peak-first precedence (``prompt_tokens_peak`` / ``num_ctx_peak``,
+    falling back to ``prompt_tokens`` / ``num_ctx``) and ignores rows where
+    ``num_ctx <= 0`` (mock or cloud providers). Returns ``{}`` when no decision
+    reached >= 90% of ``num_ctx``, keeping clean and mock ``run_integrity.json``
+    files byte-identical. Never raises.
+    """
+    raw_dir = Path(output_dir) / "raw"
+    if not raw_dir.is_dir():
+        return {}
+    near_limit = 0
+    truncated = 0
+    max_ratio = 0.0
+    try:
+        for trace_path in sorted(raw_dir.glob("*_traces.jsonl")):
+            with trace_path.open(encoding="utf-8") as fh:
+                for line in fh:
+                    text = line.strip()
+                    if not text:
+                        continue
+                    try:
+                        row = json.loads(text)
+                    except ValueError:
+                        continue
+                    if not isinstance(row, dict) or "_metadata" in row:
+                        continue
+                    stats = row.get("llm_stats") or {}
+                    if not isinstance(stats, dict):
+                        continue
+                    pt = stats.get("prompt_tokens_peak") or stats.get("prompt_tokens") or 0
+                    nc = stats.get("num_ctx_peak") or stats.get("num_ctx") or 0
+                    if (
+                        isinstance(pt, bool)
+                        or isinstance(nc, bool)
+                        or not isinstance(pt, (int, float))
+                        or not isinstance(nc, (int, float))
+                    ):
+                        continue
+                    if nc <= 0 or pt <= 0:
+                        continue
+                    ratio = float(pt) / float(nc)
+                    if ratio >= 0.90:
+                        near_limit += 1
+                        if ratio >= 1.0:
+                            truncated += 1
+                        if ratio > max_ratio:
+                            max_ratio = ratio
+    except OSError as exc:
+        logger.debug(f"[Integrity] context-budget trace scan skipped: {exc}")
+        return {}
+    if near_limit == 0:
+        return {}
+    return {
+        "context_budget_near_limit_rows": near_limit,
+        "context_budget_truncated_rows": truncated,
+        "max_context_utilization": round(max_ratio, 4),
+    }
 
 
 def count_reflection_entries(output_dir) -> Tuple[bool, int]:
@@ -377,14 +433,10 @@ def record_run_integrity(
         "seed": seed,
     }
 
-    # PR-3: framework + audit-schema provenance, and audit-CSV coverage.
-    # ADDITIVE ONLY, and only into run_integrity.json (a side artifact) —
-    # no CSV byte is touched, so this needs no flag. It answers, from the
-    # artifact alone, "which framework wrote this, under which audit schema,
-    # and did every agent-year reach the CSV" — questions that previously
-    # needed the source tree plus a hand count.
-    # (``governance_mode`` above IS the governance-profile provenance — the
-    # profile name the run resolved, not the YAML's requested one.)
+    # Framework + audit-schema provenance and audit-CSV coverage (additive into
+    # run_integrity.json only; no CSV byte is touched). Answers from the
+    # artifact alone which framework wrote the run, under which audit schema,
+    # and whether every expected agent-year reached the CSV.
     coverage: Dict[str, Any] = {}
     provenance: Dict[str, Any] = {}
     corrected_schema_version: Optional[str] = None
@@ -402,10 +454,8 @@ def record_run_integrity(
             expected_years=expected_years,
         )
     except Exception as exc:
-        # W3: previously `except Exception: coverage = {}` — an import error, a
-        # bug in audit_coverage and a run with genuinely nothing to count all
-        # produced the same empty block. Record WHICH, so a plausible zero is
-        # never mistaken for a measurement.
+        # Distinguish coverage-calculation errors from genuinely empty runs so a
+        # plausible zero is never mistaken for a measurement.
         logger.warning(
             "[Integrity] audit coverage unavailable (%s: %s) — run_integrity.json "
             "records the failure rather than an empty coverage block.",
@@ -417,9 +467,7 @@ def record_run_integrity(
     if coverage:
         audit.update(coverage)
 
-    # P1d: which audit-schema contract the CSVs in this directory follow. The
-    # corrected column set is schema "3" — same fieldname detection the sidecar
-    # uses, so provenance and sidecar cannot disagree.
+    # Match the CSV sidecar's corrected-column schema version ("3").
     if (
         provenance
         and corrected_schema_version
@@ -427,30 +475,18 @@ def record_run_integrity(
     ):
         audit["framework_provenance"]["audit_schema_version"] = corrected_schema_version
 
-    # P1d: the RESOLVED flag, recorded unconditionally. `audit_coverage` can
-    # only detect it from a CSV that exists; the engine knows it even when the
-    # run wrote nothing, and the two disagreeing is itself worth seeing.
+    # Record resolved flag unconditionally (even if the run wrote no CSV).
     audit["audit_corrected_status_columns_resolved"] = (
         corrected_status_columns if isinstance(corrected_status_columns, bool)
         else None
     )
 
-    # P2d: sentinel rows the writer failed to write. Each one is a row that
-    # should exist and does not — the exact denominator hole the sentinel was
-    # added to close, previously visible only in the console log.
+    # Sentinel rows the writer failed to write (highlights denominator holes).
     if isinstance(sentinel_write_failures, int):
         audit["audit_sentinel_write_failures"] = sentinel_write_failures
 
-    # P1c: rules that fired but reached no breakdown bucket. Reported here and
-    # logged once per run rather than per row. A zero in every `rules_*_hit`
-    # column alongside a non-zero total here means the rules fired and their
-    # category could not be named — NOT that governance was quiet.
-    #
-    # C1: the tally is kept only on the INFERENCE path, so with the flag OFF it
-    # is 0 and this warning does not fire at all. That is deliberate: with no
-    # inference running, every AgentValidator result is uncategorised, and
-    # saying so once per run would be re-announcing a documented structural
-    # property of the flag-OFF column set rather than reporting a finding.
+    # Rules that fired without matching a rules_*_hit bucket. Kept on the
+    # inference path only so flag-OFF runs do not emit false warnings.
     try:
         from broker.validators.governance import get_uncategorised_rules
 
@@ -487,9 +523,8 @@ def record_run_integrity(
     except Exception as exc:
         logger.debug(f"[Integrity] uncategorised-rule tally skipped: {exc}")
 
-    # PR-6 P1-a: how many rows ran under a world-grounded profile, and on how
-    # many of them EVERY grounded rule was unevaluable because the environment
-    # did not publish its variable.
+    # World-grounded profile evaluability: count rows where every grounded rule
+    # was unevaluable because the environment omitted its target variable.
     world_eval = get_world_rule_evaluability()
     audit.update(world_eval)
     _wg_rows = world_eval["world_grounded_rows"]
@@ -509,23 +544,9 @@ def record_run_integrity(
     _denominator = _wg_rows
     world_rules_never_evaluable = bool(_wu_rows) and _wu_rows == _denominator
 
-    # Separately: rows that finished normally (not aborted) but still never
-    # reached the tally are a coverage hole worth naming on their own — some
-    # code path wrote a completed row without calling
-    # `note_world_grounded_row()`. Null when the CSV-side counts are not
-    # available (coverage unmeasured / no CSV yet), OR when `_wg_rows == 0` —
-    # verified empirically (2026-09, a plain default-profile flood run):
-    # `note_world_grounded_row()` is called only from the ONE call site gated
-    # by `AgentTypeConfig.get_audit_grounding_columns()`
-    # (`broker/core/_audit_helpers.py`), which is OFF for every non-grounded
-    # profile. On such a run `_wg_rows` is 0 for its entire duration BY
-    # DESIGN, not because of a coverage hole, so comparing it against
-    # `audit_rows` would report every ordinary row as "missing" and warn on
-    # every default-profile run in the fleet — the same false-alarm shape the
-    # uncategorised-rule tally's C1 fix (this module's sibling in
-    # `broker/validators/governance/__init__.py`) already exists to avoid.
-    # `_wg_rows > 0` is the cheapest available signal that the tally was
-    # actually live for this run, so the gap is only measured then.
+    # Rows that finished normally (not aborted) without calling
+    # note_world_grounded_row(). Only meaningful when _wg_rows > 0 so runs with
+    # audit.grounding_columns disabled do not trigger false alarms.
     _audit_rows = audit.get("audit_rows")
     _audit_aborted_rows = audit.get("audit_aborted_rows")
     if _wg_rows > 0 and isinstance(_audit_rows, int) and isinstance(_audit_aborted_rows, int):
@@ -543,20 +564,13 @@ def record_run_integrity(
             world_grounded_coverage_gap, _audit_rows, _audit_aborted_rows, _wg_rows,
         )
 
-    # Round 6: how many process_step calls ran with render_check=False
-    # (replay.py's documented opt-out from the options-text-parity
-    # POST-RENDER check). Recorded only when non-zero, so a plain live
-    # run — mock or real-LLM, replay never involved — leaves the key
-    # absent: byte-neutral for every non-replay recipe. This is what
-    # makes a replayed run distinguishable by a field, not only by its
-    # `replay_` run_id prefix convention.
+    # Replay runs opting out of options-text parity checks record the skip count;
+    # omitted when zero to preserve byte-identity on live runs.
     render_check_skipped = get_render_check_skipped_count()
     if render_check_skipped:
         audit["render_check_skipped_rows"] = render_check_skipped
 
-    # PR-8: how many audit rows each decider produced. Recorded only when
-    # the decider columns are on, so a plain all-LLM run leaves the key
-    # absent rather than asserting a one-entry census that says nothing.
+    # Per-decider audit census; omitted on plain single-LLM runs when disabled.
     decider_rows = get_decider_row_counts()
     declared_deciders = get_declared_deciders()
     if decider_rows or declared_deciders:
@@ -574,13 +588,8 @@ def record_run_integrity(
                 _seen[0],
             )
 
-        # P1-b: an arm that produced NO rows. The warning above only fires
-        # when exactly one arm produced rows, so a config with three
-        # declared arms and one silently empty passed it — and a CSV
-        # missing one `decider` category looks exactly like a correct one
-        # until somebody groups by it. A domain that REPLACED a built-in
-        # writes `<name>@<domain>` in the column, so compare on the bare
-        # name (see DeciderRegistry.audit_label).
+        # Warn on any declared decider arm that produced zero audit rows. Domain
+        # overrides appear as `<name>@<domain>`, so compare on the bare name.
         _seen_bare = {k.split("@", 1)[0] for k in decider_rows}
         zero_row_arms = sorted(set(declared_deciders) - _seen_bare)
         audit["decider_arms_with_zero_rows"] = zero_row_arms
@@ -594,33 +603,9 @@ def record_run_integrity(
                 zero_row_arms, decider_rows,
             )
 
-        # P1-b (code-reviewer focus 3): does the census account for every
-        # row the CSV holds? Compared as TOTALS — decider_rows_total
-        # against audit_rows — rather than each side's completed-row
-        # remainder after subtracting its own aborted count.
-        #
-        # The subtraction used to false-positive with
-        # audit.corrected_status_columns OFF: the F1 exception sentinel's
-        # CSV `status` cell then reads UNKNOWN, not ABORTED_EXCEPTION
-        # (docs/AUDIT_SCHEMA.md), because `approved_skill` — the column
-        # `trace_to_csv_row` actually reads `status` off — is only
-        # populated for that sentinel under the flag (see
-        # `ExperimentRunner._write_aborted_trace`). So `audit_aborted_rows`
-        # (read from that CSV column) MISSES the row, while
-        # `decider_aborted_rows` (recorded at write time by
-        # `_decider_audit_extra(..., path="aborted")`, gated on the
-        # decider-columns flag only — never on corrected_status_columns)
-        # still counts it. Subtracting each side's aborted count then
-        # left the CSV side one row HIGHER than the census side for every
-        # such run, and warned that some path skipped the decider column
-        # builder — when the row HAD gone through it; only the CSV
-        # status-column detector was blind to it.
-        #
-        # `decider_rows_total` and `audit_rows` are both un-subtracted
-        # totals: every row this run wrote, both sentinel classes
-        # included, land in each one the same way regardless of the
-        # corrected_status_columns flag — so comparing them sidesteps
-        # that flag-dependent blind spot entirely.
+        # Compare un-subtracted totals (decider_rows_total vs audit_rows) so
+        # exception sentinels whose CSV status falls back to UNKNOWN under
+        # corrected_status_columns=OFF do not cause a false remainder mismatch.
         aborted_by_decider = get_decider_aborted_row_counts()
         audit["decider_aborted_rows"] = aborted_by_decider
         if isinstance(_audit_rows, int):
@@ -635,9 +620,7 @@ def record_run_integrity(
                     _decider_rows_total, _audit_rows, _audit_rows, decider_rows,
                 )
 
-        # P1-a: an arm whose every row was its `default_action` fall-through
-        # is a CONSTANT, whatever its rule table says. Reported per decider
-        # and warned about when it is the whole arm.
+        # Warn if every row of a rule-based arm fell back to default_action.
         rule_default_rows = get_rule_default_row_counts()
         if rule_default_rows:
             audit["rule_default_rows"] = rule_default_rows
@@ -654,7 +637,7 @@ def record_run_integrity(
                         _name, _count,
                     )
 
-        # P1-a: the fields that made it so.
+        # Unresolved rule fields and rule firing tallies.
         unresolved = get_rule_field_unresolved()
         if unresolved:
             audit["rule_field_unresolved"] = unresolved
@@ -664,6 +647,19 @@ def record_run_integrity(
 
     if extra:
         audit.update(extra)
+
+    ctx_budget = scan_context_budget(output_dir)
+    if ctx_budget:
+        audit.update(ctx_budget)
+        if ctx_budget.get("context_budget_truncated_rows", 0) > 0:
+            logger.warning(
+                "[Integrity] %d decision(s) reached or exceeded num_ctx "
+                "(max utilization %.1f%%) — local LLM servers such as Ollama "
+                "silently truncate the prompt head when prompt_tokens >= num_ctx. "
+                "Raise global_config.llm.num_ctx or trim prompt/memory content.",
+                ctx_budget["context_budget_truncated_rows"],
+                ctx_budget["max_context_utilization"] * 100.0,
+            )
 
     # mismatch = a run expecting reflection produced no reflection entries
     # (refl_count <= 0 also catches the -1 "exists but unreadable" sentinel — the
@@ -683,6 +679,12 @@ def record_run_integrity(
             print(f" [Integrity] WARNING: could not write run_integrity.json ({exc})")
 
     if verbose:
+        if ctx_budget.get("context_budget_truncated_rows", 0) > 0:
+            print(
+                f" [Integrity] WARNING: {ctx_budget['context_budget_truncated_rows']} "
+                f"decision(s) reached/exceeded num_ctx (max utilization "
+                f"{ctx_budget['max_context_utilization']:.1%}); raise global_config.llm.num_ctx."
+            )
         if world_rules_never_evaluable:
             print("\n" + "!" * 72)
             print(" [INTEGRITY GUARDRAIL] a world-grounded governance profile was "
