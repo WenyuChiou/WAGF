@@ -55,9 +55,11 @@ trigger / refusal / output contract.
 
 ## Path 2 — Cursor / Cline / Aider / Codex CLI
 
-The repo's `AGENTS.md` is the cross-tool agent reference. It uses
-the OpenSkills format and is consumable by any agent that follows
-the AGENTS.md convention. Point your tool at it:
+The repo's `AGENTS.md` is the cross-tool agent reference: plain
+Markdown rules on release scope, framework invariants, verification
+commands and protected files, readable by any agent that follows the
+AGENTS.md convention (`broker/AGENTS.md` and `examples/AGENTS.md` add
+rules for those folders). Point your tool at it:
 
 - **Cursor**: drop `AGENTS.md` content into `.cursorrules` (or
   reference it from there) — Cursor reads `.cursorrules` at session
@@ -135,7 +137,8 @@ an issue — it's a skill bug, not user error.
   AI help*, across 3 different AI tooling stacks.
 - `ARCHITECTURE.md` is the deep dive into broker internals (for after
   you've onboarded and want to extend).
-- `AGENTS.md` is the machine-readable agent catalogue (skill schema).
+- `AGENTS.md` holds the repository rules for AI agents (scope, invariants,
+  verification commands, protected files).
 
 - For contribution conventions (commit messages, branch workflow, tests),
   see `CONTRIBUTING.md`.

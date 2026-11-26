@@ -5,7 +5,8 @@ WAGF is a cognitive governance middleware for LLM-driven human-water agent-based
 ## Current Release Scope (v0.6 / Framework Paper)
 
 - **In scope (production & framework paper)**: generic `broker/`, `providers/`, `templates/water_starter/`, and **single-agent-type** cases (`examples/single_agent/`, `examples/irrigation_abm/`, `examples/reservoir_control/`, `examples/reservoir_control_multidim/`) run via `python -m broker.run CONFIG` or frozen paper runners. Note: single-agent-type covers both single-operator (`N=1`) and homogeneous populations (`N=78`, `N=100`).
-- **Experimental / deferred (next study)**: `broker/components/coordination/`, `broker/components/social/`, `broker/components/orchestration/`, and `examples/multi_agent/`. Treat these as **Pre-1.0 Experimental** hooks for follow-up heterogeneous multi-actor (household + insurer + government) and asynchronous knowledge-graph social studies. Do not wire them into default single-agent-type `broker.run` paths or refactor them unless explicitly tasked.
+- **Experimental / deferred (next study)**: `broker/components/coordination/`, `broker/components/orchestration/`, the social-feed parts of `broker/components/social/` (posts and the follower network; off by default), and `examples/multi_agent/`. Treat these as **Pre-1.0 Experimental** hooks for follow-up heterogeneous multi-actor (household + insurer + government) and asynchronous knowledge-graph social studies. Do not wire them into default single-agent-type `broker.run` paths or refactor them unless explicitly tasked.
+- **Not experimental: the rest of `broker/components/social/`.** It is live code: `broker/__init__.py`, `broker/components/__init__.py`, `broker/components/context/providers.py` and `broker/simulation/environment.py` import it, and the frozen flood case `examples/single_agent/run_flood.py` builds its neighbour graph with `broker/components/social/graph.py (NeighborhoodGraph)`. Changes there must keep the frozen-guard tests passing.
 
 ## Repository Rules
 
@@ -20,9 +21,11 @@ WAGF is a cognitive governance middleware for LLM-driven human-water agent-based
 
 - **Core + integration tests (no live LLM)**:
   `python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm"`
-- **Scaffold smoke check**:
-  `python -m broker.tools.scaffold_domain` + `python -m broker.tools.validate_prompt` + `python -m broker.run <config> --model mock --years 1 --agents 1`
-- **Docs & manual check**:
+- **Scaffold smoke check** (the standard scenario CI runs in `.github/workflows/test.yml`). Use a domain name whose `examples/<name>_demo/` folder does not exist yet (`scaffold_domain` refuses a non-empty one; stop if it does), and afterwards delete that folder only if this check created it (replace `my_domain` in all three commands):
+  `python -m broker.tools.scaffold_domain my_domain --skills "action_a,action_b"`
+  `python -m broker.tools.validate_prompt examples/my_domain_demo/config/agent_types.yaml`
+  `python -m broker.run examples/my_domain_demo/config/agent_types.yaml --model mock --years 1 --agents 1`
+- **Docs & manual check** (`--timeout` needs `pytest-timeout`, installed by `pip install -e ".[dev]"`):
   `python -m pytest tests/test_docs_paths_exist.py tests/test_skill_paths_exist.py tests/test_user_manual.py --timeout=600 -q`
   `python -m mkdocs build --strict`
 

@@ -57,6 +57,7 @@ web = [
 ]
 dev = [
     "pytest>=7.0",
+    "pytest-timeout>=2.1",
 ]
 full = [
     "water-agent-governance-framework[llm,analysis,web,dev]",
