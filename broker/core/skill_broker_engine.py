@@ -1133,6 +1133,18 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         secondary_proposal, sec_context
                     )
                     sec_valid = all(v.valid for v in sec_validation if v)
+                    if self._summary_per_decision:
+                        # The second action belongs to the same decision: count
+                        # its rules, but not one already counted for the
+                        # primary (Codex P2 on #138). The primary was approved
+                        # to get here, so _build_approved_skill counted exactly
+                        # these ids for it.
+                        counted = set(self._decision_rule_ids(
+                            all_validation_history or validation_results))
+                        self.auditor.log_decision([
+                            rule_id for rule_id in self._decision_rule_ids(sec_validation)
+                            if rule_id not in counted
+                        ])
                     if sec_valid:
                         sec_params = {}
                         if sec_mag is not None:
@@ -1146,8 +1158,6 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                             parameters=sec_params,
                         )
                     else:
-                        if self._summary_per_decision:
-                            self.auditor.log_decision(self._decision_rule_ids(sec_validation))
                         sec_errs = [e for v in sec_validation if v for e in v.errors]
                         composite_errors.extend(sec_errs)
                         logger.warning(f" [Multi-Skill] {agent_id} | Secondary '{sec_skill}' failed: {sec_errs}")
@@ -1529,16 +1539,21 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     f" [Governance:Success] {agent_id} | Fixed after {retry_count} retries"
                     f" | Choice: '{skill_proposal.skill_name}'{rating_str}"
                 )
-                if self._summary_per_decision:
-                    self.auditor.log_decision(
-                        self._decision_rule_ids(all_validation_history or validation_results),
-                        success=True,
-                    )
-                else:
+                if not self._summary_per_decision:
                     for rule_id in initial_rule_ids:
                         self.auditor.log_intervention(rule_id, success=True, is_final=True)
             else:
                 self.stats["approved"] += 1
+            if self._summary_per_decision:
+                # Every approved decision, not only a retried one: the advisory
+                # pass can replace a blocked first proposal before any retry
+                # runs, and a rule demoted to advice never opens one (Codex P2
+                # on #138). No blocking history counts nothing; no retry, no
+                # retry_success.
+                self.auditor.log_decision(
+                    self._decision_rule_ids(all_validation_history or validation_results),
+                    success=True if retry_count > 0 else None,
+                )
         else:
             # RETRY EXHAUSTION: proceed with REJECTED status for audit
             is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
@@ -1592,11 +1607,17 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
 
     def _decision_rule_ids(self, results) -> List[str]:
         """The rule ids that blocked any attempt of one decision, each once, in
-        the order they first blocked (``summary_counts_per_decision``). Only
-        blocking results count; ids come from ``_summary_rule_ids``."""
+        the order they first blocked (``summary_counts_per_decision``). A
+        result counts when it blocked, or when ``governance.advise`` turned its
+        ERROR into advice (``disposition: ADVISE``): AgentValidator logs both
+        as blocks, so the summary with the option off counts both. Ids come
+        from ``_summary_rule_ids``."""
         ids: List[str] = []
         for result in results or []:
-            if result is None or result.valid:
+            if result is None:
+                continue
+            advised = (getattr(result, "metadata", None) or {}).get("disposition") == "ADVISE"
+            if result.valid and not advised:
                 continue
             for rule_id in self._summary_rule_ids(result):
                 if rule_id not in ids:

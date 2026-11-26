@@ -41,18 +41,19 @@ class _Ctx:
         return "PROMPT"
 
 
-def _config(flag):
+def _config(flag, advise=None, multi_skill=False):
     config = MagicMock()
     config.get_log_fields.return_value = []
     config.get_base_type.side_effect = lambda a: a
     config.get_parsing_config.return_value = {}
     config.get_governance_retries.return_value = 2
     config.get_governance_max_reports.return_value = 3
-    config.get_multi_skill_config.return_value = {}
+    config.get_multi_skill_config.return_value = (
+        {"enabled": True, "secondary_field": "secondary_decision"} if multi_skill else {})
     config.get_audit_initial_proposal_columns.return_value = False
     config.get_audit_executed_columns.return_value = False
     config.get_audit_advise_columns.return_value = False
-    config.get_governance_advise.return_value = None
+    config.get_governance_advise.return_value = advise
     config.get_governance_advise_mode.return_value = "off"
     config.get_governance_intervention_framing.return_value = "legacy"
     config.get_governance_on_retry_exhausted.return_value = "default"
@@ -62,10 +63,11 @@ def _config(flag):
     return config
 
 
-def _run(flag, skills, blocks):
+def _run(flag, skills, blocks, advise=None, multi_skill=False):
     """One decision through ``process_step``. The model proposes ``skills`` in
-    order; ``blocks`` maps a skill to the YAML rules that block it. The
-    validator logs each block the way ``AgentValidator`` does."""
+    order (a ``(primary, secondary)`` pair names a second action under
+    ``multi_skill``); ``blocks`` maps a skill to the YAML rules that block it.
+    The validator logs each block the way ``AgentValidator`` does."""
     registry = SkillRegistry()
     for sid in ("wait", "pump", "drill"):
         registry.register(SkillDefinition(
@@ -76,6 +78,9 @@ def _run(flag, skills, blocks):
     registry.set_default_skill("wait")
     proposals = iter([
         SkillProposal(skill_name=s, agent_id="agent_1", agent_type="agent", reasoning={})
+        if isinstance(s, str) else
+        SkillProposal(skill_name=s[0], agent_id="agent_1", agent_type="agent",
+                      reasoning={"_secondary_skill_name": s[1]})
         for s in skills
     ])
     adapter = UnifiedAdapter.__new__(UnifiedAdapter)
@@ -97,7 +102,8 @@ def _run(flag, skills, blocks):
     validator.validate.side_effect = validate
     eng = SkillBrokerEngine(
         skill_registry=registry, model_adapter=adapter, validators=[validator],
-        simulation_engine=None, context_builder=_Ctx(), config=_config(flag),
+        simulation_engine=None, context_builder=_Ctx(),
+        config=_config(flag, advise=advise, multi_skill=multi_skill),
     )
     eng.auditor = holder["auditor"] = _fresh_auditor()
     eng.process_step(agent_id="agent_1", step_id=1, run_id="r", seed=42,
@@ -141,6 +147,31 @@ def test_two_rules_then_a_third_then_fixed(flag, expected):
 
 def test_an_approved_decision_counts_nothing():
     assert _counts(_run(True, ["wait"], {"pump": ["cap"]})) == ({}, 0, 0, 0)
+
+
+@pytest.mark.parametrize("flag", [True, False])
+def test_advisory_repair_without_a_retry_still_counts(flag):
+    """Codex P2 on #138: with governance.advise, the advisory re-ask replaced
+    the first proposal and no governance retry ran, so under the option the
+    advised rule ("cap", demoted to advice) and the blocking one ("dry")
+    vanished from the summary. Each counts once, as with the option off;
+    no retry ran, so no retry_success."""
+    aud = _run(flag, ["pump", "wait"], {"pump": ["cap", "dry"]},
+               advise={"mode": "resample", "rule_ids": ["cap"]})
+    assert _counts(aud) == ({"cap": 1, "dry": 1}, 2, 0, 0)
+
+
+@pytest.mark.parametrize("flag, expected", [
+    # One decision: "cap" blocked the first primary and the secondary; once.
+    (True, ({"cap": 1}, 1, 1, 0)),
+    # Shipped: per attempt (primary, secondary) plus once at the end.
+    (False, ({"cap": 3}, 3, 1, 0)),
+])
+def test_a_rule_blocking_primary_and_secondary_counts_once(flag, expected):
+    """Codex P2 on #138: the secondary's block was counted again for a rule
+    the primary's history already counted for the same decision."""
+    aud = _run(flag, ["pump", ("drill", "pump")], {"pump": ["cap"]}, multi_skill=True)
+    assert _counts(aud) == expected
 
 
 def test_switch_drops_only_per_attempt_blocks():
