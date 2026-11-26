@@ -87,9 +87,10 @@ def gen_readme(
             "        `results/smoke` after the run."
         )
         pack_step = (
-            "Edit `adapters/{domain}_pack.py` only if you need it: its optional hooks\n"
-            "           (importance profiles, reflection status, emotion) are for cases with\n"
-            "           memory and appraisal; a physical-only case can leave them as they are."
+            "Edit `adapters/{domain}_pack.py` only if you need it: fill in\n"
+            "           `reflection_status_text` if you turn on `global_config.reflection`\n"
+            "           (it gives the reflection prompt its domain text); a physical-only\n"
+            "           case can leave the other optional hooks as they are."
         ).format(domain=domain)
     else:
         mock_note = (
