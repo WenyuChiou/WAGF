@@ -921,3 +921,18 @@ def test_a_bound_that_skips_the_default_must_hold_strictly_for_a_strict_comparis
     loose = _reservoir(bounds=[_bound("storage_unclamped >= 6.0", "s", ())])[3]
     assert not strict.bound_holds("s", 0.0) and strict.bound_holds("s", 1e-6)
     assert loose.bound_holds("s", 0.0) and not loose.bound_holds("s", -1e-6)
+
+
+def test_multiline_parenthesized_operand_scores_slack_and_runs_no_worse():
+    from broker.core.skill_broker_engine import SkillBrokerEngine
+
+    SimpleNamespace, registry, fallback, bound_hit, ctx = _no_worse_parts()
+    _solver, _bundle, _adapter, check = _reservoir(bounds=[
+        _bound("(storage_unclamped +\n  0) >= (6.0 +\n  0.0)", "dead_pool_violation", ()),
+    ])
+    fake = SimpleNamespace(_projection_check=lambda: check, skill_registry=registry)
+    proposal = SimpleNamespace(skill_name="set_release", magnitude_pct=0.7,
+                               magnitude_fallback=False, parameters={})
+    compared, kept = SkillBrokerEngine._no_worse_than_default(
+        fake, proposal, fallback, [bound_hit], ctx, "O")
+    assert compared and kept is not None and kept.parameters["magnitude_pct"] == 0.7

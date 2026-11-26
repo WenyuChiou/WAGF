@@ -86,9 +86,9 @@ REQUESTED_PREFIX = "requested_"
 
 
 def _slack_sides(must_hold: str) -> Optional[Tuple[str, str, bool]]:
-    """For a bound that is ONE comparison, the source texts of its larger and
-    smaller side (their difference is the bound's slack) and whether the
-    comparison is strict (``>`` or ``<``: a slack of 0 breaks it); None
+    """For a bound that is ONE comparison, the unparsed expressions of its
+    larger and smaller side (their difference is the bound's slack) and whether
+    the comparison is strict (``>`` or ``<``: a slack of 0 breaks it); None
     otherwise."""
     source = must_hold.strip()
     try:
@@ -97,10 +97,8 @@ def _slack_sides(must_hold: str) -> Optional[Tuple[str, str, bool]]:
         return None
     if not isinstance(node, ast.Compare) or len(node.ops) != 1:
         return None
-    left = ast.get_source_segment(source, node.left)
-    right = ast.get_source_segment(source, node.comparators[0])
-    if left is None or right is None:
-        return None
+    left = ast.unparse(node.left)
+    right = ast.unparse(node.comparators[0])
     strict = isinstance(node.ops[0], (ast.Gt, ast.Lt))
     if isinstance(node.ops[0], (ast.GtE, ast.Gt)):
         return (left, right, strict)
