@@ -155,7 +155,8 @@ The paper runners read this block, and `python -m broker.run` reads it when
 `broker.run`. There, after the case's own `post_year` hook, each agent whose
 turn it is (every `interval` years, and in a year it ran a skill listed in
 `triggers.decision_types`) gets one reflection prompt built from its retrieved
-memories (earlier reflections left out), its agent type's `questions` and, at
+memories (earlier reflections are left out before the retrieval limit, so
+they never take the place of another memory), its agent type's `questions` and, at
 the top, `persona_instruction`. The reply is stored as the memory
 `Reflection (year N): ...` with importance `importance_boost`, so the
 humancentric engine keeps it in long-term memory, and is logged in
