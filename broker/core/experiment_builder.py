@@ -19,8 +19,8 @@ class ExperimentBuilder:
     def __init__(self):
         self.model = "llama3.2:3b"
         self.num_years = 1
-        self.num_steps = None # PR 2: Track if steps explicitly used
-        self.semantic_thresholds = (0.3, 0.7) # PR 3: Default thresholds
+        self.num_steps = None  # Track if steps explicitly used
+        self.semantic_thresholds = (0.3, 0.7)  # Default L/M/H thresholds
         self.profile = "default"
         self.agents = {}
         self.sim_engine = None
@@ -32,13 +32,13 @@ class ExperimentBuilder:
         self._memory_write_policy = None
         self.verbose = False
         self.hooks = {}
-        self.workers = 1  # PR: Multiprocessing Core - default to sequential
+        self.workers = 1  # Default to sequential execution
         self.seed = 42    # Default seed for reproducibility
         self.custom_validators = [] # New: custom validator functions
-        self._auto_tune = False  # PR: Adaptive Performance Module
+        self._auto_tune = False  # Adaptive performance auto-tuning
         self._exact_output = False # New: bypass model subfolder
         self._phase_order = None  # Agent type groups for phased execution
-        self._coupling = None  # Phase 6V: declared coupling intent (with_coupling)
+        self._coupling = None  # Declared coupling intent (with_coupling)
         self.reflection_engine = None  # Wave 3 (3-5): runner reflection seat
         self._enable_cognitive_cache = False  # F4: cache opt-in, default OFF
         # Crash-resume journal (broker/utils/llm_journal.py); both None by
@@ -141,7 +141,7 @@ class ExperimentBuilder:
         return self
 
     def with_semantic_thresholds(self, low: float, high: float):
-        """PR 3: Configure L/M/H thresholds for prompt context."""
+        """Configure L/M/H thresholds for prompt context."""
         self.semantic_thresholds = (low, high)
         return self
 
@@ -202,8 +202,7 @@ class ExperimentBuilder:
         Phases run sequentially; agents within a phase run per the worker config.
         Example: [["government"], ["insurance"], ["household_owner", "household_renter"]]
 
-        NOT the same knob as ``CouplingContract.operation_order`` (PR-9
-        naming audit, finding noted alongside F1-F3): this orders WHICH
+        NOT the same knob as ``CouplingContract.operation_order``: this orders WHICH
         AGENT TYPES run before which OTHERS within one period (a WAGF
         execution-loop concept, applies with or without coupling).
         ``operation_order`` orders the stages INSIDE one coupled bundle's
@@ -250,7 +249,7 @@ class ExperimentBuilder:
         return self
 
     def with_coupling(self, contract: Any, sources: Any, domain: Optional[str] = None):
-        """Declare an environment-coupling intent (Phase 6V / review P1-4).
+        """Declare an environment-coupling intent.
 
         At ``build()`` time the two-layer flag is resolved
         (``global_config.coupling.enable`` in the agent_types YAML, else the
@@ -500,7 +499,7 @@ class ExperimentBuilder:
                     + "\n  - ".join(problems)
                 )
 
-        # Phase 6V: resolve a declared coupling intent BEFORE the sim engine is
+        # Resolve any declared coupling intent BEFORE the sim engine is
         # consumed (SkillBrokerEngine + ExperimentRunner both receive it below).
         self._apply_coupling()
 
@@ -512,7 +511,7 @@ class ExperimentBuilder:
         from broker.core.skill_broker_engine import SkillBrokerEngine
         import os
 
-        # PR: Adaptive Performance Module - Auto-tune if enabled
+        # Auto-tune performance settings if enabled
         if getattr(self, '_auto_tune', False):
             try:
                 from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
@@ -536,11 +535,11 @@ class ExperimentBuilder:
         if not reg:
             reg = SkillRegistry()
 
-        # Phase 6H Item 3 (INVARIANTS.md §I5 rule 4): fail fast at build
-        # time if the domain never declared a default_skill. The broker's
-        # legacy "do_nothing" fallback is flood-specific — letting another
-        # domain inherit it silently corrupts rejected-proposal fallbacks.
-        # Caught here, before any LLM call or audit row is produced.
+        # Fail fast at build time (INVARIANTS.md §I5 rule 4) if the domain never
+        # declared a default_skill. The broker's legacy "do_nothing" fallback is
+        # flood-specific — letting another domain inherit it silently corrupts
+        # rejected-proposal fallbacks. Caught here, before any LLM call or audit
+        # row is produced.
         if not reg.has_explicit_default_skill():
             raise ValueError(
                 "Skill registry has no explicit default_skill. Declare a "
@@ -582,7 +581,7 @@ class ExperimentBuilder:
         if hasattr(ctx_builder, 'semantic_thresholds'):
             ctx_builder.semantic_thresholds = getattr(self, 'semantic_thresholds', (0.3, 0.7))
 
-        # PR 2 Fix: Inject memory_engine into InteractionHub if present in ctx_builder
+        # Inject memory_engine into InteractionHub if present in ctx_builder
         if hasattr(ctx_builder, 'hub') and ctx_builder.hub:
             ctx_builder.hub.memory_engine = mem_engine
 
@@ -614,7 +613,7 @@ class ExperimentBuilder:
         )
         from broker.utils.model_adapter import get_adapter
 
-        # PR 13.1: Inject registry skills into adapter for robust parsing via factory
+        # Inject registry skills into adapter for robust parsing via factory
         adapter = get_adapter(self.model, config_path=self.agent_types_path)
         adapter.agent_type = "default"
         adapter.config_path = self.agent_types_path
@@ -681,7 +680,7 @@ class ExperimentBuilder:
             domain_physical_dispatch=config.get_governance_physical_dispatch(),
         )
 
-        # PR 11: Pass active project dir to adapter
+        # Pass active project dir to adapter
         if hasattr(adapter, 'project_dir') and self.agent_types_path:
             adapter.project_dir = Path(self.agent_types_path).parent
 
@@ -693,7 +692,7 @@ class ExperimentBuilder:
             output_dir=final_output_path,  # Use the same unified path
             seed=self.seed,
             verbose=self.verbose,
-            workers=self.workers,  # PR: Multiprocessing Core
+            workers=self.workers,
             phase_order=getattr(self, '_phase_order', None),
             # F4 (2026-06-10): cognitive cache opt-in; default OFF (audit-row +
             # coupled-execution holes on hits; see ExperimentConfig docstring).

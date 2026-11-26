@@ -103,7 +103,7 @@ def _reset_uncategorised_rules() -> None:
     from being built — but it is reported at WARNING, not swallowed: the
     consequence is a `rules_uncategorised_*` block in ``run_integrity.json``
     carrying a PREVIOUS run's rule ids alongside this one's, which is precisely
-    the kind of plausible-but-wrong number this PR exists to remove.
+    the kind of plausible-but-wrong number that must not leak across runs.
     """
     try:
         from ..validators.governance import reset_uncategorised_rules
@@ -126,11 +126,11 @@ def parameters_from_proposal(skill_proposal) -> Dict[str, Any]:
     happen if this ran?" before the proposal is approved.
     """
     _params: Dict[str, Any] = {}
-    # 6W-B5: multi-field setpoints flow into ApprovedSkill.parameters so the
+    # Multi-field setpoints flow into ApprovedSkill.parameters so the
     # already-N-capable commit_world_delta consumes them. Applied FIRST; the
     # legacy magnitude_pct/magnitude_fallback are set LAST so the legacy scalar
     # still wins those keys (backward path). Frozen domains: parameters=={} ->
-    # this update is a no-op -> _params built byte-identically to pre-6W.
+    # this update is a no-op -> _params stays byte-identical.
     if skill_proposal and skill_proposal.parameters:
         _params.update(skill_proposal.parameters)
     if skill_proposal and skill_proposal.magnitude_pct is not None:
@@ -195,7 +195,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         else:
             global_skills = self.config.get_global_skills("default")
             full_disclosure = self.config.get_full_disclosure_agent_types()
-            # Phase 6H Item 3: top_n / min_score resolved from
+            # top_n / min_score resolved from
             # DomainPack.retrieval_policy() + YAML governance.retrieval,
             # falling back to framework defaults (top_n=3, min_score=0.05).
             retrieval_cfg = self.config.get_retrieval_config()
@@ -206,7 +206,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 full_disclosure_agent_types=full_disclosure
             )
             
-        # PR-4 (D7): reset the parsing-flag warn-once set per engine. The set
+        # Reset the parsing-flag warn-once set per engine. The set
         # exists so a raising or non-bool `get_parsing_strict_layers` is
         # reported once instead of once per decision; without this reset a
         # SECOND run in the same process (a batch loop, a test session) is told
@@ -214,7 +214,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # failure the warning exists to surface. Import is local and guarded:
         # a caller may have swapped in an adapter module that does not define
         # it, and an engine must not fail to construct over a log-dedup set.
-        # PR-3's sibling `_audit_helpers._FLAG_WARNED` has the identical
+        # The sibling `_audit_helpers._FLAG_WARNED` has the identical
         # per-process dedup shape and the identical reason to reset here, so
         # it rides the same try block.
         try:
@@ -275,8 +275,8 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_ore = getattr(self.config, "get_governance_on_retry_exhausted", None)
         _ore = _get_ore() if callable(_get_ore) else "default"
         self._on_retry_exhausted = _ore if _ore in ("default", "keep_proposal") else "default"
-        # PR-6: the SOFT-RULE channel (off | record | feedback). Distinct from
-        # `_advise_mode` above, which is the P0-1c arm spec that DEMOTES rules
+        # The SOFT-RULE channel (off | record | feedback). Distinct from
+        # `_advise_mode` above, which is the arm spec that DEMOTES rules
         # authored as ERROR. This one governs rules already authored as WARNING.
         # Coerced to a known string for the same MagicMock reason as the rest.
         _get_soft = getattr(self.config, "get_governance_advise_mode", None)
@@ -414,7 +414,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             tuple(_scol) if isinstance(_scol, (list, tuple))
             and all(isinstance(k, str) for k in _scol) else ()
         )
-        # PR-6 review P1-b: FRAMEWORK-AWARE LABELS parity. Two evaluators read
+        # Framework-aware labels parity. Two evaluators read
         # this flag from two places — AgentValidator from the config object it
         # was constructed with, the ThinkingValidator from whatever the
         # dispatcher resolved — and before this check they could disagree
@@ -423,7 +423,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # value once per engine and say so loudly when the two do not match.
         self._framework_aware_labels = _resolve_framework_aware_labels(self.config)
         self._log_framework_aware_label_parity()
-        # PR-3: opt-in corrected status/truth columns. Resolved once, coerced to
+        # Opt-in corrected status/truth columns. Resolved once, coerced to
         # a real bool for the same reason as _count_llm_calls above.
         self._corrected_status_columns = _corrected_status_flag(self.config)
         # P1e: state the RESOLVED value once per engine. The flag fails closed
@@ -467,7 +467,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # here, next to the counter above, because engine construction is the
         # one point every run passes through exactly once.
         _reset_uncategorised_rules()
-        # PR-6 P1-a: same reasoning for the world-rule evaluability tally — a
+        # Same reasoning for the world-rule evaluability tally — a
         # seed sweep in one interpreter would otherwise carry the first run's
         # unevaluable-row count into the second run's run_integrity.json.
         try:
@@ -476,7 +476,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             reset_world_rule_evaluability()
         except Exception as exc:  # noqa: BLE001 — side-artifact tally only
             logger.debug(f"[Integrity] world-rule tally reset skipped: {exc}")
-        # PR-8: same reasoning for the per-decider row census.
+        # Same reasoning for the per-decider row census.
         try:
             from broker.core.run_integrity import (
                 reset_decider_row_counts, set_declared_deciders,
@@ -563,7 +563,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             )
 
     def _log_framework_aware_label_parity(self) -> None:
-        """PR-6 P1-b: state the resolved flag once, and name any disagreement.
+        """State the resolved flag once, and name any disagreement.
 
         Two evaluators answer "the model did not report this construct"
         differently unless they read the same flag: ``AgentValidator`` records a
@@ -696,7 +696,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
 
         ``llm_invoke`` has never been required to be an LLM — step ② is
         "whatever this callable returns, parsed and validated" and has
-        been since the first version. PR-8 names that: ``decider`` is the
+        been since the first version. ``decider`` is the
         registered name of what ``llm_invoke`` actually is, recorded on
         the audit row so a rule-based agent and a model-driven one are
         distinguishable in the CSV while going through identical
@@ -727,7 +727,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         self.stats["total"] += 1
         timestamp = datetime.now().isoformat()
 
-        # PR-8: a hybrid decider records per call which path answered.
+        # A hybrid decider records per call which path answered.
         # Cleared here so a value left by the PREVIOUS agent on this
         # thread can never be attributed to this row.
         try:
@@ -827,8 +827,8 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             if format_retry_count > 0:
                 self.auditor.log_structural_fault_terminal(format_retry_count)
             logger.error(f" [LLM:Error] Model returned unparsable output after retries for {agent_id}.")
-            # PR-3: this early return skips the single _write_audit_trace call
-            # site below, so pre-PR-3 an unparsable step left NO row in either
+            # This early return skips the single _write_audit_trace call
+            # site below; without a sentinel an unparsable step left NO row in either
             # the JSONL or the CSV — the arm with more parse failures silently
             # ran a smaller denominator. Under corrected_status_columns a
             # sentinel row conserves the agent x year count instead.
@@ -856,14 +856,14 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     llm_stats=total_llm_stats,
                     memory_pre=memory_pre,
                     prompt=prompt,
-                    # PR-4 (D6): the parser's own account of why this step
+                    # The parser's own account of why this step
                     # never produced a decision. Empty unless
                     # parsing.strict_layers is on, in which case the sentinel
                     # is the only row that can carry it.
                     parsing_warnings=list(
                         getattr(self.model_adapter, "last_parse_warnings", None) or []
                     ),
-                    # PR-8: the sentinel carries the same decider columns as
+                    # The sentinel carries the same decider columns as
                     # every other row, so a mixed-population CSV has one
                     # column set rather than two.
                     decider=decider,
@@ -914,7 +914,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # Inject proposed magnitude into validation context (activates magnitude_cap_check)
         if skill_proposal and skill_proposal.magnitude_pct is not None:
             validation_context["proposed_magnitude"] = skill_proposal.magnitude_pct
-        # 6W-B4: parallel lift of the multi-field setpoint dict (activates
+        # Parallel lift of the multi-field setpoint dict (activates
         # ParameterBoundsValidator). Frozen domains carry parameters=={} -> key never
         # added -> validation_context byte-identical; proposed_magnitude path unchanged.
         if skill_proposal and skill_proposal.parameters:
@@ -1033,9 +1033,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             )
         )
 
-        # PR-6: the SOFT-RULE channel. No-op (returns its inputs and an EMPTY info
+        # The SOFT-RULE channel. No-op (returns its inputs and an EMPTY info
         # dict, zero LLM calls) unless a config sets
-        # global_config.governance.advise_mode. Runs after the P0-1c advisory pass
+        # global_config.governance.advise_mode. Runs after the advisory pass
         # so `record` reports the findings of whatever proposal is actually going
         # into the retry loop, and before that loop so `feedback`'s advice reaches
         # the model while the decision is still open.
@@ -1124,7 +1124,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         sec_context["proposed_magnitude"] = sec_mag
                     else:
                         sec_context.pop("proposed_magnitude", None)
-                    # 6W-B4: secondary's own setpoint dict (not the primary's, copied above)
+                    # Secondary's own setpoint dict (not the primary's, copied above)
                     if secondary_proposal and secondary_proposal.parameters:
                         sec_context["proposed_parameters"] = dict(secondary_proposal.parameters)
                     else:
@@ -1171,7 +1171,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # AgentTypeConfig.get_audit_executed_columns; default-OFF keeps
         # frozen-baseline CSVs byte-identical).
         #
-        # PR-3: `execution_path` names WHICH of these branches ran, so the
+        # `execution_path` names WHICH of these branches ran, so the
         # audit row states the remap rule instead of leaving an analyst to
         # re-derive it from `status` plus the domain's `on_retry_exhausted`
         # policy (which the CSV does not carry). Computed unconditionally —
@@ -1217,9 +1217,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 executed_via_fallback = False
                 execution_path = "rejected_proposal"
             elif self.simulation_engine:
-                # Phase 6J-E (2026-05-22): get_default_skill() now raises
-                # if unconfigured (Phase 6J-C), so the only branch left to
-                # guard is whether the configured id is actually registered.
+                # get_default_skill() raises if unconfigured, so the only
+                # branch left to guard is whether the configured id is actually
+                # registered.
                 fallback_skill = self.skill_registry.get_default_skill()
                 if self.skill_registry.exists(fallback_skill):
                     fallback = ApprovedSkill(
@@ -1563,12 +1563,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 # (the proposal may be referenced by audit writer, memory, or cache)
                 _params = {"magnitude_pct": None, "magnitude_fallback": True}
             else:
-                # 6W-B5: a REJECTED proposal must NOT carry live setpoints into the
+                # A REJECTED proposal must NOT carry live setpoints into the
                 # fallback ApprovedSkill. For a pure multi-param domain (magnitude_pct
                 # is None) the bridge left the setpoint dict in _params; clear it so
                 # "rejection discards setpoints" is self-contained, not reliant on the
                 # caller's non-REJECTED execution guard. Byte-safe: when magnitude_pct
-                # is None, _params was already {} pre-6W for frozen domains.
+                # is None, _params is already {} for frozen domains.
                 # (Both branches here clear the numbers for a default. The two
                 # paths in process_step that run the rejected proposal itself,
                 # keep_proposal and no_worse_than_default, put the proposal's
@@ -1797,7 +1797,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             output_fields = {}
             if proposal.magnitude_pct is not None:
                 output_fields["magnitude_pct"] = proposal.magnitude_pct
-            # 6W: multi-dimensional setpoints live on proposal.parameters, not as
+            # Multi-dimensional setpoints live on proposal.parameters, not as
             # first-class proposal attributes — surface them so a skill whose
             # output_schema lists each setpoint as a required field can see them.
             # Empty {} for frozen single-scalar domains -> output_fields unchanged

@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import string
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -925,16 +926,33 @@ def check_rule_shapes(cfg: Dict[str, Any]) -> List[Issue]:
 
 _PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z_][\w]*)\}")
 _DOUBLE_BRACE_RE = re.compile(r"\{\{[^{}]+\}\}")
+_FALLBACK_PLACEHOLDER_RE = re.compile(
+    r"\{([a-zA-Z_][a-zA-Z0-9_]*)(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\[[^\[\]{}]+\])*(?:![sra])?(?::[^{}]*)?\}"
+)
 
 
 def extract_placeholders(template: str) -> Set[str]:
-    """Return the set of single-brace ``{placeholder}`` names in the template.
+    """Return the set of single-brace ``{placeholder}`` root names in the template.
 
-    Skips escaped double braces ``{{...}}`` (literal braces in inline JSON).
+    Parses placeholders with ``string.Formatter().parse(template)`` (matching
+    ``SafeFormatter`` and ``broker.run``), extracting root identifier field
+    names before ``.`` or ``[``, recursing into non-empty ``format_spec``, and
+    ignoring escaped ``{{...}}`` and positional ``{}``/``{0}``. Falls back to
+    regex extraction on ``ValueError`` (e.g. unclosed braces).
     """
-    # Mask double-brace blocks first so they don't pollute extraction.
-    masked = _DOUBLE_BRACE_RE.sub("", template)
-    return set(_PLACEHOLDER_RE.findall(masked))
+    names: Set[str] = set()
+    try:
+        for _literal, field_name, format_spec, _conversion in string.Formatter().parse(template):
+            if field_name:
+                root = field_name.split(".", 1)[0].split("[", 1)[0]
+                if root.isidentifier():
+                    names.add(root)
+            if format_spec:
+                names.update(extract_placeholders(format_spec))
+    except ValueError:
+        masked = template.replace("{{", "").replace("}}", "")
+        names.update(_FALLBACK_PLACEHOLDER_RE.findall(masked))
+    return names
 
 
 def collect_template_vars(value: Any) -> Set[str]:
