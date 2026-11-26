@@ -233,7 +233,7 @@ no appraisal step. See [Add your own domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN
 
 ## How to cite
 
-The package version is 0.6.0.
+The package version is 0.7.0.
 
 The WAGF methods paper is **in preparation**. Its runs are marked by four git tags:
 `paper-flood-runs` and `paper-irrigation-runs` for the language-model runs, and
@@ -242,7 +242,7 @@ history was rewritten on 2026-11-21, so old commit ids in run records map to new
 [`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md).
 
 The tools that check those runs are tagged `repro-kit-2026-11-22` (see
-[`reproduction/`](reproduction/README.md)). Neither that tag nor version 0.6.0 is the code
+[`reproduction/`](reproduction/README.md)). Neither that tag nor version 0.7.0 is the code
 the paper ran: at the tag, `broker/` differs from the flood run commit in 55 files and from
 the irrigation run commit in 58. The run folders are not in git. They are available from the
 authors on request, as is the Colorado River (CRSS) data the irrigation runs need
@@ -255,7 +255,7 @@ To cite WAGF in your own study, cite the software and record the version and com
   author  = {Chiou, Wenyu and Yang, Y. C. Ethan},
   title   = {Water Agent Governance Framework (WAGF)},
   year    = {2026},
-  version = {0.6.0},
+  version = {0.7.0},
   url     = {https://github.com/WenyuChiou/WAGF}
 }
 ```

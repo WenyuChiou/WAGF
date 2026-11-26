@@ -174,11 +174,11 @@ scaffold 會寫出設定檔、prompt、一個暫代的 `world.py`，以及 `glob
 
 ## 引用方式
 
-套件版本為 0.6.0。
+套件版本為 0.7.0。
 
 WAGF 的方法論文**正在準備中**。論文的執行以四個 git tag 標記：語言模型的執行是 `paper-flood-runs` 與 `paper-irrigation-runs`，參照模型的執行是 `paper-flood-rulebased` 與 `paper-irrigation-fql`。本 repository 的歷史在 2026-11-21 改寫過，因此執行紀錄裡的舊 commit id 要透過 [`reproduction/history_rewrite/`](reproduction/history_rewrite/README.md) 對應到新的 id。
 
-檢查這些執行的工具標為 `repro-kit-2026-11-22`（見 [`reproduction/`](reproduction/README.md)）。這個 tag 和 0.6.0 版都不是論文執行時的程式碼：在這個 tag 上，`broker/` 跟洪水執行的 commit 有 55 個檔案不同，跟灌溉執行的 commit 有 58 個檔案不同。執行資料夾不在 git 裡，可以向作者索取；灌溉執行需要的科羅拉多河（CRSS）資料也是一樣（見 [`DATA.md`](DATA.md)）。
+檢查這些執行的工具標為 `repro-kit-2026-11-22`（見 [`reproduction/`](reproduction/README.md)）。這個 tag 和 0.7.0 版都不是論文執行時的程式碼：在這個 tag 上，`broker/` 跟洪水執行的 commit 有 55 個檔案不同，跟灌溉執行的 commit 有 58 個檔案不同。執行資料夾不在 git 裡，可以向作者索取；灌溉執行需要的科羅拉多河（CRSS）資料也是一樣（見 [`DATA.md`](DATA.md)）。
 
 在你自己的研究裡引用 WAGF 時，請引用此軟體，並記錄所用的版本與 commit：
 
@@ -187,7 +187,7 @@ WAGF 的方法論文**正在準備中**。論文的執行以四個 git tag 標�
   author  = {Chiou, Wenyu and Yang, Y. C. Ethan},
   title   = {Water Agent Governance Framework (WAGF)},
   year    = {2026},
-  version = {0.6.0},
+  version = {0.7.0},
   url     = {https://github.com/WenyuChiou/WAGF}
 }
 ```

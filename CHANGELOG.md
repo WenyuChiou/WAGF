@@ -8,7 +8,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-26
+
+Minor-bump release: **`python -m broker.run` (new since v0.6.0), Invariant 7 (governance leaves no trace in
+memory), the irrigation v3 case and the paper-run reproduction kit.** 133 merged pull requests (#12 to #148)
+since v0.6.0, plus 8 direct commits on `main` (2026-06-10 to 2026-07-21) that were never released; the June 6W
+multi-dimensional actions (#12 to #17) are among the merged pull requests. `python -m broker.run CONFIG` did not exist in v0.6.0, so its changes below
+are behaviour changes only relative to unreleased builds; for a v0.6.0 user the breaking changes are the removed
+modules and examples and the changed paper-runner outputs listed under Changed and Removed. The frozen
+flood and irrigation runners are guarded by `reproduction/frozen_guard/` from #110 on; before that, their
+outputs changed on purpose (see Changed), so HEAD does not reproduce the corpora of earlier tags.
+
 ### Added
+
+- **`python -m broker.run` records the run environment and can refuse an unclean run.** Every
+  `reproducibility_manifest.json` gains `run_environment`: the WAGF version and core dependency versions
+  (read from the `pyproject.toml` next to the imported package first, installed metadata as fallback), the OS,
+  the Ollama server version (Ollama models only, one GET to `/api/version`, at most 2 s), and the WAGF source
+  commit and dirty state when WAGF is a git checkout. Lookups never raise; errors are recorded as exception type
+  names only. `broker.run` records four checks in `broker_run.json` (clean tree, model digest, metadata queries,
+  manifest write; mock and cloud models have no digest and record "not applicable"). `--strict-provenance` (off
+  by default) turns a failed check into a refusal: exit 2 before the run, exit 1 after it for a failed manifest
+  write. Paper runners only gain the additive `run_environment` key. `broker_run.json` is on the share allowlist.
+- **`python -m broker.run` honours the memory engine and reflection settings in the YAML.** Before this change it
+  always built an uncapped window memory and never reflected. `global_config.memory.engine_type` (one engine per
+  run) and the reflection block now take effect; `humancentric` with `decay_by_calendar_year: true` is refused at
+  start (exit 2) because the runner's own decision memories carry no year. Reflection uses each agent type's own
+  model. Earlier reflections are left out before the reflection retrieval limit, so a high-importance lesson
+  cannot take the only retrieval slot.
+- **`python -m broker.run` refuses a prompt file it cannot find or read.** Exit 2 when `prompt_template_file` is
+  not found next to the YAML, is not valid UTF-8, or an agent type sets both `prompt_template` and
+  `prompt_template_file`. `validate_prompt` warns when the file is found only in a parent folder. The scaffold no
+  longer writes a `global_config.reflection` block it did not use (it now follows the engine setting above).
+- **`python -m broker.run` warns about undeclared prompt placeholders.** When a config declares `template_vars`,
+  a placeholder that is neither declared nor a known framework or domain placeholder prints one stderr warning
+  (honours `inherit_shared: false`). Formatted and converted placeholders (`{x!r}`, `{x:>5}`) are parsed the way
+  the renderer parses them. It never stops a run.
+- **Run integrity reports context-window pressure.** When a call reaches 90% of `num_ctx` (`num_ctx > 0`),
+  `run_integrity.json` gains the near-limit and truncated counts (`context_budget_near_limit_rows`,
+  `context_budget_truncated_rows`) and the peak use (`max_context_utilization`); `check_run_integrity` prints
+  the truncated count when it is not zero. Otherwise nothing is added: mock and cloud runs, and runs that stay
+  under 90%, add no keys, and `integrity_ok` is unchanged. Damaged trace lines are skipped, not fatal.
+- **Rules can use world values and what-if runs.** A rule condition `expression:` is a safe arithmetic or boolean
+  expression over world values (env state, then agent state, then context); a missing variable means the rule
+  does not fire (with a warning), a division by zero stops the run, and it is not evaluated once an earlier
+  condition of the same rule is false. A coupling contract can declare `relations` (a residual that must hold,
+  for example a water balance, checked at every solver sub-step or once per decision period). A coupling can
+  declare feasibility bounds (`must_hold`) judged on the model's own what-if run before an action runs; the
+  copy-projection path requires the plain `BmiControlSink`, so a subclass that changes `apply_control` is refused
+  at build time. All three are absent from every paper config.
+- **Irrigation hindcast, paper measures and a simple information level.** `run_experiment.py --hindcast` and
+  `run_fql_baseline.py --hindcast` run the LLM agents (strict, disabled) and the FQL baseline over 2000-2018
+  under observed hydrology from the recorded 1999 state; `analysis/hindcast_v3_agents_score.py` scores requests
+  and deliveries against recorded diversions. `examples/irrigation_abm/analysis/paper_measures.py` computes the
+  pre-registered IBR, EHE and hindcast scores (`projection` and `hindcast` commands);
+  `examples/single_agent/analysis/paper_measures.py` does the same for flood.
+  `irrigation_farmer.prompt_information: full | simple` (absent = full, byte-identical to before) removes the
+  water-system knowledge sentences from the decision text; `config_variants/simple` and `simple_nolimit` use it,
+  and `analysis/simple_prompt_check.py` reads the saved decision prompts, memories and reflection prompts back to
+  confirm no removed sentence reaches them (retry feedback is counted on its own, since it can still explain a
+  rule by design).
+  FQL baseline: `--fql-init {calibrated,zero}` (default `calibrated`) warm-starts the Q tables from Hung and
+  Yang's calibrated tables (`--fql-init-dir`, default `Initial_Files/All-1109`); `zero` gives the earlier
+  all-zero start, which made 73 of 78 agents decrease in year 1. Do not pool FQL references from before and after.
+- **`python -m broker.tools.check_llm_transport RUN_DIR ...`** reads a run's `llm_journal.jsonl` (and run logs)
+  and reports model calls that failed after their retries, including failed reflections that
+  `run_integrity.json` does not count. Read-only.
+- **Reproduction kit.** `reproduction/` carries the estimators and verifiers behind the published numbers, run
+  recipes for the 30 paper runs, a manifest checker (`check_manifests.py`: a model digest counts as full only
+  with 64 hex characters; `config_snapshot.yaml` checked for every run) and a share step (`check_share.py`).
+  `reproduction/frozen_guard/` runs each paper case on a prompt-hash mock and compares small artifacts with
+  golden fixtures: a later change that alters a prompt, a governance decision, an executed action or the
+  simulation state of a covered arm fails a test. Covered: flood (three arms) and multi-agent flood in CI;
+  irrigation (three arms) manually, with CRSS data. A pass means the covered fixtures matched, not that every
+  paper path is unchanged.
+- **Publication-readiness stack (PR-6 to PR-8), all default off.** A `grounded_v1` governance profile with
+  world-conditioned ERROR rules, `validators.framework_aware_labels`, and `governance.advise_mode`
+  (`off | record | feedback`) for an audited soft layer of WARNING rules that are recorded and optionally fed
+  back without blocking; a generic `broker/calibration` package with `formula_version` on every EPI result and
+  a numeric optimizer; `decider:` per agent type (`llm`, `rule_based`, `hybrid` or a DomainPack-registered name)
+  through the same governance, retry and audit pipeline.
+- **Opt-in `global_config.governance.summary_counts_per_decision`.** Counts each decision's blocking rules once
+  in `governance_summary.json`; advisory repairs and the second action's rules count once per decision. Default
+  off; no paper config sets it. `scaffold_domain --default-skill`; every scaffold writes its own `mock_llm.py`
+  and a `mock:` slot so `--model mock` answers every required field.
+- **Single-agent flood Fig 2 script** (`examples/single_agent/analysis/fig2_flood_sq1.py`): draws appraisal
+  consistency and action variety (SQ1) from the run folders through `paper_measures.projection_run`; it raises
+  unless each run's manifest matches the expected governance profile, retry feedback mode, model and commit.
+- **MkDocs user manual and `templates/water_starter`.** `docs/index.md`, `mkdocs.yml` and a copy-and-adapt
+  reservoir starter case with a block, retry and repair loop under `--model mock`. `tests/test_user_manual.py`
+  runs `mkdocs build --strict`; CI does not install mkdocs.
+- **6W multi-dimensional actions (pull requests #12 to #14 and #16, 2026-06-12 to 06-14, after the v0.6.0 tag),
+  all default off.** `SkillProposal.parameters`; per-agent-type opt-in `multi_param_action`;
+  `param_specs()` SkillPack hook; `make_parameter_bounds_validator`; the commit bridge into
+  `ApprovedSkill.parameters`; key-gated `proposed_param_<name>` audit columns
+  (`global_config.audit.param_columns`); `GridProjector` and `GridEventSource`; worked example
+  `examples/reservoir_control_multidim`. The cognitive cache keeps the `parameters` dict on a cache hit.
+- **Context-budget warning and verification-ladder skill (direct commits 540a32aa, 5404a232).** The audit writer
+  warns during a run when `prompt_tokens / num_ctx > 0.9`; new skill `wagf-verification-ladder` (six gates, domain
+  to done).
+- **Isolated config roots**: `run_experiment.py --config-dir` and `run_flood.py --config-root` point a run at an
+  isolated copy of the config tree so a new arm cannot edit the frozen paper configs; `run_flood.py` exits before
+  any work if the isolated root is incomplete (#20).
+- **Public `resolve_domain_extensions` in `broker/tools/validate_prompt.py`** (the private name stays;
+  `broker/run/_entry.py` imports the public one).
 
 - **Twin-run check for Invariant 7: `python -m broker.tools.check_governance_carryover <case.yaml>`.**
   Runs a `python -m broker.run` case twice with the mock model, once with rules blocking and once with every
@@ -40,68 +143,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   New cases put the agent's action number on [0, 1]: `scaffold_domain --magnitude` writes a `magnitude` field with
   `min: 0` and `max: 1`, `validate_prompt` warns when a `magnitude` field allows more than 1 (an error under
   `--strict`), and `broker.run --strict-keys` refuses it. Paper cases keep their scales.
-
-### Changed
-
-- **Behaviour change: `python -m broker.run` leaves no governance trace in memory (Invariant 7).**
-  `broker/INVARIANTS.md` gains Invariant 7: rules correct only the current decision. `ExperimentRunner`
-  has a third `memory.rejection_line_style`, `executed`: every row's memory line is `Year N: Action carried
-  out: X.` (plus ` (number V)` for the number that ran), whether the agent's answer ran or a default replaced
-  it, and the action context carries no `was_fallback`, `proposed_skill` or `blocking_rules`.
-  `python -m broker.run` uses it when the YAML sets no style, and `scaffold_domain` writes it. So from year 2
-  on, prompts of every `broker.run` case change, with or without rejections: approved years read `Action
-  carried out: X.` instead of `Decided to: X`, and default years no longer say `Proposal to X was rejected`.
-  Mock reference outputs of `broker.run` cases need new baselines. `rejection_line_style: explicit` gives
-  back the old lines. On `broker.run` every memory write must carry `metadata['origin']` (`world`,
-  `decision`, `reflection`, `social`, `seed`) and is logged to the new `memory_log.jsonl`; an untagged write
-  from a case hook stops the run. `broker_run.json` records `rejection_line_style` and
-  `memory_writes_by_origin`. A stored lesson drops an opening line such as "Okay, here's my reflection:"
-  (R5 walk finding 18). `ExperimentRunner`'s own default stays `explicit`, so the frozen flood and
-  irrigation paper runners are unchanged.
-- `examples/reservoir_control` declares its action number on [0, 1] (a fraction of demand): the
-  `magnitude` field, prompt, mock answers, the `flood_control_overflow` rule (`proposed_magnitude < 1`)
-  and the registry follow. Executed release targets are unchanged.
-
-### Removed
-
-- Removed the vaccination demo and its example-specific loading and tests.
-- Removed the fake traffic fixture and tests that required it.
-- Removed archived social research notes; moved the DomainPack protocol reference to `docs/references/`.
-- Removed `examples/EXPERIMENTS.md` and the outdated multi-agent specifications.
-
-### Fixed
-
-- **Python checks reach `governance_summary.json`.** The summary counted a
-  blocking rule only by `metadata["rules_hit"]`, which YAML rules set and Python
-  checks (registered checks, `custom_validators`) usually do not; their blocks
-  showed in the audit CSV's `failed_rules` but not in `total_interventions`,
-  `rule_frequency`, `retry_exhausted` or `retry_success`. New
-  `global_config.governance.summary_counts_python_checks` (default false) counts
-  a blocking result without `rules_hit` under its `rule_id`, the same way
-  `rules_hit` ids are counted.
-  Scaffolded domains turn it on. Off, the summary is unchanged, so the paper
-  configs (which leave it unset) write the same numbers as before.
-- Report out-of-scale appraisal labels as format errors on the legacy validator
-  path; warn about unknown configuration keys and blocked skill names; refuse
-  undeclared builder profiles and supplied memory fractions outside [0, 1].
-- Correct CRSS data availability, YAML sampling defaults, and total parse-failure
-  documentation. Scaffolded domains enable the full proposal, attempt and status audit.
-
-- **OpenAI and Anthropic providers work with current models.** For
-  `--model openai:<name>` and `--model anthropic:<name>`, temperature and the
-  token limit are sent only when the config sets them (current Claude models
-  reject `temperature` or accept only the default). Anthropic requests default
-  to `max_tokens=16000` so a model that thinks first is not cut off; OpenAI's
-  own API gets `max_completion_tokens`, while a `base_url` server keeps
-  `max_tokens`. Ollama and Gemini providers keep 0.7 / 1024. The smoke
-  check's Claude default is now `claude-haiku-5-5`.
-
-- **Retry-exhaustion log wording.** `[Governance:Exhausted]` now names the
-  rejected proposal, the action actually dispatched, and `on_retry_exhausted`.
-  Parse-failure messages also use the dispatched registry default. Execution,
-  audit records, traces, and counters are unchanged.
-
-### Added
 
 - **One entry for every new case: `python -m broker.run CONFIG`.** It reads
   defaults and Python slots from a new `global_config.run` block in the
@@ -244,189 +285,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table heading reads the label instead of the metric's name, while
   assertions and messages keep the name. Absent, the heading is the name, as
   before.
-
-### Fixed
-
-- **Governed flood example runs from a fresh clone.** The runner
-  (`examples/governed_flood/run_experiment.py`) falls back to the tracked
-  single-agent inputs (`examples/single_agent/agent_initial_profiles.csv`,
-  `flood_years.csv`) when no local `data/` or `config/` copy exists, and
-  accepts `--initial-agents` / `--flood-years` overrides; a missing input
-  stops at startup naming the file. `--agents N` now takes effect (first N
-  households in ID order; it was printed but ignored) and exits with an
-  error when N is zero, negative or above the number of profiles. A full
-  100-household mock run is unchanged. The run prints which input files
-  it used.
-
-- **Framework model provenance (all domains).** Capture the real model digest
-  once at launch; mock manifests change `model_digest` from
-  `not_applicable_mock` to null. Cloud and unavailable local digests are also
-  null; a non-mock, non-cloud model with a null digest prints one launch
-  warning. Timestamps are never recorded as model digests.
-
-- **Coupled runs keep the environment's action context.** `broker/coupling/adapter.py`
-  and `broker/coupling/interfaces.py` (`WorldDelta.action_context`) pass the
-  environment's `action_context` through, so a `--coupling` irrigation run
-  writes the same memory lines as an uncoupled one (before, an increase lost
-  its "(by N%)" text); other coupled domains get the default `{}`.
-- **Reflection pilot fixes (irrigation v3 spec item 45n, items 1 to 4).**
-  Add word boundaries to irrigation and flood report-only flag patterns
-  while preserving their existing inflections; recover chained-key and
-  `lesson` replies for one-agent reflection calls, including legacy batches
-  without `allow_plain_text` (a chained reply the guard rejects, or one
-  with an invalid escape, now stays unreadable there instead of falling
-  through to the legacy recovery stages). Lenient parsing is recorded in check rows,
-  period counts and run logs, and `reflection_log.jsonl` entries carry a
-  `parse` field. Gate P5(a) on program-written reflection text and report
-  model lesson phrases separately; remove the quoted lesson opener from
-  the three reflection instructions; the existing decision-prompt golden
-  hashes hold.
-
-- **Batch reflection with one agent per batch reads replies filed under
-  another key.** `ReflectionEngine.parse_batch_reflection_response` now
-  accepts a one-key JSON reply with a non-blank string value when the batch
-  holds exactly one agent id, whatever the key is called (small models often
-  write `"Agent_1"` or the tail of a compound id). Before, such replies were
-  dropped as "no readable reply" (about 40 percent of irrigation v3
-  reflections with gemma3:4b, which uses batch size 1). Multi-agent batches
-  are unchanged, but a flood run whose last reflection batch holds one agent
-  can now read a reply that was dropped before, so a real-LLM rerun at this
-  commit does not follow exactly the same path as earlier corpora. Mock runs
-  are unaffected (the mock reply's value is an int, not a string). Each
-  fallback read is logged.
-
-### Changed
-
-- **The scaffold writes `world.py` and no runner.** `scaffold_domain` now writes
-  `world.py` (`SyntheticEnvironment` and `build_world(ctx)`) and a
-  `global_config.run` block instead of `run_experiment.py`; run the case with
-  `python -m broker.run`. The output folder name must be a Python identifier.
-  `examples/reservoir_control` runs through `python -m broker.run`, and its
-  `run_reservoir_ops.py` is removed (its Python pieces are in `ops_case.py`).
-  An agent type with no declared `psychological_framework` still falls back to
-  `pmt`, now with one warning per agent type.
-- **Ollama thinking is disabled by default with a per-run override.** Request
-  builders inspect each model's advertised capability and levels before adding
-  a top-level `think` field. Thinking-capable models receive `think: false` by
-  default when their advertised levels are absent or include boolean `false`;
-  `auto` defers to the model and `enabled` opts in. A model that advertises
-  levels but no `false` level cannot be forced off: WAGF omits `think`, warns
-  once, and records
-  `think_enforceable: false` in the manifest. Successful capability responses
-  are cached per endpoint and model, including successful responses without
-  capability data; connection, timeout, and server errors are not cached and
-  can be retried on a later call, with one warning per model. When capability
-  data is unknown, disabled mode uses a case-insensitive fallback for Gemma 4,
-  Qwen 3/3.5, DeepSeek V3.1/R1, Phi-4 Reasoning, GPT-OSS, Magistral, and
-  Hugging Face-style Gemma 4 or Qwen 3 names.
-
-  Before this change, omitting the setting used the model default, which means
-  thinking was on for models such as Gemma 4. To reproduce those runs, pass
-  `--thinking-mode auto`; this includes runs launched through
-  `examples/irrigation_abm/run_gemma4_{e2b,e4b}_batch.bat` and
-  `run_gemma4_irrigation_all.bat`. For a non-thinking model, the default value
-  recorded in the manifest changes, but the generated request body does not.
-  Older runs that explicitly selected `disabled` sent `think: false` even to a
-  non-thinking model; WAGF now omits the field, which is equivalent for that
-  model. Invalid configuration values fail at startup, so quote YAML modes
-  such as `"disabled"`; unquoted `off` is parsed as boolean `false` and rejected.
-  Qwen's `/no_think` prompt suffix is now added only in disabled mode; before
-  this change it was also added under the old `auto` default, so older Qwen 3
-  runs had thinking turned off by that suffix and are reproduced by the new
-  default, not by `--thinking-mode auto`. Enabled
-  mode preserves inline thinking tags, although Ollama's separate response
-  `thinking` field is not currently retained in the audit.
-- **Decision memory is 5 + 2 + 1 in irrigation and the flood rerun.**
-  Irrigation spec item 45m and flood design record item 9: five recent event
-  memories, up to two older memories with the highest decayed importance,
-  and one separate latest reflection. Irrigation keeps the salience order
-  for its event memories, then appends the reflection; its outcome-only
-  year-end reflection input is unchanged. Golden prompt hashes change for
-  this memory composition only. Flood retains WRR26's five recent lines
-  verbatim and adds older event lines with their original years, using the
-  existing human-centric engine with deterministic consolidation and bare
-  calendar-year decay at rate 0.1; equal scores rank newer lines first.
-  Flood's event-type importance is a stated modeling assumption, documented
-  in `examples/single_agent/docs/flood_wrr_rerun_runbook.md` (item 17).
-  This makes decision memory longer than WRR26. The `nonudge` configuration
-  is re-synced.
-- **Irrigation v3 (spec item 45; prompts and stored reflections change, a
-  new pilot is needed).** Reflection uses the grounded mechanism above with
-  the irrigation checker `examples/irrigation_abm/reflection_checks.py`
-  (`check_lesson`: a year, any number, junk, an overlong lesson or a figure
-  foreign to the agent's memory blocks storage; a precipitation rule with a
-  counterexample among the listed years, an "always met/short" claim the
-  listed years contradict and a contradicted Lake Mead direction are
-  report-only flags from the diagnosis's regular expressions). The
-  key years are the year just ended and the listed year with the largest
-  shortfall; the reflection prompt carries the allocation rules the decision
-  prompt states; the instruction asks for the listed years only,
-  precipitation only against the previous winter (never "average") and a
-  rule only when no listed year contradicts it. The first reflection is
-  written at the end of 2019. Upper Basin memory lines state the sub-basin
-  natural-flow share; a keep after a short year states the fall in the
-  request; the history column reads "received (AF)"; a floor sentence says
-  why no decrease is offered; caveat 7 says precipitation and flow come from
-  the same resampled year with a weak same-year correlation. The pilot gate
-  reads the new sentences (`v3_metrics.py`: P5(b) the flow share, keep clause
-  and floor sentence; P6 the program facts against the log). Golden prompt
-  hashes updated for these reasons only.
-- **Flood (`examples/single_agent`): reflection ON for the WRR26 rerun**
-  (`global_config.reflection.enabled: true`, with the grounded mechanism and
-  the flood checker `examples/single_agent/flood_reflection.py`). The stored
-  reflection is shown after the five recent and two significant event lines
-  (`DecisionFilteredMemoryEngine`'s reflection slot). Its program-written
-  facts carry forward the most recent damaged remembered year, including
-  years retrieved through significant event slots. With reflection on, window
-  memory must hold at least five event lines; reflection-off ablations and
-  the goldfish stress profile can use smaller windows. A dropped reflection
-  keeps the previous stored one; only a successfully stored replacement
-  removes it. With the reflection
-  block and the composed event-memory addition reverted, every decision and retry prompt and the simulation log are
-  byte-identical to c7b10c05 (scripted mock, 20 households, 10 years). The
-  `nonudge` variant is re-synced; runbook section 1a carries the
-  difference-table row and the limitation text.
-
-- **`examples/single_agent` (flood): HEAD no longer reproduces the
-  `83fa97e1` corpus.** The WRR26-fidelity rerun (flood design record,
-  `.research/design_specs/flood_design_record_2026-09-29.md`) corrects
-  several divergences from the published reference model and its own
-  public code (`LLMABM-GitHub-WRR.py`): insurance now lapses only on a
-  "do nothing" decision, not on every decision except "buy insurance" (so
-  elevating or relocating no longer silently cancels an existing policy);
-  the social-observation memory is two separate lines per year instead of
-  one combined sentence; the per-year memory write is one `add_memory`
-  call per event line instead of one `" | "`-joined line; the "Year t: You
-  chose to X." own-action memory line is removed; the neighbour-trust
-  update reads the community action rate from BEFORE the year's decisions,
-  not after; the four leading blank lines in every rendered prompt are
-  gone; an elevated household's menu now reads "1, 2, or 3" everywhere,
-  including the JSON placeholder; retry text for R1/R3/R4 is neutral
-  (states the judgment made at the start of the decision in plain words,
-  names no label code, carries no internal rule id --
-  `global_config.governance.rule_id_prefix: false`); `plain_action_names`
-  names the blocked skill in plain words; the thinking-rule appraisal is
-  frozen to the first-stated label within a decision
-  (`global_config.governance.appraisal_freeze: true`); R1 is redefined as
-  threat H/VH AND coping NOT (VL/L), not threat alone; `global_config.llm`
-  now sends gemma3:4b's own Modelfile defaults explicitly (`temperature:
-  1.0`, `top_p: 0.95`, `top_k: 64`) instead of leaving them unset (same
-  effective sampling, now recorded in every manifest); and
-  `global_config.audit.initial_proposal_columns` / `attempt_columns` /
-  `corrected_status_columns` are all turned on (needed by the post-run
-  IBR, `examples/single_agent/analysis/flood_ibr_v2.py`). Full list and
-  commands: `examples/single_agent/docs/flood_wrr_rerun_runbook.md`.
-- **`run_flood.py`'s `--use-priority-schema` now refuses to run** instead
-  of silently rendering a glued-together prompt: the WRR26-rerun
-  `household.txt` template's first line
-  (`{system_prompt}{priority_section}{narrative_persona}`) has no
-  separator between `{priority_section}` and `{narrative_persona}`, so an
-  old Group-C launcher that passes this flag now exits with a clear
-  `ValueError` instead of producing a malformed prompt.
-  `--use-priority-schema` was never part of the WRR26-fidelity rerun; a
-  priority-schema experiment needs a separate template/arm.
-
-### Added
 
 - **`global_config.audit.retry_prompt_columns`** (default off): adds
   `retry_prompts` to the raw JSONL trace -- the EXACT text sent on each
@@ -795,10 +653,278 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`AGENTS.md` carries the WAGF rules.** The generic `openskills` boilerplate is replaced by WAGF repository
+  guardrails (release scope, repository rules, verification commands, protected paths); new scoped
+  `broker/AGENTS.md` (hard invariants including Invariant 7) and `examples/AGENTS.md` (frozen single-agent
+  benchmarks, shared domain pack and starter cases, deferred multi-actor archive). #148 then narrowed the
+  experimental label to the social-feed parts of `broker/components/social/`, stated Invariant 7 in full with
+  its exceptions, and gave the scaffold and carryover check commands their required arguments.
+- **YAML reference and protocol docs match the code.** `docs/references/yaml_configuration_reference.md` gains the
+  memory keys code reads but the reference left out (`retrieval_top_k`, `composed_retrieval`, the Item-36b
+  options), a `global_config.social_feeds` section, the grounded-reflection keys, and a table of the default each
+  entry point uses for `window_size`, `arousal_threshold`, `ranking_mode`, `importance_boost` and
+  `top_k_significant`. Rows for the removed `agent_impact_handlers()` and `phase_layout()` are gone from the
+  DomainPack protocol reference and the new-domain guide (30 methods); 12 broken file paths fixed. No code
+  default changes.
+- **`python -m broker.run` feasibility bounds judge hold actions, and the action number follows its own skill
+  (R5 walk).** Feasibility bounds now also judge hold actions (`maintain_*`); the build warns when a bound leaves
+  out a registry skill and refuses a bound that names an unknown skill. A proposal blocked only by feasibility
+  bounds runs, after the retries, when the default breaches a bound too and the proposal's what-if run is no
+  worse than the default's on every bound; any other blocking rule keeps the default (the row stays REJECTED; columns `projection_kept_proposal`
+  and `execution_path=no_worse_than_default`). A `Coupled` world run with `coupling.enable` off stops with exit
+  2. `skills:` lists on numeric fields scope the
+  primary number and, under `multi_skill`, the secondary number by their own field; on
+  `on_retry_exhausted: keep_proposal` and the no-worse-than-default branch the proposal that runs keeps its own
+  number (before: cleared). A number found by the keyword fallback is scoped by the field it matched. Paper
+  configs have no `skills:` lists and set no `keep_proposal`, so their outputs are unchanged.
+- **Flood: `flood_threshold` changes only after an approved and executed outcome.** `FinalParityHook.post_step`
+  lowered the household's threshold whenever the approved skill resolved to `elevate_house`, including on
+  REJECTED or UNCERTAIN rows where it carries the blocked proposal. Measured on every landed single-agent flood
+  corpus (47,322 agent-years) the leak touched 1 row; existing results stay valid, but do not pool runs from
+  before and after this change without flagging the commit boundary.
+- **Irrigation: legal ceiling anchored on observed peak use.** `water_right = min(grid_top, (1 + paper_water_margin)
+  x peak_obs_1971_2018)`, `paper_water_margin` default 0.4 on [0, 1], exposed on both runners and recorded in the
+  manifest and config snapshot; the AZ_UB 2018 lookup is fixed (three Arizona Upper Basin agents had no 2018
+  value and started at 30 to 60 times their real use). The FQL Q-grid stays on the Hung and Yang grid top.
+  Regenerate FQL references on this change; do not pool with earlier runs.
+
+- **Behaviour change: `python -m broker.run` leaves no governance trace in memory (Invariant 7).**
+  `broker/INVARIANTS.md` gains Invariant 7: rules correct only the current decision. `ExperimentRunner`
+  has a third `memory.rejection_line_style`, `executed`: every row's memory line is `Year N: Action carried
+  out: X.` (plus ` (number V)` for the number that ran), whether the agent's answer ran or a default replaced
+  it, and the action context carries no `was_fallback`, `proposed_skill` or `blocking_rules`.
+  `python -m broker.run` uses it when the YAML sets no style, and `scaffold_domain` writes it. So from year 2
+  on, prompts of every `broker.run` case change, with or without rejections: approved years read `Action
+  carried out: X.` instead of `Decided to: X`, and default years no longer say `Proposal to X was rejected`.
+  Mock reference outputs of `broker.run` cases need new baselines. `rejection_line_style: explicit` gives
+  back the old lines. On `broker.run` every memory write must carry `metadata['origin']` (`world`,
+  `decision`, `reflection`, `social`, `seed`) and is logged to the new `memory_log.jsonl`; an untagged write
+  from a case hook stops the run. `broker_run.json` records `rejection_line_style` and
+  `memory_writes_by_origin`. A stored lesson drops an opening line such as "Okay, here's my reflection:"
+  (R5 walk finding 18). `ExperimentRunner`'s own default stays `explicit`, so the frozen flood and
+  irrigation paper runners are unchanged.
+- `examples/reservoir_control` declares its action number on [0, 1] (a fraction of demand): the
+  `magnitude` field, prompt, mock answers, the `flood_control_overflow` rule (`proposed_magnitude < 1`)
+  and the registry follow. Executed release targets are unchanged.
+
+- **The scaffold writes `world.py` and no runner.** `scaffold_domain` now writes
+  `world.py` (`SyntheticEnvironment` and `build_world(ctx)`) and a
+  `global_config.run` block instead of `run_experiment.py`; run the case with
+  `python -m broker.run`. The output folder name must be a Python identifier.
+  `examples/reservoir_control` runs through `python -m broker.run`, and its
+  `run_reservoir_ops.py` is removed (its Python pieces are in `ops_case.py`).
+  An agent type with no declared `psychological_framework` still falls back to
+  `pmt`, now with one warning per agent type.
+- **Ollama thinking is disabled by default with a per-run override.** Request
+  builders inspect each model's advertised capability and levels before adding
+  a top-level `think` field. Thinking-capable models receive `think: false` by
+  default when their advertised levels are absent or include boolean `false`;
+  `auto` defers to the model and `enabled` opts in. A model that advertises
+  levels but no `false` level cannot be forced off: WAGF omits `think`, warns
+  once, and records
+  `think_enforceable: false` in the manifest. Successful capability responses
+  are cached per endpoint and model, including successful responses without
+  capability data; connection, timeout, and server errors are not cached and
+  can be retried on a later call, with one warning per model. When capability
+  data is unknown, disabled mode uses a case-insensitive fallback for Gemma 4,
+  Qwen 3/3.5, DeepSeek V3.1/R1, Phi-4 Reasoning, GPT-OSS, Magistral, and
+  Hugging Face-style Gemma 4 or Qwen 3 names.
+
+  Before this change, omitting the setting used the model default, which means
+  thinking was on for models such as Gemma 4. To reproduce those runs, pass
+  `--thinking-mode auto`; this includes runs launched through
+  `examples/irrigation_abm/run_gemma4_{e2b,e4b}_batch.bat` and
+  `run_gemma4_irrigation_all.bat`. For a non-thinking model, the default value
+  recorded in the manifest changes, but the generated request body does not.
+  Older runs that explicitly selected `disabled` sent `think: false` even to a
+  non-thinking model; WAGF now omits the field, which is equivalent for that
+  model. Invalid configuration values fail at startup, so quote YAML modes
+  such as `"disabled"`; unquoted `off` is parsed as boolean `false` and rejected.
+  Qwen's `/no_think` prompt suffix is now added only in disabled mode; before
+  this change it was also added under the old `auto` default, so older Qwen 3
+  runs had thinking turned off by that suffix and are reproduced by the new
+  default, not by `--thinking-mode auto`. Enabled
+  mode preserves inline thinking tags, although Ollama's separate response
+  `thinking` field is not currently retained in the audit.
+- **Decision memory is 5 + 2 + 1 in irrigation and the flood rerun.**
+  Irrigation spec item 45m and flood design record item 9: five recent event
+  memories, up to two older memories with the highest decayed importance,
+  and one separate latest reflection. Irrigation keeps the salience order
+  for its event memories, then appends the reflection; its outcome-only
+  year-end reflection input is unchanged. Golden prompt hashes change for
+  this memory composition only. Flood retains WRR26's five recent lines
+  verbatim and adds older event lines with their original years, using the
+  existing human-centric engine with deterministic consolidation and bare
+  calendar-year decay at rate 0.1; equal scores rank newer lines first.
+  Flood's event-type importance is a stated modeling assumption, documented
+  in `examples/single_agent/docs/flood_wrr_rerun_runbook.md` (item 17).
+  This makes decision memory longer than WRR26. The `nonudge` configuration
+  is re-synced.
+- **Irrigation v3 (spec item 45; prompts and stored reflections change, a
+  new pilot is needed).** Reflection uses the grounded mechanism above with
+  the irrigation checker `examples/irrigation_abm/reflection_checks.py`
+  (`check_lesson`: a year, any number, junk, an overlong lesson or a figure
+  foreign to the agent's memory blocks storage; a precipitation rule with a
+  counterexample among the listed years, an "always met/short" claim the
+  listed years contradict and a contradicted Lake Mead direction are
+  report-only flags from the diagnosis's regular expressions). The
+  key years are the year just ended and the listed year with the largest
+  shortfall; the reflection prompt carries the allocation rules the decision
+  prompt states; the instruction asks for the listed years only,
+  precipitation only against the previous winter (never "average") and a
+  rule only when no listed year contradicts it. The first reflection is
+  written at the end of 2019. Upper Basin memory lines state the sub-basin
+  natural-flow share; a keep after a short year states the fall in the
+  request; the history column reads "received (AF)"; a floor sentence says
+  why no decrease is offered; caveat 7 says precipitation and flow come from
+  the same resampled year with a weak same-year correlation. The pilot gate
+  reads the new sentences (`v3_metrics.py`: P5(b) the flow share, keep clause
+  and floor sentence; P6 the program facts against the log). Golden prompt
+  hashes updated for these reasons only.
+- **Flood (`examples/single_agent`): reflection ON for the WRR26 rerun**
+  (`global_config.reflection.enabled: true`, with the grounded mechanism and
+  the flood checker `examples/single_agent/flood_reflection.py`). The stored
+  reflection is shown after the five recent and two significant event lines
+  (`DecisionFilteredMemoryEngine`'s reflection slot). Its program-written
+  facts carry forward the most recent damaged remembered year, including
+  years retrieved through significant event slots. With reflection on, window
+  memory must hold at least five event lines; reflection-off ablations and
+  the goldfish stress profile can use smaller windows. A dropped reflection
+  keeps the previous stored one; only a successfully stored replacement
+  removes it. With the reflection
+  block and the composed event-memory addition reverted, every decision and retry prompt and the simulation log are
+  byte-identical to c7b10c05 (scripted mock, 20 households, 10 years). The
+  `nonudge` variant is re-synced; runbook section 1a carries the
+  difference-table row and the limitation text.
+
+- **`examples/single_agent` (flood): HEAD no longer reproduces the
+  `83fa97e1` corpus.** The WRR26-fidelity rerun (flood design record,
+  `.research/design_specs/flood_design_record_2026-09-29.md`) corrects
+  several divergences from the published reference model and its own
+  public code (`LLMABM-GitHub-WRR.py`): insurance now lapses only on a
+  "do nothing" decision, not on every decision except "buy insurance" (so
+  elevating or relocating no longer silently cancels an existing policy);
+  the social-observation memory is two separate lines per year instead of
+  one combined sentence; the per-year memory write is one `add_memory`
+  call per event line instead of one `" | "`-joined line; the "Year t: You
+  chose to X." own-action memory line is removed; the neighbour-trust
+  update reads the community action rate from BEFORE the year's decisions,
+  not after; the four leading blank lines in every rendered prompt are
+  gone; an elevated household's menu now reads "1, 2, or 3" everywhere,
+  including the JSON placeholder; retry text for R1/R3/R4 is neutral
+  (states the judgment made at the start of the decision in plain words,
+  names no label code, carries no internal rule id --
+  `global_config.governance.rule_id_prefix: false`); `plain_action_names`
+  names the blocked skill in plain words; the thinking-rule appraisal is
+  frozen to the first-stated label within a decision
+  (`global_config.governance.appraisal_freeze: true`); R1 is redefined as
+  threat H/VH AND coping NOT (VL/L), not threat alone; `global_config.llm`
+  now sends gemma3:4b's own Modelfile defaults explicitly (`temperature:
+  1.0`, `top_p: 0.95`, `top_k: 64`) instead of leaving them unset (same
+  effective sampling, now recorded in every manifest); and
+  `global_config.audit.initial_proposal_columns` / `attempt_columns` /
+  `corrected_status_columns` are all turned on (needed by the post-run
+  IBR, `examples/single_agent/analysis/flood_ibr_v2.py`). Full list and
+  commands: `examples/single_agent/docs/flood_wrr_rerun_runbook.md`.
+- **`run_flood.py`'s `--use-priority-schema` now refuses to run** instead
+  of silently rendering a glued-together prompt: the WRR26-rerun
+  `household.txt` template's first line
+  (`{system_prompt}{priority_section}{narrative_persona}`) has no
+  separator between `{priority_section}` and `{narrative_persona}`, so an
+  old Group-C launcher that passes this flag now exits with a clear
+  `ValueError` instead of producing a malformed prompt.
+  `--use-priority-schema` was never part of the WRR26-fidelity rerun; a
+  priority-schema experiment needs a separate template/arm.
+
 - irrigation: physics doc corrected (no 12 MAF Powell ceiling in code), README validator count clarified (compact_allocation_check inactive), new docs/irrigation_model_caveats.md with the ten Methods/SI caveats from the 2026-09-16 model review, centroid provenance note, UB group-count assertion.
 - **irrigation: `coupling.context_contract` default-on for the paper config** (`examples/irrigation_abm/config/agent_types.yaml`, PR-9 F1 follow-up): the fail-loud presence/range guard on `get_agent_context()`'s fifteen physical-state fields is now active for every paper-config run instead of opt-in. Verified byte-identical to flag-off mock runs: 4 runs at `--agents 5 --years 3 --seed 42 --workers 1` (strict + disabled governance) plus one at paper scale, `--real --years 42 --seed 42 --governance-mode strict` (78 CRSS agents, `coupling_guard_calls: 3276`). Every pair produced an identical `irrigation_farmer_governance_audit.csv` (`broker.tools.compare_audit_csv`), an identical `simulation_log.csv` (same raw sha256), and, for the 3-year runs, an identical year-2 rendered prompt. New regression test `examples/irrigation_abm/tests/test_context_contract_default_on.py` pins the config default and a live `run_integrity.json` read (`coupling_contract_active: true`, `coupling_guard_calls > 0`).
 
 ### Fixed
+
+- **Domain-neutral validator fallback and a locally seeded `RandomGraph`.** If the validator registry cannot be
+  imported, the fallback no longer hardcodes flood extreme actions and the "pmt" framework: it logs a warning
+  and uses an empty extreme set. `RandomGraph` seeds its own `random.Random(seed)` (same edges for a given seed,
+  global random state untouched). `orchestration` and the social-feed parts of `broker/components/social` are
+  marked experimental. `pyproject.toml` pytest `testpaths` now include `broker/tests`, so a bare `pytest` runs
+  both suites.
+
+- **Python checks reach `governance_summary.json`.** The summary counted a
+  blocking rule only by `metadata["rules_hit"]`, which YAML rules set and Python
+  checks (registered checks, `custom_validators`) usually do not; their blocks
+  showed in the audit CSV's `failed_rules` but not in `total_interventions`,
+  `rule_frequency`, `retry_exhausted` or `retry_success`. New
+  `global_config.governance.summary_counts_python_checks` (default false) counts
+  a blocking result without `rules_hit` under its `rule_id`, the same way
+  `rules_hit` ids are counted.
+  Scaffolded domains turn it on. Off, the summary is unchanged, so the paper
+  configs (which leave it unset) write the same numbers as before.
+- Report out-of-scale appraisal labels as format errors on the legacy validator
+  path; warn about unknown configuration keys and blocked skill names; refuse
+  undeclared builder profiles and supplied memory fractions outside [0, 1].
+- Correct CRSS data availability, YAML sampling defaults, and total parse-failure
+  documentation. Scaffolded domains enable the full proposal, attempt and status audit.
+
+- **OpenAI and Anthropic providers work with current models.** For
+  `--model openai:<name>` and `--model anthropic:<name>`, temperature and the
+  token limit are sent only when the config sets them (current Claude models
+  reject `temperature` or accept only the default). Anthropic requests default
+  to `max_tokens=16000` so a model that thinks first is not cut off; OpenAI's
+  own API gets `max_completion_tokens`, while a `base_url` server keeps
+  `max_tokens`. Ollama and Gemini providers keep 0.7 / 1024. The smoke
+  check's Claude default is now `claude-haiku-5-5`.
+
+- **Retry-exhaustion log wording.** `[Governance:Exhausted]` now names the
+  rejected proposal, the action actually dispatched, and `on_retry_exhausted`.
+  Parse-failure messages also use the dispatched registry default. Execution,
+  audit records, traces, and counters are unchanged.
+
+- **Governed flood example runs from a fresh clone.** The runner
+  (`examples/governed_flood/run_experiment.py`) falls back to the tracked
+  single-agent inputs (`examples/single_agent/agent_initial_profiles.csv`,
+  `flood_years.csv`) when no local `data/` or `config/` copy exists, and
+  accepts `--initial-agents` / `--flood-years` overrides; a missing input
+  stops at startup naming the file. `--agents N` now takes effect (first N
+  households in ID order; it was printed but ignored) and exits with an
+  error when N is zero, negative or above the number of profiles. A full
+  100-household mock run is unchanged. The run prints which input files
+  it used.
+
+- **Framework model provenance (all domains).** Capture the real model digest
+  once at launch; mock manifests change `model_digest` from
+  `not_applicable_mock` to null. Cloud and unavailable local digests are also
+  null; a non-mock, non-cloud model with a null digest prints one launch
+  warning. Timestamps are never recorded as model digests.
+
+- **Coupled runs keep the environment's action context.** `broker/coupling/adapter.py`
+  and `broker/coupling/interfaces.py` (`WorldDelta.action_context`) pass the
+  environment's `action_context` through, so a `--coupling` irrigation run
+  writes the same memory lines as an uncoupled one (before, an increase lost
+  its "(by N%)" text); other coupled domains get the default `{}`.
+- **Reflection pilot fixes (irrigation v3 spec item 45n, items 1 to 4).**
+  Add word boundaries to irrigation and flood report-only flag patterns
+  while preserving their existing inflections; recover chained-key and
+  `lesson` replies for one-agent reflection calls, including legacy batches
+  without `allow_plain_text` (a chained reply the guard rejects, or one
+  with an invalid escape, now stays unreadable there instead of falling
+  through to the legacy recovery stages). Lenient parsing is recorded in check rows,
+  period counts and run logs, and `reflection_log.jsonl` entries carry a
+  `parse` field. Gate P5(a) on program-written reflection text and report
+  model lesson phrases separately; remove the quoted lesson opener from
+  the three reflection instructions; the existing decision-prompt golden
+  hashes hold.
+
+- **Batch reflection with one agent per batch reads replies filed under
+  another key.** `ReflectionEngine.parse_batch_reflection_response` now
+  accepts a one-key JSON reply with a non-blank string value when the batch
+  holds exactly one agent id, whatever the key is called (small models often
+  write `"Agent_1"` or the tail of a compound id). Before, such replies were
+  dropped as "no readable reply" (about 40 percent of irrigation v3
+  reflections with gemma3:4b, which uses batch size 1). Multi-agent batches
+  are unchanged, but a flood run whose last reflection batch holds one agent
+  can now read a reply that was dropped before, so a real-LLM rerun at this
+  commit does not follow exactly the same path as earlier corpora. Mock runs
+  are unaffected (the mock reply's value is an int, not a string). Each
+  fallback read is logged.
 
 - **Composed retrieval's significant slots could show the same text twice
   (2026-09-26)**: `HumanCentricMemoryEngine.retrieve`'s legacy/composed
@@ -1649,6 +1775,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- 29 unreferenced docs, figures, memos and helper scripts removed; three dead symbols (`SpeculativeDrafter` and
+  two analysis helpers) removed.
+
+- Removed the vaccination demo and its example-specific loading and tests.
+- Removed the fake traffic fixture and tests that required it.
+- Removed archived social research notes; moved the DomainPack protocol reference to `docs/references/`.
+- Removed `examples/EXPERIMENTS.md` and the outdated multi-agent specifications.
+
 - **`broker/validators/agent/base.py`** (135 LOC) — a second, unused
   `BaseValidator` (+ `SchemaValidator` / `PolicyValidator` /
   `FeasibilityValidator` / `LeakageValidator` / `MemoryIntegrityValidator`)
@@ -1829,6 +1963,15 @@ tests/ broker/` suite, flood + irrigation mock byte-identity via
   declared field type. Tracked by
   `broker/tests/test_options_text_parity.py::test_p7_1_name_path_rejects_digit_invitation_without_menu`,
   marked `xfail(strict=True)`.
+
+### Verification
+
+Full suite verification on the release tree: `broker/tests` 3,328 passed (6 skipped, 3 expected failures) and `tests/` 2,312 passed (15 skipped) (the v0.6.0
+release reported 3,117). Frozen guards (`reproduction/frozen_guard/`, mock model) pass for the covered flood and
+multi-agent flood arms in CI; the irrigation arms need CRSS data and run manually: run on the release tree with
+the CRSS data, `examples/irrigation_abm/tests/test_frozen_guard_irrigation.py` 6 passed. Real-LLM validation of the new
+`python -m broker.run` memory, reflection and Invariant 7 behaviour is not part of this release: the pull
+requests report mock and unit checks only.
 
 ## [0.6.0] - 2026-06-10
 
