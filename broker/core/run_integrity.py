@@ -24,6 +24,7 @@ See broker/INVARIANTS.md Invariant 6.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -323,6 +324,7 @@ def record_run_integrity(
     extra: Optional[dict] = None,
     verbose: bool = True,
     no_appraisal: bool = False,
+    governance_carryover: Optional[dict] = None,
 ) -> dict:
     """Write ``run_integrity.json`` recording runtime instantiation; never raises.
 
@@ -347,6 +349,11 @@ def record_run_integrity(
     ``psychological_framework: none``. The uncategorised-rule explanation is then
     logged at debug level instead of as a warning; the counts are recorded the
     same way.
+
+    ``governance_carryover`` (Invariant 7; ``python -m broker.run`` passes it):
+    the keyword arguments of :func:`governance_carryover_block`. The block is
+    written under the same key, and ``integrity_ok`` is False when its ``ok``
+    is. Omitted, the run's key set is unchanged.
 
     Returns the audit dict (also embedded in the reproducibility manifest by callers
     that have one).
@@ -665,11 +672,20 @@ def record_run_integrity(
     if extra:
         audit.update(extra)
 
+    carryover_ok = True
+    if governance_carryover is not None:
+        try:
+            carryover = governance_carryover_block(output_dir, **governance_carryover)
+        except Exception as exc:  # never raises (see docstring)
+            carryover = {"error": f"{type(exc).__name__}: {exc}", "ok": False}
+        audit["governance_carryover"] = carryover
+        carryover_ok = bool(carryover.get("ok"))
+
     # mismatch = a run expecting reflection produced no reflection entries
     # (refl_count <= 0 also catches the -1 "exists but unreadable" sentinel — the
     # conservative direction: flag rather than silently pass).
     mismatch = reflection_expected and refl_count <= 0
-    audit["integrity_ok"] = not (mismatch or world_rules_never_evaluable)
+    audit["integrity_ok"] = not (mismatch or world_rules_never_evaluable) and carryover_ok
 
     try:
         # default=str so a non-JSON-serializable value in ``extra`` (e.g. numpy int,
@@ -712,3 +728,163 @@ def record_run_integrity(
             print(f" [Integrity] reflection={refl_count} entries | engine={engine} | "
                   f"mode={governance_mode} | OK")
     return audit
+
+
+# --- Invariant 7: governance_carryover block (design 5.2) -------------------
+# The framework's own wording for a rule that stepped in. A run whose memory
+# style is ``executed`` should never hold these in memory or reflection.
+GOVERNANCE_PHRASES = ("was rejected", "default action applied", "was applied under", "proposal to")
+_MIN_TERM_LENGTH = 4
+
+
+def _governance_terms(output_dir: Path, unreadable: List[str]) -> List[str]:
+    """Rule ids and rule messages from the run's audit CSV, plus the phrases above.
+
+    Taken from what the rules said in this run, not typed by hand. Terms
+    shorter than four characters are left out (they match ordinary words).
+    A CSV that cannot be read is added to ``unreadable``.
+    """
+    import csv
+
+    terms = set(GOVERNANCE_PHRASES)
+    for path in sorted(Path(output_dir).glob("*governance_audit.csv")):
+        try:
+            with open(path, encoding="utf-8-sig", newline="") as handle:
+                for row in csv.DictReader(handle):
+                    for rule in (row.get("failed_rules") or "").split("|"):
+                        terms.add(rule.strip())
+                    for issue in (row.get("error_messages") or "").split("|"):
+                        for message in issue.split("; "):
+                            terms.add(message.strip())
+        except (OSError, csv.Error, UnicodeDecodeError):
+            unreadable.append(path.name)
+    terms.discard("Unknown")
+    return sorted(t.lower() for t in terms if len(t.strip()) >= _MIN_TERM_LENGTH)
+
+
+def _jsonl(path: Path, unreadable: List[str]) -> List[dict]:
+    """Rows of a JSONL file. A file with a line that does not parse, or that
+    cannot be read, is added to ``unreadable`` (a missing file is not)."""
+    if not path.exists():
+        return []
+    rows = []
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if line:
+                    try:
+                        rows.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        if path.name not in unreadable:
+                            unreadable.append(path.name)
+    except (OSError, UnicodeDecodeError):
+        unreadable.append(path.name)
+    return rows
+
+
+def _line_shape(line: str, action: str, number: str) -> str:
+    """The line without its number text, its action as ``<action>``, digits as ``#``.
+
+    The number text is dropped, not replaced: whether a line carries a number
+    follows the action that ran (a default runs with none), not the rule.
+    """
+    shape = line
+    if number:
+        shape = shape.replace(number, "")
+    if action:
+        shape = shape.replace(action, "<action>")
+    return re.sub(r"\d", "#", shape)
+
+
+def governance_carryover_block(
+    output_dir,
+    *,
+    styles: Dict[str, str],
+    agent_types: Dict[str, str],
+    writes_by_origin: Optional[Dict[str, int]],
+    decision_lines: List[dict],
+) -> Dict[str, Any]:
+    """Invariant 7 record for one run (``run_integrity.json``, design 5.2).
+
+    ``styles``: memory line style per agent type; ``agent_types``: agent id to
+    type; ``decision_lines``: what the runner wrote each decision, as
+    ``{agent_id, period, intervened, default_ran, line, action, number}``
+    (``intervened``: the row ended REJECTED or UNCERTAIN; ``default_ran``: the
+    registry default ran in its place).
+
+    Counts are over agent types whose style is ``executed`` (the other styles
+    name the rule on purpose). ``ok`` is False when one of them is above 0,
+    when ``memory_log.jsonl`` holds fewer rows than the write gate counted, or
+    when a file the block reads cannot be read.
+    A world rule shown in the prompt of both arms can trip the term counts,
+    so they are a flag to read, not a proof; the proof is the twin run
+    (``python -m broker.tools.check_governance_carryover``).
+    """
+    output_dir = Path(output_dir)
+    checked = sorted(t for t, s in styles.items() if s == "executed")
+    in_scope = lambda agent_id: agent_types.get(str(agent_id)) in checked
+    unreadable: List[str] = []
+    terms = _governance_terms(output_dir, unreadable)
+
+    def hits(text: str) -> List[str]:
+        low = (text or "").lower()
+        return [t for t in terms if t in low]
+
+    examples: List[dict] = []
+
+    def count(entries, label, texts_of):
+        n = 0
+        for entry in entries:
+            if not in_scope(entry.get("agent_id")):
+                continue
+            found = sorted({t for text in texts_of(entry) for t in hits(text)})
+            if found:
+                n += 1
+                if len(examples) < 5:
+                    examples.append({"where": label, "agent_id": entry.get("agent_id"),
+                                     "period": next((entry[k] for k in ("period", "year", "year_created")
+                                                     if entry.get(k) is not None), None),
+                                     "terms": found})
+        return n
+
+    memory = _jsonl(output_dir / "memory_log.jsonl", unreadable)
+    reflections = _jsonl(output_dir / "reflection_log.jsonl", unreadable)
+    writes = sum((writes_by_origin or {}).values())
+    memory_log_short = bool(checked) and len(memory) < writes
+    in_memory = count(memory, "memory", lambda e: [str(e.get("content", ""))])
+    in_input = count(reflections, "reflection_input",
+                     lambda e: [str(x) for x in (e.get("reflection_input") or [])])
+    in_output = count(reflections, "reflection_output", lambda e: [str(e.get("summary", ""))])
+
+    scoped = [d for d in decision_lines if in_scope(d.get("agent_id"))]
+    plain = {_line_shape(d["line"], d.get("action", ""), d.get("number", ""))
+             for d in scoped if not d.get("intervened")}
+    governed = [d for d in scoped if d.get("intervened")]
+    if governed and plain:
+        shapes = sum(1 for d in governed
+                     if _line_shape(d["line"], d.get("action", ""), d.get("number", "")) not in plain)
+    else:
+        shapes = None  # nothing to compare against
+    block = {
+        "rejection_line_style": dict(styles),
+        "checked_agent_types": checked,
+        "memory_writes_by_origin": dict(writes_by_origin or {}),
+        "memory_log_rows": len(memory),
+        "memory_log_short": memory_log_short,
+        "unreadable_files": unreadable,
+        "decision_rows": len(decision_lines),
+        "rejected_or_unreadable_rows": sum(1 for d in decision_lines if d.get("intervened")),
+        "default_applied_rows": sum(1 for d in decision_lines if d.get("default_ran")),
+        "line_shapes_compared": shapes is not None,
+        "default_year_line_shapes_not_seen_in_approved_years": shapes,
+        "governance_terms_checked": len(terms),
+        "governance_terms_in_memory": in_memory,
+        "governance_terms_in_reflection_input": in_input,
+        "governance_terms_in_reflection_output": in_output,
+        "examples": examples,
+    }
+    block["ok"] = not checked or not (
+        (shapes or 0) or in_memory or in_input or in_output
+        or memory_log_short or unreadable)
+    return block

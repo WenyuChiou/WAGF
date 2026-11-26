@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   world received. Exit 0 when they are identical, 1 with each difference by file, agent, period and field, 3
   when the first run had nothing to test (no default row and no row approved after a retry; `--require any`
   accepts either). Added to Gate 2 of the `wagf-verification-ladder` skill.
+- **Invariant 7 block in `run_integrity.json`.** `python -m broker.run` now writes `governance_carryover`: the
+  memory style per agent type, memory writes by origin, the rows a rule changed, and, for agent types on the
+  `executed` style, how many memory writes, reflection inputs and stored lessons hold a rule id or rule message from
+  the run's audit CSV, and how many lines of a year a rule changed take a form no approved year's line has. Any
+  count above 0 sets `integrity_ok` to false; `python -m broker.tools.check_run_integrity` then exits 1 and says
+  which count and where. Frozen paper runners do not write the block.
 - **Generated parameter table and strict keys.** `docs/references/parameter_table.md` lists every tunable number,
   its range and the default each piece of code applies, read from the code by
   `python -m broker.config.parameter_table`. Loading now refuses `W_relevance`, `W_interference`,
