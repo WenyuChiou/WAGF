@@ -651,10 +651,11 @@ class ReflectionEngine:
             return decision in trigger_config.decision_types
 
         if trigger == ReflectionTrigger.INSTITUTIONAL:
-            # Phase 6C-v3 (2026-05-10): institutional agent-type set is
-            # configurable via ``ReflectionEngine.institutional_agent_types``
-            # (constructor arg) instead of hardcoded ("government",
-            # "insurance"). New domains supply their own set.
+            # Phase 6C-v3 (2026-05-10): the institutional agent-type set is
+            # read from an optional ``_institutional_agent_types`` attribute
+            # on the engine (there is no constructor argument for it), with
+            # ("government", "insurance") as the fallback. A new domain sets
+            # that attribute on its engine to supply its own set.
             institutional_types = getattr(
                 self, "_institutional_agent_types", ("government", "insurance"),
             )

@@ -292,13 +292,13 @@ R8: PA=NONE doesn't match actual state (elevated=True, insured=False) -> expecte
 | Component | File | Function/Class |
 |-----------|------|----------------|
 | Context Builder | `prompts.py` | `build_household_prompt()` |
-| Memory Retrieval | `broker/memory.py` | `CognitiveMemory.retrieve()` |
+| Memory Retrieval | `broker/components/memory/legacy.py` | `CognitiveMemory.retrieve()` |
 | LLM Call | `run_experiment.py` | `call_llm()` |
 | Parser | `parsers.py` | `parse_household_response()` |
 | Validator | `validators.py` | `RuleRegistry.validate()` |
 | Executor | `run_experiment.py` | `apply_household_decision()` |
 | Audit Writer | `audit_writer.py` | `AuditWriter.write_household_trace()` |
-| Memory Update | `broker/memory.py` | `CognitiveMemory.update_after_decision()` |
+| Memory Update | `broker/components/memory/legacy.py` | `CognitiveMemory.update_after_decision()` |
 
 ---
 

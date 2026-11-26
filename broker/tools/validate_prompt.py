@@ -155,6 +155,11 @@ def _resolve_domain_extensions(cfg: Dict[str, Any]) -> Set[str]:
     return set(ext) if ext else set()
 
 
+# Public name for other modules (broker.run uses it); the private name stays for
+# existing callers and tests.
+resolve_domain_extensions = _resolve_domain_extensions
+
+
 @dataclass
 class Issue:
     severity: str  # "ERROR" or "WARN"

@@ -221,7 +221,7 @@ v3 是認知架構的「控制器」，負責模型**喚醒迴路**，決定何�
 
 控制工作記憶容量，避免過多事件湧入提示詞。
 
-`CognitiveConstraints`（`broker/memory/memory/config/cognitive_constraints.py`）根據喚醒程度決定可檢索的記憶數量：
+`CognitiveConstraints`（`broker/memory/config/cognitive_constraints.py`）根據喚醒程度決定可檢索的記憶數量：
 
 - **System 1（低喚醒）**：5 筆近期記憶（Cowan 2001：4 +/- 1）
 - **System 2（高喚醒）**：7 筆近期記憶（Miller 1956：7 +/- 2）
@@ -240,10 +240,10 @@ v3 是認知架構的「控制器」，負責模型**喚醒迴路**，決定何�
 
 以下擴充模組位於 `broker/memory/` 套件：
 
-- **決策一致性驚奇**（`strategies/decision_consistency.py`）：領域無關的行動歷史驚奇。**已整合**至 P1 SurprisePlugin 介面。
-- **EMA 驚奇**（`strategies/ema.py`）：純量 EMA 驚奇。**已整合**至 P1 SurprisePlugin。
-- **符號驚奇**（`strategies/symbolic.py`）：頻率式狀態簽章驚奇。**已整合**至 P1 SurprisePlugin。
-- **多維度驚奇**（`strategies/multidimensional.py`）：多維 PE 向量
+- **決策一致性驚奇**（`broker/memory/strategies/decision_consistency.py`）：領域無關的行動歷史驚奇。**已整合**至 P1 SurprisePlugin 介面。
+- **EMA 驚奇**（`broker/memory/strategies/ema.py`）：純量 EMA 驚奇。**已整合**至 P1 SurprisePlugin。
+- **符號驚奇**（`broker/memory/strategies/symbolic.py`）：頻率式狀態簽章驚奇。**已整合**至 P1 SurprisePlugin。
+- **多維度驚奇**（`broker/memory/strategies/multidimensional.py`）：多維 PE 向量
 - **嵌入式檢索**（`embeddings.py`）：向量相似度搜尋
 - **記憶圖譜**（`memory/`）：雙向關聯檢索
 

@@ -94,7 +94,7 @@ DO NOT include any commentary outside these tags.
 
 ## 3. 跨 Agent 訊息 (Inter-Agent Messages)
 
-在多 Agent 模擬中，第五個上下文層由 `MessagePoolProvider` (`broker/components/message_provider.py`) 注入：
+在多 Agent 模擬中，第五個上下文層由 `MessagePoolProvider` (`broker/components/coordination/provider.py`) 注入：
 
 5.  **跨 Agent 訊息**：
     - 將 `MessagePool` 中的未讀訊息傳遞給每個 Agent 的上下文。
@@ -117,6 +117,6 @@ DO NOT include any commentary outside these tags.
 
 若您需要修改上下文結構：
 
-1.  **修改 Template**: 編輯 `broker/utils/prompts/household_template.txt`。
+1.  **修改 Template**: 編輯 `examples/single_agent/config/prompts/household.txt`。
 2.  **修改 Builder**: 繼承 `ContextBuilder` 並覆寫 `format_prompt` 方法。
 3.  **新增 Provider**: 實作新的 `ContextProvider` 並在 `TieredBuilder` 中註冊。

@@ -57,7 +57,7 @@ sub-protocols, one per cohesive method group:
 | `ReflectionPack` | 4 | `broker/components/cognitive/reflection.py` |
 | `MemoryPack` | 6 | `broker/components/memory/*.py` |
 | `SkillPack` | 4 | `broker/core/experiment_runner.py` + validators |
-| `EventPack` | 2 | multi-agent event dispatcher |
+| `EventPack` | 2 | `broker/simulation/environment.py` (event persistence); `event_handlers` has no broker caller |
 | `PerceptionPack` | 3 | `broker/components/social/perception.py` |
 | `GovernancePack` | 8 | governance + validators + `validate_prompt` |
 | `SetupPack` | 5 | `broker/core/agent_initializer.py` + orchestration |
@@ -446,7 +446,6 @@ Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironme
 
 - ✗ Edit `broker/components/cognitive/reflection.py` — DomainPack handles it
 - ✗ Edit `broker/core/experiment_runner.py` — DomainPack handles it
-- ✗ Edit the multi-agent event dispatcher — DomainPack handles it
 - ✗ Edit `broker/domains/water/validator_bundles.py` — registry handles it
 - ✗ Edit `broker/components/context/providers.py` — DomainPack handles it
 

@@ -9,7 +9,7 @@ Supported engines:
 - window (production, CONTENT-ONLY — returns List[str]; documented Invariant-1
   exemption, see broker/INVARIANTS.md. Use humancentric for any
   emotion/importance/source-dependent path.)
-- universal, unified (advanced research)
+- universal (advanced research)
 - importance, hierarchical (deprecated — use humancentric instead)
 
 External users can register custom engines:
