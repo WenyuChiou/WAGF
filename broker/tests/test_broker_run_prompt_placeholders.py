@@ -114,3 +114,28 @@ def test_inherit_shared_false_ignores_shared_template_vars(
     assert rc == 0
     err = capsys.readouterr().err
     assert "undeclared placeholder(s) ['inflow_forecast']" in err
+
+
+def test_formatted_and_converted_placeholders_warn_when_undeclared(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    cfg_path = _copy_starter(tmp_path, monkeypatch)
+    prompt_path = cfg_path.parent / "prompts" / "operator.txt"
+    prompt_path.write_text(
+        prompt_path.read_text(encoding="utf-8")
+        + "\nFormatted: {inflow_forcast:.2f} {conv_typo!s} {inflow_forecast:.2f} {{escaped_brace}}\n",
+        encoding="utf-8",
+    )
+    AgentTypeConfig.clear_cache()
+    try:
+        rc = main([
+            str(cfg_path), "--model", "mock", "--years", "1",
+            "--output", str(tmp_path / "out"),
+        ])
+    finally:
+        AgentTypeConfig.clear_cache()
+
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "undeclared placeholder(s) ['conv_typo', 'inflow_forcast']" in err
+

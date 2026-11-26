@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
+import re
+import string
 import sys
 from typing import Any
 
@@ -520,6 +522,28 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     return runner, after_run, reflection_hook
 
 
+_FALLBACK_PLACEHOLDER_RE = re.compile(
+    r"\{([a-zA-Z_][a-zA-Z0-9_]*)(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\[[^\[\]{}]+\])*(?:![sra])?(?::[^{}]*)?\}"
+)
+
+
+def _extract_format_placeholders(template: str) -> set[str]:
+    """Return root identifier placeholders parsed the same way ``SafeFormatter`` does."""
+    names: set[str] = set()
+    try:
+        for _literal, field_name, format_spec, _conversion in string.Formatter().parse(template):
+            if field_name:
+                root = field_name.split(".", 1)[0].split("[", 1)[0]
+                if root.isidentifier():
+                    names.add(root)
+            if format_spec:
+                names.update(_extract_format_placeholders(format_spec))
+    except ValueError:
+        masked = template.replace("{{", "").replace("}}", "")
+        names.update(_FALLBACK_PLACEHOLDER_RE.findall(masked))
+    return names
+
+
 def _warn_undeclared_prompt_placeholders(
     ctx: RunContext, agent_type: str, template: str
 ) -> None:
@@ -528,7 +552,6 @@ def _warn_undeclared_prompt_placeholders(
         BROKER_FILLED_PLACEHOLDERS,
         _resolve_domain_extensions,
         collect_template_vars,
-        extract_placeholders,
     )
 
     raw = ctx.raw if isinstance(ctx.raw, Mapping) else {}
@@ -559,7 +582,7 @@ def _warn_undeclared_prompt_placeholders(
         | field_keys
         | declared_vars
     )
-    unknown = sorted(p for p in extract_placeholders(template) if p not in known)
+    unknown = sorted(p for p in _extract_format_placeholders(template) if p not in known)
     if unknown:
         print(
             f"broker.run: warning: {agent_type}: prompt contains undeclared placeholder(s) "
