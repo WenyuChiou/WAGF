@@ -241,3 +241,24 @@ def test_validator_health_no_dead_warning_when_fires_everywhere(tmp_path: Path, 
     pt = _pt_rows(tmp_path / "validator_health_by_agent_type.csv")
     assert pt[("owner", "rule_live")]["dead_for_all"] == "False"
     assert "DEAD VALIDATOR" not in caplog.text
+
+
+def test_no_rules_writes_no_file_by_default(tmp_path):
+    """Paper runners: a run with no rule results keeps writing no file."""
+    writer = _make_writer(tmp_path)
+    writer.write_trace("agent", _make_trace(1))
+    writer.finalize()
+    assert not (tmp_path / "validator_health.csv").exists()
+
+
+def test_always_write_gives_a_header_only_file(tmp_path):
+    """R5 walk finding 13: broker.run asks for the file even with no rules, so
+    a reader can tell "no rule ran" from "the file is missing"."""
+    writer = GenericAuditWriter(AuditConfig(
+        output_dir=str(tmp_path), experiment_name="validator_health",
+        always_write_validator_health=True,
+    ))
+    writer.write_trace("agent", _make_trace(1))
+    writer.finalize()
+    text = (tmp_path / "validator_health.csv").read_text(encoding="utf-8-sig")
+    assert text.splitlines() == ["rule_id,seen_count,fire_count,warn_count,error_path_count,fire_rate"]

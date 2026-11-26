@@ -1079,6 +1079,24 @@ class ExperimentRunner:
             )
             raise
 
+    def _all_agents_without_appraisal(self) -> bool:
+        """Whether every agent's type declares ``psychological_framework: none``
+        (R5 walk finding 10). False when it cannot tell."""
+        try:
+            config = getattr(self.broker, "config", None)
+            types = {getattr(a, "agent_type", None) for a in (self.agents or {}).values()}
+            if not types or config is None:
+                return False
+            for agent_type in types:
+                cfg = config.get(agent_type)
+                if not isinstance(cfg, dict):
+                    return False
+                if str(cfg.get("psychological_framework", "")).strip().lower() != "none":
+                    return False
+            return True
+        except Exception:
+            return False
+
     def _finalize_experiment(self, iterations: int):
         """Finalize outputs even if the run exits early."""
         # ORDER IS LOAD-BEARING: finalize() is what writes the audit CSV(s).
@@ -1921,6 +1939,8 @@ class ExperimentRunner:
             # runs. Absent on any path that reaches here without finalizing, in
             # which case the coverage block reports "not measured".
             refl_kwargs.update(getattr(self, "_configured_expectation", {}) or {})
+            # R5 walk finding 10: a run whose agents all have no appraisal.
+            refl_kwargs["no_appraisal"] = self._all_agents_without_appraisal()
             metadata["run_integrity"] = record_run_integrity(
                 self.config.output_dir,
                 memory_engine=self.memory_engine,

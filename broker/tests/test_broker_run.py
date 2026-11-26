@@ -100,6 +100,9 @@ def test_mock_run_renders_menu_and_records_provenance(case, tmp_path):
     assert "repair" not in options
     assert "<<<DECISION_START>>>" in prompt
     assert (output / "reproducibility_manifest.json").is_file()
+    # R5 walk finding 13: written even though this case has no rules
+    health = (output / "validator_health.csv").read_text(encoding="utf-8-sig")
+    assert health.splitlines()[0].startswith("rule_id,")
     case_dir = config.parents[1].resolve()
     record = _manifest(output)
     for key in ("strict_provenance", "provenance_checks", "provenance_problems"):  # see test_broker_run_strict_provenance.py
@@ -668,9 +671,10 @@ def test_inline_and_file_prompt_together_are_refused(case, tmp_path, capsys):
     assert "set prompt_template or prompt_template_file, not both" in capsys.readouterr().err
 
 
-def _magnitude_case(case, field_skills):
+def _magnitude_case(case, field_skills, number=0.4):
     """A case whose mock answers wait in year 1 and inspect in year 2, both
-    with the number 0.4, and whose world records the parameters it gets."""
+    with the number 0.4 (or ``number``), and whose world records the
+    parameters it gets."""
     config, data = case
     (config.parents[1] / "recording.py").write_text(dedent('''
         import json
@@ -697,11 +701,11 @@ def _magnitude_case(case, field_skills):
             answers = iter(["1", "2"])
 
             def respond(prompt):
-                payload = {"decision": next(answers), "magnitude": 0.4}
+                payload = {"decision": next(answers), "magnitude": NUMBER}
                 text = "<<<DECISION_START>>>" + json.dumps(payload) + "<<<DECISION_END>>>"
                 return text, LLMStats(success=True)
             return respond
-    '''), encoding="utf-8")
+    ''').replace("NUMBER", json.dumps(number)), encoding="utf-8")
     field = {"key": "magnitude", "type": "numeric", "min": 0, "max": 1, "required": True}
     if field_skills is not None:
         field["skills"] = field_skills
@@ -845,6 +849,16 @@ def test_a_secondary_action_the_field_lists_keeps_its_number(case):
     assert seen[1][1]["magnitude_pct"] == 40.0
 
 
+@pytest.mark.parametrize("number", ["1", "0"])
+def test_a_number_written_as_text_stays_a_number_in_the_audit(case, number):
+    """R5 walk finding 17: the label map turned the text "1" into True."""
+    config = _magnitude_case(case, None, number=number)
+    assert main([str(config), "--model", "mock"]) == 0
+    assert [params.get("magnitude_pct") for _, params in _seen(config)] == [float(number)] * 2
+    rows = _audit_rows(config.parents[1] / "results" / "agent_types")
+    assert [row["reason_magnitude"] for row in rows] == [number, number]
+
+
 @pytest.mark.parametrize("skills, message", [
     (["inspekt"], "lists skills ['inspekt'] that the skill registry does not have"),
     ("inspect", "skills must be a non-empty list of skill names"),
@@ -854,3 +868,17 @@ def test_bad_field_skills_are_refused_at_build(case, capsys, skills, message):
     config = _magnitude_case(case, skills)
     assert main([str(config), "--model", "mock"]) == 2
     assert message in capsys.readouterr().err
+
+
+def test_physical_only_run_has_no_cognitive_audit_warning(case, caplog):
+    """R5 walk finding 10: a psychological_framework: none case has no
+    appraisal, so the missing cognitive_audit is not worth a warning."""
+    import logging
+
+    config, data = case
+    data["agent"]["psychological_framework"] = "none"
+    data["global_config"]["run"] = {"world": "world:build", "years": 1, "agent_count": 1}
+    _write_yaml(config, data)
+    with caplog.at_level(logging.WARNING):
+        assert main([str(config), "--model", "mock"]) == 0
+    assert not [r for r in caplog.records if "[AuditInvariant]" in r.getMessage()]
