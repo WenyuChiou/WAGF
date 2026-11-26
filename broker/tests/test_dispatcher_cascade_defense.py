@@ -220,3 +220,33 @@ class TestHappyPathUntouched:
         # Sanity: framework IS in the registered set (no downgrade
         # warning should have fired).
         assert "pmt" in FRAMEWORK_LABEL_ORDERS
+
+
+class TestRegistryImportFailureFallback:
+    """Invariant 5 guard: missing DomainPackRegistry must fall back generically."""
+
+    def test_import_error_falls_back_to_empty_without_flood_literals(
+        self, monkeypatch, caplog
+    ):
+        import sys
+        from broker.components.governance.validator_registry import ValidatorRegistry
+
+        saved_registry = {k: dict(v) for k, v in ValidatorRegistry._registry.items()}
+        ValidatorRegistry.register("flood", "personal", [lambda *args, **kwargs: None])
+        try:
+            monkeypatch.setitem(sys.modules, "broker.domains.registry", None)
+            caplog.set_level(
+                logging.WARNING,
+                logger="broker.components.governance.domain_validator_dispatch",
+            )
+            validators = build_domain_validators("flood")
+            thinking = next(v for v in validators if isinstance(v, ThinkingValidator))
+            assert thinking.framework == ""
+            assert thinking._extreme_actions == set()
+            assert any(
+                "Cannot import DomainPackRegistry" in rec.getMessage()
+                for rec in caplog.records
+            )
+        finally:
+            ValidatorRegistry._registry.clear()
+            ValidatorRegistry._registry.update(saved_registry)

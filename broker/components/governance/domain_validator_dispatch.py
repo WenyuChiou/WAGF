@@ -166,10 +166,14 @@ def build_domain_validators(
                 FRAMEWORK_ESCAPE_HATCH,
             )
             framework = FRAMEWORK_ESCAPE_HATCH
-    except ImportError:
-        if resolved == "flood":
-            extreme = {"relocate", "elevate_house"}
-            framework = "pmt"
+    except ImportError as exc:
+        logger.warning(
+            "[DomainPack:%s] Cannot import DomainPackRegistry (%r); "
+            "falling back to empty extreme_actions and unregistered framework.",
+            resolved, exc,
+        )
+        extreme = set()
+        framework = ""
 
     # Phase 6Q-D-4 (2026-05-26): pre-construction framework-registry
     # check. Pre-fix the dispatcher passed `framework` straight to
