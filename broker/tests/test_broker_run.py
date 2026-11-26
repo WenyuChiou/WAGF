@@ -882,3 +882,76 @@ def test_physical_only_run_has_no_cognitive_audit_warning(case, caplog):
     with caplog.at_level(logging.WARNING):
         assert main([str(config), "--model", "mock"]) == 0
     assert not [r for r in caplog.records if "[AuditInvariant]" in r.getMessage()]
+
+
+def _cap_case(case, attempt_magnitude_columns):
+    """One decision: the mock proposes inspect 0.9, a Python check blocks any
+    number above 0.5, and the retry proposes inspect 0.3."""
+    config, data = case
+    (config.parents[1] / "capped.py").write_text(dedent('''
+        import json
+        from broker.interfaces.skill_types import ExecutionResult, ValidationResult
+        from broker.utils.llm_utils import LLMStats
+
+        class World:
+            year = 0
+
+            def advance_step(self):
+                self.year += 1
+                return {"current_year": self.year}
+
+            def execute_skill(self, approved_skill):
+                return ExecutionResult(success=True, state_changes={})
+
+        def build(ctx):
+            return World()
+
+        def cap(proposal, context, registry):
+            number = proposal.magnitude_pct
+            ok = number is None or number <= 0.5
+            return ValidationResult(
+                valid=ok, validator_name="cap", errors=[] if ok else ["above 0.5"],
+                metadata={"rule_id": "cap"},
+            )
+
+        def validators(ctx):
+            return (cap,)
+
+        def mock(ctx):
+            numbers = iter([0.9, 0.3])
+
+            def respond(prompt):
+                payload = {"decision": "2", "magnitude": next(numbers)}
+                text = "<<<DECISION_START>>>" + json.dumps(payload) + "<<<DECISION_END>>>"
+                return text, LLMStats(success=True)
+            return respond
+    '''), encoding="utf-8")
+    data["agent"]["response_format"]["fields"].insert(
+        0, {"key": "magnitude", "type": "numeric", "min": 0, "max": 1, "required": True})
+    data["global_config"]["run"] = {"world": "capped:build", "mock": "capped:mock",
+                                    "validators": "capped:validators",
+                                    "years": 1, "agent_count": 1}
+    if attempt_magnitude_columns is not None:
+        data["global_config"]["audit"] = {"attempt_magnitude_columns": attempt_magnitude_columns}
+    _write_yaml(config, data)
+    return config
+
+
+def test_attempt_magnitude_columns_keep_the_blocked_number(case):
+    """R5 walk finding 6: on a repaired row reason_magnitude is the approved
+    0.3; the blocked 0.9 was nowhere in the row."""
+    config = _cap_case(case, True)
+    assert main([str(config), "--model", "mock"]) == 0
+    [row] = _audit_rows(config.parents[1] / "results" / "agent_types")
+    assert (row["status"], row["retry_count"]) == ("APPROVED", "1")
+    assert row["reason_magnitude"] == "0.3"
+    assert row["initial_magnitude"] == "0.9"
+    assert row["attempt_magnitudes"] == "0.9|0.3"
+
+
+@pytest.mark.parametrize("flag", [None, False])
+def test_attempt_magnitude_columns_off_add_no_column(case, flag):
+    config = _cap_case(case, flag)
+    assert main([str(config), "--model", "mock"]) == 0
+    [row] = _audit_rows(config.parents[1] / "results" / "agent_types")
+    assert "initial_magnitude" not in row and "attempt_magnitudes" not in row

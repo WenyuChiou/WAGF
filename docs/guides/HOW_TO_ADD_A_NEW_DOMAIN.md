@@ -211,7 +211,9 @@ Pass `--framework custom` to also scaffold a `cognition/` package with framework
 
 Pass `--physical-only` for decisions with no appraisal step (a pump schedule, a gate setting). It writes `psychological_framework: none` explicitly: no rating scale, no appraisal fields or constructs, a prompt without appraisal wording, and one retry setting (`global_config.governance.max_retries: 3`). It cannot be combined with `--framework`.
 
-Pass `--magnitude` to also scaffold the agent's action number on [0, 1] (see [The action number](#the-action-number)). It combines with `--framework` and with `--physical-only`.
+Pass `--magnitude` to also scaffold the agent's action number on [0, 1] (see [The action number](#the-action-number)). It combines with `--framework` and with `--physical-only`. It also turns on `audit.attempt_magnitude_columns`, so a repaired row shows the number the agent first proposed.
+
+Pass `--default-skill <skill>` to choose the skill that runs when the retries run out or the reply cannot be parsed. It must be one of `--skills`; without it the first skill is the default. Choose the action that keeps things as they are (a `maintain_*` or hold action), not one a rule or bound guards.
 
 Next, edit `config/prompts/agent.txt`, the DomainPack adapter, and `world.py` to describe your specific domain. The scaffold is a starting point — not a finished example. Then run it:
 

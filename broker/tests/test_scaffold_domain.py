@@ -506,3 +506,46 @@ class TestMagnitudeFlag:
     def test_cli_flag(self, tmp_path: Path):
         assert main(["probe", "--output", str(tmp_path / "probe"), "--magnitude"]) == 0
         assert (tmp_path / "probe" / "mock_llm.py").is_file()
+
+
+class TestR5Followups:
+    """R5 walk findings 4, 6 and 7b."""
+
+    def _cfg(self, root: Path) -> dict:
+        return yaml.safe_load((root / "config" / "agent_types.yaml").read_text(encoding="utf-8"))
+
+    def test_summary_counts_per_decision_is_on(self, tmp_path: Path):
+        scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt")
+        assert self._cfg(tmp_path / "probe")["global_config"]["governance"][
+            "summary_counts_per_decision"] is True
+
+    @pytest.mark.parametrize("magnitude", [False, True])
+    def test_attempt_magnitude_columns_follow_the_magnitude_flag(self, tmp_path: Path, magnitude):
+        scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt", magnitude=magnitude)
+        audit = self._cfg(tmp_path / "probe")["global_config"]["audit"]
+        assert audit.get("attempt_magnitude_columns", False) is magnitude
+        assert validate_main([str(tmp_path / "probe" / "config" / "agent_types.yaml"), "--strict"]) == 0
+
+    def test_default_skill_flag_sets_both_defaults(self, tmp_path: Path):
+        root = tmp_path / "probe"
+        assert main(["probe", "--output", str(root), "--skills", "set_pumping,maintain_pumping",
+                     "--default-skill", "maintain_pumping"]) == 0
+        registry = yaml.safe_load((root / "config" / "skill_registry.yaml").read_text(encoding="utf-8"))
+        assert registry["default_skill"] == "maintain_pumping"
+        assert self._cfg(root)["agent"]["parsing"]["default_skill"] == "maintain_pumping"
+        # the comment that says to point it at the hold action stays
+        assert "maintain_* or hold action" in (root / "config" / "skill_registry.yaml").read_text(
+            encoding="utf-8")
+
+    def test_without_the_flag_the_first_skill_stays_the_default(self, tmp_path: Path):
+        root = tmp_path / "probe"
+        assert main(["probe", "--output", str(root), "--skills", "set_pumping,maintain_pumping"]) == 0
+        registry = yaml.safe_load((root / "config" / "skill_registry.yaml").read_text(encoding="utf-8"))
+        assert registry["default_skill"] == "set_pumping"
+
+    def test_default_skill_must_be_one_of_the_skills(self, tmp_path: Path, capsys):
+        rc = main(["probe", "--output", str(tmp_path / "probe"), "--skills", "a,b",
+                   "--default-skill", "hold"])
+        assert rc == 1
+        assert "--default-skill 'hold' is not one of --skills" in capsys.readouterr().err
+        assert not (tmp_path / "probe").exists()

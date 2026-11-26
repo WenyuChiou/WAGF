@@ -239,6 +239,7 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     "rule_id_prefix",            # agent_config.get_governance_rule_id_prefix
     "hide_registry_backstop_reports",  # agent_config.get_governance_hide_registry_backstop_reports
     "summary_counts_python_checks",    # agent_config.get_governance_summary_counts_python_checks
+    "summary_counts_per_decision",     # agent_config.get_governance_summary_counts_per_decision
     "plain_action_names",        # agent_config.get_governance_plain_action_names
     "placebo_closer",            # agent_config.get_governance_placebo_closer
 }
@@ -268,6 +269,7 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "grounding_columns",         # agent_config.get_audit_grounding_columns (PR-6)
     "decider_columns",           # agent_config.get_audit_decider_columns (PR-8)
     "attempt_columns",           # agent_config.get_audit_attempt_columns
+    "attempt_magnitude_columns", # agent_config.get_audit_attempt_magnitude_columns
     "state_columns",             # agent_config.get_audit_state_columns
     "retry_prompt_columns",      # agent_config.get_audit_retry_prompt_columns
 }

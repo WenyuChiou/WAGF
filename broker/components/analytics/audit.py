@@ -722,6 +722,10 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["attempt_labels"] = t.get("attempt_labels", "")
         row["attempt_failed_rules"] = t.get("attempt_failed_rules", "")
         row["appraisal_relabeled"] = t.get("appraisal_relabeled", False)
+    # Per-attempt numbers (audit.attempt_magnitude_columns, R5 walk finding 6).
+    if "attempt_magnitudes" in t:
+        row["initial_magnitude"] = t.get("initial_magnitude", "")
+        row["attempt_magnitudes"] = t.get("attempt_magnitudes", "")
     # Agent-state columns (audit.state_columns): one state_<key> column per
     # key the config lists. Key-gated by the trace key itself.
     if isinstance(t.get("audit_state"), dict):

@@ -27,6 +27,12 @@ class GovernanceAuditor:
     # move any count in governance_summary.json. Thread-local because the
     # decision phase can run on a worker pool.
     _mute = threading.local()
+    # Per-thread switch for global_config.governance.summary_counts_per_decision
+    # (R5 walk finding 4): inside it, a block logged while an attempt is
+    # validated (is_final=False, AgentValidator) is not counted, because the
+    # engine counts each rule once per decision when the decision ends
+    # (log_decision). Thread-local for the same worker-pool reason as _mute.
+    _per_decision = threading.local()
 
     @classmethod
     def muted(cls):
@@ -47,6 +53,27 @@ class GovernanceAuditor:
     @classmethod
     def _is_muted(cls) -> bool:
         return bool(getattr(cls._mute, "on", False))
+
+    @classmethod
+    def per_decision(cls):
+        """Context manager: per-attempt blocks (``log_intervention`` with
+        ``is_final=False``) from THIS thread are not counted inside it.
+        Warnings still are."""
+        import contextlib
+
+        @contextlib.contextmanager
+        def _cm():
+            prev = getattr(cls._per_decision, "on", False)
+            cls._per_decision.on = True
+            try:
+                yield
+            finally:
+                cls._per_decision.on = prev
+        return _cm()
+
+    @classmethod
+    def _is_per_decision(cls) -> bool:
+        return bool(getattr(cls._per_decision, "on", False))
 
     def __new__(cls):
         with cls._lock:
@@ -92,6 +119,8 @@ class GovernanceAuditor:
         """Record a validator intervention."""
         if self._is_muted():
             return
+        if not is_final and self._is_per_decision():
+            return
         with self.stats_lock:
             self.rule_hits[rule_id] += 1
             self.total_interventions += 1
@@ -101,6 +130,27 @@ class GovernanceAuditor:
                     self.retry_success_count += 1
                 else:
                     self.retry_failure_count += 1
+
+    def log_decision(self, rule_ids, success=None):
+        """Record one decision under ``summary_counts_per_decision`` (R5 walk
+        finding 4): each rule that blocked any of its attempts counts once in
+        ``rule_frequency`` and ``total_interventions``; the decision counts
+        once as ``retry_success`` (``success`` True) or ``retry_exhausted``
+        (False). ``None`` counts the rules only. Nothing is counted when no
+        rule blocked."""
+        if self._is_muted():
+            return
+        ids = list(dict.fromkeys(r for r in rule_ids if r))
+        if not ids:
+            return
+        with self.stats_lock:
+            for rule_id in ids:
+                self.rule_hits[rule_id] += 1
+                self.total_interventions += 1
+            if success is True:
+                self.retry_success_count += 1
+            elif success is False:
+                self.retry_failure_count += 1
 
     def log_warning(self, rule_id: str):
         """Record a WARNING-level rule hit (non-blocking observation)."""

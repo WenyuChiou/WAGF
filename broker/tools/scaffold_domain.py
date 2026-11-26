@@ -157,7 +157,7 @@ def gen_readme(
         """).lstrip()
 
 
-def gen_skill_registry(domain: str, skills: List[str]) -> str:
+def gen_skill_registry(domain: str, skills: List[str], default_skill: str | None = None) -> str:
     # `skill_registry.yaml` uses `skill_id:` (different from `agent_types.yaml`
     # actions which use `id:`). Phase 6E Finding #2: an earlier version of
     # this scaffold emitted `id:` and the broker's
@@ -179,7 +179,12 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
     # empty; in that case the value points to a non-existent skill
     # and experiment_builder catches it. Renaming to a TODO-marker
     # makes the intent visible.
-    default = skills[0] if skills else "TODO_default_skill"
+    default = default_skill or (skills[0] if skills else "TODO_default_skill")
+    # R5 walk finding 7b: --default-skill picks it; otherwise the first skill.
+    chosen = (
+        "It is set by --default-skill" if default_skill
+        else "It is set to the first skill (choose another with --default-skill)"
+    )
     return (
         f"# Skill registry for the {domain} domain.\n"
         f"# Scaffolded by broker.tools.scaffold_domain. Edit descriptions to\n"
@@ -188,7 +193,7 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
         f"# range, and meaning above skills (e.g. storage [maf], magnitude [0..1]).\n"
         f"domain: {domain}\n"
         f"# default_skill runs when the retries run out or the reply cannot be\n"
-        f"# parsed. It is set to the first skill; point it at the action that keeps\n"
+        f"# parsed. {chosen}; point it at the action that keeps\n"
         f"# things as they are (a maintain_* or hold action), not a guarded one.\n"
         f"default_skill: {default}\n"
         f"skills:\n"
@@ -198,7 +203,7 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
 
 def gen_agent_types_yaml(
     domain: str, skills: List[str], framework: str, *, physical_only: bool = False,
-    magnitude: bool = False,
+    magnitude: bool = False, default_skill: str | None = None,
 ) -> str:
     if physical_only:
         framework = "none"
@@ -294,7 +299,7 @@ def gen_agent_types_yaml(
           audit:
             initial_proposal_columns: {audit_appraisals}
             attempt_columns: {audit_appraisals}
-            corrected_status_columns: true
+            corrected_status_columns: true{magnitude_audit}
 
           memory:
             # python -m broker.run builds this engine: window (keeps the last
@@ -329,6 +334,10 @@ def gen_agent_types_yaml(
             # Count blocks by Python checks (which name their rule by rule_id)
             # in governance_summary.json, as the audit CSV's failed_rules does.
             summary_counts_python_checks: true
+            # Count each rule once per decision, and each blocked decision once
+            # as retry_success or retry_exhausted (otherwise a YAML rule counts
+            # once per blocked attempt plus once more at the end).
+            summary_counts_per_decision: true
 
         shared:
         {rating_scale}  response_format:
@@ -367,11 +376,13 @@ def gen_agent_types_yaml(
         domain=domain,
         mock_slot=mock_slot,
         magnitude_field=magnitude_field,
+        # R5 walk finding 6: the first-proposed and each attempt's number.
+        magnitude_audit="\n    attempt_magnitude_columns: true" if magnitude else "",
         framework_value=framework_value,
         # Both opt-ins emit appraisal columns even when there are no labels.
         audit_appraisals="false" if physical_only else "true",
         skill_actions=skill_actions,
-        default_skill=skills[0] if skills else "TODO_default_skill",
+        default_skill=default_skill or (skills[0] if skills else "TODO_default_skill"),
         llm_retries="" if physical_only else "    max_retries: 2\n",
         reports_per_retry="" if physical_only else "    max_reports_per_retry: 3\n",
         rating_scale=rating_scale,
@@ -739,6 +750,7 @@ def scaffold(
     *,
     physical_only: bool = False,
     magnitude: bool = False,
+    default_skill: str | None = None,
 ) -> List[Path]:
     """Write the full skeleton. Returns the list of created paths.
 
@@ -769,11 +781,12 @@ def scaffold(
     write("README.md", gen_readme(
         domain, skills, output_dir=output_dir, magnitude=magnitude, physical_only=physical_only,
     ))
-    write("config/skill_registry.yaml", gen_skill_registry(domain, skills))
+    write("config/skill_registry.yaml", gen_skill_registry(domain, skills, default_skill))
     write(
         "config/agent_types.yaml",
         gen_agent_types_yaml(
             domain, skills, framework, physical_only=physical_only, magnitude=magnitude,
+            default_skill=default_skill,
         ),
     )
     write("config/prompts/agent.txt", gen_prompt(domain, skills, physical_only=physical_only, magnitude=magnitude))
@@ -893,6 +906,15 @@ def main(argv: List[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--default-skill",
+        default=None,
+        help=(
+            "The skill that runs when the retries run out or the reply cannot be "
+            "parsed; one of --skills. Default: the first skill. Pick the action "
+            "that keeps things as they are (a maintain_* or hold action)."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite non-empty output directory.",
@@ -914,6 +936,12 @@ def main(argv: List[str] | None = None) -> int:
     if not skills:
         print("ERROR: --skills must list at least one skill", file=sys.stderr)
         return 1
+    if args.default_skill is not None and args.default_skill not in skills:
+        print(
+            f"ERROR: --default-skill {args.default_skill!r} is not one of --skills {skills}",
+            file=sys.stderr,
+        )
+        return 1
 
     output_dir = args.output or Path("examples") / f"{args.domain}_demo"
     # broker.run imports the case folder as a Python package, so its name
@@ -933,6 +961,7 @@ def main(argv: List[str] | None = None) -> int:
         written = scaffold(
             args.domain, output_dir, skills, args.framework or "pmt", args.force,
             physical_only=args.physical_only, magnitude=args.magnitude,
+            default_skill=args.default_skill,
         )
     except FileExistsError as e:
         print(f"ERROR: {e}", file=sys.stderr)

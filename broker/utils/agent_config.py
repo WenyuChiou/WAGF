@@ -1308,6 +1308,25 @@ class AgentTypeConfig:
         """
         return self._governance_bool("summary_counts_python_checks", False)
 
+    def get_governance_summary_counts_per_decision(self) -> bool:
+        """``global_config.governance.summary_counts_per_decision``
+        (default False).
+
+        R5 walk finding 4: ``governance_summary.json`` counted a YAML rule
+        once for every attempt it blocked (``AgentValidator``) and once more
+        when the decision ended (the engine), and ``retry_success`` counted
+        rule ids, not decisions. When True, each rule that blocked any
+        attempt of a decision counts once for that decision in
+        ``rule_frequency`` and ``total_interventions``, and each such decision
+        counts once in ``retry_success`` or ``retry_exhausted``. Warnings are
+        still counted per attempt. A cached decision the runner re-checks is
+        not a decision: its blocks are not counted, and the decision run in
+        its place is. False reproduces the shipped summary
+        byte-for-byte; the frozen paper configs leave it unset.
+        ``broker.tools.scaffold_domain`` turns it on for new domains.
+        """
+        return self._governance_bool("summary_counts_per_decision", False)
+
     def get_governance_plain_action_names(self) -> bool:
         """``global_config.governance.plain_action_names`` (default False).
 
@@ -1425,6 +1444,37 @@ class AgentTypeConfig:
         if not isinstance(value, bool):
             raise ValueError(
                 "global_config.audit.attempt_columns must be true or false "
+                f"(a YAML bool), got {type(value).__name__} {value!r}."
+            )
+        return value
+
+    def get_audit_attempt_magnitude_columns(self) -> bool:
+        """Opt-in per-attempt NUMBER audit columns (default-OFF; R5 walk
+        finding 6).
+
+        When ``global_config.audit.attempt_magnitude_columns: true``, every
+        decision row carries:
+
+        - ``initial_magnitude``  -- the number the first attempt proposed
+          (the parsed ``magnitude_pct``; ``""`` when it had none or did not
+          parse);
+        - ``attempt_magnitudes`` -- each attempt's number in order, joined by
+          ``|``, aligned with ``attempt_skills``; ``""`` for an attempt with no
+          number or one that did not parse.
+
+        ``reason_magnitude`` shows the last attempt only, so on a repaired
+        row the blocked number was lost. Key-gated like every other opt-in
+        column: flag-OFF emits no key, so frozen baselines stay
+        byte-identical. Refused together with an advisory channel, like
+        ``attempt_columns``. ``scaffold_domain --magnitude`` turns it on.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict) or "attempt_magnitude_columns" not in block:
+            return False
+        value = block["attempt_magnitude_columns"]
+        if not isinstance(value, bool):
+            raise ValueError(
+                "global_config.audit.attempt_magnitude_columns must be true or false "
                 f"(a YAML bool), got {type(value).__name__} {value!r}."
             )
         return value
