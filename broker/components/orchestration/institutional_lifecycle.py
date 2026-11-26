@@ -1,6 +1,10 @@
 """
 Phase 6T-C (2026-05-27): institutional-lifecycle extension point.
 
+STATUS: EXPERIMENTAL (Multi-Actor Extension — Pre-1.0 API). Not invoked by
+default single-agent-type ``python -m broker.run`` runs; reserved for follow-up
+heterogeneous multi-actor studies (e.g., government, insurer, household).
+
 Provides the generic :class:`InstitutionalLifecycleHandler` ABC plus
 the supporting type aliases that multi-agent runners use to dispatch
 year-boundary / per-decision / year-end lifecycle logic per

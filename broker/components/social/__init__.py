@@ -1,5 +1,11 @@
 """Social graph and perception sub-package.
 
+STATUS: EXPERIMENTAL (Multi-Actor / Social Extension — Pre-1.0 API).
+Inactive on default single-agent-type ``python -m broker.run`` runs unless
+explicitly wired via lifecycle hooks or ``social_feeds.enable: true``.
+Subject to interface evolution in follow-up multi-actor and asynchronous
+knowledge-graph social studies.
+
 Modules:
     graph           — SocialGraph, NeighborhoodGraph, create_social_graph
     config          — SocialGraphSpec, AGENT_SOCIAL_SPECS
