@@ -70,7 +70,7 @@ def _extract_executed_action(result: Any) -> Optional[Tuple[str, str, str]]:
     was_fallback = bool(getattr(result, "executed_via_fallback", False))
     params = (
         {}
-        if (rejected_row or was_fallback or approved_skill is None)
+        if (was_fallback or approved_skill is None)
         else (getattr(approved_skill, "parameters", None) or {})
     )
     number_val = params.get("magnitude_pct")
@@ -174,7 +174,18 @@ class MultiActorLifecycleBridge:
             event_scope = EventScope.AGENT
         elif isinstance(raw_scope, EventScope):
             event_scope = raw_scope
-            recipients = []
+            if recipient_types and raw_scope == EventScope.GLOBAL:
+                recipients = [
+                    aid for aid, ag in self._agents_by_id.items()
+                    if aid != agent_id and getattr(ag, "agent_type", None) in recipient_types
+                ]
+                if not recipients:
+                    return
+                event_scope = EventScope.AGENT
+            elif raw_scope == EventScope.AGENT:
+                return
+            else:
+                recipients = []
         else:
             if raw_scope is None:
                 pool_graph = getattr(self.message_pool, "_graph", None)
@@ -194,9 +205,10 @@ class MultiActorLifecycleBridge:
                     ]
                 recipients = neighbors
                 event_scope = EventScope.AGENT
+                if not recipients:
+                    return
             elif scope_mode in ("direct", "agent"):
-                recipients = []
-                event_scope = EventScope.AGENT
+                return
             elif scope_mode == "regional":
                 recipients = []
                 event_scope = EventScope.REGIONAL
@@ -208,7 +220,9 @@ class MultiActorLifecycleBridge:
                     aid for aid, ag in self._agents_by_id.items()
                     if aid != agent_id and getattr(ag, "agent_type", None) in recipient_types
                 ]
-                event_scope = EventScope.AGENT if recipients else EventScope.GLOBAL
+                if not recipients:
+                    return
+                event_scope = EventScope.AGENT
             else:
                 recipients = []
                 event_scope = EventScope.GLOBAL

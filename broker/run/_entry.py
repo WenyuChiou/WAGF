@@ -425,10 +425,9 @@ def _chain_hook(name: str, first: Any, second: Any):
 
 
 def _resolve_coordinator_slot(coord_obj: Any, hooks: dict[str, Any]) -> tuple[dict[str, Any], Any]:
-    from broker.components.coordination.bridge import MultiActorLifecycleBridge
-
-    if isinstance(coord_obj, MultiActorLifecycleBridge) or callable(getattr(coord_obj, "as_hooks", None)):
-        merged = coord_obj.as_hooks(hooks)
+    as_hooks = getattr(coord_obj, "as_hooks", None)
+    if callable(as_hooks):
+        merged = as_hooks(hooks)
         if not isinstance(merged, Mapping) or not all(
             isinstance(k, str) and callable(v) for k, v in merged.items()
         ):
@@ -448,7 +447,7 @@ def _resolve_coordinator_slot(coord_obj: Any, hooks: dict[str, Any]) -> tuple[di
         return result, extra_after_run
 
     raise SlotError(
-        "run.coordinator must return a MultiActorLifecycleBridge or a mapping of hook names to callables"
+        "run.coordinator must return an object with as_hooks() or a mapping of hook names to callables"
     )
 
 

@@ -770,3 +770,69 @@ def test_bridge_unit_chaining_invariant7_and_role_policy():
     assert ("inner_step", "cons_1") in inner_events
     assert ("inner_post", 1) in inner_events
     assert ("handler_decision", "reg_1", "adjust_incentive", 1) in events
+
+
+def test_bridge_keep_proposal_preserves_number_and_empty_recipient_types_do_not_broadcast():
+    graph = SocialGraph(["prov_1", "cons_1", "cons_2"])
+    graph.add_edge("prov_1", "cons_1")
+    pool = MessagePool(social_graph=graph)
+    kg_calls = []
+
+    class _KG:
+        def record_executed_action(
+            self,
+            agent_id,
+            agent_role,
+            action_name,
+            period,
+            *,
+            number_text="",
+            delivery_delay=1,
+            visibility="neighbors",
+            outcome_text="",
+        ):
+            kg_calls.append((agent_id, action_name, number_text))
+
+    bridge = MultiActorLifecycleBridge(
+        message_pool=pool,
+        social_kg=_KG(),
+        role_message_policy={
+            "provider": {"scope": "global", "recipient_types": ["regulator"]},
+            "consumer": {"scope": "neighbors", "recipient_types": ["regulator"]},
+        },
+    )
+    agents = {
+        "prov_1": SimpleNamespace(id="prov_1", agent_type="provider"),
+        "cons_1": SimpleNamespace(id="cons_1", agent_type="consumer"),
+        "cons_2": SimpleNamespace(id="cons_2", agent_type="consumer"),
+    }
+    bridge.pre_year(1, {}, agents)
+
+    # Rejected proposal executed as-is (keep_proposal: executed_via_fallback=False)
+    # must preserve executed parameters (matching ExperimentRunner._apply_state_changes).
+    kept_result = SkillBrokerResult(
+        outcome=SkillOutcome.REJECTED,
+        skill_proposal=SkillProposal(
+            skill_name="expand_capacity", agent_id="prov_1", reasoning={}, magnitude_pct=0.6
+        ),
+        approved_skill=ApprovedSkill(
+            skill_name="expand_capacity",
+            agent_id="prov_1",
+            approval_status="REJECTED",
+            parameters={"magnitude_pct": 0.6},
+        ),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="expand_capacity",
+        executed_via_fallback=False,
+    )
+    bridge.post_step(agents["prov_1"], kept_result)
+    assert kg_calls[-1] == ("prov_1", "expand_capacity", "number 0.6")
+
+    # Empty recipient_types match (no regulator in agents) must NOT broadcast to cons_1/cons_2.
+    assert pool.get_messages("cons_1") == []
+    assert pool.get_messages("cons_2") == []
+
+    # Neighbor filter with empty match must NOT broadcast either.
+    bridge.post_step(agents["cons_1"], kept_result)
+    assert pool.get_messages("prov_1") == []
+    assert pool.get_messages("cons_2") == []
