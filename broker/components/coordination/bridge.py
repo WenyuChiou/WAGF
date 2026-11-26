@@ -78,7 +78,7 @@ def _extract_executed_action(result: Any) -> Optional[Tuple[str, str, str]]:
     if isinstance(number_val, bool) or not isinstance(number_val, (int, float)):
         number_text = ""
     else:
-        number_text = f"number {float(number_val):g}"
+        number_text = f"{float(number_val):g}"
 
     action_ctx = getattr(exec_res, "action_context", None) or {}
     raw_outcome = action_ctx.get("outcome_text", "") if isinstance(action_ctx, Mapping) else ""
@@ -170,12 +170,40 @@ class MultiActorLifecycleBridge:
         recipient_types = list(policy.get("recipient_types") or ())
         explicit_recipients = list(policy.get("recipients") or ())
 
+        location = (
+            policy.get("location")
+            or getattr(agent, "region_id", None)
+            or getattr(agent, "tract_id", None)
+        )
+        pool_locations = getattr(self.message_pool, "_agent_locations", {}) or {}
+
+        def _agent_location(aid: str, ag: Any) -> Optional[str]:
+            return (
+                pool_locations.get(aid)
+                or getattr(ag, "region_id", None)
+                or getattr(ag, "tract_id", None)
+            )
+
         if explicit_recipients:
             recipients = explicit_recipients
             event_scope = EventScope.AGENT
         elif isinstance(raw_scope, EventScope):
             event_scope = raw_scope
-            if recipient_types and raw_scope == EventScope.GLOBAL:
+            if raw_scope in (EventScope.REGIONAL, EventScope.LOCAL) and recipient_types:
+                recipients = (
+                    [
+                        aid for aid, ag in self._agents_by_id.items()
+                        if aid != agent_id
+                        and getattr(ag, "agent_type", None) in recipient_types
+                        and _agent_location(aid, ag) == location
+                    ]
+                    if location
+                    else []
+                )
+                if not recipients:
+                    return
+                event_scope = EventScope.AGENT
+            elif recipient_types and raw_scope == EventScope.GLOBAL:
                 recipients = [
                     aid for aid, ag in self._agents_by_id.items()
                     if aid != agent_id and getattr(ag, "agent_type", None) in recipient_types
@@ -210,12 +238,24 @@ class MultiActorLifecycleBridge:
                     return
             elif scope_mode in ("direct", "agent"):
                 return
-            elif scope_mode == "regional":
-                recipients = []
-                event_scope = EventScope.REGIONAL
-            elif scope_mode == "local":
-                recipients = []
-                event_scope = EventScope.LOCAL
+            elif scope_mode in ("regional", "local"):
+                if recipient_types:
+                    recipients = (
+                        [
+                            aid for aid, ag in self._agents_by_id.items()
+                            if aid != agent_id
+                            and getattr(ag, "agent_type", None) in recipient_types
+                            and _agent_location(aid, ag) == location
+                        ]
+                        if location
+                        else []
+                    )
+                    if not recipients:
+                        return
+                    event_scope = EventScope.AGENT
+                else:
+                    recipients = []
+                    event_scope = EventScope.REGIONAL if scope_mode == "regional" else EventScope.LOCAL
             elif recipient_types:
                 recipients = [
                     aid for aid, ag in self._agents_by_id.items()
@@ -236,14 +276,9 @@ class MultiActorLifecycleBridge:
         message_type = str(policy.get("message_type") or default_msg_type)
         priority = int(policy.get("priority", 5 if institutional else 0))
         ttl = int(policy.get("ttl", self.default_ttl))
-        location = (
-            policy.get("location")
-            or getattr(agent, "region_id", None)
-            or getattr(agent, "tract_id", None)
-        )
 
         action_label = skill_name.replace("_", " ")
-        num_suffix = f" ({number_text})" if number_text else ""
+        num_suffix = f" (number {number_text})" if number_text else ""
         content = f"Period {year}: {agent_id} ({agent_type}) executed {action_label}{num_suffix}."
 
         payload: Dict[str, Any] = {
@@ -253,7 +288,7 @@ class MultiActorLifecycleBridge:
             "period": year,
         }
         if number_text:
-            payload["number_text"] = number_text
+            payload["number_text"] = f"number {number_text}"
         if outcome_text:
             payload["outcome_text"] = outcome_text
 

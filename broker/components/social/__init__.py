@@ -21,10 +21,6 @@ one-line `FilterRegistry.register(name, fn)` call from any domain
 package.
 """
 from broker.components.social.filter_registry import FilterRegistry
-from broker.components.social.knowledge_graph import (
-    AsyncKnowledgeGraph,
-    KnowledgeTriple,
-)
 
 
 def _has_account_state_filter(agent) -> bool:
@@ -45,7 +41,11 @@ FilterRegistry.register("has_insurance", _has_account_state_filter)
 
 
 def __getattr__(name: str):
-    """Lazily resolve KnowledgeGraphSocialProvider to avoid circular imports."""
+    """Lazily resolve experimental social KG exports so flag-OFF runs never load them."""
+    if name in ("AsyncKnowledgeGraph", "KnowledgeTriple"):
+        from broker.components.social import knowledge_graph
+
+        return getattr(knowledge_graph, name)
     if name == "KnowledgeGraphSocialProvider":
         from broker.components.social.kg_provider import KnowledgeGraphSocialProvider
 

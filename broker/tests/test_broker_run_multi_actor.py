@@ -826,7 +826,7 @@ def test_bridge_keep_proposal_preserves_number_and_empty_recipient_types_do_not_
         executed_via_fallback=False,
     )
     bridge.post_step(agents["prov_1"], kept_result)
-    assert kg_calls[-1] == ("prov_1", "expand_capacity", "number 0.6")
+    assert kg_calls[-1] == ("prov_1", "expand_capacity", "0.6")
 
     # Empty recipient_types match (no regulator in agents) must NOT broadcast to cons_1/cons_2.
     assert pool.get_messages("cons_1") == []
@@ -871,3 +871,73 @@ def test_bridge_direct_visibility_forwards_target_ids_to_async_kg():
 
     assert len(kg.query_visible("cons_1", 1)) == 1
     assert kg.query_visible("prov_1", 1) == []
+
+
+def test_bridge_magnitude_parses_in_async_kg_and_regional_recipient_types_intersection():
+    from broker.components.social import AsyncKnowledgeGraph
+
+    kg = AsyncKnowledgeGraph()
+    pool = MessagePool()
+    bridge = MultiActorLifecycleBridge(
+        message_pool=pool,
+        social_kg=kg,
+        role_message_policy={
+            "provider": {
+                "scope": "regional",
+                "recipient_types": ["consumer"],
+                "visibility": "global",
+                "delivery_delay": 0,
+            },
+            "regulator": {
+                "scope": "local",
+                "recipient_types": ["provider"],
+            },
+        },
+    )
+    agents = {
+        "reg_1": SimpleNamespace(id="reg_1", agent_type="regulator", region_id="south"),
+        "prov_1": SimpleNamespace(id="prov_1", agent_type="provider", region_id="north"),
+        "cons_n": SimpleNamespace(id="cons_n", agent_type="consumer", region_id="north"),
+        "cons_s": SimpleNamespace(id="cons_s", agent_type="consumer", region_id="south"),
+    }
+    bridge.pre_year(1, {}, agents)
+
+    res_prov = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(
+            skill_name="expand_capacity", agent_id="prov_1", reasoning={}, magnitude_pct=0.45
+        ),
+        approved_skill=ApprovedSkill(
+            skill_name="expand_capacity",
+            agent_id="prov_1",
+            approval_status="APPROVED",
+            parameters={"magnitude_pct": 0.45},
+        ),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="expand_capacity",
+    )
+    bridge.post_step(agents["prov_1"], res_prov)
+
+    # AsyncKnowledgeGraph parsed numeric value cleanly
+    triples = kg.query_visible("cons_n", 1)
+    assert len(triples) == 1
+    assert triples[0].value == pytest.approx(0.45)
+
+    # Regional + recipient_types=["consumer"] delivers ONLY to cons_n (north), not cons_s (south) or reg_1 (south)
+    assert len(pool.get_messages("cons_n")) == 1
+    assert pool.get_messages("cons_s") == []
+    assert pool.get_messages("reg_1") == []
+
+    # Local + recipient_types=["provider"] in south has empty intersection -> no broadcast to cons_s/prov_1
+    res_reg = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="adjust_incentive", agent_id="reg_1", reasoning={}),
+        approved_skill=ApprovedSkill(
+            skill_name="adjust_incentive", agent_id="reg_1", approval_status="APPROVED"
+        ),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="adjust_incentive",
+    )
+    bridge.post_step(agents["reg_1"], res_reg)
+    assert pool.get_messages("prov_1") == []
+    assert pool.get_messages("cons_s") == []
