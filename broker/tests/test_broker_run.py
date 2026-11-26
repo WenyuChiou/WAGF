@@ -666,3 +666,81 @@ def test_inline_and_file_prompt_together_are_refused(case, tmp_path, capsys):
     _write_yaml(config, data)
     assert main([str(config), "--model", "mock", "--output", str(tmp_path / "out")]) == 2
     assert "set prompt_template or prompt_template_file, not both" in capsys.readouterr().err
+
+
+def _magnitude_case(case, field_skills):
+    """A case whose mock answers wait in year 1 and inspect in year 2, both
+    with the number 0.4, and whose world records the parameters it gets."""
+    config, data = case
+    (config.parents[1] / "recording.py").write_text(dedent('''
+        import json
+        from broker.interfaces.skill_types import ExecutionResult
+        from broker.utils.llm_utils import LLMStats
+
+        SEEN = []
+
+        class World:
+            year = 0
+
+            def advance_step(self):
+                self.year += 1
+                return {"current_year": self.year}
+
+            def execute_skill(self, approved_skill):
+                SEEN.append((approved_skill.skill_name, dict(approved_skill.parameters)))
+                return ExecutionResult(success=True, state_changes={})
+
+        def build(ctx):
+            return World()
+
+        def mock(ctx):
+            answers = iter(["1", "2"])
+
+            def respond(prompt):
+                payload = {"decision": next(answers), "magnitude": 0.4}
+                text = "<<<DECISION_START>>>" + json.dumps(payload) + "<<<DECISION_END>>>"
+                return text, LLMStats(success=True)
+            return respond
+    '''), encoding="utf-8")
+    field = {"key": "magnitude", "type": "numeric", "min": 0, "max": 1, "required": True}
+    if field_skills is not None:
+        field["skills"] = field_skills
+    data["agent"]["response_format"]["fields"].insert(0, field)
+    data["global_config"]["run"] = {"world": "recording:build", "mock": "recording:mock", "years": 2,
+                                    "agent_count": 1}
+    _write_yaml(config, data)
+    return config
+
+
+def _seen(config):
+    return sys.modules[f"{config.parents[1].name}.recording"].SEEN
+
+
+def test_number_is_dropped_for_a_skill_the_field_does_not_list(case):
+    """R5 walk finding 2: maintain + 0.75 used to change the world's control."""
+    config = _magnitude_case(case, ["inspect"])
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["wait", "inspect"]
+    assert "magnitude_pct" not in seen[0][1]
+    assert seen[1][1]["magnitude_pct"] == 0.4
+    record = _first_decision(config.parents[1] / "results" / "agent_types")
+    assert any("magnitude=0.4 dropped: wait does not take it" in w
+               for w in record["skill_proposal"]["parsing_warnings"])
+
+
+def test_without_field_skills_every_skill_gets_the_number(case):
+    config = _magnitude_case(case, None)
+    assert main([str(config), "--model", "mock"]) == 0
+    assert [params.get("magnitude_pct") for _, params in _seen(config)] == [0.4, 0.4]
+
+
+@pytest.mark.parametrize("skills, message", [
+    (["inspekt"], "lists skills ['inspekt'] that the skill registry does not have"),
+    ("inspect", "skills must be a non-empty list of skill names"),
+    ([], "skills must be a non-empty list of skill names"),
+])
+def test_bad_field_skills_are_refused_at_build(case, capsys, skills, message):
+    config = _magnitude_case(case, skills)
+    assert main([str(config), "--model", "mock"]) == 2
+    assert message in capsys.readouterr().err

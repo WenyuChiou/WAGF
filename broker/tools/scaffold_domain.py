@@ -81,7 +81,11 @@ def gen_readme(
         "           response field `magnitude` (`min: 0`, `max: 1`) is the fraction the agent\n"
         '           names, and `world.py` reads it as `parameters["magnitude_pct"]`.\n'
         "           `mock_llm.py` supplies a fixed fraction under `--model mock`. Keep the\n"
-        "           prompt asking for a fraction, and do not turn on `multi_skill` with it."
+        "           prompt asking for a fraction, and do not turn on `multi_skill` with it.\n"
+        "           If some actions do not take the number (a `maintain_*` hold), list the\n"
+        "           ones that do under the field's `skills:`, for example\n"
+        '           `skills: ["set_use"]`; the parser then drops a number given with any\n'
+        "           other action, so a hold keeps the last value."
     ) if magnitude else ""
     return dedent(f"""
         # {domain} — WAGF domain skeleton
@@ -624,7 +628,8 @@ class SyntheticEnvironment:
     def execute_skill(self, approved_skill):
         # "magnitude_pct" is only the name of the carrier. It holds the agent's
         # action number as the response field `magnitude` declares it: a fraction
-        # on [0, 1]. It is absent when the model gave none.
+        # on [0, 1]. It is absent when the model gave none, and for an action the
+        # field's `skills:` list leaves out (a hold keeps the last value).
         fraction = approved_skill.parameters.get("magnitude_pct")
         if fraction is None:
             return ExecutionResult(success=True, state_changes={})

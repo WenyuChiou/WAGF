@@ -2898,14 +2898,27 @@ class AgentTypeConfig:
         numeric_fields = []
         for field in fields:
             if field.get("type") == "numeric":
-                numeric_fields.append({
+                entry = {
                     "key": field.get("key"),
                     "min": field.get("min"),
                     "max": field.get("max"),
                     "unit": field.get("unit", ""),
                     "sign": field.get("sign", "positive_only"),
                     "required": field.get("required", False),
-                })
+                }
+                # Optional: the skills that take this number. The parser drops
+                # it for any other skill. Added only when declared, so a config
+                # without it gets the same dicts as before.
+                if field.get("skills") is not None:
+                    skills = field.get("skills")
+                    if (not isinstance(skills, (list, tuple)) or not skills or not all(
+                            isinstance(s, str) and s.strip() for s in skills)):
+                        raise ValueError(
+                            f"{agent_type}.response_format field {field.get('key')!r}: skills "
+                            f"must be a non-empty list of skill names, got {skills!r}"
+                        )
+                    entry["skills"] = tuple(skills)
+                numeric_fields.append(entry)
         
         return numeric_fields
 

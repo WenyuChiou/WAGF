@@ -337,6 +337,24 @@ class ExperimentBuilder:
         self.sim_engine = adapter
         logger.info(f"[coupling] adapter injected via builder (enable=True, source={source})")
 
+    @staticmethod
+    def _check_numeric_field_skills(config: Any, reg: Any) -> None:
+        """Refuse a numeric response field whose ``skills:`` names a skill the
+        registry does not have: the parser would drop the number for the skill
+        meant to take it (R5 walk finding 2)."""
+        known = list(getattr(reg, "skills", {}) or {})
+        if not known:
+            return
+        for agent_type in config.agent_type_names():
+            for field in config.get_numeric_fields(agent_type):
+                unknown = [s for s in field.get("skills", ()) if s not in known]
+                if unknown:
+                    raise ValueError(
+                        f"{agent_type}.response_format field {field['key']!r} lists skills "
+                        f"{unknown} that the skill registry does not have ({known}); the "
+                        f"number would be dropped for the skill meant to take it"
+                    )
+
     def with_skill_registry(self, registry: Any):
         self.skill_registry = registry
         return self
@@ -600,6 +618,7 @@ class ExperimentBuilder:
         # 6. Setup Broker
         from broker.utils.agent_config import AgentTypeConfig
         config = AgentTypeConfig.load(self.agent_types_path)
+        self._check_numeric_field_skills(config, reg)
 
         broker = SkillBrokerEngine(
             skill_registry=reg,

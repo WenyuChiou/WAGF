@@ -1157,6 +1157,36 @@ class UnifiedAdapter(ModelAdapter):
             if _secondary_magnitude_pct is not None:
                 reasoning["_secondary_magnitude_pct"] = _secondary_magnitude_pct
 
+        # R5 walk finding 2: a numeric response field may list the skills that
+        # take its number (`skills: [set_release]`). For any other skill the
+        # number is dropped here, so a hold action carries no number to the
+        # rules, the projection, the world or the audit; the audit's
+        # parsing_warnings says what was dropped. A field without `skills`
+        # keeps its number for every skill, as before.
+        _numeric_decl = self.agent_config.get_numeric_fields(agent_type)
+        _scoped_fields = {
+            nf["key"]: nf["skills"] for nf in _numeric_decl
+            if nf.get("key") and nf.get("skills") is not None
+        }
+        if _scoped_fields and skill_name:
+            # The field _magnitude_pct came from, by the same priority as above.
+            _keys = list(_extracted_numerics) or [nf.get("key") for nf in _numeric_decl]
+            _primary = next(
+                (k for k in ("magnitude_pct", "magnitude") if k in _keys),
+                _keys[0] if _keys else None,
+            )
+            for _key, _takes in _scoped_fields.items():
+                if skill_name in _takes:
+                    continue
+                _dropped = _extracted_numerics.pop(_key, None)
+                if _key == _primary and _magnitude_pct is not None:
+                    _dropped, _magnitude_pct = _magnitude_pct, None
+                if _dropped is not None:
+                    parsing_warnings.append(
+                        f"{_key}={_dropped} dropped: {skill_name} does not take it "
+                        f"(the field lists {list(_takes)})"
+                    )
+
         reasoning["_parse_metadata"] = parse_metadata
 
         proposal = SkillProposal(
