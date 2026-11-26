@@ -251,27 +251,17 @@ def test_real_llm_probe_reaches_original_host_not_the_dead_port(pytester, monkey
     never depended on the proxy vars either way).
     """
     import socket
-    import threading
 
     fake_daemon = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     fake_daemon.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     fake_daemon.bind(("127.0.0.1", 0))
+    # The system completes the probe's connection and queues it here even
+    # though nothing calls accept() yet, so it is read after the nested run
+    # ends. An accept() thread with a 10 s timeout used to start before the
+    # nested run, whose start-up (importing broker) took 7-11 s, so a busy
+    # machine (the full suite) timed it out before the probe came.
     fake_daemon.listen(1)
     fake_port = fake_daemon.getsockname()[1]
-
-    reached = {"hit": False}
-
-    def _accept_one():
-        fake_daemon.settimeout(10)
-        try:
-            conn, _ = fake_daemon.accept()
-            reached["hit"] = True
-            conn.close()
-        except OSError:
-            pass
-
-    acceptor = threading.Thread(target=_accept_one, daemon=True)
-    acceptor.start()
 
     monkeypatch.setenv("WAGF_ALLOW_OLLAMA_IN_TESTS", "1")
     monkeypatch.setenv("OLLAMA_HOST", f"http://127.0.0.1:{fake_port}")
@@ -315,19 +305,27 @@ def test_real_llm_probe_reaches_original_host_not_the_dead_port(pytester, monkey
         """,
     )
 
-    result = pytester.runpytest_subprocess("-p", "no:cacheprovider", *_timeout_args(30))
-
-    acceptor.join(timeout=15)
-    fake_daemon.close()
+    hit = False
+    try:
+        result = pytester.runpytest_subprocess("-p", "no:cacheprovider", *_timeout_args(30))
+        fake_daemon.settimeout(5)
+        try:
+            conn, _ = fake_daemon.accept()  # the probe's queued connection
+            hit = True
+            conn.close()
+        except OSError:  # nothing queued: the probe never connected
+            pass
+    finally:
+        fake_daemon.close()
 
     # 4 passed: this probe test plus the real zz self-test's own 3 tests,
     # collected alongside it (_write_real_guard_plain_into always includes
     # the real zz file so the real conftest.py's reordering/backstop stay
     # exercised too). result.ret == 0 (implied by assert_outcomes with no
-    # failures) already confirms nothing broke; reached["hit"] below is
-    # this test's actual point.
+    # failures) already confirms nothing broke; `hit` below is this test's
+    # actual point.
     result.assert_outcomes(passed=4)
-    assert reached["hit"], (
+    assert hit, (
         "the real_llm test's probe never actually reached the fake daemon "
         "standing in for the original OLLAMA_HOST"
     )
