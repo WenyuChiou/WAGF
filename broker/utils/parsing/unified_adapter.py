@@ -1175,6 +1175,18 @@ class UnifiedAdapter(ModelAdapter):
             nf["key"]: nf["skills"] for nf in _numeric_decl
             if nf.get("key") and nf.get("skills") is not None
         }
+        # The secondary action's number (multi_skill) is scoped by its own
+        # field against the SECONDARY skill: the engine copies the reasoning
+        # carrier into the secondary proposal and its execution parameters.
+        _sec_takes = _scoped_fields.get(sec_mag_field) if ms_cfg else None
+        if (_sec_takes is not None and _secondary_skill_name
+                and _secondary_skill_name not in _sec_takes):
+            _sec_dropped = reasoning.pop("_secondary_magnitude_pct", None)
+            if _sec_dropped is not None:
+                parsing_warnings.append(
+                    f"{sec_mag_field}={_sec_dropped} dropped: the secondary action "
+                    f"{_secondary_skill_name} does not take it (the field lists {list(_sec_takes)})"
+                )
         if _scoped_fields and skill_name:
             # The field _magnitude_pct came from, by the same priority as above.
             # A keyword-parsed number names its own field when that field is

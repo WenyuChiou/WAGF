@@ -779,6 +779,54 @@ def test_without_field_skills_every_skill_gets_the_number(case):
     assert [params.get("magnitude_pct") for _, params in _seen(config)] == [0.4, 0.4]
 
 
+def _two_action_case(case, primary, secondary):
+    """Multi-skill on: one year, the mock picks ``primary`` (number 0.4) and
+    ``secondary`` (number 40); both number fields list only inspect."""
+    config = _magnitude_case(case, ["inspect"])
+    _, data = case
+    data["agent"]["multi_skill"] = {"enabled": True, "secondary_field": "secondary_decision",
+                                    "secondary_magnitude_field": "secondary_magnitude"}
+    fields = data["agent"]["response_format"]["fields"]
+    # The secondary is checked against the required fields with the reply's
+    # primary keys only, so a required primary number would block it.
+    next(f for f in fields if f["key"] == "magnitude")["required"] = False
+    fields.insert(1, {
+        "key": "secondary_magnitude", "type": "numeric", "min": 1, "max": 100,
+        "required": False, "skills": ["inspect"]})
+    data["global_config"]["run"]["years"] = 1
+    _write_yaml(config, data)
+    recording = config.parents[1] / "recording.py"
+    text = recording.read_text(encoding="utf-8")
+    old = 'payload = {"decision": next(answers), "magnitude": 0.4}'
+    assert text.count(old) == 1
+    recording.write_text(text.replace(old, (
+        f'payload = {{"decision": "{primary}", "magnitude": 0.4, '
+        f'"secondary_decision": "{secondary}", "secondary_magnitude": 40}}')), encoding="utf-8")
+    return config
+
+
+def test_the_secondary_action_drops_a_number_its_field_does_not_list(case):
+    """Codex P2 on #136: the secondary hold kept the 40 its field excludes."""
+    config = _two_action_case(case, primary="2", secondary="1")  # inspect, then wait
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["inspect", "wait"]
+    assert seen[0][1]["magnitude_pct"] == 0.4
+    assert "magnitude_pct" not in seen[1][1]
+    record = _first_decision(config.parents[1] / "results" / "agent_types")
+    assert any("secondary_magnitude=40.0 dropped: the secondary action wait does not take it" in w
+               for w in record["skill_proposal"]["parsing_warnings"])
+
+
+def test_a_secondary_action_the_field_lists_keeps_its_number(case):
+    config = _two_action_case(case, primary="1", secondary="2")  # wait, then inspect
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["wait", "inspect"]
+    assert "magnitude_pct" not in seen[0][1]
+    assert seen[1][1]["magnitude_pct"] == 40.0
+
+
 @pytest.mark.parametrize("skills, message", [
     (["inspekt"], "lists skills ['inspekt'] that the skill registry does not have"),
     ("inspect", "skills must be a non-empty list of skill names"),
