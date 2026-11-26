@@ -15,6 +15,8 @@
 # LLM response fields & timing:
 #   magnitude            : [fraction, 0.0..1.0] monthly release target as a share of demand
 #   decision             : [choice, 1|2] 1=set_release (commits magnitude), 2=maintain_release
+#                          (skills: [set_release] on the magnitude field drops a number
+#                          given with maintain_release, so the hold keeps last year's target)
 #   Timing               : hindcast-then-set (year t advances first, then operator sets year t+1)
 # ==================================
 shared:
@@ -43,6 +45,7 @@ shared:
     delimiter_end: "<<<DECISION_END>>>"
     fields:
       - { key: "magnitude", type: "numeric", min: 0, max: 1, unit: "fraction", required: true,
+          skills: ["set_release"],
           description: "REQUIRED number from 0 to 1: monthly release as a fraction of demand (0.5 means half, e.g. 0.6)" }
       # Explicit description overrides the format builder's hardcoded
       # "1, 2, or 3" default (this menu has TWO actions; real-LLM e4b
@@ -109,6 +112,7 @@ operator:
     delimiter_end: "<<<DECISION_END>>>"
     fields:
       - { key: "magnitude", type: "numeric", min: 0, max: 1, unit: "fraction", required: true,
+          skills: ["set_release"],
           description: "REQUIRED number from 0 to 1: monthly release as a fraction of demand (0.5 means half, e.g. 0.6)" }
       - { key: "decision", type: "choice", required: true,
           description: "Numeric ID, choose ONE from: 1 (set_release) or 2 (maintain_release)" }

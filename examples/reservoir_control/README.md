@@ -46,9 +46,10 @@ output is unchanged apart from the two grounding columns, which appear whenever 
 has a world rule.
 
 **Dead-pool check (feasibility bound).** The contract declares `dead_pool_violation`:
-`storage_unclamped >= 6.0` must hold at every month of the coming year. Before a `set_release`
-is approved, a deep copy of the toy reservoir is fed the forecast the operator saw and the
-requested release, and run 12 months; the live model, its random numbers and files are not
+`storage_unclamped >= 6.0` must hold at every month of the coming year. Before any action is
+approved (`set_release` and also `maintain_release`, which keeps last year's release target
+running), a deep copy of the toy reservoir is fed the forecast the operator saw and the
+release the action asks for, and run 12 months; the live model, its random numbers and files are not
 touched. `storage_unclamped` is next month's storage before the clamp to [0, capacity]. The old
 linear formula is gone: the check uses the model's own evaporation (see "Feasibility bounds" in
 `docs/COUPLING_CONNECTORS.md`).

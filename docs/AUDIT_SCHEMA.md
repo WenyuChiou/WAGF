@@ -132,11 +132,22 @@ trace covers the standard audit projection.
 | `executed_via_fallback` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `execution_path` | executed truth (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 | `projection_default_breach` | feasibility mark (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
+| `projection_kept_proposal` | feasibility mark (key-gated) | `broker/components/analytics/audit.py:trace_to_csv_row` |
 
 `projection_default_breach` (R1 slice 2): present only when the coupled contract declares
 `feasibility` bounds and the retries ran out. It names the bounds the default skill (which runs
-anyway) breaches on the model's own what-if run, joined by `;`, empty when the default passes.
-A run without bounds has no such column.
+anyway) breaches on the model's own what-if run, joined by `;`, empty when the default passes,
+and `not_checked` when no bound judges the default skill (every bound lists `skills` and leaves
+it out), so an empty cell always means the default was projected and passed. A run without
+bounds has no such column.
+
+`projection_kept_proposal` (R5 walk finding 16): written only when the default breaches too,
+only feasibility bounds blocked the agent's last proposal, and the two were compared. `True`
+when the proposal's margin on every bound is no worse than the default's, so the proposal ran
+in the default's place (`execution_path` `no_worse_than_default`); `False` when it was worse
+and the default ran. Empty when no comparison was made: the default passed, another rule
+blocked the proposal, or the parser produced no usable choice. See "Feasibility bounds" in
+`docs/COUPLING_CONNECTORS.md`. The row's `status` stays `REJECTED`.
 
 ## Reserved Or Dead Columns
 
@@ -234,7 +245,7 @@ YAML placement and precedence are in
 ### The deterministic remap rule
 
 `status` alone does not say what ran, because the REJECTED branch of
-`broker/core/skill_broker_engine.py:process_step` has three exits. With the
+`broker/core/skill_broker_engine.py:process_step` has several exits. With the
 flag ON, `execution_path` states which one the row took:
 
 | `execution_path` | When | `executed_skill` | Relationship to `final_skill` |
@@ -243,6 +254,7 @@ flag ON, `execution_path` states which one the row took:
 | `approved_no_engine` | `status` is `APPROVED` but the run wired NO simulation engine, so nothing executed — the broker records a pseudo-execution | the approved skill | identical |
 | `rejected_default` | `status` is `REJECTED` and the domain's `governance.on_retry_exhausted` is `default` (the default) | the registry `default_skill` | **differs** — `final_skill` is the BLOCKED proposal |
 | `rejected_proposal` | `status` is `REJECTED` and `on_retry_exhausted` is `keep_proposal` | the blocked proposal itself | identical |
+| `no_worse_than_default` | `status` is `REJECTED` under `on_retry_exhausted: default` in a coupled run: only feasibility bounds blocked the last proposal, the default breaches a bound too, and the proposal projects no worse (`projection_kept_proposal` is `True`) | the blocked proposal itself | identical |
 | `fallback` | `status` is `REJECTED_FALLBACK` — the parser never produced a usable choice | the registry `default_skill` | **may differ** — `final_skill` usually already holds the registry default, but a domain whose per-agent-type parsing supplies its own `default_skill` (the `ma_agent_types.yaml` case) can leave a different name there. `executed_skill` is authoritative |
 | `aborted` | the step's output never parsed at all; sentinel row, nothing executed | `""` | both empty |
 | `not_executed` | a blocked proposal whose configured default skill is not in the registry, so nothing ran | `None` | n/a |
@@ -804,6 +816,7 @@ changing behaviour and measures the soft rules' firing rate alone.
 | Gotcha | Meaning | Recommended handling |
 |---|---|---|
 | `validated=True` with non-empty `failed_rules` | Two distinct causes. (1) A retry recovered: the final attempt is clean, but prior blocking issues are preserved. (2) A discarded post-advice proposal: `all_validation_history` is extended with the post-advice proposal's results (`broker/core/_advise_pass.py`) BEFORE the code checks whether that proposal is valid, so a rejected post-advice proposal's rule ids reach `failed_rules` — and the same unconditional extend feeds `rules_world_grounded` / `rules_self_report` / every `rules_*_hit` column — even though the row's `status` and executed action reflect the pre-advice proposal that actually ran. | Check `advise_executed_stage` before concluding anything about the executed decision from `failed_rules`: `pre` with `advise_post_validation_invalid=True` means the rule ids in these five columns name a proposal that never executed, not the one that did. `post` (or the retry case) means treat it as "retry-recovered", not a final contradiction. This matters under executed-only analysis discipline (the "Rejected-row discipline" row in Column Groups above): headline metrics read the executed action, never a discarded proposal's validation trail. |
+| `failed_rules` repeats a rule id (`a|a|a`) | Blocks are collected over every attempt and kept once per rule id and message text (`GenericAuditWriter.write_trace`). An id repeats when the same rule blocked again with a different message, such as a projection check that names a different projected value on each attempt; a block repeated with the same message appears once. | Use distinct ids for "which rules blocked". The number of entries is not the number of blocked attempts; for that, read `attempt_failed_rules` (under `audit.attempt_columns`), one group per attempt. |
 | `rules_triggered` vs `failed_rules` | `rules_triggered` reads `rules_hit`; `failed_rules` reads `rule_id`. Legacy validators can diverge. | Use both only after checking validator attribution semantics. |
 | `failed_rules` = `Unknown` | The producing `ValidationResult` carries no `metadata.rule_id`. Known producer: `AgentValidator:format` missing-required-fields (`agent_validator.py`), which fires on EVERY frozen-mock-baseline row — its label is frozen as `Unknown` because renaming it breaks mock byte-identity re-verification. | Treat `Unknown` + `error_messages` starting "Response missing required fields" as the format check. Rename to `format_required_fields` only at the next `AUDIT_SCHEMA_VERSION` bump. |
 | `output_schema_violation` / `precondition_violation` in `failed_rules` | Named 2026-06-10 (both registry-level checks in `skill_broker_engine._run_validators`). Byte-safe: zero occurrences of either in the frozen mock baselines, so naming them changed no frozen-path bytes. | Rows older than 2026-06-10 show these producers as `Unknown`. |

@@ -339,6 +339,30 @@ def _mock_invokes(mock_factory, ctx, agent_types):
     return result
 
 
+def _require_coupling_enabled(ctx, world):
+    from broker.coupling.flag import resolve_coupling_enabled
+    from broker.domains.registry import DomainPackRegistry
+
+    global_config = ctx.raw.get("global_config")
+    governance = global_config.get("governance") if isinstance(global_config, Mapping) else None
+    domain = world.domain or (governance.get("domain") if isinstance(governance, Mapping) else None)
+    pack = DomainPackRegistry.get(domain) if domain else None
+    enabled, source = resolve_coupling_enabled(ctx.raw, pack)
+    if not enabled:
+        if source == "yaml":
+            where = "global_config.coupling.enable is false"
+        elif pack is None:
+            where = "global_config.coupling.enable is not set" + (
+                f" and no {domain!r} domain pack is registered" if domain else "")
+        else:
+            where = f"global_config.coupling.enable is not set and the {domain!r} domain pack defaults to off"
+        raise RunError(
+            f"run.world returned Coupled(...) but coupling is off ({where}), so the "
+            f"coupling contract, relations and feasibility bounds would not run. Set "
+            f"global_config.coupling.enable: true, or return a plain world"
+        )
+
+
 def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     world_factory = _slot_factory("world", ctx, slots, allowed_modules, loaded)
     world = world_factory(ctx) if world_factory is not None else StepWorld()
@@ -433,6 +457,11 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     except SystemExit as exc:
         raise RunError(str(exc)) from exc
     if isinstance(world, Coupled):
+        # ExperimentBuilder only logs at info level and runs the model unwrapped
+        # when the flag is off (paper runners rely on that). Here the world slot
+        # asked for coupling, so an off flag would silently drop every coupled
+        # check: refuse instead.
+        _require_coupling_enabled(ctx, world)
         builder.with_coupling(world.contract, world.sources, domain=world.domain)
     else:
         builder.with_simulation(world)
@@ -572,8 +601,10 @@ def main(argv=None) -> int:
         print(f"broker.run: provenance check: {'; '.join(problems)} (add --strict-provenance to refuse)",
               file=sys.stderr)
 
+    # flush: with output sent to a file the header would otherwise land after
+    # the run's own lines (R5 walk finding 11)
     print(f"[broker.run] {ctx.config_path} | model={ctx.model} years={ctx.years} "
-          f"agents={len(ctx.agents)} output={ctx.output_dir}")
+          f"agents={len(ctx.agents)} output={ctx.output_dir}", flush=True)
     # Written before the run so a failed run still leaves its record.
     _write_run_record(prepared, argv, "started", provenance())
     runner.run()

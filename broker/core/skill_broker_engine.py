@@ -36,7 +36,8 @@ out-of-range magnitudes are corrected at execution time via bounded Gaussian
 resampling rather than rejected. The audit trail records advisory flags
 alongside binding rejections so reviewers can distinguish the two.
 """
-from typing import Callable, Dict, List, Optional, Any
+import dataclasses
+from typing import Callable, Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
 from ..interfaces.skill_types import (
@@ -69,6 +70,26 @@ from ._appraisal_freeze import (
 from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
 from ._advise_pass import AdviseMixin
 from ._skill_filtering import SkillFilterMixin, assert_rendered_prompt_shows_options
+
+# projection_default_breach when no feasibility bound judges the default skill.
+DEFAULT_NOT_CHECKED = "not_checked"
+
+
+def _conflicting_keys(flat_state: Dict[str, Any], flat_env: Dict[str, Any]) -> List[str]:
+    """Keys the agent state and the world state both carry with DIFFERENT
+    values, sorted. A key copied from the world into the agent state under the
+    same name (the documented hook pattern) holds the same value and is left
+    out: the world value wins either way (R5 walk finding 10). Values that
+    cannot be compared count as different."""
+    out = []
+    for key in set(flat_state) & set(flat_env):
+        try:
+            same = bool(flat_state[key] == flat_env[key])
+        except Exception:  # noqa: BLE001 - e.g. arrays: report rather than guess
+            same = False
+        if not same:
+            out.append(key)
+    return sorted(out)
 
 
 def _reset_uncategorised_rules() -> None:
@@ -849,9 +870,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         flat_state = context.get("state", {})
         flat_env = env_context
 
-        # Diagnostic: warn on key collisions between agent state and env context
+        # Diagnostic: warn on keys the agent state and env context both carry
+        # with different values (equal copies are harmless and not reported)
         if __debug__:
-            collisions = set(flat_state.keys()) & set(flat_env.keys())
+            collisions = _conflicting_keys(flat_state, flat_env)
             if collisions:
                 logger.warning(
                     f"[Governance:Diagnostic] Key collision in validation context: "
@@ -1119,6 +1141,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # coupled model declares feasibility bounds); None keeps the audit row
         # free of the key, so runs without bounds keep their exact columns.
         projection_default_breach: Optional[str] = None
+        # R5 walk finding 16: set with projection_default_breach; True when the
+        # agent's last proposal ran in place of a default that breaches too.
+        projection_kept_proposal: Optional[bool] = None
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
             executed_skill = approved_skill.skill_name
@@ -1136,7 +1161,15 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 # rule-violating choice as the observable, so the agent's OWN final
                 # proposal executes and nothing "fell back".
                 # approved_skill already carries that proposal and its execution
-                # mapping (_build_approved_skill), so it is executed as-is.
+                # mapping (_build_approved_skill), but its numbers were cleared
+                # there as for a default; the proposal runs with its own, and
+                # the result reports them. Still REJECTED. (A hard or
+                # deterministic blocker, e.g. a feasibility bound, never gets
+                # here: _keeps_rejected_proposal declines it.)
+                approved_skill = dataclasses.replace(
+                    approved_skill,
+                    parameters=parameters_from_proposal(skill_proposal),
+                )
                 execution_result = self.simulation_engine.execute_skill(approved_skill)
                 executed_skill = approved_skill.skill_name
                 executed_via_fallback = False
@@ -1155,18 +1188,45 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     projection_default_breach = self._project_default_skill(
                         fallback, validation_context, agent_id
                     )
-                    execution_result = self.simulation_engine.execute_skill(fallback)
-                    executed_skill = fallback_skill
-                    executed_via_fallback = True
-                    # UNCERTAIN = the parser never produced a usable choice
-                    # (approval_status is already REJECTED_FALLBACK);
-                    # REJECTED = a real proposal was blocked and the registry
-                    # default took its place. Both run the default skill, but
-                    # only the second is the row where `final_skill` lies.
-                    execution_path = (
-                        "fallback" if outcome is SkillOutcome.UNCERTAIN
-                        else "rejected_default"
-                    )
+                    compared, kept = False, None
+                    if (projection_default_breach
+                            and projection_default_breach != DEFAULT_NOT_CHECKED
+                            and outcome is SkillOutcome.REJECTED):
+                        compared, kept = self._no_worse_than_default(
+                            skill_proposal, fallback, validation_results,
+                            validation_context, agent_id,
+                        )
+                    if kept is not None:
+                        # R5 walk finding 16: the default breaches too, and the
+                        # agent's last proposal (blocked by feasibility bounds
+                        # only) projects no worse, so it runs instead of the
+                        # default. The row stays REJECTED and is marked.
+                        projection_kept_proposal = True
+                        execution_result = self.simulation_engine.execute_skill(kept)
+                        executed_skill = kept.skill_name
+                        executed_via_fallback = False
+                        execution_path = "no_worse_than_default"
+                        # The result and the trace describe what ran: `kept`
+                        # is still REJECTED but keeps the proposal's numbers,
+                        # which the rejected object above had cleared (the
+                        # runner reads approved_skill.parameters on a row
+                        # that did not fall back).
+                        approved_skill = kept
+                    else:
+                        if compared:
+                            projection_kept_proposal = False
+                        execution_result = self.simulation_engine.execute_skill(fallback)
+                        executed_skill = fallback_skill
+                        executed_via_fallback = True
+                        # UNCERTAIN = the parser never produced a usable choice
+                        # (approval_status is already REJECTED_FALLBACK);
+                        # REJECTED = a real proposal was blocked and the registry
+                        # default took its place. Both run the default skill, but
+                        # only the second is the row where `final_skill` lies.
+                        execution_path = (
+                            "fallback" if outcome is SkillOutcome.UNCERTAIN
+                            else "rejected_default"
+                        )
                 else:
                     logger.warning(f"Default skill '{fallback_skill}' not in registry for {approved_skill.agent_id}")
                     execution_result = ExecutionResult(success=False, state_changes={})
@@ -1196,6 +1256,11 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         if outcome is SkillOutcome.REJECTED:
             if execution_path == "rejected_proposal":
                 action = "executing it anyway"
+            elif execution_path == "no_worse_than_default":
+                action = (
+                    "executing it: the default breaches the feasibility bounds too, "
+                    "and this proposal projects no worse"
+                )
             elif executed_skill is not None:
                 action = f"executing default '{executed_skill}'"
             else:
@@ -1241,6 +1306,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_failed_rules=attempt_failed_rules,
                 attempt_prompts=attempt_prompts,
                 projection_default_breach=projection_default_breach,
+                projection_kept_proposal=projection_kept_proposal,
             )
 
         # Spec item 24: this decision's outcome for the abort-rate window --
@@ -1283,19 +1349,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         )
         return result
     
-    def _project_default_skill(
-        self, fallback: ApprovedSkill, validation_context: Dict[str, Any], agent_id: str
-    ) -> Optional[str]:
-        """Retries ran out and the default skill is about to run: project it too.
-
-        Returns None when the simulation engine is not a coupling adapter with a
-        projection check (every run without ``contract.feasibility``). Otherwise
-        the names of the bounds the default would breach, joined by ``;`` (empty
-        string when it passes). A breach is logged and the default still runs:
-        the audit row says no action was feasible. The coupling module is looked
-        up in ``sys.modules`` rather than imported, so a run without coupling
-        never loads it.
-        """
+    def _projection_check(self):
+        """The coupling adapter's projection check, or None. The coupling module
+        is looked up in ``sys.modules`` rather than imported, so a run without
+        coupling never loads it."""
         import sys
 
         adapter_mod = sys.modules.get("broker.coupling.adapter")
@@ -1304,9 +1361,95 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         engine = self.simulation_engine
         if not isinstance(engine, adapter_mod.EnvironmentCouplingAdapter):
             return None
-        check = getattr(engine, "projection_check", None)
+        return getattr(engine, "projection_check", None)
+
+    def _no_worse_than_default(
+        self, skill_proposal, fallback: ApprovedSkill, validation_results: List,
+        validation_context: Dict[str, Any], agent_id: str,
+    ) -> Tuple[bool, Optional[ApprovedSkill]]:
+        """R5 walk finding 16: after the retries, run the agent's last proposal
+        instead of the default when blocking it would gain nothing.
+
+        Called only when the default breaches a feasibility bound too. Returns
+        ``(compared, kept)``. ``compared`` is False when the comparison did not
+        apply: no projection check, no registered proposal, or a blocking
+        result of the last attempt that is not a feasibility bound (any other
+        rule keeps the default). Otherwise the margins are compared, and
+        ``kept`` is the proposal as an ``ApprovedSkill`` when, for every bound
+        that judges it, its margin over the coming period
+        (``ProjectionCheck.margins``) is no worse than the default's; a bound
+        that judges the proposal but not the default must hold. ``kept`` is
+        None when the default runs as before.
+
+        In a shared resource each agent is projected against the others' held
+        controls, so a cut can breach while still being better than holding;
+        before this, every cut was blocked and the default kept the higher
+        control.
+        """
+        check = self._projection_check()
+        if check is None or skill_proposal is None:
+            return False, None
+        if not self.skill_registry.exists(skill_proposal.skill_name):
+            return False, None
+        bound_names = {b.name for b in check.contract.feasibility}
+        blocking = [r for r in (validation_results or []) if r is not None and not r.valid]
+        if not blocking or any(
+            r.metadata.get("rule_id") not in bound_names or "projected" not in r.metadata
+            for r in blocking
+        ):
+            return False, None
+        params = parameters_from_proposal(skill_proposal)
+        mine = check.margins(skill_proposal.skill_name, params, validation_context, agent_id)
+        if not mine:
+            return False, None
+        default = check.margins(
+            fallback.skill_name, dict(fallback.parameters or {}), validation_context, agent_id
+        )
+        for name, score in mine.items():
+            if name not in default:
+                if not check.bound_holds(name, score):
+                    return True, None
+                continue
+            floor = default[name]
+            if score < floor - 1e-9 * max(1.0, abs(floor)):
+                return True, None
+        logger.warning(
+            f" [Projection] {agent_id} | '{skill_proposal.skill_name}' was blocked by "
+            f"{sorted({r.metadata.get('rule_id') for r in blocking})}, but the default "
+            f"'{fallback.skill_name}' breaches too and this proposal projects no worse "
+            f"(margins {mine} vs default {default}); it runs in place of the default."
+        )
+        return True, ApprovedSkill(
+            skill_name=skill_proposal.skill_name,
+            agent_id=agent_id,
+            approval_status="REJECTED",
+            validation_results=validation_results,
+            execution_mapping=self.skill_registry.get_execution_mapping(
+                skill_proposal.skill_name) or "",
+            parameters=params,
+        )
+
+    def _project_default_skill(
+        self, fallback: ApprovedSkill, validation_context: Dict[str, Any], agent_id: str
+    ) -> Optional[str]:
+        """Retries ran out and the default skill is about to run: project it too.
+
+        Returns None when the simulation engine is not a coupling adapter with a
+        projection check (every run without ``contract.feasibility``), and
+        ``"not_checked"`` when no bound judges the default skill (every bound
+        lists ``skills`` without it). Otherwise the names of the bounds the
+        default would breach, joined by ``;`` (empty string when it passes; R5
+        walk finding 5 split "passed" from "not judged"). A breach is logged and
+        the default still runs:
+        the audit row says no action was feasible. The coupling module is looked
+        up in ``sys.modules`` rather than imported, so a run without coupling
+        never loads it.
+        """
+        check = self._projection_check()
         if check is None:
             return None
+        if not any(b.applies_to(fallback.skill_name) for b in check.contract.feasibility):
+            return DEFAULT_NOT_CHECKED
         breaches = check.check_skill(
             fallback.skill_name, dict(fallback.parameters or {}), validation_context,
             stop_at_first=False,
@@ -1372,6 +1515,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 # "rejection discards setpoints" is self-contained, not reliant on the
                 # caller's non-REJECTED execution guard. Byte-safe: when magnitude_pct
                 # is None, _params was already {} pre-6W for frozen domains.
+                # (Both branches here clear the numbers for a default. The two
+                # paths in process_step that run the rejected proposal itself,
+                # keep_proposal and no_worse_than_default, put the proposal's
+                # own numbers back before it executes.)
                 _params = {}
 
             fallout_skill = (

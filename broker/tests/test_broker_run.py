@@ -361,6 +361,7 @@ def test_coupled_factory_sources_and_other_slots_reach_builder(case, monkeypatch
             return lambda prompt: ("{}", LLMStats(success=True))
     '''), encoding="utf-8")
     data["other"] = {"psychological_framework": "generic"}
+    data["global_config"]["coupling"] = {"enable": True}
     data["global_config"]["run"] = {
         "world": "factories:world", "agents": "factories:agents",
         "validators": "factories:validators", "mock": "factories:mock", "agent_count": 5,
@@ -385,6 +386,79 @@ def test_coupled_factory_sources_and_other_slots_reach_builder(case, monkeypatch
     assert main([str(config)]) == 0
     assert coupling_calls == [("contract", "sources", "case")]
     assert len(observed) == 1
+
+
+def _write_coupled_world(config):
+    (config.parents[1] / "coupled.py").write_text(dedent('''
+        from broker.run import Coupled
+
+        def world(ctx):
+            return Coupled("contract", "sources", domain="case_without_pack")
+    '''), encoding="utf-8")
+
+
+@pytest.mark.parametrize("coupling, pack_default, why", [
+    (None, None, "enable is not set and no 'case_without_pack' domain pack is registered"),
+    (None, False, "enable is not set and the 'case_without_pack' domain pack defaults to off"),
+    ({"enable": False}, True, "enable is false"),
+])
+def test_coupled_world_with_coupling_off_is_refused(case, monkeypatch, capsys, coupling,
+                                                    pack_default, why):
+    """R5 walk finding 3: a Coupled world with the flag off used to run the
+    model unwrapped after an info-level log line, so no coupled check ran."""
+    from broker.domains.default import DefaultDomainPack
+    from broker.domains.registry import DomainPackRegistry
+
+    config, data = case
+    _write_coupled_world(config)
+    if coupling is not None:
+        data["global_config"]["coupling"] = coupling
+    if pack_default is not None:
+        pack = DefaultDomainPack()
+        pack.coupling_enabled_default = lambda: pack_default
+        monkeypatch.setitem(DomainPackRegistry._packs, "case_without_pack", pack)
+    data["global_config"]["run"] = {"world": "coupled:world"}
+    _write_yaml(config, data)
+    calls = []
+    monkeypatch.setattr(_entry.ExperimentBuilder, "with_coupling", lambda *a, **k: calls.append(a))
+    assert main([str(config), "--model", "mock"]) == 2
+    err = capsys.readouterr().err
+    assert "Coupled(...) but coupling is off (global_config.coupling." + why + ")" in err
+    assert "global_config.coupling.enable: true" in err
+    assert calls == []
+
+
+def test_coupled_world_uses_the_domain_pack_default(case, monkeypatch):
+    """With no YAML flag, a registered pack whose default is on is enough."""
+    from broker.domains.default import DefaultDomainPack
+    from broker.domains.registry import DomainPackRegistry
+
+    class OnPack(DefaultDomainPack):
+        name = "case_pack_on"
+
+        def coupling_enabled_default(self):
+            return True
+
+    config, data = case
+    (config.parents[1] / "coupled.py").write_text(dedent('''
+        from broker.run import Coupled
+
+        def world(ctx):
+            return Coupled("contract", "sources", domain="case_pack_on")
+    '''), encoding="utf-8")
+    data["global_config"]["run"] = {"world": "coupled:world"}
+    _write_yaml(config, data)
+    monkeypatch.setitem(DomainPackRegistry._packs, "case_pack_on", OnPack())
+    calls = []
+
+    def capture(builder, contract, sources, domain=None):
+        calls.append(domain)
+        return builder.with_simulation(_entry.StepWorld())
+
+    monkeypatch.setattr(_entry.ExperimentBuilder, "with_coupling", capture)
+    monkeypatch.setattr("broker.core.experiment_runner.ExperimentRunner.run", lambda runner: None)
+    assert main([str(config), "--model", "mock"]) == 0
+    assert calls == ["case_pack_on"]
 
 
 @pytest.mark.parametrize("run, key", [
@@ -592,3 +666,191 @@ def test_inline_and_file_prompt_together_are_refused(case, tmp_path, capsys):
     _write_yaml(config, data)
     assert main([str(config), "--model", "mock", "--output", str(tmp_path / "out")]) == 2
     assert "set prompt_template or prompt_template_file, not both" in capsys.readouterr().err
+
+
+def _magnitude_case(case, field_skills):
+    """A case whose mock answers wait in year 1 and inspect in year 2, both
+    with the number 0.4, and whose world records the parameters it gets."""
+    config, data = case
+    (config.parents[1] / "recording.py").write_text(dedent('''
+        import json
+        from broker.interfaces.skill_types import ExecutionResult
+        from broker.utils.llm_utils import LLMStats
+
+        SEEN = []
+
+        class World:
+            year = 0
+
+            def advance_step(self):
+                self.year += 1
+                return {"current_year": self.year}
+
+            def execute_skill(self, approved_skill):
+                SEEN.append((approved_skill.skill_name, dict(approved_skill.parameters)))
+                return ExecutionResult(success=True, state_changes={})
+
+        def build(ctx):
+            return World()
+
+        def mock(ctx):
+            answers = iter(["1", "2"])
+
+            def respond(prompt):
+                payload = {"decision": next(answers), "magnitude": 0.4}
+                text = "<<<DECISION_START>>>" + json.dumps(payload) + "<<<DECISION_END>>>"
+                return text, LLMStats(success=True)
+            return respond
+    '''), encoding="utf-8")
+    field = {"key": "magnitude", "type": "numeric", "min": 0, "max": 1, "required": True}
+    if field_skills is not None:
+        field["skills"] = field_skills
+    data["agent"]["response_format"]["fields"].insert(0, field)
+    data["global_config"]["run"] = {"world": "recording:build", "mock": "recording:mock", "years": 2,
+                                    "agent_count": 1}
+    _write_yaml(config, data)
+    return config
+
+
+def _seen(config):
+    return sys.modules[f"{config.parents[1].name}.recording"].SEEN
+
+
+def test_number_is_dropped_for_a_skill_the_field_does_not_list(case):
+    """R5 walk finding 2: maintain + 0.75 used to change the world's control."""
+    config = _magnitude_case(case, ["inspect"])
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["wait", "inspect"]
+    assert "magnitude_pct" not in seen[0][1]
+    assert seen[1][1]["magnitude_pct"] == 0.4
+    record = _first_decision(config.parents[1] / "results" / "agent_types")
+    assert any("magnitude=0.4 dropped: wait does not take it" in w
+               for w in record["skill_proposal"]["parsing_warnings"])
+
+
+def test_dropping_initial_primary_field_selects_remaining_scoped_field(case):
+    """Codex P2 on #136: dropping `magnitude` (wait-only) on `inspect` must
+    select the remaining valid field (`inspect_share`) as `magnitude_pct`."""
+    config = _magnitude_case(case, ["wait"])
+    _, data = case
+    data["agent"]["response_format"]["fields"].insert(1, {
+        "key": "inspect_share", "type": "numeric", "min": 0, "max": 1,
+        "required": True, "skills": ["inspect"]})
+    _write_yaml(config, data)
+    recording = config.parents[1] / "recording.py"
+    recording.write_text(recording.read_text(encoding="utf-8").replace(
+        '{"decision": next(answers), "magnitude": 0.4}',
+        '{"decision": next(answers), "magnitude": 0.2, "inspect_share": 0.4}'), encoding="utf-8")
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [(n, p.get("magnitude_pct")) for n, p in seen] == [("wait", 0.2), ("inspect", 0.4)]
+
+
+def test_keyword_parsed_number_keeps_the_scope_of_the_field_it_matched(case):
+    """Codex P2 on #136: a number the keyword fallback found was scoped by the
+    first declared numeric field (magnitude, wait only), not by the field it
+    matched (inspect_share, inspect), so inspect lost its number."""
+    config, data = case
+    (config.parents[1] / "recording.py").write_text(dedent('''
+        from broker.interfaces.skill_types import ExecutionResult
+        from broker.utils.llm_utils import LLMStats
+
+        SEEN = []
+
+        class World:
+            year = 0
+
+            def advance_step(self):
+                self.year += 1
+                return {"current_year": self.year}
+
+            def execute_skill(self, approved_skill):
+                SEEN.append((approved_skill.skill_name, dict(approved_skill.parameters)))
+                return ExecutionResult(success=True, state_changes={})
+
+        def build(ctx):
+            return World()
+
+        def mock(ctx):
+            def respond(prompt):
+                return "Decision: 2\\ninspect_share: 0.4", LLMStats(success=True)
+            return respond
+    '''), encoding="utf-8")
+    fields = data["agent"]["response_format"]["fields"]
+    fields.insert(0, {"key": "inspect_share", "type": "numeric", "min": 0, "max": 1,
+                      "skills": ["inspect"]})
+    fields.insert(0, {"key": "magnitude", "type": "numeric", "min": 0, "max": 1,
+                      "skills": ["wait"]})
+    data["global_config"]["run"] = {"world": "recording:build", "mock": "recording:mock", "years": 1,
+                                    "agent_count": 1}
+    _write_yaml(config, data)
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["inspect"]
+    assert seen[0][1]["magnitude_pct"] == 0.4
+
+
+def test_without_field_skills_every_skill_gets_the_number(case):
+    config = _magnitude_case(case, None)
+    assert main([str(config), "--model", "mock"]) == 0
+    assert [params.get("magnitude_pct") for _, params in _seen(config)] == [0.4, 0.4]
+
+
+def _two_action_case(case, primary, secondary):
+    """Multi-skill on: one year, the mock picks ``primary`` (number 0.4) and
+    ``secondary`` (number 40); both number fields list only inspect."""
+    config = _magnitude_case(case, ["inspect"])
+    _, data = case
+    data["agent"]["multi_skill"] = {"enabled": True, "secondary_field": "secondary_decision",
+                                    "secondary_magnitude_field": "secondary_magnitude"}
+    fields = data["agent"]["response_format"]["fields"]
+    # The secondary is checked against the required fields with the reply's
+    # primary keys only, so a required primary number would block it.
+    next(f for f in fields if f["key"] == "magnitude")["required"] = False
+    fields.insert(1, {
+        "key": "secondary_magnitude", "type": "numeric", "min": 1, "max": 100,
+        "required": False, "skills": ["inspect"]})
+    data["global_config"]["run"]["years"] = 1
+    _write_yaml(config, data)
+    recording = config.parents[1] / "recording.py"
+    text = recording.read_text(encoding="utf-8")
+    old = 'payload = {"decision": next(answers), "magnitude": 0.4}'
+    assert text.count(old) == 1
+    recording.write_text(text.replace(old, (
+        f'payload = {{"decision": "{primary}", "magnitude": 0.4, '
+        f'"secondary_decision": "{secondary}", "secondary_magnitude": 40}}')), encoding="utf-8")
+    return config
+
+
+def test_the_secondary_action_drops_a_number_its_field_does_not_list(case):
+    """Codex P2 on #136: the secondary hold kept the 40 its field excludes."""
+    config = _two_action_case(case, primary="2", secondary="1")  # inspect, then wait
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["inspect", "wait"]
+    assert seen[0][1]["magnitude_pct"] == 0.4
+    assert "magnitude_pct" not in seen[1][1]
+    record = _first_decision(config.parents[1] / "results" / "agent_types")
+    assert any("secondary_magnitude=40.0 dropped: the secondary action wait does not take it" in w
+               for w in record["skill_proposal"]["parsing_warnings"])
+
+
+def test_a_secondary_action_the_field_lists_keeps_its_number(case):
+    config = _two_action_case(case, primary="1", secondary="2")  # wait, then inspect
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["wait", "inspect"]
+    assert "magnitude_pct" not in seen[0][1]
+    assert seen[1][1]["magnitude_pct"] == 40.0
+
+
+@pytest.mark.parametrize("skills, message", [
+    (["inspekt"], "lists skills ['inspekt'] that the skill registry does not have"),
+    ("inspect", "skills must be a non-empty list of skill names"),
+    ([], "skills must be a non-empty list of skill names"),
+])
+def test_bad_field_skills_are_refused_at_build(case, capsys, skills, message):
+    config = _magnitude_case(case, skills)
+    assert main([str(config), "--model", "mock"]) == 2
+    assert message in capsys.readouterr().err

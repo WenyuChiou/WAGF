@@ -394,6 +394,9 @@ class UnifiedAdapter(ModelAdapter):
         # including the JSON-parse-failed path. Routed to SkillProposal.parameters
         # only when the agent_type opts in (get_multi_param_enabled), else stays {}.
         _extracted_numerics = {}
+        # The numeric field key the keyword fallback matched, when that is
+        # where _magnitude_pct came from (R5 finding 2 scopes by it).
+        _kw_magnitude_key = None
         found_json = False
         data_lowered = None  # Will be set if JSON parsing succeeds
         try:
@@ -722,14 +725,18 @@ class UnifiedAdapter(ModelAdapter):
             # The parser resolves the flag once per parse call and is the single
             # source of truth for it; a second read is a second chance to
             # disagree with the first.
+            _kw_numeric_keys: List[str] = []
             kw_res = self._parse_keywords(
                 cleaned_target, agent_type, context,
                 strict_layers=strict_layers, warnings_sink=parsing_warnings,
+                numeric_key_sink=_kw_numeric_keys,
             )
             if kw_res:
                 skill_name = kw_res.get("skill_name")
                 if _magnitude_pct is None:
                     _magnitude_pct = kw_res.get("magnitude_pct")
+                    if _magnitude_pct is not None and _kw_numeric_keys:
+                        _kw_magnitude_key = _kw_numeric_keys[0]
                 # Merge keyword reasoning if json failed
                 if not reasoning.get("strategy"):
                     reasoning.update(kw_res.get("reasoning", {}))
@@ -1157,6 +1164,68 @@ class UnifiedAdapter(ModelAdapter):
             if _secondary_magnitude_pct is not None:
                 reasoning["_secondary_magnitude_pct"] = _secondary_magnitude_pct
 
+        # R5 walk finding 2: a numeric response field may list the skills that
+        # take its number (`skills: [set_release]`). For any other skill the
+        # number is dropped here, so a hold action carries no number to the
+        # rules, the projection, the world or the audit; the audit's
+        # parsing_warnings says what was dropped. A field without `skills`
+        # keeps its number for every skill, as before.
+        _numeric_decl = self.agent_config.get_numeric_fields(agent_type)
+        _scoped_fields = {
+            nf["key"]: nf["skills"] for nf in _numeric_decl
+            if nf.get("key") and nf.get("skills") is not None
+        }
+        # The secondary action's number (multi_skill) is scoped by its own
+        # field against the SECONDARY skill: the engine copies the reasoning
+        # carrier into the secondary proposal and its execution parameters.
+        _sec_takes = _scoped_fields.get(sec_mag_field) if ms_cfg else None
+        if (_sec_takes is not None and _secondary_skill_name
+                and _secondary_skill_name not in _sec_takes):
+            _sec_dropped = reasoning.pop("_secondary_magnitude_pct", None)
+            if _sec_dropped is not None:
+                parsing_warnings.append(
+                    f"{sec_mag_field}={_sec_dropped} dropped: the secondary action "
+                    f"{_secondary_skill_name} does not take it (the field lists {list(_sec_takes)})"
+                )
+        if _scoped_fields and skill_name:
+            # The field _magnitude_pct came from, by the same priority as above.
+            # A keyword-parsed number names its own field when that field is
+            # declared; otherwise it is inferred from the declared fields.
+            _keys = list(_extracted_numerics)
+            if not _keys and _kw_magnitude_key is not None:
+                _declared = {str(nf.get("key")).lower(): nf.get("key")
+                             for nf in _numeric_decl if nf.get("key")}
+                if _kw_magnitude_key.lower() in _declared:
+                    _keys = [_declared[_kw_magnitude_key.lower()]]
+            _keys = _keys or [nf.get("key") for nf in _numeric_decl]
+            _primary = next(
+                (k for k in ("magnitude_pct", "magnitude") if k in _keys),
+                _keys[0] if _keys else None,
+            )
+            for _key, _takes in _scoped_fields.items():
+                if skill_name in _takes:
+                    continue
+                _dropped = _extracted_numerics.pop(_key, None)
+                if _key == _primary and _magnitude_pct is not None:
+                    _dropped, _magnitude_pct = _magnitude_pct, None
+                if _dropped is not None:
+                    parsing_warnings.append(
+                        f"{_key}={_dropped} dropped: {skill_name} does not take it "
+                        f"(the field lists {list(_takes)})"
+                    )
+            if _magnitude_pct is None and _extracted_numerics:
+                _sec_key = (sec_mag_field if ms_cfg else None) or ""
+                _remaining = {
+                    k: v for k, v in _extracted_numerics.items()
+                    if k.lower() != _sec_key.lower()
+                }
+                if "magnitude_pct" in _remaining:
+                    _magnitude_pct = _remaining["magnitude_pct"]
+                elif "magnitude" in _remaining:
+                    _magnitude_pct = _remaining["magnitude"]
+                elif _remaining:
+                    _magnitude_pct = next(iter(_remaining.values()))
+
         reasoning["_parse_metadata"] = parse_metadata
 
         proposal = SkillProposal(
@@ -1197,6 +1266,7 @@ class UnifiedAdapter(ModelAdapter):
     def _parse_keywords(
         self, text: str, agent_type: str, context: Dict[str, Any] = None,
         *, strict_layers: bool = False, warnings_sink: Optional[List[str]] = None,
+        numeric_key_sink: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Fallback keyword/regex based parsing.
@@ -1236,10 +1306,14 @@ class UnifiedAdapter(ModelAdapter):
         unique_keys = list(set([k for k in search_keys if k]))  # dedupe
 
         if unique_keys:
-            pattern = r'(?:' + '|'.join(re.escape(k) for k in unique_keys) + r')\b\s*[:=]?\s*([+-]?\d+(?:\.\d+)?)'
+            pattern = r'(' + '|'.join(re.escape(k) for k in unique_keys) + r')\b\s*[:=]?\s*([+-]?\d+(?:\.\d+)?)'
             mag_match = re.search(pattern, text.lower())
             if mag_match:
-                found_mag = float(mag_match.group(1))
+                found_mag = float(mag_match.group(2))
+                # Which key matched, for parse_output's per-field skill scope.
+                # A side list, so the returned dict stays as it was.
+                if numeric_key_sink is not None:
+                    numeric_key_sink.append(mag_match.group(1))
 
         # 1. DECISION LINE SEARCH
         # PR-4 (D3): remember the FIRST decision line's value text. Under

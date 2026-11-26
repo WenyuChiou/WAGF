@@ -215,12 +215,13 @@ def build_contract() -> CouplingContract:
         # the operator saw. storage_unclamped is the storage before the clamp
         # to [0, capacity], so a request that would empty the reservoir cannot
         # hide behind the clamped value. The id stays dead_pool_violation: the
-        # scripted mock retries at 0.5 when the prompt carries it.
+        # scripted mock retries at 0.5 when the prompt carries it. The bound
+        # judges every skill: maintain_release keeps the last release target
+        # running all year, so it can empty the reservoir too.
         feasibility=(
             FeasibilityBound(
                 name="dead_pool_violation",
                 must_hold=f"storage_unclamped >= {ToyMassBalanceReservoir.DEAD_POOL}",
-                skills=("set_release",),
             ),
         ),
     )

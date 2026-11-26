@@ -672,8 +672,9 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     # 2.7a. PR-3: `execution_path`, key-gated the same way — present only on
     # traces produced with global_config.audit.corrected_status_columns ON.
     # It names the remap rule behind `executed_skill` (approved /
-    # approved_no_engine / rejected_default / rejected_proposal / fallback /
-    # aborted / not_executed / unknown) so the deterministic status -> executed
+    # approved_no_engine / rejected_default / rejected_proposal /
+    # no_worse_than_default / fallback / aborted / not_executed / unknown) so
+    # the deterministic status -> executed
     # mapping is stated in the row rather than reconstructed from the run's
     # governance policy.
     if "execution_path" in t:
@@ -686,6 +687,11 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     # joined by ";", "" when the default passes.
     if "projection_default_breach" in t:
         row["projection_default_breach"] = t.get("projection_default_breach", "")
+    # R5 walk finding 16: True when the agent's last proposal ran in place of
+    # a default that breaches too, because it projects no worse; False when the
+    # default ran. Present on the same rows as projection_default_breach.
+    if "projection_kept_proposal" in t:
+        row["projection_kept_proposal"] = t.get("projection_kept_proposal")
 
     # 2.7b. P0-1a: FIRST-ATTEMPT proposal columns, key-gated the same way. Only
     # traces produced with global_config.audit.initial_proposal_columns ON carry

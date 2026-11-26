@@ -755,6 +755,7 @@ class AuditMixin:
         attempt_failed_rules: Optional[List] = None,
         attempt_prompts: Optional[List] = None,
         projection_default_breach: Optional[str] = None,
+        projection_kept_proposal: Optional[bool] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -842,7 +843,8 @@ class AuditMixin:
             executed_extra["execution_success"] = (
                 bool(execution_result.success)
                 if execution_result is not None and executed_skill is not None
-                and execution_path in {"approved", "rejected_proposal", "fallback", "rejected_default"}
+                and execution_path in {"approved", "rejected_proposal", "fallback", "rejected_default",
+                                       "no_worse_than_default"}
                 else ""
             )
 
@@ -980,6 +982,10 @@ class AuditMixin:
         projection_extra: Dict[str, Any] = {}
         if projection_default_breach is not None:
             projection_extra["projection_default_breach"] = projection_default_breach
+        # R5 walk finding 16: whether the agent's last proposal ran in place of
+        # that default (it breaches no worse); set only on the same rows.
+        if projection_kept_proposal is not None:
+            projection_extra["projection_kept_proposal"] = bool(projection_kept_proposal)
 
         param_extra: Dict[str, Any] = {}
         get_pflag = getattr(self.config, "get_audit_param_columns", None)

@@ -57,6 +57,7 @@ instead of filing one more ABORTED row.
 from __future__ import annotations
 
 import contextlib
+import ast
 import copy
 import gc
 import logging
@@ -82,6 +83,48 @@ from .continuous import BmiControlSink, ContinuousBundle
 logger = logging.getLogger(__name__)
 
 REQUESTED_PREFIX = "requested_"
+
+
+def _slack_sides(must_hold: str) -> Optional[Tuple[str, str, bool]]:
+    """For a bound that is ONE comparison, the unparsed expressions of its
+    larger and smaller side (their difference is the bound's slack) and whether
+    the comparison is strict (``>`` or ``<``: a slack of 0 breaks it); None
+    otherwise."""
+    source = must_hold.strip()
+    try:
+        node = ast.parse(source, mode="eval").body
+    except SyntaxError:
+        return None
+    if not isinstance(node, ast.Compare) or len(node.ops) != 1:
+        return None
+    left = ast.unparse(node.left)
+    right = ast.unparse(node.comparators[0])
+    strict = isinstance(node.ops[0], (ast.Gt, ast.Lt))
+    if isinstance(node.ops[0], (ast.GtE, ast.Gt)):
+        return (left, right, strict)
+    if isinstance(node.ops[0], (ast.LtE, ast.Lt)):
+        return (right, left, strict)
+    return None
+
+
+def _slack(b: Any, sides: Tuple[str, str, bool], values: Dict[str, float],
+           skill_name: str, k: int) -> float:
+    from broker.components.analytics.feedback import SafeExpressionEvaluator
+
+    try:
+        high = float(SafeExpressionEvaluator.evaluate(sides[0], values, zero_guard=False))
+        low = float(SafeExpressionEvaluator.evaluate(sides[1], values, zero_guard=False))
+    except Exception as exc:  # noqa: BLE001 - a bound that cannot be judged stops the run
+        raise ProjectionCheckError(
+            f"feasibility bound {b.name!r} on {skill_name!r}, sub-step {k}: the slack "
+            f"of {b.must_hold!r} could not be computed ({type(exc).__name__}: {exc})"
+        ) from exc
+    if not (math.isfinite(high) and math.isfinite(low)):
+        raise ProjectionCheckError(
+            f"feasibility bound {b.name!r} on {skill_name!r}, sub-step {k}: the slack "
+            f"of {b.must_hold!r} is not a finite number ({high!r}, {low!r})"
+        )
+    return high - low
 
 
 class ProjectionCheckError(CouplingViolation):
@@ -268,6 +311,7 @@ class ProjectionCheck:
         }
         self._substeps = int(self.contract.substeps_per_decision or 1)
         self.projections_run = 0
+        self._slack_sides = {b.name: _slack_sides(b.must_hold) for b in bounds}
 
         input_names = {vs.name for vs in self.contract.inputs}
         model_names: List[str] = []
@@ -386,6 +430,92 @@ class ProjectionCheck:
     # ------------------------------------------------------------------
     # the what-if run
     # ------------------------------------------------------------------
+    def _inputs_for(
+        self, skill_name: str, parameters: Dict[str, Any], agent_id: Optional[str]
+    ) -> Dict[str, float]:
+        approved = ApprovedSkill(
+            skill_name=skill_name,
+            agent_id=str(agent_id or ""),
+            approval_status="PROPOSED",
+            parameters=dict(parameters or {}),
+        )
+        try:
+            return {k: float(v) for k, v in self.bundle.inputs_for_skill(approved).items()}
+        except ProjectionCheckError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise ProjectionCheckError(
+                f"projection of {skill_name!r}: could not work out the setpoints the "
+                f"proposal asks for ({type(exc).__name__}: {exc})"
+            ) from exc
+
+    def bound_holds(self, name: str, score: float) -> bool:
+        """Whether a ``margins`` score means bound ``name`` held on every
+        sub-step: a slack of at least 0 (above 0 for ``>`` and ``<``), or no
+        failing sub-step for any other bound."""
+        sides = self._slack_sides[name]
+        if sides is not None and sides[2]:
+            return score > 0
+        return score >= 0
+
+    def margins(
+        self,
+        skill_name: str,
+        parameters: Dict[str, Any],
+        context: Any,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, float]:
+        """How far ``skill_name`` stays from breaking each bound that judges it,
+        over the whole coming period: one number per bound, larger is safer.
+
+        A bound that is one comparison (``a >= b``, ``a > b``, ``a <= b``,
+        ``a < b``) scores its smallest slack over the sub-steps: ``a - b`` for
+        ``>=`` and ``>``, ``b - a`` for ``<=`` and ``<``. Any other bound
+        (``and``/``or``, a chained comparison, ``==``) scores minus the number
+        of sub-steps where it fails. Used after the retries run out, to ask
+        whether the agent's last proposal is no worse than the default skill
+        (R5 walk finding 16).
+        """
+        bounds = [b for b in self._bounds if b.applies_to(skill_name)]
+        if not bounds:
+            return {}
+        inputs = self._inputs_for(skill_name, parameters, agent_id)
+        requested = {REQUESTED_PREFIX + k: v for k, v in inputs.items()}
+        needed = [n for n in self._model_names if any(
+            n in self._compiled[b.name].names for b in bounds)]
+        scores: Dict[str, float] = {}
+
+        def on_substep(k: int, model_values: Dict[str, float]) -> bool:
+            values = {**model_values, **requested}
+            for b in bounds:
+                sides = self._slack_sides[b.name]
+                if sides is not None:
+                    slack = _slack(b, sides, values, skill_name, k)
+                    scores[b.name] = min(scores.get(b.name, math.inf), slack)
+                    continue
+                try:
+                    outcome = evaluate_expression_condition(
+                        self._compiled[b.name], {}, {"env_state": values})
+                except ExpressionEvaluationError as exc:
+                    raise ProjectionCheckError(
+                        f"feasibility bound {b.name!r} on {skill_name!r}, sub-step {k}: {exc}"
+                    ) from exc
+                if not outcome.readable:
+                    raise ProjectionCheckError(
+                        f"feasibility bound {b.name!r} on {skill_name!r}, sub-step {k}: "
+                        f"cannot be judged (missing {list(outcome.missing)})"
+                    )
+                scores[b.name] = scores.get(b.name, 0.0) - (0.0 if outcome.matched else 1.0)
+            return False
+
+        self.projections_run += 1
+        with _rng_restored():
+            if self.source == "project":
+                self._run_project(inputs, context, needed, on_substep)
+            else:
+                self._run_copy(inputs, context, needed, on_substep)
+        return scores
+
     def check_skill(
         self,
         skill_name: str,
@@ -404,21 +534,7 @@ class ProjectionCheck:
         bounds = [b for b in self._bounds if b.applies_to(skill_name)]
         if not bounds:
             return []
-        approved = ApprovedSkill(
-            skill_name=skill_name,
-            agent_id=str(agent_id or ""),
-            approval_status="PROPOSED",
-            parameters=dict(parameters or {}),
-        )
-        try:
-            inputs = {k: float(v) for k, v in self.bundle.inputs_for_skill(approved).items()}
-        except ProjectionCheckError:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            raise ProjectionCheckError(
-                f"projection of {skill_name!r}: could not work out the setpoints the "
-                f"proposal asks for ({type(exc).__name__}: {exc})"
-            ) from exc
+        inputs = self._inputs_for(skill_name, parameters, agent_id)
         requested = {REQUESTED_PREFIX + k: v for k, v in inputs.items()}
         needed = [n for n in self._model_names if any(
             n in self._compiled[b.name].names for b in bounds)]

@@ -486,7 +486,8 @@ new study. Without it the audit CSV reports the BLOCKED proposal as if it were
 the outcome, and reports placeholders as if they were observations. With it:
 
 - **new column `execution_path`** — `approved` / `rejected_default` /
-  `rejected_proposal` / `fallback` / `aborted` / `not_executed`, naming which
+  `rejected_proposal` / `no_worse_than_default` / `fallback` / `aborted` /
+  `not_executed`, naming which
   branch produced `executed_skill`. Only on `rejected_default` does
   `final_skill` name an action that never happened.
 - **`executed_skill` + `executed_via_fallback`** — as for

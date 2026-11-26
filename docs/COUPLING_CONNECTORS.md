@@ -211,10 +211,22 @@ expression, its value, the period, the sub-step and the variable values used.
 ```python
 CouplingContract(..., feasibility=(
     FeasibilityBound(name="dead_pool_violation",
-                     must_hold="storage_unclamped >= 6.0",
-                     skills=("set_release",)),     # empty = every skill
+                     must_hold="storage_unclamped >= 6.0"),   # skills=() = every skill
 ))
 ```
+
+Judge every skill unless the bound reads `requested_<input>` of an input only some
+skills set. A hold skill (`maintain_release`) does not ask for a new value: the bundle
+keeps the last control, and that control runs for the whole period. A bound scoped to
+`skills=("set_release",)` never projects the hold, so a hold can empty the reservoir
+with no block and no audit mark. The build warns for every registry skill a bound
+leaves out, and refuses a bound that names a skill the registry does not have.
+
+A state already past the limit breaks a state bound at sub-step 1 whatever the agent
+asks for, so every proposal is blocked and the retries run out. The same happens in a
+shared resource, where each agent is projected with the others' controls held: one
+agent's cut cannot keep the total inside the limit. Then the rule below ("no worse than
+the default") lets the agent's last proposal run when it is no worse than the default.
 
 `must_hold` is a true/false expression that must hold at EVERY sub-step of the coming
 decision period (same whitelist as an `expression:` rule). It may read
@@ -251,9 +263,26 @@ traffic, `os.environ`, and state shared with the live model (a module-level
 `default_rng()`, class attributes, a `__deepcopy__` that returns `self`, native handles).
 A model that does any of these needs `project()`.
 
-When the retries run out and the default skill runs, it is projected too. If it also
-breaches, it still runs; the audit row carries `projection_default_breach` (the bound names,
-`""` when the default passes). The column exists only in runs that declare feasibility.
+When the retries run out, the default skill is projected too, and the audit row carries
+`projection_default_breach` (the bound names, `""` when the default passes, `not_checked` when
+no bound judges the default skill). If the default breaches as well, blocking the agent gains
+nothing when its last proposal is no worse, so that proposal runs instead of the default ("no
+worse than the default"). It runs only when:
+
+1. every rule that blocked the last attempt is a feasibility bound (any other rule, such as
+   an `expression:` rule, keeps the default); and
+2. on every bound that judges it, its margin over the coming period is at least the
+   default's. A bound that is one comparison (`a >= b`, `a > b`, `a <= b`, `a < b`) is
+   scored by its smallest slack over the sub-steps (`a - b`, or `b - a` for `<=` and `<`);
+   any other bound by minus the number of sub-steps where it fails. A bound that judges the
+   proposal but not the default must hold on every sub-step (a slack above 0 for `>` and `<`).
+
+The row stays `REJECTED`. With `corrected_status_columns` on, `execution_path` is
+`no_worse_than_default`. `projection_kept_proposal` is `True` when the proposal ran and `False`
+when the comparison ran and the default was kept; it is empty when no comparison was made. Only
+the main proposal can run this way: a secondary skill is not executed, as with any rejected
+row. Retries still come first: the agent sees the block and can find an action that passes.
+Both columns exist only in runs that declare feasibility.
 
 In one line each:
 
