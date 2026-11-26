@@ -336,6 +336,13 @@ class TestScaffoldEndToEnd:
         assert data["global_config"]["governance"]["max_retries"] == 3
         assert "max_reports_per_retry" not in keys
 
+        # R5 walk findings 7 and 9: the README speaks to a physical-only case
+        # and points at the integrity check.
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        assert "[Broker:Retry]" not in readme
+        assert "physical-only" in readme
+        assert "check_run_integrity" in readme
+
         prompt = (root / "config" / "prompts" / "agent.txt").read_text(encoding="utf-8")
         assert "{rating_scale}" not in prompt
         assert not any(term in prompt.casefold() for term in PMT_TEXT_MARKERS)
@@ -450,6 +457,16 @@ class TestCLI:
         assert rc == 0
         assert "Scaffolded" in captured.out
         assert (tmp_path / "energy" / "config" / "agent_types.yaml").exists()
+        # R5 walk findings 7 and 9
+        assert "check_run_integrity" in captured.out
+        readme = (tmp_path / "energy" / "README.md").read_text(encoding="utf-8")
+        assert "check_run_integrity" in readme and "[Broker:Retry]" in readme
+        registry = (tmp_path / "energy" / "config" / "skill_registry.yaml").read_text(
+            encoding="utf-8")
+        assert "maintain_* or hold action" in registry
+        checks = (tmp_path / "energy" / "validators" / "energy_validators.py").read_text(
+            encoding="utf-8")
+        assert "(proposal, context, skill_registry)" in checks
 
 
 

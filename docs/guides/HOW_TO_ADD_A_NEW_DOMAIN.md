@@ -274,6 +274,8 @@ Every key is optional. An unknown `run:` key is refused. Each slot is `module:fu
 
 Defaults when neither the YAML nor the command line sets a value: model `mock`, years 1, agents 1, seed 42, governance `default`, workers 1, output `results/<config file name without .yaml>` in the case folder, skill registry `skill_registry.yaml` next to the YAML.
 
+**Check each run.** Every run writes `run_integrity.json` to its output folder. `python -m broker.tools.check_run_integrity <output folder>` reads it and exits 1 when what ran does not match the config (for example, reflection configured but never run); `--glob` checks many folders at once.
+
 Command-line overrides: `--model`, `--years`, `--agents`, `--seed`, `--output`, `--governance`, `--skill-registry`, `--workers`, `--thinking-mode`, `--slot NAME=module:attr` and `--allow-module dotted.name`. On the command line `--output` and `--skill-registry` are relative to the current directory, not to the case folder.
 
 **Import rule.** A slot in the YAML may import only modules inside the case's own folder: the YAML's folder, or its parent when that folder is named `config`. Real paths are checked, so `..`, symlinks and junctions that leave the folder are refused with a clear error. Any other module needs a command-line flag: `--allow-module dotted.name` or `--slot name=dotted.name:attr`. The case folder name must be a Python identifier. The same rule covers `decider: {name: parametric, params: {target: module:attr}}` in an agent type: the target must name a module in the case folder by its importable dotted name (for example `examples.my_domain.decider:MyDecider`), or be allowed with `--allow-module`.

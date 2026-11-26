@@ -70,10 +70,37 @@ def gen_package_init(domain: str, framework: str) -> str:
 
 def gen_readme(
     domain: str, skills: List[str], *, output_dir: Path | None = None, magnitude: bool = False,
+    physical_only: bool = False,
 ) -> str:
     config_path = ((output_dir or Path(domain)) / "config" / "agent_types.yaml").as_posix()
     if any(char.isspace() for char in config_path):
         config_path = f'"{config_path}"'
+    results_path = ((output_dir or Path(domain)) / "results" / "smoke").as_posix()
+    if any(char.isspace() for char in results_path):
+        results_path = f'"{results_path}"'
+    # R5 walk finding 7: a physical-only case has no constructs (so no
+    # construct retry warnings) and no appraisal for the pack's hooks to read.
+    if physical_only:
+        mock_note = (
+            "This case is physical-only (`psychological_framework: none`): the agent\n"
+            "        names an action and no appraisal. Check for audit output under\n"
+            "        `results/smoke` after the run."
+        )
+        pack_step = (
+            "Edit `adapters/{domain}_pack.py` only if you need it: its optional hooks\n"
+            "           (importance profiles, reflection status, emotion) are for cases with\n"
+            "           memory and appraisal; a physical-only case can leave them as they are."
+        ).format(domain=domain)
+    else:
+        mock_note = (
+            "Note: mock-model runs may show `[Broker:Retry]` warnings when a\n"
+            "        framework expects constructs. Check for audit output under `results/smoke`\n"
+            "        after the run."
+        )
+        pack_step = (
+            "Edit `adapters/{domain}_pack.py` — fill in `importance_profiles`,\n"
+            "           `event_handlers`, and any domain-specific hooks."
+        ).format(domain=domain)
     skill_list = "\n        ".join(f"- `{skill}`" for skill in skills)
     magnitude_step = (
         "\n"
@@ -100,11 +127,12 @@ def gen_readme(
 
         # 2. Run a smoke experiment
         python -m broker.run {config_path} --model mock --years 2 --agents 2
+
+        # 3. Check that what ran matches the config (exit 1 when it does not)
+        python -m broker.tools.check_run_integrity {results_path}
         ```
 
-        Note: mock-model runs may show `[Broker:Retry]` warnings when a
-        framework expects constructs. Check for audit output under `results/smoke`
-        after the run.
+        {mock_note}
 
         ## Skills declared
         {skill_list}
@@ -117,8 +145,7 @@ def gen_readme(
         2. Edit `config/skill_registry.yaml` if you need to add / rename skills.
         3. Edit `validators/{domain}_validators.py` — replace the placeholder
            check with real domain rules.
-        4. Edit `adapters/{domain}_pack.py` — fill in `importance_profiles`,
-           `event_handlers`, and any domain-specific hooks.
+        4. {pack_step}
         5. Edit `world.py` to plug in your case's world model. Add `agents`,
            `hooks`, `validators` or `mock` slots under `global_config.run` when
            the case needs them (see `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`).{magnitude_step}
@@ -159,6 +186,9 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
         f"# Variable & unit checklist: document each state/action field's unit,\n"
         f"# range, and meaning above skills (e.g. storage [maf], magnitude [0..1]).\n"
         f"domain: {domain}\n"
+        f"# default_skill runs when the retries run out or the reply cannot be\n"
+        f"# parsed. It is set to the first skill; point it at the action that keeps\n"
+        f"# things as they are (a maintain_* or hold action), not a guarded one.\n"
         f"default_skill: {default}\n"
         f"skills:\n"
         f"{skill_yaml}\n"
@@ -323,6 +353,8 @@ def gen_agent_types_yaml(
 
         {constructs}  parsing:
             decision_keywords: ["decision", "choice", "action"]
+            # Runs when the retries run out or the reply cannot be parsed; keep it
+            # the same as default_skill in skill_registry.yaml (the hold action).
             default_skill: "{default_skill}"
             strict_mode: true
         {construct_parsing}
@@ -439,6 +471,13 @@ def gen_validators(domain: str) -> str:
 
         Each check has signature ``(skill_name, rules, context) -> List[ValidationResult]``.
         Return ``[]`` to PASS; return ``[ValidationResult(valid=False, ...)]`` to REJECT.
+        These checks are registered with ``ValidatorRegistry`` for this domain and
+        run because ``config/agent_types.yaml`` sets
+        ``governance.dispatch_domain_physical: true``. A check wired instead through
+        ``global_config.run.validators`` has a different signature,
+        ``(proposal, context, skill_registry) -> ValidationResult``; see
+        docs/guides/model_state_in_prompt_and_checks.md, section 2. Use one way per
+        check, not both.
         Only the physical / personal / social / semantic
         slots accept Python checks; thinking-level coherence rules go in
         ``config/agent_types.yaml`` under the ``thinking_rules:`` key (consumed by
@@ -726,7 +765,9 @@ def scaffold(
         written.append(full)
 
     write("__init__.py", gen_package_init(domain, framework))
-    write("README.md", gen_readme(domain, skills, output_dir=output_dir, magnitude=magnitude))
+    write("README.md", gen_readme(
+        domain, skills, output_dir=output_dir, magnitude=magnitude, physical_only=physical_only,
+    ))
     write("config/skill_registry.yaml", gen_skill_registry(domain, skills))
     write(
         "config/agent_types.yaml",
@@ -906,8 +947,9 @@ def main(argv: List[str] | None = None) -> int:
     print(f"  2. Edit {output_dir}/config/prompts/agent.txt to describe the domain")
     print(f"  3. Edit {output_dir}/adapters/{args.domain}_pack.py to fill in domain hooks")
     print(f"  4. python -m broker.run {yaml_path} --model mock --years 2 --agents 3")
+    print(f"  5. python -m broker.tools.check_run_integrity {output_dir / 'results' / 'smoke'}")
     if args.magnitude:
-        print('  5. world.py reads the [0, 1] action number as parameters["magnitude_pct"]; '
+        print('  6. world.py reads the [0, 1] action number as parameters["magnitude_pct"]; '
               "mock_llm.py supplies it under --model mock")
     return 0
 
