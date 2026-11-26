@@ -329,7 +329,7 @@ def test_reflection_prompt_and_reply_under_a_real_model(case, tmp_path):
         "questions": ["What did the inspection show?"],
     })
     hook, agent = prepared.reflection_hook, prepared.runner.agents["agent_1"]
-    hook.memory_engine.add_memory(agent.id, "Year 1: you waited")
+    hook.memory_engine.add_memory(agent.id, "Year 1: you waited", {"origin": "world"})
     prompts = []
 
     def invoke(prompt):

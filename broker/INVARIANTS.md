@@ -359,11 +359,19 @@ teach the agent that it was corrected.
   year is also never marked routine and raises a lesson's importance. Those runs do
   not meet this invariant. They stay frozen; a new opt-in config variant is the
   route for a re-run.
-- Not yet built: `executed` as the `python -m broker.run` and scaffold default, an
-  `origin` tag with a write gate and a memory log, a twin-run check (the case run
-  once with rules blocking and once proposing the executed actions directly,
-  compared byte for byte), and a `governance_carryover` block in
-  `run_integrity.json`.
+- `python -m broker.run` applies `executed` to every agent type whose memory block
+  sets no style, and `broker.tools.scaffold_domain` writes it (2026-11-26). On
+  broker.run every memory write must carry `metadata['origin']` (`world`,
+  `decision`, `reflection`, `social`, `seed`); `install_origin_gate`
+  (`broker/components/memory/origin_gate.py`) refuses any other, refuses a
+  `reflection` line that does not start with `REFLECTION_PREFIX` (so
+  `ReflectionHook._memories` leaves every lesson out of reflection input), and
+  logs every write to `memory_log.jsonl`. `broker_run.json` records
+  `rejection_line_style` and `memory_writes_by_origin`. Tests:
+  `broker/tests/test_broker_run_no_trace.py`.
+- Not yet built: a twin-run check (the case run once with rules blocking and once
+  proposing the executed actions directly, compared byte for byte), and a
+  `governance_carryover` block in `run_integrity.json`.
 - `examples/governed_flood/run_experiment.py` writes its own rejection line; the
   multi-agent flood runner wraps its engine in `PolicyFilteredMemoryEngine`, which
   by code reading lets the runner's rejection line through. Neither is changed yet.

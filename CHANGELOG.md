@@ -24,6 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Behaviour change: `python -m broker.run` leaves no governance trace in memory (Invariant 7).**
+  `broker/INVARIANTS.md` gains Invariant 7: rules correct only the current decision. `ExperimentRunner`
+  has a third `memory.rejection_line_style`, `executed`: every row's memory line is `Year N: Action carried
+  out: X.` (plus ` (number V)` for the number that ran), whether the agent's answer ran or a default replaced
+  it, and the action context carries no `was_fallback`, `proposed_skill` or `blocking_rules`.
+  `python -m broker.run` uses it when the YAML sets no style, and `scaffold_domain` writes it. So from year 2
+  on, prompts of every `broker.run` case change, with or without rejections: approved years read `Action
+  carried out: X.` instead of `Decided to: X`, and default years no longer say `Proposal to X was rejected`.
+  Mock reference outputs of `broker.run` cases need new baselines. `rejection_line_style: explicit` gives
+  back the old lines. On `broker.run` every memory write must carry `metadata['origin']` (`world`,
+  `decision`, `reflection`, `social`, `seed`) and is logged to the new `memory_log.jsonl`; an untagged write
+  from a case hook stops the run. `broker_run.json` records `rejection_line_style` and
+  `memory_writes_by_origin`. A stored lesson drops an opening line such as "Okay, here's my reflection:"
+  (R5 walk finding 18). `ExperimentRunner`'s own default stays `explicit`, so the frozen flood and
+  irrigation paper runners are unchanged.
 - `examples/reservoir_control` declares its action number on [0, 1] (a fraction of demand): the
   `magnitude` field, prompt, mock answers, the `flood_control_overflow` rule (`proposed_magnitude < 1`)
   and the registry follow. Executed release targets are unchanged.

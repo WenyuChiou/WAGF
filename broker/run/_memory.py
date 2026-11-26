@@ -23,6 +23,7 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any
 
 from broker.components.cognitive.reflection import (
@@ -66,6 +67,43 @@ _HUMANCENTRIC_INT_KEYS = ("window_size", "top_k_significant", "max_working", "ma
 REFLECTION_DEFAULTS = {"interval": 1, "importance_boost": 0.9}
 # Start of every reflection memory line broker.run stores.
 REFLECTION_PREFIX = "Reflection (year"
+# A reply's opening line that only announces the lesson ("Okay, here's my
+# reflection:"); R5 walk finding 18. Stripped before the lesson is stored.
+_REPLY_OPENER = re.compile(
+    r"\A\s*(?:(?:okay|ok|sure|alright|certainly)[,.!]?\s*)?"
+    r"(?:here(?:['’]s| is| are)\b[^:\n]{0,40}?"
+    r"\b(?:reflection|lesson|takeaway|summary|insight)s?\b[^:\n]{0,30}"
+    r"|my (?:reflection|lesson)s?[^:\n]{0,40}):\s*",
+    re.IGNORECASE,
+)
+
+
+def rejection_line_styles(config, agent_types) -> dict:
+    """Per agent type, the ``memory.rejection_line_style`` broker.run applies.
+
+    ``executed`` (Invariant 7: one memory line form for every row) unless the
+    agent type's memory block sets another style; ``explicit`` gives back the
+    lines of broker.run before 2026-11-26.
+    """
+    from broker.core.experiment_runner import REJECTION_LINE_STYLES
+
+    styles = {}
+    for agent_type in agent_types:
+        block = config.get_memory_config(agent_type) or {}
+        style = block.get("rejection_line_style", "executed") if isinstance(block, dict) else "executed"
+        if style not in REJECTION_LINE_STYLES:
+            raise ValueError(
+                f"{agent_type}.memory.rejection_line_style {style!r} is not one of "
+                f"{', '.join(REJECTION_LINE_STYLES)}"
+            )
+        styles[agent_type] = style
+    return styles
+
+
+def strip_reply_opener(text: str) -> str:
+    """``text`` without an opening line that only announces the lesson."""
+    stripped = _REPLY_OPENER.sub("", text, count=1)
+    return stripped if stripped.strip() else text
 
 
 def _block(raw, scope, name):
@@ -343,6 +381,10 @@ class ReflectionHook:
         return raw[0] if isinstance(raw, tuple) else raw
 
     def _reflect(self, agent, year):
+        # Invariant 7: a reflection reads world, decision, seed and social
+        # lines only. The engines return text, so the origin cannot be read
+        # here; the write gate instead refuses a reflection-origin line that
+        # does not start with REFLECTION_PREFIX, which _memories leaves out.
         memories = self._memories(agent)
         if not memories:
             return
@@ -359,8 +401,8 @@ class ReflectionHook:
             self.counts["failed_calls"] += 1
             logger.warning("[broker.run] reflection call failed for %s in year %s: %s", agent.id, year, exc)
             return
-        insight = self.engine.parse_reflection_response(text if isinstance(text, str) else "",
-                                                        len(memories), year)
+        text = strip_reply_opener(text) if isinstance(text, str) else ""
+        insight = self.engine.parse_reflection_response(text, len(memories), year)
         if insight is None:
             self.counts["replies_not_stored"] += 1
             return
@@ -370,7 +412,7 @@ class ReflectionHook:
         store_reflection_memory(
             self.memory_engine, agent.id, f"{REFLECTION_PREFIX} {year}): {insight.summary}",
             {"importance": insight.importance, "type": "reflection", "source": "personal",
-             "emotion": "major", "year": year},
+             "emotion": "major", "year": year, "origin": "reflection", "period": year},
             keep_latest_only=self.settings.keep_latest_only,
         )
         self._stored[agent.id] = self._stored.get(agent.id, 0) + 1

@@ -25,12 +25,15 @@ from ._imports import SlotError, parse_slot, resolve_slot, valid_module_name, ve
 from ._memory import (
     DEFAULT_WINDOW_SIZE,  # re-exported: the parameter table reads it here
     MemorySettings,
+    REFLECTION_PREFIX,
     ReflectionHook,
     ReflectionSettings,
     build_memory_engine,
     memory_settings,
     reflection_settings,
+    rejection_line_styles,
 )
+from broker.components.memory.origin_gate import install_origin_gate
 from ._provenance import capture_launch_environment, launch_checks, manifest_problem
 
 
@@ -427,6 +430,17 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     if len(agent_types) == 1 and templates:
         templates["default"] = templates[agent_types[0]]
     memory = build_memory_engine(ctx.memory)
+    try:
+        styles = rejection_line_styles(ctx.config, dict.fromkeys(a.agent_type for a in ctx.agents.values()))
+    except ValueError as exc:
+        raise RunError(str(exc)) from exc
+    # Invariant 7: every memory write is tagged with its origin and logged to
+    # memory_log.jsonl. Writes while the builder seeds agent profiles count as
+    # seed writes; any untagged write after that raises.
+    built = {}
+    gate = install_origin_gate(
+        memory, ctx.output_dir, period=lambda: getattr(built.get("runner"), "_current_year", 0),
+        reflection_prefix=REFLECTION_PREFIX)
     reflection_hook = None
     if ctx.reflection.enabled:
         # Runs after the case's own post_year, once the year's state is settled.
@@ -486,6 +500,14 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         raise
     except ValueError as exc:  # The builder's own configuration checks.
         raise RunError(f"the case could not be built: {exc}") from exc
+    built["runner"] = runner
+    gate.seeding = False
+    runner.tag_memory_origin = True
+    runner.rejection_line_styles = styles
+    for agent in runner.agents.values():
+        # A new dict: the agent type's memory block itself stays as loaded.
+        mem_cfg = agent.memory_config if isinstance(getattr(agent, "memory_config", None), dict) else {}
+        agent.memory_config = {**mem_cfg, "rejection_line_style": styles[agent.agent_type]}
     runner._llm_cache.update(invokes)
     # R5 walk finding 13: a case with no rules still gets validator_health.csv.
     audit_writer = getattr(getattr(runner, "broker", None), "audit_writer", None)
@@ -560,6 +582,11 @@ def _write_run_record(prepared, argv, status, provenance=None):
         "argv": argv,
         "memory": ctx.memory.record(_retrieval_top_k(ctx)),
         "reflection": ctx.reflection.record(),
+        # Invariant 7 (broker/INVARIANTS.md): the runner's memory line style
+        # per agent type, and memory writes per origin (memory_log.jsonl).
+        "rejection_line_style": dict(getattr(prepared.runner, "rejection_line_styles", {}) or {}),
+        "memory_writes_by_origin": dict(getattr(
+            getattr(prepared.runner.memory_engine, "origin_gate", None), "counts", {}) or {}),
     }
     if prepared.reflection_hook is not None:
         record["reflection"].update(prepared.reflection_hook.counts)

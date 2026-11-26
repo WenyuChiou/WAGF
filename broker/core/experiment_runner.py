@@ -169,6 +169,13 @@ def _executed_number_text(value) -> str:
 
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
+
+    # python -m broker.run sets this True: the runner's own memory line then
+    # carries metadata origin "decision" for the write gate (Invariant 7,
+    # broker/components/memory/origin_gate.py). False for every other caller,
+    # so the frozen paper runs keep their memory metadata.
+    tag_memory_origin = False
+
     def __init__(self,
                  broker: SkillBrokerEngine,
                  sim_engine: Any,
@@ -2173,6 +2180,10 @@ class ExperimentRunner:
             memory_metadata = {
                 "emotion": "routine", "importance": 0.1, "source": "personal"
             }
+        if self.tag_memory_origin is True:
+            # python -m broker.run's write gate (Invariant 7) needs every
+            # write tagged; the frozen runners leave this False.
+            memory_metadata["origin"] = "decision"
 
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
             self.memory_engine.add_memory_for_agent(agent, memory_content, memory_metadata)

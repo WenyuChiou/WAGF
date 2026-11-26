@@ -120,6 +120,8 @@ def test_mock_run_renders_menu_and_records_provenance(case, tmp_path):
         "argv": argv,
         "memory": {"engine": "window", "window_size": None, "retrieval_top_k": {"agent": 3}},
         "reflection": {"enabled": False},
+        "rejection_line_style": {"agent": "executed"},
+        "memory_writes_by_origin": {"world": 0, "decision": 2, "reflection": 0, "social": 0, "seed": 0},
     }
 
 
