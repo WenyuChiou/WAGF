@@ -1,9 +1,8 @@
-# Phase 6O-C — Default readiness profile thresholds.
+# Default readiness profile thresholds.
 #
-# Three profiles ship in 6O-C-1: functional / behavioral / stress.
-# Production profile is intentionally absent — persona alignment is
-# undefined; see .ai/2026/05/25/phase_6o_gap_matrix.md for the
-# user-decision context.
+# Three profiles ship: functional / behavioral / stress.
+# Production profile is intentionally absent — persona alignment metrics
+# are intentionally out of scope for domain-agnostic readiness checks.
 #
 # Threshold semantics:
 #   min_approval_rate              : 0..1, approved / total

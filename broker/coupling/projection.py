@@ -1,4 +1,4 @@
-"""Phase 6W-A1 — generic grid -> per-agent projection operator.
+"""Generic grid -> per-agent spatial projection operator.
 
 Maps a 2D scalar field (a hazard-intensity / state surface produced by a hosted
 numerical model) to per-agent values, so a gridded coupled model can feed

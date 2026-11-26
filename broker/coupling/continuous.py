@@ -1,7 +1,7 @@
-"""Continuous quantitative-control coupling (Phase 6V increment 3, 2026-06-10).
+"""Continuous quantitative-control coupling.
 
-The execution path for what the contract could previously only DECLARE
-(2026-06-09 architecture review P0-1/P0-2): a hosted solver advanced K
+Executes continuous K-sub-step solver coupling declared by a contract:
+a hosted solver advances K
 sub-steps per decision period, per-variable sub-step series rolled up by each
 VarSpec's declared ``observation_reduce``, and an agent->world write channel
 (``ControlSink``) that applies an approved skill's setpoint parameters into

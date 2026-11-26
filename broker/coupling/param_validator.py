@@ -1,4 +1,4 @@
-"""Phase 6W-B4 — generic per-field parameter-bounds ERROR validator.
+"""Generic per-field parameter-bounds ERROR validator.
 
 The AR-6 home for numeric-parameter governance: ONE bounds vocabulary, reusing the
 coupling ``VarSpec.lo/hi`` via ``VarSpec.range_violation``. This is a FACTORY whose

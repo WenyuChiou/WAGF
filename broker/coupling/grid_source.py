@@ -1,4 +1,4 @@
-"""Phase 6W-A2 — gridded EventSource (GridProjector-backed per-agent intensity).
+"""Gridded EventSource (GridProjector-backed per-agent intensity).
 
 An ``EventSource`` whose ``draw_events`` carries BOTH a scalar summary of the period's
 2D field (so aggregate consumers that read ``event.payload[var]`` keep working) AND the

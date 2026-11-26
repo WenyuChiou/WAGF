@@ -1,4 +1,4 @@
-"""Generic environment-coupling layer (Phase 6V, 2026-06-06).
+"""Generic environment-coupling layer.
 
 A domain-agnostic interface for coupling WAGF's governed LLM-agent decision
 layer to heterogeneous external simulators through a *verified* contract —
