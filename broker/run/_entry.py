@@ -601,8 +601,10 @@ def main(argv=None) -> int:
         print(f"broker.run: provenance check: {'; '.join(problems)} (add --strict-provenance to refuse)",
               file=sys.stderr)
 
+    # flush: with output sent to a file the header would otherwise land after
+    # the run's own lines (R5 walk finding 11)
     print(f"[broker.run] {ctx.config_path} | model={ctx.model} years={ctx.years} "
-          f"agents={len(ctx.agents)} output={ctx.output_dir}")
+          f"agents={len(ctx.agents)} output={ctx.output_dir}", flush=True)
     # Written before the run so a failed run still leaves its record.
     _write_run_record(prepared, argv, "started", provenance())
     runner.run()
