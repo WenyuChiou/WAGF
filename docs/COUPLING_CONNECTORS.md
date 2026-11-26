@@ -211,10 +211,22 @@ expression, its value, the period, the sub-step and the variable values used.
 ```python
 CouplingContract(..., feasibility=(
     FeasibilityBound(name="dead_pool_violation",
-                     must_hold="storage_unclamped >= 6.0",
-                     skills=("set_release",)),     # empty = every skill
+                     must_hold="storage_unclamped >= 6.0"),   # skills=() = every skill
 ))
 ```
+
+Judge every skill unless the bound reads `requested_<input>` of an input only some
+skills set. A hold skill (`maintain_release`) does not ask for a new value: the bundle
+keeps the last control, and that control runs for the whole period. A bound scoped to
+`skills=("set_release",)` never projects the hold, so a hold can empty the reservoir
+with no block and no audit mark. The build warns for every registry skill a bound
+leaves out, and refuses a bound that names a skill the registry does not have.
+
+A state already past the limit breaks a state bound at sub-step 1 whatever the agent
+asks for, so every proposal is blocked, the retries run out, and the default skill runs
+with `projection_default_breach` set. That mark is the signal; if you want the agent to
+be able to recover instead, write the bound so the recovering action passes (for
+example on `requested_<input>`).
 
 `must_hold` is a true/false expression that must hold at EVERY sub-step of the coming
 decision period (same whitelist as an `expression:` rule). It may read

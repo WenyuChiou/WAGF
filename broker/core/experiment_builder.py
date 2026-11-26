@@ -337,6 +337,42 @@ class ExperimentBuilder:
         self.sim_engine = adapter
         logger.info(f"[coupling] adapter injected via builder (enable=True, source={source})")
 
+    def _check_feasibility_scope(self, reg: Any) -> None:
+        """Check which skills each feasibility bound judges (R5 walk finding 1).
+
+        A bound scoped to some skills never judges the others. A hold skill
+        (``maintain_*``) keeps the last control running for the whole period,
+        so a bound scoped to the set skill lets a hold cross the limit with no
+        block and no audit mark. Warn for every registry skill a bound leaves
+        out, and refuse a bound that names a skill the registry does not have:
+        that bound would never run.
+        """
+        if self._coupling is None or getattr(self.sim_engine, "projection_check", None) is None:
+            return
+        known = list(getattr(reg, "skills", {}) or {})
+        if not known:
+            return
+        for bound in getattr(self.sim_engine.contract, "feasibility", ()) or ():
+            if not bound.skills:
+                continue
+            unknown = [s for s in bound.skills if s not in known]
+            if unknown:
+                raise ValueError(
+                    f"feasibility bound {bound.name!r} names skills {unknown} that the "
+                    f"skill registry does not have ({known}), so it would never be "
+                    f"judged for them. Fix the names, or leave skills empty to judge "
+                    f"every skill."
+                )
+            left_out = [s for s in known if s not in bound.skills]
+            if left_out:
+                logger.warning(
+                    f"[coupling] feasibility bound {bound.name!r} judges only "
+                    f"{list(bound.skills)}; {left_out} are never projected, so they can "
+                    f"cross {bound.must_hold!r} with no block and no audit mark. A skill "
+                    f"that holds the last control keeps it running for the whole period. "
+                    f"Leave skills empty to judge every skill."
+                )
+
     @staticmethod
     def _check_numeric_field_skills(config: Any, reg: Any) -> None:
         """Refuse a numeric response field whose ``skills:`` names a skill the
@@ -516,6 +552,8 @@ class ExperimentBuilder:
                 "examples/irrigation_abm/config/skill_registry.yaml "
                 "(INVARIANTS.md §I5 rule 4)."
             )
+
+        self._check_feasibility_scope(reg)
 
         # 2. Setup Memory Engine (Default to Window if not provided)
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)

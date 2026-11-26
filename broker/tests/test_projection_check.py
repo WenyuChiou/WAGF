@@ -131,11 +131,18 @@ def test_copy_path_refuses_100_passes_50_and_leaves_live_state_alone():
                                 "parameters": {}})()
     assert check(proposal50, env) == []
     assert solver.__dict__ == before
-    # a skill the bound does not name is not projected at all
-    other = type("P", (), {"skill_name": "maintain_release", "agent_id": "O",
-                           "magnitude_pct": None, "magnitude_fallback": False, "parameters": {}})()
-    n = check.projections_run
-    assert check(other, env) == [] and check.projections_run == n
+    # the hold is judged too (R5 walk finding 1): it keeps last year's target,
+    # which empties the reservoir in a drought year
+    hold = type("P", (), {"skill_name": "maintain_release", "agent_id": "O",
+                          "magnitude_pct": None, "magnitude_fallback": False, "parameters": {}})()
+    res = check(hold, env)
+    assert [r.validator_name for r in res] == ["dead_pool_violation"]
+    assert res[0].metadata["requested"] == {"release_target": pytest.approx(0.75)}
+    assert solver.__dict__ == before
+    # a skill a scoped bound does not name is not projected at all
+    _s, _b, _a, scoped = _reservoir(bounds=[_bound("storage_unclamped >= 6.0")])
+    n = scoped.projections_run
+    assert scoped(hold, env) == [] and scoped.projections_run == n
 
 
 # ------------------------------------------------- 2. linear evaporation model ----
@@ -673,3 +680,66 @@ def test_relations_are_still_checked_after_execution_alongside_feasibility(tmp_p
     assert prov["feasibility"]["source"] == "copy"
     assert prov["feasibility"]["projections_run"] >= 3
     assert "ProjectionCheck" in [type(v).__name__ for v in runner.broker.custom_validators]
+
+
+# ------------------------------------------ 12. hold actions (R5 walk finding 1) ----
+def _always_hold_low_number(prompt):
+    # maintain_release with a number: the number must be dropped (finding 2),
+    # so the hold keeps the full-demand target and drains the reservoir.
+    return ops_case.decision_payload("maintain_release", magnitude=0.2)
+
+
+def test_reservoir_bound_judges_the_hold_skill():
+    (bound,) = ops_case.build_contract().feasibility
+    assert bound.skills == ()
+    assert bound.applies_to("maintain_release") and bound.applies_to("set_release")
+
+
+def test_hold_only_operator_cannot_cross_dead_pool_unflagged(tmp_path):
+    """Before the fix a hold-only operator took storage from 18 to about 2 maf
+    against a 6.0 dead pool with no block: the bound judged set_release only,
+    and the number given with maintain_release changed the release target."""
+    out = tmp_path / "out"
+    AgentTypeConfig.clear_cache()
+    try:
+        runner = broker.run.prepare([
+            str(ops_case.CONFIG_PATH), "--model", "mock", "--years", "4",
+            "--output", str(out), "--seed", "42",
+        ]).runner
+        runner._llm_cache["operator"] = _always_hold_low_number
+        runner.run()
+    finally:
+        AgentTypeConfig.clear_cache()
+    with (out / "operator_governance_audit.csv").open(encoding="utf-8-sig", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    # the number given with the hold never reached the reservoir
+    assert runner.sim_engine.sources.solver.release_target == pytest.approx(0.75)
+    blocked = [r for r in rows if "dead_pool_violation" in r["failed_rules"]]
+    assert blocked, "a hold that empties the reservoir must be blocked"
+    for r in blocked:
+        assert r["status"] == "REJECTED"
+        assert r["projection_default_breach"] == "dead_pool_violation"
+
+
+def test_builder_warns_for_a_skill_a_bound_leaves_out(caplog):
+    from broker.core.experiment_builder import ExperimentBuilder
+
+    _solver, _bundle, adapter, _check = _reservoir(
+        bounds=[_bound("storage_unclamped >= 6", "set_only", ("set_release",))], years_at_100=0)
+    builder = ExperimentBuilder()
+    builder._coupling = {"contract": adapter.contract, "sources": adapter.sources, "domain": None}
+    builder.sim_engine = adapter
+    reg = type("Reg", (), {"skills": {"set_release": 1, "maintain_release": 1}})()
+    with caplog.at_level("WARNING", logger="broker.core.experiment_builder"):
+        builder._check_feasibility_scope(reg)
+    assert "set_only" in caplog.text and "['maintain_release']" in caplog.text
+
+    caplog.clear()
+    adapter.contract = _contract([_bound("storage_unclamped >= 6", "all", ())])
+    with caplog.at_level("WARNING", logger="broker.core.experiment_builder"):
+        builder._check_feasibility_scope(reg)
+    assert caplog.text == ""
+
+    adapter.contract = _contract([_bound("storage_unclamped >= 6", "typo", ("set_relase",))])
+    with pytest.raises(ValueError, match="typo.*set_relase"):
+        builder._check_feasibility_scope(reg)
