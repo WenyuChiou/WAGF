@@ -297,6 +297,17 @@ def _attempt_segment(value) -> str:
     return _sanitize_audit_segment(value).replace(",", ";")
 
 
+def _magnitude_text(value) -> str:
+    """One attempt's number for ``attempt_magnitudes``: ``""`` for none, else
+    the float as Python writes it (``0.3``, ``1.0``)."""
+    if value is None:
+        return ""
+    try:
+        return repr(float(value))
+    except (TypeError, ValueError):
+        return _sanitize_audit_segment(value)
+
+
 def _attempt_audit_columns(
     attempt_labels: List[Optional[Dict[str, Any]]],
     attempt_failed_rules: List[Optional[List[str]]],
@@ -694,6 +705,9 @@ class AuditMixin:
                 **({"attempt_labels": UNOBSERVED, "attempt_failed_rules": UNOBSERVED,
                     "appraisal_relabeled": UNOBSERVED}
                    if getattr(self, "_attempt_columns", False) is True else {}),
+                # audit.attempt_magnitude_columns: no attempt parsed either.
+                **({"initial_magnitude": UNOBSERVED, "attempt_magnitudes": UNOBSERVED}
+                   if getattr(self, "_attempt_magnitude_columns", False) is True else {}),
                 # audit.state_columns: the state existed before the model was
                 # called, so it is filled from it like any other row.
                 **_audit_state_extra(getattr(self, "_audit_state_columns", ()), state),
@@ -756,6 +770,7 @@ class AuditMixin:
         attempt_prompts: Optional[List] = None,
         projection_default_breach: Optional[str] = None,
         projection_kept_proposal: Optional[bool] = None,
+        attempt_magnitudes: Optional[List] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -910,6 +925,15 @@ class AuditMixin:
         if attempt_labels is not None and attempt_failed_rules is not None:
             initial_extra.update(
                 _attempt_audit_columns(attempt_labels, attempt_failed_rules)
+            )
+        # Per-attempt numbers (audit.attempt_magnitude_columns, R5 walk
+        # finding 6): key-gated by the list, as above.
+        if attempt_magnitudes is not None:
+            initial_extra["initial_magnitude"] = (
+                _magnitude_text(attempt_magnitudes[0]) if attempt_magnitudes else ""
+            )
+            initial_extra["attempt_magnitudes"] = "|".join(
+                _magnitude_text(m) for m in attempt_magnitudes
             )
 
         # Agent-state columns (global_config.audit.state_columns): the listed

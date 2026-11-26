@@ -569,6 +569,15 @@ class UnifiedAdapter(ModelAdapter):
                 # If 'synonyms' is defined in YAML, use it. Otherwise, no synonym expansion.
                 SYNONYM_MAP = parsing_cfg.get("synonyms", {})
 
+                # R5 walk finding 17: the label map below turns the text "1"
+                # into "True" and "0" into "False". A declared number field
+                # keeps the model's own value, so reason_<key> shows the number.
+                # Only where the key matches no construct: a number key that is
+                # also a construct keyword still goes through the construct path.
+                _numeric_keys = {
+                    str(nf.get("key")).lower() for nf in (numeric_fields or []) if nf.get("key")
+                }
+
 
 
 
@@ -703,6 +712,8 @@ class UnifiedAdapter(ModelAdapter):
                             k_upper = k.upper()
                             if k_upper in construct_mapping:
                                 reasoning[k_upper] = normalize_construct_value(v, custom_mapping=custom_mapping)
+                            elif k.lower() in _numeric_keys:
+                                reasoning[k] = v
                             else:
                                 reasoning[k] = normalize_construct_value(v, custom_mapping=custom_mapping)
         except (json.JSONDecodeError, AttributeError) as exc:

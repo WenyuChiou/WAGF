@@ -342,6 +342,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_spc = getattr(self.config, "get_governance_summary_counts_python_checks", None)
         _spc = _get_spc() if callable(_get_spc) else False
         self._summary_counts_python_checks = _spc if isinstance(_spc, bool) else False
+        # One count per rule per decision in governance_summary.json
+        # (global_config.governance.summary_counts_per_decision, default OFF;
+        # R5 walk finding 4). Same MagicMock coercion.
+        _get_spd = getattr(self.config, "get_governance_summary_counts_per_decision", None)
+        _spd = _get_spd() if callable(_get_spd) else False
+        self._summary_per_decision = _spd if isinstance(_spd, bool) else False
         # Retry-text wording (global_config.governance.plain_action_names and
         # placebo_closer, both default OFF; see their getters in
         # broker/utils/agent_config.py): the blocked action named in plain
@@ -371,6 +377,22 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 "advisory call is an extra attempt the per-attempt columns do "
                 "not record, so they would fall out of step with "
                 "attempt_skills. Turn one of them off."
+            )
+        # Per-attempt number columns (global_config.audit.
+        # attempt_magnitude_columns, default OFF; R5 walk finding 6):
+        # initial_magnitude / attempt_magnitudes. Refused with an advisory
+        # channel for the same reason as attempt_columns.
+        _get_amc = getattr(self.config, "get_audit_attempt_magnitude_columns", None)
+        _amc = _get_amc() if callable(_get_amc) else False
+        self._attempt_magnitude_columns = _amc if isinstance(_amc, bool) else False
+        if self._attempt_magnitude_columns and (
+                self._advise_mode != "off" or self._soft_advise_mode != "off"):
+            raise ValueError(
+                "global_config.audit.attempt_magnitude_columns cannot be combined "
+                f"with governance.advise (mode {self._advise_mode!r}) or "
+                f"governance.advise_mode ({self._soft_advise_mode!r}): the "
+                "advisory call is an extra attempt the column does not record. "
+                "Turn one of them off."
             )
         # Retry-prompt text column (global_config.audit.retry_prompt_columns,
         # default OFF): the exact text sent on each governance retry,
@@ -979,6 +1001,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             [self._failed_rule_ids(validation_results)]
             if self._attempt_columns else None
         )
+        # Each attempt's number (audit.attempt_magnitude_columns, default
+        # OFF), in step with attempt_skills. None (flag OFF) adds no key.
+        attempt_magnitudes: Optional[List[Optional[float]]] = (
+            [skill_proposal.magnitude_pct if skill_proposal else None]
+            if self._attempt_magnitude_columns else None
+        )
         # Retry-prompt text (global_config.audit.retry_prompt_columns,
         # default OFF): one entry per RETRY attempt (attempt 0's prompt is
         # already recorded as the trace's "input"), appended in
@@ -1041,6 +1069,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_labels=attempt_labels,
                 attempt_failed_rules=attempt_failed_rules,
                 attempt_prompts=attempt_prompts,
+                attempt_magnitudes=attempt_magnitudes,
             )
         )
 
@@ -1050,6 +1079,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             agent_id=agent_id, agent_type=agent_type,
             retry_count=retry_count, validation_results=validation_results,
             initial_rule_ids=initial_rule_ids,
+            all_validation_history=all_validation_history,
         )
         
         # FINAL STEP SUMMARY (Console)
@@ -1103,6 +1133,18 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         secondary_proposal, sec_context
                     )
                     sec_valid = all(v.valid for v in sec_validation if v)
+                    if self._summary_per_decision:
+                        # The second action belongs to the same decision: count
+                        # its rules, but not one already counted for the
+                        # primary (Codex P2 on #138). The primary was approved
+                        # to get here, so _build_approved_skill counted exactly
+                        # these ids for it.
+                        counted = set(self._decision_rule_ids(
+                            all_validation_history or validation_results))
+                        self.auditor.log_decision([
+                            rule_id for rule_id in self._decision_rule_ids(sec_validation)
+                            if rule_id not in counted
+                        ])
                     if sec_valid:
                         sec_params = {}
                         if sec_mag is not None:
@@ -1305,6 +1347,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_labels=attempt_labels,
                 attempt_failed_rules=attempt_failed_rules,
                 attempt_prompts=attempt_prompts,
+                attempt_magnitudes=attempt_magnitudes,
                 projection_default_breach=projection_default_breach,
                 projection_kept_proposal=projection_kept_proposal,
             )
@@ -1466,7 +1509,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
     def _build_approved_skill(
         self, *, all_valid: bool, skill_proposal, agent_id: str,
         agent_type: str, retry_count: int, validation_results: List,
-        initial_rule_ids: set,
+        initial_rule_ids: set, all_validation_history: Optional[List] = None,
     ):
         """Build ApprovedSkill for both approved and rejected paths.
 
@@ -1496,10 +1539,21 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     f" [Governance:Success] {agent_id} | Fixed after {retry_count} retries"
                     f" | Choice: '{skill_proposal.skill_name}'{rating_str}"
                 )
-                for rule_id in initial_rule_ids:
-                    self.auditor.log_intervention(rule_id, success=True, is_final=True)
+                if not self._summary_per_decision:
+                    for rule_id in initial_rule_ids:
+                        self.auditor.log_intervention(rule_id, success=True, is_final=True)
             else:
                 self.stats["approved"] += 1
+            if self._summary_per_decision:
+                # Every approved decision, not only a retried one: the advisory
+                # pass can replace a blocked first proposal before any retry
+                # runs, and a rule demoted to advice never opens one (Codex P2
+                # on #138). No blocking history counts nothing; no retry, no
+                # retry_success.
+                self.auditor.log_decision(
+                    self._decision_rule_ids(all_validation_history or validation_results),
+                    success=True if retry_count > 0 else None,
+                )
         else:
             # RETRY EXHAUSTION: proceed with REJECTED status for audit
             is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
@@ -1539,11 +1593,36 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             outcome = SkillOutcome.REJECTED if not is_generic_fallback else SkillOutcome.UNCERTAIN
 
             self.stats["rejected"] += 1
-            for v in validation_results:
-                for rule_id in self._summary_rule_ids(v):
-                    self.auditor.log_intervention(rule_id, success=False, is_final=True)
+            if self._summary_per_decision:
+                self.auditor.log_decision(
+                    self._decision_rule_ids(all_validation_history or validation_results),
+                    success=False,
+                )
+            else:
+                for v in validation_results:
+                    for rule_id in self._summary_rule_ids(v):
+                        self.auditor.log_intervention(rule_id, success=False, is_final=True)
 
         return approved_skill, outcome
+
+    def _decision_rule_ids(self, results) -> List[str]:
+        """The rule ids that blocked any attempt of one decision, each once, in
+        the order they first blocked (``summary_counts_per_decision``). A
+        result counts when it blocked, or when ``governance.advise`` turned its
+        ERROR into advice (``disposition: ADVISE``): AgentValidator logs both
+        as blocks, so the summary with the option off counts both. Ids come
+        from ``_summary_rule_ids``."""
+        ids: List[str] = []
+        for result in results or []:
+            if result is None:
+                continue
+            advised = (getattr(result, "metadata", None) or {}).get("disposition") == "ADVISE"
+            if result.valid and not advised:
+                continue
+            for rule_id in self._summary_rule_ids(result):
+                if rule_id not in ids:
+                    ids.append(rule_id)
+        return ids
 
     def _summary_rule_ids(self, result) -> List[str]:
         """The rule ids governance_summary.json counts for one validation result.
@@ -1623,6 +1702,16 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         return True
 
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
+        """Run every validator on one attempt. Under
+        ``summary_counts_per_decision`` the validators' own per-attempt block
+        counts are switched off; the engine counts the decision at its end."""
+        if not self._summary_per_decision:
+            return self._run_validators_once(proposal, context)
+        from ..utils.governance_auditor import GovernanceAuditor
+        with GovernanceAuditor.per_decision():
+            return self._run_validators_once(proposal, context)
+
+    def _run_validators_once(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
         if context is None:
             context = {}

@@ -78,13 +78,20 @@ def gen_readme(
     results_path = ((output_dir or Path(domain)) / "results" / "smoke").as_posix()
     if any(char.isspace() for char in results_path):
         results_path = f'"{results_path}"'
+    mock_answer = (
+        "`--model mock` answers through `mock_llm.py` (the `mock` slot under\n"
+        "        `global_config.run`): a scripted answer that fills every required field of\n"
+        "        the response format, so the smoke run's decisions are not REJECTED. When\n"
+        "        you add a required field to the response format, add it to that answer too."
+    )
     # R5 walk finding 7: a physical-only case has no constructs (so no
     # construct retry warnings) and no appraisal for the pack's hooks to read.
     if physical_only:
         mock_note = (
             "This case is physical-only (`psychological_framework: none`): the agent\n"
-            "        names an action and no appraisal. Check for audit output under\n"
-            "        `results/smoke` after the run."
+            "        names an action and no appraisal.\n"
+            "        " + mock_answer + "\n"
+            "        Check for audit output under `results/smoke` after the run."
         )
         pack_step = (
             "Edit `adapters/{domain}_pack.py` only if you need it: fill in\n"
@@ -94,9 +101,8 @@ def gen_readme(
         ).format(domain=domain)
     else:
         mock_note = (
-            "Note: mock-model runs may show `[Broker:Retry]` warnings when a\n"
-            "        framework expects constructs. Check for audit output under `results/smoke`\n"
-            "        after the run."
+            mock_answer + "\n"
+            "        Check for audit output under `results/smoke` after the run."
         )
         pack_step = (
             "Edit `adapters/{domain}_pack.py` — fill in `importance_profiles`,\n"
@@ -148,8 +154,9 @@ def gen_readme(
            check with real domain rules.
         4. {pack_step}
         5. Edit `world.py` to plug in your case's world model. Add `agents`,
-           `hooks`, `validators` or `mock` slots under `global_config.run` when
-           the case needs them (see `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`).{magnitude_step}
+           `hooks` or `validators` slots under `global_config.run` when the case
+           needs them (see `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`); the `mock`
+           slot already names `mock_llm.py`.{magnitude_step}
 
         ## Reference
         - `examples/irrigation_abm/` — water demand reference
@@ -157,7 +164,7 @@ def gen_readme(
         """).lstrip()
 
 
-def gen_skill_registry(domain: str, skills: List[str]) -> str:
+def gen_skill_registry(domain: str, skills: List[str], default_skill: str | None = None) -> str:
     # `skill_registry.yaml` uses `skill_id:` (different from `agent_types.yaml`
     # actions which use `id:`). Phase 6E Finding #2: an earlier version of
     # this scaffold emitted `id:` and the broker's
@@ -179,7 +186,12 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
     # empty; in that case the value points to a non-existent skill
     # and experiment_builder catches it. Renaming to a TODO-marker
     # makes the intent visible.
-    default = skills[0] if skills else "TODO_default_skill"
+    default = default_skill or (skills[0] if skills else "TODO_default_skill")
+    # R5 walk finding 7b: --default-skill picks it; otherwise the first skill.
+    chosen = (
+        "It is set by --default-skill" if default_skill
+        else "It is set to the first skill (choose another with --default-skill)"
+    )
     return (
         f"# Skill registry for the {domain} domain.\n"
         f"# Scaffolded by broker.tools.scaffold_domain. Edit descriptions to\n"
@@ -188,7 +200,7 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
         f"# range, and meaning above skills (e.g. storage [maf], magnitude [0..1]).\n"
         f"domain: {domain}\n"
         f"# default_skill runs when the retries run out or the reply cannot be\n"
-        f"# parsed. It is set to the first skill; point it at the action that keeps\n"
+        f"# parsed. {chosen}; point it at the action that keeps\n"
         f"# things as they are (a maintain_* or hold action), not a guarded one.\n"
         f"default_skill: {default}\n"
         f"skills:\n"
@@ -198,7 +210,7 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
 
 def gen_agent_types_yaml(
     domain: str, skills: List[str], framework: str, *, physical_only: bool = False,
-    magnitude: bool = False,
+    magnitude: bool = False, default_skill: str | None = None,
 ) -> str:
     if physical_only:
         framework = "none"
@@ -252,7 +264,9 @@ def gen_agent_types_yaml(
             description: "Fraction from 0 to 1 (0.5 means half), for example 0.5",
           }
         """), " " * 6) if magnitude else ""
-    mock_slot = "\n    mock: mock_llm:build_mock" if magnitude else ""
+    # Every scaffold answers `--model mock` with its own mock_llm.py: the
+    # built-in mock gives only the decision, and this format requires more.
+    mock_slot = "\n    mock: mock_llm:build_mock"
     constructs = behavioral_section("""\
         constructs:
           primary: ["PRIMARY_LABEL"]
@@ -294,7 +308,7 @@ def gen_agent_types_yaml(
           audit:
             initial_proposal_columns: {audit_appraisals}
             attempt_columns: {audit_appraisals}
-            corrected_status_columns: true
+            corrected_status_columns: true{magnitude_audit}
 
           memory:
             # python -m broker.run builds this engine: window (keeps the last
@@ -329,6 +343,10 @@ def gen_agent_types_yaml(
             # Count blocks by Python checks (which name their rule by rule_id)
             # in governance_summary.json, as the audit CSV's failed_rules does.
             summary_counts_python_checks: true
+            # Count each rule once per decision, and each blocked decision once
+            # as retry_success or retry_exhausted (otherwise a YAML rule counts
+            # once per blocked attempt plus once more at the end).
+            summary_counts_per_decision: true
 
         shared:
         {rating_scale}  response_format:
@@ -367,11 +385,13 @@ def gen_agent_types_yaml(
         domain=domain,
         mock_slot=mock_slot,
         magnitude_field=magnitude_field,
+        # R5 walk finding 6: the first-proposed and each attempt's number.
+        magnitude_audit="\n    attempt_magnitude_columns: true" if magnitude else "",
         framework_value=framework_value,
         # Both opt-ins emit appraisal columns even when there are no labels.
         audit_appraisals="false" if physical_only else "true",
         skill_actions=skill_actions,
-        default_skill=skills[0] if skills else "TODO_default_skill",
+        default_skill=default_skill or (skills[0] if skills else "TODO_default_skill"),
         llm_retries="" if physical_only else "    max_retries: 2\n",
         reports_per_retry="" if physical_only else "    max_reports_per_retry: 3\n",
         rating_scale=rating_scale,
@@ -686,26 +706,25 @@ def build_world(ctx):
 _MOCK_LLM = '''\
 """Scripted model for `--model mock` runs of the __DOMAIN__ domain.
 
-The built-in mock answers only the decision. This one also gives the action
-number, a fixed fraction, so a smoke run shows a number on [0, 1] reaching
-`world.py`. broker.run loads it through the `run.mock` slot and uses it only
-with `--model mock`.
+The built-in mock answers only the decision. This one fills every required
+field of the response format in `config/agent_types.yaml`, so the decisions of
+a smoke run pass the format check instead of being REJECTED.__MAGNITUDE_DOC__
+broker.run loads it through the `run.mock` slot and uses it only with
+`--model mock`. When you add a required field to the response format, add it
+to the answer below too.
 """
 
 import json
 import re
 
 from broker.utils.llm_utils import LLMStats
-
-MOCK_FRACTION = 0.35
-
+__MAGNITUDE_CONST__
 
 def _scripted(prompt):
     options = re.findall(r"(\\d+)\\.\\s+\\w+", prompt)
     payload = {
         "reasoning": "scripted mock answer",__APPRAISAL__
-        "decision": int(options[0]) if options else 1,
-        "magnitude": MOCK_FRACTION,
+        "decision": int(options[0]) if options else 1,__MAGNITUDE__
     }
     text = "<<<DECISION_START>>>\\n" + json.dumps(payload) + "\\n<<<DECISION_END>>>"
     return text, LLMStats(retries=0, success=True)
@@ -721,9 +740,28 @@ def gen_world_magnitude(domain: str) -> str:
     return _WORLD_MAGNITUDE.replace("__DOMAIN__", domain)
 
 
-def gen_mock_llm(domain: str, *, physical_only: bool = False) -> str:
-    appraisal = "" if physical_only else '\n        "primary_assessment": "M",'
-    return _MOCK_LLM.replace("__DOMAIN__", domain).replace("__APPRAISAL__", appraisal)
+def gen_mock_llm(domain: str, *, physical_only: bool = False, magnitude: bool = False) -> str:
+    # The answer covers exactly the required fields gen_agent_types_yaml
+    # writes: reasoning and decision always, the appraisal unless
+    # physical_only (in the {"label", "reason"} shape the prompt asks for),
+    # and the action number only with magnitude.
+    appraisal = "" if physical_only else (
+        '\n        "primary_assessment": {"label": "M", "reason": "scripted mock answer"},'
+    )
+    replacements = {
+        "__DOMAIN__": domain,
+        "__APPRAISAL__": appraisal,
+        "__MAGNITUDE_DOC__": (
+            "\nIt also gives the action number, a fixed fraction, so a smoke run shows a\n"
+            "number on [0, 1] reaching `world.py`."
+        ) if magnitude else "",
+        "__MAGNITUDE_CONST__": "\nMOCK_FRACTION = 0.35\n" if magnitude else "",
+        "__MAGNITUDE__": '\n        "magnitude": MOCK_FRACTION,' if magnitude else "",
+    }
+    text = _MOCK_LLM
+    for marker, value in replacements.items():
+        text = text.replace(marker, value)
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -739,6 +777,7 @@ def scaffold(
     *,
     physical_only: bool = False,
     magnitude: bool = False,
+    default_skill: str | None = None,
 ) -> List[Path]:
     """Write the full skeleton. Returns the list of created paths.
 
@@ -769,11 +808,12 @@ def scaffold(
     write("README.md", gen_readme(
         domain, skills, output_dir=output_dir, magnitude=magnitude, physical_only=physical_only,
     ))
-    write("config/skill_registry.yaml", gen_skill_registry(domain, skills))
+    write("config/skill_registry.yaml", gen_skill_registry(domain, skills, default_skill))
     write(
         "config/agent_types.yaml",
         gen_agent_types_yaml(
             domain, skills, framework, physical_only=physical_only, magnitude=magnitude,
+            default_skill=default_skill,
         ),
     )
     write("config/prompts/agent.txt", gen_prompt(domain, skills, physical_only=physical_only, magnitude=magnitude))
@@ -782,8 +822,7 @@ def scaffold(
     write("adapters/__init__.py", "")
     write(f"adapters/{domain}_pack.py", gen_domain_pack(domain, framework))
     write("world.py", gen_world(domain, magnitude=magnitude))
-    if magnitude:
-        write("mock_llm.py", gen_mock_llm(domain, physical_only=physical_only))
+    write("mock_llm.py", gen_mock_llm(domain, physical_only=physical_only, magnitude=magnitude))
 
     if framework == "custom":
         cognition_dir = output_dir / "cognition"
@@ -893,6 +932,15 @@ def main(argv: List[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--default-skill",
+        default=None,
+        help=(
+            "The skill that runs when the retries run out or the reply cannot be "
+            "parsed; one of --skills. Default: the first skill. Pick the action "
+            "that keeps things as they are (a maintain_* or hold action)."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite non-empty output directory.",
@@ -914,6 +962,12 @@ def main(argv: List[str] | None = None) -> int:
     if not skills:
         print("ERROR: --skills must list at least one skill", file=sys.stderr)
         return 1
+    if args.default_skill is not None and args.default_skill not in skills:
+        print(
+            f"ERROR: --default-skill {args.default_skill!r} is not one of --skills {skills}",
+            file=sys.stderr,
+        )
+        return 1
 
     output_dir = args.output or Path("examples") / f"{args.domain}_demo"
     # broker.run imports the case folder as a Python package, so its name
@@ -933,6 +987,7 @@ def main(argv: List[str] | None = None) -> int:
         written = scaffold(
             args.domain, output_dir, skills, args.framework or "pmt", args.force,
             physical_only=args.physical_only, magnitude=args.magnitude,
+            default_skill=args.default_skill,
         )
     except FileExistsError as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -948,10 +1003,11 @@ def main(argv: List[str] | None = None) -> int:
     print(f"  2. Edit {output_dir}/config/prompts/agent.txt to describe the domain")
     print(f"  3. Edit {output_dir}/adapters/{args.domain}_pack.py to fill in domain hooks")
     print(f"  4. python -m broker.run {yaml_path} --model mock --years 2 --agents 3")
+    print("     (--model mock answers through mock_llm.py, which fills every required response field)")
     print(f"  5. python -m broker.tools.check_run_integrity {output_dir / 'results' / 'smoke'}")
     if args.magnitude:
         print('  6. world.py reads the [0, 1] action number as parameters["magnitude_pct"]; '
-              "mock_llm.py supplies it under --model mock")
+              "the mock_llm.py answer gives 0.35 under --model mock")
     return 0
 
 

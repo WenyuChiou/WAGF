@@ -570,6 +570,10 @@ class AuditConfig:
     experiment_name: str = "simulation"
     log_level: str = "full"  # full, summary, errors_only
     clear_existing_traces: bool = True
+    # R5 walk finding 13: write validator_health.csv (header only) even when no
+    # rule ran. Off by default so paper runners write the same files as before;
+    # python -m broker.run turns it on.
+    always_write_validator_health: bool = False
 
 
 _CONSTRUCT_SUFFIXES = ("_LABEL", "_UTIL", "_GAP", "_IMPACT", "_APPETITE")
@@ -718,6 +722,10 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["attempt_labels"] = t.get("attempt_labels", "")
         row["attempt_failed_rules"] = t.get("attempt_failed_rules", "")
         row["appraisal_relabeled"] = t.get("appraisal_relabeled", False)
+    # Per-attempt numbers (audit.attempt_magnitude_columns, R5 walk finding 6).
+    if "attempt_magnitudes" in t:
+        row["initial_magnitude"] = t.get("initial_magnitude", "")
+        row["attempt_magnitudes"] = t.get("attempt_magnitudes", "")
     # Agent-state columns (audit.state_columns): one state_<key> column per
     # key the config lists. Key-gated by the trace key itself.
     if isinstance(t.get("audit_state"), dict):
@@ -1088,6 +1096,11 @@ class GenericAuditWriter:
             "rule_breakdown":  "rules_* columns (personal_hit, social_hit, etc.)",
         }
         self._startup_warned: bool = False
+        # R5 walk finding 10: agent types with psychological_framework: none.
+        # They have no appraisal, so their cog_* columns are placeholders by
+        # design and a missing cognitive_audit is not worth a warning. Set by
+        # ExperimentBuilder.
+        self.no_appraisal_agent_types: set = set()
         # O1: (agent_type, utilization-decile) pairs already warned about —
         # keeps the live context-budget tripwire to a handful of log lines.
         self._ctx_budget_warned: set = set()
@@ -1132,6 +1145,8 @@ class GenericAuditWriter:
                 f"'{key}' (would populate: {cols})"
                 for key, cols in self._expected_aggregates.items()
                 if key not in trace
+                and not (key == "cognitive_audit"
+                         and agent_type in self.no_appraisal_agent_types)
             ]
             if absent:
                 logger.warning(
@@ -1371,7 +1386,7 @@ class GenericAuditWriter:
         summary_path = self.output_dir / "audit_summary.json"
 
         vh = self.summary.get("validator_health", {})
-        if vh:
+        if vh or getattr(self.config, "always_write_validator_health", False):
             import csv as _csv
             vh_path = self.output_dir / "validator_health.csv"
             cols = ["rule_id", "seen_count", "fire_count", "warn_count",

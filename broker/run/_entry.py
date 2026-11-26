@@ -487,6 +487,10 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     except ValueError as exc:  # The builder's own configuration checks.
         raise RunError(f"the case could not be built: {exc}") from exc
     runner._llm_cache.update(invokes)
+    # R5 walk finding 13: a case with no rules still gets validator_health.csv.
+    audit_writer = getattr(getattr(runner, "broker", None), "audit_writer", None)
+    if audit_writer is not None and hasattr(audit_writer, "config"):
+        audit_writer.config.always_write_validator_health = True
     if reflection_hook is not None:
         reflection_hook.runner = runner
         runner.reflection_enabled = True  # run_integrity.json records it

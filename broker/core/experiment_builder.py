@@ -657,6 +657,13 @@ class ExperimentBuilder:
         from broker.utils.agent_config import AgentTypeConfig
         config = AgentTypeConfig.load(self.agent_types_path)
         self._check_numeric_field_skills(config, reg)
+        # R5 walk finding 10: no cognitive_audit warning for agent types that
+        # have no appraisal.
+        audit_writer.no_appraisal_agent_types = {
+            name for name, cfg in config.items()
+            if isinstance(cfg, dict)
+            and str(cfg.get("psychological_framework", "")).strip().lower() == "none"
+        }
 
         broker = SkillBrokerEngine(
             skill_registry=reg,

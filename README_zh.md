@@ -154,7 +154,8 @@ python -m broker.run examples/my_water_model_demo/config/agent_types.yaml --mode
 ```
 
 scaffold 會寫出設定檔、prompt、一個暫代的 `world.py`，以及 `global_config.run` 區塊，所以只需要
-`python -m broker.run` 這一個入口。空的 scaffold 用 mock 模型跑時會印出重試警告，這是預期的。
+`python -m broker.run` 這一個入口。用 mock 模型跑時，它透過自己的 `mock_llm.py` 回答：每個必填欄位
+都有寫好的腳本答案，所以決策都是 APPROVED。
 決策不需要評估（appraisal）步驟時，在 scaffold 命令加上 `--physical-only`。詳見
 [新增自己的領域](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)。
 

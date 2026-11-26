@@ -322,6 +322,7 @@ def record_run_integrity(
     sentinel_write_failures: Optional[int] = None,
     extra: Optional[dict] = None,
     verbose: bool = True,
+    no_appraisal: bool = False,
 ) -> dict:
     """Write ``run_integrity.json`` recording runtime instantiation; never raises.
 
@@ -341,6 +342,11 @@ def record_run_integrity(
     Pass the resolved ``reflection_enabled`` flag when the run enables or
     disables reflection independently of its memory engine. When absent,
     the existing expectation for humancentric memory is retained.
+
+    ``no_appraisal`` (R5 walk finding 10): every agent in the run declares
+    ``psychological_framework: none``. The uncategorised-rule explanation is then
+    logged at debug level instead of as a warning; the counts are recorded the
+    same way.
 
     Returns the audit dict (also embedded in the reproducibility manifest by callers
     that have one).
@@ -467,7 +473,7 @@ def record_run_integrity(
                     uncat["rules_uncategorised_ids"],
                 )
             else:
-                logger.warning(
+                (logger.debug if no_appraisal else logger.warning)(
                     "[Integrity] %d validator result(s) reached no rules_*_hit "
                     "bucket; their rule ids: %s. Under "
                     "audit.corrected_status_columns the buckets are INFERRED "

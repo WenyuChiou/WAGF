@@ -490,6 +490,7 @@ class RetryMixin:
         attempt_labels: Optional[List] = None,
         attempt_failed_rules: Optional[List] = None,
         attempt_prompts: Optional[List] = None,
+        attempt_magnitudes: Optional[List] = None,
     ):
         """Run governance validation retry loop.
 
@@ -749,6 +750,8 @@ class RetryMixin:
                         attempt_labels.append(None)
                     if attempt_failed_rules is not None:
                         attempt_failed_rules.append(None)
+                    if attempt_magnitudes is not None:
+                        attempt_magnitudes.append(None)
                     break
             else:
                 raw_output = res
@@ -788,6 +791,11 @@ class RetryMixin:
             if attempt_labels is not None:
                 attempt_labels.append(
                     construct_label_dict(skill_proposal) if skill_proposal else None
+                )
+            # Per-attempt number (audit.attempt_magnitude_columns).
+            if attempt_magnitudes is not None:
+                attempt_magnitudes.append(
+                    skill_proposal.magnitude_pct if skill_proposal else None
                 )
 
             if skill_proposal:

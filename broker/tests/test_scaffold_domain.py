@@ -6,6 +6,7 @@ onboarding cost is genuinely one command.
 """
 from __future__ import annotations
 
+import csv
 import os
 import shutil
 import subprocess
@@ -460,7 +461,8 @@ class TestCLI:
         # R5 walk findings 7 and 9
         assert "check_run_integrity" in captured.out
         readme = (tmp_path / "energy" / "README.md").read_text(encoding="utf-8")
-        assert "check_run_integrity" in readme and "[Broker:Retry]" in readme
+        assert "check_run_integrity" in readme and "mock_llm.py" in readme
+        assert "[Broker:Retry]" not in readme
         registry = (tmp_path / "energy" / "config" / "skill_registry.yaml").read_text(
             encoding="utf-8")
         assert "maintain_* or hold action" in registry
@@ -473,12 +475,18 @@ class TestCLI:
 class TestMagnitudeFlag:
     """--magnitude adds the [0, 1] action number; without it nothing changes."""
 
-    def test_default_output_has_no_magnitude_and_no_mock_file(self, tmp_path: Path):
+    def test_default_output_has_no_magnitude(self, tmp_path: Path):
         written = scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt")
         names = {p.relative_to(tmp_path / "probe").as_posix() for p in written}
-        assert "mock_llm.py" not in names
+        # every scaffold has its scripted mock (TestScaffoldMockRun); without
+        # the flag its answer carries no number
+        assert "mock_llm.py" in names
+        mock = (tmp_path / "probe" / "mock_llm.py").read_text(encoding="utf-8")
+        assert "magnitude" not in mock and "MOCK_FRACTION" not in mock
+        assert '"primary_assessment": {"label": "M"' in mock
         text = (tmp_path / "probe" / "config" / "agent_types.yaml").read_text(encoding="utf-8")
-        assert "magnitude" not in text and "mock:" not in text
+        assert "magnitude" not in text
+        assert yaml.safe_load(text)["global_config"]["run"]["mock"] == "mock_llm:build_mock"
         assert gen_agent_types_yaml("probe", ["a", "b"], "pmt") == gen_agent_types_yaml(
             "probe", ["a", "b"], "pmt", magnitude=False)
         assert "--magnitude" not in (tmp_path / "probe" / "README.md").read_text(encoding="utf-8")
@@ -502,7 +510,90 @@ class TestMagnitudeFlag:
         assert validate_main([str(tmp_path / "probe" / "config" / "agent_types.yaml"), "--strict"]) == 0
         for name in ("world.py", "mock_llm.py"):
             compile((tmp_path / "probe" / name).read_text(encoding="utf-8"), name, "exec")
+        mock = (tmp_path / "probe" / "mock_llm.py").read_text(encoding="utf-8")
+        assert '"magnitude": MOCK_FRACTION' in mock
+        assert ("primary_assessment" in mock) is (not physical_only)
 
     def test_cli_flag(self, tmp_path: Path):
         assert main(["probe", "--output", str(tmp_path / "probe"), "--magnitude"]) == 0
         assert (tmp_path / "probe" / "mock_llm.py").is_file()
+
+
+class TestR5Followups:
+    """R5 walk findings 4, 6 and 7b."""
+
+    def _cfg(self, root: Path) -> dict:
+        return yaml.safe_load((root / "config" / "agent_types.yaml").read_text(encoding="utf-8"))
+
+    def test_summary_counts_per_decision_is_on(self, tmp_path: Path):
+        scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt")
+        assert self._cfg(tmp_path / "probe")["global_config"]["governance"][
+            "summary_counts_per_decision"] is True
+
+    @pytest.mark.parametrize("magnitude", [False, True])
+    def test_attempt_magnitude_columns_follow_the_magnitude_flag(self, tmp_path: Path, magnitude):
+        scaffold("probe", tmp_path / "probe", ["a", "b"], "pmt", magnitude=magnitude)
+        audit = self._cfg(tmp_path / "probe")["global_config"]["audit"]
+        assert audit.get("attempt_magnitude_columns", False) is magnitude
+        assert validate_main([str(tmp_path / "probe" / "config" / "agent_types.yaml"), "--strict"]) == 0
+
+    def test_default_skill_flag_sets_both_defaults(self, tmp_path: Path):
+        root = tmp_path / "probe"
+        assert main(["probe", "--output", str(root), "--skills", "set_pumping,maintain_pumping",
+                     "--default-skill", "maintain_pumping"]) == 0
+        registry = yaml.safe_load((root / "config" / "skill_registry.yaml").read_text(encoding="utf-8"))
+        assert registry["default_skill"] == "maintain_pumping"
+        assert self._cfg(root)["agent"]["parsing"]["default_skill"] == "maintain_pumping"
+        # the comment that says to point it at the hold action stays
+        assert "maintain_* or hold action" in (root / "config" / "skill_registry.yaml").read_text(
+            encoding="utf-8")
+
+    def test_without_the_flag_the_first_skill_stays_the_default(self, tmp_path: Path):
+        root = tmp_path / "probe"
+        assert main(["probe", "--output", str(root), "--skills", "set_pumping,maintain_pumping"]) == 0
+        registry = yaml.safe_load((root / "config" / "skill_registry.yaml").read_text(encoding="utf-8"))
+        assert registry["default_skill"] == "set_pumping"
+
+    def test_default_skill_must_be_one_of_the_skills(self, tmp_path: Path, capsys):
+        rc = main(["probe", "--output", str(tmp_path / "probe"), "--skills", "a,b",
+                   "--default-skill", "hold"])
+        assert rc == 1
+        assert "--default-skill 'hold' is not one of --skills" in capsys.readouterr().err
+        assert not (tmp_path / "probe").exists()
+
+
+class TestScaffoldMockRun:
+    """A fresh scaffold, run as is with --model mock, decides without REJECTED rows.
+
+    The built-in mock answers only the decision, so a scaffold whose response
+    format requires more (the appraisal, the action number) needs its own
+    scripted answer in mock_llm.py.
+    """
+
+    @pytest.mark.parametrize("physical_only, magnitude", [
+        (False, False), (True, False), (False, True), (True, True),
+    ])
+    def test_mock_run_has_no_rejected_rows(self, tmp_path: Path, monkeypatch,
+                                           physical_only: bool, magnitude: bool):
+        from broker.run import main as run_main
+
+        name = f"mockrun_{int(physical_only)}{int(magnitude)}"
+        root = tmp_path / name
+        scaffold(name, root, ["action_a", "action_b"], "pmt",
+                 physical_only=physical_only, magnitude=magnitude)
+        monkeypatch.setattr(sys, "path", sys.path.copy())
+        monkeypatch.setenv("GOVERNANCE_PROFILE", "default")
+        output = tmp_path / "out"
+        try:
+            assert run_main([str(root / "config" / "agent_types.yaml"), "--model", "mock",
+                             "--years", "2", "--agents", "2", "--output", str(output)]) == 0
+        finally:
+            for module in list(sys.modules):
+                if module == name or module.startswith(f"{name}."):
+                    sys.modules.pop(module, None)
+        with (output / "agent_governance_audit.csv").open(encoding="utf-8-sig", newline="") as file:
+            rows = list(csv.DictReader(file))
+        assert len(rows) == 4
+        rejected = [(row["status"], row["error_messages"])
+                    for row in rows if row["status"].startswith("REJECTED")]
+        assert rejected == []
