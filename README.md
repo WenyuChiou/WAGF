@@ -213,8 +213,9 @@ python -m broker.run examples/my_water_model_demo/config/agent_types.yaml --mode
 ```
 
 The scaffold writes a config, a prompt, a stand-in `world.py` and a `global_config.run` block, so
-`python -m broker.run` is the only entry you need. The empty scaffold prints retry warnings with
-the mock model; that is expected. Add `--physical-only` to the scaffold command for decisions with
+`python -m broker.run` is the only entry you need. With the mock model it answers through its
+`mock_llm.py`, a scripted answer for every required field, so the run's decisions are APPROVED.
+Add `--physical-only` to the scaffold command for decisions with
 no appraisal step. See [Add your own domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md).
 
 ## Documentation

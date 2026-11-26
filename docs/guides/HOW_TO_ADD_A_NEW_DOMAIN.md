@@ -197,13 +197,14 @@ python -m broker.tools.scaffold_domain energy_consumer \
     --skills "increase_use,maintain_use,decrease_use"
 ```
 
-This writes 10 files (12 with `--framework custom`) that already:
+This writes 11 files (13 with `--framework custom`) that already:
 
 - Pass `validate_prompt` clean on first run (no manual sync needed)
 - Use the broker-filled `{response_format}` placeholder (no hand-rolled JSON to drift)
 - Include all 6 required YAML blocks identified by the Phase 6C-v4 BLOCKER inventory
 - Wire up DomainPack registration and the validator registry
 - Write `world.py` (a `SyntheticEnvironment` and `build_world(ctx)`) and a `global_config.run` block (`world: world:build_world`, governance `default`, 3 years, 5 agents, output `results/smoke`). There is no runner file: `python -m broker.run` runs the case.
+- Write `mock_llm.py`, wired through the `mock` slot (`mock: mock_llm:build_mock`). The built-in mock answers only the decision; this scripted answer fills every required field of the scaffolded response format (the appraisal unless `--physical-only`, the action number with `--magnitude`), so a `--model mock` run's decisions are not REJECTED. When you add a required field to the response format, add it to that answer too.
 
 The output folder name must be a Python identifier, because `broker.run` imports the case folder as a package.
 
@@ -221,7 +222,7 @@ Next, edit `config/prompts/agent.txt`, the DomainPack adapter, and `world.py` to
 python -m broker.run examples/energy_demo/config/agent_types.yaml --model mock --years 1 --agents 1
 ```
 
-Before the run starts, `broker.run` prints a header line `[broker.run] <config> | model=mock years=1 agents=1 output=<dir>`. With the mock model the empty scaffold then prints retry warnings, including `Max retries (3) reached`; that is expected. The run worked if the command exits with code 0. A finished output folder is never overwritten: pass a new `--output`, or move the old folder aside.
+Before the run starts, `broker.run` prints a header line `[broker.run] <config> | model=mock years=1 agents=1 output=<dir>`. With the mock model each decision comes from `mock_llm.py` and is APPROVED. If the response format requires a field that `mock_llm.py` does not give, the run prints retry warnings, including `Max retries (3) reached`, and the rows are REJECTED: add the field to the scripted answer. The run worked if the command exits with code 0. A finished output folder is never overwritten: pass a new `--output`, or move the old folder aside.
 
 ### The action number
 
@@ -234,7 +235,7 @@ response_format:
         description: "Fraction from 0 to 1 (0.5 means half), for example 0.5" }
 ```
 
-- **The scaffold writes it for you.** `python -m broker.tools.scaffold_domain <domain> --magnitude` adds this field, a prompt line asking for a fraction, a `world.py` that uses the number, and a `mock_llm.py` (wired through the `mock` slot) so `--model mock` answers with 0.35 and you can see a number on [0, 1] reach the world. It works with the default framework and with `--physical-only`. Without the flag the output is unchanged.
+- **The scaffold writes it for you.** `python -m broker.tools.scaffold_domain <domain> --magnitude` adds this field, a prompt line asking for a fraction, a `world.py` that uses the number, and the number in the scripted answer of `mock_llm.py`, so `--model mock` answers with 0.35 and you can see a number on [0, 1] reach the world. It works with the default framework and with `--physical-only`. Without the flag there is no number field, and `mock_llm.py` answers without a number.
 - **The parser clamps.** It reads the response field of `type: numeric` (named `magnitude_pct`, then `magnitude`, else the first numeric field) and clamps the model's answer to the field's `min` and `max`, with a parsing warning. A model that answers 50 on a 0 to 1 field is recorded as 1.0. So the prompt must ask for a fraction in plain words; the `max: 1` is a safety net, not the instruction.
 - **The world reads `parameters["magnitude_pct"]`.** In `execute_skill(approved_skill)`, `approved_skill.parameters.get("magnitude_pct")` holds the number. That name is only the carrier: it holds the [0, 1] value, and rules see it as `proposed_magnitude`. It is absent when the model gave none.
 - **Only the actions that take the number get it, if you say which.** The model is asked for a number with every action, so a `maintain_*` hold can come with one; without a list the world gets it and changes the control. Add `skills: ["set_use"]` to the field to name the actions that take the number. For any other action the parser drops it and records `magnitude=… dropped: maintain_use does not take it` in the trace's `parsing_warnings`, so the hold keeps the last value. The names must be registry skills (the build refuses others). Without `skills:` every action gets the number, as before. Under `multi_skill` the second action's number is filtered the same way by its own field (`secondary_magnitude_field`), against the second action: a hold as the second action loses its number, with `… dropped: the secondary action maintain_use does not take it` in `parsing_warnings` (see also the limit below).

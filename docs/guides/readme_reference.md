@@ -87,7 +87,7 @@ python -m broker.tools.validate_prompt examples/my_water_model_demo/config/agent
 python -m broker.run examples/my_water_model_demo/config/agent_types.yaml --model mock --years 1 --agents 1
 ```
 
-The first command reports configuration errors and warnings. The second writes audit output under `examples/my_water_model_demo/results/smoke/`. The generated example is incomplete on purpose, so the run prints `Validation FAILED` and `Max retries (3) reached`. Before the run starts, `broker.run` prints a header line that starts with `[broker.run]` and names the model, years, agents and output folder. It worked if the command exits with code 0. (`broker.run` does not print `Done. Audit + traces under:`.)
+The first command reports configuration errors and warnings. The second writes audit output under `examples/my_water_model_demo/results/smoke/`. The scaffold's `mock_llm.py` gives a scripted answer for every required field, so the run's decisions are APPROVED; the world, the prompt and the rules are still stand-ins for you to replace. Before the run starts, `broker.run` prints a header line that starts with `[broker.run]` and names the model, years, agents and output folder. It worked if the command exits with code 0. (`broker.run` does not print `Done. Audit + traces under:`.)
 
 To run it again, add `--output examples/my_water_model_demo/results/smoke2` (relative to the current directory) or delete `results/smoke/` first; WAGF refuses to overwrite a finished run.
 
