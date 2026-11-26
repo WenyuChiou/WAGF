@@ -264,9 +264,10 @@ traffic, `os.environ`, and state shared with the live model (a module-level
 A model that does any of these needs `project()`.
 
 When the retries run out, the default skill is projected too, and the audit row carries
-`projection_default_breach` (the bound names, `""` when the default passes). If the default
-breaches as well, blocking the agent gains nothing when its last proposal is no worse, so
-that proposal runs instead of the default ("no worse than the default"). It runs only when:
+`projection_default_breach` (the bound names, `""` when the default passes, `not_checked` when
+no bound judges the default skill). If the default breaches as well, blocking the agent gains
+nothing when its last proposal is no worse, so that proposal runs instead of the default ("no
+worse than the default"). It runs only when:
 
 1. every rule that blocked the last attempt is a feasibility bound (any other rule, such as
    an `expression:` rule, keeps the default); and

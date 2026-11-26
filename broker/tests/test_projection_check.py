@@ -572,6 +572,17 @@ def test_default_that_passes_gets_an_empty_mark(monkeypatch, tmp_path):
     assert [r["projection_default_breach"] for r in rows] == ["", ""]
 
 
+def test_default_no_bound_judges_is_marked_not_checked(monkeypatch, tmp_path):
+    """R5 walk finding 5: an empty mark means the default was projected and
+    passed; a default no bound judges says so."""
+    bounds = [_bound("requested_release_target <= 0.5", "too_much", ("set_release",))]
+    runner, rows = _run(monkeypatch, tmp_path, bounds)
+    assert [r["status"] for r in rows] == ["REJECTED", "REJECTED"]
+    assert [r["projection_default_breach"] for r in rows] == ["not_checked", "not_checked"]
+    assert "projection_kept_proposal" not in rows[0]
+    assert runner.sim_engine.sources.solver.release_target == pytest.approx(0.75)
+
+
 def test_error_projecting_the_default_stops_the_run_without_a_row(monkeypatch, tmp_path):
     bounds = [
         _bound("requested_release_target <= 0.5", "too_much", ("set_release",)),

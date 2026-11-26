@@ -22,15 +22,16 @@ Declaring `template_vars` only informs static validation. Your hook still must f
 
 ```python
 # hooks.py — wired via `global_config.run.hooks: hooks:build_hooks`
-# with `shared.template_vars: [storage]` in agent_types.yaml.
+# with `shared.template_vars: [storage_now]` in agent_types.yaml.
 def build_hooks(ctx):
     def on_pre_year(year, env, agents):
         for agent in agents.values():
-            agent.dynamic_state["storage"] = env["storage"]
+            # Rounded for the prompt; checks still read the exact env["storage"].
+            agent.dynamic_state["storage_now"] = round(env["storage"], 1)
     return {"pre_year": on_pre_year}
 ```
 
-Copying a world value under the same name (here `storage`) puts the key in both the agent state and `env_state`, so the checks log the key-collision diagnostic from section 2 at every decision. The values are equal, so this is harmless; use another name, such as `storage_now`, to avoid the message.
+Round a value before it goes into the prompt: a raw float such as `236.41433141136787` costs tokens and invites the model to copy digits that mean nothing. The example stores the rounded value under a new name, `storage_now`. Under the world's own name (`storage`) the agent state and `env_state` would hold two different values for one key, and the checks would log the key-collision diagnostic from section 2 at every decision. A copy under the same name with the same value is not reported.
 
 ## 2. World value to a physical check
 
@@ -49,7 +50,7 @@ During each decision, `SkillBrokerEngine.process_step` builds `validation_contex
 
 World state lives in `context["env_state"]`. The agent's own state lives in `context["agent_state"]["state"]` (also unwrapped by `broker/governance/expression_condition.py (agent_state_from_context)`).
 
-If the agent's `state` and `env_context` share a key name, Python debug mode (`__debug__`) logs the warning `[Governance:Diagnostic] Key collision in validation context: ... env_context takes precedence. Consider using distinct key names.` (`broker/core/skill_broker_engine.py (SkillBrokerEngine.process_step)`). Because `validation_context` unpacks `flat_state` before `flat_env`, the world value overwrites the agent's value at the top level of `validation_context`. Give world and agent fields distinct names, or read `context["env_state"]` and `context["agent_state"]["state"]` directly in your checks.
+If the agent's `state` and `env_context` share a key name with different values, Python debug mode (`__debug__`) logs the warning `[Governance:Diagnostic] Key collision in validation context: ... env_context takes precedence. Consider using distinct key names.` (`broker/core/skill_broker_engine.py (SkillBrokerEngine.process_step)`). Because `validation_context` unpacks `flat_state` before `flat_env`, the world value overwrites the agent's value at the top level of `validation_context`. Give world and agent fields distinct names, or read `context["env_state"]` and `context["agent_state"]["state"]` directly in your checks.
 
 Wire case-local checks through `global_config.run.validators` (`broker/run/_entry.py (_build_runner)`). `ValidatorRegistry` `"physical"` checks also receive this same `context` dict.
 
@@ -79,16 +80,18 @@ With the default `scope: auto`, variable lookup checks `context["env_state"]` fi
 
 See the `expression` row in [yaml_configuration_reference.md](../references/yaml_configuration_reference.md#245-rulecondition-evaluation-advanced) for operators and evaluation details.
 
+Put the rule under the governance profile the run uses, which is `global_config.run.governance` (or `--governance`). A case made by `broker.tools.scaffold_domain` runs `governance: default`, so its rules go under `<agent_type>: governance: default: thinking_rules:` (the scaffold's agent type is `agent`). `expression:` works in any profile, not only `strict`.
+
 ```yaml
 # Under an agent type's `governance: <profile>:` block,
 # e.g. `governance: strict:` in reservoir_agent_types.yaml.
 thinking_rules:
   - id: flood_control_overflow
     conditions:
-      - expression: "storage > 20.0 and proposed_magnitude < 100"
+      - expression: "storage_now > 20.0 and proposed_magnitude < 1"
     blocked_skills: [set_release]
     level: ERROR
-    message: "Storage is above 20.0; release at least 100% of demand."
+    message: "Storage is above 20.0; release the full amount (1.0)."
 ```
 
 ## 4. Seeing a block with the mock model
@@ -107,7 +110,9 @@ from broker.utils.llm_utils import LLMStats
 
 def build_mock(ctx):
     def respond(prompt):
-        mag = 50 if "BLOCKED" in prompt else 100
+        # New cases declare the action number on [0, 1]; 50 or 100 would be
+        # clamped to 1.0 by the parser.
+        mag = 0.5 if "BLOCKED" in prompt else 1.0
         return json.dumps({"decision": 1, "magnitude": mag}), LLMStats(success=True)
     return respond
 ```

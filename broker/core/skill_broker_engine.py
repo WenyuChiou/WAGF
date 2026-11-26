@@ -70,6 +70,26 @@ from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
 from ._advise_pass import AdviseMixin
 from ._skill_filtering import SkillFilterMixin, assert_rendered_prompt_shows_options
 
+# projection_default_breach when no feasibility bound judges the default skill.
+DEFAULT_NOT_CHECKED = "not_checked"
+
+
+def _conflicting_keys(flat_state: Dict[str, Any], flat_env: Dict[str, Any]) -> List[str]:
+    """Keys the agent state and the world state both carry with DIFFERENT
+    values, sorted. A key copied from the world into the agent state under the
+    same name (the documented hook pattern) holds the same value and is left
+    out: the world value wins either way (R5 walk finding 10). Values that
+    cannot be compared count as different."""
+    out = []
+    for key in set(flat_state) & set(flat_env):
+        try:
+            same = bool(flat_state[key] == flat_env[key])
+        except Exception:  # noqa: BLE001 - e.g. arrays: report rather than guess
+            same = False
+        if not same:
+            out.append(key)
+    return sorted(out)
+
 
 def _reset_uncategorised_rules() -> None:
     """Clear the process-global uncategorised-rule tally for a new run.
@@ -849,9 +869,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         flat_state = context.get("state", {})
         flat_env = env_context
 
-        # Diagnostic: warn on key collisions between agent state and env context
+        # Diagnostic: warn on keys the agent state and env context both carry
+        # with different values (equal copies are harmless and not reported)
         if __debug__:
-            collisions = set(flat_state.keys()) & set(flat_env.keys())
+            collisions = _conflicting_keys(flat_state, flat_env)
             if collisions:
                 logger.warning(
                     f"[Governance:Diagnostic] Key collision in validation context: "
@@ -1159,7 +1180,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         fallback, validation_context, agent_id
                     )
                     compared, kept = False, None
-                    if projection_default_breach and outcome is SkillOutcome.REJECTED:
+                    if (projection_default_breach
+                            and projection_default_breach != DEFAULT_NOT_CHECKED
+                            and outcome is SkillOutcome.REJECTED):
                         compared, kept = self._no_worse_than_default(
                             skill_proposal, fallback, validation_results,
                             validation_context, agent_id,
@@ -1397,9 +1420,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         """Retries ran out and the default skill is about to run: project it too.
 
         Returns None when the simulation engine is not a coupling adapter with a
-        projection check (every run without ``contract.feasibility``). Otherwise
-        the names of the bounds the default would breach, joined by ``;`` (empty
-        string when it passes). A breach is logged and the default still runs:
+        projection check (every run without ``contract.feasibility``), and
+        ``"not_checked"`` when no bound judges the default skill (every bound
+        lists ``skills`` without it). Otherwise the names of the bounds the
+        default would breach, joined by ``;`` (empty string when it passes; R5
+        walk finding 5 split "passed" from "not judged"). A breach is logged and
+        the default still runs:
         the audit row says no action was feasible. The coupling module is looked
         up in ``sys.modules`` rather than imported, so a run without coupling
         never loads it.
@@ -1407,6 +1433,8 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         check = self._projection_check()
         if check is None:
             return None
+        if not any(b.applies_to(fallback.skill_name) for b in check.contract.feasibility):
+            return DEFAULT_NOT_CHECKED
         breaches = check.check_skill(
             fallback.skill_name, dict(fallback.parameters or {}), validation_context,
             stop_at_first=False,
