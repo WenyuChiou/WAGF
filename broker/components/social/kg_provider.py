@@ -73,6 +73,9 @@ class KnowledgeGraphSocialProvider(ContextProvider):
                 current_period,
                 self.memory_engine,
                 max_items=max_sync,
+                predicates=self.predicates,
+                subjects=self.subjects,
+                include_self=self.include_self,
             )
 
         triples = self.kg.query_visible(

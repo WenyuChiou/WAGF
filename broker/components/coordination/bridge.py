@@ -16,6 +16,7 @@ Design Principles:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+import inspect
 import logging
 from typing import Any, Dict, Optional, Set, Tuple
 
@@ -290,15 +291,45 @@ class MultiActorLifecycleBridge:
         institutional = self._is_institutional(agent_type)
         visibility = policy.get("visibility") or ("global" if institutional else "neighbors")
         delivery_delay = int(policy.get("delivery_delay", self.default_delivery_delay))
+
+        raw_targets = policy.get("target_ids") or policy.get("recipients")
+        if raw_targets:
+            target_ids = tuple(str(t) for t in raw_targets)
+        elif policy.get("recipient_types"):
+            target_types = set(policy["recipient_types"])
+            target_ids = tuple(
+                aid for aid, ag in self._agents_by_id.items()
+                if aid != agent_id and getattr(ag, "agent_type", None) in target_types
+            )
+        else:
+            target_ids = ()
+
+        if visibility == "direct" and not target_ids:
+            return
+
+        kwargs: Dict[str, Any] = {
+            "number_text": number_text,
+            "delivery_delay": delivery_delay,
+            "visibility": visibility,
+            "outcome_text": outcome_text,
+        }
+        if target_ids:
+            try:
+                sig = inspect.signature(record_fn)
+                accepts_targets = "target_ids" in sig.parameters or any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+                )
+            except (TypeError, ValueError):
+                accepts_targets = visibility == "direct"
+            if accepts_targets or visibility == "direct":
+                kwargs["target_ids"] = target_ids
+
         record_fn(
             agent_id,
             agent_type,
             skill_name,
             year,
-            number_text=number_text,
-            delivery_delay=delivery_delay,
-            visibility=visibility,
-            outcome_text=outcome_text,
+            **kwargs,
         )
 
     def pre_year(self, year: int, env: Dict[str, Any], agents: Dict[str, Any]) -> None:

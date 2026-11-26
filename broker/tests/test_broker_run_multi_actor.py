@@ -836,3 +836,38 @@ def test_bridge_keep_proposal_preserves_number_and_empty_recipient_types_do_not_
     bridge.post_step(agents["cons_1"], kept_result)
     assert pool.get_messages("prov_1") == []
     assert pool.get_messages("cons_2") == []
+
+
+def test_bridge_direct_visibility_forwards_target_ids_to_async_kg():
+    from broker.components.social import AsyncKnowledgeGraph
+
+    kg = AsyncKnowledgeGraph()
+    bridge = MultiActorLifecycleBridge(
+        social_kg=kg,
+        role_message_policy={
+            "regulator": {
+                "visibility": "direct",
+                "recipients": ["cons_1"],
+                "delivery_delay": 0,
+            }
+        },
+    )
+    agents = {
+        "reg_1": SimpleNamespace(id="reg_1", agent_type="regulator"),
+        "prov_1": SimpleNamespace(id="prov_1", agent_type="provider"),
+        "cons_1": SimpleNamespace(id="cons_1", agent_type="consumer"),
+    }
+    bridge.pre_year(1, {}, agents)
+    res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="adjust_incentive", agent_id="reg_1", reasoning={}),
+        approved_skill=ApprovedSkill(
+            skill_name="adjust_incentive", agent_id="reg_1", approval_status="APPROVED"
+        ),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="adjust_incentive",
+    )
+    bridge.post_step(agents["reg_1"], res)
+
+    assert len(kg.query_visible("cons_1", 1)) == 1
+    assert kg.query_visible("prov_1", 1) == []

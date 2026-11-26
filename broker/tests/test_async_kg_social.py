@@ -10,6 +10,7 @@ import pytest
 
 from broker.components.context.tiered import TieredContextBuilder
 from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+from broker.components.memory.engines.window import WindowMemoryEngine
 from broker.components.memory.origin_gate import MEMORY_LOG_NAME, install_origin_gate
 from broker.components.social import (
     AsyncKnowledgeGraph,
@@ -440,3 +441,43 @@ class TestGenericityAndCompatibility:
                 assert not mod.startswith(forbidden_prefixes)
             elif isinstance(node, ast.Constant) and isinstance(node.value, str):
                 assert node.value not in forbidden_literals
+
+    def test_provider_filters_sync_to_memory_by_predicates_and_subjects(self, tmp_path):
+        kg = AsyncKnowledgeGraph()
+        kg.assert_fact(
+            subject="R1",
+            predicate="policy_update",
+            obj="rate_a",
+            author_id="R1",
+            published_period=1,
+            visibility="global",
+        )
+        kg.assert_fact(
+            subject="P1",
+            predicate="capacity_update",
+            obj="cap_b",
+            author_id="P1",
+            published_period=1,
+            visibility="global",
+        )
+        engine = WindowMemoryEngine(window_size=5)
+        gate = install_origin_gate(engine, tmp_path, period=lambda: 1)
+        gate.seeding = False
+
+        provider = KnowledgeGraphSocialProvider(
+            kg=kg,
+            period_getter=lambda: 1,
+            memory_engine=engine,
+            predicates=["policy_update"],
+            subjects=["R1"],
+        )
+        ctx = {}
+        provider.provide("C1", {}, ctx)
+
+        assert "rate_a" in ctx["social_gossip"]
+        assert "cap_b" not in ctx["social_gossip"]
+        assert gate.counts["social"] == 1
+        stored = engine.retrieve(SimpleNamespace(id="C1"), top_k=5)
+        assert len(stored) == 1
+        assert "rate_a" in stored[0]
+        assert "cap_b" not in stored[0]

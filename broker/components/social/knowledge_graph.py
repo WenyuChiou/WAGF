@@ -424,6 +424,9 @@ class AsyncKnowledgeGraph:
         memory_engine: Any,
         *,
         max_items: int = 5,
+        predicates: Optional[Union[str, Iterable[str]]] = None,
+        subjects: Optional[Union[str, Iterable[str]]] = None,
+        include_self: bool = False,
     ) -> int:
         """Idempotently deliver unseen visible triples into ``memory_engine``."""
         if memory_engine is None or max_items <= 0 or not self._triples:
@@ -433,8 +436,10 @@ class AsyncKnowledgeGraph:
         visible = self.query_visible(
             observer_id,
             current_period,
+            predicates=predicates,
+            subjects=subjects,
             top_k=len(self._triples),
-            include_self=False,
+            include_self=include_self,
         )
 
         unseen = [t for t in visible if t.triple_id not in delivered_ids][:max_items]
