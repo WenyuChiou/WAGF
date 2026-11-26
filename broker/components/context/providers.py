@@ -1,7 +1,4 @@
-"""Context provider implementations.
-
-Phase 8: Added SDK observer support for domain-agnostic observation.
-"""
+"""Context provider implementations for modular LLM prompt assembly."""
 from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
 from broker.utils.logging import setup_logger
 
@@ -24,10 +21,7 @@ def get_neighbor_summary(agents: Dict[str, Any], agent_id: str) -> List[Dict[str
             })
     return summaries[:5]
 
-# SDK observer imports (optional, for Phase 8)
 if TYPE_CHECKING:
-    from cognitive_governance.v1_prototype.social import SocialObserver
-    from cognitive_governance.v1_prototype.observation import EnvironmentObserver
     from broker.components.events.manager import EnvironmentEventManager
 
 logger = setup_logger(__name__)
@@ -175,21 +169,20 @@ class MemoryProvider(ContextProvider):
 class SocialProvider(ContextProvider):
     """Provides T1 Social/Spatial context from InteractionHub.
 
-    Phase 8: Supports SDK SocialObserver for domain-agnostic observation.
+    Supports optional observer plugins for domain-agnostic observation.
     """
 
     def __init__(
         self,
         hub: InteractionHub,
-        observer: Optional["SocialObserver"] = None,
+        observer: Optional[Any] = None,
     ):
         self.hub = hub
-        self.observer = observer  # SDK observer (optional)
+        self.observer = observer
 
     def provide(self, agent_id, agents, context, **kwargs):
         spatial = self.hub.get_spatial_context(agent_id, agents)
 
-        # Phase 8: Use SDK observer if available
         if self.observer:
             social = self.hub.get_social_context_v2(agent_id, agents, self.observer)
         else:
@@ -200,22 +193,16 @@ class SocialProvider(ContextProvider):
         local["social"] = social.get("gossip", []) if isinstance(social, dict) else social
         local["visible_actions"] = social.get("visible_actions", []) if isinstance(social, dict) else []
 
-        # Phase 8: Include aggregated observable attributes from SDK
         if self.observer and isinstance(social, dict):
             local["observable_attrs"] = social.get("observable_attrs", {})
 
 
 class EnvironmentObservationProvider(ContextProvider):
-    """Provides environment observation using SDK EnvironmentObserver.
-
-    Phase 8: Uses domain-agnostic observer pattern for environment sensing.
-    This is separate from the legacy EnvironmentProvider which checks for
-    agent.observe() method.
-    """
+    """Provides environment observation using an optional EnvironmentObserver."""
 
     def __init__(
         self,
-        observer: "EnvironmentObserver",
+        observer: Any,
         environment: Any,
     ):
         self.observer = observer

@@ -1,32 +1,18 @@
-"""RetryMixin — LLM retry and governance retry loop logic.
+"""RetryMixin — LLM format-retry and governance-retry loop logic.
 
-Extracted from SkillBrokerEngine to reduce file size.  These methods
-access ``self.*`` attributes defined on SkillBrokerEngine; this is the
-standard Python mixin pattern where the mixin is always combined with
-the host class via multiple inheritance.
+Combined with SkillBrokerEngine via multiple inheritance; methods read and
+update ``self.*`` attributes on the host engine.
 
-Retry semantics (corresponds to Nature Water Methods v4 "up to three
-attempts; same deterministic rule blocks consecutive attempts" clause):
-
+Retry semantics:
 - ``_governance_retry_loop`` drives up to ``self.max_retries`` (default 3)
   revision attempts after a binding validator rejection.
-- Early exit fires when the BLOCKING RULE SET is identical between two
+- Early exit fires when the blocking rule set is identical across two
   consecutive retries AND every blocker in that set is deterministic.
-  Non-deterministic blockers (e.g., stochastic magnitude rechecks) do not
-  trigger early exit because the agent may succeed on a subsequent draw.
-- On termination (exhausted retries OR early exit), what executes is a
-  MODEL-BUILDER choice, set per domain via
-  ``global_config.governance.on_retry_exhausted``:
-  ``default`` (the default) runs the registry ``default_skill``
-  (maintain_demand for irrigation, do_nothing for flood); ``keep_proposal``
-  runs the agent's own final failed proposal, so a persistently
-  rule-violating choice survives as an observable instead of being
-  overwritten. ``UNCERTAIN`` (no parsable proposal) always uses the default.
-- Every retry, including fallback execution, is recorded in the audit
-  trail with status ``REJECTED``, ``REJECTED_FALLBACK``, or ``APPROVED``.
-
-Distinct from the LLM format/parse retry loop above, which retries on
-malformed LLM output (parse failures), not on governance rejections.
+- On exhausted retries or early exit, execution follows
+  ``global_config.governance.on_retry_exhausted`` (``default`` runs the
+  registry default skill; ``keep_proposal`` executes the final blocked
+  proposal as an observable outcome; unparsable output always uses the default).
+- Every attempt and fallback execution is recorded in the JSONL/CSV audit trail.
 """
 import dataclasses
 from typing import Callable, Dict, List, Optional
@@ -39,37 +25,13 @@ from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
 from ._appraisal_freeze import construct_label_dict
 
-# Red-team objection 3 (retry-feedback ablation, `global_config.governance.
-# retry_feedback_mode: placebo`): review round 2 (opus W1) settled the design
-# as the WRAPPER-ONLY control the adapter already ships --
-# `UnifiedAdapter.format_intervention_prompt(..., include_reports=False)`
-# (broker/utils/parsing/unified_adapter.py ~1461-1467), the same "A''"
-# mechanism `_advise_pass.py`'s `mode="wrapper"` already uses for the
-# ADVISORY channel. Under `include_reports=False` the adapter renders ONLY
-# its header + closer + the original prompt -- no rules block, so no rule
-# id, blocked-skill name, reason, or suggestion ever reaches the model --
-# while KEEPING the governance framing ("your previous response was flagged
-# / triggered the governance layer... please reconsider"). That framing is
-# deliberately NOT stripped: the ablation isolates rule-SPECIFIC information
-# from "another attempt with the same governance framing", not from "another
-# attempt with no framing at all" (the latter is what `_advise_pass.py`'s
-# `mode="resample"` already measures, for the advisory channel).
-#
-# `_governance_retry_loop` below reaches this by calling
-# `render_intervention_prompt(..., include_reports=False)`; see there for the
-# fallback when `self.model_adapter` predates P0-1c and cannot render that
-# argument at all (`render_intervention_prompt` raises `ValueError` for such
-# an adapter -- see `_advise.py`). This constant is that fallback's fixed
-# sentence ONLY -- it is NOT used on the normal path with a P0-1c-capable
-# adapter (i.e. every adapter shipped in this repo).
-#
-# NOT the same "placebo" as `global_config.governance.advise`'s own
-# `mode="placebo"` (P0-1c arm B', `_advise_pass.py`): that one keeps the SAME
-# report COUNT/shape and replaces each report's text with a fixed sentence,
-# for the separate, NON-BLOCKING advisory channel. This one renders NO
-# reports at all (the A'' wrapper), for the BLOCKING governance retry loop.
-# Same knob NAME on purpose (opus W1 decision) -- keep it, but do not assume
-# the same mechanism.
+# Placebo control for the blocking governance retry loop
+# (``global_config.governance.retry_feedback_mode: placebo``): uses the
+# wrapper-only control ``UnifiedAdapter.format_intervention_prompt(...,
+# include_reports=False)``, keeping the retry framing without leaking specific
+# rule ids, reasons, or suggestions. Distinct from the non-blocking advisory
+# channel's ``mode="placebo"`` (in ``_advise_pass.py``), which keeps report
+# shapes but substitutes placeholder report text.
 RETRY_FEEDBACK_PLACEBO_TEXT = (
     "Your previous decision was not accepted. Please reconsider and answer "
     "again in the required format."
@@ -120,26 +82,14 @@ class RetryMixin:
             "llm_latency_ms": 0.0,
             "tokens_per_second": 0.0,
         })
-        # P0-1c: per-decision LLM call counter. Sample-matching between the advise
-        # and placebo arms is the load-bearing assumption of the whole decomposition,
-        # so it is MEASURED per row, not asserted in the Methods. Seeded only when the
-        # advise audit flag is on, so the flag-OFF llm_stats dict -- serialised whole
-        # into the trace -- keeps exactly its published key set. Lives in this local
-        # dict and NEVER on self: process_step runs on an engine shared across a
-        # ThreadPoolExecutor.
+        # Per-decision LLM call counter for advisory sample-matching; seeded only
+        # when advisory audit logging is active, kept local for thread safety.
         if getattr(self, "_count_llm_calls", False):
             total_llm_stats["llm_calls"] = 0
 
-        # PR-4 (D6): under `parsing.strict_layers` an attempt that returns None
-        # leaves its parsing_warnings on the adapter as `last_parse_warnings` --
-        # they explain WHY the attempt failed (which candidate digits were
-        # suppressed, which JSON error was hit) and there is no proposal to
-        # carry them. Drain the stash from the previous step FIRST, so a step
-        # that ended without draining (an ABORTED step in a run that did not
-        # also enable `audit.corrected_status_columns`, so no sentinel row was
-        # written) cannot leak its warnings into the next agent's proposal.
-        # Flag-OFF the attribute is never created and every line here is a
-        # no-op, so no flag-OFF byte changes.
+        # Drain any leftover ``last_parse_warnings`` from a previous step so an
+        # aborted call cannot leak warnings into the next agent's proposal.
+        # No-op when ``parsing.strict_layers`` is disabled.
         if getattr(self.model_adapter, "last_parse_warnings", None):
             self.model_adapter.last_parse_warnings = []
         pending_parse_warnings: List[str] = []
@@ -154,19 +104,14 @@ class RetryMixin:
                     raw_output, llm_stats_obj = res
                     total_llm_stats["llm_retries"] += llm_stats_obj.retries
                     total_llm_stats["llm_success"] = llm_stats_obj.success
-                    # R5-C token counts + 2026-09-15 latency/total columns.
-                    # Semantics live in one place — see accumulate_llm_stats.
                     accumulate_llm_stats(total_llm_stats, llm_stats_obj)
                     if hasattr(llm_stats_obj, 'empty_content_retries'):
                         for _ in range(llm_stats_obj.empty_content_retries):
                             self.auditor.log_empty_content_retry()
                         if getattr(llm_stats_obj, 'empty_content_failure', False):
                             self.auditor.log_empty_content_failure()
-                    # Spec item 24 fix round: backoff-layer retries (a REAL
-                    # extra network call each) made INVISIBLE the audit
-                    # before this -- the reviewer measured 1,638 real HTTP
-                    # calls against 1,170 reported. Same pattern as
-                    # empty_content_retries above, one call per extra call.
+                    # Count transport-backoff extra calls in the audit total
+                    # alongside empty-content retries.
                     for _ in range(getattr(llm_stats_obj, 'backoff_retries', 0)):
                         self.auditor.log_backoff_retry()
                     # Fix round 3 (TIME TO ABORT): the backoff wrapper already

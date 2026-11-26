@@ -1,8 +1,5 @@
-"""Tiered context builder implementations.
-
-Phase 8: Added SDK observer support for domain-agnostic observation.
-"""
-from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
+"""Tiered and base context builders for modular LLM prompt assembly."""
+from typing import Dict, List, Any, Optional, Callable
 
 from broker.utils.logging import setup_logger
 from broker.utils.agent_config import load_agent_config
@@ -14,7 +11,7 @@ from .providers import (
     AttributeProvider,
     PrioritySchemaProvider,
     EnvironmentProvider,
-    EnvironmentObservationProvider,  # Phase 8: SDK observer
+    EnvironmentObservationProvider,
     MemoryProvider,
     SocialProvider,
     InstitutionalProvider,
@@ -24,11 +21,6 @@ from .providers import (
 from broker.components.memory.engine import MemoryEngine
 from broker.components.analytics.interaction import InteractionHub
 from .providers import get_neighbor_summary
-
-# SDK observer imports (optional, for Phase 8)
-if TYPE_CHECKING:
-    from cognitive_governance.v1_prototype.social import SocialObserver
-    from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 logger = setup_logger(__name__)
 
@@ -213,17 +205,9 @@ class BaseAgentContextBuilder(ContextBuilder):
             if rating_scale:
                 template_vars["rating_scale"] = rating_scale
 
-            # Phase 6N-B (2026-05-23): inject the YAML-defined JSON schema
-            # into the prompt's ``{response_format}`` placeholder so a
-            # single-agent (no-Hub) domain doesn't fall through to
-            # ``SafeFormatter``'s ``[N/A]`` default. Previously only
-            # ``TieredContextBuilder`` (used when an InteractionHub is
-            # provided) did this injection — the
-            # ``BaseAgentContextBuilder`` fallback path left the LLM with
-            # no schema example, surfacing as 100% parse failure when a
-            # prompt asked for more than the LLM could improvise (L3-1B
-            # custom domain smoke #1 & #2 fell into this). The fix
-            # mirrors the Tiered injection at lines ~543-562 below.
+            # Inject the YAML-defined JSON schema into ``{response_format}`` so
+            # runs without an InteractionHub still include schema guidance
+            # instead of falling back to SafeFormatter's ``[N/A]`` placeholder.
             agent_config = agent_cfg.get(agent_type)
             if agent_config:
                 from broker.components.response_format import ResponseFormatBuilder
@@ -231,15 +215,8 @@ class BaseAgentContextBuilder(ContextBuilder):
                     "response_format": agent_cfg.get_shared("response_format", {}),
                 }
                 rfb = ResponseFormatBuilder(agent_config, shared_config)
-                # Build ``valid_choices_text`` from the FLAT skill-id list,
-                # not from ``skills_str`` — Phase 6N-B reviewer W1. The
-                # ``ResponseFormatBuilder`` only embeds this text in a
-                # fallback "choose ONE from: ..." hint when a choice-type
-                # field has no explicit ``desc``; a multi-line
-                # ``skills_str`` (with descriptions) would render that
-                # fallback malformed. The clean comma-joined id list
-                # mirrors what ``TieredContextBuilder`` builds for the
-                # same call site (lines ~570-589).
+                # Build ``valid_choices_text`` from the flat skill-id list
+                # rather than multi-line ``skills_str`` so fallback prompts stay clean.
                 skill_ids = context.get("available_skills", []) or []
                 vct = ", ".join(skill_ids) if skill_ids else "1, 2, or 3"
                 response_format_block = rfb.build(valid_choices_text=vct)
@@ -312,8 +289,8 @@ class BaseAgentContextBuilder(ContextBuilder):
 class TieredContextBuilder(BaseAgentContextBuilder):
     """Modular Tiered Context Builder using the Provider pipeline.
 
-    Phase 8: Supports SDK observers for domain-agnostic observation.
-    Pass `social_observer` and/or `environment_observer` for SDK integration.
+    Supports optional ``social_observer`` and ``environment_observer`` hooks
+    for domain-agnostic observation.
     """
 
     def __init__(
@@ -330,14 +307,11 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         yaml_path: Optional[str] = None,
         max_prompt_tokens: int = 16384,
         enable_financial_constraints: bool = False,
-        # Phase 8: SDK observer support
-        social_observer: Optional["SocialObserver"] = None,
-        environment_observer: Optional["EnvironmentObserver"] = None,
+        social_observer: Optional[Any] = None,
+        environment_observer: Optional[Any] = None,
         extend_providers: List[ContextProvider] = None,
-        # Phase 6T-F (2026-05-29): social-feeds params — complete the
-        # half-landed v0.5.1 C2 wiring (see __init__ body). Defaults keep
-        # every existing caller (paper-3, irrigation, single-agent flood)
-        # byte-identical: enable_social_feeds=False → no provider added.
+        # Social-feeds params; default enable_social_feeds=False keeps callers
+        # without social feeds byte-identical (no provider added).
         enable_social_feeds: bool = False,
         follower_network: Optional[Any] = None,
         social_feeds_environment: Optional[Any] = None,
@@ -345,7 +319,6 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         social_feeds_top_k: int = 5,
         social_feeds_half_life_years: float = 2.0,
     ):
-        # Phase 8: Store observers for potential use
         self.social_observer = social_observer
         self.environment_observer = environment_observer
 
