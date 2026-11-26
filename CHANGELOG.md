@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Twin-run check for Invariant 7: `python -m broker.tools.check_governance_carryover <case.yaml>`.**
+  Runs a `python -m broker.run` case twice with the mock model, once with rules blocking and once with every
+  agent proposing the actions that ran in the first run, and compares memory writes (`memory_log.jsonl`),
+  reflections, each decision's first prompt, memory, agent state, environment and social fields, and what the
+  world received. Exit 0 when they are identical, 1 with each difference by file, agent, period and field, 3
+  when the first run had nothing to test (no default row and no row approved after a retry; `--require any`
+  accepts either). Added to Gate 2 of the `wagf-verification-ladder` skill.
 - **Generated parameter table and strict keys.** `docs/references/parameter_table.md` lists every tunable number,
   its range and the default each piece of code applies, read from the code by
   `python -m broker.config.parameter_table`. Loading now refuses `W_relevance`, `W_interference`,

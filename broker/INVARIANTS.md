@@ -369,12 +369,22 @@ teach the agent that it was corrected.
   logs every write to `memory_log.jsonl`. `broker_run.json` records
   `rejection_line_style` and `memory_writes_by_origin`. Tests:
   `broker/tests/test_broker_run_no_trace.py`.
-- Not yet built: a twin-run check (the case run once with rules blocking and once
-  proposing the executed actions directly, compared byte for byte), and a
-  `governance_carryover` block in `run_integrity.json`.
-- `examples/governed_flood/run_experiment.py` writes its own rejection line; the
-  multi-agent flood runner wraps its engine in `PolicyFilteredMemoryEngine`, which
-  by code reading lets the runner's rejection line through. Neither is changed yet.
+- Twin-run check (2026-11-26): `python -m broker.tools.check_governance_carryover
+  <case.yaml>` runs a broker.run case twice with the mock model, once with rules
+  blocking and once with every agent proposing the actions that ran (a registered
+  replay decider), and compares `memory_log.jsonl`, `reflection_log.jsonl`, each
+  decision's first prompt, memory, agent state, environment and social fields, and
+  what the world received. It refuses to pass when run A lacks a default row or a
+  row approved after a retry (`--require any`: lacks both), or holds no traces, no world
+  calls, or a memory log shorter than its memory writes. Tests: `broker/tests/test_check_governance_carryover.py`,
+  including a hook that writes "Your proposal was rejected." (it must fail).
+- Not yet built: a `governance_carryover` block in `run_integrity.json`.
+- `examples/governed_flood/run_experiment.py` writes its own rejection line. In the
+  multi-agent flood traces (156 trace files, 83,510 decisions, scanned 2026-11-26)
+  the runner's rejection text never reaches memory or prompts, but a year where the
+  default ran leaves no decision line at all (0 of 3,007 next-year memories, against
+  16,967 of 67,211 after approved years), so the memory still differs by whether a
+  rule stepped in. Neither runner is changed yet.
 
 ---
 

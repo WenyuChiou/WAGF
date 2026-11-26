@@ -92,6 +92,20 @@ python -m broker.tools.check_run_integrity .tmp/ladder-reservoir --strict
 For your own domain, run `check_run_integrity <your_run_dir> --strict` on its
 run directory.
 
+For a `python -m broker.run` case, also run the twin-run check (Invariant 7 in
+`broker/INVARIANTS.md`: rules correct the current decision and leave no trace).
+It runs the case twice with the mock model, once with rules blocking and once
+with every agent proposing the actions that ran, and compares memory,
+reflection, prompts, agent state and what the world received:
+
+```bash
+python -m broker.tools.check_governance_carryover examples/reservoir_control/config/reservoir_agent_types.yaml --require any --output .tmp/ladder-twin
+```
+
+Script the mock so that run A has a row where a default replaced a blocked
+answer and a row approved after a retry; `--require any` accepts either one
+(the reservoir demo has only a retry).
+
 For a new domain, use its actual runner and only the flags shown by that
 runner's `--help`.
 
@@ -102,6 +116,9 @@ runner's `--help`.
   decide. This is the conservation check.
 - `<run_dir>/reproducibility_manifest.json` exists.
 - `<run_dir>/run_integrity.json` exists and has `integrity_ok: true`.
+- For a broker.run case, `check_governance_carryover` exits 0 (PASS). Exit 1
+  lists each difference by file, agent, period and field; exit 3 means run A
+  had no governance to test, which is not a pass.
 - No unexpected `failed_rules`. The documented `Unknown` failed_rules
   label from PMT-style format mocks is expected only when the error
   message is the missing-required-fields format check described in
@@ -115,6 +132,7 @@ runner's `--help`.
 | Missing manifest or run integrity | Runner bypassed the production output path | Use the production ExperimentBuilder runner path, not an ad hoc loop |
 | `integrity_ok: false` | Runtime did not instantiate what config promised | Run `python -m broker.tools.check_run_integrity <run_dir> --strict` and fix the reported contract |
 | `[Governance:Diagnostic] Key collision` with identical values | Benign key-collision diagnostic | Document it; do not treat as a failed gate by itself |
+| Twin run FAIL on `memory_log.jsonl` | A hook or the YAML writes what a rule did into memory (a "was rejected" line, `rejection_line_style: explicit`) | Write only the executed action and the world's outcome; drop the explicit style |
 | `failed_rules=Unknown` everywhere | Usually the documented PMT-style format mock path | Verify error text; expected only for the frozen format-check producer |
 
 ## Gate 3 - Domain Tests
