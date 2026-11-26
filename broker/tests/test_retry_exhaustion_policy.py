@@ -121,7 +121,7 @@ class _Writer:
 
 
 def _engine(policy, *, proposal_name="increase_large", parse_layer="mock",
-            register=VALID, magnitude=None):
+            register=VALID, magnitude=None, fields=None):
     registry = SkillRegistry()
     for sid in register:
         registry.register(SkillDefinition(
@@ -138,7 +138,7 @@ def _engine(policy, *, proposal_name="increase_large", parse_layer="mock",
         adapter.parse_output = lambda *_a, **_k: SkillProposal(
             skill_name=proposal_name, agent_id="A1",
             reasoning={"WSA_LABEL": "H"}, parse_layer=parse_layer,
-            magnitude_pct=magnitude,
+            magnitude_pct=magnitude, parameters=dict(fields or {}),
         )
 
     # Always blocks, so every decision exhausts its retries.
@@ -203,6 +203,22 @@ def test_keep_proposal_runs_the_proposal_with_its_own_number():
     assert result.approved_skill.parameters.get("magnitude_pct") == 12.0
     assert result.approved_skill.approval_status == "REJECTED"
     assert result.executed_via_fallback is False
+
+
+def test_keep_proposal_carries_every_numeric_field_of_the_proposal():
+    """A rejected proposal with two numeric fields: both numbers reach the
+    result and the simulation engine, not just the first or the scalar one."""
+    fields = {"release_cfs": 1500.0, "reserve_pct": 12.5}
+    eng, sim, writer = _engine("keep_proposal", fields=fields)
+    result = _run(eng)
+    assert sim.executed == ["increase_large"]
+    assert sim.params[0]["release_cfs"] == 1500.0
+    assert sim.params[0]["reserve_pct"] == 12.5
+    assert result.approved_skill.parameters["release_cfs"] == 1500.0
+    assert result.approved_skill.parameters["reserve_pct"] == 12.5
+    assert result.approved_skill.approval_status == "REJECTED"
+    assert result.executed_via_fallback is False
+    assert writer.traces[0]["executed_skill"] == "increase_large"
 
 
 def test_default_policy_still_runs_the_default_without_the_proposals_number():

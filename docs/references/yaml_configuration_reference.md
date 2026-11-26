@@ -119,6 +119,54 @@ global_config:
     decay_rate: 0.1
 ```
 
+**Other memory keys.** These are read when the engine or the prompt builder is built, and each is off or absent
+unless written. Defaults are the constructor defaults of `HumanCentricMemoryEngine` unless another symbol is named.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `retrieval_top_k` | int | 3 | Agent-type `memory` block. Memories put in the prompt (`broker/components/context/providers.py (DEFAULT_RETRIEVAL_TOP_K)`) |
+| `composed_retrieval` | bool | off | Agent-type `memory` block. With `true` and an engine in `legacy` ranking, the block's `window_size` and `top_k_significant` are passed to retrieval (recent window plus most significant long-term items) instead of a flat `retrieval_top_k` (`MemoryProvider.provide`) |
+| `consolidation_threshold`, `consolidation_probability`, `decay_rate` | float | 0.6, 0.7, 0.1 | See the table above |
+| `forgetting_threshold` | float | 0.2 | Importance below which a memory may be forgotten |
+| `max_working`, `max_longterm` | int | 0 | Capacity of the working and long-term stores; 0 means unlimited |
+| `W_relevance`, `W_interference`, `interference_cap` | float | 0.0, 0.0, 0.8 | Weights of query relevance and of the interference penalty (0 switches each off), and the cap on the penalty |
+| `deterministic_consolidation` | bool | false | An item at or above `consolidation_threshold` always enters long-term memory (no random draw) |
+| `decay_ignore_emotion` | bool | false | Every memory decays at the bare `decay_rate`, whatever its emotion |
+| `decay_by_calendar_year` | bool | false | Age is the difference in the memory's `year` metadata, not the stored-item count; every memory must carry a numeric `year` or the engine raises |
+| `reflection_slot` | string | none | `separate` keeps the latest reflection in its own slot after the event slots |
+| `significant_tie_break` | string | `earlier` | `earlier` or `recent`: which of two equally important items is kept |
+| `recall_skip_key` | string | none | Metadata key that marks memories to skip on recall; `legacy` ranking only |
+| `reserve_types` | map or list | none | Weighted ranking only: retrieval slots reserved per memory `type` |
+| `emotional_weights`, `source_weights`, `emotion_keywords`, `source_patterns` | map | built-in banks | Domain emotion and source tables for importance scoring |
+| `rejection_line_style`, `runner_decision_line` | string, bool | see §2.3 | Yearly memory line written by the runner |
+
+`max_prompt_tokens` is not a YAML key. It is the `max_prompt_tokens` argument of `TieredContextBuilder`
+(`broker/components/context/tiered.py`, default 16384): a prompt whose token estimate is above it is refused.
+No runner reads it from a YAML file.
+
+**Defaults by entry point.** The same name has different defaults in different entry points; none of these
+were changed. `-` means the entry point does not pass the value, so the engine's own default applies (shown in the
+last row). The generated [parameter table](parameter_table.md) has the full per-code list.
+
+| Entry point | `window_size` | `top_k_significant` | `arousal_threshold` | `ranking_mode` | reflection `importance_boost` |
+|-------------|---------------|---------------------|---------------------|----------------|------------------------------|
+| `broker.run` (`broker/run/_memory.py`: `HUMANCENTRIC_DEFAULTS`, `REFLECTION_DEFAULTS`) | 3 (window engine: keeps 100 unless written) | 2 | - | `legacy` | 0.9 |
+| `ExperimentBuilder` API | the engine you pass in; with none, `WindowMemoryEngine(window_size=3)` in `build` | - | - | - | the `ReflectionEngine` you pass in |
+| `examples/single_agent/run_flood.py` (`--window-size`, `--memory-ranking-mode`) | 5 (CLI) | 2 | humancentric: -; universal: 0.5 (`arousal_threshold` of the household memory block) | `legacy`; universal engine passes `dynamic` | 0.9 (`insight_importance_boost` default in the runner) |
+| `examples/multi_agent/flood/run_unified_experiment.py (build_memory_engine)` | 5 (humancentric), 3 (window) | 2 (humancentric), 3 (hierarchical) | humancentric: -; universal: 1.0 | `weighted` | 0.9 (`ReflectionEngine` default; `lifecycle_hooks.py` passes none) |
+| `examples/irrigation_abm/run_experiment.py` | the `irrigation_farmer.memory` block, else `--window-size` (5) | block, else `global_config.memory`, else 2 | - | block, else `weighted` (the YAML sets `legacy`) | 0.9 |
+| `HumanCentricMemoryEngine` / `UniversalCognitiveEngine` / `ReflectionTriggerConfig` own defaults | 3 / 3 / - | 2 / 2 / - | 0.5 / 2.0 / - | `legacy` / `weighted` / - | - / - / 0.85 |
+| registry factories (`create_memory_engine`) | 5 | 2 (hierarchical: 3) | - | `legacy` | - |
+
+**Social feeds.** `global_config.social_feeds` is read only by `examples/multi_agent/flood/run_unified_experiment.py`
+(through `broker/components/social/feed_flag.py (resolve_social_feeds_enabled)`).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enable` | bool | the domain pack's `social_feeds_default_enabled()` (`false` for flood) | Switches the social media provider on; a written value, including `false`, wins over the pack |
+| `top_k` | int | 5 | Most posts shown to an agent per decision |
+| `half_life_years` | float | 2.0 | Years after which a post counts half as much |
+
 #### 2.1.2 global_config.cognitive_config
 
 **No code reads this block.** It is kept in some multi-agent YAML files, but editing it changes nothing; the
@@ -184,6 +232,7 @@ the paper runners read the `triggers` sub-block only through
 | `keep_latest_only` | bool | No | false | Storing a new reflection first removes the agent's earlier ones (needs the humancentric engine) |
 | `persona_instruction` | string | No | (none) | System instruction for persona-aware reflection prompts |
 | `questions` | list[string] | No | [] | Guiding reflection questions injected into the prompt |
+| `year_outcome`, `year_lines`, `program_facts`, `lesson_no_numbers` | bool | No | false | Grounded-reflection options, read through `get_reflection_config` (`GROUNDING_KEYS` in `broker/components/cognitive/reflection.py`): `year_outcome` shows the reflection the period's own settled outcome, `year_lines` lists the input one line per period, `program_facts` has the program write the key periods so the model writes only the lesson, `lesson_no_numbers` retries once and then drops a lesson that names a year or number. Each must be a YAML bool. `broker.run` refuses them |
 | `method` | string | No | `"hybrid"` | Reflection strategy. Valid values: `hybrid`, `periodic`, `crisis` |
 | `triggers` | object | No | {} | Trigger conditions (see sub-table below) |
 
@@ -820,7 +869,7 @@ corresponding dictionary.
 | `multi_skill` | object | No | {enabled: false} | Multi-skill configuration (see below) |
 | `parsing` | object | No | {} | LLM output parsing configuration (see below) |
 | `log_fields` | list[string] | No | [] | Construct field names to log per decision |
-| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included, with the window engine (the humancentric engine in legacy ranking uses `window_size` and `top_k_significant` instead, §2.1.1). `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. `rejection_line_style` sets the runner's yearly memory line: `executed` (`Year N: Action carried out: X.`, plus ` (number V)` when the action that ran had a number, the same on every row whether the agent's answer ran or a default replaced it; Invariant 7 in `broker/INVARIANTS.md`), `explicit` (`Decided to: X`, or `Proposal to X was rejected; default action applied: Y`) or `neutral` (names the rule). `python -m broker.run` uses `executed` when the key is not set; other runners built on `ExperimentRunner` use `explicit`. |
+| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included, with the window engine (the humancentric engine in legacy ranking uses `window_size` and `top_k_significant` instead, §2.1.1). `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. `ExperimentBuilder.build` replaces each agent's `memory_config` with this block (whenever `with_governance` gave it a config path), so a `memory_config` set on an agent object before `build` is lost; set it after `build`, as `broker.run` does. `rejection_line_style` sets the runner's yearly memory line: `executed` (`Year N: Action carried out: X.`, plus ` (number V)` when the action that ran had a number, the same on every row whether the agent's answer ran or a default replaced it; Invariant 7 in `broker/INVARIANTS.md`), `explicit` (`Decided to: X`, or `Proposal to X was rejected; default action applied: Y`) or `neutral` (names the rule). `python -m broker.run` uses `executed` when the key is not set; other runners built on `ExperimentRunner` use `explicit`. |
 | `feedback` | object | No | {} | Feedback dashboard configuration |
 | `actions` | list[object] | No | [] | Action definitions (legacy path -- may also be under `parsing.actions`) |
 | `governance` | object | No | {} | Inline governance profile (for agent types that nest rules inside their block) |

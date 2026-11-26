@@ -272,10 +272,10 @@ class YourDomainSimulation:
 
 ## 整合範例 (Flood Adaptation)
 
-參見 `examples/flood_adaptation/` 目錄:
+參見 `examples/single_agent/` 目錄:
 
 ```
-examples/flood_adaptation/
+examples/single_agent/
 ├── run.py           # 主執行腳本
 ├── prompts.py       # PROMPT_TEMPLATE + build_prompt()
 ├── validators.py    # PMTConsistencyValidator + FloodResponseValidator
@@ -287,7 +287,7 @@ examples/flood_adaptation/
 
 ## 快速開始
 
-1. 複製 `examples/flood_adaptation/` 作為模板
+1. 複製 `examples/single_agent/` 作為模板
 2. 修改 `config/domains/your_domain.yaml`
 3. 修改 `prompts.py` 中的 PROMPT_TEMPLATE
 4. 創建您的 `validators.py` (如需要)

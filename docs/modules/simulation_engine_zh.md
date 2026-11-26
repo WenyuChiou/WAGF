@@ -2,7 +2,7 @@
 
 **🌐 Language: [English](simulation_engine.md) | [中文](simulation_engine_zh.md)**
 
-`simulation/` 目錄處理世界的「基本真理 (Ground Truth)」。它管理時間步進、環境狀態（洪水），並執行代理人行動的物理後果。
+`broker/simulation/` 目錄處理世界的「基本真理 (Ground Truth)」。它管理時間步進、環境狀態（洪水），並執行代理人行動的物理後果。
 
 ## 🌍 模擬引擎 (`simulation_engine.py`)
 
@@ -101,7 +101,7 @@ for year in range(params.years):
 
 ### GameMaster 協調
 
-`GameMaster` (`broker/components/coordinator.py`) 管理 RESOLUTION 階段，支援可插拔策略：
+`GameMaster` (`broker/components/coordination/coordinator.py`) 管理 RESOLUTION 階段，支援可插拔策略：
 
 - **Passthrough**：接受所有提案 (單 Agent 預設)
 - **ConflictAware**：使用 `ConflictDetector` 偵測資源衝突，透過優先級或比例分配解決
@@ -109,7 +109,7 @@ for year in range(params.years):
 
 ### 衝突解決
 
-`ConflictDetector` (`broker/components/conflict_resolver.py`) 偵測資源過度分配（例如申請政府補助的 Agent 超過預算）。解決策略包括 `PriorityResolution` (最需要的 Agent 優先) 與 `ProportionalResolution` (按比例分配)。
+`ConflictDetector` (`broker/components/coordination/conflict.py`) 偵測資源過度分配（例如申請政府補助的 Agent 超過預算）。解決策略包括 `PriorityResolution` (最需要的 Agent 優先) 與 `ProportionalResolution` (按比例分配)。
 
 ---
 

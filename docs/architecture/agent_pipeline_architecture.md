@@ -268,10 +268,10 @@ agent.memory.update_after_flood(damage, year)
 
 | Stage | Files |
 |-------|-------|
-| Context | `data_loader.py`, `broker/memory.py` |
+| Context | `data_loader.py`, `broker/components/memory/legacy.py` |
 | Prompt | `prompts.py` |
 | Reasoning | `run_experiment.py` (call_llm) |
 | Parser | `parsers.py` |
 | Validator | `validators.py` |
-| Executor | `agents/household.py` |
+| Executor | `examples/multi_agent/flood/ma_agents/household.py` |
 | Audit | `audit_writer.py` |

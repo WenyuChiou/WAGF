@@ -550,7 +550,7 @@ def _warn_undeclared_prompt_placeholders(
     """Warn on stderr when YAML-declared ``template_vars`` omits a prompt placeholder."""
     from broker.tools.validate_prompt import (
         BROKER_FILLED_PLACEHOLDERS,
-        _resolve_domain_extensions,
+        resolve_domain_extensions,
         collect_template_vars,
     )
 
@@ -578,7 +578,7 @@ def _warn_undeclared_prompt_placeholders(
     }
     known = (
         BROKER_FILLED_PLACEHOLDERS
-        | _resolve_domain_extensions(dict(raw))
+        | resolve_domain_extensions(dict(raw))
         | field_keys
         | declared_vars
     )

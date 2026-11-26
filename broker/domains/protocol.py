@@ -181,10 +181,13 @@ class SkillPack(Protocol):
 
 @runtime_checkable
 class EventPack(Protocol):
-    """Multi-agent event handlers — global env mutation + lifecycle policy (2 methods).
+    """Event handlers and event persistence policy (2 methods).
 
-    Consumed by the multi-agent event dispatcher. See
-    ``DomainPack`` for full docstrings. Methods:
+    ``event_persistence_policy`` is read by
+    ``broker/simulation/environment.py (clear_social_feeds_year)``.
+    ``event_handlers`` has no caller in the broker since the multi-agent
+    event dispatcher was removed; a domain may still fill it for its own
+    runner. See ``DomainPack`` for full docstrings. Methods:
     ``event_handlers``, ``event_persistence_policy``.
     """
     def event_handlers(self) -> Dict[str, EventHandler]: ...
