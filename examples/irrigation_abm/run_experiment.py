@@ -364,7 +364,11 @@ def _proposed_and_fallback(action_ctx: Optional[Dict[str, Any]]) -> Tuple[str, b
     row ExperimentRunner._apply_state_changes records ``proposed_skill``
     (None on UNCERTAIN rows, where no usable proposal existed) and
     ``was_fallback``. Memory salience reads the proposal, not the executed
-    fallback (supply-side redesign, 2026-09-25, spec M1/M2/M4)."""
+    fallback (supply-side redesign, 2026-09-25, spec M1/M2/M4).
+
+    Under ``rejection_line_style: executed`` the runner records neither key,
+    so this returns the executed skill and False: importance, emotion and
+    routine then follow the action that ran only (Invariant 7)."""
     ctx = action_ctx or {}
     was_fallback = bool(ctx.get("was_fallback", False))
     proposed = ctx.get("proposed_skill") if "proposed_skill" in ctx else ctx.get("skill_name", "")
@@ -2710,10 +2714,10 @@ def main():
     hooks.metrics_tracker = _metrics_tracker
     hooks.feedback_config = feedback_cfg
     hooks.rejection_line_style = irr_mem.get("rejection_line_style", "neutral")
-    if hooks.rejection_line_style not in ("neutral", "explicit"):
+    if hooks.rejection_line_style not in ("neutral", "explicit", "executed"):
         raise SystemExit(
             f"irrigation_farmer.memory.rejection_line_style "
-            f"{hooks.rejection_line_style!r} is not 'neutral' or 'explicit'."
+            f"{hooks.rejection_line_style!r} is not 'neutral', 'explicit' or 'executed'."
         )
     runner.hooks.update({
         "pre_year": hooks.pre_year,

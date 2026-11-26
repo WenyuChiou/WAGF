@@ -357,8 +357,18 @@ teach the agent that it was corrected.
   `config/agent_types.yaml`) use `neutral` with `runner_decision_line: false`, and
   the case writes its own line that names the rule on a default year; a default
   year is also never marked routine and raises a lesson's importance. Those runs do
-  not meet this invariant. They stay frozen; a new opt-in config variant is the
-  route for a re-run.
+  not meet this invariant. They stay frozen. For a re-run, use
+  `config_variants/simple_executed` (with rules) and `simple_nolimit_executed`
+  (without rules), added 2026-11-26. They are copies that change only
+  `rejection_line_style: executed`, so every year reads "Year Y: Action carried
+  out: <action>", and importance, emotion and routine follow the action that ran
+  (`build_action_outcome_feedback`, `_proposed_and_fallback`). A year where no
+  answer could be read and nothing ran (an aborted year) still reads "no valid
+  decision was read"; an unreadable answer that ran the default reads "Action
+  carried out", like any other year.
+  Tests: `examples/irrigation_abm/tests/test_simple_executed.py`, including a run
+  where a blocked year and a year with the same action chosen give the same next
+  prompt.
 - `python -m broker.run` applies `executed` to every agent type whose memory block
   sets no style, and `broker.tools.scaffold_domain` writes it (2026-11-26). On
   broker.run every memory write must carry `metadata['origin']` (`world`,
