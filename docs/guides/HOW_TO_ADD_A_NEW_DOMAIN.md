@@ -265,7 +265,7 @@ Every key is optional. An unknown `run:` key is refused. Each slot is `module:fu
 
 | Slot | The function returns | When absent |
 |---|---|---|
-| `world` | Your environment object (`advance_step()` and `execute_skill(...)`). For a coupled model, return `broker.run.Coupled(contract, sources, domain)`. | A tiny stand-in world that advances the year and executes every approved action successfully, with no state change |
+| `world` | Your environment object (`advance_step()` and `execute_skill(...)`). For a coupled model, return `broker.run.Coupled(contract, sources, domain)` and set `global_config.coupling.enable: true`; with coupling off, `broker.run` stops with exit 2 rather than run the model without its coupled checks. | A tiny stand-in world that advances the year and executes every approved action successfully, with no state change |
 | `agents` | A dict of agent name to `BaseAgent` | `agent_count` agents are built for the one agent type in the YAML, with every skill in the skill registry that is eligible for that type. More than one agent type is refused until you set `agents`. |
 | `hooks` | A dict of lifecycle hooks: `pre_year`, `pre_step`, `post_step`, `post_year`, `post_step_end`. An optional `after_run(output_dir)` runs once after the run. | No hooks |
 | `validators` | A sequence of custom validator callables | None |

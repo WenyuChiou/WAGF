@@ -361,6 +361,7 @@ def test_coupled_factory_sources_and_other_slots_reach_builder(case, monkeypatch
             return lambda prompt: ("{}", LLMStats(success=True))
     '''), encoding="utf-8")
     data["other"] = {"psychological_framework": "generic"}
+    data["global_config"]["coupling"] = {"enable": True}
     data["global_config"]["run"] = {
         "world": "factories:world", "agents": "factories:agents",
         "validators": "factories:validators", "mock": "factories:mock", "agent_count": 5,
@@ -385,6 +386,79 @@ def test_coupled_factory_sources_and_other_slots_reach_builder(case, monkeypatch
     assert main([str(config)]) == 0
     assert coupling_calls == [("contract", "sources", "case")]
     assert len(observed) == 1
+
+
+def _write_coupled_world(config):
+    (config.parents[1] / "coupled.py").write_text(dedent('''
+        from broker.run import Coupled
+
+        def world(ctx):
+            return Coupled("contract", "sources", domain="case_without_pack")
+    '''), encoding="utf-8")
+
+
+@pytest.mark.parametrize("coupling, pack_default, why", [
+    (None, None, "enable is not set and no 'case_without_pack' domain pack is registered"),
+    (None, False, "enable is not set and the 'case_without_pack' domain pack defaults to off"),
+    ({"enable": False}, True, "enable is false"),
+])
+def test_coupled_world_with_coupling_off_is_refused(case, monkeypatch, capsys, coupling,
+                                                    pack_default, why):
+    """R5 walk finding 3: a Coupled world with the flag off used to run the
+    model unwrapped after an info-level log line, so no coupled check ran."""
+    from broker.domains.default import DefaultDomainPack
+    from broker.domains.registry import DomainPackRegistry
+
+    config, data = case
+    _write_coupled_world(config)
+    if coupling is not None:
+        data["global_config"]["coupling"] = coupling
+    if pack_default is not None:
+        pack = DefaultDomainPack()
+        pack.coupling_enabled_default = lambda: pack_default
+        monkeypatch.setitem(DomainPackRegistry._packs, "case_without_pack", pack)
+    data["global_config"]["run"] = {"world": "coupled:world"}
+    _write_yaml(config, data)
+    calls = []
+    monkeypatch.setattr(_entry.ExperimentBuilder, "with_coupling", lambda *a, **k: calls.append(a))
+    assert main([str(config), "--model", "mock"]) == 2
+    err = capsys.readouterr().err
+    assert "Coupled(...) but coupling is off (global_config.coupling." + why + ")" in err
+    assert "global_config.coupling.enable: true" in err
+    assert calls == []
+
+
+def test_coupled_world_uses_the_domain_pack_default(case, monkeypatch):
+    """With no YAML flag, a registered pack whose default is on is enough."""
+    from broker.domains.default import DefaultDomainPack
+    from broker.domains.registry import DomainPackRegistry
+
+    class OnPack(DefaultDomainPack):
+        name = "case_pack_on"
+
+        def coupling_enabled_default(self):
+            return True
+
+    config, data = case
+    (config.parents[1] / "coupled.py").write_text(dedent('''
+        from broker.run import Coupled
+
+        def world(ctx):
+            return Coupled("contract", "sources", domain="case_pack_on")
+    '''), encoding="utf-8")
+    data["global_config"]["run"] = {"world": "coupled:world"}
+    _write_yaml(config, data)
+    monkeypatch.setitem(DomainPackRegistry._packs, "case_pack_on", OnPack())
+    calls = []
+
+    def capture(builder, contract, sources, domain=None):
+        calls.append(domain)
+        return builder.with_simulation(_entry.StepWorld())
+
+    monkeypatch.setattr(_entry.ExperimentBuilder, "with_coupling", capture)
+    monkeypatch.setattr("broker.core.experiment_runner.ExperimentRunner.run", lambda runner: None)
+    assert main([str(config), "--model", "mock"]) == 0
+    assert calls == ["case_pack_on"]
 
 
 @pytest.mark.parametrize("run, key", [
