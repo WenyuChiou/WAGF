@@ -1,4 +1,4 @@
-"""Phase 6O-C — Readiness profile loader.
+"""Readiness profile loader.
 
 A **profile** is a named set of pass/fail thresholds the readiness
 reporter evaluates an experiment's audit traces against. Profiles
@@ -13,9 +13,9 @@ correspond to lifecycle stages:
   - ``stress`` — does governance correctly handle hard constraints,
     retries, terminal outcomes? Used for harness-engineering audits.
 
-The ``production`` profile in the codex P0 proposal is intentionally
-**not** shipped in 6O-C-1 (persona alignment undefined; user explicit
-decision recorded at `.ai/2026/05/25/phase_6o_gap_matrix.md`).
+A ``production`` profile is intentionally **not** shipped (persona
+alignment metrics are intentionally out of scope for domain-agnostic
+readiness checks).
 
 Threshold values are loaded from `readiness_profile.yaml` in this
 directory; callers may override the YAML path to load from a custom
@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-#: All profiles shipped in 6O-C-1. Order matters for default-cascade in
+#: Built-in readiness profiles. Order matters for default-cascade in
 #: `load_readiness_profile` (functional < behavioral < stress).
 PROFILE_NAMES = ("functional", "behavioral", "stress")
 
@@ -45,10 +45,10 @@ class ReadinessThresholds:
     """
 
     #: Minimum acceptable governance-approval rate (APPROVED / total). 0..1.
-    #: NOTE the rename in 6O-C-1 round-1: this is NOT a parse-quality metric.
+    #: NOTE: this measures governance approval rather than parse quality.
     #: Parser failures are tracked separately via the terminal-outcome
-    #: classifier (`parser_failure` category). A true parse_success_rate
-    #: metric is deferred to 6O-C-2 alongside the format-retry analysis.
+    #: classifier (`parser_failure` category); a dedicated
+    #: `parse_success_rate` threshold may be added later.
     min_approval_rate: Optional[float] = None
 
     #: Maximum allowed format-retry rate (format_retries / total). 0..1.

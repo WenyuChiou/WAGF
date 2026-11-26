@@ -5,8 +5,7 @@ trajectories over time, complementing the point-in-time validator
 layer (R1-R4). Domain-specific behaviour is injected via
 DomainTemporalAdapter (see base.py).
 
-See broker/INVARIANTS.md §5 for domain-genericity contract.
-See .ai/wagf_module_audit_2026-04-19.md for V2 roadmap context.
+See broker/INVARIANTS.md for domain-genericity contracts.
 
 Public API:
     AgentTurn                                — per-year observation

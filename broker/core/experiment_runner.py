@@ -1,7 +1,13 @@
-"""
-Experiment Runner — simulation loop engine.
+"""Experiment Runner — discrete-step simulation loop engine.
 
-Extracted from experiment.py (Phase 2.1 split).
+Purpose:
+    Orchestrates step/year advancement, per-agent governance execution via
+    ``SkillBrokerEngine``, lifecycle hooks (``pre_year``, ``post_step``,
+    ``post_year``), and run-level audit/reproducibility finalization.
+
+Key Classes:
+    - ``ExperimentConfig``: Run parameters, seed, worker count, and output paths.
+    - ``ExperimentRunner``: Executes single-agent-type or custom-agent simulations.
 """
 from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
@@ -242,9 +248,8 @@ class ExperimentRunner:
         self._llm_thinking_started = ollama_thinking_sequence()
         self._llm_thinking_observations = {}
 
-        # PR-8: per-agent-type decider declarations, read once from config.
-        # The CALLABLE is not cached for non-default deciders — see
-        # get_decider — only the declaration is.
+        # Per-agent-type decider declarations cached from config (the callable
+        # itself is created per step for non-default deciders via get_decider).
         self._decider_spec_cache = {}
         self._decider_factory_cache = {}
         self._domain_deciders_registered = False
@@ -429,24 +434,10 @@ class ExperimentRunner:
                 model_override = None
             model_name = model_override or self.config.model
 
-            # r19 G7/G8: record the SAME thing create_llm_invoke is about to
-            # send, via the shared helper, so the reproducibility manifest can
-            # report what this agent type actually sends instead of the
-            # LLM_CONFIG singleton alone. Computed here rather than re-derived
-            # at finalize time so it can never disagree with the invoke this
-            # cache entry is about to hold. The resolved model name is stored
-            # alongside the params (llm_params_resolved[<type>]["model"]),
-            # since a per-type llm_params.model override means different
-            # agent types in the same run can send to different models.
-            #
-            # Cloud-provider models (is_cloud_provider_model, the SAME check
-            # create_llm_invoke's own routing uses) never reach
-            # resolve_ollama_params at all: create_provider_invoke's config is
-            # {"type", "model"} updated with the RAW overrides dict, never
-            # merged with LLM_CONFIG. Recording resolve_ollama_params() for a
-            # cloud model would show num_ctx/num_predict/temperature values
-            # the provider path never even looks at, so the raw overrides are
-            # recorded instead: that IS what the provider path receives.
+            # Record the exact parameters sent by create_llm_invoke (plus the
+            # resolved per-type model name) for reproducibility_manifest.json.
+            # Cloud providers use raw overrides directly rather than resolving
+            # Ollama defaults like num_ctx/num_predict.
             if is_cloud_provider_model(model_name):
                 resolved_params = dict(overrides)
             else:
@@ -480,26 +471,13 @@ class ExperimentRunner:
                 with capture_ollama_thinking(observations):
                     return raw_invoke(*args, **kwargs)
 
-            # Spec item 24 (audit gap F42): backoff on a transient provider
-            # failure, wired HERE because this is the one choke point every
-            # LLM call in the framework passes through (the format-retry
-            # loop, the governance retry loop, the advisory pass, the
-            # hybrid decider all call get_llm_invoke(agent_type) or reuse
-            # this cache entry). A no-op wrapper (returns raw_invoke
-            # unchanged) unless global_config.llm_safeguard.enabled is true,
-            # which is what keeps every domain that has not opted in
-            # byte-identical.
+            # Transport backoff wrapper shared across all LLM calls; returns
+            # observed_invoke unchanged when global_config.llm_safeguard is OFF.
             backoff_wrapped = wrap_llm_invoke_with_backoff(
                 observed_invoke, self._resolve_llm_safeguard_config(),
             )
-            # Crash-resume journal (broker/utils/llm_journal.py), wired
-            # OUTSIDE (on top of) the backoff wrapper so a replayed call
-            # skips backoff sleeps entirely -- it is answered from the
-            # journal and never reaches backoff_wrapped or raw_invoke at
-            # all. None for every run that never sets
-            # ExperimentConfig.llm_journal_path / resume_journal_path (see
-            # _build_llm_journal_manager), which keeps this cache entry
-            # exactly backoff_wrapped, unchanged, for every existing run.
+            # Crash-resume journal wraps outside backoff so replayed responses
+            # skip retries and network sleeps entirely.
             journal = getattr(self, "_llm_journal", None)
             self._llm_cache[agent_type] = (
                 journal.wrap(agent_type, backoff_wrapped) if journal is not None
@@ -508,16 +486,10 @@ class ExperimentRunner:
         return self._llm_cache[agent_type]
 
     def _resolve_llm_safeguard_config(self) -> LLMSafeguardConfig:
-        """Resolved ``global_config.llm_safeguard`` (spec item 24), cached
-        after the first call.
+        """Return cached ``global_config.llm_safeguard`` settings for this run.
 
-        Read off ``self.broker.config`` -- the SAME ``AgentTypeConfig``
-        ``SkillBrokerEngine.__init__`` reads for its own copy (the abort-rate
-        tracker) -- so the backoff wrapper here and the abort tracker there
-        can never resolve to different settings for one run. Defensive the
-        same way ``overrides`` just above is: a broker/config predating this
-        feature, or a MagicMock test double, degrades to the disabled
-        default rather than raising.
+        Reads ``self.broker.config`` so backoff and abort tracking always use
+        identical settings; falls back to disabled defaults when omitted.
         """
         cached = getattr(self, "_llm_safeguard_cfg", None)
         if cached is not None:

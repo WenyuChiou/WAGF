@@ -1,34 +1,32 @@
+"""Memory engine abstract base class and retrieval contract."""
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, Tuple
 
 from broker.agents import BaseAgent
 
-if TYPE_CHECKING:
-    from cognitive_governance.v1_prototype.memory import MemoryScorer, MemoryScore
 
 class MemoryEngine(ABC):
-    """
-    Abstract Base Class for managing agent memory and retrieval.
-    Decouples 'Thinking' (LLM) from 'Retention' (Storage).
+    """Abstract base class for managing agent memory and retrieval.
 
-    Task-034: Added optional SDK MemoryScorer integration for domain-aware scoring.
+    Decouples thinking (LLM prompting) from retention (memory storage),
+    supporting an optional domain relevance scorer.
     """
-    def __init__(self, scorer: Optional["MemoryScorer"] = None):
+    def __init__(self, scorer: Optional[Any] = None):
         """
         Initialize memory engine with optional domain scorer.
 
         Args:
-            scorer: Optional SDK MemoryScorer for domain-aware relevance scoring
+            scorer: Optional memory scorer for domain-aware relevance scoring
         """
         self._scorer = scorer
 
     @property
-    def scorer(self) -> Optional["MemoryScorer"]:
+    def scorer(self) -> Optional[Any]:
         """Get the configured memory scorer."""
         return self._scorer
 
     @scorer.setter
-    def scorer(self, value: Optional["MemoryScorer"]):
+    def scorer(self, value: Optional[Any]):
         """Set a memory scorer for domain-aware retrieval."""
         self._scorer = value
 
@@ -132,12 +130,11 @@ class MemoryEngine(ABC):
         query: Optional[str] = None,
         top_k: int = 3,
         **kwargs
-    ) -> List[Tuple[str, Optional["MemoryScore"]]]:
-        """
-        v2 retrieval with domain-aware scoring (Task-034).
+    ) -> List[Tuple[str, Optional[Any]]]:
+        """Retrieve memories ranked by an optional domain scorer.
 
-        Uses SDK MemoryScorer to rank memories by domain-specific relevance.
-        Falls back to standard retrieve if no scorer is configured.
+        Uses ``self._scorer`` when configured; otherwise falls back to standard
+        ``retrieve_content_only()`` ordering.
 
         Args:
             agent: The agent instance
@@ -146,8 +143,8 @@ class MemoryEngine(ABC):
             top_k: Number of items to retrieve
 
         Returns:
-            List of (memory_content, MemoryScore) tuples, sorted by score descending.
-            MemoryScore is None if no scorer is configured.
+            List of (memory_content, score) tuples, sorted by score descending.
+            The score entry is None if no scorer is configured.
         """
         memories = self.retrieve_content_only(agent, query=query, top_k=top_k * 2, **kwargs)
 

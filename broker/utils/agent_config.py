@@ -4,7 +4,7 @@ Agent Type Configuration Loader
 Loads unified agent configuration from broker/agent_types.yaml.
 Provides easy access to prompts, validation rules, and coherence rules.
 
-Task-035: Added SDK UnifiedConfigLoader integration for experiment configs.
+Includes optional SDK experiment config loader integration.
 """
 
 import yaml
@@ -13,17 +13,10 @@ import sys
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
 from broker.utils.logging import setup_logger
-
-if TYPE_CHECKING:
-    from cognitive_governance.v1_prototype.config import (
-        UnifiedConfigLoader,
-        ExperimentConfig,
-        MemoryConfig as SDKMemoryConfig,
-    )
 
 logger = setup_logger(__name__)
 
@@ -3212,44 +3205,35 @@ class AgentTypeConfig:
         return list(self._config.keys())
 
     # =========================================================================
-    # Task-035: SDK UnifiedConfigLoader Integration
+    # SDK UnifiedConfigLoader Integration
     # =========================================================================
 
-    _sdk_loader: Optional["UnifiedConfigLoader"] = None
-    _sdk_experiment_config: Optional["ExperimentConfig"] = None
+    _sdk_loader: Optional[Any] = None
+    _sdk_experiment_config: Optional[Any] = None
 
     @classmethod
-    def set_sdk_loader(cls, loader: "UnifiedConfigLoader"):
+    def set_sdk_loader(cls, loader: Any):
         """
-        Set the SDK UnifiedConfigLoader for experiment config access.
+        Set an external SDK UnifiedConfigLoader for experiment config access.
 
         This allows using SDK-style configuration (YAML with validation)
         alongside the existing agent_types.yaml system.
 
         Args:
-            loader: Instance of cognitive_governance.v1_prototype.config.UnifiedConfigLoader
-
-        Example:
-            >>> from cognitive_governance.v1_prototype.config import UnifiedConfigLoader
-            >>> loader = UnifiedConfigLoader()
-            >>> AgentTypeConfig.set_sdk_loader(loader)
+            loader: Optional external UnifiedConfigLoader instance.
         """
         cls._sdk_loader = loader
 
     @classmethod
-    def load_sdk_experiment(cls, config_path: str) -> Optional["ExperimentConfig"]:
+    def load_sdk_experiment(cls, config_path: str) -> Optional[Any]:
         """
-        Load experiment configuration using SDK UnifiedConfigLoader.
+        Load experiment configuration using an optional SDK loader.
 
         Args:
             config_path: Path to YAML experiment config file
 
         Returns:
             ExperimentConfig instance or None if SDK not available
-
-        Example:
-            >>> config = AgentTypeConfig.load_sdk_experiment("config/flood_study.yaml")
-            >>> print(config.domain, config.agents)
         """
         if cls._sdk_loader is None:
             try:
@@ -3267,7 +3251,7 @@ class AgentTypeConfig:
             logger.error(f"Failed to load SDK experiment config: {e}")
             return None
 
-    def get_sdk_memory_config(self) -> Optional["SDKMemoryConfig"]:
+    def get_sdk_memory_config(self) -> Optional[Any]:
         """
         Get SDK MemoryConfig from loaded experiment.
 
@@ -3275,7 +3259,7 @@ class AgentTypeConfig:
         no SDK experiment config is loaded.
 
         Returns:
-            SDKMemoryConfig instance or None
+            MemoryConfig instance or None
         """
         if self._sdk_experiment_config is not None:
             return self._sdk_experiment_config.memory

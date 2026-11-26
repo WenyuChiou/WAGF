@@ -9,9 +9,8 @@ category vocabulary. Domain-specific category mappings are passed to the
 PolicyFilteredMemoryEngine and classify() function via a separate
 ``domain_mapping`` parameter.
 
-See .ai/broker_memory_governance_architecture.md for the full architecture
-and .ai/broker_memory_policy_design.md for the audit that drove the
-original MA-scoped fix.
+See ``docs/modules/memory_components.md`` and ``broker/INVARIANTS.md`` for
+memory governance invariants.
 """
 from dataclasses import dataclass, fields
 from typing import Any, Dict, Optional

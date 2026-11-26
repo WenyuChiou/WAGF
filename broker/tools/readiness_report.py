@@ -1,4 +1,4 @@
-"""Phase 6O-C — Generic readiness reporter CLI.
+"""Generic readiness reporter CLI.
 
 Domain-agnostic post-experiment audit. Reads an existing results dir
 (produced by any WAGF run, regardless of domain), computes a fixed
@@ -22,13 +22,11 @@ runtime. It depends on:
 - `<dir>/raw/*.jsonl` (optional — terminal-taxonomy classification
   degrades gracefully to `unknown_terminal` when JSONL is absent)
 
-Phase 6O-C-1 scope: functional / behavioral / stress profiles +
-console + JSON output. Skill orchestration (call `wagf-quickstart`,
-`abm-reproducibility-checker`, `llm-agent-audit-trace-analyzer` from
-the CLI) deferred to 6O-C-2.
+Supports ``functional``, ``behavioral``, and ``stress`` profiles with
+console and JSON output.
 
-Production profile not shipped — persona alignment undefined per
-user decision at `.ai/2026/05/25/phase_6o_gap_matrix.md`.
+A ``production`` profile is not shipped because persona alignment is
+domain-specific rather than a generic audit threshold.
 """
 from __future__ import annotations
 

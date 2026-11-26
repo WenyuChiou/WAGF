@@ -1,21 +1,18 @@
 """
 Reflection Engine - Cognitive consolidation for long-term memory resilience.
 
-Implements "Year-End Reflection" to combat memory erosion (the Goldfish Effect).
-Inspired by Park et al. (2023) Generative Agents reflection architecture.
-
-Domain-agnostic via the ``DomainReflectionAdapter`` pattern and the
+Implements periodic year-end reflection to synthesize past episodic memories
+into structured insights. Domain-agnostic via ``DomainReflectionAdapter`` and
 ``DomainPack`` reflection hooks:
-- Attach a domain adapter (FloodAdapter, IrrigationAdapter, etc.) or
-  register a DomainPack to supply importance scoring, status/trait text,
-  and reflection questions.
-- With neither, the engine is domain-neutral: prompts carry only the
-  generic identity line and importance is the base score (the legacy
-  flood-domain fallbacks were removed in Phase 6H Items 4 and 9).
+
+- Attach a domain adapter or register a DomainPack to supply importance scoring,
+  status/trait text, and reflection questions.
+- Without a pack or adapter, prompts carry only the generic identity line and
+  importance uses the base score.
 - New domains define reflection questions in ``agent_types.yaml`` or via
   ``DomainPack.reflection_questions()``.
 """
-from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Union, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Union
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
@@ -39,32 +36,22 @@ def _memory_text(m: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Grounded reflection (case-study spec item 45 (a)-(e), 2026-10-07; both
-# example domains opt in through their YAML). Every piece below is opt-in: the
-# four ``reflection`` keys read by
-# ``AgentTypeConfig.get_reflection_grounding`` all default to false, the new
-# keyword arguments of ``ReflectionEngine.generate_batch_reflection_prompt``
-# default to the shipped prompt, and a domain that calls none of the helpers
-# renders, stores and logs exactly what it did before.
+# Opt-in grounded reflection controls (all default to false so callers that do
+# not enable them render, store, and log identically).
 #
-# Timing contract (45a, ``reflection.year_outcome``): a domain hook that sets
-# this key promises that the reflection written at the end of a period sees
-# that period's own settled outcome. ``add_year_outcome`` is the enforcement
-# point: it raises when the key is on and the hook supplies no outcome item.
+# Timing contract (``reflection.year_outcome``): when enabled, a domain hook
+# promises that year-end reflection sees the settled outcome for that period;
+# ``add_year_outcome`` raises if the flag is on and no outcome item is supplied.
 # ---------------------------------------------------------------------------
 
-#: The ``reflection`` YAML keys of the grounded mechanism, in the order the
-#: spec lists them. Each is a YAML bool, default false.
+#: ``reflection`` YAML keys controlling grounded prompts and validation.
 GROUNDING_KEYS = ("year_outcome", "year_lines", "program_facts", "lesson_no_numbers")
 
-#: Heading of the program-written record in a reflection prompt (45c).
+#: Heading of the program-written record in a grounded reflection prompt.
 RECORD_HEADING = (
     "### Record (written by the simulation and stored with your lesson; "
     "do not restate it)"
 )
-
-#: The last line of a reflection prompt that carries a program-written
-#: record (45c): the model writes the lesson only, with no year or number.
 LESSON_ONLY_INSTRUCTION = (
     "In the JSON value, write only the lesson: one or two sentences in the first person. "
     "Do not write any year, amount, percentage or other number; the record "
@@ -508,12 +495,6 @@ def store_reflection_memory(
     memory_engine.add_memory(agent_id, content, metadata)
     return removed
 
-if TYPE_CHECKING:
-    from cognitive_governance.v1_prototype.reflection import (
-        ReflectionTemplate,
-        ReflectionMemoryIntegrator,
-    )
-
 @dataclass
 class ReflectionInsight:
     """A consolidated semantic insight derived from multiple episodic memories."""
@@ -522,7 +503,7 @@ class ReflectionInsight:
     importance: float = 1.0           # Consolidated importance score (0-1)
     year_created: int = 0             # When this insight was generated
     domain_tags: List[str] = field(default_factory=list)  # e.g., ["event_type", "impact", "response"]
-    parse: str = "strict"             # Reply parsing provenance (spec item 45n)
+    parse: str = "strict"             # Reply parsing provenance
 
 
 @dataclass
@@ -530,19 +511,11 @@ class AgentReflectionContext:
     """Agent identity context for personalized reflection prompts.
 
     Domain-neutral: generic identity fields plus ``custom_traits`` for
-    domain-specific data. The former domain-specific context fields were
-    removed in Phase 6H Item 9 — a domain routes such data through
-    ``custom_traits``.
-
-    Phase 6R-B-4 (audit cluster E item #17, 2026-05-26): ``agent_type``
-    is now REQUIRED (no default). Pre-fix the field defaulted to the
-    literal ``"household"`` — a flood-domain string in generic code
-    that misrouted any reflection-prompt builder forgetting to supply
-    an explicit agent_type. Construction raises ``ValueError`` on
-    missing/empty agent_type via the ``__post_init__`` validator below.
+    domain-specific attributes. ``agent_type`` is required so reflection
+    prompts never silently default to an unrelated agent type.
     """
     agent_id: str
-    agent_type: str                        # REQUIRED. household | government | institution | commuter | ...
+    agent_type: str                        # REQUIRED agent type identifier
     name: str = ""                         # Display name if available
     years_in_sim: int = 0                  # Agent age in simulation
     mg_status: bool = False                # Marginalized group
@@ -550,13 +523,8 @@ class AgentReflectionContext:
     custom_traits: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        # Phase 6R-B-4: empty / None / whitespace-only agent_type is a
-        # malformed-agent symptom. Surface immediately instead of
-        # silently routing through a flood-domain identity in the
-        # reflection prompt. ``__post_init__`` fires only at
-        # construction; post-construction mutation (``ctx.agent_type =
-        # ""``) is NOT re-validated — caller responsibility, matches
-        # the 6R-B-1 / 6R-B-2 raise pattern.
+        # Reject empty or non-string agent_type at construction rather than
+        # silently routing prompts under a wrong agent identity.
         normalised = (self.agent_type or "").strip() if isinstance(
             self.agent_type, str
         ) else ""
@@ -621,8 +589,8 @@ class ReflectionEngine:
         insight_importance_boost: float = 0.9,  # Importance score for new insights
         output_path: Optional[str] = None,       # Path to save reflection logs
         llm_client=None,
-        template: Optional["ReflectionTemplate"] = None,
-        integrator: Optional["ReflectionMemoryIntegrator"] = None,
+        template: Optional[Any] = None,
+        integrator: Optional[Any] = None,
         adapter: Optional[DomainReflectionAdapter] = None,
     ):
         self.reflection_interval = reflection_interval

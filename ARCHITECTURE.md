@@ -4,14 +4,37 @@
 
 ## Overview
 
-The Water Agent Governance Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — with two worked cases in this repository: flood risk adaptation and Colorado River irrigation.
+The Water Agent Governance Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, reflection, and external-model coupling designed for coupled human-water simulations — demonstrated with flood risk adaptation (`examples/single_agent/`) and Colorado River irrigation (`examples/irrigation_abm/`), plus a single-operator coupled reservoir starter (`templates/water_starter/` and `examples/reservoir_control/`).
 
-A new case is added without editing the core broker, but not by configuration alone: it needs YAML skill registries and validators plus Python code for the case's world and lifecycle hooks (see [how to add a domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
+New cases plug into the generic `broker/` core without editing `broker/` source code: define a skill registry YAML, YAML validation rules, and a world/hook module loaded through `python -m broker.run CONFIG` (see [how to add a domain](docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
 
 **Version**: v0.6.0 (semver). Pre-v0.3.0 the project used a different
 internal versioning scheme; v0.29.0 → v0.3.0 (2026-05-27) was a
 deliberate semver reset. See `CHANGELOG.md` for the full release
 timeline.
+
+---
+
+## Release Scope and Experimental Multi-Actor Extensions
+
+The v0.6 production pipeline and `python -m broker.run` focus on **single-agent-type governed human-water simulations**:
+
+| Regime | Pattern | Worked cases in repo |
+|---|---|---|
+| Single operator (1 type, *N*=1) | Two-way continuous or bounded setpoint control | `templates/water_starter/`, `examples/reservoir_control/`, `examples/reservoir_control_multidim/` |
+| Homogeneous hazard population (1 type, *N*=100) | One-way external hazard forcing households | `examples/single_agent/` (`household`) |
+| Homogeneous shared-basin population (1 type, *N*=78) | Two-way basin coupling: ex-ante per-agent feasibility/thinking checks, ex-post aggregate mass-balance settlement | `examples/irrigation_abm/` (`irrigation_farmer`) |
+
+Notice that a **single-agent-type** simulation can still model a large population (*N*=78 or *N*=100) sharing one physical water system (`examples/irrigation_abm/`). In `broker/run/_entry.py`, default agent construction supports one declared `agent_type`; multi-type or heterogeneous populations supply a custom `run.agents` factory (see [Mixed Populations](docs/guides/mixed_populations.md)).
+
+**Experimental multi-actor / social extension subpackages (Pre-1.0, inactive by default):**
+
+- `broker/components/coordination/` (`GameMaster`, `MessagePool`)
+- `broker/components/social/` (`SocialGraph`, `FollowerNetwork`, `Post`)
+- `broker/components/orchestration/` (`InstitutionalLifecycleHandler`, `SagaCoordinator`)
+- `examples/multi_agent/flood/` (separate heterogeneous Passaic River Basin study)
+
+These extension modules are reserved for follow-up heterogeneous multi-actor (for example household + insurer + government) and asynchronous social-network research. They remain disabled on default single-agent-type `python -m broker.run` runs, and their APIs are marked **EXPERIMENTAL** while downstream multi-actor studies stabilize.
 
 ---
 
@@ -22,40 +45,39 @@ timeline.
 The `broker/` directory contains **reusable components** designed for coupled human-water ABMs, extensible to new water sub-domains:
 
 - Core governance pipeline (skill proposal → validation → execution) is domain-independent
-- Water sub-domain logic (flood adaptation, irrigation management) lives in `examples/<domain>/`
-- Configuration-driven behavior via YAML skill registries and validator definitions
+- Water sub-domain logic (flood adaptation, irrigation management, reservoir control) lives in `examples/<domain>/` or `templates/water_starter/`
+- Configuration-driven behavior via YAML skill registries and validator definitions (`AgentValidator` in `broker/validators/agent/agent_validator.py`)
 
-### 2. Protocol-Based Dependency Injection
+### 2. Slot-Based Configuration and Coupling Contracts
 
-Domain-specific code can extend broker capabilities without modifying broker source:
+New single-agent-type cases declare domain hooks and external water models through `global_config.run` (`broker/run/_entry.py`) and `CouplingContract` (`broker/coupling/contract.py`, `broker/coupling/adapter.py`):
+
+```yaml
+# templates/water_starter/config/agent_types.yaml
+global_config:
+  run:
+    world: world:build_world
+    agents: world:build_agents
+    hooks: world:build_hooks
+    mock: world:operator_mock
+    skill_registry: skill_registry.yaml
+```
+
+### 3. Protocol-Based Dependency Injection and Extensions
+
+Domain-specific survey/profile enrichers can inject custom logic into `broker/modules/survey/` without importing from `examples/`:
 
 ```python
 # broker/interfaces/enrichment.py - Generic Protocol
 class PositionEnricher(Protocol):
     def assign_position(self, profile) -> PositionData: ...
 
-# examples/multi_agent/environment/depth_sampler.py - Domain Implementation
-class DepthSampler:  # Implicitly implements PositionEnricher
-    def assign_position(self, profile) -> PositionData:
-        # MA-specific flood zone assignment
-        ...
-```
-
-### 3. Extensions Pattern for Domain Data
-
-Generic data structures support domain-specific extensions:
-
-```python
-# broker/modules/survey/agent_initializer.py
+# broker/modules/survey/agent_initializer.py - Extensions pattern
 @dataclass
 class AgentProfile:
     agent_id: str
     family_size: int
     extensions: Dict[str, Any]  # Domain-specific data here
-
-# Domain code adds extensions
-profile.extensions["flood"] = FloodExposureData(...)
-profile.extensions["trading"] = TradingPreferences(...)
 ```
 
 ---
@@ -75,13 +97,13 @@ broker/                          # Core governance middleware
 │   ├── analytics/               # Audit trace writer (audit.py), drift/feedback/observable-state tracking
 │   ├── cognitive/                # Reflection engine + orchestrator, cognitive trace dataclass
 │   ├── context/                  # LLM prompt/context construction (builder, providers, tiered)
-│   ├── coordination/             # GameMaster/coordinator, conflict resolution, message pool
+│   ├── coordination/             # [Experimental] GameMaster/coordinator, conflict resolution, message pool
 │   ├── events/                   # Environment + multi-agent event managers
 │   ├── governance/                # Skill registry/retriever, validator registry, domain-validator dispatch
 │   ├── memory/                    # MemoryEngine ABC + implementations, seeding, factory -- the PRODUCTION tree
-│   ├── orchestration/             # Phase execution ordering, saga transaction coordinator
+│   ├── orchestration/             # [Experimental] Institutional lifecycle handler, saga transaction coordinator
 │   ├── prompt_templates/          # Generic memory-template contracts
-│   ├── social/                    # Social graph, perception filter, social-media post/dedup
+│   ├── social/                    # [Experimental] Social graph, perception filter, social-media post/dedup
 │   └── validation/                # Readiness-profile analysis (Phase 6O-C)
 ├── config/                       # Config schema (schema.py) + memory-policy loader
 ├── core/                          # Governance pipeline entrypoint: propose -> validate -> retry -> execute
@@ -90,27 +112,31 @@ broker/                          # Core governance middleware
 ├── domains/                       # Domain metadata registry + the `water/` domain pack (flood/irrigation PMT, utility, memory strategies, calibration's water-coupled modules -- see docs/guides/calibration_guide.md)
 ├── governance/                    # Rule-type dataclasses (rule_types.py) shared by the YAML rule engine
 ├── interfaces/                    # Protocol + dataclass definitions (enrichment, schemas, skill_types, ...)
-├── memory/                        # Standalone research toolkit (persistence/checkpoint/replay) -- NOT the production tree, see below
+├── memory/                        # Surprise/arousal strategies (`strategies/`) + cognitive constraint configs (`config/`) consumed by production memory engines
 ├── modules/
 │   └── survey/                    # Generic CSV/Excel survey loading + profile creation
+├── run/                           # Unified CLI entrypoint (`python -m broker.run CONFIG`) for single-agent-type cases and slot wiring
 ├── simulation/                    # Simulation engine, environment state, state manager
 ├── tools/                         # Operator CLIs (scaffold_domain, validate_prompt, compare_audit_csv, calibrate, ...)
 ├── utils/                         # Config loading, LLM API utilities, logging, retry formatting, ...
 └── validators/                    # AgentValidator rule engine (production path) + the five governance-framework validators
 
-examples/                          # Domain-specific implementations (all 11 folders; subfolders abbreviated)
-├── single_agent/                  # Main case: flood adaptation (hazard affects households, not the reverse); uses the pack in governed_flood/
-├── irrigation_abm/                # Main case: Colorado River irrigation (two-way: requests change Lake Mead, its level and shortage tier come back)
+examples/                          # Domain-specific implementations (subfolders abbreviated)
+├── single_agent/                  # Main case: flood adaptation (1 type, N=100 households; uses governed_flood/)
+├── irrigation_abm/                # Main case: Colorado River irrigation (1 type, N=78 farmers; two-way Lake Mead coupling)
 ├── governed_flood/                # Shared flood domain pack + small runner; imported by single_agent/, multi_agent/ and core tests
-├── multi_agent/flood/             # Separate multi-agent flood study; not one of the two main cases
-│   ├── environment/               # Flood-specific enrichers (depth_sampler.py, rcv_generator.py)
-│   ├── survey/                    # MA-specific survey processing (flood_survey_loader.py, mg_classifier.py, ...)
+├── multi_agent/flood/             # [Experimental] Separate multi-agent flood study; deferred to follow-up multi-actor research
+│   ├── environment/               # Flood-specific enrichers
+│   ├── survey/                    # MA-specific survey processing
 │   └── run_unified_experiment.py
-├── reservoir_control/             # Worked example: connecting a new water model through broker/coupling/ (mock model)
+├── reservoir_control/             # Worked example: connecting a new water model through broker/coupling/ and broker.run (mock model)
 ├── reservoir_control_multidim/    # Same, with three setpoints in one decision
 ├── coupling_examples/             # Worked example of a coupling archetype (archetype_c_subprocess/, ...)
 ├── cat_model/                     # Coupling-layer demo (catastrophe insurance); used by core tests
 └── quickstart/                    # Numbered tutorial scripts
+
+templates/
+└── water_starter/                 # Clean copy-and-adapt starter template for `python -m broker.run`
 ```
 
 Which parts are generic and which are examples: `docs/REPO_MAP.md` §1a and §4.
@@ -124,36 +150,35 @@ intentionally distinct and must not be merged:
 
 | Path | Role | Use when |
 |------|------|----------|
-| `broker/components/memory/` | **Production integration.** The memory engine ABC + implementations (`HumanCentric`, window, etc.) wired into the governance pipeline. Config-driven via `agent_types.yaml → memory_config`. | You are building or running a domain experiment. New domains extend **this** tree. |
-| `broker/memory/` | **Research toolkit.** Standalone persistence / checkpoint / replay utilities used by analysis scripts and reproducibility tooling. Not on the per-decision governance hot path. | You are writing offline analysis, checkpoint, or replay code. |
+| `broker/components/memory/` | **Production memory engines.** The `MemoryEngine` ABC (`engine.py`) + implementations (`WindowMemoryEngine`, `HumanCentricMemoryEngine`, `PolicyFilteredMemoryEngine`) wired into `ExperimentRunner` and `python -m broker.run`. Config-driven via `agent_types.yaml` (`global_config.memory` / `memory` blocks). | You are building or running a governed simulation. New domains extend **this** tree. |
+| `broker/memory/` | **Surprise strategies & cognitive config.** Pluggable surprise/arousal strategies (`broker/memory/strategies/`: `ema.py`, `symbolic.py`, `hybrid.py`, `multidimensional.py`, `decision_consistency.py`) and Miller/Cowan capacity limits (`broker/memory/config/`), consumed directly by `broker/components/memory/` and `broker/domains/water/`. | You are tuning surprise/arousal scoring or domain cognitive constraints. |
 
-**Why two trees:** the production engine is optimised for the
-per-decision retrieval contract (`retrieve()` returns `List[Dict]`, see
-`broker/INVARIANTS.md` Invariant 1); the research toolkit is optimised
-for whole-experiment serialization. Collapsing them would force one set
-of code to satisfy two incompatible contracts. A new contributor
-extending agent memory behaviour should almost always touch
-`broker/components/memory/` only.
+**Why two trees:** `broker/components/memory/` owns the stateful per-decision retrieval engine (`retrieve()` preserves `MemoryRecord` dicts per `broker/INVARIANTS.md` Invariant 1), while `broker/memory/` isolates stateless surprise calculation strategies and capacity-limit configuration. (Offline trace-to-CSV crash recovery lives separately in `broker/tools/recover_csv_from_jsonl.py`.) A contributor extending agent memory behaviour should start in `broker/components/memory/`.
 
 ## External-model coupling
 
-`broker/` never imports from `examples/` (`broker/interfaces/
-enrichment.py`). External simulators couple to WAGF by implementing
-`broker/interfaces/environment_protocols.py::EnvironmentProtocol` (or
-its tiered/social variants) in Python. A non-Python model (R, CSV,
-REST) needs a thin Python adapter that satisfies the Protocol; the
-`wagf-coupling-designer` skill walks through writing that adapter.
-There is no hardcoded external-API integration inside `broker/`.
+`broker/` never imports from `examples/` (`broker/interfaces/enrichment.py`). External simulators couple to WAGF either by defining a `CouplingContract` + `EnvironmentCouplingAdapter` (`broker/coupling/contract.py`, `broker/coupling/adapter.py`) or by implementing `broker/interfaces/environment_protocols.py::EnvironmentProtocol` in Python. A non-Python model (R, CSV, REST) uses a thin Python adapter satisfying the contract (for example `examples/reservoir_control/ops_case.py` or `examples/coupling_examples/archetype_c_subprocess/`). There is no hardcoded external-API integration inside `broker/`.
 
 ---
 
 ## Extensible Design Patterns (v0.3.0+)
 
-### 1. Protocol-Based Dependency Injection
+### 1. Slot-Based Case Execution (`python -m broker.run`)
 
-**Problem**: broker/modules/survey/ was importing from examples/multi_agent/
+Single-agent-type cases plug directly into the generic broker runner via four slots declared under `global_config.run` (`broker/run/_entry.py`):
 
-**Solution**: PEP 544 Protocols define interfaces without implementation coupling.
+- `world`: constructs the domain simulator (or `Coupled` bundle) advancing each step
+- `agents`: builds agent instances (defaults to one homogeneous `agent_type` if omitted)
+- `hooks`: maps step observations to `agent.dynamic_state` and updates agent memory/reflection
+- `mock`: optional scripted callable for offline smoke checks (`--model mock`)
+
+See `templates/water_starter/world.py` and `templates/water_starter/config/agent_types.yaml` for the minimal single-operator reference, and `examples/reservoir_control/ops_case.py` + `examples/reservoir_control/config/reservoir_agent_types.yaml` for a bounded `CouplingContract` example.
+
+### 2. Protocol-Based Dependency Injection and Extensions
+
+**Problem**: `broker/modules/survey/` originally imported directly from domain code.
+
+**Solution**: PEP 544 Protocols (`broker/interfaces/enrichment.py`) decouple enricher interfaces from domain implementations, while `AgentProfile.extensions` (`broker/modules/survey/agent_initializer.py`) holds domain-specific fields:
 
 ```python
 # broker/interfaces/enrichment.py
@@ -167,168 +192,59 @@ class PositionData(NamedTuple):
 class PositionEnricher(Protocol):
     """Protocol for position/location enrichment."""
     def assign_position(self, profile) -> PositionData: ...
-
-# Domain implementations satisfy the protocol implicitly:
-
-# examples/multi_agent/environment/depth_sampler.py
-class DepthSampler:
-    def assign_position(self, profile) -> PositionData:
-        # MA-specific: flood zone based on income, prior experience
-        ...
-
-# examples/trading_sim/location_sampler.py (hypothetical)
-class TradingLocationSampler:
-    def assign_position(self, profile) -> PositionData:
-        # Trading-specific: market region based on assets
-        ...
 ```
 
-**Usage**:
 ```python
 from broker.modules.survey import initialize_agents_from_survey
 
-# Generic (no enrichers)
+# Generic (no domain enrichers)
 profiles, stats = initialize_agents_from_survey(survey_path)
 
-# With domain-specific enrichers
+# Or inject domain enrichers implementing PositionEnricher / ValueEnricher
 profiles, stats = initialize_agents_from_survey(
     survey_path,
-    position_enricher=DepthSampler(seed=42),
-    value_enricher=RCVGenerator(seed=42)
+    position_enricher=my_position_enricher,
+    value_enricher=my_value_enricher,
 )
 ```
 
-### 2. Extensions Pattern for Domain-Specific Data
+### 3. Config-Driven Rules and Memory Tags
 
-**Problem**: SurveyRecord and AgentProfile contained MA-specific fields.
-
-**Solution**: Generic base classes + domain-specific extensions.
-
-```python
-# broker/modules/survey/survey_loader.py
-@dataclass
-class SurveyRecord:
-    """Generic survey record."""
-    record_id: str
-    family_size: int
-    income_bracket: str
-    housing_status: str
-    # No flood fields - generic!
-
-# examples/multi_agent/survey/flood_survey_loader.py
-@dataclass
-class FloodSurveyRecord(SurveyRecord):
-    """MA-specific survey record with flood fields."""
-    flood_experience: bool = False
-    financial_loss: bool = False
-```
-
-```python
-# broker/modules/survey/agent_initializer.py
-@dataclass
-class AgentProfile:
-    """Generic agent profile."""
-    agent_id: str
-    family_size: int
-    extensions: Dict[str, Any] = field(default_factory=dict)
-
-# Domain code adds extensions:
-profile.extensions["flood"] = SimpleNamespace(
-    flood_zone="Zone_A",
-    base_depth_m=1.5,
-    flood_probability=0.25
-)
-```
-
-### 3. Config-Driven Domain Logic
-
-**Problem**: Memory tags hardcoded as "MG" → "subsidy".
-
-**Solution**: Load tags from agent_types.yaml.
-
-```yaml
-# examples/multi_agent/ma_agent_types.yaml
-household_mg:
-  memory:
-    retrieval_tags: ["subsidy", "vulnerability", "financial_hardship"]
-    window_size: 3
-
-household_nmg:
-  memory:
-    retrieval_tags: ["insurance", "elevation", "adaptation"]
-    window_size: 5
-```
-
-```python
-# broker/components/memory.py
-def _get_relevant_tags(self, agent_type: str) -> List[str]:
-    """Load retrieval tags from config (not hardcoded)."""
-    cfg = load_agent_config()
-    memory_config = cfg.get_memory_config(agent_type)
-    return memory_config.get("retrieval_tags", ["general"])
-```
+Domain appraisals, construct labels, governance rules (`thinking_rules`, `identity_rules`), and memory retrieval tags are declared per `agent_type` in YAML and loaded via `broker/utils/agent_config.py (load_agent_config)` and evaluated by `broker/validators/agent/agent_validator.py (AgentValidator)` and `broker/domains/registry.py (DomainPackRegistry)`.
 
 ### 4. Classification Generalization
 
-**Problem**: `is_mg` field was MA-specific (Marginalized Group).
-
-**Solution**: Generic classification fields with backward-compatible aliases.
-
-```python
-# broker/modules/survey/agent_initializer.py
-@dataclass
-class AgentProfile:
-    # Generic classification
-    is_classified: bool = False
-    classification_score: int = 0
-    classification_criteria: Dict[str, bool] = field(default_factory=dict)
-
-    # Backward compatibility aliases for MA code
-    @property
-    def is_mg(self) -> bool:
-        return self.is_classified
-
-    @property
-    def mg_score(self) -> int:
-        return self.classification_score
-```
+`AgentProfile` (`broker/modules/survey/agent_initializer.py`) stores domain-neutral classification fields (`is_classified`, `classification_score`, `classification_criteria`), keeping backward-compatible property aliases (`is_mg`, `mg_score`, `mg_criteria`) for existing survey scripts.
 
 ---
 
 ## Component Interactions
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        broker/ (Generic)                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     │
-│  │ SurveyLoader │───▶│AgentInitializer│───▶│ AgentProfile │     │
-│  │   (generic)  │    │   (generic)   │    │  (generic)   │     │
-│  └──────────────┘    └──────────────┘    └──────────────┘     │
-│         │                   │                    │              │
-│         │            ┌──────┴──────┐             │              │
-│         │            │  Protocols  │             │              │
-│         │            └──────┬──────┘             │              │
-│         │                   │                    │              │
-└─────────┼───────────────────┼────────────────────┼──────────────┘
-          │                   │                    │
-          ▼                   ▼                    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   examples/multi_agent/ (MA Domain)             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌────────────────┐  ┌──────────────┐  ┌─────────────────┐    │
-│  │FloodSurveyLoader│  │DepthSampler  │  │ profile.extensions│   │
-│  │  (extends)     │  │(PositionEnricher)│  │   ["flood"]    │   │
-│  └────────────────┘  └──────────────┘  └─────────────────┘    │
-│                                                                 │
-│  ┌────────────────┐  ┌──────────────┐  ┌─────────────────┐    │
-│  │  MGClassifier  │  │ RCVGenerator │  │ MAAgentProfile  │    │
-│  │(MA-specific)   │  │(ValueEnricher)│  │   (extends)     │    │
-│  └────────────────┘  └──────────────┘  └─────────────────┘    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          broker/ (Generic Core)                           │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  python -m broker.run CONFIG (broker/run/_entry.py)                       │
+│     │                                                                     │
+│     ▼                                                                     │
+│  Simulation / Coupling (broker/coupling/) ──► Prompt / Context (context/) │
+│     ▲                                                │                    │
+│     │                                                ▼                    │
+│  Execute Approved Skill ◄── AgentValidator + DomainPack ◄── LLM / Mock    │
+│     │                        (validators/, domains/)         Proposal     │
+│     ▼                                                                     │
+│  Memory & Reflection (components/memory/, cognitive/) ──► Audit JSONL/CSV │
+└─────────────────────────────────────────┬─────────────────────────────────┘
+                                          │ loads via slots / DomainPack
+                                          ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│        Single-Agent-Type Case (templates/ or examples/<domain>/)          │
+├───────────────────────────────────────────────────────────────────────────┤
+│  agent_types.yaml + skill_registry.yaml + prompt template + world/hooks   │
+│  (e.g. templates/water_starter/, examples/single_agent/,                  │
+│   examples/irrigation_abm/, examples/reservoir_control/)                  │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -338,23 +254,23 @@ class AgentProfile:
 ### Agent Type Configuration
 
 ```yaml
-# examples/multi_agent/ma_agent_types.yaml
-household_owner:
-  cognitive_config:
-    stimulus_key: "flood_depth_m"
-    arousal_threshold: 2.0
-    ema_alpha: 0.3
-
-  memory_config:
-    engine: "humancentric"
+# Simplified starter layout (see templates/water_starter/config/agent_types.yaml)
+global_config:
+  memory:
+    engine_type: "window"
     window_size: 3
-    top_k_significant: 2
-    retrieval_tags: ["insurance", "elevation"]
 
-  skills:
-    - elevate
-    - purchase_insurance
-    - relocate
+operator:
+  agent_type: operator
+  psychological_framework: utility
+  prompt_template_file: prompts/operator.txt
+
+  memory:
+    window_size: 3
+
+  actions:
+    - id: set_release
+    - id: maintain_release
 ```
 
 ### Loading Configuration
@@ -363,8 +279,8 @@ household_owner:
 from broker.utils.agent_config import load_agent_config
 
 cfg = load_agent_config()
-cog = cfg.get_cognitive_config("household_owner")
-mem = cfg.get_memory_config("household_owner")
+fw = cfg.get_framework_for_agent_type("operator")
+mem = cfg.get_memory_config("operator")
 ```
 
 ---
@@ -775,6 +691,9 @@ local workspace and are not distributed in the public repository.
 
 ## Related Documents
 
+- [User Manual](docs/index.md) — learning paths, starters, and case references
+- [Repository Map](docs/REPO_MAP.md) — module inventory, examples table, and test layout
+- [Coupling Connectors](docs/COUPLING_CONNECTORS.md) — coupling contracts, feasibility checks, and period-end settlement
 - [Framework Invariants](broker/INVARIANTS.md) — architectural contracts
-- [MA Experiment Guide](examples/multi_agent/README.md)
 - [Mixed Populations](docs/guides/mixed_populations.md) — declaring rule-based, hybrid and LLM deciders per agent type, and how to read the resulting audit rows
+- [MA Experiment Guide](examples/multi_agent/README.md) — experimental multi-actor extension study (separate from the single-agent-type core cases)

@@ -1,8 +1,16 @@
-"""
-Generic Agent Validator
+"""Generic YAML-driven agent validator.
 
-Label-based validation - one validator for all agent types.
-Rules are configured per agent_type label, not per file.
+Purpose:
+    Validates proposed decisions against per-``agent_type`` YAML rules
+    (``response_format``, ``identity_rules``, ``thinking_rules``, and
+    ``expression:`` / world-state rules) plus registered DomainPack
+    affordability constraints.
+
+Contract:
+    A world-state rule does not fire when the environment did not publish
+    the variable it reads: missing evidence never blocks an action. The miss
+    is reported as a ``world_variable_missing`` warning and counted in run
+    integrity.
 """
 
 from dataclasses import dataclass, field
@@ -131,10 +139,8 @@ def _evaluate_world_condition(cond, name, scope, state, full_context):
 
 
 def _affordability_constraints_from_domain_pack():
-    """Per-decision affordability cost models from the first registered
-    DomainPack with non-empty ``affordability_constraints()`` — mirrors
-    the perception / reflection pack-scan. Empty dict when none (the
-    affordability check is then a no-op). Phase 6H Item 6."""
+    """Return per-decision affordability cost models from the active DomainPack,
+    or ``{}`` when no pack supplies them."""
     try:
         from broker.domains.registry import DomainPackRegistry
     except ImportError:
@@ -162,10 +168,8 @@ class AgentValidator:
         self.warnings: List[ValidationResult] = []
         self.auditor = GovernanceAuditor()
         self.enable_financial_constraints = enable_financial_constraints
-        # PR-6: resolved ONCE, and coerced to a real bool rather than stored raw
-        # — tests build this validator with stand-in config objects whose getters
-        # return truthy mocks, and a mock would silently switch the flag on and
-        # move every label comparison in the suite.
+        # Resolve boolean validator flags once and coerce strictly to bool so
+        # mock config doubles in unit tests do not silently flip behavior.
         _fa = getattr(self.config, "get_validators_framework_aware_labels", None)
         _fa_value = _fa() if callable(_fa) else False
         self.framework_aware_labels = _fa_value if isinstance(_fa_value, bool) else False
@@ -201,13 +205,7 @@ class AgentValidator:
             if alias_map:
                 decision = alias_map.get(decision.lower(), decision)
 
-            # Task 015 fix: Support both 'state' and 'agent_state' keys
-            # The broker passes context as 'agent_state', but legacy code may use 'state'
-            # The context structure from build_tiered_context is:
-            #   {"personal": {...}, "state": {...}, "local": {...}, ...}
-            # But governed_broker wraps it as:
-            #   {"agent_state": <context>, "agent_type": ...}
-            # So we need to unwrap it properly.
+            # Unwrap both direct 'state' dicts and broker-wrapped 'agent_state' contexts.
             state = context.get('state', {})
             if not state:
                 agent_state = context.get('agent_state', {})
@@ -292,7 +290,7 @@ class AgentValidator:
                         "rule": "format",
                         "field": "json_structure",
                         "constraint": f"required={required_fields}",
-                        # Phase 6O-A-2: format violations are hard schema breaches.
+                        # Format violations are hard schema breaches.
                         "expected_terminal": True,
                         "constraint_type": "hard",
                         # DELIBERATELY no "rule_id" (2026-06-10): this result

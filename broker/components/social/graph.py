@@ -128,11 +128,10 @@ class RandomGraph(SocialGraph):
     
     def __init__(self, agent_ids: List[str], p: float = 0.1, seed: Optional[int] = None):
         super().__init__(agent_ids)
-        if seed is not None:
-            random.seed(seed)
+        rng = random.Random(seed) if seed is not None else random
         for i, a in enumerate(agent_ids):
             for b in agent_ids[i+1:]:
-                if random.random() < p:
+                if rng.random() < p:
                     self.add_edge(a, b)
 
 

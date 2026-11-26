@@ -93,7 +93,9 @@ def main(argv=None):
         status, info = check_one(d)
         n = info.get("reflection_log_entries", "?")
         mem = info.get("memory_engine_type") or info.get("memory_engine_class") or "?"
-        print(f"  {status:11} | reflection={str(n):>5} | mem={mem} | {d}")
+        ctx_trunc = info.get("context_budget_truncated_rows")
+        extra = f" | ctx_truncated={ctx_trunc}" if ctx_trunc else ""
+        print(f"  {status:11} | reflection={str(n):>5} | mem={mem}{extra} | {d}")
         carryover = info.get("governance_carryover")
         if isinstance(carryover, dict) and not carryover.get("ok", True):
             print(f"              governance_carryover (Invariant 7): {_carryover_reason(carryover)}")
