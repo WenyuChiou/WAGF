@@ -36,6 +36,7 @@ out-of-range magnitudes are corrected at execution time via bounded Gaussian
 resampling rather than rejected. The audit trail records advisory flags
 alongside binding rejections so reviewers can distinguish the two.
 """
+import dataclasses
 from typing import Callable, Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
@@ -1160,7 +1161,15 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 # rule-violating choice as the observable, so the agent's OWN final
                 # proposal executes and nothing "fell back".
                 # approved_skill already carries that proposal and its execution
-                # mapping (_build_approved_skill), so it is executed as-is.
+                # mapping (_build_approved_skill), but its numbers were cleared
+                # there as for a default; the proposal runs with its own, and
+                # the result reports them. Still REJECTED. (A hard or
+                # deterministic blocker, e.g. a feasibility bound, never gets
+                # here: _keeps_rejected_proposal declines it.)
+                approved_skill = dataclasses.replace(
+                    approved_skill,
+                    parameters=parameters_from_proposal(skill_proposal),
+                )
                 execution_result = self.simulation_engine.execute_skill(approved_skill)
                 executed_skill = approved_skill.skill_name
                 executed_via_fallback = False
@@ -1197,6 +1206,12 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         executed_skill = kept.skill_name
                         executed_via_fallback = False
                         execution_path = "no_worse_than_default"
+                        # The result and the trace describe what ran: `kept`
+                        # is still REJECTED but keeps the proposal's numbers,
+                        # which the rejected object above had cleared (the
+                        # runner reads approved_skill.parameters on a row
+                        # that did not fall back).
+                        approved_skill = kept
                     else:
                         if compared:
                             projection_kept_proposal = False
@@ -1500,6 +1515,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 # "rejection discards setpoints" is self-contained, not reliant on the
                 # caller's non-REJECTED execution guard. Byte-safe: when magnitude_pct
                 # is None, _params was already {} pre-6W for frozen domains.
+                # (Both branches here clear the numbers for a default. The two
+                # paths in process_step that run the rejected proposal itself,
+                # keep_proposal and no_worse_than_default, put the proposal's
+                # own numbers back before it executes.)
                 _params = {}
 
             fallout_skill = (

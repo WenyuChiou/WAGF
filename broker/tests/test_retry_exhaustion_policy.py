@@ -103,10 +103,12 @@ class _Sim:
 
     def __init__(self):
         self.executed = []
+        self.params = []
 
     def execute_skill(self, approved_skill):
         from broker.interfaces.skill_types import ExecutionResult
         self.executed.append(approved_skill.skill_name)
+        self.params.append(dict(approved_skill.parameters or {}))
         return ExecutionResult(success=True, state_changes={})
 
 
@@ -119,7 +121,7 @@ class _Writer:
 
 
 def _engine(policy, *, proposal_name="increase_large", parse_layer="mock",
-            register=VALID):
+            register=VALID, magnitude=None):
     registry = SkillRegistry()
     for sid in register:
         registry.register(SkillDefinition(
@@ -136,6 +138,7 @@ def _engine(policy, *, proposal_name="increase_large", parse_layer="mock",
         adapter.parse_output = lambda *_a, **_k: SkillProposal(
             skill_name=proposal_name, agent_id="A1",
             reasoning={"WSA_LABEL": "H"}, parse_layer=parse_layer,
+            magnitude_pct=magnitude,
         )
 
     # Always blocks, so every decision exhausts its retries.
@@ -164,8 +167,8 @@ def _engine(policy, *, proposal_name="increase_large", parse_layer="mock",
 
 
 def _run(eng):
-    eng.process_step(agent_id="A1", step_id=1, run_id="r", seed=42,
-                     llm_invoke=lambda p: "raw", agent_type="farmer")
+    return eng.process_step(agent_id="A1", step_id=1, run_id="r", seed=42,
+                            llm_invoke=lambda p: "raw", agent_type="farmer")
 
 
 def test_default_policy_executes_registry_default():
@@ -187,6 +190,27 @@ def test_keep_proposal_executes_the_agents_final_choice():
     # The decision is still recorded as rejected — only what EXECUTES changes, so
     # the terminal taxonomy and every status-derived metric are unaffected.
     assert t["approved_skill"]["status"] == "REJECTED"
+
+
+def test_keep_proposal_runs_the_proposal_with_its_own_number():
+    """The kept proposal runs with the number the agent gave it. Before, the
+    rejected object from _build_approved_skill (numbers cleared, as for a
+    default) was executed, so the world and the runner got no magnitude."""
+    eng, sim, _writer = _engine("keep_proposal", magnitude=12.0)
+    result = _run(eng)
+    assert sim.executed == ["increase_large"]
+    assert sim.params[0].get("magnitude_pct") == 12.0
+    assert result.approved_skill.parameters.get("magnitude_pct") == 12.0
+    assert result.approved_skill.approval_status == "REJECTED"
+    assert result.executed_via_fallback is False
+
+
+def test_default_policy_still_runs_the_default_without_the_proposals_number():
+    eng, sim, _writer = _engine("default", magnitude=12.0)
+    result = _run(eng)
+    assert sim.executed == [DEFAULT_SKILL]
+    assert sim.params == [{}], "a default never carries the rejected proposal's number"
+    assert result.executed_via_fallback is True
 
 
 @pytest.mark.parametrize("policy,expected_skill,action", [

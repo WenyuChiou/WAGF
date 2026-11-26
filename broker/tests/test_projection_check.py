@@ -827,6 +827,12 @@ def test_blocked_proposal_that_is_no_worse_than_the_default_runs_instead(monkeyp
     assert y3["projection_kept_proposal"] == "True"
     for y in ("1", "2"):
         assert rows[y]["status"] == "APPROVED" and rows[y]["projection_kept_proposal"] == ""
+    # Codex P2 on #136: the runner reads the result's approved_skill, which must
+    # carry the number that ran (0.7), not the cleared one of the rejected row.
+    (operator,) = runner.agents.values()
+    assert operator._last_action_context["skill_name"] == "set_release"
+    assert operator._last_action_context["magnitude_pct"] == pytest.approx(0.7)
+    assert operator._last_action_context["magnitude_fallback"] is False
 
 
 def test_blocked_proposal_worse_than_the_default_keeps_the_default(monkeypatch, tmp_path):

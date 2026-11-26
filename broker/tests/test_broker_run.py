@@ -729,6 +729,50 @@ def test_number_is_dropped_for_a_skill_the_field_does_not_list(case):
                for w in record["skill_proposal"]["parsing_warnings"])
 
 
+def test_keyword_parsed_number_keeps_the_scope_of_the_field_it_matched(case):
+    """Codex P2 on #136: a number the keyword fallback found was scoped by the
+    first declared numeric field (magnitude, wait only), not by the field it
+    matched (inspect_share, inspect), so inspect lost its number."""
+    config, data = case
+    (config.parents[1] / "recording.py").write_text(dedent('''
+        from broker.interfaces.skill_types import ExecutionResult
+        from broker.utils.llm_utils import LLMStats
+
+        SEEN = []
+
+        class World:
+            year = 0
+
+            def advance_step(self):
+                self.year += 1
+                return {"current_year": self.year}
+
+            def execute_skill(self, approved_skill):
+                SEEN.append((approved_skill.skill_name, dict(approved_skill.parameters)))
+                return ExecutionResult(success=True, state_changes={})
+
+        def build(ctx):
+            return World()
+
+        def mock(ctx):
+            def respond(prompt):
+                return "Decision: 2\\ninspect_share: 0.4", LLMStats(success=True)
+            return respond
+    '''), encoding="utf-8")
+    fields = data["agent"]["response_format"]["fields"]
+    fields.insert(0, {"key": "inspect_share", "type": "numeric", "min": 0, "max": 1,
+                      "skills": ["inspect"]})
+    fields.insert(0, {"key": "magnitude", "type": "numeric", "min": 0, "max": 1,
+                      "skills": ["wait"]})
+    data["global_config"]["run"] = {"world": "recording:build", "mock": "recording:mock", "years": 1,
+                                    "agent_count": 1}
+    _write_yaml(config, data)
+    assert main([str(config), "--model", "mock"]) == 0
+    seen = _seen(config)
+    assert [name for name, _ in seen] == ["inspect"]
+    assert seen[0][1]["magnitude_pct"] == 0.4
+
+
 def test_without_field_skills_every_skill_gets_the_number(case):
     config = _magnitude_case(case, None)
     assert main([str(config), "--model", "mock"]) == 0
