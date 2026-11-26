@@ -191,20 +191,25 @@ def llm_yaml_default(name: str) -> Callable[[], Any]:
 # ---------------------------------------------------------------------------
 
 RB_HC = ("paper runners that build HumanCentricMemoryEngine (single_agent, governed_flood, "
-         "irrigation_abm, multi_agent/flood); broker.run does not")
-RB_REG_HC = "registry factory \"humancentric\" (create_memory_engine); broker.run does not call it"
+         "irrigation_abm, multi_agent/flood), and broker.run with engine_type humancentric "
+         "for the keys it does not set itself")
+RB_REG_HC = ("registry factory \"humancentric\" (create_memory_engine), which broker.run calls for "
+             "engine_type humancentric; broker.run passes its own window_size and top_k_significant")
 RB_UNIVERSAL = ("UniversalCognitiveEngine through create_memory_engine (single_agent and "
                 "multi_agent/flood, selector `universal`); broker.run does not")
 RB_ACC_MEM = "accessor get_global_memory_config; only multi_agent/flood reads it"
-RB_RUN_WINDOW = ("broker.run, which builds WindowMemoryEngine; the engine keeps it but retrieval "
-                 "returns the last retrieval_top_k items")
+RB_RUN_WINDOW = ("broker.run with the window engine when the YAML has no window_size: the engine "
+                 "then keeps its last 100 items, so this value changes nothing (a written "
+                 "window_size caps what it keeps)")
+RB_RUN_HC = "broker.run with engine_type humancentric"
+RB_RUN_REFL = "broker.run, when reflection.enabled is true"
 RB_WINDOW_DIRECT = "direct WindowMemoryEngine(...) calls (quickstart, cat_model, reservoir examples)"
 RB_HIER = "registry factory \"hierarchical\" (deprecated engine)"
 RB_PROVIDER = "MemoryProvider, in every runner that builds prompts with TieredContextBuilder, broker.run included"
 RB_REFLECTION = ("paper runners through get_reflection_config (single_agent, governed_flood, "
-                 "irrigation_abm); broker.run does not run reflection")
-RB_TRIGGER = "ReflectionEngine.should_reflect, called by the paper runners; broker.run does not run reflection"
-RB_REFL_ENGINE = "ReflectionEngine built directly by the paper runners; broker.run does not"
+                 "irrigation_abm); broker.run reads the block itself")
+RB_TRIGGER = "ReflectionTriggerConfig, filled by load_trigger_config, which no runner calls"
+RB_REFL_ENGINE = "ReflectionEngine built by the paper runners; broker.run passes its own values"
 RB_ACCESSOR_ONLY = "accessor only; no runner reads it"
 RB_GOVERNANCE = "SkillBrokerEngine, so every runner, broker.run included"
 RB_SAFEGUARD = "SkillBrokerEngine and ExperimentRunner, so every runner, broker.run included (no-op while enabled is false)"
@@ -242,6 +247,16 @@ def _acc_mem(key: str) -> Consumer:
 
 def _reg_hc(param: str) -> Consumer:
     return Consumer("registry humancentric factory", _REG_SRC, registry_factory("humancentric", param), RB_REG_HC)
+
+
+def _run_hc(key: str) -> Consumer:
+    return Consumer("broker.run humancentric defaults", "broker/run/_memory.py (HUMANCENTRIC_DEFAULTS)",
+                    dict_entry("broker.run._memory", "HUMANCENTRIC_DEFAULTS", key), RB_RUN_HC)
+
+
+def _run_refl(key: str) -> Consumer:
+    return Consumer("broker.run reflection defaults", "broker/run/_memory.py (REFLECTION_DEFAULTS)",
+                    dict_entry("broker.run._memory", "REFLECTION_DEFAULTS", key), RB_RUN_REFL)
 
 
 def _trig(name: str, read_by: str = RB_TRIGGER) -> Consumer:
@@ -343,7 +358,7 @@ def _build_rows() -> Tuple[Row, ...]:
                 _refl_acc("importance_boost"),
                 Consumer("ReflectionEngine", _ENGINE_SRC, sig(_REFL, "ReflectionEngine", "insight_importance_boost"),
                          RB_REFL_ENGINE),
-                _trig("importance_boost"),
+                _trig("importance_boost"), _run_refl("importance_boost"),
             ), refl_also))
     add(Row(f"{refl}.base_importance", "fraction",
             "Importance a reflection gets when no domain rule supplies one. Accessor only: no "
@@ -416,8 +431,9 @@ def _build_rows() -> Tuple[Row, ...]:
                 Consumer("WindowMemoryEngine", "broker/components/memory/engines/window.py (WindowMemoryEngine.__init__)",
                          sig("broker.components.memory.engines.window", "WindowMemoryEngine", "window_size"),
                          RB_WINDOW_DIRECT),
-                Consumer("broker.run", "broker/run/_entry.py (DEFAULT_WINDOW_SIZE)",
-                         const("broker.run._entry", "DEFAULT_WINDOW_SIZE"), RB_RUN_WINDOW),
+                Consumer("broker.run", "broker/run/_memory.py (DEFAULT_WINDOW_SIZE)",
+                         const("broker.run._memory", "DEFAULT_WINDOW_SIZE"), RB_RUN_WINDOW),
+                _run_hc("window_size"),
             ), mem_also))
     add(Row(f"{mem}.top_k_significant", "count",
             "How many long-term memories the engine adds to the recent window when it retrieves.",
@@ -426,6 +442,7 @@ def _build_rows() -> Tuple[Row, ...]:
                 _acc_mem("top_k_significant"),
                 Consumer("registry hierarchical factory", "broker/components/memory/registry.py (_hierarchical_factory)",
                          registry_factory("hierarchical", "top_k_significant"), RB_HIER),
+                _run_hc("top_k_significant"),
             ), mem_also))
     add(Row(f"{mem}.max_working", "count",
             "Largest number of items in working memory; 0 means no limit.", "integer >= 0", "",
@@ -438,7 +455,9 @@ def _build_rows() -> Tuple[Row, ...]:
                 _hc("seed"), _uni("seed")), mem_also))
     add(Row("<agent_type>.memory.retrieval_top_k", "count",
             "How many memories go into the prompt. Read from the agent's own memory block, not from "
-            "global_config. On broker.run this is what sets the window the model sees.",
+            "global_config. The window engine returns at most this many (fewer when window_size is "
+            "smaller); the humancentric engine in legacy ranking ignores it and returns window_size "
+            "recent plus top_k_significant long-term items.",
             "integer >= 1", "", (
                 Consumer("MemoryProvider", "broker/components/context/providers.py (DEFAULT_RETRIEVAL_TOP_K)",
                          const("broker.components.context.providers", "DEFAULT_RETRIEVAL_TOP_K"), RB_PROVIDER),
@@ -448,9 +467,11 @@ def _build_rows() -> Tuple[Row, ...]:
                 _refl_acc("interval"),
                 Consumer("ReflectionEngine", _ENGINE_SRC, sig(_REFL, "ReflectionEngine", "reflection_interval"),
                          RB_REFL_ENGINE),
+                _run_refl("interval"),
             ), refl_also))
     add(Row(f"{refl}.batch_size", "count",
-            "How many agents reflect in one model call.", "integer >= 1", "", (
+            "How many agents reflect in one model call. broker.run asks one agent per call and "
+            "refuses any other value.", "integer >= 1", "", (
                 _refl_acc("batch_size"), _trig("batch_size", RB_TRIGGER),
             ), refl_also))
     add(Row(f"{refl}.triggers.periodic_interval", "count",

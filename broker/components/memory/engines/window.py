@@ -14,17 +14,27 @@ class WindowMemoryEngine(MemoryEngine):
     emotion / importance / source metadata. The exemption is closed to new
     engines: anything new must return ``List[MemoryRecord]``.
     """
-    def __init__(self, window_size: int = 3):
+    def __init__(self, window_size: int = 3, enforce_window: bool = False):
+        # enforce_window (opt-in, default off): keep only the last
+        # ``window_size`` items, so a prompt holds at most
+        # min(window_size, top_k) of them. Off, the engine keeps the last 100
+        # and ``window_size`` changes nothing, as before
+        # (python -m broker.run turns it on when the YAML sets window_size).
+        if enforce_window and (isinstance(window_size, bool) or not isinstance(window_size, int)
+                               or window_size < 1):
+            raise ValueError(f"window_size must be an integer >= 1, got {window_size!r}")
         self.window_size = window_size
+        self.enforce_window = enforce_window
         self.storage: Dict[str, List[str]] = {}
+
+    def _keep(self) -> int:
+        return self.window_size if self.enforce_window else 100
 
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         if agent_id not in self.storage:
             self.storage[agent_id] = []
         self.storage[agent_id].append(content)
-        # We don't truncate here to allow retrieve() to handle different window sizes if needed,
-        # but for simplicity we can truncate to a maximum reasonable buffer.
-        self.storage[agent_id] = self.storage[agent_id][-100:] 
+        self.storage[agent_id] = self.storage[agent_id][-self._keep():]
 
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3, **kwargs) -> List[str]:
         if agent.id not in self.storage:
@@ -36,6 +46,8 @@ class WindowMemoryEngine(MemoryEngine):
                 self.storage[agent.id] = []
                 
         mems = self.storage.get(agent.id, [])
+        if self.enforce_window:
+            mems = mems[-self.window_size:]  # an initial profile memory may be longer
         return mems[-top_k:]
 
     def clear(self, agent_id: str):

@@ -115,6 +115,8 @@ def test_mock_run_renders_menu_and_records_provenance(case, tmp_path):
         "skill_registry": str(config.with_name("skill_registry.yaml").resolve()),
         "output_dir": str(output.resolve()),
         "argv": argv,
+        "memory": {"engine": "window", "window_size": None, "retrieval_top_k": {"agent": 3}},
+        "reflection": {"enabled": False},
     }
 
 
