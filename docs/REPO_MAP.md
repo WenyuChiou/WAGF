@@ -114,7 +114,7 @@ One line per subpackage, main class or CLI read directly from the code:
 | `broker/interfaces/` | `broker/interfaces/skill_types.py` (`SkillProposal`, `ApprovedSkill`, `ExecutionResult`, ...) — the framework's core Protocols and dataclasses |
 | `broker/agents/` | `BaseAgent` + `AgentConfig` (`broker/agents/base.py`); `broker/agents/deciders.py` |
 | `broker/governance/` | `broker/governance/rule_types.py` (`RuleCategory`, `RuleLevel`, `ConditionType`) |
-| `broker/simulation/` | `BaseSimulationEngine` (`broker/simulation/base_simulation_engine.py`) |
+| `broker/simulation/` | `StateManager` (`broker/simulation/state_manager.py`), `TieredEnvironment` (`broker/simulation/environment.py`) |
 | `broker/modules/survey/` | `AgentInitializer` + `AgentProfile` (`broker/modules/survey/agent_initializer.py`) |
 
 **Known wart** (do not fix in this PR): `broker/__init__.py`'s `__all__`
