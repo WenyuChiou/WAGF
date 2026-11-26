@@ -304,3 +304,174 @@ def test_scaffold_writes_the_executed_style(physical_only):
     data = yaml.safe_load(gen_agent_types_yaml(
         "demo", ["act", "hold"], "generic", physical_only=physical_only))
     assert data["agent"]["memory"]["rejection_line_style"] == "executed"
+
+
+# -- run_integrity.json governance_carryover block (S4, design 5.2) -------------
+
+def _integrity(output):
+    return json.loads((output / "run_integrity.json").read_text(encoding="utf-8"))
+
+
+def test_an_executed_run_records_a_clean_carryover_block(case, tmp_path):
+    output = _run(case, tmp_path)
+    data = _integrity(output)
+    block = data["governance_carryover"]
+    assert block["checked_agent_types"] == ["agent"]
+    assert block["decision_rows"] == 2
+    assert block["rejected_or_unreadable_rows"] == 1
+    assert block["default_applied_rows"] == 1
+    assert block["default_year_line_shapes_not_seen_in_approved_years"] == 0
+    assert block["memory_writes_by_origin"].get("decision") == 2
+    assert block["governance_terms_checked"] > len(("was rejected",))
+    assert (block["governance_terms_in_memory"], block["governance_terms_in_reflection_input"],
+            block["governance_terms_in_reflection_output"]) == (0, 0, 0)
+    assert block["ok"] is True and data["integrity_ok"] is True
+
+
+def test_an_explicit_run_is_not_checked(case, tmp_path):
+    output = _run(case, tmp_path, style="explicit")
+    block = _integrity(output)["governance_carryover"]
+    assert block["checked_agent_types"] == []
+    assert block["ok"] is True
+
+
+def test_rule_wording_written_by_a_hook_fails_the_run_integrity_check(case, tmp_path, capsys):
+    from broker.tools.check_run_integrity import main as check_main
+
+    config, data = case
+    _write_yaml(config, data)
+    output = tmp_path / "output"
+    prepared = _entry.prepare([str(config), "--model", "mock", "--years", "2", "--agents", "1",
+                               "--output", str(output)])
+    runner = prepared.runner
+
+    def post_year(year, agents):
+        for agent in agents.values():
+            runner.memory_engine.add_memory(
+                agent.id, f"Year {year}: inspect is not allowed here",
+                {"origin": "world", "period": year})
+
+    runner.hooks["post_year"] = post_year
+    runner.run()
+    data = _integrity(output)
+    block = data["governance_carryover"]
+    assert block["governance_terms_in_memory"] == 2
+    assert block["examples"][0]["terms"] == ["inspect is not allowed"]
+    assert block["ok"] is False and data["integrity_ok"] is False
+    with pytest.raises(SystemExit) as stop:
+        check_main([str(output)])
+    assert stop.value.code == 1
+    out = capsys.readouterr().out
+    assert "governance_carryover (Invariant 7): rule wording in 2 memory writes" in out
+
+
+def test_a_rejected_year_line_in_a_form_approved_years_never_have_is_counted(tmp_path):
+    from broker.core.run_integrity import governance_carryover_block
+
+    lines = [
+        {"agent_id": "a1", "period": 1, "intervened": True, "default_ran": True,
+         "line": "Year 1: Action carried out: wait (fallback).", "action": "wait", "number": ""},
+        {"agent_id": "a1", "period": 2, "intervened": False, "default_ran": False,
+         "line": "Year 2: Action carried out: cut by 10%.", "action": "cut", "number": " by 10%"},
+        {"agent_id": "a1", "period": 3, "intervened": True, "default_ran": False,
+         "line": "Year 3: Action carried out: cut by 20%.", "action": "cut", "number": " by 20%"},
+    ]
+    kwargs = dict(agent_types={"a1": "farmer"}, writes_by_origin={"decision": 3},
+                  decision_lines=lines)
+    block = governance_carryover_block(tmp_path, styles={"farmer": "executed"}, **kwargs)
+    assert block["default_year_line_shapes_not_seen_in_approved_years"] == 1
+    assert block["ok"] is False
+    # Only executed agent types are checked.
+    other = governance_carryover_block(tmp_path, styles={"farmer": "explicit"}, **kwargs)
+    assert other["checked_agent_types"] == [] and other["ok"] is True
+    # Nothing to compare against: no count, no failure.
+    alone = governance_carryover_block(tmp_path, styles={"farmer": "executed"},
+                                       agent_types={"a1": "farmer"}, writes_by_origin={},
+                                       decision_lines=lines[:1])
+    assert alone["default_year_line_shapes_not_seen_in_approved_years"] is None
+    assert alone["ok"] is True
+
+
+def test_record_run_integrity_without_the_block_keeps_its_keys(tmp_path):
+    from broker.core.run_integrity import record_run_integrity
+
+    audit = record_run_integrity(tmp_path)
+    assert "governance_carryover" not in audit
+
+
+def test_a_block_that_cannot_be_built_fails_the_run(tmp_path):
+    from broker.core.run_integrity import record_run_integrity
+
+    audit = record_run_integrity(tmp_path, governance_carryover={"styles": None})
+    assert audit["governance_carryover"]["ok"] is False
+    assert audit["governance_carryover"]["error"]
+    assert audit["integrity_ok"] is False
+
+
+def _block_inputs(tmp_path, memory_rows, writes):
+    (tmp_path / "memory_log.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in memory_rows), encoding="utf-8")
+    return dict(styles={"farmer": "executed"}, agent_types={"a1": "farmer"},
+                writes_by_origin={"decision": writes}, decision_lines=[])
+
+
+def test_rule_wording_in_reflection_input_and_lessons_is_counted(tmp_path):
+    from dataclasses import fields
+
+    from broker.components.cognitive.reflection import ReflectionInsight
+    from broker.core.run_integrity import governance_carryover_block
+
+    kwargs = _block_inputs(tmp_path, [{"agent_id": "a1", "period": 1, "origin": "decision",
+                                       "content": "Year 1: Action carried out: Wait."}], 1)
+    # The shape ReflectionHook._log writes: asdict(insight) + reflection_input + agent_id.
+    assert {"summary", "year_created"} <= {f.name for f in fields(ReflectionInsight)}
+    entry = {"summary": "Reflection (year 2): my proposal to inspect was rejected.",
+             "year_created": 2, "reflection_input": ["Year 1: your proposal to inspect was rejected."],
+             "agent_id": "a1"}
+    (tmp_path / "reflection_log.jsonl").write_text(json.dumps(entry) + "\n", encoding="utf-8")
+    block = governance_carryover_block(tmp_path, **kwargs)
+    assert block["governance_terms_in_memory"] == 0
+    assert block["governance_terms_in_reflection_input"] == 1
+    assert block["governance_terms_in_reflection_output"] == 1
+    assert {e["period"] for e in block["examples"]} == {2}
+    assert block["ok"] is False
+
+
+@pytest.mark.parametrize("damage", ["short", "bad_line"])
+def test_a_short_or_damaged_memory_log_fails_the_block(tmp_path, damage):
+    from broker.core.run_integrity import governance_carryover_block
+
+    row = {"agent_id": "a1", "period": 1, "origin": "decision",
+           "content": "Year 1: Action carried out: Wait."}
+    kwargs = _block_inputs(tmp_path, [row], 2 if damage == "short" else 1)
+    if damage == "bad_line":
+        with open(tmp_path / "memory_log.jsonl", "a", encoding="utf-8") as handle:
+            handle.write('{"agent_id": "a1", "content": "Year 2: your pro\n')
+    block = governance_carryover_block(tmp_path, **kwargs)
+    assert block["ok"] is False
+    if damage == "short":
+        assert block["memory_log_short"] is True and block["memory_log_rows"] == 1
+    else:
+        assert block["memory_log_short"] is False
+        assert block["unreadable_files"] == ["memory_log.jsonl"]
+
+
+def test_multi_digit_years_and_prefix_actions_keep_line_shape_stable(tmp_path):
+    from broker.core.run_integrity import governance_carryover_block
+
+    lines = [
+        {"agent_id": "a1", "period": 9, "intervened": False, "default_ran": False,
+         "line": "Year 9: Action carried out: Act.", "action": "Act", "number": ""},
+        {"agent_id": "a1", "period": 10, "intervened": True, "default_ran": True,
+         "line": "Year 10: Action carried out: Hold.", "action": "Hold", "number": ""},
+    ]
+    block = governance_carryover_block(
+        tmp_path,
+        styles={"farmer": "executed"},
+        agent_types={"a1": "farmer"},
+        writes_by_origin={},
+        decision_lines=lines,
+    )
+    assert block["default_year_line_shapes_not_seen_in_approved_years"] == 0
+    assert block["ok"] is True
+

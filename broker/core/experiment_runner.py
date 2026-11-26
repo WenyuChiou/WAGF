@@ -884,6 +884,8 @@ class ExperimentRunner:
         # abort added in round 1 needs the SAME reset-at-the-top discipline
         # as the two above, for the same reason.
         self._generic_abort = None
+        # Invariant 7 decision lines: one run's lines only.
+        self._governance_decision_lines = []
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
@@ -1920,6 +1922,18 @@ class ExperimentRunner:
             refl_kwargs.update(getattr(self, "_configured_expectation", {}) or {})
             # R5 walk finding 10: a run whose agents all have no appraisal.
             refl_kwargs["no_appraisal"] = self._all_agents_without_appraisal()
+            if getattr(self, "tag_memory_origin", False) is True:
+                # Invariant 7 (python -m broker.run only; frozen runners keep
+                # their run_integrity.json key set).
+                _agents = getattr(self, "agents", None) or {}
+                refl_kwargs["governance_carryover"] = {
+                    "styles": dict(getattr(self, "rejection_line_styles", None) or {}),
+                    "agent_types": {
+                        str(a.id): getattr(a, "agent_type", "default") for a in _agents.values()},
+                    "writes_by_origin": dict(getattr(
+                        getattr(self.memory_engine, "origin_gate", None), "counts", None) or {}),
+                    "decision_lines": list(getattr(self, "_governance_decision_lines", None) or []),
+                }
             metadata["run_integrity"] = record_run_integrity(
                 self.config.output_dir,
                 memory_engine=self.memory_engine,
@@ -2156,6 +2170,21 @@ class ExperimentRunner:
             # python -m broker.run's write gate (Invariant 7) needs every
             # write tagged; the frozen runners leave this False.
             memory_metadata["origin"] = "decision"
+            # The run-integrity governance_carryover block (Invariant 7)
+            # compares the line of a year a rule changed with the lines of
+            # years it did not. Kept on the runner, never in memory.
+            decision_lines = getattr(self, "_governance_decision_lines", None)
+            if decision_lines is None:
+                decision_lines = self._governance_decision_lines = []
+            decision_lines.append({
+                "agent_id": agent.id,
+                "period": getattr(self, "_current_year", None),
+                "intervened": bool(rejected_row),
+                "default_ran": bool(was_fallback),
+                "line": memory_content,
+                "action": action_desc,
+                "number": _executed_number_text(params.get("magnitude_pct")),
+            })
 
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
             self.memory_engine.add_memory_for_agent(agent, memory_content, memory_metadata)

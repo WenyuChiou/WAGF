@@ -378,7 +378,18 @@ teach the agent that it was corrected.
   row approved after a retry (`--require any`: lacks both), or holds no traces, no world
   calls, or a memory log shorter than its memory writes. Tests: `broker/tests/test_check_governance_carryover.py`,
   including a hook that writes "Your proposal was rejected." (it must fail).
-- Not yet built: a `governance_carryover` block in `run_integrity.json`.
+- `run_integrity.json` block (2026-11-26): on `python -m broker.run`,
+  `record_run_integrity` adds `governance_carryover`
+  (`broker/core/run_integrity.py` (`governance_carryover_block`)). It counts, over
+  agent types whose style is `executed`, memory writes, reflection inputs and stored
+  lessons that hold a rule id or rule message from the run's audit CSV or the
+  framework's own rejection phrases, and the decision lines of a year a rule changed
+  whose form (action, number and digits masked) no approved year's line has. Any
+  count above 0 sets `ok` and `integrity_ok` to false, and
+  `python -m broker.tools.check_run_integrity` exits 1 and prints why. A world rule
+  shown in the prompt can trip the term counts, so the block is a flag to read; the
+  twin run is the proof. Frozen runners do not write the block. Tests:
+  `broker/tests/test_broker_run_no_trace.py`.
 - `examples/governed_flood/run_experiment.py` writes its own rejection line. In the
   multi-agent flood traces (156 trace files, 83,510 decisions, scanned 2026-11-26)
   the runner's rejection text never reaches memory or prompts, but a year where the
