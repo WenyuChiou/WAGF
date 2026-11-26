@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   world received. Exit 0 when they are identical, 1 with each difference by file, agent, period and field, 3
   when the first run had nothing to test (no default row and no row approved after a retry; `--require any`
   accepts either). Added to Gate 2 of the `wagf-verification-ladder` skill.
+- **Irrigation variants with executed memory lines: `config_variants/simple_executed` and
+  `simple_nolimit_executed`.** Copies of `simple` and `simple_nolimit` that change only
+  `rejection_line_style: executed` (now accepted by `run_experiment.py`). Every year with a decision reads
+  "Year Y: Action carried out: <action>{ (by N%)}." whether a rule stepped in or not, and the line's importance,
+  emotion and routine follow the action that ran. The frozen paper variants are unchanged; re-running the two
+  arms on the new variants waits on the owner's OK.
 - **Invariant 7 block in `run_integrity.json`.** `python -m broker.run` now writes `governance_carryover`: the
   memory style per agent type, memory writes by origin, the rows a rule changed, and, for agent types on the
   `executed` style, how many memory writes, reflection inputs and stored lessons hold a rule id or rule message from

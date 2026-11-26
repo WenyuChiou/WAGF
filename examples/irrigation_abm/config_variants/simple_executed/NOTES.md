@@ -1,0 +1,24 @@
+# Simple information variant, executed memory lines
+
+A copy of `config_variants/simple` (added 2026-11-26) with one change:
+`irrigation_farmer.memory.rejection_line_style: executed` (Invariant 7 in
+`broker/INVARIANTS.md`: rules correct the current decision and leave no trace).
+
+- Every year with a decision gets the same memory line form, whether a rule
+  stepped in or not: `Year Y: Action carried out: <action>{ (by N%)}.` followed
+  by the year's outcome. The line names no rule and no blocked proposal.
+- Importance, emotion and routine of that line, and the reflection's salience
+  inputs, follow the action that ran only (`_proposed_and_fallback` in
+  `run_experiment.py`).
+- An unreadable answer that ran the default reads "Action carried out" like any
+  other year. Only an aborted year, where nothing ran, still reads "no valid
+  decision was read" (unchanged from `simple`).
+
+`config_variants/simple`, `simple_nolimit` and `config/agent_types.yaml` are
+unchanged; their paper runs stay as they are. Re-running both arms on these
+variants waits on the owner's OK.
+
+The without-rules arm's copy is `config_variants/simple_nolimit_executed`.
+
+Run it with `--config-dir examples/irrigation_abm/config_variants/simple_executed`.
+Registry, policies, prompts and README are copied unchanged from `simple`.

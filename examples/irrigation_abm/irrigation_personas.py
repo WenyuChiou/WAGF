@@ -1389,6 +1389,10 @@ def build_action_outcome_feedback(
     ``name_rule`` is True (strict, feasibility-only), or "under a governance
     rule" when False (placebo and silent, whose retries name no rule; L3
     M13). ``explicit`` is the pre-redesign ablation wording.
+    ``executed`` (Invariant 7, ``broker/INVARIANTS.md``): every year with a
+    decision reads "Year {Y}: Action carried out: {skill}{ (by N%)}", approved
+    or overruled alike, naming no rule, no proposal and no "You chose"; the
+    number is the one that ran (a default runs with none).
     ``subbasin``: an Upper Basin agent with a real sub-basin (False only for
     a synthetic mock agent).
 
@@ -1444,6 +1448,17 @@ def build_action_outcome_feedback(
         # the change in the request.
         change = (_keep_change_clause(request, previous_request, previous_diversion)
                   if action_ctx["skill_name"] == "maintain_demand" else "")
+        if rejection_line_style == "executed":
+            # Invariant 7: the same form whether or not a rule stepped in.
+            # The runner leaves was_fallback off the context under this
+            # style; a default runs with no number of its own.
+            lead = f"Year {year}: Action carried out: {skill}"
+            # The runner never sets was_fallback under this style; the guard
+            # is for a hand-built context.
+            mag = None if action_ctx.get("was_fallback") else action_ctx.get("magnitude_pct")
+            if mag is not None:
+                lead += f" (by {mag:.0f}%)"
+            return lead + change + ". " + outcome
         if action_ctx.get("was_fallback") and rejection_line_style == "neutral":
             # Neutral style (memory.rejection_line_style): names the rule and
             # the action that was applied, not the rejected proposal.

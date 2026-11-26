@@ -138,7 +138,9 @@ _REQ_REC = re.compile(r"You requested ([\d,]+) acre-ft and received ([\d,]+) acr
 _SHORT = re.compile(r"Shortfall: [\d,]+ acre-ft \(([\d.]+)% unmet\)")
 _PRECIP = re.compile(r"precipitation in (?:your sub-basin|the Upper Basin) was (above|below) the previous winter's")
 _MEAD = re.compile(r"Lake Mead was (higher|lower) than a year earlier")
-_CHOSE = re.compile(r"^Year \d{4}: You chose to (increase|maintain|decrease) demand")
+# "Action carried out:" is the executed style (Invariant 7); "You chose to" the others.
+_CHOSE = re.compile(r"^Year \d{4}: (?:You chose to|Action carried out:) "
+                    r"(increase|maintain|decrease) demand")
 
 
 def line_year(text: str) -> Optional[int]:

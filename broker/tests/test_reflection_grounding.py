@@ -89,7 +89,9 @@ def test_only_irrigation_and_flood_opt_in():
     assert opted == {
         "examples/irrigation_abm/config/agent_types.yaml",
         "examples/irrigation_abm/config_variants/simple/agent_types.yaml",
+        "examples/irrigation_abm/config_variants/simple_executed/agent_types.yaml",
         "examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml",
+        "examples/irrigation_abm/config_variants/simple_nolimit_executed/agent_types.yaml",
         "examples/single_agent/agent_types.yaml",
         "examples/single_agent/config_variants/nonudge/agent_types.yaml",
     }
