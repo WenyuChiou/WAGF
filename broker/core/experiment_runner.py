@@ -154,6 +154,17 @@ class ExperimentConfig:
 # match on both markers.
 DECISION_MEMORY_MARKER = "Decided to:"
 FALLBACK_MEMORY_MARKER = "default action applied:"
+# Invariant 7 (memory.rejection_line_style: executed): the one line form for
+# every row, whether governance stepped in or not.
+EXECUTED_MEMORY_MARKER = "Action carried out:"
+REJECTION_LINE_STYLES = ("explicit", "neutral", "executed")
+
+
+def _executed_number_text(value) -> str:
+    """`` (number 0.3)`` for the number that ran, ``""`` for none."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return ""
+    return f" (number {float(value):g})"
 
 
 class ExperimentRunner:
@@ -1995,6 +2006,12 @@ class ExperimentRunner:
         proposal on REJECTED; None on UNCERTAIN, where no usable proposal
         existed), so domain feedback builders can say the default action was
         applied after the proposal was rejected instead of "you chose".
+
+        Under ``memory.rejection_line_style: executed`` (Invariant 7, opt-in)
+        a rejected row gets neither key: its context has the same keys as an
+        approved row with the same executed skill, and the memory line has
+        one form on every row ("Year N: Action carried out: X."). The
+        governance facts stay on ``result`` for the audit writer.
         """
         rejected_row = result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN)
         if rejected_row:
@@ -2027,19 +2044,22 @@ class ExperimentRunner:
             action_ctx["magnitude_fallback"] = params.get("magnitude_fallback", False)
         # Wording of the memory line on a rejected row, from the agent type's
         # memory config: "explicit" (default, the shipped text naming the
-        # rejected proposal) or "neutral" (names the rule(s) and the executed
-        # action, not the proposal).
+        # rejected proposal), "neutral" (names the rule(s) and the executed
+        # action, not the proposal) or "executed" (Invariant 7: one line form
+        # for every row, naming only the action that ran, and no governance
+        # keys on the action context).
         _mem_cfg = getattr(agent, "memory_config", None)
         line_style = (
             _mem_cfg.get("rejection_line_style", "explicit")
             if isinstance(_mem_cfg, dict) else "explicit"
         )
-        if line_style not in ("explicit", "neutral"):
+        if line_style not in REJECTION_LINE_STYLES:
             raise ValueError(
-                f"memory.rejection_line_style {line_style!r} is not 'explicit' or 'neutral'"
+                f"memory.rejection_line_style {line_style!r} is not one of "
+                f"{', '.join(repr(s) for s in REJECTION_LINE_STYLES)}"
             )
         blocking_rules = list(getattr(result, "blocking_rule_ids", None) or [])
-        if rejected_row:
+        if rejected_row and line_style != "executed":
             # Keys added only on rejected rows so approved-row contexts keep
             # exactly the keys they always had.
             action_ctx["was_fallback"] = was_fallback
@@ -2075,7 +2095,16 @@ class ExperimentRunner:
             return
         action_desc = executed_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
-        if was_fallback and line_style == "neutral":
+        if line_style == "executed":
+            # Invariant 7: the same form on an approved row, an approved-after-
+            # retry row, a default after a rejection and a default after an
+            # unreadable answer. The number is the one that ran (a default
+            # runs with none), never the blocked proposal's.
+            memory_content = (
+                f"{timestamp_prefix}{EXECUTED_MEMORY_MARKER} {action_desc}"
+                f"{_executed_number_text(params.get('magnitude_pct'))}."
+            )
+        elif was_fallback and line_style == "neutral":
             if len(blocking_rules) == 1:
                 rule_part = f"under rule {blocking_rules[0]}, "
             elif blocking_rules:

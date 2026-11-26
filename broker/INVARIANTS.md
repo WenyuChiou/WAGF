@@ -289,6 +289,87 @@ mock-LLM CSV output is unchanged.
 
 ---
 
+## Invariant 7 — Governance corrects the current decision and leaves no trace
+
+### Contract
+
+Given the same executed action and the same world outcome, everything an agent
+later remembers, reflects on or is shown MUST be the same whether or not
+governance stepped in. Rules correct the decision being made now; they do not
+teach the agent that it was corrected.
+
+### Rules
+
+1. Governance MAY touch one thing the agent reads: the retry prompt inside the
+   decision being made now (`broker/core/_retry_loop.py`; the retry prompt is a
+   local value, built fresh from the base prompt plus the validator reports).
+   Block reasons, rule names and the list of allowed actions go there.
+2. Governance MAY decide which action executes: the approved answer after a retry,
+   or the default when retries run out.
+3. Governance MUST NOT change anything else the agent meets later:
+   memory records (text and every metadata value: importance, emotion, routine
+   mark, type); reflection input, a reflection's importance and what triggers a
+   reflection; retrieval order and which records are recalled; the first-attempt
+   prompt of any later period; what other agents see of this agent (gossip,
+   visible actions, social feeds); what a coupled external model receives beyond
+   the executed action itself.
+4. The executed action and its world outcome DO carry forward. That is the
+   correction working, not a trace.
+5. Governance text and governance-derived values are: the fact that a proposal was
+   rejected, retried or replaced by a default; the rejected proposal (skill and
+   parameters); rule ids, rule messages and rule labels attached to an outcome;
+   retry-prompt content; any value computed from these (for example a fallback
+   flag, or importance or a routine mark that reads it). A default applied because
+   no answer could be read is an intervention too: the framework chose the action,
+   not the agent.
+6. A physical or institutional rule that is part of the world, and is shown the
+   same way whether or not governance is on, is world text, not governance text.
+7. Everything about an intervention still lives in the audit CSV and the raw
+   traces, for the researcher. The agent never reads them.
+
+### Detection / enforcement
+
+- `memory.rejection_line_style: executed` (agent type's memory block) is the
+  runner's no-trace style. `ExperimentRunner._apply_state_changes` then writes one
+  line form for every row — approved, approved after a retry, default after a
+  rejection, default after an unreadable answer: `Year N: Action carried out: X.`,
+  plus ` (number V)` when the action that ran carried a number. On a rejected row
+  it puts none of `was_fallback`, `proposed_skill`, `blocking_rules` on
+  `agent._last_action_context`, so the context has the same keys as an approved
+  row with the same executed skill. Memory metadata comes from the executed skill
+  only (`skill_emotion_metadata`). The simulation's own
+  `execution_result.action_context` is still merged into the context unfiltered:
+  it is world output, so a simulation must not put governance facts there.
+- `broker/tests/test_framework_invariants.py::TestGovernanceLeavesNoTrace` — an
+  approved row and a default row (after a rejection, and after an unreadable
+  answer) with the same executed skill give the same memory line, metadata and
+  context keys under `executed`; the number in the line is the one that ran; the
+  `explicit` and `neutral` lines and keys are pinned unchanged.
+
+### Known current state (added 2026-11-26)
+
+- `ExperimentRunner`'s own default stays `explicit`, so the frozen flood and
+  irrigation paper runners are byte-identical. Flood keeps its runner line out of
+  memory with `DecisionFilteredMemoryEngine` (`examples/single_agent/run_flood.py`);
+  the 2026-11-25 trace audit found no governance text in later flood memory,
+  reflection or reasoning.
+- The frozen irrigation paper configs (`config_variants/simple`, `simple_nolimit`,
+  `config/agent_types.yaml`) use `neutral` with `runner_decision_line: false`, and
+  the case writes its own line that names the rule on a default year; a default
+  year is also never marked routine and raises a lesson's importance. Those runs do
+  not meet this invariant. They stay frozen; a new opt-in config variant is the
+  route for a re-run.
+- Not yet built: `executed` as the `python -m broker.run` and scaffold default, an
+  `origin` tag with a write gate and a memory log, a twin-run check (the case run
+  once with rules blocking and once proposing the executed actions directly,
+  compared byte for byte), and a `governance_carryover` block in
+  `run_integrity.json`.
+- `examples/governed_flood/run_experiment.py` writes its own rejection line; the
+  multi-agent flood runner wraps its engine in `PolicyFilteredMemoryEngine`, which
+  by code reading lets the runner's rejection line through. Neither is changed yet.
+
+---
+
 ## Accepted risks — written down, deliberately not built (2026-06 audit)
 
 The 2026-06 audit/validator/hook review triaged every finding into fix / document /
@@ -300,7 +381,7 @@ requires new evidence, not re-discovery.
 | # | Accepted risk | Why not built | Revisit trigger |
 |---|---|---|---|
 | AR-1 | A REJECTED proposal's fallback skill executes **unvalidated** (the default skill bypasses the validator stack on the final attempt). | All shipped domain defaults are no-ops (`do_nothing` / `absorb_loss` / `no_action` / `maintain`); re-validating the fallback can deadlock the retry loop when the default itself trips a rule. | Any domain configures a *substantive* (state- or world-mutating) `default_skill`. **TRIGGERED 2026-07-29** — see AR-1a. |
-| AR-1a | `global_config.governance.on_retry_exhausted: keep_proposal` executes the agent's **final failed proposal** unvalidated — an action that just failed validation three times, which is substantive by construction. This is the AR-1 trigger, entered deliberately. | The flood study's observable IS the persistent rule-violating choice; overwriting it with a default destroys the datum it exists to measure. Re-validating is meaningless here (the action is known-invalid), and blocking it defeats the purpose. | Default-OFF; opting in is a domain-level assertion that the rules able to block are behavioural-theory rules (violation incoherent but possible), not world-affordance rules (violation impossible). A domain that mixes both must keep `default` or guarantee an independent execution-layer guard. Re-open if a domain enables it with a hard-affordance rule in its blocking set. |
+| AR-1a | `global_config.governance.on_retry_exhausted: keep_proposal` executes the agent's **final failed proposal** unvalidated — an action that just failed validation three times, which is substantive by construction. This is the AR-1 trigger, entered deliberately. | The flood study's observable IS the persistent rule-violating choice; overwriting it with a default destroys the datum it exists to measure. Re-validating is meaningless here (the action is known-invalid), and blocking it defeats the purpose. Since 2026-11-25 (`6fc383b4`) a kept proposal, under `keep_proposal` or the no-worse-than-default path, runs with its own numbers (for example its `magnitude_pct`), where a default runs with none, and the result reports those numbers. | Default-OFF; opting in is a domain-level assertion that the rules able to block are behavioural-theory rules (violation incoherent but possible), not world-affordance rules (violation impossible). A domain that mixes both must keep `default` or guarantee an independent execution-layer guard. Re-open if a domain enables it with a hard-affordance rule in its blocking set. |
 | AR-2 | Coupled-domain REJECTED divergence: a fallback skill that mutates the **world** via `commit_world_delta` would commit without governance. Latent — no shipped coupled domain has a world-mutating default. | Same as AR-1; the guard would be dead code today. | First coupled domain whose `default_skill` reaches `ControlSink.apply` / `commit_world_delta`. **Partly closed 2026-07-29**: `on_retry_exhausted: keep_proposal` is now *refused at config-read time* when `global_config.coupling.enable` is true (`agent_config.get_governance_on_retry_exhausted`), because that combination would commit a rule-violating value to a physical model with no governance — the one thing this framework claims it prevents. The `default_skill` half of AR-2 remains open. |
 | AR-3 | `workers > 1` with coupling enabled or env-mutating hooks is **NOT supported** (phase-internal parallel steps may interleave bundle mutations). No builder-time hard error enforces this. | Verification standard is `workers=1` + mock LLM anyway; a hard error would need a reliable "does this config mutate env" predicate that does not exist. | Anyone needing parallel coupled runs; then add the builder-time error, not a lock. |
 | AR-4 | Per-attempt retry history is not persisted per-attempt in the CSV (final-attempt projection only; pooled `rules_hit` is the compromise). | A RAM-resident multi-attempt trace buffer multiplies memory for 400-agent × 13-yr runs; JSONL is the eventual home if ever needed. | A research question that needs attempt-level (not pooled) rule sequences. |
