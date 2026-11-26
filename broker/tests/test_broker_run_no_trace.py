@@ -454,3 +454,24 @@ def test_a_short_or_damaged_memory_log_fails_the_block(tmp_path, damage):
     else:
         assert block["memory_log_short"] is False
         assert block["unreadable_files"] == ["memory_log.jsonl"]
+
+
+def test_multi_digit_years_and_prefix_actions_keep_line_shape_stable(tmp_path):
+    from broker.core.run_integrity import governance_carryover_block
+
+    lines = [
+        {"agent_id": "a1", "period": 9, "intervened": False, "default_ran": False,
+         "line": "Year 9: Action carried out: Act.", "action": "Act", "number": ""},
+        {"agent_id": "a1", "period": 10, "intervened": True, "default_ran": True,
+         "line": "Year 10: Action carried out: Hold.", "action": "Hold", "number": ""},
+    ]
+    block = governance_carryover_block(
+        tmp_path,
+        styles={"farmer": "executed"},
+        agent_types={"a1": "farmer"},
+        writes_by_origin={},
+        decision_lines=lines,
+    )
+    assert block["default_year_line_shapes_not_seen_in_approved_years"] == 0
+    assert block["ok"] is True
+

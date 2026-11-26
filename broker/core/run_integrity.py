@@ -796,7 +796,7 @@ def _jsonl(path: Path, unreadable: List[str]) -> List[dict]:
 
 
 def _line_shape(line: str, action: str, number: str) -> str:
-    """The line without its number text, its action as ``<action>``, digits as ``#``.
+    """The line without its number text, its action as ``<action>``, numeric spans as ``#``.
 
     The number text is dropped, not replaced: whether a line carries a number
     follows the action that ran (a default runs with none), not the rule.
@@ -805,8 +805,11 @@ def _line_shape(line: str, action: str, number: str) -> str:
     if number:
         shape = shape.replace(number, "")
     if action:
-        shape = shape.replace(action, "<action>")
-    return re.sub(r"\d", "#", shape)
+        if action[0].isalnum() and action[-1].isalnum():
+            shape = re.sub(rf"\b{re.escape(action)}\b", "<action>", shape)
+        else:
+            shape = shape.replace(action, "<action>")
+    return re.sub(r"\d+(?:\.\d+)?", "#", shape)
 
 
 def governance_carryover_block(
