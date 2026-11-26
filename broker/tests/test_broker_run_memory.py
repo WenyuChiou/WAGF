@@ -263,6 +263,40 @@ def test_humancentric_keeps_a_reflection_in_long_term_memory(case, tmp_path):
     assert longterm[0]["importance"] == 0.9
 
 
+def _reflection_inputs(output):
+    log = (output / "reflection_log.jsonl").read_text(encoding="utf-8").splitlines()
+    return {entry["year_created"]: entry["reflection_input"] for entry in map(json.loads, log)}
+
+
+def test_a_high_importance_reflection_does_not_take_the_retrieval_slots_humancentric(case, tmp_path):
+    # Weighted ranking puts the 0.9 reflection above the 0.1 decision memories;
+    # with retrieval_top_k 1 it used to fill the only slot, the hook dropped it,
+    # and no lesson was written after year 1.
+    case[1]["agent"]["memory"] = {"retrieval_top_k": 1}
+    output = _run(case, tmp_path, years=3, memory={"engine_type": "humancentric", "ranking_mode": "weighted"},
+                  reflection={"enabled": True})
+    inputs = _reflection_inputs(output)
+    assert sorted(inputs) == [1, 2, 3]
+    assert all(len(items) == 1 and not items[0].startswith("Reflection") for items in inputs.values())
+
+
+def test_a_reflection_does_not_take_a_retrieval_slot_window(case, tmp_path):
+    case[1]["agent"]["memory"] = {"retrieval_top_k": 2}
+    output = _run(case, tmp_path, years=3, reflection={"enabled": True})
+    inputs = _reflection_inputs(output)
+    # Year 2 used to get [year-1 reflection, year-2 memory] and keep one item.
+    assert [len(inputs[year]) for year in (1, 2, 3)] == [1, 2, 2]
+    assert not any(item.startswith("Reflection") for items in inputs.values() for item in items)
+
+
+def test_retrieval_top_k_zero_gives_reflection_every_memory_as_the_window_engine_does(case, tmp_path):
+    case[1]["agent"]["memory"] = {"retrieval_top_k": 0}
+    output = _run(case, tmp_path, years=3, reflection={"enabled": True})
+    inputs = _reflection_inputs(output)
+    assert [len(inputs[year]) for year in (1, 2, 3)] == [1, 2, 3]
+    assert not any(item.startswith("Reflection") for items in inputs.values() for item in items)
+
+
 def test_reflection_runs_after_the_cases_own_post_year_hook(case, tmp_path):
     config, data = case
     folder = config.parents[1]

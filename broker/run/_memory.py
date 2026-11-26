@@ -277,6 +277,7 @@ class ReflectionHook:
             insight_importance_boost=self.settings.importance_boost,
         )
         self.log_path = Path(self.output_dir) / "reflection_log.jsonl"
+        self._stored = {}  # agent id -> reflection memories this hook has stored
 
     def _log(self, agent_id, insight):
         """One line per stored reflection, in ReflectionEngine.store_insight's format."""
@@ -305,7 +306,20 @@ class ReflectionHook:
         mem_cfg = getattr(agent, "memory_config", None)
         mem_cfg = mem_cfg if isinstance(mem_cfg, dict) else {}
         top_k = int(mem_cfg.get("retrieval_top_k", DEFAULT_RETRIEVAL_TOP_K))
-        items = self.memory_engine.retrieve(agent, top_k=top_k)
+        # Earlier reflections are left out before the retrieval limit, so they
+        # never take the slots of the other memories.
+        if isinstance(self.memory_engine, WindowMemoryEngine):
+            # The window engine returns the latest top_k items: ask for one
+            # more per reflection stored, then keep the latest top_k others.
+            # top_k 0 or less keeps the engine's own reading (0 is every
+            # memory), the same memories the decision prompt gets.
+            extra = self._stored.get(agent.id, 0) if top_k > 0 else 0
+            items = self.memory_engine.retrieve(agent, top_k=top_k + extra)
+            items = [m for m in items if not _memory_text(m).startswith(REFLECTION_PREFIX)]
+            return items[-top_k:] if top_k > 0 else items
+        # The humancentric engine's own option ranks without reflections (in
+        # both ranking modes) and then appends the latest one, dropped here.
+        items = self.memory_engine.retrieve(agent, top_k=top_k, reflection_slot="separate")
         return [m for m in items if not _memory_text(m).startswith(REFLECTION_PREFIX)]
 
     def _uses_mock(self, agent_type):
@@ -359,4 +373,5 @@ class ReflectionHook:
              "emotion": "major", "year": year},
             keep_latest_only=self.settings.keep_latest_only,
         )
+        self._stored[agent.id] = self._stored.get(agent.id, 0) + 1
         self.counts["reflections_stored"] += 1
