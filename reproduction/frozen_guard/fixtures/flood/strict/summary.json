@@ -1,6 +1,6 @@
 {
- "decisions": 46,
- "default_after_retries": 12,
- "rejected_after_retries": 12,
- "retried": 24
+ "decisions": 41,
+ "default_after_retries": 10,
+ "rejected_after_retries": 10,
+ "retried": 20
 }

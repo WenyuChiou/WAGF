@@ -608,7 +608,7 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
     crir_msg = supply_gap_block_increase("increase_demand", [], crir)[0].errors[0]
     hopi_msg = supply_gap_block_increase("increase_demand", [], hopi)[0].errors[0]
     assert crir_msg == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         f"the 880,000 acre-ft you received last year, you can expect "
         f"{880_000.0 * crir['supply_ratio']:,.0f} acre-ft this year "
         f"({crir['supply_ratio']:.1%}), because Lake Mead cannot meet all Lower "
@@ -621,7 +621,7 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
     ceiling = hopi["lb_junior_ceiling_af"]
     entitlement = hopi["lb_junior_entitlement_af"]
     assert hopi_msg == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         f"the 5,900 acre-ft you received last year, you can expect "
         f"{hopi['supply_expected_at_keep_af']:,.0f} acre-ft this year "
         f"({hopi['supply_ratio']:.1%}), because the declared Lower Basin shortage "
@@ -664,7 +664,7 @@ def test_retry_texts_golden_upper_basin_variants():
     base = dict(basin="upper_basin", keep=20_000.0, physical=0.674)
     sub = supply_gap_block_increase("increase_demand", [], _supply_ctx(**base))[0]
     assert sub.errors[0] == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         "the 20,000 acre-ft you received last year, you can expect 13,480 acre-ft "
         "this year (67.4%), because the water your sub-basin can draw this year, a "
         "fixed share of the natural flow of its rivers, is below the combined "
@@ -695,7 +695,7 @@ def test_retry_text_golden_zero_delivery():
     msg = supply_gap_block_increase(
         "increase_demand", [], _supply_ctx(basin="lower_basin", physical=0.0))[0].errors[0]
     assert msg == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         "the 100,000 acre-ft you received last year, you can expect 0 acre-ft this "
         "year (0.0%), because Lake Mead cannot meet all Lower Basin withdrawals "
         "without falling below its minimum pool, so all Lower Basin deliveries "

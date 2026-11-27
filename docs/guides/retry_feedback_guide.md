@@ -23,7 +23,7 @@ Your previous response was flagged by the governance layer.
   - Suggestion: Under this rule an increase is not available in this decision.
 
 - [ERROR] Your proposed action 'relocate' was BLOCKED.
-  - Reason: Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.
+  - Reason: Under the rule on relocating without threat, relocating is not available in this decision: at the start of this decision you judged the flood threat to be low.
   - Suggestion: Under this rule, relocating is not available in this decision.
 
 
@@ -44,6 +44,30 @@ decision.`
 The retry loop selects the mode and can add a line naming actions that pass all
 rules; see `broker/core/_retry_loop.py (_governance_retry_loop)` and
 `broker/core/_advise.py (render_intervention_prompt)`.
+
+The text above is the default `intervention_framing: legacy`. Its header,
+section title, `[ERROR]` tag, "was BLOCKED", Suggestion line and "violations"
+are log labels written for model builders. With `intervention_framing: plain`
+the agent sees none of them: one line per report names its own choice and the
+rule's reason, and the labels stay in the logs and the audit (which read the
+validation results, not this text). The flood example and the irrigation
+`simple_executed` and `simple_nolimit_executed` variants use `plain`. The same
+two rules, with the wording of those configs, render as:
+
+```text
+Your previous answer cannot be used in this decision.
+
+- You chose 'increase demand'. Under the rule on increases under scarcity, an increase is not available in this decision: at the start of this decision you judged water to be scarce this year, and a larger request when water is scarce draws more from a supply you share with other users.
+- You chose 'relocate'. Under the rule on relocating without threat, relocating is not available in this decision: at the start of this decision you judged the flood threat to be low.
+
+Please answer again, taking the information above into account.
+
+Choose one action for this water-management decision.
+```
+
+An answer that could not be read gets the line `- Your answer could not be
+read: it did not follow the required response format.` In `placebo` mode,
+`plain` sends the header and the closer only.
 
 ## 2. Give every blocking rule one message
 
@@ -72,6 +96,11 @@ The irrigation thinking rules in
   scarce gives up water you could use for production.” Its suggestion says
   that a decrease is unavailable in this decision.
 
+The `simple_executed` and `simple_nolimit_executed` variants word the same two
+rules without "blocked": "Under the rule on increases under scarcity, an
+increase is not available in this decision: at the start of this decision you
+judged water to be scarce this year, ..." (and the same form for decreases).
+
 The irrigation limit rules in the same config use short messages because the
 world state already settles the question:
 
@@ -87,9 +116,9 @@ the agent's own values into the result before the report is rendered. With a
 100,000 acre-ft keep request and 50,000 acre-ft expected delivery, the real
 validator produced:
 
-> Demand increase blocked under the shortage-sharing rule: if you request the
-> 100,000 acre-ft you received last year, you can expect 50,000 acre-ft this
-> year (50.0%), because the water your sub-basin can draw this year, a fixed
+> Under the shortage-sharing rule, an increase is not available this year: if
+> you request the 100,000 acre-ft you received last year, you can expect 50,000
+> acre-ft this year (50.0%), because the water your sub-basin can draw this year, a fixed
 > share of the natural flow of its rivers, is below the combined requests of
 > its users, and the shortfall is shared in proportion to requests. When water
 > is short it is shared in proportion to requests, so a larger request would
@@ -105,24 +134,23 @@ the validation context.
 The flood rules in `examples/single_agent/agent_types.yaml` use the same
 pattern. These are their exact messages:
 
-- `extreme_threat_block`: “Inaction blocked under the rule on severe-threat
-  response: at the start of this decision you judged the flood threat to be
-  high and your coping appraisal was not very low or low, and doing nothing is
-  not available under this rule in that case.”
-- `relocation_threat_low`: “Relocation blocked under the rule on relocating
-  without threat: at the start of this decision you judged the flood threat to
-  be low, and relocating when threat is judged low is not available under this
-  rule.”
-- `elevation_threat_low`: “Elevation blocked under the rule on elevating
-  without threat: at the start of this decision you judged the flood threat to
-  be low, and elevating when threat is judged low is not available under this
-  rule.”
-- `observed_flood_low_threat_inaction` (`grounded_v1`): “Inaction blocked: a
-  flood occurred this year, which your own low threat rating does not account
-  for. Re-appraise the threat against what happened, then choose.”
-- `elevation_block` (identity rule, all strict-type profiles): “Elevation
-  blocked under the rule on a house already elevated: your house is already
-  elevated, and elevating it again is not available under this rule.”
+- `extreme_threat_block`: “Under the rule on severe-threat response, doing
+  nothing is not available in this decision: at the start of this decision you
+  judged the flood threat to be high and your coping appraisal was not very low
+  or low.”
+- `relocation_threat_low`: “Under the rule on relocating without threat,
+  relocating is not available in this decision: at the start of this decision
+  you judged the flood threat to be low.”
+- `elevation_threat_low`: “Under the rule on elevating without threat,
+  elevating your house is not available in this decision: at the start of this
+  decision you judged the flood threat to be low.”
+- `observed_flood_low_threat_inaction` (`grounded_v1`): “Doing nothing is not
+  available in this decision: a flood occurred this year, which your own low
+  threat rating does not account for. Re-appraise the threat against what
+  happened, then choose.”
+- `elevation_block` (identity rule, all strict-type profiles): “Under the rule
+  on a house already elevated, elevating your house again is not available:
+  your house is already elevated.”
 
 The first three rules and `elevation_block` also carry the exact optional suggestions used by the
 strict and `grounded_v1` profiles.
@@ -183,18 +211,20 @@ These keys live under `global_config.governance` unless stated otherwise.
 | `rule_id_prefix` | `true` | Prefix AgentValidator messages with `[Rule: <id>]`. Turn it off when ids are implementation detail. |
 | `hide_registry_backstop_reports` | `false` | Leave registry backstops out of retry text after an identity rule already blocks the action. Audit results remain complete. |
 | `retry_feedback_mode` | `full` | `full` shows reports; `silent` sends the original prompt again; `placebo` sends only the retry wrapper. Silent and placebo test whether the reason itself matters. |
-| `intervention_framing` | `legacy` | `legacy` says the action was blocked and shows suggestions; `neutral` says a rule was triggered and omits suggestions. |
+| `intervention_framing` | `legacy` | `legacy` says the action was blocked and shows suggestions; `neutral` says a rule was triggered and omits suggestions; `plain` shows no log label at all (no governance header, severity tag, "BLOCKED", "violations" or suggestion), one line per report with the agent's choice and the rule's reason. |
 | `placebo_closer` | unset | Supply a closer that does not refer to hidden “violations above” in placebo mode. |
 | `max_retries` | `3` | Set the maximum governance retries after blocked proposals. |
 | `on_retry_exhausted` | `default` | `default` executes the registry's `default_skill`; `keep_proposal` executes the blocked proposal and is refused when coupling is enabled. |
 | `audit.retry_prompt_columns` | `false` | Record the exact text sent on every governance retry in raw JSONL `retry_prompts` for review. It does not add a CSV column. |
 
 - **Flood:** uses three retries and three reports, hides rule-id prefixes and
-  duplicate registry backstops, uses plain action names, and records retry prompts so reviewers can inspect what
+  duplicate registry backstops, uses plain action names and the `plain`
+  framing, and records retry prompts so reviewers can inspect what
   the agent was told; other values above remain at their defaults.
 - **Irrigation:** uses three retries and three reports, adds feasible actions,
   hides rule-id prefixes and duplicate registry backstops, uses plain action
-  names, and sets a placebo-safe closer; `on_retry_exhausted` remains the safe
+  names (the `simple_executed` and `simple_nolimit_executed` variants also use
+  the `plain` framing), and sets a placebo-safe closer; `on_retry_exhausted` remains the safe
   default for its coupled water model. Its YAML does not enable retry-prompt
   recording, so enable it for a study that needs that review trail.
 

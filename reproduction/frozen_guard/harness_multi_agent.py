@@ -34,7 +34,12 @@ import broker.utils.llm_utils as llm_utils  # noqa: E402
 from broker.utils.llm_utils import LLMStats  # noqa: E402
 
 LABELS = ["VL", "L", "M", "H", "VH"]
-RETRY_MARK = "Your previous response was flagged by the governance layer."
+# A retry prompt starts with the header of its framing: legacy, or plain
+# (global_config.governance.intervention_framing; plain has no log labels).
+RETRY_MARK = (
+    "Your previous response was flagged by the governance layer.",
+    "Your previous answer cannot be used in this decision.",
+)
 HOUSEHOLD_MARKERS = ("You are a homeowner (Agent ID", "You are a renter (Agent ID")
 _CALLS_PATH = None
 

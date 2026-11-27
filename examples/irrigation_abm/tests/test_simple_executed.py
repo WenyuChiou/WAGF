@@ -62,6 +62,21 @@ def test_variant_differs_from_its_frozen_source_only_in_the_line_style(frozen):
     b = yaml.safe_load((executed / "agent_types.yaml").read_text(encoding="utf-8"))
     assert a["irrigation_farmer"]["memory"].pop("rejection_line_style") == "neutral"
     assert b["irrigation_farmer"]["memory"].pop("rejection_line_style") == "executed"
+    # 2026-11-26: the executed variants also retry in plain words (no log
+    # labels reach the agent) and their rule messages no longer say "blocked".
+    assert "intervention_framing" not in a["global_config"]["governance"]
+    assert b["global_config"]["governance"].pop("intervention_framing") == "plain"
+    rules_a = a["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]
+    rules_b = b["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]
+    reworded = 0
+    for rule_a, rule_b in zip(rules_a, rules_b):
+        if rule_a["message"] != rule_b["message"]:
+            assert "blocked" in rule_a["message"] and "blocked" not in rule_b["message"]
+            # Only the lead changes; the reason after the colon stays the same.
+            assert rule_a["message"].split(": ", 1)[1] == rule_b["message"].split(": ", 1)[1]
+            rule_b["message"] = rule_a["message"]
+            reworded += 1
+    assert reworded == 2
     assert a == b
 
 

@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`global_config.governance.intervention_framing: plain` keeps log labels out of the retry text.** The agent
+  sees no governance header, no severity tag (`[ERROR]`), no "was BLOCKED", no "violations", no section title,
+  no Suggestion line and no `[!NOTE]` tag; each report is one line naming the agent's own choice and the rule's
+  reason, and an unreadable answer gets one line saying the response format was not followed. The labels stay in
+  the logs and the audit, which read the validation results. `legacy` stays the default and is byte-identical.
+
+### Changed
+
+- **Flood and the irrigation `simple_executed` / `simple_nolimit_executed` configs use the `plain` framing, and
+  their rule messages no longer say "blocked"** (for example "Under the rule on severe-threat response, doing
+  nothing is not available in this decision: ..."). The irrigation shortage-sharing message, written by
+  `supply_gap_block_increase` for every config, now starts "Under the shortage-sharing rule, an increase is not
+  available this year: ...". The frozen guard's flood mock recognises the plain retry header. Frozen fixtures
+  updated on purpose: flood strict (new retry text, so the prompt-hash mock answers retries differently from
+  year 2 on), flood silent (logged reason text only, decisions unchanged) and irrigation strict (logged reason
+  text and two retry labels in year 2, decisions unchanged).
+
 ## [0.7.0] - 2026-11-26
 
 Minor-bump release: **`python -m broker.run` (new since v0.6.0), Invariant 7 (governance leaves no trace in

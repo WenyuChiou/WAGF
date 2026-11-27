@@ -271,8 +271,8 @@ def test_shipped_flood_elevation_block_states_its_reason(monkeypatch):
 
     repo = Path(__file__).resolve().parents[2]
     path = str(repo / "examples" / "single_agent" / "agent_types.yaml")
-    expected = ("Elevation blocked under the rule on a house already elevated: your house "
-                "is already elevated, and elevating it again is not available under this rule.")
+    expected = ("Under the rule on a house already elevated, elevating your house again "
+                "is not available: your house is already elevated.")
     for profile in ("strict", "relaxed"):
         AgentTypeConfig.clear_cache()
         monkeypatch.setenv("GOVERNANCE_PROFILE", profile)

@@ -127,6 +127,13 @@ global_config:
     # message already states the reason in plain words. Same setting as
     # irrigation; affects only attempts an identity rule has blocked.
     hide_registry_backstop_reports: true
+    # 2026-11-26 (the retry labels are for the logs only): the retry text the
+    # agent sees carries no log label -- no "governance layer", "flagged",
+    # "[ERROR]", "BLOCKED", "violations" or Suggestion line. Each report is
+    # one line naming the agent's choice and the rule's own reason. The
+    # labels stay in the logs and the audit. Generic framework option
+    # (framework default "legacy").
+    intervention_framing: plain
 
   # Retry-prompt provenance (item 13): persist the actual retry-prompt text
   # in the raw JSONL trace so a reviewer can see what the agent was told on
@@ -498,7 +505,7 @@ household:
               ],
             blocked_skills: ["do_nothing"],
             level: ERROR,
-            message: "Inaction blocked under the rule on severe-threat response: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low, and doing nothing is not available under this rule in that case.",
+            message: "Under the rule on severe-threat response, doing nothing is not available in this decision: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low.",
             suggestion: "Under this rule, doing nothing is not available in this decision.",
           }
         # Realism Rule: Block complex actions if self-efficacy (Coping) is too low
@@ -518,7 +525,7 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
-            message: "Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.",
+            message: "Under the rule on relocating without threat, relocating is not available in this decision: at the start of this decision you judged the flood threat to be low.",
             suggestion: "Under this rule, relocating is not available in this decision.",
           }
         - {
@@ -533,7 +540,7 @@ household:
             # that formatter; this rule path does not call it), so the retry
             # prompt showed the literal brace string. Fixed by removing the
             # placeholder rather than wiring the formatter, as irrigation does.
-            message: "Elevation blocked under the rule on elevating without threat: at the start of this decision you judged the flood threat to be low, and elevating when threat is judged low is not available under this rule.",
+            message: "Under the rule on elevating without threat, elevating your house is not available in this decision: at the start of this decision you judged the flood threat to be low.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
       identity_rules:
@@ -542,7 +549,7 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            message: "Under the rule on a house already elevated, elevating your house again is not available: your house is already elevated.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
@@ -560,7 +567,7 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: WARNING,
-            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            message: "Under the rule on a house already elevated, elevating your house again is not available: your house is already elevated.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
@@ -586,7 +593,7 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
-            message: "Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.",
+            message: "Under the rule on relocating without threat, relocating is not available in this decision: at the start of this decision you judged the flood threat to be low.",
             suggestion: "Under this rule, relocating is not available in this decision.",
           }
         - {
@@ -594,7 +601,7 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked under the rule on elevating without threat: at the start of this decision you judged the flood threat to be low, and elevating when threat is judged low is not available under this rule.",
+            message: "Under the rule on elevating without threat, elevating your house is not available in this decision: at the start of this decision you judged the flood threat to be low.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
       identity_rules:
@@ -603,7 +610,7 @@ household:
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            message: "Under the rule on a house already elevated, elevating your house again is not available: your house is already elevated.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
 
@@ -630,7 +637,7 @@ household:
               ],
             blocked_skills: ["do_nothing"],
             level: ERROR,
-            message: "Inaction blocked under the rule on severe-threat response: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low, and doing nothing is not available under this rule in that case.",
+            message: "Under the rule on severe-threat response, doing nothing is not available in this decision: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low.",
             suggestion: "Under this rule, doing nothing is not available in this decision.",
           }
         - {
@@ -646,7 +653,7 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
-            message: "Relocation blocked under the rule on relocating without threat: at the start of this decision you judged the flood threat to be low, and relocating when threat is judged low is not available under this rule.",
+            message: "Under the rule on relocating without threat, relocating is not available in this decision: at the start of this decision you judged the flood threat to be low.",
             suggestion: "Under this rule, relocating is not available in this decision.",
           }
         - {
@@ -654,7 +661,7 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked under the rule on elevating without threat: at the start of this decision you judged the flood threat to be low, and elevating when threat is judged low is not available under this rule.",
+            message: "Under the rule on elevating without threat, elevating your house is not available in this decision: at the start of this decision you judged the flood threat to be low.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
         # WORLD-GROUNDED. The first condition reads `flood_event`, which the
@@ -672,14 +679,14 @@ household:
             - { construct: TP_LABEL, values: ["VL", "L"] }
           blocked_skills: ["do_nothing"]
           level: ERROR
-          message: "Inaction blocked: a flood occurred this year, which your own low threat rating does not account for. Re-appraise the threat against what happened, then choose."
+          message: "Doing nothing is not available in this decision: a flood occurred this year, which your own low threat rating does not account for. Re-appraise the threat against what happened, then choose."
       identity_rules:
         - {
             id: elevation_block,
             precondition: elevated,
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked under the rule on a house already elevated: your house is already elevated, and elevating it again is not available under this rule.",
+            message: "Under the rule on a house already elevated, elevating your house again is not available: your house is already elevated.",
             suggestion: "Under this rule, elevating is not available in this decision.",
           }
 

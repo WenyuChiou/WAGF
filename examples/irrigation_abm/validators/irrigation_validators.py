@@ -801,8 +801,9 @@ def supply_gap_block_increase(
     # pre-v3 separate zero-delivery TRIGGER branch is gone, spec 3.3).
     sharing = _sharing_sentence(context)
     message = (
-        "Demand increase blocked under the shortage-sharing rule: if you "
-        f"request the {keep_af:,.0f} acre-ft you received last year, you can "
+        "Under the shortage-sharing rule, an increase is not available this "
+        f"year: if you request the {keep_af:,.0f} acre-ft you received last "
+        "year, you can "
         f"expect {expected_af:,.0f} acre-ft this year ({format_share(ratio)}), "
         f"{reason}. {sharing}"
     )

@@ -1,8 +1,14 @@
 # Simple information variant, executed memory lines
 
-A copy of `config_variants/simple` (added 2026-11-26) with one change:
+A copy of `config_variants/simple` (added 2026-11-26) with this change:
 `irrigation_farmer.memory.rejection_line_style: executed` (Invariant 7 in
 `broker/INVARIANTS.md`: rules correct the current decision and leave no trace).
+
+Also (2026-11-26, the retry labels are for the logs only):
+`global_config.governance.intervention_framing: plain`, so the retry text the
+agent sees carries no log label, and the two thinking-rule messages open with
+"Under the rule on ..., ... is not available in this decision" instead of
+"... blocked under the rule on ...". The reason after the colon is unchanged.
 
 - Every year with a decision gets the same memory line form, whether a rule
   stepped in or not: `Year Y: Action carried out: <action>{ (by N%)}.` followed

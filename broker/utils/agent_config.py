@@ -1956,7 +1956,7 @@ class AgentTypeConfig:
         }
 
     def get_governance_intervention_framing(self) -> str:
-        """P0-1c: retry/advisory prompt framing — ``legacy`` (default) or ``neutral``.
+        """P0-1c: retry/advisory prompt framing — ``legacy`` (default), ``neutral`` or ``plain``.
 
         ``legacy`` reproduces the shipped retry prompt byte-for-byte and stays the
         default forever, so every published arm-C prompt is unchanged.
@@ -1966,15 +1966,21 @@ class AgentTypeConfig:
         Suggestion line, so the text an agent sees is IDENTICAL in the advise,
         placebo and enforce arms — making the enforce-minus-advise contrast pure
         enforcement with zero wording delta.
+
+        ``plain`` is opt-in and keeps every log label out of the text the agent
+        sees ("governance layer", "flagged", "[ERROR]", "BLOCKED",
+        "violations", the Suggestion line): one line per report naming the
+        agent's choice and the rule's own reason. The labels stay in the logs
+        and the audit. See UnifiedAdapter.format_intervention_prompt.
         """
         gov = self._config.get("global_config", {}).get("governance", {})
         if not isinstance(gov, dict):
             return "legacy"
         framing = str(gov.get("intervention_framing", "legacy")).strip().lower()
-        if framing not in {"legacy", "neutral"}:
+        if framing not in {"legacy", "neutral", "plain"}:
             raise ValueError(
                 f"global_config.governance.intervention_framing {framing!r} "
-                "not in ['legacy', 'neutral']"
+                "not in ['legacy', 'neutral', 'plain']"
             )
         return framing
 

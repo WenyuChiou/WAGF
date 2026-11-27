@@ -275,7 +275,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # format_intervention_prompt and raise mid-run rather than degrading.
         _get_framing = getattr(self.config, "get_governance_intervention_framing", None)
         _framing = _get_framing() if callable(_get_framing) else "legacy"
-        self._intervention_framing = _framing if _framing in ("legacy", "neutral") else "legacy"
+        self._intervention_framing = _framing if _framing in ("legacy", "neutral", "plain") else "legacy"
         # `bool(MagicMock())` is True, so a bare-Mock config would silently switch
         # per-decision call counting on. Require a real bool.
         _get_acols = getattr(self.config, "get_audit_advise_columns", None)
