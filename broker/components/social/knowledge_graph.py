@@ -553,8 +553,8 @@ class AsyncKnowledgeGraph:
         visible_pairs = self._query_visible_with_availability(
             observer_id,
             current_period,
-            predicates=predicates,
-            subjects=subjects,
+            predicates=predicate_set,
+            subjects=subject_set,
             top_k=len(self._triples),
             include_self=include_self,
             hops=effective_hops,

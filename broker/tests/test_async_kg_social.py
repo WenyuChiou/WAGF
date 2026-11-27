@@ -487,6 +487,21 @@ class TestSyncToMemoryWithOriginGate:
         actions_provider.provide("C1", {}, {})  # duplicate within channel is still ignored
         assert gate.counts["social"] == 1
 
+    def test_sync_to_memory_supports_generator_filters(self, tmp_path: Path):
+        engine = WindowMemoryEngine(window_size=10)
+        gate = install_origin_gate(engine, tmp_path, lambda: 1)
+        gate.seeding = False
+
+        social_graph = CustomGraph(["A1", "C1"], lambda _ids: [("A1", "C1")])
+        kg = AsyncKnowledgeGraph(social_graph=social_graph)
+        kg.assert_fact(
+            subject="A1", predicate="action", obj="act_1",
+            text="A1 action fact", author_id="A1", published_period=1, visibility="neighbors",
+        )
+        n = kg.sync_to_memory("C1", 1, engine, predicates=iter(["action"]), subjects=iter(["A1"]))
+        assert n == 1
+        assert gate.counts["social"] == 1
+
 
 # ---------------------------------------------------------------------------
 # 5. KnowledgeGraphSocialProvider + TieredContextBuilder integration
