@@ -135,7 +135,7 @@ def test_plain_truncation_note_has_no_tag():
 
 
 def test_plain_feasible_line_comes_after_reports_and_before_closer():
-    feasible = "Actions that pass every rule this step: 2 (decrease demand)."
+    feasible = "Actions that pass every rule in this decision: 2 (decrease demand)."
     text, _ = _adapter().format_intervention_prompt(
         ORIGINAL_PROMPT, [_report()], framing="plain", feasible_line=feasible)
     assert text.index(REASON) < text.index(feasible) < text.index(PLAIN_RETRY_CLOSER)

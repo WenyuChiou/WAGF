@@ -409,9 +409,14 @@ class RetryMixin:
             text = name.replace("_", " ")
             return f"{inverse[name]} ({text})" if name in inverse else text
 
+        # Plain framing speaks of "this decision", as its header does; "step"
+        # is the model builder's word. Other framings render as shipped.
+        when = ("in this decision"
+                if getattr(self, "_intervention_framing", "legacy") == "plain"
+                else "this step")
         if feasible:
             return (
-                "Actions that pass every rule this step: "
+                f"Actions that pass every rule {when}: "
                 + ", ".join(label(n) for n in feasible) + "."
             )
         cause = (
@@ -419,14 +424,14 @@ class RetryMixin:
             if missing_fields else ""
         )
         if getattr(self, "_on_retry_exhausted", "default") == "keep_proposal":
-            return "No action passes every rule this step" + cause + "."
+            return f"No action passes every rule {when}" + cause + "."
         try:
             default_name = self.skill_registry.get_default_skill()
             tail = "the default action (" + default_name.replace("_", " ") + ") will be applied."
         except ValueError:
             tail = "the default action will be applied."
         return (
-            "No action passes every rule this step" + cause + "; if this "
+            f"No action passes every rule {when}" + cause + "; if this "
             "continues, " + tail
         )
 

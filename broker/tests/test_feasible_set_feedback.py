@@ -141,6 +141,28 @@ def test_names_without_skill_map():
     assert "this step: keep, shrink a, shrink b." in prompts[0]
 
 
+def test_plain_framing_says_in_this_decision():
+    host = _Host()
+    host._intervention_framing = "plain"
+    prompt = _run(host)[0]
+    assert ("Actions that pass every rule in this decision: "
+            "3 (keep), 4 (shrink a), 5 (shrink b).") in prompt
+    assert "this step" not in prompt
+
+    def block_all(proposal, context):
+        return [ValidationResult(valid=False, validator_name="v", errors=["no"],
+                                 metadata={"rule_id": "all"})]
+    for exhausted, tail in (("default", "; if this continues, the default action (keep) "
+                                        "will be applied."),
+                            ("keep_proposal", ".")):
+        host = _Host(validator=block_all)
+        host._intervention_framing = "plain"
+        host._on_retry_exhausted = exhausted
+        prompt = _run(host)[0]
+        assert "No action passes every rule in this decision" + tail in prompt
+        assert "this step" not in prompt
+
+
 def test_flag_off_prompt_is_unchanged():
     on = _run(_Host(feasible=True))[0]
     off = _run(_Host(feasible=False))[0]

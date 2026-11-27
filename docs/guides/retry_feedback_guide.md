@@ -67,7 +67,9 @@ Choose one action for this water-management decision.
 
 An answer that could not be read gets the line `- Your answer could not be
 read: it did not follow the required response format.` In `placebo` mode,
-`plain` sends the header and the closer only.
+`plain` sends the header and the closer only. With `feasible_set_feedback`,
+the list after the reasons reads `Actions that pass every rule in this
+decision: …` under `plain`, and `… this step: …` under the other framings.
 
 ## 2. Give every blocking rule one message
 
