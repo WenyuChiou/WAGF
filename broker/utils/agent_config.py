@@ -62,7 +62,7 @@ class CoherenceRule:
     level: str = "ERROR" # ERROR (retry) or WARNING (log only)
     message: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
-    # PR-6: what the rule's antecedent is ANCHORED IN.
+    # What the rule's antecedent is ANCHORED IN.
     #   "self_report" — every condition reads a construct label the model wrote
     #                   in the same generation. Such a rule checks one JSON
     #                   object against itself.
@@ -78,7 +78,7 @@ class CoherenceRule:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# PR-6: rule GROUNDING — where a condition's antecedent comes from
+# Rule GROUNDING — where a condition's antecedent comes from
 # ──────────────────────────────────────────────────────────────────────
 # A thinking rule reads either a construct LABEL the model just emitted
 # (``construct:`` / ``field:`` with ``type: construct``) or a WORLD
@@ -103,7 +103,7 @@ WORLD_CONDITION_SCOPES: frozenset = frozenset({"auto", "env", "state", "social",
 
 # Top-level keys in an agent-types YAML that are NOT an agent type. Every
 # scan that asks "what does each agent type declare?" has to skip these,
-# and before PR-8 review finding C1 each scan carried its own copy of the
+# and previously, each scan carried its own copy of the
 # list — one of which had none, so `has_non_default_deciders` read a
 # `decider:` written under `shared:` (where nothing reads it) as a
 # mixed-population run and switched the audit columns on for a corpus
@@ -251,7 +251,7 @@ def resolve_rule_grounding(rule: Dict[str, Any]) -> str:
     conditions = rule.get("conditions") or []
     if isinstance(conditions, list):
         for cond in conditions:
-            # R1 slice 3: a free `expression:` reads world variables by definition.
+            # A free `expression:` reads world variables by definition.
             if isinstance(cond, dict) and "expression" in cond:
                 return "world"
             name, _scope = world_condition_target(cond)
@@ -429,7 +429,7 @@ class AgentTypeConfig:
     def _load_yaml(self, yaml_path: Optional[str] = None, strict_keys: bool = False):
         """Load from YAML file."""
         yaml_path = self._resolve_yaml_path(yaml_path)
-        # PR-8: answered once per loaded config and consulted per audit row.
+        # Answered once per loaded config and consulted per audit row.
         # Cleared here so a reload never answers from the previous file.
         self._non_default_deciders = None
 
@@ -2044,7 +2044,7 @@ class AgentTypeConfig:
             "interval": 1,
             "batch_size": 10,
             "importance_boost": 0.9,
-            # Phase 6L-D (2026-05-23): surfaced so callers reading
+            # Surfaced so callers reading
             # ``get_reflection_config()`` know the key is recognised
             # and can override it via YAML. Matches the constructor
             # default of ``ReflectionEngine.compute_dynamic_importance``.
@@ -3013,7 +3013,7 @@ class AgentTypeConfig:
         return False
 
     # =========================================================================
-    # Task-041: Framework-Aware Rating Scale Support
+    # Framework-Aware Rating Scale Support
     # =========================================================================
 
     def get_rating_scale(self, framework: str = "pmt") -> str:
@@ -3081,8 +3081,8 @@ class AgentTypeConfig:
         try:
             return RatingScaleRegistry.get_by_name(framework).levels
         except KeyError:
-            # Domain-neutral generic 5-level Likert fallback (Phase 6J-A —
-            # not a flood-PMT default).
+            # Domain-neutral generic 5-level Likert fallback (not a
+            # flood-PMT default).
             return ["VL", "L", "M", "H", "VH"]
 
     def get_framework_for_agent_type(self, agent_type: str) -> str:

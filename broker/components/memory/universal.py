@@ -78,10 +78,10 @@ class UniversalCognitiveEngine:
         W_context: float = 0.2,
         ranking_mode: str = "weighted",
         seed: Optional[int] = None,
-        # Task-034: Persistence support
+        # Persistence support
         persistence: Optional["MemoryPersistence"] = None,
         auto_persist: bool = True,
-        # Phase 6K-A (2026-05-22): when ``stimulus_key`` is omitted, a
+        # When ``stimulus_key`` is omitted, a
         # registered DomainPack can supply it via
         # ``memory_policy().stimulus_key``. Caller-supplied
         # ``stimulus_key`` still wins.
@@ -130,7 +130,7 @@ class UniversalCognitiveEngine:
             self.stimulus_key = None
             self.ema_predictor = None
         else:
-            # Phase 6K-A (2026-05-22): no silent water-domain default.
+            # No silent water-domain default.
             # ``stimulus_key`` is required for scalar mode; the
             # constructor docstring has always declared it REQUIRED.
             # A caller that omits it previously silently locked to the
@@ -141,7 +141,7 @@ class UniversalCognitiveEngine:
             if not stimulus_key and domain:
                 try:
                     from broker.domains.registry import DomainPackRegistry
-                    # Phase 6R-D-4 (2026-05-26): MemoryPack-narrowed.
+                    # MemoryPack-narrowed.
                     bundle = DomainPackRegistry.get_memory_pack(domain).memory_policy()
                     if bundle is not None and bundle.stimulus_key:
                         stimulus_key = bundle.stimulus_key
@@ -168,7 +168,7 @@ class UniversalCognitiveEngine:
         # Store ranking mode for access
         self.ranking_mode = ranking_mode
 
-        # Task-034: Persistence support
+        # Persistence support
         self._persistence = persistence
         self._auto_persist = auto_persist
 
@@ -565,7 +565,7 @@ class UniversalCognitiveEngine:
         return min(boost, 1.0)  # Cap at 1.0
 
     # =========================================================================
-    # Task-034: Persistence Support
+    # Persistence Support
     # =========================================================================
 
     @property

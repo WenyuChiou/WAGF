@@ -41,7 +41,7 @@ class ExecutionPhase(Enum):
     OBSERVATION = "observation"       # Post-action observable state updates
     CUSTOM = "custom"                 # User-defined phase
 
-    # NOTE (Phase 6U-C dedup behavior): Python ``Enum`` does NOT iterate
+    # NOTE: Python ``Enum`` does NOT iterate
     # value-aliases (``HOUSEHOLD`` shares ``"household"`` with
     # ``INDIVIDUAL`` so ``list(ExecutionPhase)`` excludes ``HOUSEHOLD``).
     # ``{e.value: e for e in ExecutionPhase}`` therefore maps

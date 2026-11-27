@@ -156,7 +156,7 @@ def write_fixture(
     # `str.isidentifier()` returns True for Python keywords (`class`,
     # `def`, `import`, ...) — those pass the syntax check but blow up
     # at import time with SyntaxError when the package is loaded. Catch
-    # them explicitly. Per Phase 6R-A reviewer must-fix #1.
+    # them explicitly to avoid SyntaxError on package load.
     if keyword.iskeyword(domain):
         raise ValueError(
             f"--domain '{domain}' must not be a Python keyword "

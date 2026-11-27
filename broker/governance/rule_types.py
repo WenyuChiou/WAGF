@@ -141,7 +141,7 @@ class RuleCondition:
             raw = reasoning.get(self.field)
             return raw.upper().strip() if isinstance(raw, str) else raw
         elif self.type in ("precondition", "expression"):
-            # PR-6: world-state planes, env first. Pre-PR-6 both branches read
+            # World-state planes, env first. Previously, both branches read
             # ONLY ``context["state"]``, so a precondition or expression naming
             # a variable the simulator publishes in ``env_state`` — the broker's
             # declared source of truth for world state — resolved to None and

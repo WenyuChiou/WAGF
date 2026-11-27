@@ -585,12 +585,12 @@ class SocialMediaProvider(ContextProvider):
                 getattr(post, "tier_id", ""),
             ))
 
-        # Phase 6T-E.B v0.5.1: byte-identity-safe section format.
+        # Byte-identity-safe section format.
         # When EMPTY, the value is "" (no characters at all). The
         # household prompt template places ``{social_media_feed}``
         # flush against surrounding context with no template-side
         # newlines, so an empty value renders to byte-identical text
-        # versus a pre-6T-E.B prompt (the placeholder collapses to
+        # versus a legacy prompt (the placeholder collapses to
         # nothing). When NON-EMPTY, the provider adds its own leading
         # ``\n\n`` + header so the social-media block visually
         # separates from prior context.
@@ -669,9 +669,8 @@ class PerceptionAwareProvider(ContextProvider):
         if not agent:
             return
 
-        # Determine agent type. Phase 6R-B-1 (2026-05-26 / audit
-        # cluster E item #15): removed the silent fallback to the
-        # literal ``"household"`` here. That fallback fired only for
+        # Determine agent type (no silent fallback to the
+        # literal ``"household"`` here). That fallback fired only for
         # malformed agents missing the ``agent_type`` field, but in a
         # non-water domain it silently routed them through whatever
         # filter was registered under the ``"household"`` key in the
@@ -709,7 +708,7 @@ class PerceptionAwareProvider(ContextProvider):
         }
 
 
-# Phase 6U-C (2026-05-28): InsuranceInfoProvider relocated to
+# InsuranceInfoProvider relocated to
 # broker/domains/water/insurance_provider.py. Legacy import path
 # preserved via module-level __getattr__ shim at the bottom of this
 # file with DeprecationWarning.
@@ -721,17 +720,17 @@ __all__ = [
     "AttributeProvider",
     "PrioritySchemaProvider",
     "EnvironmentProvider",
-    "EnvironmentObservationProvider",  # Phase 8: SDK observer
+    "EnvironmentObservationProvider",  # SDK observer
     "MemoryProvider",
     "SocialProvider",
     "InstitutionalProvider",
     "DynamicStateProvider",
     "NarrativeProvider",
-    "ObservableStateProvider",  # Task-041: Cross-agent observation
-    "EnvironmentEventProvider",  # Task-042: Environment events
-    "PerceptionAwareProvider",  # Task-043: Agent-type perception
-    "SocialMediaProvider",  # Phase 6T-E.B: feed_flag-gated social-media injection
-    "InsuranceInfoProvider",  # Task-060A: Insurance premium disclosure
+    "ObservableStateProvider",  # Cross-agent observation
+    "EnvironmentEventProvider",  # Environment events
+    "PerceptionAwareProvider",  # Agent-type perception
+    "SocialMediaProvider",  # feed_flag-gated social-media injection
+    "InsuranceInfoProvider",  # Insurance premium disclosure
     "FeedbackDashboardProvider",  # Config-driven env feedback dashboard
     "AgentMetricsTracker",  # Per-agent metrics history for trends
 ]

@@ -90,10 +90,10 @@ class ReadinessMetrics:
 
     total_traces: Optional[int] = None
     approved_count: Optional[int] = None
-    # 6O-C-1 round-1 rename: was `parse_success_rate`, but the computation
-    # was always `approved / total`. The actual parse-quality signal lives
-    # in the `parser_failure` terminal-taxonomy bucket. Use that for a
-    # separate `parse_success_rate` metric in 6O-C-2.
+    # Renamed from `parse_success_rate`: the computation was always
+    # `approved / total`, whereas the actual parse-quality signal lives in
+    # the `parser_failure` terminal-taxonomy bucket. Use that for a
+    # separate `parse_success_rate` metric.
     approval_rate: Optional[float] = None
     format_retry_rate: Optional[float] = None
     terminal_rate: Optional[float] = None
@@ -102,7 +102,7 @@ class ReadinessMetrics:
     distinct_actions: List[str] = field(default_factory=list)
     validator_firing_diversity: Optional[int] = None
     dead_validators: List[str] = field(default_factory=list)
-    # PR-3 additions. `audit_coverage` answers "did every agent-year reach
+    # Additions. `audit_coverage` answers "did every agent-year reach
     # the CSV, and how were those decisions actually extracted" — the two
     # questions a rejection-rate comparison between arms silently assumes.
     # See broker/components/analytics/audit.py:audit_coverage for each key
@@ -207,7 +207,7 @@ def _compute_metrics(results_dir: Path) -> ReadinessMetrics:
 
     summary = _read_audit_summary(results_dir)
 
-    # PR-3 provenance + coverage. Prefer what the run itself recorded
+    # Provenance + coverage. Prefer what the run itself recorded
     # (run_integrity.json), and recompute coverage from the CSV when the run
     # predates the contract — a report on an older corpus is still useful.
     integrity = _read_run_integrity(results_dir)
@@ -313,7 +313,7 @@ def _compute_metrics(results_dir: Path) -> ReadinessMetrics:
     metrics.terminal_taxonomy = dict.fromkeys(TERMINAL_CATEGORIES, 0)
     if csv_path is not None and rows:
         # Build a (agent_id, year) -> validation_issues lookup from JSONL.
-        # C1 fix (6O-C-1 round-1): duplicate keys (multi-decision-per-year
+        # C1 fix: duplicate keys (multi-decision-per-year
         # MA agents) get list-merged instead of last-write-wins overwrite.
         validation_issues_by_key: Dict[Tuple[str, str], List[Any]] = {}
         for jsonl in _find_jsonl_traces(results_dir):
@@ -472,7 +472,7 @@ def _evaluate_profile(
             )
         )
 
-    # W4 fix (6O-C-1 round-1): required_metrics declared in the profile
+    # Fix: required_metrics declared in the profile
     # MUST be present in the report; FAIL if any is None / missing.
     for metric_name in profile.required_metrics:
         observed: Any = getattr(metrics, metric_name, None)

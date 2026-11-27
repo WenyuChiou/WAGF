@@ -43,10 +43,10 @@ class SkillProposalSchema(BaseModel):
     }
 
 
-# Phase 6M-A (2026-05-23): the former ``ReasoningSchema`` Pydantic
+# The former ``ReasoningSchema`` Pydantic
 # template lived here with PMT-flavored ``threat_appraisal`` /
 # ``coping_appraisal`` field names. It was dead code (verified by
-# Phase 6M Explore: zero imports / instantiations / type annotations
+# Explore: zero imports / instantiations / type annotations
 # anywhere in broker/, examples/, or tests/). Deleted to remove the
 # last PMT-construct identifier from generic broker/interfaces/.
 # Reasoning payloads now flow through the construct-agnostic

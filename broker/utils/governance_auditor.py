@@ -28,7 +28,7 @@ class GovernanceAuditor:
     # decision phase can run on a worker pool.
     _mute = threading.local()
     # Per-thread switch for global_config.governance.summary_counts_per_decision
-    # (R5 walk finding 4): inside it, a block logged while an attempt is
+    # inside it, a block logged while an attempt is
     # validated (is_final=False, AgentValidator) is not counted, because the
     # engine counts each rule once per decision when the decision ends
     # (log_decision). Thread-local for the same worker-pool reason as _mute.
@@ -102,11 +102,9 @@ class GovernanceAuditor:
         self.empty_content_retries = 0        # LLM returned empty content, retry triggered
         self.empty_content_failures = 0       # LLM returned empty after all retries exhausted
         self.invalid_label_retries = 0        # Invalid _LABEL values triggered retry
-        # Spec item 24 fix round (audit gap: reviewer measured 1,638 real HTTP
-        # calls against 1,170 reported): backoff-layer retries
-        # (broker/utils/llm_safeguard.py's wrap_llm_invoke_with_backoff), a
-        # real extra network call per retry, distinct from the LLM's own
-        # empty-content retry loop above.
+        # Backoff-layer retries (from broker/utils/llm_safeguard.py's
+        # wrap_llm_invoke_with_backoff) represent real extra network calls per
+        # retry, distinct from the LLM's own empty-content retry loop above.
         self.backoff_retries = 0
 
         # WARNING-level rule tracking (non-blocking observations)

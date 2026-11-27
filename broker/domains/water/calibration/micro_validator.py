@@ -274,7 +274,7 @@ class MicroValidator:
         else:
             self._framework = framework
 
-        # Phase 6J-D (2026-05-22): KeywordClassifier no longer carries
+        # KeywordClassifier no longer carries
         # flood-PMT defaults; the water domain owns the dicts here.
         self._classifier = classifier or KeywordClassifier(
             ta_keywords=TA_KEYWORDS, ca_keywords=CA_KEYWORDS,

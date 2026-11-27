@@ -356,13 +356,13 @@ class AgentTypeDefinition:
 
 
 # Default PMT constructs for households.
-# Phase 6M-A (2026-05-23): these are PMT-domain defaults, used by
+# These are PMT-domain defaults, used by
 # ``broker.domains.water.agent_type_defaults.create_water_agent_type_registry``
 # to seed the legacy household type. Non-PMT domains override by
 # declaring their own ``constructs:`` block in ``agent_types.yaml``
 # or by constructing a custom ``AgentTypeRegistry`` (the generic
-# ``create_default_registry()`` raises ``RuntimeError`` per Phase
-# 6J-C). These literals stay here for the water-domain factory's
+# ``create_default_registry()`` raises ``RuntimeError``).
+# These literals stay here for the water-domain factory's
 # convenience — they are NOT a generic-broker default.
 DEFAULT_PMT_CONSTRUCTS = {
     "TP_LABEL": ConstructDefinition(

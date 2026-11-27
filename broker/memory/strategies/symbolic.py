@@ -146,8 +146,8 @@ class SymbolicSurpriseStrategy:
         sensors: Optional[List[Sensor]] = None,
         default_sensor_key: Optional[str] = None,
     ):
-        # Phase 6Q-C (2026-05-26): require either explicit `sensors=`
-        # OR a non-None `default_sensor_key=`. Pre-6Q-C the latter
+        # Require either explicit `sensors=`
+        # OR a non-None `default_sensor_key=`. Previously, the latter
         # silently defaulted to ``"flood_depth"``, causing non-flood
         # domains using the default-sensor branch to read a flood key
         # that was never in their world_state — silent zero surprise.

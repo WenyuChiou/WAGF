@@ -358,7 +358,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         self._summary_counts_python_checks = _spc if isinstance(_spc, bool) else False
         # One count per rule per decision in governance_summary.json
         # (global_config.governance.summary_counts_per_decision, default OFF;
-        # R5 walk finding 4). Same MagicMock coercion.
+        # Finding 4). Same MagicMock coercion.
         _get_spd = getattr(self.config, "get_governance_summary_counts_per_decision", None)
         _spd = _get_spd() if callable(_get_spd) else False
         self._summary_per_decision = _spd if isinstance(_spd, bool) else False
@@ -453,7 +453,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         # run_integrity.json — a failed sentinel write is a missing row, which
         # is the same denominator hole the sentinel exists to close.
         self._audit_sentinel_write_failures = 0
-        # Spec item 24 (audit gap F42, PI approved 2026-09-29): the LLM-failure
+        # The LLM-failure
         # abort-rate safeguard. Backoff is wired separately, into
         # ExperimentRunner.get_llm_invoke (broker/utils/llm_safeguard.py) --
         # this engine owns the per-DECISION rolling window instead, since
@@ -551,7 +551,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             )
         self._retry_feedback_mode = mode
         logger.info("[Governance] retry_feedback_mode=%s", self._retry_feedback_mode)
-        # W2 (review round 2): a placebo/silent retry arm exists to isolate
+        # A placebo/silent retry arm exists to isolate
         # rule content from "another attempt", but if the ADVISE channel
         # (demoted ERROR rules, `_advise_mode`) or the SOFT-RULE channel
         # (WARNING rules under `feedback`, `_soft_advise_mode`) is also live,
@@ -757,7 +757,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         self._inject_filtered_skills(context, agent_type)
         context_hash = self._hash_context(context)
 
-        # Phase 28: Dynamic Skill Retrieval (RAG)
+        # Dynamic Skill Retrieval (RAG)
         # Re-alignment: Only apply RAG for advanced engines (Hierarchical, Importance, HumanCentric)
         # to maintain parity for the baseline WindowMemoryEngine benchmarks.
         should_rag = self.skill_retriever and context.get("available_skills")
@@ -805,14 +805,14 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         
         # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
         prompt = self.context_builder.format_prompt(context)
-        # Post-render options-text parity check (2026-09, round 4): every
+        # Post-render options-text parity check: every
         # check upstream (_assert_options_text_parity et al.) verifies the
         # un-rendered TEMPLATE STRING, not what actually made it into
         # `prompt` above — a legend delivered through some OTHER filled
         # placeholder is invisible to a template-only scan. This is the
         # single point every rendered prompt in this broker passes
         # through, right before the model sees it. `render_check=False`
-        # (round 5) is replay.py's documented opt-out — see this
+        # is replay.py's documented opt-out — see this
         # method's docstring for why.
         if render_check:
             _personal_for_render_check = context.get("personal", {}) if isinstance(context, dict) else {}
@@ -823,7 +823,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 _personal_for_render_check.get("options_text"),
             )
         else:
-            # Round 6: make a skipped check countable, not just inferable
+            # Make a skipped check countable, not just inferable
             # from the `replay_` run_id prefix convention — surfaced as
             # run_integrity.json's `render_check_skipped_rows` (absent,
             # not zero, on every non-replay run).
@@ -848,7 +848,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             # ran a smaller denominator. Under corrected_status_columns a
             # sentinel row conserves the agent x year count instead.
             #
-            # Fix round 3 (CRITICAL 2, PI decision): a safeguard-specific
+            # A safeguard-specific
             # special case here (writing the sentinel whenever the safeguard
             # was enabled, regardless of this flag) was tried and reverted --
             # it made the audit schema depend on a runtime event (did THIS
@@ -888,7 +888,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     state=context.get("state") if isinstance(context, dict) else None,
                     model_name=model_name,
                 )
-            # Spec item 24: this decision never produced a usable proposal --
+            # This decision never produced a usable proposal --
             # an unconditional failure for the abort-rate window. After the
             # sentinel trace above, so the row this decision writes to the
             # audit trail exists before a possible raise. A no-op unless the
@@ -901,7 +901,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             logger.info(f" [Broker:StructuralFault] {format_retry_count} format issue(s) fixed by retry for {agent_id}")
 
         # ③ Skill validation
-        # Standardization (Phase 9/12): Decouple domain-specific keys
+        # Standardization: Decouple domain-specific keys
         if env_context is None:
             env_context = {}
 
@@ -1133,10 +1133,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     composite_errors.append(f"Primary and secondary are the same: '{sec_skill}'")
                     secondary_proposal = None
                 else:
-                    # Validate secondary individually. F5 (2026-06-10): against
-                    # the SECONDARY's own magnitude — validation_context still
-                    # holds the primary's, so magnitude caps never applied to
-                    # secondaries pre-fix. Copy, don't mutate (the primary's
+                    # Validate secondary individually against the SECONDARY's
+                    # own magnitude — validation_context still holds the primary's,
+                    # so magnitude caps never applied to secondaries pre-fix. Copy, don't mutate (the primary's
                     # context must stay intact for the retry loop).
                     sec_context = dict(validation_context)
                     if sec_mag is not None:
@@ -1155,7 +1154,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     if self._summary_per_decision:
                         # The second action belongs to the same decision: count
                         # its rules, but not one already counted for the
-                        # primary (Codex P2 on #138). The primary was approved
+                        # primary. The primary was approved
                         # to get here, so _build_approved_skill counted exactly
                         # these ids for it.
                         counted = set(self._decision_rule_ids(
@@ -1183,7 +1182,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                         secondary_proposal = None
 
         # ⑤ Execution (simulation engine ONLY — skip if REJECTED)
-        # F3 (2026-06-10): track what ACTUALLY executed, separately from the
+        # Track what ACTUALLY executed, separately from the
         # approved/blocked proposal — on REJECTED the registry default skill
         # runs as fallback while final_skill records the blocked proposal.
         # Surfaced in the audit trace only when the opt-in flag is ON (see
@@ -1198,11 +1197,11 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         executed_skill: Optional[str] = None
         executed_via_fallback = False
         execution_path = "not_executed"
-        # R1 slice 2: set only when the default skill was projected (the
+        # Set only when the default skill was projected (the
         # coupled model declares feasibility bounds); None keeps the audit row
         # free of the key, so runs without bounds keep their exact columns.
         projection_default_breach: Optional[str] = None
-        # R5 walk finding 16: set with projection_default_breach; True when the
+        # Set with projection_default_breach; True when the
         # agent's last proposal ran in place of a default that breaches too.
         projection_kept_proposal: Optional[bool] = None
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
@@ -1258,7 +1257,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                             validation_context, agent_id,
                         )
                     if kept is not None:
-                        # R5 walk finding 16: the default breaches too, and the
+                        # The default breaches too, and the
                         # agent's last proposal (blocked by feasibility bounds
                         # only) projects no worse, so it runs instead of the
                         # default. The row stays REJECTED and is marked.
@@ -1372,7 +1371,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 model_name=model_name,
             )
 
-        # Spec item 24: this decision's outcome for the abort-rate window --
+        # This decision's outcome for the abort-rate window --
         # failed when the LAST provider call this decision made ultimately
         # did not succeed, OR the final output never parsed. skill_proposal
         # can still be None here even after the early-return branch above:
@@ -1567,9 +1566,8 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             if self._summary_per_decision:
                 # Every approved decision, not only a retried one: the advisory
                 # pass can replace a blocked first proposal before any retry
-                # runs, and a rule demoted to advice never opens one (Codex P2
-                # on #138). No blocking history counts nothing; no retry, no
-                # retry_success.
+                # runs, and a rule demoted to advice never opens one.
+                # No blocking history counts nothing; no retry, no retry_success.
                 self.auditor.log_decision(
                     self._decision_rule_ids(all_validation_history or validation_results),
                     success=True if retry_count > 0 else None,
@@ -1847,7 +1845,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 if not schema_result.valid:
                     schema_result.metadata["rules_hit"] = ["output_schema_violation"]
                     # rule_id so the audit CSV's failed_rules column names this
-                    # producer instead of "Unknown" (2026-06-10 e4b finding).
+                    # producer instead of "Unknown".
                     # Byte-safe: zero output_schema violations exist in the
                     # frozen mock baselines (verified before adding).
                     schema_result.metadata.setdefault("rule_id", "output_schema_violation")

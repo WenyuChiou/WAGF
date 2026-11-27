@@ -138,7 +138,7 @@ _SENDER_MAP: Dict[str, str] = {}
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Phase 6U-E-2: Coordinator artifact-dispatch registry
+# Coordinator artifact-dispatch registry
 # ─────────────────────────────────────────────────────────────────────────
 #
 # Replaces the previously-hardcoded ``if atype == "HouseholdIntention": ...
@@ -226,13 +226,13 @@ def clear_artifact_dispatch_rules() -> None:
     _DISPATCH_RULES.clear()
 
 
-# Phase 6U-G (2026-05-28): Removed `_FallbackArtifact` base class and
+# Removed `_FallbackArtifact` base class and
 # its 3 `type()`-generated water-domain placeholder subclasses
-# (`PolicyArtifact`, `MarketArtifact`, `HouseholdIntention`). Pre-6U-G
+# (`PolicyArtifact`, `MarketArtifact`, `HouseholdIntention`). Previously,
 # the broker carried these stub classes solely so generic code could
 # reference them by name without importing example modules — but no
 # production broker code path actually instantiated them: the
-# coordinator (Phase 6U-E-2) now dispatches via
+# coordinator now dispatches via
 # `register_artifact_dispatch_rule` instead of class identity, the
 # routing maps are populated via `register_artifact_routing` at import
 # of the real classes in `examples/multi_agent/flood/protocols/`,

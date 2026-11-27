@@ -126,7 +126,7 @@ class PerceptionFilterRegistryProtocol(Protocol):
 
 # Pre-defined generic (domain-neutral) descriptor mappings. A
 # domain-specific depth descriptor was relocated to its domain package
-# (Phase 6H Item 5); damage-severity and neighbour-count are
+# damage-severity and neighbour-count are
 # domain-agnostic and stay here.
 DAMAGE_SEVERITY_DESCRIPTORS = DescriptorMapping(
     field_name="damage_severity",

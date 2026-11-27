@@ -216,7 +216,7 @@ class RatingScalesConfig(BaseModel):
 
 
 # =============================================================================
-# Task-041 Phase 3: Construct & Multi-Condition Governance
+# Construct & Multi-Condition Governance
 # =============================================================================
 
 class ConstructDefinition(BaseModel):
@@ -360,7 +360,7 @@ class GovernanceRule(BaseModel):
     blocked_skills: List[str] = []
     level: Literal["ERROR", "WARNING"] = "ERROR"
     message: Optional[str] = None
-    # Task-041: Add framework field for multi-framework support
+    # Add framework field for multi-framework support
     framework: Optional[FrameworkStr] = None
 
 

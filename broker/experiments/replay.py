@@ -858,7 +858,7 @@ class ReplayDecider:
                 llm_invoke=invoke,
                 agent_type=snapshot.agent_type,
                 env_context=dict(snapshot.env_context),
-                # render_check=False (round 5, 2026-09) — LOAD-BEARING,
+                # render_check=False — LOAD-BEARING,
                 # not belt-and-braces: this call feeds a RECORDED prompt
                 # (`prompt`, above) from a PAST run into a freshly rebuilt
                 # engine, whose dynamic_skill_map is reconstructed
@@ -1153,7 +1153,7 @@ def build_replay_decider(
         domain_physical_dispatch=config.get_governance_physical_dispatch(),
     )
 
-    # Silent-failure P1 (review round 2): `config` above is RELOADED from
+    # `config` above is RELOADED from
     # disk (config_snapshot.yaml / the recorded agent_types_config), and a
     # CLI override the ORIGINAL run used (examples/single_agent/run_flood.py
     # --retry-feedback-mode) changes only the LIVE engine attribute at run

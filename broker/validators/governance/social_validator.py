@@ -90,7 +90,7 @@ class SocialValidator(BaseValidator):
                         "subcategory": rule.subcategory,
                         "skill_proposed": skill_name,
                         "level": "WARNING",  # Force WARNING level
-                        **self._recovery_keys(rule),  # Phase 6O-A-2 (single source of truth)
+                        **self._recovery_keys(rule),  # (single source of truth)
                     }
                 ))
 

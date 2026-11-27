@@ -53,8 +53,8 @@ class HybridSurpriseStrategy:
         ema_alpha: float = 0.3,
         sensors: Optional[List[Sensor]] = None,
     ):
-        # Phase 6Q-C (2026-05-26): require explicit `ema_stimulus_key=`.
-        # Pre-6Q-C the kwarg silently defaulted to ``"flood_depth"`` and
+        # Require explicit `ema_stimulus_key=`.
+        # Previously, the kwarg silently defaulted to ``"flood_depth"`` and
         # propagated through both composed strategies — any non-flood
         # domain got zero surprise from the EMA half + flood-bin
         # defaults from the Symbolic half. A "sensors-only" convenience

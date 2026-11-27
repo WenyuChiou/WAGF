@@ -57,8 +57,8 @@ class FloodCSVLoader(CSVLoader):
         "flood_zone": ["flood_zone", "zone"],
         "has_insurance": ["has_insurance", "insurance"],
         "elevated": ["elevated", "is_elevated"],
-        # Phase 6R-C: PMT score column aliases — relocated from base
-        # ``CSVLoader.DEFAULT_COLUMNS`` (audit cluster A #3 / #4).
+        # PMT score column aliases — relocated from base
+        # ``CSVLoader.DEFAULT_COLUMNS``.
         "tp_score": ["tp_score", "TP", "threat_perception"],
         "cp_score": ["cp_score", "CP", "coping_perception"],
         "sp_score": ["sp_score", "SP", "stakeholder_perception"],
@@ -69,7 +69,7 @@ class FloodCSVLoader(CSVLoader):
     def _populate_domain_fields(
         self, profile: FloodAgentProfile, get_val: Callable
     ) -> None:
-        # Phase 6R-C: PMT scores now populated here (relocated from
+        # PMT scores now populated here (relocated from
         # base CSVLoader._parse_row's profile-construction kwargs).
         profile.tp_score = float(get_val("tp_score", 3.0))
         profile.cp_score = float(get_val("cp_score", 3.0))
@@ -103,7 +103,7 @@ class FloodSyntheticLoader(SyntheticLoader):
 
     _PROFILE_CLASS = FloodAgentProfile
 
-    # Phase 6R-C: agent_id prefix override — "H" (household) + 1-indexed
+    # Agent_id prefix override — "H" (household) + 1-indexed
     # to preserve paper-1b byte-identity. Base SyntheticLoader uses
     # "A" + 0-indexed (domain-neutral). The 1-indexed offset cannot be
     # expressed via the prefix alone — see ``_build_agent_id`` override.
@@ -117,9 +117,9 @@ class FloodSyntheticLoader(SyntheticLoader):
         """
         return f"{self._AGENT_ID_PREFIX}{idx + 1:04d}"
 
-    # Phase 6R-C: PMT score distributions by MG status — relocated
-    # from base SyntheticLoader.PMT_PARAMS (audit cluster A #4). These
-    # values were the Phase 6C-v3 paper-1b calibration for the flood
+    # PMT score distributions by MG status — relocated
+    # from base SyntheticLoader.PMT_PARAMS. These
+    # values were the paper-1b calibration for the flood
     # household population; non-water domains define their own
     # distributions in their own SyntheticLoader subclass.
     PMT_PARAMS = {
@@ -169,7 +169,7 @@ class FloodSyntheticLoader(SyntheticLoader):
         self, profile: FloodAgentProfile, is_mg: bool, is_owner: bool,
         pre=None,
     ) -> None:
-        # Phase 6R-C: PMT scores were pre-sampled in
+        # PMT scores were pre-sampled in
         # ``_pre_generate_rng`` to preserve paper-1b RNG ordering;
         # transfer them onto the typed FloodAgentProfile here.
         # Use ``pre is not None`` (NOT ``if pre:``) so an explicit

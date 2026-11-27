@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 from .content_types import MemoryContentType
 
 
-# Phase 6K-A (2026-05-22): water-domain category keys (flood + damage +
+# Water-domain category keys (flood + damage +
 # insurance-experience labels) relocated to
 # FloodDomainPack.memory_policy().category_rules. The keys retained here
 # are framework-agnostic — any agent-society domain may use them.
@@ -75,13 +75,13 @@ def classify(
         except ValueError:
             pass
 
-    # Phase 6K-A (2026-05-22): a domain pack may supply category rules
+    # A domain pack may supply category rules
     # via memory_policy().category_rules. Explicit caller-supplied
     # domain_mapping still wins to keep test-side overrides honoured.
     if domain_mapping is None and domain:
         try:
             from broker.domains.registry import DomainPackRegistry
-            # Phase 6R-D-4 (2026-05-26): narrowed to MemoryPack via
+            # Narrowed to MemoryPack via
             # typed accessor — only memory_policy() is in scope here.
             bundle = DomainPackRegistry.get_memory_pack(domain).memory_policy()
             if bundle is not None and bundle.category_rules:

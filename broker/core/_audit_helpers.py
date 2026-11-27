@@ -405,10 +405,10 @@ def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
 
-# PR-3: the value written to ``mem_top_emotion`` / ``mem_top_source`` when the
-# retrieved memory record carries no such key. The pre-PR-3 literals
+# The value written to ``mem_top_emotion`` / ``mem_top_source`` when the
+# retrieved memory record carries no such key. The legacy literals
 # ("neutral" / "personal") are indistinguishable in the CSV from a genuine
-# unanimous mode, which is the 2026-04-19 NW-flood failure class; this marker
+# unanimous mode, which is that legacy missing-metadata failure class; this marker
 # is not, and it is what ``detect_audit_sentinels`` would rather see.
 UNOBSERVED = "unobserved"
 
@@ -419,7 +419,7 @@ UNOBSERVED = "unobserved"
 #: would be a fabricated measurement of a call that DID happen, so the sentinel
 #: writes "" for each key its stats dict does not carry.
 #:
-#: The 2026-09-15 cost columns (`llm_calls_total`, `llm_latency_ms`,
+#: The cost columns (`llm_calls_total`, `llm_latency_ms`,
 #: `tokens_per_second`, `prompt_tokens_total`, `response_tokens_total`)
 #: deliberately do NOT join this list. Those keys are KEY-GATED in
 #: `trace_to_csv_row`, so blanking an absent one here would CREATE the column on
@@ -461,7 +461,7 @@ def _sentinel_llm_stats(stats: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 #: train the operator to filter it out — which is how the silent failure this
 #: warning exists to surface gets re-buried.
 #:
-#: PR-4: the key is the REASON TOKEN, never the exception's message. Keying on
+#: The key is the REASON TOKEN, never the exception's message. Keying on
 #: the message (as this did) lets a getter whose text carries anything variable
 #: — an agent id, a path — mint a fresh key on every call, so the set grows
 #: without bound and the "once" never holds. Same defect, same fix, as
@@ -520,7 +520,7 @@ def _corrected_status_flag(config) -> bool:
     return False
 
 
-#: PR-4 (D5): there is deliberately NO parsing-flag resolver here. The parser
+#: There is deliberately NO parsing-flag resolver here. The parser
 #: resolves ``global_config.parsing.strict_layers`` once per parse call
 #: (``broker/utils/parsing/unified_adapter.py::resolve_strict_layers_flag``,
 #: which owns the fail-closed-with-one-warning discipline) and stamps the
@@ -533,7 +533,7 @@ class AuditMixin:
     """Mixin providing audit trace writing and state management helpers."""
 
     # ------------------------------------------------------------------
-    # PR-8: decider provenance
+    # Decider provenance
     # ------------------------------------------------------------------
     def _decider_audit_extra(
         self, decider: Optional[str], *, path: Optional[str] = None,
@@ -692,7 +692,7 @@ class AuditMixin:
                 "executed_via_fallback": False,
                 "execution_path": "aborted",
                 "execution_success": "",
-                # PR-8: same gated keys as every other row, so a
+                # Same gated keys as every other row, so a
                 # mixed-population CSV has ONE column set. The PATH is
                 # forced to "aborted" (review P1-c): this row exists
                 # because nothing parsed after the retries, so the
@@ -786,7 +786,7 @@ class AuditMixin:
         log_fields = self.config.get_log_fields(agent_type_final)
         audit_priority = [f"reason_{f.lower()}" for f in log_fields]
 
-        # PR-3: with corrected_status_columns ON, an ABSENT emotion/source is
+        # With corrected_status_columns ON, an ABSENT emotion/source is
         # marked as such instead of borrowing the "neutral"/"personal"
         # literals. Observed values are untouched either way — only the
         # missing-key default changes, so a run whose memory records DO carry
@@ -832,7 +832,7 @@ class AuditMixin:
             "retrieval_mode": "humancentric" if memory_pre else "",
         }
 
-        # F3 (2026-06-10 audit review): EXECUTED-stage truth, OPT-IN via
+        # EXECUTED-stage truth, OPT-IN via
         # global_config.audit.executed_skill_columns (default OFF). Key-gated
         # by construction: when OFF the keys never enter the trace, so neither
         # the JSONL nor the row-key-derived CSV fieldnames change — frozen
@@ -844,7 +844,7 @@ class AuditMixin:
                 "executed_skill": executed_skill,
                 "executed_via_fallback": bool(executed_via_fallback),
             }
-        # PR-3: `execution_path` names the remap rule that produced
+        # `execution_path` names the remap rule that produced
         # `executed_skill` (approved / approved_no_engine / rejected_default /
         # rejected_proposal / fallback / aborted / not_executed / unknown), so
         # the row states it instead of
@@ -865,7 +865,7 @@ class AuditMixin:
                 else ""
             )
 
-        # 6W-B6: PROPOSED-parameter columns, OPT-IN via
+        # PROPOSED-parameter columns, OPT-IN via
         # global_config.audit.param_columns (default OFF). Same key-gated
         # discipline as executed_extra: flag-OFF (or a proposal with no
         # parameters, i.e. every frozen domain) emits nothing -> no row key ->
@@ -955,13 +955,13 @@ class AuditMixin:
         if callable(get_aflag) and get_aflag() and advise_info:
             advise_extra = dict(advise_info)
 
-        # PR-6: the SOFT-RULE columns. Key-gated by the channel itself rather
+        # The SOFT-RULE columns. Key-gated by the channel itself rather
         # than by a second flag — `_soft_rule_pass` returns {} when the channel
         # is off, so an off run adds no keys, gains no columns, and stays
         # byte-identical without an operator having to remember two switches.
         soft_extra: Dict[str, Any] = dict(soft_advise_info or {})
 
-        # PR-6: the GROUNDING columns. ON when the active profile declares a
+        # The GROUNDING columns. ON when the active profile declares a
         # world-grounded rule (or when the operator forces them), so a reader of
         # a grounded run can tell which of the rules that fired read the world
         # and which read the model's own labels — a distinction `rules_triggered`
@@ -979,14 +979,14 @@ class AuditMixin:
                     "rules_world_grounded": "|".join(_world),
                     "rules_self_report": "|".join(_self_report),
                 }
-                # PR-6 P1-a: one tally per ROW (this function runs once per audit
+                # One tally per ROW (this function runs once per audit
                 # row), not per validation pass — a decision that retried three
                 # times must not count three times against the row total the
                 # guardrail compares with.
                 _note_world_grounded_row(
                     _row_world_rules_unevaluable(all_validation_history))
 
-        # PR-8: the DECIDER columns. ON when any agent type in the active
+        # The DECIDER columns. ON when any agent type in the active
         # config declares a non-`llm` decider (or when forced), because at
         # that moment the CSV holds rows produced by different things and
         # nothing else in it says which is which.
@@ -1001,14 +1001,14 @@ class AuditMixin:
         if attempt_prompts is not None:
             retry_prompt_extra["retry_prompts"] = list(attempt_prompts)
 
-        # R1 slice 2: the default skill that ran after the retries were
+        # The default skill that ran after the retries were
         # exhausted was projected (the coupled model declares feasibility
         # bounds): the bound names it breaches, "" when it passes. Key-gated by
         # the value itself, so a run without bounds adds no key and no column.
         projection_extra: Dict[str, Any] = {}
         if projection_default_breach is not None:
             projection_extra["projection_default_breach"] = projection_default_breach
-        # R5 walk finding 16: whether the agent's last proposal ran in place of
+        # Whether the agent's last proposal ran in place of
         # that default (it breaches no worse); set only on the same rows.
         if projection_kept_proposal is not None:
             projection_extra["projection_kept_proposal"] = bool(projection_kept_proposal)
@@ -1032,12 +1032,12 @@ class AuditMixin:
             "model": model_name or getattr(self, '_model_name', 'unknown'),
             "decision_source": _classify_decision_source(approved_skill, skill_proposal),
             "validated": all_valid,
-            # Phase 6G #4a: write fallback_activated at source so the audit
+            # #4a: write fallback_activated at source so the audit
             # row-builder reads it directly instead of inferring from the
             # status string. REJECTED_FALLBACK = retries exhausted and the
             # registry default skill executed (genuine fallback activation).
             #
-            # PR-3: that test reads the BLOCKED skill's approval status, so a
+            # That test reads the BLOCKED skill's approval status, so a
             # plain-REJECTED row records False even though the registry
             # default is precisely what the engine ran. Under
             # corrected_status_columns the flag is derived from what
@@ -1056,18 +1056,18 @@ class AuditMixin:
             "memory_post": memory_post,
             "memory_audit": memory_audit,
             "social_audit": _safe_social_audit(context),
-            # Phase 6C W8: populate rule_breakdown so audit CSV's rules_*_hit
+            # Populate rule_breakdown so audit CSV's rules_*_hit
             # columns carry real validator-category counts instead of placeholder
             # zeros. Imported lazily here to avoid a startup-time circular
             # import (governance pkg imports core types).
-            # PR-3: `allow_metadata_fallback` under corrected_status_columns —
+            # `allow_metadata_fallback` under corrected_status_columns —
             # the production AgentValidator sets metadata["tier"], never
             # metadata["category"], so without it four of the five
             # rules_*_hit columns are zero on every row by construction.
             "rule_breakdown": _safe_rule_breakdown(
                 all_validation_history, allow_metadata_fallback=corrected
             ),
-            # Phase 6Q-D-3 (2026-05-26): populate `triggered_rules` so the
+            # Populate `triggered_rules` so the
             # audit CSV column of the same name carries a deduped list of
             # rule IDs that fired (BLOCK + WARN). Pre-fix the schema +
             # reader existed but no producer wrote the key — `triggered_rules`
@@ -1093,7 +1093,7 @@ class AuditMixin:
             # accidental named "executed_skill" key above cannot silently
             # shadow them (spread-first would lose that collision).
             **executed_extra,
-            # 6W-B6: proposed-parameter columns, spread last (same rationale).
+            # proposed-parameter columns, spread last (same rationale).
             # compute_csv_fieldnames appends these sorted-after-priority, so the
             # frozen column order is never reordered.
             **param_extra,
@@ -1101,10 +1101,10 @@ class AuditMixin:
             **initial_extra,
             # P0-1c: advisory columns, spread last (same rationale).
             **advise_extra,
-            # PR-6: soft-rule + grounding columns, spread last (same rationale).
+            # Soft-rule + grounding columns, spread last (same rationale).
             **soft_extra,
             **grounding_extra,
-            # PR-8: decider provenance, spread last (same rationale).
+            # Decider provenance, spread last (same rationale).
             **decider_extra,
             # Agent-state columns, spread last (same rationale).
             **state_extra,

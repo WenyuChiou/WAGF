@@ -28,7 +28,7 @@ class SemanticGroundingValidator(BaseValidator):
     """
 
 
-    # Phase 6O-A-2: semantic / grounding checks log inconsistency but never block — the model can always rephrase to ground its reasoning.
+    # Semantic / grounding checks log inconsistency but never block — the model can always rephrase to ground its reasoning.
     _DEFAULT_EXPECTED_TERMINAL: bool = False
     _DEFAULT_CONSTRAINT_TYPE: str = "diagnostic"
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):

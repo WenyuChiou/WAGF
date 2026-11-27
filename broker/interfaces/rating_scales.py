@@ -173,8 +173,8 @@ C = Conservative | M = Moderate | A = Aggressive"""
         )
 
         # Generic: domain-neutral 5-level Likert scale. A standalone scale
-        # object — NOT an alias to the PMT scale (Phase 6J-A de-flood:
-        # "generic" must not silently carry the flood PMT framework).
+        # object — NOT an alias to the PMT scale ("generic"
+        # must not silently carry the flood PMT framework).
         cls._scales[FrameworkType.GENERIC.value] = RatingScale(
             framework=FrameworkType.GENERIC,
             levels=["VL", "L", "M", "H", "VH"],

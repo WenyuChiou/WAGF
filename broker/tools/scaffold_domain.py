@@ -37,8 +37,8 @@ def gen_package_init(domain: str, framework: str) -> str:
     # NOTE: the continuation line carries the same 8-space indent as the
     # dedent() template body below, so dedent strips it uniformly. A bare
     # column-0 continuation here would zero-out dedent's common prefix and
-    # emit an __init__.py with IndentationError (the custom-framework path
-    # bug caught in the 2026-06-03 review).
+    # emit an __init__.py with IndentationError (caught on the
+    # custom-framework path).
     cognition_import = (
         f"from .cognition import register_{domain}_framework\n"
         f"        register_{domain}_framework()"
@@ -84,7 +84,7 @@ def gen_readme(
         "        the response format, so the smoke run's decisions are not REJECTED. When\n"
         "        you add a required field to the response format, add it to that answer too."
     )
-    # R5 walk finding 7: a physical-only case has no constructs (so no
+    # A physical-only case has no constructs (so no
     # construct retry warnings) and no appraisal for the pack's hooks to read.
     if physical_only:
         mock_note = (
@@ -166,7 +166,7 @@ def gen_readme(
 
 def gen_skill_registry(domain: str, skills: List[str], default_skill: str | None = None) -> str:
     # `skill_registry.yaml` uses `skill_id:` (different from `agent_types.yaml`
-    # actions which use `id:`). Phase 6E Finding #2: an earlier version of
+    # actions which use `id:`). Finding #2: an earlier version of
     # this scaffold emitted `id:` and the broker's
     # GovernanceRegistry.register_from_yaml raised KeyError('skill_id') at
     # build time. Keep this aligned with the parser at
@@ -178,7 +178,7 @@ def gen_skill_registry(domain: str, skills: List[str], default_skill: str | None
          f'    eligible_agent_types: ["agent"]')
         for s in skills
     )
-    # Phase 6Q-E (2026-05-26): generic placeholder, was previously
+    # Generic placeholder, was previously
     # ``"do_nothing"`` which is a flood-domain-specific skill name
     # registered in ``examples/governed_flood/config/skill_registry.yaml``
     # — a new-domain scaffold inherited flood-skill vocabulary in its
@@ -187,7 +187,7 @@ def gen_skill_registry(domain: str, skills: List[str], default_skill: str | None
     # and experiment_builder catches it. Renaming to a TODO-marker
     # makes the intent visible.
     default = default_skill or (skills[0] if skills else "TODO_default_skill")
-    # R5 walk finding 7b: --default-skill picks it; otherwise the first skill.
+    # --default-skill picks it; otherwise the first skill.
     chosen = (
         "It is set by --default-skill" if default_skill
         else "It is set to the first skill (choose another with --default-skill)"
@@ -215,7 +215,7 @@ def gen_agent_types_yaml(
     if physical_only:
         framework = "none"
     framework_value = f"{domain}_framework" if framework == "custom" else framework
-    # Options-text parity fix (2026-09): the decision field used to
+    # Options-text parity fix: the decision field used to
     # hand-roll a hardcoded digit legend here
     # ("Numeric ID, choose ONE from: 1, 2, 3 (1=skill_a, 2=skill_b, ...)")
     # via `description:` — exactly the custom domain bug (a legend
@@ -392,7 +392,7 @@ def gen_agent_types_yaml(
         domain=domain,
         mock_slot=mock_slot,
         magnitude_field=magnitude_field,
-        # R5 walk finding 6: the first-proposed and each attempt's number.
+        # The first-proposed and each attempt's number.
         magnitude_audit="\n    attempt_magnitude_columns: true" if magnitude else "",
         framework_value=framework_value,
         # Both opt-ins emit appraisal columns even when there are no labels.
@@ -412,7 +412,7 @@ def gen_agent_types_yaml(
 def gen_prompt(
     domain: str, skills: List[str], *, physical_only: bool = False, magnitude: bool = False,
 ) -> str:
-    # Options-text parity fix (2026-09): the scaffolder used to render
+    # Options-text parity fix: the scaffolder used to render
     # ``Available actions: {skills}`` plus a hand-written, hardcoded
     # "1 = skill_a / 2 = skill_b" digit legend — exactly the
     # custom domain bug shape ({skills} is never filled by

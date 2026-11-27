@@ -631,7 +631,7 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         mem_cfg = agent.memory_config if isinstance(getattr(agent, "memory_config", None), dict) else {}
         agent.memory_config = {**mem_cfg, "rejection_line_style": styles[agent.agent_type]}
     runner._llm_cache.update(invokes)
-    # R5 walk finding 13: a case with no rules still gets validator_health.csv.
+    # A case with no rules still gets validator_health.csv.
     audit_writer = getattr(getattr(runner, "broker", None), "audit_writer", None)
     if audit_writer is not None and hasattr(audit_writer, "config"):
         audit_writer.config.always_write_validator_health = True
@@ -826,7 +826,7 @@ def main(argv=None) -> int:
               file=sys.stderr)
 
     # flush: with output sent to a file the header would otherwise land after
-    # the run's own lines (R5 walk finding 11)
+    # the run's own lines
     print(f"[broker.run] {ctx.config_path} | model={ctx.model} years={ctx.years} "
           f"agents={len(ctx.agents)} output={ctx.output_dir}", flush=True)
     # Written before the run so a failed run still leaves its record.

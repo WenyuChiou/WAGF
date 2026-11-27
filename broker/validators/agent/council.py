@@ -19,7 +19,7 @@ class CouncilValidator:
         weights: Optional[List[float]] = None,
         quorum_threshold: float = 0.5,
     ):
-        # Phase 6L-B (2026-05-22): the MAJORITY-mode quorum was a
+        # The MAJORITY-mode quorum was a
         # hardcoded ``>= 0.5`` literal inside ``validate``; extracted to
         # a constructor kwarg so a domain that wants a super-majority
         # (2/3 ≈ 0.667) or qualified-majority can declare it via
@@ -66,11 +66,11 @@ class CouncilValidator:
                 # Since we flattened all_results, we lost the per-validator grouping.
                 pass
             
-            # TODO(6L-B 2026-05-22): the all_results loop above is
+            # TODO: the all_results loop above is
             # effectively dead in MAJORITY mode — every validator
             # is re-run below to populate validator_votes. Unify
             # both passes in a future cleanup; do not block the
-            # 6L-B quorum_threshold extraction on it.
+            # quorum_threshold extraction on it.
             # Alternative: Run and check each
             validator_votes = []
             for validator in self.validators:

@@ -162,7 +162,7 @@ class BaseAgent:
         self._state_raw: Dict[str, float] = {}
         self._state_normalized: Dict[str, float] = {}
 
-        # PR 9: Explicit State Partitioning (Personal vs Environmental)
+        # Explicit State Partitioning (Personal vs Environmental)
         self.fixed_attributes: Dict[str, Any] = {}  # Immutable (e.g., Demographics)
         self.dynamic_state: Dict[str, Any] = {}     # Mutable (e.g., Savings, Damage)
 
@@ -174,7 +174,7 @@ class BaseAgent:
         # Custom Attributes (Legacy support)
         self.custom_attributes: Dict[str, Any] = {}
 
-        # Phase 12: Generic Memory Config (keywords, weights)
+        # Generic Memory Config (keywords, weights)
         self._memory_config: Dict[str, Any] = {}
 
     def _init_state(self):

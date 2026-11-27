@@ -402,13 +402,13 @@ class InteractionHub:
                 env_context["institutional"] = self.environment.institutions.get(inst_id, {})
 
         # Get social context (gossip + visible actions)
-        # Phase 8: Use SDK observer if available
+        # Use SDK observer if available
         if self.social_observer:
             social_context = self.get_social_context_v2(agent_id, agents)
         else:
             social_context = self.get_social_context(agent_id, agents)
 
-        # Phase 8: Get environment observation via SDK if available
+        # Get environment observation via SDK if available
         env_sdk_observation = {}
         if self.environment_observer:
             env_sdk_observation = self.get_environment_observation(agent_id, agents)
@@ -420,7 +420,7 @@ class InteractionHub:
                 "social": social_context.get("gossip", []) if isinstance(social_context, dict) else social_context,
                 "visible_actions": social_context.get("visible_actions", []) if isinstance(social_context, dict) else [],
                 "environment": env_context["local"],
-                # Phase 8: SDK environment observation
+                # SDK environment observation
                 "sensed_environment": env_sdk_observation.get("sensed_state", {}),
                 "detected_events": env_sdk_observation.get("detected_events", []),
             },

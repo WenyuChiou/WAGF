@@ -44,14 +44,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-# Phase 6R-B-3 (audit cluster E #16): the registry lookup happens at
+# The registry lookup happens at
 # validate-time to union the CLI's base placeholder allowlist with
 # domain-specific extensions. Module-level import because
 # ``broker.domains.registry`` is a first-party broker module — if it
 # ever can't be imported, the CLI was broken at startup, not here.
 from broker.domains.registry import DomainPackRegistry
 
-# Reviewer drift note (round 4, 2026-09): import the SAME tuple the
+# Import the SAME tuple the
 # runtime guard uses (broker/core/_skill_filtering.py) instead of
 # retyping ("choice", "secondary_choice") here — a future third numeric
 # field type would otherwise need remembering to update BOTH places.
@@ -97,19 +97,18 @@ BROKER_FILLED_PLACEHOLDERS: Set[str] = {
     "social_gossip",
     "neighbor_action_summary",
     "global_news",
-    # Phase 6R-B-3 (2026-05-26): the 3 water-domain placeholder names
+    # The 3 water-domain placeholder names
     # (``insurance_cost_text`` / ``mg_barrier_text`` /
     # ``renewal_fatigue_text``) that previously lived here have moved to
     # ``FloodDomainPack.prompt_placeholder_extensions()``. The CLI
     # unions this base set with the registered DomainPack's extensions
-    # at validate-time (see ``_resolve_domain_extensions`` below). This
-    # closes the asymmetric coverage flagged by Phase 6Q-K-3 (Layer 3
-    # audit finding #16).
+    # at validate-time (see ``_resolve_domain_extensions`` below) to close
+    # asymmetric coverage between schemas and prompts.
 }
 
 
 # ---------------------------------------------------------------------------
-# Domain-specific placeholder extensions (Phase 6R-B-3)
+# Domain-specific placeholder extensions
 # ---------------------------------------------------------------------------
 
 def _resolve_domain_extensions(cfg: Dict[str, Any]) -> Set[str]:
@@ -151,7 +150,7 @@ def _resolve_domain_extensions(cfg: Dict[str, Any]) -> Set[str]:
         # Defensive: a broken pack must not crash the validator.
         # Most likely real failures are AttributeError (pack missing
         # the method) and TypeError (method returns a non-iterable).
-        # Phase 6Q-D-4 graceful-degradation pattern.
+        # Graceful-degradation pattern.
         return set()
     return set(ext) if ext else set()
 
@@ -172,7 +171,7 @@ class Issue:
 
 
 # ---------------------------------------------------------------------------
-# Canonical global_config key registry (2026-06-09 architecture review P0-4)
+# Canonical global_config key registry
 # ---------------------------------------------------------------------------
 # THE canonical list of recognized ``global_config`` keys. Every feature flag
 # in this repo is read via ``dict.get(key, <default-OFF>)``, so a typo'd key
@@ -189,11 +188,11 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "memory",       # memory-engine tuning
     "reflection",   # reflection cadence/questions
     "governance",   # see KNOWN_GOVERNANCE_KEYS
-    "social_feeds", # see KNOWN_SOCIAL_FEEDS_KEYS (two-layer flag, Phase 6T-E.B)
-    "coupling",     # see KNOWN_COUPLING_KEYS (two-layer flag, Phase 6V)
+    "social_feeds", # see KNOWN_SOCIAL_FEEDS_KEYS
+    "coupling",     # see KNOWN_COUPLING_KEYS
     "audit",        # see KNOWN_AUDIT_KEYS (opt-in column flags, all default OFF)
-    "parsing",      # see KNOWN_PARSING_KEYS (PR-4 hardened-parsing flag, default OFF)
-    "validators",   # see KNOWN_VALIDATORS_KEYS (PR-6 label-resolution flag, default OFF)
+    "parsing",      # see KNOWN_PARSING_KEYS
+    "validators",   # see KNOWN_VALIDATORS_KEYS
     "llm_safeguard",  # LLM-failure backoff + abort-rate stop (spec item 24, audit
                       # gap F42, default OFF); AgentTypeConfig.get_llm_safeguard_config
                       # validates its five sub-keys itself, so no KNOWN_*_KEYS
@@ -213,7 +212,7 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     "retrieval",                 # agent_config.get_retrieval_config
     "drift",                     # agent_config.get_drift_config
     "population",                # agent_config.get_population_governance_config
-    # "policy_event_tiers" removed org-4 cleanup 2026-09 — the
+    # "policy_event_tiers" removed — the
     # DomainPack.policy_event_tiers() hook and its sole consumer
     # (AgentTypeConfig.get_policy_event_tiers_config) are both gone;
     # grep-confirmed no repo YAML sets this key, so dropping it from
@@ -229,7 +228,7 @@ KNOWN_GOVERNANCE_KEYS: Set[str] = {
     "intervention_framing",      # agent_config.get_governance_intervention_framing
     "require_profile",           # agent_config.get_governance_require_profile
     "on_retry_exhausted",        # agent_config.get_governance_on_retry_exhausted
-    # PR-6 soft-rule channel. Note it is `advise_mode`, NOT `advise` — the two
+    # Soft-rule channel. Note it is `advise_mode`, NOT `advise` — the two
     # are different features (`advise` demotes ERROR rules for an experiment
     # arm; `advise_mode` governs rules already authored as WARNING) and writing
     # one where you meant the other is the mistake this entry exists to name.
@@ -258,7 +257,7 @@ KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
 
 KNOWN_COUPLING_KEYS: Set[str] = {
     "enable",           # broker/coupling/flag.py
-    "context_contract", # agent_config.get_coupling_context_contract (PR-9, F1)
+    "context_contract", # agent_config.get_coupling_context_contract
 }
 
 # Every opt-in audit column flag, all default-OFF and all read through
@@ -267,27 +266,27 @@ KNOWN_COUPLING_KEYS: Set[str] = {
 # and nothing in the artifacts says the flag was ever requested — you find out
 # when the analysis is already written. This check is the only config-time net.
 KNOWN_AUDIT_KEYS: Set[str] = {
-    "corrected_status_columns",  # agent_config.get_audit_corrected_status_columns (PR-3)
+    "corrected_status_columns",  # agent_config.get_audit_corrected_status_columns
     "executed_skill_columns",    # agent_config.get_audit_executed_columns (F3)
     "initial_proposal_columns",  # agent_config.get_audit_initial_proposal_columns (P0-1a)
     "advise_columns",            # agent_config.get_audit_advise_columns (P0-1c)
-    "param_columns",             # agent_config.get_audit_param_columns (6W-B6)
-    "grounding_columns",         # agent_config.get_audit_grounding_columns (PR-6)
-    "decider_columns",           # agent_config.get_audit_decider_columns (PR-8)
+    "param_columns",             # agent_config.get_audit_param_columns
+    "grounding_columns",         # agent_config.get_audit_grounding_columns
+    "decider_columns",           # agent_config.get_audit_decider_columns
     "attempt_columns",           # agent_config.get_audit_attempt_columns
     "attempt_magnitude_columns", # agent_config.get_audit_attempt_magnitude_columns
     "state_columns",             # agent_config.get_audit_state_columns
     "retry_prompt_columns",      # agent_config.get_audit_retry_prompt_columns
 }
 
-# PR-4: the single opt-in parsing-hardening flag, default-OFF, same fail-open
+# The single opt-in parsing-hardening flag, default-OFF, same fail-open
 # rationale as KNOWN_AUDIT_KEYS — a typo'd key resolves to feature-OFF (the
 # naked-digit layer keeps firing) with zero warnings anywhere else.
 KNOWN_PARSING_KEYS: Set[str] = {
-    "strict_layers",  # agent_config.get_parsing_strict_layers (PR-4)
+    "strict_layers",  # agent_config.get_parsing_strict_layers
 }
 
-# PR-6: validator-behaviour flags, default-OFF, same fail-closed rationale as
+# Validator-behaviour flags, default-OFF, same fail-closed rationale as
 # KNOWN_AUDIT_KEYS — a typo'd key resolves to feature-OFF, the run keeps the
 # hardcoded five-level label alphabet, and every rule written against another
 # framework's labels silently never fires with nothing anywhere saying so.
@@ -377,7 +376,7 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     and the explicitly-requested dispatch silently no-ops.
     """
     issues: List[Issue] = []
-    # PR-4 (D8): runs BEFORE the global_config early-return on purpose — a YAML
+    # Runs BEFORE the global_config early-return on purpose — a YAML
     # that puts strict_layers under an agent type and has no global_config block
     # at all is the exact config this warning exists for.
     issues.extend(_check_per_agent_strict_layers(cfg))
@@ -425,7 +424,7 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     parsing_block = _check_block("parsing", KNOWN_PARSING_KEYS)
     issues.extend(_check_strict_layers_value(parsing_block, f"{loc}.parsing"))
 
-    # PR-6: `advise_mode` must name a real mode. The config getter raises on a
+    # `advise_mode` must name a real mode. The config getter raises on a
     # bad value, but that happens at RUN time, after the operator has walked
     # away from a launched batch; catching it here costs one character to fix.
     if "advise_mode" in gov:
@@ -462,24 +461,24 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
 
 
 # ---------------------------------------------------------------------------
-# Rule-shape lint (G4, 2026-06-10 audit review — the 6N-E class killer)
+# Rule-shape lint
 # ---------------------------------------------------------------------------
 # The thinking-rule loader (broker/utils/agent_config.py get_thinking_rules)
 # consumes EXACTLY these keys; anything else loads silently and is IGNORED —
-# the Phase 6N-E failure class (a rule the author believes in, evaluating
-# never). Verified dead siblings found 2026-06-10: precondition (dropped by
+# the silent dead-rule failure class (a rule the author believes in, evaluating
+# never). Verified dead siblings found: precondition (dropped by
 # the loader), expected_values/levels (only when_above/when_true are read),
 # state_field/state_fields/aggregation/threshold/trigger_phrases (CoherenceRule
 # fields with no loader and no evaluator), string conditions.
 _THINKING_RULE_CONSUMED_KEYS: Set[str] = {
     "id", "construct", "conditions", "when_above", "when_true",
     "blocked_skills", "level", "message",
-    # PR-6: read by `resolve_rule_grounding` to stamp CoherenceRule.grounding,
+    # Read by `resolve_rule_grounding` to stamp CoherenceRule.grounding,
     # which decides the `rules_world_grounded` / `rules_self_report` split.
     "grounding",
 }
 # Condition dicts: canonical short shape {construct, values}; the verbose
-# 6N-E shape evaluates via the `field` fallback but `type`/`operator` are
+# shape evaluates via the `field` fallback but `type`/`operator` are
 # IGNORED (membership-in-values is the only semantic).
 # `field` is consumed at EVALUATION time, not load time:
 # broker/validators/agent/agent_validator.py:455
@@ -489,13 +488,13 @@ _THINKING_RULE_CONSUMED_KEYS: Set[str] = {
 # as live — extending this lint to identity_rules needs its own key set.
 _CONDITION_CONSUMED_KEYS: Set[str] = {"construct", "values", "field"}
 
-# PR-6: a WORLD condition consumes a DIFFERENT key set. `{variable, scope,
+# A WORLD condition consumes a DIFFERENT key set. `{variable, scope,
 # operator, value|values}` are all live there
 # (broker/utils/agent_config.py::world_condition_target,
 # broker/validators/agent/agent_validator.py::_evaluate_world_condition), and
 # `type` selects the verbose dataclass shape. Kept as a separate set rather than
 # merged into the one above, because on a CONSTRUCT condition `operator` alone
-# still has no semantics — that is the 6N-E finding this lint exists to report,
+# still has no semantics — that is the finding this lint exists to report,
 # and widening one set to accommodate the other would delete it.
 _WORLD_CONDITION_CONSUMED_KEYS: Set[str] = {
     "variable", "scope", "operator", "value", "values", "type", "field",
@@ -515,7 +514,7 @@ def _consumed_condition_keys(cond: Dict[str, Any]) -> Set[str]:
     from broker.utils.agent_config import world_condition_target
 
     if "expression" in cond:
-        # R1 slice 3: the whole test is in the string. Any other key on such a
+        # The whole test is in the string. Any other key on such a
         # condition is refused at config load, so these three are all it reads.
         return _EXPRESSION_CONDITION_CONSUMED_KEYS
     name, _scope = world_condition_target(cond)
@@ -1076,7 +1075,7 @@ def resolve_prompt_path(yaml_path: Path, template_ref: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Skill->rule coverage (Phase 6G flaw 5 — Requisite Variety)
+# Skill->rule coverage
 # ---------------------------------------------------------------------------
 
 COVERAGE_THRESHOLD = 0.80
@@ -1346,8 +1345,8 @@ def validate_agent_type(
             "no 'prompt_template_file' or inline 'prompt_template' set — "
             "agent will use the broker default template",
         ))
-        # Options-text parity BLOCKER, missing-template branch (2026-09,
-        # hardened after silent-failure review — this WARN used to
+        # Options-text parity BLOCKER for the missing-template branch (this
+        # WARN used to
         # `return` before the parity BLOCKER below ever ran). The broker
         # default template renders {skills}, not {options_text}
         # (BaseAgentContextBuilder.DEFAULT_PROMPT_TEMPLATE — the exact
@@ -1383,7 +1382,7 @@ def validate_agent_type(
         collect_template_vars(shared.get("template_vars"))
         | collect_template_vars(block.get("template_vars"))
     )
-    # Phase 6R-B-3 (audit cluster E #16): union the base broker-filled
+    # Union the base broker-filled
     # set with the DomainPack's domain-specific extensions (e.g.
     # FloodDomainPack.prompt_placeholder_extensions() supplies
     # ``insurance_cost_text`` etc.). Pre-fix these names lived in
@@ -1406,7 +1405,7 @@ def validate_agent_type(
             f"template_vars.",
         ))
 
-    # ---- options-text parity (2026-09 fix) --------------------------------
+    # ---- options-text parity --------------------------------
     # BLOCKER: an agent with >1 eligible skill whose prompt never renders
     # the live numbered list ({options_text}/{skills_text}) is vulnerable to
     # the custom domain bug — RAG skill retrieval (or shuffle_options)
@@ -1469,11 +1468,11 @@ def validate_agent_type(
         pattern = rf"(?<![A-Za-z0-9_]){re.escape(aid)}(?![A-Za-z0-9_])"
         return re.search(pattern, template) is not None
 
-    # Silent-failure hunter findings (2026-09), mirrored from
+    # Parity checks mirrored from
     # broker/core/_skill_filtering.py:resolve_decision_field_is_numeric_choice:
-    # (NEW-1) "secondary_choice" also renders a numeric-ID instruction
+    # (1) "secondary_choice" also renders a numeric-ID instruction
     # (response_format.py's `elif ftype == "secondary_choice":` branch,
-    # ~150-153) — not just "choice". (NEW-2) checking only fields whose
+    # ~150-153) — not just "choice". (2) Checking only fields whose
     # key is in a guessed decision_keywords set (defaulting to just
     # {"decision"}) can miss the real decision field: the parser's own
     # default keyword list is wider (unified_adapter.py:427,
@@ -1527,7 +1526,7 @@ def validate_agent_type(
                 f"them as 'missing required fields'.",
             ))
 
-    # ---- Phase 6G flaw 5: skill->rule coverage (Requisite Variety) -------
+    # ---- skill->rule coverage (Requisite Variety) -------
     issues.extend(check_skill_rule_coverage(cfg, agent_type))
 
     return issues
@@ -1599,8 +1598,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     # .thinking_rules) — never an agent type itself. Excluded so
                     # a future governance dict that happens to nest an
                     # AGENT_KEY_INDICATOR (e.g. parsing:) is not misclassified
-                    # as an agent type (6T-F.3 was the first standalone config
-                    # to carry a scanned top-level governance block).
+                    # as an agent type (configs may carry a scanned
+                    # top-level governance block).
                     "governance"}
         agent_types = [
             k for k, v in cfg.items()
@@ -1618,15 +1617,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
 
     all_issues: List[Issue] = []
-    # 2026-06-09: config-time unknown-key net (canonical registry above).
+    # config-time unknown-key net (canonical registry above).
     all_issues.extend(check_global_config_keys(cfg))
-    # 2026-06-10 (G4): silently-dead rule-shape lint (the 6N-E class).
+    # Silently-dead rule-shape lint.
     all_issues.extend(check_rule_shapes(cfg))
-    # PR-6 (W5): world-condition `scope:` allowlist. An unrecognised scope is
+    # World-condition `scope:` allowlist. An unrecognised scope is
     # coerced to `auto` at load time and the rule keeps firing against a plane
     # nobody named, so it has to be caught before the batch, not after.
     all_issues.extend(check_world_condition_scopes(cfg))
-    # PR-8: every declared `decider:` must name a registered one, and the
+    # Every declared `decider:` must name a registered one, and the
     # key must be where something reads it.
     all_issues.extend(check_decider_declarations(cfg))
     # R3: the action number of a new case is on [0, 1].
@@ -1649,7 +1648,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             for problem in agent_config.check_theory_free(name)
         )
 
-    # Phase 6R-B-3: resolve domain-specific placeholder extensions once
+    # Resolve domain-specific placeholder extensions once
     # per CLI invocation. The hook is keyed on
     # ``global_config.governance.domain``.
     domain_extensions = _resolve_domain_extensions(cfg)

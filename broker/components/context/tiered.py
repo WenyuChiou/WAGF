@@ -89,7 +89,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         """Format memory (list, dict with episodic/semantic/core, or scalar) into a prompt string."""
         def format_memory_item(memory_item) -> str:
             # Prompt must match V1 format (bare bullet, no salience tags).
-            # Rationale (2026-04-19): even an innocuous-looking "[ROUTINE]"
+            # Rationale: even an innocuous-looking "[ROUTINE]"
             # prefix on seed memories drove Gemma-3 4B's Y1 elevate rate
             # from 25% to 70% with identical content. The tag introduces
             # prompt-structure cues that small LLMs over-weight. Memory
@@ -184,7 +184,7 @@ class BaseAgentContextBuilder(ContextBuilder):
             {k: v for k, v in context.items() if k not in template_vars and isinstance(v, (str, int, float, bool))}
         )
 
-        # Phase L3-1D (2026-05-24): flatten env_context primitives so
+        # Flatten env_context primitives so
         # simulation-side per-year signals (e.g. outbreak_severity_label,
         # vaccine_supply_label, side_effect_signal) become template
         # placeholders the prompt can reference directly. Without this
@@ -332,29 +332,29 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # Only add social/institutional providers when hub is available
         # (irrigation domain runs without InteractionHub)
         if hub is not None:
-            # Phase 8: Pass SDK observer to SocialProvider if available
+            # Pass SDK observer to SocialProvider if available
             providers.append(SocialProvider(hub, observer=social_observer))
 
             if getattr(hub, "environment", None):
                 providers.append(InstitutionalProvider(hub.environment))
 
-            # Phase 8: Add EnvironmentObservationProvider if SDK observer provided
+            # Add EnvironmentObservationProvider if SDK observer provided
             if environment_observer and getattr(hub, "environment", None):
                 providers.append(
                     EnvironmentObservationProvider(environment_observer, hub.environment)
                 )
 
-        # Phase 6T-F (2026-05-29): complete the half-landed v0.5.1 C2
+        # Complete the half-landed v0.5.1 C2
         # social-feeds wiring. Commit eadde2a wired
         # run_unified_experiment.py to pass enable_social_feeds /
         # follower_network / social_feeds_* to THIS builder, but those
         # params only ever landed on the parallel/legacy context
-        # builder that (pre-6T-F) accepted them — TieredContextBuilder
+        # builder that accepted them — TieredContextBuilder
         # never accepted them, so every run_unified_experiment.py
         # construction raised ``TypeError: unexpected keyword argument
         # 'enable_social_feeds'`` (RED-ing the MA-flood mock smoke since
         # eadde2a). Mirror that builder's gated append (that builder
-        # itself was removed 2026-09 as unused dead code — see
+        # itself was removed as unused dead code — see
         # CHANGELOG [Unreleased]). When the flag
         # is False (paper-3 default) nothing is added → byte-identical
         # provider chain. Inserted BEFORE extend_providers so the runner's
@@ -543,7 +543,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             {k: v for k, v in context.items() if k not in template_vars and isinstance(v, (str, int, float, bool))}
         )
 
-        # Phase L3-1D (2026-05-24): mirror the Base flatten — env_context
+        # Mirror the Base flatten — env_context
         # primitives become template placeholders. See BaseAgentContextBuilder
         # comment above for rationale.
         env_ctx = context.get("environment_context", {})
@@ -579,7 +579,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         if not options_text and agent:
             available_skills = list(agent.get_available_skills())
 
-            # Anti-positional-bias: shuffle skill ordering (Task-060B)
+            # Anti-positional-bias: shuffle skill ordering
             shuffle_enabled = context.get("_shuffle_skills", False)
             if shuffle_enabled and available_skills:
                 import random as _rng
@@ -604,8 +604,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             # Inject dynamic_skill_map for parser (Priority 1 in get_skill_map)
             personal = context.setdefault("personal", {})
             personal["dynamic_skill_map"] = dynamic_skill_map
-            # NEW-8 (silent-failure hunter, round 5, 2026-09): this branch
-            # wrote dynamic_skill_map back into `personal` but never wrote
+            # This branch wrote dynamic_skill_map back into `personal` without writing
             # `options_text` back alongside it, even though it is the SAME
             # numbered list that gets rendered into the prompt just below
             # via template_vars["options_text"]. The options-text-parity
@@ -626,7 +625,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars["options_text"] = options_text
         template_vars["valid_choices_text"] = valid_choices_text
         template_vars["skills_text"] = options_text
-        # Task-060A: Forward insurance cost disclosure from provider
+        # Forward insurance cost disclosure from provider
         template_vars["insurance_cost_text"] = p.get(
             "insurance_cost_text", context.get("personal", {}).get("insurance_cost_text", "")
         )
@@ -662,7 +661,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         if "{system_prompt}" not in template:
             template = "{system_prompt}\n\n{priority_section}\n\n" + template
 
-        # Options-text parity guard (2026-09, added after silent-failure
+        # Options-text parity guard (added after silent-failure
         # review): this method can build its OWN dynamic_skill_map (the
         # ``if not options_text and agent:`` branch above) from a
         # DIFFERENT source (``agent.get_available_skills()``) and a
@@ -775,8 +774,8 @@ DECIDE:[action] ADJ:[0-0.15] REASON:[1-line]"""
 
 # TieredContextBuilder's own no-template fallback (used inside
 # format_prompt below when self.prompt_templates has no entry for the
-# agent_type). Promoted to a module-level constant (2026-09, silent-
-# failure review NEW-4) so broker/core/_skill_filtering.py's options-text
+# agent_type). Promoted to a module-level constant so
+# broker/core/_skill_filtering.py's options-text
 # parity guard can IMPORT this exact string when evaluating what will
 # really render for a TieredContextBuilder with no registered template,
 # instead of hand-typing a second copy that could silently drift from

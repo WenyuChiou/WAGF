@@ -370,7 +370,7 @@ class LLMFailureRateAborted(RuntimeError):
         self.observed_rate = observed_rate
         self.window = window
         self.threshold = threshold
-        # Fix round 3, WARNING 3: the raw counts behind observed_rate, so a
+        # The raw counts behind observed_rate, so a
         # reader is not left reconstructing them from a rounded percentage.
         # decisions_in_window can be LESS than window -- early-stop (see
         # LLMAbortTracker.record) can fire before the window ever fills.

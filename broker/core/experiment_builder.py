@@ -320,7 +320,7 @@ class ExperimentBuilder:
             contract=self._coupling["contract"],
             sources=self._coupling["sources"],
         )
-        # R1 slice 2: a contract that declares feasibility bounds gets a
+        # A contract that declares feasibility bounds gets a
         # projection check. It is built BEFORE the adapter replaces the sim
         # engine, so a model that cannot be projected fails here, at build time,
         # and a retried build() starts clean. It runs with the other custom
@@ -560,7 +560,7 @@ class ExperimentBuilder:
         from broker.components.memory.engine import seed_memory_from_agents
         seed_memory_from_agents(mem_engine, self.agents)
 
-        # Phase 28: If using HierarchicalMemoryEngine, ensure ContextBuilder supports it
+        # If using HierarchicalMemoryEngine, ensure ContextBuilder supports it
         from broker.components.context.builder import TieredContextBuilder
 
         # 3. Setup Context Builder
@@ -645,7 +645,7 @@ class ExperimentBuilder:
                 if templates:
                     ctx_builder.prompt_templates.update(templates)
 
-                # Phase 12: Inject memory_config and other domain-specific parameters into agents
+                # Inject memory_config and other domain-specific parameters into agents
                 for agent in self.agents.values():
                     atype = getattr(agent, 'agent_type', 'default')
                     agent.memory_config = config.get_memory_config(atype)
@@ -656,7 +656,7 @@ class ExperimentBuilder:
         from broker.utils.agent_config import AgentTypeConfig
         config = AgentTypeConfig.load(self.agent_types_path)
         self._check_numeric_field_skills(config, reg)
-        # R5 walk finding 10: no cognitive_audit warning for agent types that
+        # No cognitive_audit warning for agent types that
         # have no appraisal.
         audit_writer.no_appraisal_agent_types = {
             name for name, cfg in config.items()
@@ -694,7 +694,7 @@ class ExperimentBuilder:
             verbose=self.verbose,
             workers=self.workers,
             phase_order=getattr(self, '_phase_order', None),
-            # F4 (2026-06-10): cognitive cache opt-in; default OFF (audit-row +
+            # Cognitive cache opt-in; default OFF (audit-row +
             # coupled-execution holes on hits; see ExperimentConfig docstring).
             enable_cognitive_cache=getattr(self, '_enable_cognitive_cache', False),
             # Crash-resume journal; both None unless with_llm_journal /
@@ -703,7 +703,7 @@ class ExperimentBuilder:
             resume_journal_path=getattr(self, '_resume_journal_path', None),
         )
 
-        # R1 slice 2: a projection check saves and restores the process-wide RNG
+        # A projection check saves and restores the process-wide RNG
         # state around each what-if run, which would rewind other threads' draws,
         # and it copies the live model while other threads may change it. Unlike
         # AR-3 below, the predicate is exact here, so refuse instead of warning.

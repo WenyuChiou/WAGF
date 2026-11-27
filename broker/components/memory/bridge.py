@@ -44,7 +44,7 @@ MESSAGE_IMPORTANCE_MAP = {
 }
 
 
-# Phase 6L-D (2026-05-23): defaults for resolution importance — the
+# Defaults for resolution importance — the
 # asymmetric 0.6 / 0.75 split is a deliberate behavioural claim
 # ("Denials are more memorable"; see the inline comment in
 # ``store_resolution``). The values are exposed as a knob via
@@ -66,8 +66,8 @@ class MemoryBridge:
         memory_engine: MemoryEngine,
         importance_policy: Optional[Dict[str, float]] = None,
     ):
-        # Phase 6L-D (2026-05-23): ``importance_policy`` is the new
-        # knob; ``None`` preserves the pre-6L-D byte-identical
+        # ``importance_policy`` is the new
+        # knob; ``None`` preserves the legacy byte-identical
         # 0.6 / 0.75 defaults. Callers wire YAML / DomainPack via
         # ``AgentTypeConfig.get_bridge_importance_config()``.
         self.memory_engine = memory_engine

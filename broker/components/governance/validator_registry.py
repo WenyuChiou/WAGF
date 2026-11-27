@@ -21,7 +21,7 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 # Slot taxonomy — one bucket per validator class that accepts builtin checks.
-# Wave 4 slot-honesty pass (2026-06-10, architecture review): "temporal" and
+# "temporal" and
 # "behavioural" DELETED — in their entire lifetime no production code ever
 # registered a check under either slot and no dispatch site ever read them
 # (grep-verified; the strings appearing in flood/irrigation validators are

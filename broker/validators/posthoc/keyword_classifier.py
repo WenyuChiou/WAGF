@@ -59,7 +59,7 @@ class KeywordClassifier:
         ta_keywords: Optional[Dict[str, List[str]]] = None,
         ca_keywords: Optional[Dict[str, List[str]]] = None,
     ):
-        # Phase 6J-D (2026-05-22): no flood-PMT default; ``None`` is a
+        # No flood-PMT default; ``None`` is a
         # legitimate Tier-1/1.5-only mode.
         self.ta_keywords = ta_keywords
         self.ca_keywords = ca_keywords

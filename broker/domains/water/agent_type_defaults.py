@@ -12,7 +12,7 @@ from broker.config.agent_types.registry import AgentTypeRegistry
 
 def create_water_agent_type_registry() -> AgentTypeRegistry:
     """Create the legacy household PMT registry for the water domain."""
-    # Phase 6J-C (2026-05-22): relocated from the generic
+    # Relocated from the generic
     # create_default_registry() body.
     registry = AgentTypeRegistry()
 

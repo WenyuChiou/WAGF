@@ -24,7 +24,7 @@ from .base import ModelAdapter
 DEFAULT_PROXIMITY_WINDOW = 35
 
 
-#: PR-4 (D7). One warning per REASON per process, keyed on the reason token
+#: One warning per REASON per process, keyed on the reason token
 #: alone. The earlier draft keyed on ``(f"the getter raised {exc}", type(config))``,
 #: which defeats the purpose: a getter whose message carries anything variable
 #: (an agent id, a path) mints a fresh key every call, so the set grows without
@@ -94,7 +94,7 @@ def _sanitize_warning(text: str) -> str:
     return text.replace("|", "/")
 
 
-#: PR-4 (D2 i). The decision-line digit anchor, flag-ON. Module-level so the
+#: The decision-line digit anchor, flag-ON. Module-level so the
 #: tests and the docs point at ONE definition — a regex retyped as a literal in
 #: a test asserts nothing about the code, and a regex retyped in a doc goes
 #: stale the first time the code moves.
@@ -109,7 +109,7 @@ def _sanitize_warning(text: str) -> str:
 #: the case where the JSON layer fails and this route is what catches the
 #: contract), ``: [3]``, ``: (3)``, ``: `3` ``, ``**3**`` and ``is 3``.
 #:
-#: PR-4 reviewer follow-up. The LEAD-IN is a closed whitelist —
+#: Parsing hardening reviewer follow-up. The LEAD-IN is a closed whitelist —
 #: ``option|choice|number|#|->|>+|is|my choice is`` — so ``Decision: Option 3``,
 #: ``Decision: #3``, ``Decision: number 3``, ``Decision: -> 3``,
 #: ``Decision: >>> 3`` and ``Decision: my choice is 3`` all resolve. What it
@@ -134,7 +134,7 @@ class UnifiedAdapter(ModelAdapter):
     Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
     """
 
-    #: PR-4 (D6). Per-THREAD storage for the warnings a ``return None`` parse
+    #: Per-THREAD storage for the warnings a ``return None`` parse
     #: would otherwise discard. NOT a plain instance attribute: with
     #: ``--workers > 1``, ``ExperimentRunner._run_agents_parallel`` submits one
     #: shared engine — and therefore one shared adapter — to a
@@ -200,7 +200,7 @@ class UnifiedAdapter(ModelAdapter):
         self.config = parsing_cfg
 
         # Determine preprocessor (Order: Explicit argument > YAML Config > Identity)
-        # Phase 12/28: Ensure explicit or config preprocessors are not overwritten
+        # Ensure explicit or config preprocessors are not overwritten
         if preprocessor:
             self._preprocessor = preprocessor
         else:
@@ -315,7 +315,7 @@ class UnifiedAdapter(ModelAdapter):
         skill_map = self.agent_config.get_skill_map(agent_type, context)
         # Dynamic alias map per agent_type (not self.alias_map which may be stale)
         alias_map = self.agent_config.get_action_alias_map(agent_type)
-        # PR-4: global_config.parsing.strict_layers (default OFF). Read once
+        # Global_config.parsing.strict_layers (default OFF). Read once
         # per parse call, through the coercing resolver (never the raw getter:
         # a MagicMock config would otherwise read truthy), and threaded through
         # every gated branch below AND into _parse_keywords, so the parser is
@@ -327,7 +327,7 @@ class UnifiedAdapter(ModelAdapter):
         skill_name = None
         reasoning = {}
         parsing_warnings = []
-        # Phase 0.3: Retrieve agent-specific normalization map
+        # Retrieve agent-specific normalization map
         custom_mapping = parsing_cfg.get("normalization", {})
         proximity_window = parsing_cfg.get("proximity_window", DEFAULT_PROXIMITY_WINDOW)
 
@@ -341,7 +341,7 @@ class UnifiedAdapter(ModelAdapter):
             "construct_completeness": 0.0,
         }
 
-        # Phase 15: Early return for empty output
+        # Early return for empty output
         if not raw_output:
             return None
 
@@ -352,8 +352,8 @@ class UnifiedAdapter(ModelAdapter):
             if not raw_output:
                 return None  # Only thinking tokens, no actual response
 
-        # 1. Phase 15: Enclosure Extraction (Priority)
-        # Dynamic Delimiters (from YAML config) - Phase 23
+        # 1. Enclosure Extraction (Priority)
+        # Dynamic Delimiters (from YAML config) -
         try:
             from broker.components.response_format import ResponseFormatBuilder
             cfg = self.agent_config
@@ -389,7 +389,7 @@ class UnifiedAdapter(ModelAdapter):
 
         # 3. ATTEMPT JSON PARSING
         _magnitude_pct = None  # Optional magnitude for Group D experiments
-        # 6W-B2: full extracted numeric dict. Initialised here (not only inside the
+        # full extracted numeric dict. Initialised here (not only inside the
         # JSON-success block at ~:335) so it is always defined at the constructor,
         # including the JSON-parse-failed path. Routed to SkillProposal.parameters
         # only when the agent_type opts in (get_multi_param_enabled), else stays {}.
@@ -526,7 +526,7 @@ class UnifiedAdapter(ModelAdapter):
                                     _magnitude_pct = float(digit_match.group(1))
 
                 # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
-                # PR-4 (D1): the leading group is OPTIONAL, so this pattern is
+                # The leading group is OPTIONAL, so this pattern is
                 # not decision-scoped at all -- `(?:decision|choice|id|:)?\s*(\d)\b`
                 # matches the bare "3" in "3 of my neighbours moved" exactly as
                 # readily as the "3" in "Decision: 3". Under strict_layers the
@@ -569,7 +569,7 @@ class UnifiedAdapter(ModelAdapter):
                 # If 'synonyms' is defined in YAML, use it. Otherwise, no synonym expansion.
                 SYNONYM_MAP = parsing_cfg.get("synonyms", {})
 
-                # R5 walk finding 17: the label map below turns the text "1"
+                # The label map below turns the text "1"
                 # into "True" and "0" into "False". A declared number field
                 # keeps the model's own value, so reason_<key> shows the number.
                 # Only where the key matches no construct: a number key that is
@@ -638,7 +638,7 @@ class UnifiedAdapter(ModelAdapter):
                                         # 1. Try full regex match (prefix + label)
                                         match = re.search(regex, v, re.IGNORECASE)
                                         if match and match.groups():
-                                            # Phase 6N-B (2026-05-23): the regex matches
+                                            # The regex matches
                                             # case-insensitively via re.IGNORECASE but
                                             # match.group(1) preserves whatever case the
                                             # LLM emitted — a chatty model writes "m"
@@ -664,8 +664,7 @@ class UnifiedAdapter(ModelAdapter):
                                                     # Sort by length descending to match "Very High" before "High"
                                                     alternatives.sort(key=len, reverse=True)
 
-                                                    # First try direct match.
-                                                    # Phase 6N-B reviewer W2: uppercase
+                                                    # First try direct match; uppercase
                                                     # the assigned alt for LABEL
                                                     # constructs (this whole branch is
                                                     # already inside "_LABEL" in name).
@@ -717,10 +716,9 @@ class UnifiedAdapter(ModelAdapter):
                             else:
                                 reasoning[k] = normalize_construct_value(v, custom_mapping=custom_mapping)
         except (json.JSONDecodeError, AttributeError) as exc:
-            # PR-4 (audit finding #5): this previously swallowed the failure
-            # with no trace of it anywhere -- a row that fell all the way
-            # through to keyword/digit/default parsing carried no record of
-            # WHY the JSON attempt failed. Flag-OFF keeps the silent `pass`
+            # Previously this swallowed the failure without recording a trace --
+            # a row that fell through to keyword/digit/default parsing carried no
+            # record of WHY the JSON attempt failed. Flag-OFF keeps the silent `pass`
             # byte-for-byte (parsing_warnings must not gain entries no
             # existing corpus has).
             if strict_layers:
@@ -732,7 +730,7 @@ class UnifiedAdapter(ModelAdapter):
 
         # 4. KEYWORD SEARCH (Fallback if JSON resolution failed)
         if not skill_name:
-            # PR-4 (D5): strict_layers is PASSED, not re-read from config here.
+            # Strict_layers is PASSED, not re-read from config here.
             # The parser resolves the flag once per parse call and is the single
             # source of truth for it; a second read is a second chance to
             # disagree with the first.
@@ -751,7 +749,7 @@ class UnifiedAdapter(ModelAdapter):
                 # Merge keyword reasoning if json failed
                 if not reasoning.get("strategy"):
                     reasoning.update(kw_res.get("reasoning", {}))
-                # PR-4 (D2 ii / D3): the surviving keyword routes are still
+                # The surviving keyword routes are still
                 # decision-scoped, but two of them decide from a DIGIT and one
                 # from a loose skill-name match, and flag-OFF all three land in
                 # the audit as a flat "keyword" -- so `parse_layer_digit_share`
@@ -769,7 +767,7 @@ class UnifiedAdapter(ModelAdapter):
                 parse_layer = f"{parse_layer}+{_kw_suffix}" if is_enclosed else _kw_suffix
 
         # 5. NAKED DIGIT SEARCH (Last Resort)
-        # PR-4 (D1): flag-OFF this takes the FIRST standalone single digit
+        # Flag-OFF this takes the FIRST standalone single digit
         # ANYWHERE in cleaned_target as the decision -- entirely ungated by the
         # per-agent-type `parsing.strict_mode` YAML key (a digit inside an
         # unrelated JSON field like `"confidence": 3` is just as eligible as a
@@ -828,7 +826,7 @@ class UnifiedAdapter(ModelAdapter):
                                 g_start = start_search + val_match.start()
                                 g_end = start_search + val_match.end()
 
-                                # Phase 6N-D-4 (2026-05-24): whitelist filter.
+                                # Whitelist filter.
                                 # The free-text fallback scans reasoning prose,
                                 # and ``\b(VL|L|M|H|VH)\b`` matches the bare
                                 # ``m`` between ``'`` and ``space`` inside
@@ -884,7 +882,7 @@ class UnifiedAdapter(ModelAdapter):
             # Allow digit extraction as last resort during retries even in strict mode
             is_retry = context.get("retry_attempt", 0) > 0
 
-            # PR-4 (D1): BOTH arms of this gate are digit routes that are not
+            # BOTH arms of this gate are digit routes that are not
             # scoped to a decision line -- `digit_matches` is every digit in the
             # text, and `candidates[-1]` is simply the last one. The
             # strict_mode:false arm fires for any relaxed domain; the `is_retry`
@@ -902,7 +900,7 @@ class UnifiedAdapter(ModelAdapter):
                         ))
                     else:
                         skill_name = skill_name or skill_map[last_digit]
-                        # PR-4 (D4): this `or` is a provenance bug, left as-is
+                        # This `or` is a provenance bug, left as-is
                         # for byte identity -- when parse_layer is already
                         # "enclosure" the digit that actually decided the row is
                         # never recorded, so a digit-decided row is filed under
@@ -918,7 +916,7 @@ class UnifiedAdapter(ModelAdapter):
 
         if not skill_name:
             if strict_mode:
-                # Phase 6C-v4 Finding 3+5: surface diagnostic context so
+                # Surface diagnostic context so
                 # new-domain users see WHY the parser failed, not just
                 # the misleading "Empty/Null response" log downstream.
                 # Three things matter for debugging:
@@ -950,7 +948,7 @@ class UnifiedAdapter(ModelAdapter):
                 parsing_warnings.append(msg)
                 logger.error(f" [Adapter:Error] {msg}{diag}")
                 if strict_layers:
-                    # PR-4 (D6): there is no proposal on this path, so the
+                    # There is no proposal on this path, so the
                     # STRICT_LAYERS suppression lines that explain WHY the row
                     # failed have nowhere to go and are discarded. Stash them
                     # for the retry loop to fold into the next attempt's
@@ -984,7 +982,7 @@ class UnifiedAdapter(ModelAdapter):
         # Resolve to canonical ID via alias map (dynamic per agent_type)
         skill_name = alias_map.get(skill_name.lower(), skill_name)
 
-        # 7. Semantic Correlation Audit (Phase 20)
+        # 7. Semantic Correlation Audit
         # Check both T1 and T2/T3 memory storage patterns
         retrieved_memories = context.get("retrieved_memories") or context.get("memory")
         if not retrieved_memories and "personal" in context:
@@ -995,7 +993,7 @@ class UnifiedAdapter(ModelAdapter):
         # 6. Correlation Audit (Standard)
         # ... (Existing logic) ...
 
-        # 7. Demographic Grounding Audit (Phase 21)
+        # 7. Demographic Grounding Audit
         # Checks if qualitative anchors (Persona/History) are cited in reasoning
         demo_audit = audit_demographic_grounding(reasoning, context, parsing_cfg, self.config)
         reasoning["demographic_audit"] = demo_audit
@@ -1074,14 +1072,14 @@ class UnifiedAdapter(ModelAdapter):
 
         # 9. Parse metadata (confidence + construct completeness)
         base_layer = "fallback"
-        # PR-4 (audit finding #2): flag-OFF this checks "json" in parse_layer
+        # With strict_layers OFF this checks "json" in parse_layer
         # BEFORE "digit", so a row parsed as e.g. "enclosure+json+digit"
         # (JSON present but unusable, decision recovered from a stray digit)
         # is stamped parse_confidence=0.95 -- the schema's highest -- even
         # though the actual decision came from the least reliable layer.
         # Flag-ON any parse_layer containing "digit" outranks "json"
         # regardless of order; flag-OFF the original ordering is unchanged.
-        # "fuzzy_name" (PR-4 D3) is a flag-ON-only layer and gets the same 0.50
+        # "fuzzy_name" is a flag-ON-only layer and gets the same 0.50
         # tier as a digit: a loose skill-name match inside a decision line is a
         # recovery, not a parse.
         if strict_layers and "digit" in parse_layer:
@@ -1175,7 +1173,7 @@ class UnifiedAdapter(ModelAdapter):
             if _secondary_magnitude_pct is not None:
                 reasoning["_secondary_magnitude_pct"] = _secondary_magnitude_pct
 
-        # R5 walk finding 2: a numeric response field may list the skills that
+        # A numeric response field may list the skills that
         # take its number (`skills: [set_release]`). For any other skill the
         # number is dropped here, so a hold action carries no number to the
         # rules, the projection, the world or the audit; the audit's
@@ -1250,7 +1248,7 @@ class UnifiedAdapter(ModelAdapter):
             parse_confidence=parse_confidence,
             construct_completeness=construct_completeness,
             magnitude_pct=_magnitude_pct,
-            # 6W-B2: stop discarding the multi-field numeric dict the parser already
+            # stop discarding the multi-field numeric dict the parser already
             # built. Routed ONLY when this agent_type opts in; frozen domains return
             # False -> {} -> SkillProposal.to_dict omits the key -> byte-identical.
             parameters=(
@@ -1260,7 +1258,7 @@ class UnifiedAdapter(ModelAdapter):
             ),
         )
         if strict_layers:
-            # PR-4 (D5): the PARSER decides whether the hardened layers applied,
+            # The PARSER decides whether the hardened layers applied,
             # and the proposal carries that decision downstream. Before this,
             # the parser read the flag off the adapter's config and the audit
             # layer re-derived it from the ENGINE's config — two objects that
@@ -1327,7 +1325,7 @@ class UnifiedAdapter(ModelAdapter):
                     numeric_key_sink.append(mag_match.group(1))
 
         # 1. DECISION LINE SEARCH
-        # PR-4 (D3): remember the FIRST decision line's value text. Under
+        # Remember the FIRST decision line's value text. Under
         # strict_layers the skill-name recovery at step 2b is scoped to it
         # instead of scanning the whole response; None means the model never
         # emitted a decision line, and step 2b then cannot fire at all.
@@ -1344,7 +1342,7 @@ class UnifiedAdapter(ModelAdapter):
                         if decision_value_text is None:
                             decision_value_text = raw_val
                         # 1a. Try Digit in keyword line.
-                        # PR-4 (D2 i): this route is KEPT under strict_layers --
+                        # This route is KEPT under strict_layers --
                         # `Decision: 3` is the documented prompt contract and the
                         # digit here IS decision-scoped. But `re.search(r'(\d)')`
                         # scopes it only to the line, not to the value: for
@@ -1378,7 +1376,7 @@ class UnifiedAdapter(ModelAdapter):
                             return {
                                 "skill_name": skill_map[digit_match.group(1)],
                                 "magnitude_pct": found_mag,
-                                # PR-4 (D2 ii): flag-ON, tell parse_output this
+                                # Flag-ON, tell parse_output this
                                 # decision came from a digit so it can stamp
                                 # parse_layer "keyword+digit" and
                                 # parse_layer_digit_share can see it. Flag-OFF
@@ -1401,7 +1399,7 @@ class UnifiedAdapter(ModelAdapter):
             r"\bchoice\s*(\d)\b",
             r"\bskill\s*(\d)\b"
         ]
-        # PR-4 (D2): these patterns are KEPT under strict_layers. Unlike the
+        # These patterns are KEPT under strict_layers. Unlike the
         # naked-digit layers they each require an explicit choice phrase
         # ("I choose 3", "choice 3", "skill 3"), which is decision-scoped by
         # construction. Flag-ON they report parse_mode "keyword_digit" like
@@ -1431,7 +1429,7 @@ class UnifiedAdapter(ModelAdapter):
         # existing corpus would start matching skill names that corpus never
         # matched, so the working form is flag-ON only.
         #
-        # Flag-ON (PR-4 D3) it does NOT simply become a whole-text `re.search`.
+        # With strict parsing enabled, it does NOT simply become a whole-text `re.search`.
         # A whole-text search is a verified false positive generator: on
         # "...so I will not purchase insurance this year" it matches the single
         # skill "insurance" and returns buy_insurance -- the exact opposite of

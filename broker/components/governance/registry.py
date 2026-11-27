@@ -32,7 +32,7 @@ class SkillRegistry:
     
     def __init__(self):
         self.skills: Dict[str, SkillDefinition] = {}
-        # Phase 6J-C (2026-05-22): domain defaults must come from YAML or
+        # Domain defaults must come from YAML or
         # set_default_skill(), never from a generic broker fallback.
         self._default_skill: Optional[str] = None
         self._default_skill_explicit: bool = False

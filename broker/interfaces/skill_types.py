@@ -42,12 +42,12 @@ class SkillProposal:
     construct_completeness: float = 0.0  # Construct coverage [0.0-1.0]
     magnitude_pct: Optional[float] = None         # LLM-proposed action number: unitless; its scale is the response field's declared min/max (new cases use [0, 1])
     magnitude_fallback: bool = False               # True if magnitude from cluster default after failed retries
-    # Phase 6W-B (default-OFF): typed multi-field setpoint dict for multi-dimensional
+    # Opt-in (default-OFF): typed multi-field setpoint dict for multi-dimensional
     # actions (e.g. a reservoir operator setting {release, hydropower, flood_pool}).
     # Empty {} == today's single-scalar behaviour; populated only when a domain declares
     # per-skill param VarSpecs (coupling layer). Frozen flood/irrigation declare none, so
     # this stays {} and to_dict() omits the key -> JSONL/CSV byte-identical. See
-    # .research/wagf_coupling_IMPLEMENTATION_PLAN_2026-06-12.md (B1).
+    # the multidimensional coupling design.
     parameters: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -66,7 +66,7 @@ class SkillProposal:
             "magnitude_fallback": self.magnitude_fallback,
         }
         # Key-gated: omit when empty so a frozen-domain proposal (parameters=={})
-        # serialises to the exact pre-6W-B 12-key dict, in identical order. The
+        # serialises to the exact legacy 12-key dict, in identical order. The
         # round-trip SkillProposal(**to_dict()) invariant (relied on by the frozen
         # parametric SQ1 path) holds because "parameters" is a real constructor field.
         if self.parameters:

@@ -12,7 +12,7 @@ __all__ = [
     "GlobalMemoryConfig",
     "DomainMemoryConfig",
     "FloodDomainConfig",
-    # Cognitive Constraints (Task-050E)
+    # Cognitive Constraints
     "CognitiveConstraints",
     "MILLER_STANDARD",
     "COWAN_CONSERVATIVE",

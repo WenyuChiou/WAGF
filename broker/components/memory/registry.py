@@ -174,7 +174,7 @@ def _register_builtins():
     except ImportError:
         pass
 
-    # Org-3 (2026-09): the lazy `engine_type="unified"` registration
+    # The lazy `engine_type="unified"` registration
     # (broker.memory.unified_engine.UnifiedCognitiveEngine) was removed
     # here — that engine had no production importer, only its own test
     # suite. Use `engine_type="humancentric"` or `"universal"` instead.

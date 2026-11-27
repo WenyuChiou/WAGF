@@ -1,7 +1,7 @@
 # WAGF Repo Map
 
 One page answering "where does X live" and "which doc do I read first."
-Verified against `origin/main` at commit `1a5f7b47` (2026-11-24). This file
+Verified against `origin/main` at commit `92402343` (2026-11-27). This file
 describes structure; it does not change any Python/YAML behaviour.
 
 ---
@@ -11,12 +11,12 @@ describes structure; it does not change any Python/YAML behaviour.
 | Dir | What lives there | Entry points | Who edits it |
 |---|---|---|---|
 | `broker/` | Framework core: governance pipeline, memory engines, validators, audit writer, lifecycle hooks. Domain-agnostic. | `broker/core/experiment.py` (shim), `broker/core/skill_broker_engine.py::SkillBrokerEngine` | Framework maintainers only; see `broker/INVARIANTS.md` before touching. |
-| `broker/run/` | The single entry for every new case: `python -m broker.run CONFIG` reads `global_config.run` from the agent-types YAML, loads the `world`, `agents`, `hooks`, `validators` and `mock` slots, and writes the run manifest and `broker_run.json`. | `python -m broker.run <config>.yaml --model mock` (`broker/run/_entry.py`; import rule in `broker/run/_imports.py`) | Framework maintainers; case authors use the guide `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`. |
-| `broker/tools/` | 11 operator CLIs (scaffold, validate, calibrate, audit-compare, recovery). | `python -m broker.tools.<name> --help` | Framework maintainers. |
-| `broker/tests/` | Tests for `broker/` internals (135 `test_*.py` files). | `pytest broker/` | Whoever changes `broker/`. |
+| `broker/run/` | The single entry for every new case: `python -m broker.run CONFIG` reads `global_config.run` from the agent-types YAML, loads the `world`, `agents`, `social`, `coordinator`, `hooks`, `validators` and `mock` slots, and writes the run manifest and `broker_run.json`. | `python -m broker.run <config>.yaml --model mock` (`broker/run/_entry.py`; import rule in `broker/run/_imports.py`) | Framework maintainers; case authors use the guide `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`. |
+| `broker/tools/` | 12 operator CLIs (scaffold, validate, calibrate, audit-compare, carryover/integrity, recovery). | `python -m broker.tools.<name> --help` | Framework maintainers. |
+| `broker/tests/` | Tests for `broker/` internals (156 `test_*.py` files). | `pytest broker/` | Whoever changes `broker/`. |
 | `examples/` | Domain packs and runnable experiments (9 example dirs). | `examples/README.md` | Domain researchers; each dir usually has one owner-experiment. |
 | `templates/` | Clean copy-and-adapt starter templates for new governed cases (`templates/water_starter/`). | `templates/README.md` | Framework maintainers & domain authors starting new cases. |
-| `tests/` | Repo-root test suite — integration, core, sdk, flood, manual, fixtures (`test_*.py` files). | `pytest tests/` | Whoever changes cross-cutting behaviour. |
+| `tests/` | Repo-root test suite — integration, core, sdk, flood, manual, fixtures (152 `test_*.py` files). | `pytest tests/` | Whoever changes cross-cutting behaviour. |
 | `docs/` | Structured User Manual (`docs/index.md`, `mkdocs.yml`) and reference documentation: architecture, guides, module docs, references, skill chooser. | `docs/index.md`, `docs/guides/` | Whoever changes the thing a doc describes. |
 | `providers/` | LLM adapter layer (9 files: `providers/__init__.py`, `providers/anthropic.py`, `providers/factory.py`, `providers/gemini.py`, `providers/llm_provider.py`, `providers/ollama.py`, `providers/openai_provider.py`, `providers/rate_limiter.py`, `providers/smoke.py`). Packaged together with `broker/` and imported by `broker/utils/llm_utils.py (create_provider_invoke)`. | `providers/factory.py` | Framework maintainers when adding a new model backend. |
 | `ref/` | Reference/comparison material — `RL-ABM-CRSS` (external RL-ABM baseline for the irrigation case). | `ref/README.md` | Read-only reference; rarely edited. |
@@ -60,7 +60,7 @@ Between examples: `examples/single_agent/` imports `examples/governed_flood/`
 (it supplies the flood domain pack); `examples/multi_agent/` and
 `examples/governed_flood/` import each other.
 
-These counts were verified at `1a5f7b47`.
+These counts were verified at `92402343`.
 
 ---
 
@@ -93,12 +93,12 @@ One line per subpackage, main class or CLI read directly from the code:
 | `broker/components/analytics/` | `GenericAuditWriter` + `AuditConfig` (`broker/components/analytics/audit.py`) |
 | `broker/components/cognitive/` | `AgentReflectionContext`, `ReflectionInsight`, `ReflectionTrigger` (`broker/components/cognitive/reflection.py`) |
 | `broker/components/context/` | `ContextBuilder` (ABC, `broker/components/context/builder.py`), `TieredContextBuilder` (`broker/components/context/tiered.py`) |
-| `broker/components/coordination/` | `CoordinatorStrategy` (ABC) with `PassthroughStrategy` / `ConflictAwareStrategy` (`broker/components/coordination/coordinator.py`) |
+| `broker/components/coordination/` | `CoordinatorStrategy` (ABC) with `PassthroughStrategy` / `ConflictAwareStrategy` (`broker/components/coordination/coordinator.py`); `MultiActorLifecycleBridge` (`broker/components/coordination/bridge.py`) |
 | `broker/components/events/` | `EnvironmentEventManager` (`broker/components/events/manager.py`) |
 | `broker/components/governance/` | `SkillRegistry` (`broker/components/governance/registry.py`) |
 | `broker/components/memory/` | `MemoryEngine` (ABC, `broker/components/memory/engine.py`) |
 | `broker/components/orchestration/` | `InstitutionalLifecycleHandler` (ABC, `broker/components/orchestration/institutional_lifecycle.py`) |
-| `broker/components/social/` | `SocialGraph` (ABC) with `GlobalGraph` / `RandomGraph` (`broker/components/social/graph.py`) |
+| `broker/components/social/` | `SocialGraph` (ABC) with `GlobalGraph` / `RandomGraph` / `SpatialNeighborhoodGraph` (with `.move(..., period)`) (`broker/components/social/graph.py`); `AsyncKnowledgeGraph` + `KnowledgeGraphSocialProvider` (`broker/components/social/knowledge_graph.py`, `broker/components/social/kg_provider.py`) with `neighbor_hops`, multi-hop delay, and channel-scoped `sync_to_memory` cursors |
 | `broker/validators/agent/` | `AgentValidator` (`broker/validators/agent/agent_validator.py`) |
 | `broker/validators/governance/` | `BaseValidator` (ABC, `broker/validators/governance/base_validator.py`); domain frameworks under `broker/validators/governance/frameworks/` |
 | `broker/validators/posthoc/` | keyword/thinking-rule post-hoc classifiers |
@@ -107,14 +107,14 @@ One line per subpackage, main class or CLI read directly from the code:
 | `broker/calibration/` | `optimize.py` (`broker/calibration/optimize.py`: `OptimizeResult`, `TargetSplit`) + CLI `broker/tools/calibrate.py` |
 | `broker/experiments/` | `broker/experiments/replay.py` (`MaskSpec`, `FactorMap`), `broker/experiments/ablation.py`, `broker/experiments/metrics.py` |
 | `broker/domains/` | `DomainPackRegistry` (`broker/domains/registry.py`); `broker/domains/default.py` (`DefaultDomainPack`); water reference packs under `broker/domains/water/` |
-| `broker/run/` | `main` and `RunContext` (`broker/run/_entry.py`), `Coupled` (a coupled world), slot import rule (`broker/run/_imports.py`); run with `python -m broker.run` |
-| `broker/tools/` | 11 CLIs, each `if __name__ == "__main__"` runnable: `scaffold_domain` (`broker/tools/scaffold_domain.py`; writes `world.py` and a `global_config.run` block, no runner; `--physical-only` for decisions with no appraisal), `validate_prompt`, `gen_test_fixture`, `calibrate`, `ablate_factor`, `check_run_integrity`, `check_llm_transport` (read-only journal/log failure counts; `--all-steps` shows every step), `compare_audit_csv`, `readiness_report`, `recover_csv_from_jsonl`, `replay_shadow` |
+| `broker/run/` | `main` and `RunContext` (`broker/run/_entry.py`), `Coupled` (a coupled world), 7 optional/required slots (`world`, `agents`, `social`, `coordinator`, `hooks`, `validators`, `mock`), slot import rule (`broker/run/_imports.py`); run with `python -m broker.run` |
+| `broker/tools/` | 12 CLIs, each `if __name__ == "__main__"` runnable: `scaffold_domain` (`broker/tools/scaffold_domain.py`; writes `world.py` and a `global_config.run` block, no runner; `--physical-only` for decisions with no appraisal), `validate_prompt`, `gen_test_fixture`, `calibrate`, `ablate_factor`, `check_governance_carryover`, `check_run_integrity`, `check_llm_transport` (read-only journal/log failure counts; `--all-steps` shows every step), `compare_audit_csv`, `readiness_report`, `recover_csv_from_jsonl`, `replay_shadow` |
 | `broker/config/` | `GlobalConfig` (Pydantic, `broker/config/schema.py`); `broker/config/agent_types/registry.py` |
 | `broker/utils/` | `broker/utils/model_adapter.py` re-exports `ModelAdapter` (defined in `broker/utils/parsing/base.py`) and `UnifiedAdapter` (defined in `broker/utils/parsing/unified_adapter.py`); also `broker/utils/data_loader.py`, `broker/utils/governance_auditor.py` |
 | `broker/interfaces/` | `broker/interfaces/skill_types.py` (`SkillProposal`, `ApprovedSkill`, `ExecutionResult`, ...) — the framework's core Protocols and dataclasses |
 | `broker/agents/` | `BaseAgent` + `AgentConfig` (`broker/agents/base.py`); `broker/agents/deciders.py` |
 | `broker/governance/` | `broker/governance/rule_types.py` (`RuleCategory`, `RuleLevel`, `ConditionType`) |
-| `broker/simulation/` | `StateManager` (`broker/simulation/state_manager.py`), `TieredEnvironment` (`broker/simulation/environment.py`) |
+| `broker/simulation/` | `TieredEnvironment` (`broker/simulation/environment.py`); `StateManager` (`broker/simulation/state_manager.py` — legacy / unused on production run paths) |
 | `broker/modules/survey/` | `AgentInitializer` + `AgentProfile` (`broker/modules/survey/agent_initializer.py`) |
 
 **Known wart** (do not fix in this PR): `broker/__init__.py`'s `__all__`
@@ -140,7 +140,7 @@ or `broker.core.experiment_runner`). Direct imports
 |---|---|---|---|---|---|---|
 | `examples/quickstart/` | Numbered tutorial scripts | yes | no | `examples/quickstart/01_barebone.py`, `examples/quickstart/02_governance.py` (numbered tutorial) | no | `python examples/quickstart/02_governance.py` |
 | `examples/single_agent/` | Main case: flood adaptation (hazard affects households, not the reverse); uses the pack in `examples/governed_flood/` | yes | yes (12) | `examples/single_agent/run_flood.py` + 11 `.bat` launchers; paper measures: `python -m examples.single_agent.analysis.paper_measures projection --runs DIR... --out CSV` | yes | `python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100` |
-| `examples/irrigation_abm/` | Main case: Colorado River irrigation (two-way: requests change Lake Mead, its level and shortage tier come back) | yes | yes (44) | 3 run scripts (`examples/irrigation_abm/run_experiment.py` is the entry) + 5 `.bat` launchers; read-back: `python examples/irrigation_abm/analysis/simple_prompt_check.py RUN_DIR`; paper measures: `python -m examples.irrigation_abm.analysis.paper_measures {projection,hindcast} --runs DIR... --out CSV` | yes | see `examples/irrigation_abm/README.md` |
+| `examples/irrigation_abm/` | Main case: Colorado River irrigation (two-way: requests change Lake Mead, its level and shortage tier come back) | yes | yes (45) | 3 run scripts (`examples/irrigation_abm/run_experiment.py` is the entry) + 5 `.bat` launchers; read-back: `python examples/irrigation_abm/analysis/simple_prompt_check.py RUN_DIR`; paper measures: `python -m examples.irrigation_abm.analysis.paper_measures {projection,hindcast} --runs DIR... --out CSV` | yes | see `examples/irrigation_abm/README.md` |
 | `examples/multi_agent/flood/` | Separate multi-agent flood study; not a main case | yes (`examples/multi_agent/flood/README.md`, `examples/multi_agent/flood/README_research.md`, `examples/multi_agent/flood/README_zh.md`) | yes (24) | `examples/multi_agent/flood/run_unified_experiment.py`; `examples/multi_agent/flood/paper3/` has its own 6 `.bat` launchers | yes | `python examples/multi_agent/flood/run_unified_experiment.py --model gemma3:4b` |
 | `examples/governed_flood/` | Shared flood domain pack + small runner; imported by `examples/single_agent/`, `examples/multi_agent/`, core tests | yes | no | `examples/governed_flood/run_experiment.py` | yes | `python examples/governed_flood/run_experiment.py --model gemma3:4b --years 2 --agents 10` — also the fixture source imported by 15 `broker/tests/` files (`grep -rl "examples\.governed_flood" broker/tests/`), do not delete |
 | `examples/cat_model/` | Coupling-layer demo (catastrophe insurance); used by core tests | yes | no | `examples/cat_model/run_cat.py` (single-agent insurer), `examples/cat_model/run_cat_ma.py` (multi-agent pool) | yes | `python examples/cat_model/run_cat.py --model mock --years 3` |
@@ -154,9 +154,9 @@ or `broker.core.experiment_runner`). Direct imports
 
 | Location | File count | What it covers | Run with |
 |---|---|---|---|
-| `tests/` | 150 `test_*.py` | Repo-root integration/core/sdk/flood/manual suites | `pytest tests/` |
-| `broker/tests/` | 135 `test_*.py` | Framework-internal unit + invariant tests | `pytest broker/` |
-| `examples/` test suites | 80 `test_*.py`: `examples/irrigation_abm/tests/` 44, `examples/multi_agent/flood/` 24, `examples/single_agent/tests/` 12, other folders 0 | Per-experiment analysis/pipeline checks | run individually per dir; only `examples/single_agent/tests/` is part of the CI command below |
+| `tests/` | 152 `test_*.py` | Repo-root integration/core/sdk/flood/manual suites | `pytest tests/` |
+| `broker/tests/` | 156 `test_*.py` | Framework-internal unit + invariant tests | `pytest broker/` |
+| `examples/` test suites | 81 `test_*.py`: `examples/irrigation_abm/tests/` 45, `examples/multi_agent/flood/` 24, `examples/single_agent/tests/` 12, other folders 0 | Per-experiment analysis/pipeline checks | run individually per dir; only `examples/single_agent/tests/` is part of the CI command below |
 
 Frozen-case guard tests live at `tests/test_frozen_guard_flood.py` and
 `tests/test_frozen_guard_multi_agent.py`.
@@ -173,7 +173,7 @@ plus a separate `scaffold-smoke` job that runs
 generated case run through `python -m broker.run <config> --model mock --years 1 --agents 1`
 end to end, to catch a class of bug no unit test can (a broken generated
 `world.py` or adapter import). The tests under `examples/irrigation_abm/` and
-`examples/multi_agent/` (68 files) are not invoked by either CI job; they
+`examples/multi_agent/` (69 files) are not invoked by either CI job; they
 are for whoever is actively working in that example directory.
 
 ---
@@ -278,4 +278,4 @@ Group_B/Group_C; their Group_A baseline commands do not pass these options.
 
 - `examples/README.md` — example-directory index with start-here commands.
 - `docs/skills/wagf-skills.md` — full WAGF Claude-skill chooser table.
-- `broker/INVARIANTS.md` — the six framework contracts and their test guards.
+- `broker/INVARIANTS.md` — the seven framework invariants and their test guards.

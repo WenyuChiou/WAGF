@@ -651,7 +651,7 @@ class ReflectionEngine:
             return decision in trigger_config.decision_types
 
         if trigger == ReflectionTrigger.INSTITUTIONAL:
-            # Phase 6C-v3 (2026-05-10): the institutional agent-type set is
+            # The institutional agent-type set is
             # read from an optional ``_institutional_agent_types`` attribute
             # on the engine (there is no constructor argument for it), with
             # ("government", "insurance") as the fallback. A new domain sets
@@ -725,7 +725,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         call site (Phase 6H Item 9; this method no longer reads any
         flood-specific agent attribute).
         """
-        # Phase 6R-B-4 (audit cluster E item #17): no fallback to the
+        # No fallback to the
         # literal 'household' — if the agent has no agent_type
         # attribute, raise via AgentReflectionContext.__post_init__
         # with a clear message naming the offending agent.
@@ -766,7 +766,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             identity_lines[0] += f" ({context.name})"
         identity_lines[0] += f", a {context.agent_type} agent in {tick_label} {current_year}."
 
-        # Phase 6C-v2 / 6H Item 9: domain-specific status text comes from
+        # Domain-specific status text comes from
         # the registered DomainPack. Scan all packs and use the first
         # non-None status line — packs gate eligibility internally
         # (e.g. FloodDomainPack checks agent_type=="household"). With no
@@ -788,7 +788,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
         identity_block = "\n".join(identity_lines)
 
-        # Phase 6H Item 4: questions resolved by the caller via
+        # Questions resolved by the caller via
         # AgentTypeConfig.get_reflection_questions(agent_type); the generic
         # fallback below is used only when the caller passes nothing.
         questions = reflection_questions or _DEFAULT_REFLECTION_QUESTIONS
@@ -828,7 +828,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             if ctx:
                 identity = f"[{ctx.agent_type}"
                 # Domain trait labels via the active DomainPack
-                # (Phase 6H Item 9 — replaces the hardcoded flood traits
+                # (replaces the hardcoded flood traits
                 # block). Pack-scan mirrors the reflection_status_text
                 # path used by the individual prompt above.
                 traits = []
@@ -881,7 +881,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         # this; the pack-scan below previously passed the raw context,
         # which broke a dict-only adapter (e.g. IrrigationAdapter calls
         # context.get(...)) when handed an AgentReflectionContext
-        # dataclass. Both paths now share the normalised dict (6H Item 9).
+        # dataclass. Both paths now share the normalised dict.
         if hasattr(context, "__dataclass_fields__"):
             from dataclasses import asdict
             ctx_dict = asdict(context)
@@ -913,7 +913,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
         # No adapter and no DomainPack supplied an importance score →
         # the generic base score. The legacy flood-keyword fallback
-        # (IMPORTANCE_PROFILES) was removed in Phase 6H Item 9; a domain
+        # (IMPORTANCE_PROFILES) was removed; a domain
         # supplies scoring via its DomainPack.compute_importance or a
         # DomainReflectionAdapter.
         return round(min(1.0, max(0.0, base_importance)), 2)

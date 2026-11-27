@@ -41,9 +41,9 @@ from broker.validators.governance.physical_validator import PhysicalValidator
 from broker.validators.governance.semantic_validator import SemanticGroundingValidator
 from broker.governance.type_validator import TypeValidator
 
-# Phase 6T-F prep (2026-05-27): auto-register the generic-framework
+# Auto-register the generic-framework
 # metadata (utility / financial / narrative_diffusion) at module
-# import time. Closes a Phase-6P-A-class leak — previously utility +
+# import time. Closes a cross-namespace leak — previously utility +
 # financial lived in broker/domains/water/thinking_checks.py even
 # though their construct vocabulary is genuinely cross-domain. Now
 # they're available to ANY domain pack without needing to import
@@ -121,27 +121,27 @@ def validate_all(
         or None
     )
 
-    # Phase 6P-A (2026-05-25): runtime cross-namespace coupling closed.
+    # Runtime cross-namespace coupling closed.
     # The dispatcher now lives at a generic address —
-    # `broker.components.governance.domain_validator_dispatch` — and its
-    # body has been registry-driven since Phase 6C-v2. The function-local
+    # `broker.components.governance.domain_validator_dispatch` — with a
+    # registry-driven body. The function-local
     # import is preserved to keep `validate_all`'s module-load surface
     # narrow (no eager import of all validator subclasses).
     from broker.components.governance.domain_validator_dispatch import (
         build_domain_validators,
     )
 
-    # Phase 6T-B (2026-05-27): plumb agent_type to the dispatcher so
+    # Plumb agent_type to the dispatcher so
     # GovernancePack.framework_for_agent_type can route household
     # decisions to PMT, government to utility, insurance to financial.
-    # Pre-6T-B the agent_type was accepted by validate_all but dropped
+    # Previously, the agent_type was accepted by validate_all but dropped
     # before the dispatcher call — closing engineering-audit Y6.
     #
-    # P2 (PR-6 review): also plumb `config` through, for the same reason —
+    # Also plumb `config` through, for the same reason —
     # `build_domain_validators` resolves `framework_aware_labels` from
     # `config` when given one, and from the process-global
     # `AgentTypeConfig._instance` otherwise. Dropping it here the same way
-    # `agent_type` used to be dropped pre-6T-B would leave every caller that
+    # `agent_type` used to be dropped previously would leave every caller that
     # DOES hold a config at the mercy of whichever config a concurrent
     # `load_agent_config(other_path)` call loaded last.
     validators = build_domain_validators(
@@ -166,7 +166,7 @@ _BREAKDOWN_CATEGORIES = ("personal", "social", "thinking", "physical", "semantic
 # ``metadata["category"]``. Checked against the tier label, the validator name
 # and the rule name/id, in that order of trust.
 #
-# PR-3 review item P1c: "identity" was mapped here to "personal" and that was
+# "identity" was mapped here to "personal" and that was
 # WRONG. A domain's identity rules are typically PRECONDITION tests — has this
 # action already been taken, is the agent still in the active set — not
 # statements about who the agent is or what they can afford. Filing them under
@@ -329,9 +329,9 @@ def get_rule_breakdown(
     uncounted: List[str] = []
 
     for result in results:
-        # S1: read ``result.metadata`` directly, as before PR-3. The
-        # ``getattr(..., None) or {}`` form was the one behaviour change on the
-        # flag-OFF path in this PR; a producer that emits a metadata-less
+        # Read ``result.metadata`` directly as previously. The
+        # ``getattr(..., None) or {}`` form would suppress metadata-less
+        # results on the flag-OFF path; a producer that emits a metadata-less
         # result should raise into _safe_rule_breakdown's warning, not be
         # silently absorbed.
         metadata = result.metadata
