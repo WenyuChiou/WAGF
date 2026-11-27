@@ -191,7 +191,9 @@ class TestResume:
         assert live_calls["n"] == 3
 
         manifest = _load_manifest(resumed_dir)
-        assert manifest["resumed_from"] == str(journal_path)
+        # The manifest writes the home folder as "~" (no user name in a published record).
+        from broker.utils.run_environment import collapse_home_in_text
+        assert manifest["resumed_from"] == collapse_home_in_text(str(journal_path))
         assert manifest["replayed_steps"] == 3
         assert manifest["replayed_calls"] == 3
         assert "source_journal_sha256" in manifest

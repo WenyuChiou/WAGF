@@ -289,6 +289,123 @@ def home_collapsed(path: Any) -> "str | None":
         return None
 
 
+def collapse_home_in_text(text: str) -> str:
+    """Replace the user's home folder anywhere in ``text`` with ``~`` (either slash style;
+    any case on Windows only). A match must not run on into a longer name (``home + "X"``
+    stays as it is). Never raises; returns ``text`` unchanged on failure."""
+    try:
+        home = str(Path.home())
+        if not home or not isinstance(text, str):
+            return text
+        variants = {home, home.replace("\\", "/"), home.replace("/", "\\")}
+        flags = re.IGNORECASE if sys.platform == "win32" else 0
+        for v in sorted(variants, key=len, reverse=True):
+            text = re.sub(re.escape(v) + r"(?![A-Za-z0-9_-])", "~", text, flags=flags)
+        return text
+    except Exception:
+        return text
+
+
+def scrub_home_paths(obj: Any) -> Any:
+    """Copy of a JSON-like structure with the home folder written as ``~`` in every string.
+
+    Keys are left alone. Never raises (the input is returned on failure)."""
+    try:
+        if isinstance(obj, str):
+            return collapse_home_in_text(obj)
+        if isinstance(obj, dict):
+            return {k: scrub_home_paths(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [scrub_home_paths(v) for v in obj]
+        if isinstance(obj, tuple):
+            return [scrub_home_paths(v) for v in obj]
+        return obj
+    except Exception:
+        return obj
+
+
+def ram_total_bytes() -> "int | None":
+    """Total physical memory in bytes; None when it cannot be read. Never raises."""
+    try:
+        try:
+            import psutil  # type: ignore
+            return int(psutil.virtual_memory().total)
+        except ImportError:
+            pass
+        if sys.platform == "win32":
+            import ctypes
+
+            class _MemStatus(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            status = _MemStatus()
+            status.dwLength = ctypes.sizeof(_MemStatus)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.ullTotalPhys)
+            return None
+        if os.path.exists("/proc/meminfo"):
+            with open("/proc/meminfo", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.startswith("MemTotal:"):
+                        return int(line.split()[1]) * 1024
+        return int(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES"))
+    except Exception:
+        return None
+
+
+def cuda_version(timeout: float = 5.0) -> dict:
+    """``{"version": "12.x" | None, "error": None | reason}`` from the ``nvidia-smi`` header.
+
+    No GPU, no ``nvidia-smi`` or an unparsable header give ``version`` None with the reason.
+    Never raises.
+    """
+    try:
+        proc = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=timeout,
+                              check=False)
+        if proc.returncode != 0:
+            return {"version": None, "error": f"nvidia-smi exit {proc.returncode}"}
+        match = re.search(r"CUDA (?:UMD )?Version:\s*([0-9.]+)", proc.stdout)
+        if not match:
+            return {"version": None, "error": "no CUDA version in nvidia-smi output"}
+        return {"version": match.group(1), "error": None}
+    except Exception as exc:
+        return {"version": None, "error": type(exc).__name__}
+
+
+def installed_packages() -> "list":
+    """Every installed distribution as sorted ``name==version`` lines (raises on failure)."""
+    seen = {}
+    for dist in importlib_metadata.distributions():
+        name = dist.metadata["Name"] if dist.metadata else None
+        if name:
+            seen.setdefault(name.lower(), (name, dist.version))
+    return [f"{n}=={v}" for _, (n, v) in sorted(seen.items())]
+
+
+def write_installed_packages(output_dir: Any, filename: str = "python_packages.txt") -> dict:
+    """Write the full ``name==version`` list to ``output_dir/filename`` and describe it.
+
+    ``{"file", "count", "sha256", "error"}``; on failure ``error`` carries the exception type
+    and the other fields are None. Never raises.
+    """
+    out = {"file": None, "count": None, "sha256": None, "error": None}
+    try:
+        import hashlib
+        lines = installed_packages()
+        data = ("\n".join(lines) + "\n").encode("utf-8")
+        target = Path(output_dir) / filename
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, target)
+        out.update(file=filename, count=len(lines), sha256=hashlib.sha256(data).hexdigest())
+    except Exception as exc:
+        out["error"] = f"{type(exc).__name__}: {home_collapsed(str(exc))}"
+    return out
+
+
 def cpu_info() -> "str | None":
     try:
         return platform.processor() or None
@@ -468,6 +585,18 @@ def collect_run_environment(model: Any, captured_at: str) -> dict:
         gpu = gpu_info()
     except Exception:
         gpu = None
+    ram = None
+    try:
+        ram = ram_total_bytes()
+        if ram is None:
+            errors["ram_total_bytes"] = "unavailable"
+    except Exception as exc:
+        errors["ram_total_bytes"] = type(exc).__name__
+    cuda: dict = {"version": None, "error": "unavailable"}
+    try:
+        cuda = cuda_version()
+    except Exception as exc:
+        cuda = {"version": None, "error": type(exc).__name__}
     return {
         "captured_at": captured_at,
         "wagf_version": packages.get("wagf_version"),
@@ -476,6 +605,10 @@ def collect_run_environment(model: Any, captured_at: str) -> dict:
         "os": os_part,
         "cpu": cpu_info(),
         "gpu": gpu,
+        "ram_total_bytes": ram,
+        "cuda_version": cuda.get("version"),
+        "cuda_version_error": cuda.get("error"),
+        "python_version": platform.python_version(),
         "python_executable": home_collapsed(sys.executable),
         "ollama_server_version": ollama,
         "ollama_loaded_model": loaded,

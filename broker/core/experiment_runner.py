@@ -1484,7 +1484,9 @@ class ExperimentRunner:
             "memory_engine_class": type(self.memory_engine).__name__,
             "num_years": iterations,
             "governance_profile": self.config.governance_profile,
-            "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown",
+            # Repo-relative when the file is in the repo, else home folder written as "~"
+            # (no user name in a published manifest).
+            "agent_types_config": self._agent_types_config_recorded(),
             # The same path relative to the WAGF repo root (None when it lies outside the
             # repo), so a published manifest needs no home folder to be read.
             "agent_types_config_repo_relative": self._repo_relative_config_path(),
@@ -1629,6 +1631,9 @@ class ExperimentRunner:
         # Mandatory records: check what a run must have written, put the verdict in the
         # manifest and run_integrity.json, and print it. Entry points exit non-zero on a
         # failed check (provenance_requirements.enforce_complete).
+        # Machine facts: the full installed package list goes to a sibling file the manifest
+        # names; then no string in the manifest may carry the user's home folder.
+        manifest = self._add_package_file_and_scrub(manifest)
         from broker.utils import provenance_requirements as _pr
         try:
             self._provenance_fields = _pr.seal(manifest, self.config.output_dir)
@@ -1730,6 +1735,32 @@ class ExperimentRunner:
         except Exception:  # noqa: BLE001
             return None
 
+    def _add_package_file_and_scrub(self, manifest: dict) -> dict:
+        """Write ``python_packages.txt``, name it in the manifest, then write the home folder
+        as ``~`` in every manifest string. Each step fails on its own; never raises."""
+        try:
+            from broker.utils.run_environment import write_installed_packages
+            manifest["python_packages_file"] = write_installed_packages(self.config.output_dir)
+        except Exception as e:  # noqa: BLE001
+            manifest["python_packages_file"] = {"file": None, "count": None, "sha256": None,
+                                                "error": type(e).__name__}
+        try:
+            from broker.utils.run_environment import scrub_home_paths
+            return scrub_home_paths(manifest)
+        except Exception:  # noqa: BLE001
+            return manifest
+
+    def _agent_types_config_recorded(self) -> str:
+        """``agent_types_config`` for the manifest: repo-relative path, else ``~``-collapsed."""
+        try:
+            if not hasattr(self.broker.model_adapter, "config_path"):
+                return "unknown"
+            from broker.utils.run_environment import home_collapsed
+            return (self._repo_relative_config_path()
+                    or home_collapsed(self.broker.model_adapter.config_path) or "unknown")
+        except Exception:  # noqa: BLE001
+            return "unknown"
+
     def _collect_reproducibility_metadata(self) -> dict:
         """Collect model digest, git state, and config hashes for reproducibility."""
         metadata = {}
@@ -1739,12 +1770,19 @@ class ExperimentRunner:
         metadata["default_skill_checked_by_validators"] = False
         metadata["git_dirty_files"] = getattr(self, "_git_dirty_files_at_launch", None)
         metadata["git_dirty_files_truncated"] = getattr(self, "_git_dirty_files_truncated_at_launch", False)
-        metadata["launch_command"] = getattr(self, "_launch_command", " ".join(sys.argv))
         try:
-            from broker.utils.run_environment import launch_command_repo_relative
+            from broker.utils.run_environment import (
+                collapse_home_in_text, launch_command_repo_relative)
             _rel = launch_command_repo_relative(getattr(self, "_launch_argv", None))
         except Exception:  # noqa: BLE001
             _rel = None
+        # launch_command keeps its old shape (the arguments as typed, no "python " prefix) but
+        # with the home folder written as "~" so no user name is recorded.
+        _raw_cmd = getattr(self, "_launch_command", " ".join(sys.argv))
+        try:
+            metadata["launch_command"] = collapse_home_in_text(_raw_cmd)
+        except Exception:  # noqa: BLE001
+            metadata["launch_command"] = _raw_cmd
         metadata["launch_command_script_repo_relative"] = _rel["script"] if _rel else None
         metadata["launch_command_repo_relative"] = _rel["command"] if _rel else None
         # --allow-dirty-tree (examples/single_agent/run_flood.py, examples/irrigation_abm/
@@ -1839,6 +1877,36 @@ class ExperimentRunner:
             metadata["llm_timeout_env_rejected"] = _rejected
         except Exception:
             pass
+
+        # The decoding values the run ACTUALLY sent. `llm_params_resolved` (3c, filled by
+        # get_llm_invoke) is the merged dict per agent type, the same options that land in
+        # llm_calls.jsonl. A top-level value is written only when every agent type whose model
+        # invoke was built agrees on it (a type that built one but made no call can only turn a
+        # value to null); otherwise it is null and `llm_decoding_top_level_source` says to
+        # read the per-type dict. LLM_CONFIG is used only when no invoke was built.
+        try:
+            _res = {k: v for k, v in (getattr(self, "_llm_resolved_params", None) or {}).items()
+                    if isinstance(v, dict)}
+            _keys = ("temperature", "top_p", "top_k", "num_ctx", "num_predict")
+            if _res:
+                _differs = False
+                for _k in _keys:
+                    _vals = [v.get(_k) for v in _res.values()]
+                    _uniq = {json.dumps(x, sort_keys=True) for x in _vals}
+                    if len(_uniq) == 1 and _vals[0] is not None:
+                        metadata[_k] = _vals[0]
+                    else:
+                        metadata[_k] = None
+                        _differs = _differs or len(_uniq) > 1
+                metadata["llm_decoding_top_level_source"] = (
+                    "llm_params_resolved; null = not sent or differs by agent type"
+                    if _differs else "llm_params_resolved; null = not sent (model default applies)")
+            else:
+                metadata["top_k"] = None
+                metadata["llm_decoding_top_level_source"] = (
+                    "LLM_CONFIG run-wide default; no agent type made a model call")
+        except Exception as exc:  # noqa: BLE001
+            metadata["llm_decoding_top_level_source"] = f"unavailable: {type(exc).__name__}"
 
         # Thinking metadata is derived from a separate observation snapshot.
         # Keep it isolated from the scalar config fields above: an observation
@@ -2130,6 +2198,12 @@ class ExperimentRunner:
             _launch_digest != _final_digest if _launch_digest and _final_digest else None)
         metadata["llm_call_log"] = getattr(self, "_llm_call_log_summary", None)
         metadata["llm_sampling_seed_mode"] = getattr(self, "_llm_sampling_seed_mode", None)
+        try:
+            from broker.utils import llm_call_log
+            metadata["llm_call_seed_derivation"] = llm_call_log.describe_call_seed(
+                getattr(self, "_llm_sampling_seed_mode", None), getattr(self.config, "seed", None))
+        except Exception as exc:  # noqa: BLE001
+            metadata["llm_call_seed_derivation"] = {"error": type(exc).__name__}
         # Ollama's own report of the loaded model at launch and at finalize (also inside
         # run_environment / run_environment_at_finalize above): cpu_offload True means part of
         # the model ran on the CPU.

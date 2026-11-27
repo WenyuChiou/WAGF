@@ -396,6 +396,22 @@ def derive_call_seed(run_seed: Any, agent_ids: Any, year: Any, kind: Any, attemp
     return int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:8], "big") % (2 ** 31)
 
 
+def describe_call_seed(mode: Any, run_seed: Any) -> dict:
+    """How each call's Ollama ``seed`` is derived (``derive_call_seed``), for the manifest."""
+    return {
+        "mode": mode,
+        "base_seed": run_seed,
+        "function": "broker.utils.llm_call_log.derive_call_seed",
+        "inputs": ["base_seed", "agent_ids", "year", "kind", "attempt"],
+        "formula": ("seed = int.from_bytes(sha256(key.encode('utf-8')).digest()[:8], 'big') % 2**31; "
+                    "key = f'{base_seed}|{agents}|{year}|{kind}|{attempt}'; "
+                    "agents = ','.join(sorted(str(a) for a in agent_ids)) for a list or tuple, "
+                    "'' for None, else str(agent_ids)"),
+        "kind_values": list(CALL_KINDS),
+        "applies": "only when mode == 'per_call'; otherwise no seed is sent",
+    }
+
+
 def sampling_seed_for_call() -> Optional[int]:
     """The seed to send with this call, or None when per-call seeding is off."""
     if _SEED_STATE["mode"] != "per_call":
