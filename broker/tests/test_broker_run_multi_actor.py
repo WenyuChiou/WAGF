@@ -941,3 +941,51 @@ def test_bridge_magnitude_parses_in_async_kg_and_regional_recipient_types_inters
     bridge.post_step(agents["reg_1"], res_reg)
     assert pool.get_messages("prov_1") == []
     assert pool.get_messages("cons_s") == []
+
+
+def test_bridge_resolves_pool_agent_locations_and_skips_unresolved_spatial_scope():
+    pool = MessagePool(agent_locations={"a1": "north", "b1": "north", "c1": "south"})
+    bridge = MultiActorLifecycleBridge(
+        message_pool=pool,
+        role_message_policy={
+            "consumer": {"scope": "regional"},
+            "provider": {"scope": "local"},
+        },
+    )
+    agents = {
+        "a1": SimpleNamespace(id="a1", agent_type="consumer"),
+        "b1": SimpleNamespace(id="b1", agent_type="consumer"),
+        "c1": SimpleNamespace(id="c1", agent_type="consumer"),
+        "p_noloc": SimpleNamespace(id="p_noloc", agent_type="provider"),
+    }
+    bridge.pre_year(1, {}, agents)
+
+    ok_res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="enroll_program", agent_id="a1", reasoning={}),
+        approved_skill=ApprovedSkill(
+            skill_name="enroll_program", agent_id="a1", approval_status="APPROVED"
+        ),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="enroll_program",
+    )
+    bridge.post_step(agents["a1"], ok_res)
+
+    # b1 in north receives it; c1 in south and p_noloc do not
+    assert len(pool.get_messages("b1")) == 1
+    assert pool.get_messages("c1") == []
+    assert pool.get_messages("p_noloc") == []
+
+    # Unresolved sender location under local/regional scope must NOT broadcast globally
+    noloc_res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="expand_capacity", agent_id="p_noloc", reasoning={}),
+        approved_skill=ApprovedSkill(
+            skill_name="expand_capacity", agent_id="p_noloc", approval_status="APPROVED"
+        ),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="expand_capacity",
+    )
+    bridge.post_step(agents["p_noloc"], noloc_res)
+    assert len(pool.get_messages("b1")) == 1
+    assert pool.get_messages("c1") == []

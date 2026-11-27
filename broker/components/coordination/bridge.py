@@ -170,11 +170,6 @@ class MultiActorLifecycleBridge:
         recipient_types = list(policy.get("recipient_types") or ())
         explicit_recipients = list(policy.get("recipients") or ())
 
-        location = (
-            policy.get("location")
-            or getattr(agent, "region_id", None)
-            or getattr(agent, "tract_id", None)
-        )
         pool_locations = getattr(self.message_pool, "_agent_locations", {}) or {}
 
         def _agent_location(aid: str, ag: Any) -> Optional[str]:
@@ -184,24 +179,29 @@ class MultiActorLifecycleBridge:
                 or getattr(ag, "tract_id", None)
             )
 
+        location = policy.get("location") or _agent_location(agent_id, agent)
+
+        def _spatial_recipients() -> Optional[list[str]]:
+            if not location:
+                return None
+            matches = [
+                aid for aid, ag in self._agents_by_id.items()
+                if aid != agent_id
+                and _agent_location(aid, ag) == location
+                and (not recipient_types or getattr(ag, "agent_type", None) in recipient_types)
+            ]
+            return matches or None
+
         if explicit_recipients:
             recipients = explicit_recipients
             event_scope = EventScope.AGENT
         elif isinstance(raw_scope, EventScope):
             event_scope = raw_scope
-            if raw_scope in (EventScope.REGIONAL, EventScope.LOCAL) and recipient_types:
-                recipients = (
-                    [
-                        aid for aid, ag in self._agents_by_id.items()
-                        if aid != agent_id
-                        and getattr(ag, "agent_type", None) in recipient_types
-                        and _agent_location(aid, ag) == location
-                    ]
-                    if location
-                    else []
-                )
-                if not recipients:
+            if raw_scope in (EventScope.REGIONAL, EventScope.LOCAL):
+                resolved = _spatial_recipients()
+                if not resolved:
                     return
+                recipients = resolved
                 event_scope = EventScope.AGENT
             elif recipient_types and raw_scope == EventScope.GLOBAL:
                 recipients = [
@@ -239,23 +239,11 @@ class MultiActorLifecycleBridge:
             elif scope_mode in ("direct", "agent"):
                 return
             elif scope_mode in ("regional", "local"):
-                if recipient_types:
-                    recipients = (
-                        [
-                            aid for aid, ag in self._agents_by_id.items()
-                            if aid != agent_id
-                            and getattr(ag, "agent_type", None) in recipient_types
-                            and _agent_location(aid, ag) == location
-                        ]
-                        if location
-                        else []
-                    )
-                    if not recipients:
-                        return
-                    event_scope = EventScope.AGENT
-                else:
-                    recipients = []
-                    event_scope = EventScope.REGIONAL if scope_mode == "regional" else EventScope.LOCAL
+                resolved = _spatial_recipients()
+                if not resolved:
+                    return
+                recipients = resolved
+                event_scope = EventScope.AGENT
             elif recipient_types:
                 recipients = [
                     aid for aid, ag in self._agents_by_id.items()
