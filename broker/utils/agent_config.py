@@ -13,7 +13,7 @@ import sys
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Iterable, List, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
 from broker.utils.logging import setup_logger
@@ -1586,7 +1586,10 @@ class AgentTypeConfig:
                 continue
             yield str(name), block
 
-    def declared_decider_names(self) -> List[str]:
+    def declared_decider_names(
+        self,
+        agent_types: Optional[Iterable[str]] = None,
+    ) -> List[str]:
         """Every decider name the AGENT-TYPE blocks resolve to, sorted.
 
         A type that declares nothing contributes ``llm``, because that is
@@ -1595,32 +1598,47 @@ class AgentTypeConfig:
         census in ``run_integrity.json`` can count the arms that produced
         rows, and needs this to name the one that produced none.
 
+        When ``agent_types`` is provided, restricts the scan to those
+        populated agent types (excluding zero-count ablation roles).
+
         A malformed declaration is skipped rather than raised on — this
         is called to build a side artifact, and the run is about to fail
         much louder at decider resolution.
         """
         from broker.agents.deciders import DEFAULT_DECIDER_NAME
+        allowed = set(agent_types) if agent_types is not None else None
         names = set()
         for name, _block in self._agent_type_blocks():
+            if allowed is not None and name not in allowed:
+                continue
             try:
                 names.add(self.get_decider(name).name)
             except ValueError:
                 names.add(DEFAULT_DECIDER_NAME)
         return sorted(names)
 
-    def has_non_default_deciders(self) -> bool:
+    def has_non_default_deciders(
+        self,
+        agent_types: Optional[Iterable[str]] = None,
+    ) -> bool:
         """Does any agent type in this config declare a non-``llm`` decider?
 
         Scans the AGENT-TYPE blocks only (C1) — see
         :meth:`_agent_type_blocks` for why a ``decider:`` under
-        ``shared:`` must not count.
+        ``shared:`` must not count. When ``agent_types`` is provided,
+        only those populated agent types are inspected and the cache is
+        bypassed.
         """
         from broker.agents.deciders import DEFAULT_DECIDER_NAME
-        cached = getattr(self, "_non_default_deciders", None)
-        if isinstance(cached, bool):
-            return cached
+        allowed = set(agent_types) if agent_types is not None else None
+        if allowed is None:
+            cached = getattr(self, "_non_default_deciders", None)
+            if isinstance(cached, bool):
+                return cached
         answer = False
         for name, block in self._agent_type_blocks():
+            if allowed is not None and name not in allowed:
+                continue
             if "decider" not in block:
                 continue
             try:
@@ -1634,7 +1652,8 @@ class AgentTypeConfig:
             if spec.name != DEFAULT_DECIDER_NAME:
                 answer = True
                 break
-        self._non_default_deciders = answer
+        if allowed is None:
+            self._non_default_deciders = answer
         return answer
 
     def get_decider(self, agent_type: str):

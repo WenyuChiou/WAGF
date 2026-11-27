@@ -340,6 +340,22 @@ class MultiActorLifecycleBridge:
         if callable(refresh_fn):
             refresh_fn(agents)
 
+    def _sync_agent_state(self, agent_id: str, agent: Any) -> None:
+        if not agent_id:
+            return
+        self._agents_by_id[agent_id] = agent
+        is_active = getattr(agent, "is_active", True) is not False
+        if self.message_pool is not None:
+            set_active_fn = getattr(self.message_pool, "set_agent_active", None)
+            if callable(set_active_fn):
+                set_active_fn(agent_id, is_active)
+            refresh_fn = getattr(self.message_pool, "refresh_agent_locations", None)
+            if callable(refresh_fn):
+                refresh_fn({agent_id: agent})
+        kg_set_active = getattr(self.social_kg, "set_agent_active", None)
+        if callable(kg_set_active):
+            kg_set_active(agent_id, is_active)
+
     def _is_institutional(self, agent_type: str) -> bool:
         return agent_type in self.handlers or agent_type in self.institutional_roles
 
@@ -695,22 +711,31 @@ class MultiActorLifecycleBridge:
         if self.game_master is not None and hasattr(self.game_master, "reset_phase"):
             self.game_master.reset_phase()
 
-        for agent in agents.values():
-            if not getattr(agent, "is_active", True):
+        if self.social_kg is not None:
+            sync_kg_fn = getattr(self.social_kg, "sync_active_agents", None)
+            if callable(sync_kg_fn):
+                sync_kg_fn(agents)
+
+        for aid, agent in agents.items():
+            self._sync_agent_state(str(aid), agent)
+            if getattr(agent, "is_active", True) is False:
                 continue
             agent_type = getattr(agent, "agent_type", "default")
             handler = self.handlers.get(agent_type)
             if handler is not None:
                 handler.pre_year(agent, year, self._current_env)
+                self._sync_agent_state(str(aid), agent)
 
     def post_step(self, agent: Any, result: Any) -> None:
-        """Dispatch ``post_decision`` and emit executed-action facts."""
+        """Dispatch ``post_decision``, sync live state, and emit executed-action facts."""
+        agent_id = str(getattr(agent, "id", None) or getattr(agent, "name", ""))
+        self._sync_agent_state(agent_id, agent)
+
         extracted = _extract_executed_action(result)
         if extracted is None:
             return
 
         skill_name, number_text, outcome_text = extracted
-        agent_id = str(getattr(agent, "id", None) or getattr(agent, "name", ""))
         agent_type = getattr(agent, "agent_type", "default")
         last_ctx = getattr(agent, "_last_action_context", None)
         year = (
@@ -723,6 +748,7 @@ class MultiActorLifecycleBridge:
         handler = self.handlers.get(agent_type)
         if handler is not None:
             handler.post_decision(agent, skill_name, year, env)
+        self._sync_agent_state(agent_id, agent)
 
         if self.game_master is not None and hasattr(self.game_master, "submit_proposal"):
             self.game_master.submit_proposal(
@@ -750,13 +776,20 @@ class MultiActorLifecycleBridge:
         if self.game_master is not None and hasattr(self.game_master, "resolve_phase"):
             self.game_master.resolve_phase(shared_state=env)
 
-        for agent in agents.values():
-            if not getattr(agent, "is_active", True):
+        for aid, agent in agents.items():
+            if getattr(agent, "is_active", True) is False:
+                self._sync_agent_state(str(aid), agent)
                 continue
             agent_type = getattr(agent, "agent_type", "default")
             handler = self.handlers.get(agent_type)
             if handler is not None:
                 handler.post_year(agent, year, env)
+            self._sync_agent_state(str(aid), agent)
+
+        if self.social_kg is not None:
+            sync_kg_fn = getattr(self.social_kg, "sync_active_agents", None)
+            if callable(sync_kg_fn):
+                sync_kg_fn(agents)
 
         if self.saga_coordinator is not None:
             step_fn = getattr(self.saga_coordinator, "step_sagas", None)

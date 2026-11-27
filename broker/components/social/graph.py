@@ -66,6 +66,11 @@ class SocialGraph(ABC):
         self.graph: Dict[str, Set[str]] = {aid: set() for aid in agent_ids}
         self.edge_start_periods: Dict[Tuple[str, str], int] = {}
         self.edge_events: List[Dict[str, Any]] = []
+        self.inactive_agents: Set[str] = set()
+
+    def is_active_agent(self, agent_id: str) -> bool:
+        """Return True if ``agent_id`` belongs to the graph and has not deactivated."""
+        return agent_id in self.graph and agent_id not in self.inactive_agents
 
     @staticmethod
     def _edge_key(a_id: str, b_id: str) -> Tuple[str, str]:
@@ -90,6 +95,8 @@ class SocialGraph(ABC):
 
     def add_edge(self, a_id: str, b_id: str, period: int = 0):
         """Add bidirectional edge between two agents."""
+        if a_id in self.inactive_agents or b_id in self.inactive_agents:
+            return
         if a_id in self.graph and b_id in self.graph and a_id != b_id:
             if b_id not in self.graph[a_id]:
                 self.graph[a_id].add(b_id)
@@ -129,11 +136,37 @@ class SocialGraph(ABC):
         """Serialize graph for logging/debugging."""
         return {aid: list(neighbors) for aid, neighbors in self.graph.items()}
     
+    def deactivate_agent(self, agent_id: str, *, period: int = 0) -> Dict[str, List[str]]:
+        """Mark ``agent_id`` as permanently inactive and sever its incident edges."""
+        if isinstance(period, bool) or not isinstance(period, int) or period < 0:
+            raise ValueError(f"period must be a non-negative int, got {period!r}")
+        if agent_id not in self.graph or agent_id in self.inactive_agents:
+            return {"removed": [], "added": [], "neighbors": []}
+        self.inactive_agents.add(agent_id)
+        removed = sorted(self.get_neighbors(agent_id))
+        for nid in removed:
+            self.remove_edge(agent_id, nid, period=period)
+        return {"removed": removed, "added": [], "neighbors": []}
+
+    vacate = deactivate_agent
+
     def summary(self) -> Dict[str, any]:
         """Get graph statistics."""
-        degrees = [len(neighbors) for neighbors in self.graph.values()]
+        if not self.inactive_agents:
+            degrees = [len(neighbors) for neighbors in self.graph.values()]
+            return {
+                "num_agents": len(self.agent_ids),
+                "num_edges": sum(degrees) // 2,
+                "avg_degree": sum(degrees) / len(degrees) if degrees else 0,
+                "max_degree": max(degrees) if degrees else 0,
+                "min_degree": min(degrees) if degrees else 0,
+            }
+        active_ids = [aid for aid in self.agent_ids if aid not in self.inactive_agents]
+        degrees = [len(self.graph.get(aid, ())) for aid in active_ids]
         return {
             "num_agents": len(self.agent_ids),
+            "active_agents": len(active_ids),
+            "inactive_agents": len(self.inactive_agents),
             "num_edges": sum(degrees) // 2,
             "avg_degree": sum(degrees) / len(degrees) if degrees else 0,
             "max_degree": max(degrees) if degrees else 0,
@@ -268,17 +301,19 @@ class SpatialNeighborhoodGraph(SocialGraph):
             return (dx**2 + dy**2) ** 0.5
 
     def _compute_target_edges(self) -> Set[Tuple[str, str]]:
-        """Compute canonical undirected spatial + fallback edges for positioned agents."""
-        distances: Dict[str, List[Tuple[str, float]]] = {aid: [] for aid in self.agent_ids}
+        """Compute canonical undirected spatial + fallback edges for active positioned agents."""
+        distances: Dict[str, List[Tuple[str, float]]] = {
+            aid: [] for aid in self.agent_ids if aid not in self.inactive_agents
+        }
         target_edges: Set[Tuple[str, str]] = set()
 
         for i, a_id in enumerate(self.agent_ids):
-            if a_id not in self.positions:
+            if a_id in self.inactive_agents or a_id not in self.positions:
                 continue
             pos_a = self.positions[a_id]
 
             for b_id in self.agent_ids[i + 1:]:
-                if b_id not in self.positions:
+                if b_id in self.inactive_agents or b_id not in self.positions:
                     continue
                 pos_b = self.positions[b_id]
 
@@ -289,14 +324,14 @@ class SpatialNeighborhoodGraph(SocialGraph):
                 if dist <= self.radius:
                     target_edges.add(self._edge_key(a_id, b_id))
 
-        # Apply fallback for isolated agents based on total incident edges so far
-        incident_counts: Dict[str, int] = {aid: 0 for aid in self.agent_ids}
+        # Apply fallback for isolated active agents based on total incident edges so far
+        incident_counts: Dict[str, int] = {aid: 0 for aid in distances}
         for u, v in target_edges:
             incident_counts[u] = incident_counts.get(u, 0) + 1
             incident_counts[v] = incident_counts.get(v, 0) + 1
 
         for a_id in self.agent_ids:
-            if a_id not in self.positions:
+            if a_id in self.inactive_agents or a_id not in self.positions:
                 continue
             if incident_counts.get(a_id, 0) < self.fallback_k and distances[a_id]:
                 sorted_neighbors = sorted(distances[a_id], key=lambda x: x[1])
@@ -327,7 +362,7 @@ class SpatialNeighborhoodGraph(SocialGraph):
         Returns:
             List of neighbor IDs within radius
         """
-        if agent_id not in self.positions:
+        if agent_id in self.inactive_agents or agent_id not in self.positions:
             return []
 
         radius = radius if radius is not None else self.radius
@@ -335,7 +370,7 @@ class SpatialNeighborhoodGraph(SocialGraph):
         neighbors = []
 
         for b_id in self.agent_ids:
-            if b_id == agent_id or b_id not in self.positions:
+            if b_id == agent_id or b_id in self.inactive_agents or b_id not in self.positions:
                 continue
             pos_b = self.positions[b_id]
             if self._calculate_distance(pos_a, pos_b) <= radius:
@@ -370,7 +405,7 @@ class SpatialNeighborhoodGraph(SocialGraph):
                 raise ValueError(f"period must be a non-negative int, got {period!r}")
             effective_period = period
 
-        if agent_id not in self.graph:
+        if agent_id not in self.graph or agent_id in self.inactive_agents:
             return {"removed": [], "added": [], "neighbors": []}
 
         old_neighbors = set(self.get_neighbors(agent_id))
@@ -399,25 +434,57 @@ class SpatialNeighborhoodGraph(SocialGraph):
             "neighbors": sorted(new_neighbors),
         }
 
+    def deactivate_agent(self, agent_id: str, *, period: int = 0) -> Dict[str, List[str]]:
+        """Vacate ``agent_id``, sever its links, and recompute fallback links for survivors."""
+        if isinstance(period, bool) or not isinstance(period, int) or period < 0:
+            raise ValueError(f"period must be a non-negative int, got {period!r}")
+        if agent_id not in self.graph or agent_id in self.inactive_agents:
+            return {"removed": [], "added": [], "neighbors": []}
+
+        old_neighbors = set(self.get_neighbors(agent_id))
+        old_edges: Set[Tuple[str, str]] = {
+            self._edge_key(u, v)
+            for u, adj in self.graph.items()
+            for v in adj
+            if u != v
+        }
+        self.inactive_agents.add(agent_id)
+        self.positions.pop(agent_id, None)
+
+        target_edges = self._compute_target_edges()
+        for u, v in sorted(old_edges - target_edges):
+            self.remove_edge(u, v, period=period)
+        for u, v in sorted(target_edges - old_edges):
+            self.add_edge(u, v, period=period)
+
+        return {
+            "removed": sorted(old_neighbors),
+            "added": [],
+            "neighbors": [],
+        }
+
+    vacate = deactivate_agent
+
     def get_spatial_stats(self) -> Dict[str, any]:
         """Get spatial graph statistics."""
         base_stats = self.summary()
+        active_ids = [aid for aid in self.agent_ids if aid not in self.inactive_agents]
 
-        # Calculate isolation stats
-        isolated = sum(1 for aid in self.agent_ids if self.get_neighbor_count(aid) == 0)
+        # Calculate isolation stats over active nodes
+        isolated = sum(1 for aid in active_ids if self.get_neighbor_count(aid) == 0)
         fallback_applied = sum(
-            1 for aid in self.agent_ids
+            1 for aid in active_ids
             if 0 < self.get_neighbor_count(aid) < self.fallback_k
         )
 
-        # Calculate distance stats for connected pairs
+        # Calculate distance stats for connected active pairs
         distances = []
-        for a_id in self.agent_ids:
+        for a_id in active_ids:
             if a_id not in self.positions:
                 continue
             pos_a = self.positions[a_id]
             for b_id in self.get_neighbors(a_id):
-                if b_id not in self.positions:
+                if b_id in self.inactive_agents or b_id not in self.positions:
                     continue
                 pos_b = self.positions[b_id]
                 distances.append(self._calculate_distance(pos_a, pos_b))

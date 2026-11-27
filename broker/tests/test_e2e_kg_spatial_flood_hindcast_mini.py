@@ -16,8 +16,8 @@ Scenario run via ``python -m broker.run``:
   - 1-hop neighbor H2 receives ``claim_shortfall`` into prompt & memory (``source="neighbor"``)
     and shifts its decision from ``buy_insurance`` to ``elevate_home``.
   - 2-hop neighbor H3 does NOT yet receive the 2-hop triple (effective arrival = 3).
-  - At ``post_year(2)``, H4 relocates to (10.0, 0.0) via ``move("H4", (10.0, 0.0), period=2)``,
-    breaking (H1, H4) and creating (H4, H5) with ``edge_start_period = 2``.
+  - At ``post_year(2)``, H4 relocates to (10.0, 0.0) via ``move("H4", (10.0, 0.0), period=3)``,
+    breaking (H1, H4) and creating (H4, H5) with ``edge_start_period = 3``.
 - Year 3:
   - 2-hop neighbor H3 receives ``claim_shortfall`` and shifts to ``elevate_home``.
   - Bidirectional pre-move isolation: H4 never sees H5's period-1 fact and H5 never sees
@@ -289,7 +289,7 @@ def _write_mini_case(case_dir: Path) -> Path:
                             visibility="neighbors",
                         )
                     elif year == 2:
-                        move_res = graph.move("H4", (10.0, 0.0), period=2)
+                        move_res = graph.move("H4", (10.0, 0.0), period=3)
                         ctx.world.relocation_log.append(move_res)
                         kg.assert_fact(
                             subject="H4",

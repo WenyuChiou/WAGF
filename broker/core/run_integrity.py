@@ -391,6 +391,7 @@ def record_run_integrity(
     verbose: bool = True,
     no_appraisal: bool = False,
     governance_carryover: Optional[dict] = None,
+    reflection_eligible_turns: Optional[int] = None,
 ) -> dict:
     """Write ``run_integrity.json`` recording runtime instantiation; never raises.
 
@@ -689,8 +690,19 @@ def record_run_integrity(
 
     # mismatch = a run expecting reflection produced no reflection entries
     # (refl_count <= 0 also catches the -1 "exists but unreadable" sentinel — the
-    # conservative direction: flag rather than silently pass).
-    mismatch = reflection_expected and refl_count <= 0
+    # conservative direction: flag rather than silently pass). When all active
+    # agents exited before any reflection trigger fired (eligible_turns == 0),
+    # refl_count == 0 is expected rather than a data defect.
+    _eligible_zero = (
+        isinstance(reflection_eligible_turns, int)
+        and not isinstance(reflection_eligible_turns, bool)
+        and reflection_eligible_turns == 0
+    )
+    if isinstance(reflection_eligible_turns, int) and not isinstance(reflection_eligible_turns, bool):
+        audit["reflection_eligible_turns"] = reflection_eligible_turns
+    mismatch = reflection_expected and (
+        refl_count < 0 or (refl_count == 0 and not _eligible_zero)
+    )
     audit["integrity_ok"] = not (mismatch or world_rules_never_evaluable) and carryover_ok
 
     try:

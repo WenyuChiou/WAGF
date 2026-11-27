@@ -4,6 +4,7 @@ STATUS: EXPERIMENTAL (Multi-Actor / Social Extension — Pre-1.0 API).
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from broker.components.context.providers import ContextProvider
@@ -75,6 +76,15 @@ class KnowledgeGraphSocialProvider(ContextProvider):
         **kwargs: Any,
     ) -> None:
         """Query visible KG triples for ``agent_id`` and populate context."""
+        if isinstance(agents, Mapping):
+            sync_fn = getattr(self.kg, "sync_active_agents", None)
+            if callable(sync_fn):
+                sync_fn(agents)
+            observer = agents.get(agent_id)
+            if observer is not None and getattr(observer, "is_active", True) is False:
+                context[self.context_key] = ""
+                return
+
         current_period = self._resolve_period(context, kwargs)
 
         if self.memory_engine is not None:
