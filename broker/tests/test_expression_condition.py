@@ -406,6 +406,114 @@ def test_scope_social_and_proposed_magnitude_from_context():
     assert out.missing == ("proposed_magnitude",) and not out.readable
 
 
+def test_extract_social_context_prefers_explicit_then_observable_attrs():
+    from broker.core.skill_broker_engine import _extract_social_context
+
+    assert _extract_social_context({"social_context": {"adoption": 0.8}}) == {"adoption": 0.8}
+    assert _extract_social_context({"local": {"observable_attrs": {"adoption": 0.6}}}) == {"adoption": 0.6}
+    assert _extract_social_context({"local": {"social": ["text"]}}) is None
+    assert _extract_social_context({}) is None
+
+
+def test_process_step_wires_social_context_for_scope_social_rule(tmp_path):
+    """End-to-end check that scope: social rules fire inside SkillBrokerEngine.process_step."""
+    from broker.agents import AgentConfig, BaseAgent, Skill
+    from broker.components.context.builder import ContextBuilder
+    from broker.components.governance.registry import SkillRegistry
+    from broker.components.governance.retriever import SkillRetriever
+    from broker.core.skill_broker_engine import SkillBrokerEngine
+    from broker.interfaces.skill_types import ExecutionResult, SkillDefinition, SkillOutcome, SkillProposal
+    from broker.validators.agent import AgentValidator
+
+    cfg_path = _write_config(tmp_path, [
+        _rule("adoption > 0.5", scope="social", rule_id="social_cap"),
+    ])
+    reg = SkillRegistry()
+    reg.register(SkillDefinition(
+        skill_id="release", description="Release",
+        eligible_agent_types=["op"], preconditions=[],
+        institutional_constraints={}, allowed_state_changes=[],
+        implementation_mapping="sim.release",
+    ))
+    reg.register(SkillDefinition(
+        skill_id="hold", description="Hold",
+        eligible_agent_types=["op"], preconditions=[],
+        institutional_constraints={}, allowed_state_changes=[],
+        implementation_mapping="sim.hold",
+    ))
+    AgentTypeConfig.clear_cache()
+    agent_cfg = AgentTypeConfig.load(str(cfg_path), force_reload=True)
+
+    class _SocialContextBuilder(ContextBuilder):
+        def build(self, agent_id, env_context=None, **kwargs):
+            return {
+                "agent_id": agent_id,
+                "agent_type": "op",
+                "state": {},
+                "personal": {"options_text": "release, hold"},
+                "local": {"observable_attrs": {"adoption": 0.8}},
+                "available_skills": ["release", "hold"],
+            }
+
+        def format_prompt(self, context):
+            return "Choose release or hold"
+
+    class _Adapter:
+        agent_config = agent_cfg
+        last_parse_warnings = []
+
+        def parse_output(self, raw_output, ctx):
+            return SkillProposal(
+                skill_name=str(raw_output),
+                agent_id=ctx["agent_id"],
+                reasoning={"reasoning": "test"},
+                agent_type=ctx.get("agent_type", "op"),
+            )
+
+        def format_retry_prompt(self, prompt, errors, **_kwargs):
+            return prompt + "\nRetry: " + "; ".join(str(e) for e in errors)
+
+    class _Sim:
+        def execute_skill(self, approved_skill):
+            return ExecutionResult(success=True, state_changes={})
+
+    agent = BaseAgent(AgentConfig(
+        name="a1",
+        agent_type="op",
+        state_params=[],
+        objectives=[],
+        constraints=[],
+        skills=[
+            Skill(skill_id="release", description="Release", affected_param=None, direction="none"),
+            Skill(skill_id="hold", description="Hold", affected_param=None, direction="none"),
+        ],
+    ))
+    engine = SkillBrokerEngine(
+        skill_registry=reg,
+        model_adapter=_Adapter(),
+        validators=[AgentValidator(config_path=str(cfg_path))],
+        simulation_engine=_Sim(),
+        context_builder=_SocialContextBuilder(),
+        skill_retriever=SkillRetriever(),
+        config=agent_cfg,
+    )
+
+    decisions = iter(["release", "hold"])
+    result = engine.process_step(
+        agent_id="a1",
+        step_id=1,
+        run_id="r1",
+        seed=42,
+        llm_invoke=lambda _prompt: next(decisions),
+        agent_type="op",
+        env_context={},
+        render_check=False,
+    )
+    assert result.outcome == SkillOutcome.RETRY_SUCCESS
+    assert result.retry_count == 1
+    assert result.approved_skill.skill_name == "hold"
+
+
 # ---------------------------------------------------------------------------
 # 5. build time
 # ---------------------------------------------------------------------------
@@ -678,14 +786,30 @@ def test_zero_divisor_stops_a_real_run(zero_divisor_run_args):
 
 def test_zero_divisor_stops_a_parallel_run(zero_divisor_run_args, monkeypatch):
     """Same as above on the parallel step handler (workers=2)."""
-    import dataclasses
     from broker.core.experiment_runner import ExperimentRunner
+    from broker.interfaces.skill_types import ExecutionResult
 
-    # The builder refuses workers>1 for a contract with feasibility bounds
-    # (R1 slice 2); this test is about the expression path, so drop them.
-    orig_contract = ops_case.build_contract
-    monkeypatch.setattr(ops_case, "build_contract",
-                        lambda: dataclasses.replace(orig_contract(), feasibility=()))
+    # AR-3 refuses workers>1 for Coupled worlds in broker.run; substitute a
+    # plain uncoupled simulation stub so this test still exercises _run_agents_parallel.
+    class _UncoupledWorld:
+        def __init__(self, model: str):
+            self.solver = ops_case.make_solver(model)
+            self._year = 0
+
+        def advance_step(self):
+            self._year += 1
+            return {
+                "current_year": self._year,
+                "storage": 50.0,
+                "spill": 0.0,
+                "shortfall": 0.0,
+                "release_actual": 0.0,
+            }
+
+        def execute_skill(self, approved_skill):
+            return ExecutionResult(success=True, state_changes={})
+
+    monkeypatch.setattr(ops_case, "build_world", lambda ctx: _UncoupledWorld(ctx.model))
     calls = []
     orig_parallel = ExperimentRunner._run_agents_parallel
 

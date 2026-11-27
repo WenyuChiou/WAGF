@@ -475,3 +475,29 @@ def test_multi_digit_years_and_prefix_actions_keep_line_shape_stable(tmp_path):
     assert block["default_year_line_shapes_not_seen_in_approved_years"] == 0
     assert block["ok"] is True
 
+
+def test_world_proposal_to_phrase_not_flagged_by_integrity(tmp_path):
+    from broker.core.run_integrity import governance_carryover_block
+
+    kwargs = _block_inputs(
+        tmp_path,
+        [
+            {
+                "agent_id": "a1",
+                "period": 1,
+                "origin": "social",
+                "content": "The city's proposal to raise the levee passed.",
+            },
+            {
+                "agent_id": "a1",
+                "period": 1,
+                "origin": "decision",
+                "content": "Year 1: Action carried out: Wait.",
+            },
+        ],
+        writes=2,
+    )
+    block = governance_carryover_block(tmp_path, **kwargs)
+    assert block["governance_terms_in_memory"] == 0
+    assert block["ok"] is True
+

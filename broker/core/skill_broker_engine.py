@@ -58,7 +58,6 @@ from ..components.analytics.audit import AuditWriter
 from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
 from ..utils.llm_safeguard import LLMSafeguardConfig, LLMAbortTracker
-
 from ._retry_loop import RetryMixin
 from ._audit_helpers import (
     AuditMixin, _extract_construct_labels, _corrected_status_flag,
@@ -70,6 +69,21 @@ from ._appraisal_freeze import (
 from ._advise import ADVISE_DENY as _ADVISE_DENY_IDS, demote
 from ._advise_pass import AdviseMixin
 from ._skill_filtering import SkillFilterMixin, assert_rendered_prompt_shows_options
+
+
+def _extract_social_context(context: Any) -> Optional[Dict[str, Any]]:
+    """Return a dict social plane from ``context['social_context']`` or ``context['local']['observable_attrs']``."""
+    if not isinstance(context, dict):
+        return None
+    social_ctx = context.get("social_context")
+    if isinstance(social_ctx, dict):
+        return social_ctx or None
+    local = context.get("local")
+    if isinstance(local, dict):
+        obs = local.get("observable_attrs")
+        if isinstance(obs, dict):
+            return obs or None
+    return None
 
 # projection_default_breach when no feasibility bound judges the default skill.
 DEFAULT_NOT_CHECKED = "not_checked"
@@ -682,6 +696,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         env_context: Dict[str, Any] = None,
         decider: Optional[str] = None,
         render_check: bool = True,
+        model_name: Optional[str] = None,
     ) -> SkillBrokerResult:
         """
         Process one complete decision step through skill governance.
@@ -871,6 +886,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                     # audit.state_columns of the ABORTED row (the per-attempt
                     # columns are marked unobserved there).
                     state=context.get("state") if isinstance(context, dict) else None,
+                    model_name=model_name,
                 )
             # Spec item 24: this decision never produced a usable proposal --
             # an unconditional failure for the abort-rate window. After the
@@ -910,6 +926,9 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             **flat_state,              # Flatten agent state for custom validators
             **flat_env,                # Flat injection for legacy validator lookups
         }
+        _social_ctx = _extract_social_context(context)
+        if _social_ctx:
+            validation_context["social_context"] = _social_ctx
 
         # Inject proposed magnitude into validation context (activates magnitude_cap_check)
         if skill_proposal and skill_proposal.magnitude_pct is not None:
@@ -1350,6 +1369,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
                 attempt_magnitudes=attempt_magnitudes,
                 projection_default_breach=projection_default_breach,
                 projection_kept_proposal=projection_kept_proposal,
+                model_name=model_name,
             )
 
         # Spec item 24: this decision's outcome for the abort-rate window --

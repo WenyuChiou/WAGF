@@ -617,6 +617,11 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         raise
     except ValueError as exc:  # The builder's own configuration checks.
         raise RunError(f"the case could not be built: {exc}") from exc
+    if isinstance(world, Coupled) and ctx.workers > 1:
+        raise RunError(
+            "coupled runs require --workers 1 "
+            "(AR-3: parallel workers are not supported with a coupled model)"
+        )
     built["runner"] = runner
     gate.seeding = False
     runner.tag_memory_origin = True

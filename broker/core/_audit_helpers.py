@@ -597,6 +597,7 @@ class AuditMixin:
         parsing_warnings: Optional[List[str]] = None,
         decider: Optional[str] = None,
         state: Optional[Dict[str, Any]] = None,
+        model_name: Optional[str] = None,
     ) -> None:
         """PR-3: emit one audit row for a step that returned ``ABORTED``.
 
@@ -651,7 +652,7 @@ class AuditMixin:
                 "year": env_context.get("current_year") if env_context else None,
                 "seed": seed,
                 "agent_id": agent_id,
-                "model": getattr(self, "_model_name", "unknown"),
+                "model": model_name or getattr(self, "_model_name", "unknown"),
                 "decision_source": "parse_failure",
                 "validated": False,
                 "fallback_activated": False,
@@ -771,6 +772,7 @@ class AuditMixin:
         projection_default_breach: Optional[str] = None,
         projection_kept_proposal: Optional[bool] = None,
         attempt_magnitudes: Optional[List] = None,
+        model_name: Optional[str] = None,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -1027,7 +1029,7 @@ class AuditMixin:
             "year": env_context.get("current_year") if env_context else None,
             "seed": seed,
             "agent_id": agent_id,
-            "model": getattr(self, '_model_name', 'unknown'),
+            "model": model_name or getattr(self, '_model_name', 'unknown'),
             "decision_source": _classify_decision_source(approved_skill, skill_proposal),
             "validated": all_valid,
             # Phase 6G #4a: write fallback_activated at source so the audit

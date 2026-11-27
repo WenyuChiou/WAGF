@@ -31,6 +31,7 @@ class KnowledgeGraphSocialProvider(ContextProvider):
         predicates: Optional[Iterable[str]] = None,
         subjects: Optional[Iterable[str]] = None,
         include_self: bool = False,
+        hops: Optional[int] = None,
     ) -> None:
         self.kg = kg
         self.period_getter = period_getter
@@ -41,6 +42,7 @@ class KnowledgeGraphSocialProvider(ContextProvider):
         self.predicates = predicates
         self.subjects = subjects
         self.include_self = include_self
+        self.hops = hops
 
     def _resolve_period(self, context: Dict[str, Any], kwargs: Dict[str, Any]) -> int:
         if self.period_getter is not None:
@@ -76,6 +78,7 @@ class KnowledgeGraphSocialProvider(ContextProvider):
                 predicates=self.predicates,
                 subjects=self.subjects,
                 include_self=self.include_self,
+                hops=self.hops,
             )
 
         triples = self.kg.query_visible(
@@ -85,6 +88,7 @@ class KnowledgeGraphSocialProvider(ContextProvider):
             subjects=self.subjects,
             top_k=self.top_k,
             include_self=self.include_self,
+            hops=self.hops,
         )
         lines = [self.kg.format_triple(t) for t in triples]
 

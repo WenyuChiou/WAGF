@@ -313,14 +313,194 @@ class TestSyncToMemoryWithOriginGate:
         rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
         assert len(rows) == 2
         assert all(r["origin"] == "social" for r in rows)
-        assert all(r["source"] == "social" for r in rows)
-        assert all(r["emotion"] == "neutral" for r in rows)
+        assert [r["source"] for r in rows] == ["community", "community"]
+        assert all(r["emotion"] is None for r in rows)
         assert [r["period"] for r in rows] == [1, 2]
 
         snap = kg.snapshot()
         assert snap["triple_count"] == 2
         assert len(snap["delivered_by_observer"]["C1"]) == 2
         assert snap["delivery_cursor_period"]["C1"] == 2
+
+    def test_double_provide_same_period_capped_at_max_items(self, tmp_path: Path):
+        """Early cache context build + process_step build in one step must not double-sync."""
+        current_period = {"val": 1}
+        engine = WindowMemoryEngine(window_size=10)
+        gate = install_origin_gate(engine, tmp_path, lambda: current_period["val"])
+        gate.seeding = False
+
+        social_graph = CustomGraph(["A1", "A2", "C1"], lambda _ids: [("A1", "C1"), ("A2", "C1")])
+        kg = AsyncKnowledgeGraph(social_graph=social_graph)
+        kg.assert_fact(
+            subject="A1", predicate="action", obj="act_1",
+            author_id="A1", published_period=1, visibility="neighbors",
+        )
+        kg.assert_fact(
+            subject="A2", predicate="action", obj="act_2",
+            author_id="A2", published_period=1, visibility="neighbors",
+        )
+        provider = KnowledgeGraphSocialProvider(
+            kg=kg,
+            period_getter=lambda: current_period["val"],
+            memory_engine=engine,
+            top_k=5,
+            sync_max_items=1,
+        )
+
+        # Simulate ExperimentRunner early context build + SkillBrokerEngine build in same period
+        provider.provide("C1", {}, {})
+        provider.provide("C1", {}, {})
+        assert gate.counts["social"] == 1
+
+        # Next period delivers the remaining queued item with I1/I2 metadata
+        current_period["val"] = 2
+        provider.provide("C1", {}, {})
+        assert gate.counts["social"] == 2
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / MEMORY_LOG_NAME).read_text(encoding="utf-8").splitlines()
+        ]
+        assert all(r["source"] == "neighbor" for r in rows)
+        assert all(r["emotion"] is None for r in rows)
+
+    def test_world_text_with_generic_proposal_to_allowed_under_strict_i7(self):
+        """Ordinary world text like a municipal levee proposal must not false-positive I7."""
+        kg = AsyncKnowledgeGraph(strict_no_governance_trace=True)
+        triple = kg.assert_fact(
+            subject="City",
+            predicate="announcement",
+            obj="levee_upgrade",
+            text="The city's proposal to raise the levee passed.",
+            author_id="gov_1",
+            published_period=1,
+            visibility="global",
+        )
+        assert "levee" in triple.text
+
+    def test_two_hop_geographic_diffusion_and_move_edge_isolation(self):
+        from broker.components.social.graph import SpatialNeighborhoodGraph
+
+        positions = {
+            "A1": (0.0, 0.0),
+            "A2": (1.5, 0.0),
+            "A3": (3.0, 0.0),
+            "A4": (0.0, 1.5),
+            "A5": (10.0, 1.5),
+        }
+        g = SpatialNeighborhoodGraph(
+            list(positions.keys()), positions=positions, radius=1.5, fallback_k=0,
+        )
+        kg = AsyncKnowledgeGraph(social_graph=g, neighbor_hops=2)
+
+        # Period 1 facts
+        kg.assert_fact(
+            subject="A1", predicate="event_note", obj="gap_1",
+            text="A1 shortfall experience",
+            author_id="A1", published_period=1, delivery_delay=1, visibility="neighbors",
+        )
+        kg.assert_fact(
+            subject="A4", predicate="event_note", obj="old_a4",
+            text="A4 pre-move fact",
+            author_id="A4", published_period=1, delivery_delay=0, visibility="neighbors",
+        )
+        kg.assert_fact(
+            subject="A5", predicate="event_note", obj="old_a5",
+            text="A5 pre-move fact",
+            author_id="A5", published_period=1, delivery_delay=0, visibility="neighbors",
+        )
+
+        # Period 2: 1-hop query to A2 sees only A1 (gap_1); 2-hop sees both gap_1 (1-hop) and old_a4 (2-hop via A1)
+        assert [t.obj for t in kg.query_visible("A2", 2, hops=1)] == ["gap_1"]
+        assert {t.obj for t in kg.query_visible("A2", 2)} == {"gap_1", "old_a4"}
+        assert kg.query_visible("A3", 2) == []
+
+        # End of period 2: A4 relocates next to A5
+        move_diff = g.move("A4", (10.0, 0.0), period=2)
+        assert move_diff["removed"] == ["A1"]
+        assert move_diff["added"] == ["A5"]
+        assert [e["op"] for e in g.edge_events] == ["remove", "add"]
+
+        # Short move that keeps an existing edge must preserve its edge_start_period and emit no events
+        g_stay = SpatialNeighborhoodGraph(
+            ["B1", "B2", "B3"],
+            positions={"B1": (0.0, 0.0), "B2": (1.0, 0.0), "B3": (5.0, 0.0)},
+            radius=2.0,
+            fallback_k=0,
+        )
+        assert g_stay.get_edge_start_period("B1", "B2") == 0
+        stay_diff = g_stay.move("B1", (0.5, 0.0), period=3)
+        assert stay_diff == {"removed": [], "added": [], "neighbors": ["B2"]}
+        assert g_stay.get_edge_start_period("B1", "B2") == 0
+        assert g_stay.edge_events == []
+
+        # Period 3: A3 sees A1 at hop 2; A4 and A5 do NOT see each other's period-1 facts
+        assert [t.obj for t in kg.query_visible("A3", 3)] == ["gap_1"]
+        assert "old_a5" not in [t.obj for t in kg.query_visible("A4", 3)]
+        assert "old_a4" not in [t.obj for t in kg.query_visible("A5", 3)]
+
+        # New period-3 fact across (A4, A5) DOES propagate
+        kg.assert_fact(
+            subject="A4", predicate="event_note", obj="new_a4",
+            text="A4 post-move action",
+            author_id="A4", published_period=3, delivery_delay=0, visibility="neighbors",
+        )
+        assert [t.obj for t in kg.query_visible("A5", 3)] == ["new_a4"]
+
+    def test_move_preserves_incoming_fallback_edges(self):
+        from broker.components.social.graph import SpatialNeighborhoodGraph
+
+        # A=(0,0), B=(1,0), C=(3,0), radius=0, fallback_k=1 -> A-B-C
+        g = SpatialNeighborhoodGraph(
+            ["A", "B", "C"],
+            positions={"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (3.0, 0.0)},
+            radius=0.0,
+            fallback_k=1,
+        )
+        assert set(g.get_neighbors("B")) == {"A", "C"}
+        diff = g.move("B", (1.0, 0.0), period=2)
+        assert diff == {"removed": [], "added": [], "neighbors": ["A", "C"]}
+        assert set(g.get_neighbors("C")) == {"B"}
+        assert g.get_edge_start_period("B", "C") == 0
+        assert g.edge_events == []
+
+    def test_separate_filtered_providers_do_not_starve_each_other(self, tmp_path: Path):
+        engine = WindowMemoryEngine(window_size=10)
+        gate = install_origin_gate(engine, tmp_path, lambda: 1)
+        gate.seeding = False
+
+        social_graph = CustomGraph(["A1", "C1"], lambda _ids: [("A1", "C1")])
+        kg = AsyncKnowledgeGraph(social_graph=social_graph)
+        kg.assert_fact(
+            subject="A1", predicate="action", obj="act_1",
+            text="A1 action fact", author_id="A1", published_period=1, visibility="neighbors",
+        )
+        alerts_provider = KnowledgeGraphSocialProvider(
+            kg=kg, period_getter=lambda: 1, memory_engine=engine, predicates="alert", sync_max_items=5,
+        )
+        actions_provider = KnowledgeGraphSocialProvider(
+            kg=kg, period_getter=lambda: 1, memory_engine=engine, predicates="action", sync_max_items=5,
+        )
+
+        # alerts_provider finds 0 alerts, must not block actions_provider in same period
+        alerts_provider.provide("C1", {}, {})
+        actions_provider.provide("C1", {}, {})
+        actions_provider.provide("C1", {}, {})  # duplicate within channel is still ignored
+        assert gate.counts["social"] == 1
+
+    def test_sync_to_memory_supports_generator_filters(self, tmp_path: Path):
+        engine = WindowMemoryEngine(window_size=10)
+        gate = install_origin_gate(engine, tmp_path, lambda: 1)
+        gate.seeding = False
+
+        social_graph = CustomGraph(["A1", "C1"], lambda _ids: [("A1", "C1")])
+        kg = AsyncKnowledgeGraph(social_graph=social_graph)
+        kg.assert_fact(
+            subject="A1", predicate="action", obj="act_1",
+            text="A1 action fact", author_id="A1", published_period=1, visibility="neighbors",
+        )
+        n = kg.sync_to_memory("C1", 1, engine, predicates=iter(["action"]), subjects=iter(["A1"]))
+        assert n == 1
+        assert gate.counts["social"] == 1
 
 
 # ---------------------------------------------------------------------------
