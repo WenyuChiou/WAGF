@@ -67,9 +67,10 @@ Read by `python -m broker.run CONFIG`. Every key is optional, command-line flags
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `world`, `agents`, `hooks`, `validators`, `mock` | string `module:function` | none | Python slots; the function takes `ctx`. A YAML slot may import only modules inside the case folder. |
+| `world`, `agents`, `social`, `coordinator`, `hooks`, `validators`, `mock` | string `module:function` | none | Python slots; the function takes `ctx`. A YAML slot may import only modules inside the case folder. |
 | `model` | string | `mock` | Model name |
-| `years`, `agent_count`, `workers` | int | 1 | Years, agents per agent type, workers |
+| `years`, `agent_count`, `workers` | int | 1 | Years, agents for a single agent type (mutually exclusive with `population`), workers |
+| `population` | mapping `agent_type: int` | none | Multi-type population counts (allows `0` or omitted roles for ablations with total >= 1; mutually exclusive with `agent_count` and `--agents`; distinct from `global_config.governance.population`) |
 | `seed` | int | 42 | Simulation seed |
 | `governance` | string | `default` | Governance profile |
 | `strict_keys` | bool | `false` | Refuse the YAML, with exit code 2, when it holds a key no code reads. `--strict-keys` and `--no-strict-keys` override it. Without it the same keys are only logged, once per file and key. |

@@ -4,10 +4,19 @@ STATUS: EXPERIMENTAL (Multi-Actor / Social Extension — Pre-1.0 API).
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from broker.components.context.providers import ContextProvider
 from broker.components.social.knowledge_graph import AsyncKnowledgeGraph
+
+
+def _materialize_filter(values: Optional[Iterable[str]]) -> Optional[Tuple[str, ...]]:
+    """Convert an optional string or iterable of strings into a reusable tuple."""
+    if values is None:
+        return None
+    if isinstance(values, str):
+        return (values,)
+    return tuple(values)
 
 
 class KnowledgeGraphSocialProvider(ContextProvider):
@@ -39,8 +48,8 @@ class KnowledgeGraphSocialProvider(ContextProvider):
         self.top_k = top_k
         self.context_key = context_key
         self.sync_max_items = sync_max_items
-        self.predicates = predicates
-        self.subjects = subjects
+        self.predicates = _materialize_filter(predicates)
+        self.subjects = _materialize_filter(subjects)
         self.include_self = include_self
         self.hops = hops
 

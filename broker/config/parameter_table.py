@@ -530,7 +530,7 @@ def _build_rows() -> Tuple[Row, ...]:
         add(Row(f"{_G}.llm_safeguard.{name}", "count", text, "integer >= 1", "", (_safeguard(name),)))
     for name, text in (
         ("years", "Number of simulated years."),
-        ("agent_count", "Number of agents the default agents factory creates."),
+        ("agent_count", "Number of agents the default agents factory creates for a single-type case (mutually exclusive with run.population)."),
         ("workers", "Number of workers."),
     ):
         add(Row(f"{_G}.run.{name}", "count", text, "integer >= 1", "", (_run(name),)))

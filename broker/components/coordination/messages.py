@@ -34,7 +34,8 @@ References:
 Reference: Task-054 Communication Layer
 """
 from collections import defaultdict
-from typing import Dict, List, Optional, Any, Set
+from collections.abc import Mapping, Sequence
+from typing import Dict, List, Optional, Any, Set, Tuple
 import logging
 
 from broker.interfaces.coordination import (
@@ -44,6 +45,56 @@ from broker.interfaces.coordination import (
 from broker.interfaces.event_generator import EventScope
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_LOCATION_ATTRS: Tuple[str, ...] = ("location", "region_id", "tract_id")
+
+
+def normalize_location_attrs(
+    location_attrs: Optional[Sequence[str]] = None,
+) -> Tuple[str, ...]:
+    """Validate and normalize an ordered tuple of agent location attribute names."""
+    if location_attrs is None:
+        return DEFAULT_LOCATION_ATTRS
+    if isinstance(location_attrs, str):
+        items: Sequence[Any] = (location_attrs,)
+    elif isinstance(location_attrs, Sequence) and not isinstance(location_attrs, (bytes, bytearray)):
+        items = location_attrs
+    else:
+        raise ValueError("location_attrs must be a non-empty sequence of attribute names")
+    cleaned: List[str] = []
+    for attr in items:
+        if type(attr) is not str or not attr.strip():
+            raise ValueError(f"location_attrs entries must be non-empty strings, got {attr!r}")
+        cleaned.append(attr.strip())
+    if not cleaned:
+        raise ValueError("location_attrs must not be empty")
+    return tuple(dict.fromkeys(cleaned))
+
+
+def coerce_location_value(value: Any) -> Optional[str]:
+    """Return a clean string location for a hashable scalar value, else ``None``."""
+    if value is None or isinstance(value, (bool, tuple, list, dict, set, frozenset, bytes, bytearray)):
+        return None
+    try:
+        hash(value)
+    except TypeError:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def resolve_agent_location(
+    agent: Any,
+    location_attrs: Sequence[str] = DEFAULT_LOCATION_ATTRS,
+) -> Optional[str]:
+    """Read the first non-empty scalar location attribute configured for ``agent``."""
+    if agent is None:
+        return None
+    for attr in location_attrs:
+        val = coerce_location_value(getattr(agent, attr, None))
+        if val is not None:
+            return val
+    return None
 
 
 class MessagePool:
@@ -64,9 +115,20 @@ class MessagePool:
         self,
         social_graph: Optional[Any] = None,
         agent_locations: Optional[Dict[str, str]] = None,
+        *,
+        location_attrs: Optional[Sequence[str]] = None,
     ):
         self._graph = social_graph
-        self._agent_locations = agent_locations or {}
+        self._location_attrs: Tuple[str, ...] = normalize_location_attrs(location_attrs)
+        self._explicit_locations: Dict[str, str] = {}
+        self._agent_locations: Dict[str, str] = {}
+        for aid, loc in (agent_locations or {}).items():
+            cleaned = coerce_location_value(loc)
+            if cleaned is not None:
+                self._explicit_locations[aid] = cleaned
+                self._agent_locations[aid] = cleaned
+        self._inferred_location_agents: Set[str] = set()
+        self._agent_types: Dict[str, str] = {}
 
         # Core state
         self._messages: List[AgentMessage] = []
@@ -81,17 +143,72 @@ class MessagePool:
     # Agent registration
     # ------------------------------------------------------------------
 
-    def register_agent(self, agent_id: str, location: Optional[str] = None) -> None:
+    def update_agent_location(
+        self,
+        agent_id: str,
+        location: Optional[str],
+        *,
+        explicit: bool = True,
+    ) -> None:
+        """Set or clear an agent's cached location."""
+        cleaned = coerce_location_value(location)
+        if cleaned is None:
+            if explicit:
+                self._explicit_locations.pop(agent_id, None)
+            self._inferred_location_agents.discard(agent_id)
+            fallback = None if explicit else self._explicit_locations.get(agent_id)
+            if fallback is not None:
+                self._agent_locations[agent_id] = fallback
+            else:
+                self._agent_locations.pop(agent_id, None)
+            return
+
+        self._agent_locations[agent_id] = cleaned
+        if explicit:
+            self._explicit_locations[agent_id] = cleaned
+            self._inferred_location_agents.discard(agent_id)
+        else:
+            self._inferred_location_agents.add(agent_id)
+
+    def refresh_agent_locations(self, agents: Mapping[str, Any]) -> None:
+        """Sync inferred locations and types from live agent objects."""
+        for agent_id, agent in agents.items():
+            atype = getattr(agent, "agent_type", None)
+            if isinstance(atype, str) and atype:
+                self._agent_types[agent_id] = atype
+            live_loc = resolve_agent_location(agent, self._location_attrs)
+            if live_loc is not None:
+                self.update_agent_location(agent_id, live_loc, explicit=False)
+            elif agent_id in self._inferred_location_agents:
+                self.update_agent_location(agent_id, None, explicit=False)
+
+    def register_agent(
+        self,
+        agent_id: str,
+        location: Optional[str] = None,
+        *,
+        agent_type: Optional[str] = None,
+    ) -> None:
         """Register an agent to receive messages."""
         self._registered_agents.add(agent_id)
-        if location:
-            self._agent_locations[agent_id] = location
+        if isinstance(agent_type, str) and agent_type:
+            self._agent_types[agent_id] = agent_type
+        if location is not None:
+            self.update_agent_location(agent_id, location, explicit=True)
 
     def register_agents(self, agents: Dict[str, Any]) -> None:
         """Bulk-register agents from agent dict."""
         for agent_id, agent in agents.items():
-            location = getattr(agent, "region_id", None) or getattr(agent, "tract_id", None)
-            self.register_agent(agent_id, location)
+            atype = getattr(agent, "agent_type", None)
+            self.register_agent(
+                agent_id,
+                agent_type=atype if isinstance(atype, str) and atype else None,
+            )
+            live_loc = resolve_agent_location(agent, self._location_attrs)
+            if live_loc is not None:
+                self.update_agent_location(agent_id, live_loc, explicit=False)
+            elif agent_id in self._inferred_location_agents:
+                self.update_agent_location(agent_id, None, explicit=False)
 
     # ------------------------------------------------------------------
     # Subscription
@@ -379,30 +496,36 @@ class MessagePool:
         """Determine who receives a message based on scope and targeting."""
         # 1. Explicit recipients
         if msg.recipients:
-            return [r for r in msg.recipients if r in self._registered_agents]
+            recipients = [
+                r for r in dict.fromkeys(msg.recipients)
+                if r in self._registered_agents and r != msg.sender_id
+            ]
+            if msg.recipient_types:
+                allowed = set(msg.recipient_types)
+                return [r for r in recipients if self._agent_types.get(r) in allowed]
+            return recipients
 
-        # 2. Type-based targeting
-        if msg.recipient_types:
-            # We don't store agent_type in registry, so fall through to all
-            # and let subscription filtering handle it.
-            # For now, deliver to all and rely on subscription matching.
-            return [a for a in self._registered_agents if a != msg.sender_id]
-
-        # 3. Scope-based
-        if msg.scope == EventScope.GLOBAL:
-            return [a for a in self._registered_agents if a != msg.sender_id]
-
-        if msg.scope in (EventScope.REGIONAL, EventScope.LOCAL) and msg.location:
-            return [
+        # 2. Scope-based candidate selection
+        if msg.scope in (EventScope.REGIONAL, EventScope.LOCAL):
+            if not msg.location:
+                return []
+            candidates = [
                 a for a in self._registered_agents
                 if self._agent_locations.get(a) == msg.location and a != msg.sender_id
             ]
+        elif msg.scope == EventScope.AGENT:
+            return []
+        elif msg.scope == EventScope.GLOBAL:
+            candidates = [a for a in self._registered_agents if a != msg.sender_id]
+        else:
+            return []
 
-        if msg.scope == EventScope.AGENT:
-            return [r for r in msg.recipients if r in self._registered_agents]
+        # 3. Type-based filtering
+        if msg.recipient_types:
+            allowed = set(msg.recipient_types)
+            return [a for a in candidates if self._agent_types.get(a) in allowed]
 
-        # Fallback: all registered agents except sender
-        return [a for a in self._registered_agents if a != msg.sender_id]
+        return candidates
 
     def _matches_subscription(self, agent_id: str, message: AgentMessage) -> bool:
         """Check if agent's subscription allows this message."""
@@ -413,4 +536,10 @@ class MessagePool:
         return sub.matches(message)
 
 
-__all__ = ["MessagePool"]
+__all__ = [
+    "DEFAULT_LOCATION_ATTRS",
+    "MessagePool",
+    "coerce_location_value",
+    "normalize_location_attrs",
+    "resolve_agent_location",
+]
