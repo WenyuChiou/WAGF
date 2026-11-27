@@ -601,7 +601,7 @@ def _summarise_factor(
             n_absent += 1
             continue
 
-        # P1 (hunter): a masked replay that came back with no decision
+        # A masked replay that came back with no decision
         # saturates delta-P at -1.000 exactly as a no-decision baseline
         # does. Counted here, alongside the baseline count below, so
         # withholding fires on either side of the pair.
@@ -663,7 +663,7 @@ def _summarise_factor(
             # bullet here and five there.
             severity_pairs.append((masked_chars, control_chars))
         else:
-            # P2 (hunter): which of the two reasons this factor has no
+            # Which of the two reasons this factor has no
             # control on this snapshot travels separately, because they
             # call for different fixes — one is a declaration the domain
             # never made, the other is a render that broke on this
@@ -709,7 +709,7 @@ def _summarise_factor(
         "p_value_withheld": None,
     }
 
-    # P0-A / P1 (hunter): the baseline OR the masked/control arm this
+    # The baseline OR the masked/control arm this
     # factor is measured against came back without a decision, so the
     # "difference" between arms is a difference that includes an
     # absence. Checking only the baseline side let a masked or control
@@ -842,7 +842,7 @@ def _verdict(
         f"anchored on an action this decider does not choose."
     )
     if not control_available:
-        # P2 (hunter): "declares no control" and "declared one but it
+        # "declares no control" and "declared one but it
         # failed to render on this run" are different facts, and call for
         # different fixes — one needs a MaskSpec.paraphrase, the other
         # needs the pattern or the callable looked at (see mask_reason).
@@ -863,7 +863,7 @@ def _verdict(
             + size_text + anchor_caveat
         )
     p_value = (w_versus or {}).get("p_value")
-    # P2 (hunter): the verdict quotes p without saying how it was
+    # The verdict quotes p without saying how it was
     # computed. scipy exact and a tie-corrected normal approximation are
     # different tests with different assumptions; the method travels with
     # the number wherever the number is read, not only in the JSON.

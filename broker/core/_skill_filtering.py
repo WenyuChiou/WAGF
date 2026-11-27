@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.logging import logger
 
-# Options-text parity guard (2026-09, hardened after silent-failure review):
+# Options-text parity guard:
 # a placeholder LLM answer's numeric digit is decoded against
 # ``dynamic_skill_map`` — if that map's install order ever diverges from
 # what the model was actually shown, the decode is silently wrong. See
@@ -635,8 +635,8 @@ class SkillFilterMixin:
         # class renders, not silence. Import deferred (not at module load)
         # to avoid any import-order coupling between broker.core and
         # broker.components.context. Import the ACTUAL constants (not a
-        # hand-typed copy of either string) — a 2026-09 silent-failure
-        # hunter finding (NEW-4): a re-typed literal here could silently
+        # hand-typed copy of either string) — a silent-failure
+        # A re-typed literal here could silently
         # drift from the real template and exempt against a stale copy.
         from broker.components.context.builder import (
             BaseAgentContextBuilder, TieredContextBuilder,

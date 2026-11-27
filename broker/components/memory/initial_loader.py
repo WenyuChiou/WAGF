@@ -112,7 +112,7 @@ def load_initial_memories_from_json(
         The dropped_counts field is populated by reading the proxy's
         stats() if available; otherwise it remains empty.
     """
-    # Phase 6K-A (2026-05-22): resolve whitelist + default_content_type
+    # Resolve whitelist + default_content_type
     # from the DomainPack bundle when the caller did not pass them
     # explicitly. An explicit caller-supplied value always wins; passing
     # the empty tuple explicitly disables the whitelist (every
@@ -121,7 +121,7 @@ def load_initial_memories_from_json(
     if domain:
         try:
             from broker.domains.registry import DomainPackRegistry
-            # Phase 6R-D-4 (2026-05-26): MemoryPack-narrowed access.
+            # MemoryPack-narrowed access.
             bundle = DomainPackRegistry.get_memory_pack(domain).memory_policy()
         except ImportError:
             pass  # guard against circular import during early load

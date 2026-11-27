@@ -31,7 +31,7 @@ class PhysicalValidator(BaseValidator):
     """
 
 
-    # Phase 6O-A-2: physical preconditions are hard state invariants — model can't re-reason them away.
+    # Physical preconditions are hard state invariants — model can't re-reason them away.
     _DEFAULT_EXPECTED_TERMINAL: bool = True
     _DEFAULT_CONSTRAINT_TYPE: str = "hard"
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):

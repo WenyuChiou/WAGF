@@ -1,4 +1,10 @@
 """
+STATUS: LEGACY / UNUSED ON PRODUCTION RUN PATHS.
+
+Production simulations run via `ExperimentRunner`, `TieredEnvironment`,
+and `TieredContextBuilder`. Keep this module for backward compatibility
+with legacy single-process unit tests only; new domains should not build on it.
+
 State Manager - Multi-level state management for single and multi-agent scenarios.
 
 State Levels:

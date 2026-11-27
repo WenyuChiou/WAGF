@@ -480,7 +480,7 @@ def register_domain_deciders(domain: Optional[str]) -> List[str]:
 
 _MISSING = object()
 
-# Which plane a rule field is read from. Mirrors PR-6's world-variable
+# Which plane a rule field is read from. Mirrors the world-variable
 # ``scope:`` on thinking-rule conditions, deliberately: a model builder
 # who has learned one should not have to learn a second vocabulary.
 RULE_FIELD_SCOPES = frozenset({"auto", "agent", "env"})

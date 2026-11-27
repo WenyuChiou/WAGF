@@ -48,7 +48,7 @@ class DomainPackRegistry:
     _default = DefaultDomainPack()
     _missing_warned: set = set()
 
-    # Phase 6Q-D-5 (2026-05-26): the subset of DomainPack methods
+    # The subset of DomainPack methods
     # we sanity-check at registration time. Selected because they
     # are (a) called on the hot validator-dispatch path or (b)
     # called by reflection / event manager / memory infrastructure
@@ -115,7 +115,7 @@ class DomainPackRegistry:
                 f"Pack for '{name}' missing required 'name' attribute "
                 f"(got {type(pack).__name__})"
             )
-        # Phase 6Q-D-5: smoke-test the pack before registration so
+        # Smoke-test the pack before registration so
         # broken methods surface at module-import time, not during
         # a multi-hour experiment run.
         cls._smoke_test_pack(name, pack)
@@ -171,7 +171,7 @@ class DomainPackRegistry:
         cls._missing_warned.clear()
 
     # ─────────────────────────────────────────────────────────────────
-    # Typed sub-protocol accessors (Phase 6R-D-3, 2026-05-26)
+    # Typed sub-protocol accessors
     # ─────────────────────────────────────────────────────────────────
     # Consumer subsystems that only need a slice of the DomainPack
     # surface use these accessors to get a type-narrowed view. The
@@ -182,9 +182,8 @@ class DomainPackRegistry:
     # DomainPack inherits from all 7 sub-protocols, so the cast is
     # structurally safe.
     #
-    # Phase 6R-D-4 (next sub-phase) migrates broker consumer call sites
-    # to use these typed accessors (e.g. reflection.py calls
-    # ``get_reflection_pack(domain)`` instead of
+    # Typed accessors allow broker consumers to transition (e.g.
+    # reflection.py calling ``get_reflection_pack(domain)`` instead of
     # ``get_or_default(domain)``). Until then these accessors are
     # zero-impact additions.
     # ─────────────────────────────────────────────────────────────────

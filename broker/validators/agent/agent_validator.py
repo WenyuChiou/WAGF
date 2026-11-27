@@ -43,7 +43,7 @@ from broker.utils.logging import setup_logger
 
 logger = setup_logger(__name__)
 
-# PR-6: sentinel for "this world variable was not found anywhere in the
+# Sentinel for "this world variable was not found anywhere in the
 # validation context". A plain ``None`` cannot be the sentinel — a domain may
 # legitimately store ``None`` in state, and treating that as "absent" would make
 # a rule silently not fire on exactly the rows where the world state is unknown.
@@ -293,7 +293,7 @@ class AgentValidator:
                         # Format violations are hard schema breaches.
                         "expected_terminal": True,
                         "constraint_type": "hard",
-                        # DELIBERATELY no "rule_id" (2026-06-10): this result
+                        # DELIBERATELY no "rule_id": this result
                         # fires on EVERY row of the frozen mock baselines
                         # (mock output lacks the PMT appraisal fields), so the
                         # audit CSV's failed_rules column shows "Unknown" for
@@ -312,7 +312,7 @@ class AgentValidator:
             # call was commented out, so at no log level did anything appear.
             #
             # It has never fired: 137,592 corpus rows contain zero APPROVED rows with an
-            # empty construct label (checked 2026-08-06). But two triggers are visible in
+            # empty construct label. But two triggers are visible in
             # this function -- `reasoning: Dict[str, str] = None` at the signature reaching
             # `if field not in reasoning`, and `self.config.get(base_type)` for an
             # agent_type absent from config -- so it is latent, not impossible.
@@ -355,7 +355,7 @@ class AgentValidator:
                         "field": "decision",
                         "constraint": "financial_affordability",
                         "deterministic": True,
-                        # Phase 6O-A-2: cannot-afford is hard / terminal —
+                        # Cannot-afford is hard / terminal —
                         # economic infeasibility, model cannot recover.
                         "expected_terminal": True,
                         "constraint_type": "hard",
@@ -378,7 +378,7 @@ class AgentValidator:
                         "rule": "valid_decisions",
                         "field": "decision",
                         "constraint": str(valid_actions[:4]) + "...",
-                        # Phase 6O-A-2: skill not in agent eligibility list is hard.
+                        # Skill not in agent eligibility list is hard.
                         "expected_terminal": True,
                         "constraint_type": "hard",
                     }
@@ -430,7 +430,7 @@ class AgentValidator:
                         "field": param,
                         "value": value,
                         "constraint": f"min={rule.min_val}",
-                        # Phase 6O-A-2: out-of-bounds = hard for ERROR,
+                        # Out-of-bounds = hard for ERROR,
                         # diagnostic-only for WARNING.
                         "expected_terminal": lv == ValidationLevel.ERROR,
                         "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
@@ -449,7 +449,7 @@ class AgentValidator:
                         "field": param,
                         "value": value,
                         "constraint": f"max={rule.max_val}",
-                        # Phase 6O-A-2: out-of-bounds = hard for ERROR,
+                        # Out-of-bounds = hard for ERROR,
                         # diagnostic-only for WARNING.
                         "expected_terminal": lv == ValidationLevel.ERROR,
                         "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
@@ -471,7 +471,7 @@ class AgentValidator:
                             "field": param,
                             "value": delta,
                             "constraint": f"max_delta={rule.max_delta}",
-                            # Phase 6O-A-2: delta-over-limit = hard for ERROR,
+                            # Delta-over-limit = hard for ERROR,
                             # diagnostic-only for WARNING.
                             "expected_terminal": lv == ValidationLevel.ERROR,
                             "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
@@ -534,7 +534,7 @@ class AgentValidator:
                             "value": decision,
                             "constraint": f"Identity: {rule.level}",
                             "rules_hit": [rule.id],
-                            # Phase 6O-A-2: identity = agent-type eligibility
+                            # Identity = agent-type eligibility
                             # (hard when ERROR); WARNING rules are diagnostic.
                             "expected_terminal": lv == ValidationLevel.ERROR,
                             "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
@@ -715,7 +715,7 @@ class AgentValidator:
                     matches = []
                     for cond in rule.conditions:
                         if isinstance(cond, dict):
-                            # `expression:` condition (R1 slice 3). Only a
+                            # `expression:` condition. Only a
                             # condition that carries the key reaches this, and
                             # no frozen config has one, so every existing rule
                             # takes the identical path it always took.
@@ -749,7 +749,7 @@ class AgentValidator:
                                         if _triple not in unusable_world_vars:
                                             unusable_world_vars.append(_triple)
                                 continue
-                            # PR-6: WORLD-STATE condition. Checked first and
+                            # WORLD-STATE condition. Checked first and
                             # `continue`d, so a construct condition takes the
                             # identical path it always took — that equality is
                             # what keeps every frozen self-report baseline
@@ -767,7 +767,7 @@ class AgentValidator:
                                     if _pair not in missing_world_vars:
                                         missing_world_vars.append(_pair)
                                 continue
-                            # Phase 6N-E (2026-05-24): accept both the
+                            # Accept both the
                             # canonical short shape `construct: X` (used
                             # by irrigation, governed_flood, MA flood)
                             # AND the verbose `RuleCondition`-flavoured
@@ -867,11 +867,11 @@ class AgentValidator:
                             "value": decision,
                             "constraint": f"Identity: {rule.level}",
                             "rules_hit": [rule.id],
-                            # Phase 6O-A-2: thinking rules detect coherence
+                            # Thinking rules detect coherence
                             # violations; model can re-reason so never terminal.
                             "expected_terminal": False,
                             "constraint_type": "diagnostic" if lv == ValidationLevel.WARNING else "soft",
-                            # PR-6: does this rule's antecedent read the world or
+                            # Does this rule's antecedent read the world or
                             # the model's own labels? Recorded per FIRING, not
                             # per rule definition, so the audit row can say which
                             # of the rules that actually blocked a decision were
@@ -883,7 +883,7 @@ class AgentValidator:
                         }
                     ))
 
-        # PR-6: one audited finding per construct a rule asked about and the
+        # One audited finding per construct a rule asked about and the
         # model did not report. Only under the flag — legacy behaviour is that
         # `get_label` returns "" and the rule quietly does not fire, which is
         # the right ENFORCEMENT decision and the wrong AUDIT one: the row is
@@ -987,7 +987,7 @@ class AgentValidator:
         return results
 
     # ------------------------------------------------------------------
-    # PR-6: framework-aware label resolution (flag-gated)
+    # Framework-aware label resolution (flag-gated)
     # ------------------------------------------------------------------
     def _resolve_framework_alphabet(self, agent_type: str):
         """Return ``(framework, label_mappings, label_order)`` for an agent type.

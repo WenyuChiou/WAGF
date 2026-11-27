@@ -227,7 +227,7 @@ class GameMaster:
         artifact = envelope.artifact
         atype = artifact.artifact_type()
 
-        # Phase 6U-E-2 (2026-05-28): registry-driven dispatch replaces
+        # Registry-driven dispatch replaces
         # the previously-hardcoded if/elif over flood-domain artifact
         # types. Domain modules register rules via
         # ``register_artifact_dispatch_rule``; absent a rule the

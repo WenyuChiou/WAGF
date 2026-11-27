@@ -366,7 +366,7 @@ class CVRunner:
     def run_rh(self, df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         """Run unified R_H + EBE computation."""
         data = df if df is not None else self.df
-        # Phase 6J-D (2026-05-22): KeywordClassifier no longer carries
+        # KeywordClassifier no longer carries
         # flood-PMT defaults; CVRunner is water-domain code and owns the
         # dictionaries here.
         classifier = KeywordClassifier(

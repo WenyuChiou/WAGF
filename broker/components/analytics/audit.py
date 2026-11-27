@@ -12,9 +12,9 @@ logger = setup_logger(__name__)
 
 
 # Bump when the CSV priority-key set changes. History: "1" covered the entire
-# 2026-03..05 era despite >=3 unversioned column-set drifts (shadow_blocked
+# early versions despite >=3 unversioned column-set drifts (shadow_blocked
 # added; the v21-era duplicate construct_completeness column, since fixed;
-# key-gated world_* columns in Phase 6V). "2" (2026-06-10, review F12) is the
+# key-gated world_* columns). "2" is the
 # honest reset point: from here, broker/tests/test_audit_schema_golden.py
 # pins the fieldname set to this constant — adding/removing/reordering a
 # column without bumping fails CI, and every CSV gets a *.schema.json sidecar
@@ -22,7 +22,7 @@ logger = setup_logger(__name__)
 AUDIT_SCHEMA_VERSION = "2"
 
 # The version stamped instead of AUDIT_SCHEMA_VERSION when the CORRECTED column
-# set is present (``audit.corrected_status_columns`` ON). PR-3 review item P1d:
+# set is present (``audit.corrected_status_columns`` ON).
 # under that flag `fallback_activated` keeps its name but answers a different
 # question, `execution_path` is a new column and aborted steps gain rows — an
 # analyst who reads "2" on such a CSV would apply the wrong contract. The base
@@ -81,17 +81,17 @@ def audit_run_metadata() -> dict:
 # social pipelines. If ANY of them shows a single constant value across an
 # entire experiment, the most likely cause is a pipeline leak where the
 # upstream dict was never populated and the audit wrote a default placeholder
-# masquerading as real data (as happened on 2026-04-19 NW flood runs).
+# masquerading as real data (as observed in multi-year flood runs).
 #
 # The minimum row count threshold avoids false positives on tiny sanity runs.
 # -----------------------------------------------------------------------------
 
 # Columns whose constancy is suspicious (and the placeholder value they tend
 # to silently degrade to). Empty-string / False / 0.0 constants below are the
-# ones that should have triggered an alarm in the 2026-04-19 post-mortem.
+# ones that should have triggered an alarm in post-run validation.
 _SUSPICIOUS_COLUMN_DEFAULTS: Dict[str, Tuple[Any, ...]] = {
     # Memory pipeline — see INVARIANTS.md Invariant 1 + 2.
-    # "unobserved" (PR-3, written under audit.corrected_status_columns when the
+    # "unobserved" (written under audit.corrected_status_columns when the
     # memory record carries no emotion/source key) is listed alongside the old
     # literals: naming the gap honestly must not also make it invisible to the
     # constancy sentinel that exists to catch exactly this pipeline leak.
@@ -107,12 +107,12 @@ _SUSPICIOUS_COLUMN_DEFAULTS: Dict[str, Tuple[Any, ...]] = {
     # Social pipeline — quieter but same failure pattern is possible
     "social_gossip_count": (0,),
     "social_network_density": (0.0, 0),
-    # LLM cost plane. Absent from this map until 2026-09-15, which is the
+    # LLM cost plane. Absent from this map prior to cost tracking, which is the
     # DIRECT reason `prompt_tokens` sat at 0 across five releases and a
     # 3,000-test suite without one alarm: the seam that dropped the
     # measurement was invisible, and so was its result. A real-LLM corpus
     # whose every row reports zero tokens is the same failure shape as the
-    # 2026-04-19 memory leak this detector was built for, and it is now the
+    # memory leak this detector was built for, and it is now the
     # same warning. (A `--model mock` corpus IS legitimately all-zero here and
     # will warn; that is correct — such a corpus carries no token data and
     # nothing should be averaged out of these columns.)
@@ -266,7 +266,7 @@ def detect_audit_sentinels_in_csv(csv_path: str, min_rows: int = _SENTINEL_MIN_R
 
 
 #: Statuses marking a row as a step that produced no decision. ``ABORTED`` is
-#: the PR-3 parse-failure sentinel written by ``SkillBrokerEngine``;
+#: the parse-failure sentinel written by ``SkillBrokerEngine``;
 #: ``ABORTED_EXCEPTION`` is the F1 sentinel written by
 #: ``ExperimentRunner._write_aborted_trace`` when a step raised.
 #:
@@ -319,7 +319,7 @@ def _coverage_for_rows(
 
     layers = Counter(str(r.get("parse_layer", "") or "(none)") for r in rows)
     digit = sum(n for layer, n in layers.items() if "digit" in layer.lower())
-    # Substring, not an exact "default" key (PR-3 review item P2a): the parser
+    # Substring, not an exact "default" key: the parser
     # names its last-resort layer variously ("default", "default_fallback",
     # "layer4_default"), and an exact match silently reported 0.0 for all of
     # them. NOTE this counts PARSE-layer defaults only — a governance
@@ -570,7 +570,7 @@ class AuditConfig:
     experiment_name: str = "simulation"
     log_level: str = "full"  # full, summary, errors_only
     clear_existing_traces: bool = True
-    # R5 walk finding 13: write validator_health.csv (header only) even when no
+    # Write validator_health.csv (header only) even when no
     # rule ran. Off by default so paper runners write the same files as before;
     # python -m broker.run turns it on.
     always_write_validator_health: bool = False
@@ -618,7 +618,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     row["num_ctx"] = llm_stats.get("num_ctx", 0)
     row["context_utilization"] = llm_stats.get("context_utilization", 0.0)
 
-    # 1.5c. Cost/latency instrumentation (2026-09-15), KEY-GATED the same way
+    # 1.5c. Cost/latency instrumentation, KEY-GATED the same way
     # every additive column in this function is: a trace whose stats dict lacks
     # the key derives no column, so legacy JSONL replayed through
     # `recover_csv_from_jsonl` reproduces its original column set exactly.
@@ -645,12 +645,12 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []) or [])
     row["raw_output"] = skill_prop.get("raw_output", t.get("raw_output", ""))
 
-    # 2.5. Parse Quality Metrics (Task-040 C4)
+    # 2.5. Parse Quality Metrics
     row["parse_layer"] = skill_prop.get("parse_layer", "")
     row["parse_confidence"] = skill_prop.get("parse_confidence", 0.0)
     row["construct_completeness"] = skill_prop.get("construct_completeness", 0.0)
 
-    # 2.6. Fallback Indicator (Task-040 C.1 + Phase 6G 2026-05-15 fix).
+    # 2.6. Fallback Indicator.
     # Source of truth for fallback is the trace's top-level `fallback_activated`
     # field (set by retry_loop on REJECTED_FALLBACK termination); we only fall
     # back to status-string inference when the field is absent (older traces).
@@ -662,7 +662,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
             "FALLBACK", "fallback", "MODIFIED", "REJECTED_FALLBACK"
         )
 
-    # 2.7. F3 (2026-06-10): EXECUTED-stage truth columns, key-gated. Only
+    # 2.7. EXECUTED-stage truth columns, key-gated. Only
     # traces produced with global_config.audit.executed_skill_columns ON carry
     # these keys; fieldnames derive from row keys, so legacy/flag-OFF traces
     # keep the frozen column set byte-identical. Closes the REJECTED-row gap:
@@ -673,7 +673,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["executed_skill"] = t.get("executed_skill")
         row["executed_via_fallback"] = bool(t.get("executed_via_fallback"))
 
-    # 2.7a. PR-3: `execution_path`, key-gated the same way — present only on
+    # 2.7a. `execution_path`, key-gated the same way — present only on
     # traces produced with global_config.audit.corrected_status_columns ON.
     # It names the remap rule behind `executed_skill` (approved /
     # approved_no_engine / rejected_default / rejected_proposal /
@@ -685,13 +685,13 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["execution_path"] = t.get("execution_path")
     if "execution_success" in t:
         row["execution_success"] = t.get("execution_success")
-    # 2.7a'. R1 slice 2: key-gated like execution_path. Present only when the
+    # 2.7a'. Key-gated like execution_path. Present only when the
     # default skill that ran after the retries were exhausted was projected
     # (the coupled model declares feasibility bounds): the breached bound names
     # joined by ";", "" when the default passes.
     if "projection_default_breach" in t:
         row["projection_default_breach"] = t.get("projection_default_breach", "")
-    # R5 walk finding 16: True when the agent's last proposal ran in place of
+    # True when the agent's last proposal ran in place of
     # a default that breaches too, because it projects no worse; False when the
     # default ran. Present on the same rows as projection_default_breach.
     if "projection_kept_proposal" in t:
@@ -722,7 +722,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["attempt_labels"] = t.get("attempt_labels", "")
         row["attempt_failed_rules"] = t.get("attempt_failed_rules", "")
         row["appraisal_relabeled"] = t.get("appraisal_relabeled", False)
-    # Per-attempt numbers (audit.attempt_magnitude_columns, R5 walk finding 6).
+    # Per-attempt numbers.
     if "attempt_magnitudes" in t:
         row["initial_magnitude"] = t.get("initial_magnitude", "")
         row["attempt_magnitudes"] = t.get("attempt_magnitudes", "")
@@ -746,7 +746,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     if "llm_calls" in llm_stats:
         row["llm_calls"] = llm_stats.get("llm_calls")
 
-    # 2.7d. PR-6: SOFT-RULE columns, key-gated the same way. Present only when
+    # 2.7d. SOFT-RULE columns, key-gated the same way. Present only when
     # global_config.governance.advise_mode is `record` or `feedback`.
     # `advise_findings` names the WARNING rules that fired; `advise_shown` says
     # whether the model was actually told about them. Without the second column
@@ -760,7 +760,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
                    "advise_post_validation_rules", "soft_findings_unidentified"):
             row[_k] = t.get(_k)
 
-    # 2.7e. PR-6: GROUNDING columns, key-gated the same way. Present only when
+    # 2.7e. GROUNDING columns, key-gated the same way. Present only when
     # the active governance profile declares a world-grounded rule (or the
     # operator forces them on). Splits the rules that fired by whether their
     # antecedent read simulator state or a label the model wrote itself.
@@ -768,7 +768,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["rules_world_grounded"] = t.get("rules_world_grounded", "")
         row["rules_self_report"] = t.get("rules_self_report", "")
 
-    # 2.7f. PR-8: DECIDER columns, key-gated the same way. Present only when
+    # 2.7f. DECIDER columns, key-gated the same way. Present only when
     # some agent type in the active config declares a decider other than
     # `llm` (or the operator forces them on). `decider` names what produced
     # the decision; `decider_path` names which way that thing went, which
@@ -778,7 +778,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["decider"] = t.get("decider", "")
         row["decider_path"] = t.get("decider_path", "")
 
-    # 2.8. 6W-B6: PROPOSED-parameter columns, key-gated. _audit_helpers emits
+    # 2.8. PROPOSED-parameter columns, key-gated. _audit_helpers emits
     # top-level proposed_param_<name> keys ONLY when global_config.audit.param_columns
     # is ON and the proposal carries setpoints; surface them into the row so
     # compute_csv_fieldnames derives the columns. Flag-OFF / frozen traces carry no
@@ -793,7 +793,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(reasoning, dict):
         for k, v in reasoning.items():
             if k == "demographic_audit" and isinstance(v, dict):
-                # Flatten Demographic Audit (Phase 21)
+                # Flatten Demographic Audit
                 row["demo_score"] = v.get("score", 0.0)
                 row["demo_anchors"] = "|".join(v.get("cited_anchors", []))
             elif k.lower() == "appraisal":
@@ -843,7 +843,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
             sources = [m.get("source", "personal") for m in memories if isinstance(m, dict)]
             # Ties go to the value retrieved first. `max(set(...))` broke ties by
             # set iteration order, which follows per-process string hashing, so
-            # two identical runs could disagree on a tied row (2026-09-25).
+            # two identical runs could disagree on a tied row.
             row["mem_top_emotion"] = max(dict.fromkeys(emotions), key=emotions.count) if emotions else ""
             row["mem_top_source"] = max(dict.fromkeys(sources), key=sources.count) if sources else ""
         else:
@@ -858,7 +858,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["mem_top_source"] = ""
 
     # 6. Social Audit (E2) - Social context details.
-    # Phase 6N-A (2026-05-23): `visible_actions` is a dict whose keys come
+    # `visible_actions` is a dict whose keys come
     # from the domain's social context provider — each domain supplies
     # whatever ``<skill>_neighbors`` count it wants to surface. Iterate
     # the dict instead of hardcoding skill names so the audit writer
@@ -914,7 +914,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         if any(key.endswith(suffix) for suffix in _CONSTRUCT_SUFFIXES):
             row[f"construct_{key}"] = val
 
-    # 10. Rule Evaluation Details (Task-041 Phase 3)
+    # 10. Rule Evaluation Details
     rules_evaluated = t.get("rules_evaluated", [])
     triggered_rules = t.get("triggered_rules", [])
     row["rules_evaluated_count"] = len(rules_evaluated) if rules_evaluated else 0
@@ -931,7 +931,7 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
             row[f"condition_{i}_rule"] = ""
             row[f"condition_{i}_matched"] = ""
 
-    # 11. World-side commit (Phase 6V coupling, inc 3 / review P1-9).
+    # 11. World-side commit.
     # KEY-GATED: only traces from a coupled run carry
     # execution_result.action_context.world_delta (set by
     # EnvironmentCouplingAdapter.execute_skill), and CSV fieldnames are
@@ -1024,7 +1024,7 @@ class GenericAuditWriter:
                 #
                 # Raising is the safe failure direction here: a false refusal costs an
                 # operator one rename, and the guard is trivially bypassed by pointing at a
-                # fresh directory, which is what was wanted anyway. Added 2026-08-06 after
+                # fresh directory, which is what was wanted anyway. Added after
                 # the hazard was found while seed 42 of a five-seed queue was still running.
                 if (self.output_dir / "reproducibility_manifest.json").exists():
                     raise RuntimeError(
@@ -1059,7 +1059,6 @@ class GenericAuditWriter:
             "structural_faults_fixed": 0,  # Format issues fixed by retry
             "total_format_retries": 0,     # Total format retry attempts
             "validator_health": {},
-            # F2 fix (post-Phase-6T silent-failure audit, 2026-05-27):
             # count of JSONL events lost to terminal flush failure
             # (max retries exhausted). Pre-fix the buffer was NOT
             # cleared on final failure, causing the events to be
@@ -1077,7 +1076,7 @@ class GenericAuditWriter:
         # Buffer for JSONL writes (Performance Optimization)
         self._jsonl_buffer: Dict[str, List[str]] = {}
         self._jsonl_buffer_size = 1  # Flush every trace for real-time observability
-        # Thread safety for workers > 1. RLock since F6 (2026-06-10): the
+        # Thread safety for workers > 1 using a re-entrant RLock: the
         # whole write_trace body now runs under it (summary/validator_health
         # counters were mutated OUTSIDE the lock — non-atomic += on shared
         # dicts lost updates under concurrent workers), and the body's inner
@@ -1087,7 +1086,7 @@ class GenericAuditWriter:
         # Track which aggregate dict keys have been observed across all traces
         # so we can emit a one-time WARNING at first-trace time if any are
         # absent (they would otherwise silently degrade to hardcoded defaults
-        # — see INVARIANTS.md Invariant 2 and the 2026-04-19 NW flood
+        # — see INVARIANTS.md Invariant 2 and the NW flood
         # post-mortem).
         self._expected_aggregates: Dict[str, str] = {
             "memory_audit":    "mem_* columns (retrieved_count, top_emotion, etc.)",
@@ -1096,7 +1095,7 @@ class GenericAuditWriter:
             "rule_breakdown":  "rules_* columns (personal_hit, social_hit, etc.)",
         }
         self._startup_warned: bool = False
-        # R5 walk finding 10: agent types with psychological_framework: none.
+        # Agent types with psychological_framework: none.
         # They have no appraisal, so their cog_* columns are placeholders by
         # design and a missing cognitive_audit is not worth a warning. Set by
         # ExperimentBuilder.
@@ -1162,7 +1161,7 @@ class GenericAuditWriter:
         trace.setdefault("timestamp", datetime.now().isoformat())
         trace.setdefault("agent_type", agent_type)
 
-        # O1 (2026-06-10 lifecycle review): LIVE context-budget tripwire.
+        # LIVE context-budget tripwire.
         # context_utilization has been recorded per row since R5-C, but
         # nothing watched it during the run — when prompt_tokens approaches
         # num_ctx, ollama silently truncates the prompt HEAD (system/role
@@ -1174,7 +1173,7 @@ class GenericAuditWriter:
             llm_stats = {}
         try:
             # Read the WIDEST attempt of the decision, not the last one. Since
-            # 2026-09-15 `prompt_tokens` is the last attempt's (so it and
+            # `prompt_tokens` is the last attempt's (so it and
             # `num_ctx` describe one call and `context_utilization` is their
             # true ratio); the advisory pass runs before the governance retry
             # loop and can be the widest call, so a decision that truncated
@@ -1275,9 +1274,9 @@ class GenericAuditWriter:
                         }
                         if metadata.get("hallucination_type"):
                             issue["hallucination_type"] = metadata["hallucination_type"]
-                        # 2026-06-10 review F2: carry the terminal-taxonomy subset of
+                        # carry the terminal-taxonomy subset of
                         # ValidationResult.metadata into the issue entry — without it
-                        # the entire Phase 6O-A-2 machinery (classify_terminal rules
+                        # the entire machinery (classify_terminal rules
                         # 6-7 read issue["metadata"]["expected_terminal"] /
                         # ["feasible_actions"]) could never fire on real audit data.
                         # JSONL-additive only; the CSV plane (failed_rules) reads just
@@ -1329,7 +1328,7 @@ class GenericAuditWriter:
             self.summary["structural_faults_fixed"] += 1  # Count traces with faults fixed
 
         # Buffered JSONL write (Optimized: flush every N traces)
-        # F12 (2026-06-10): the old top-level raw_output truncation was
+        # The old top-level raw_output truncation was
         # REMOVED — it was self-defeating (skill_proposal.raw_output inside
         # the same line was never truncated, so the full string persisted
         # anyway and the "size saving" was illusory) and it made
@@ -1448,7 +1447,7 @@ class GenericAuditWriter:
 
         # Framework invariant check — see broker/INVARIANTS.md Invariant 2.
         # Warn (not raise) if any semantic signal column is silently constant,
-        # which is the 2026-04-19 NW flood failure pattern. F11: the warnings
+        # which is that silent-dropout failure pattern. The warnings
         # ALSO land in the summary so the artifact carries the evidence.
         sentinel_warnings: Dict[str, List[str]] = {}
         for agent_type, traces in self._trace_buffer.items():
@@ -1503,8 +1502,7 @@ class GenericAuditWriter:
                 break
             except (OSError, IOError) as e:
                 if attempt == max_retries - 1:
-                    # F2 fix (post-Phase-6T audit, 2026-05-27): pre-fix
-                    # path logged the error but did NOT clear the
+                    # Previously, this error path logged without clearing the
                     # buffer. The next flush re-appended the same
                     # lines, producing duplicate JSONL rows that
                     # inflate per-agent decision counts (IBR climbs
@@ -1600,12 +1598,12 @@ class GenericAuditWriter:
                 writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)
                 writer.writeheader()
                 writer.writerows(flat_rows)
-            # F12 (2026-06-10): sidecar schema stamp — a NEW artifact (frozen
+            # Sidecar schema stamp — a NEW artifact (frozen
             # result dirs on disk are untouched) recording which schema
             # version + column set produced this CSV. Closes the "CSV carries
             # no version; two analysts read the same file differently" gap
             # (the v21 duplicate-column incident class).
-            # PR-3: the corrected-columns flag state, detected from the column
+            # The corrected-columns flag state, detected from the column
             # set itself rather than plumbed down from the config — the writer
             # holds no config object, and self-description cannot drift from
             # what the CSV actually contains.

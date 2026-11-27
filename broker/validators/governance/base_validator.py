@@ -61,18 +61,18 @@ class BaseValidator(ABC):
 
     _valid_modes = {"active", "shadow"}
 
-    #: Phase 6O-A-2 — default `expected_terminal` for ValidationResult.metadata.
+    #: Default `expected_terminal` for ValidationResult.metadata.
     #: Subclasses override to declare whether a rejection from this validator
     #: class reflects a valid hard-block (True) or a model failure the agent
     #: could recover from (False). Consumed by the terminal-outcome classifier
     #: at `broker.components.analytics.terminal_taxonomy`.
     _DEFAULT_EXPECTED_TERMINAL: bool = False
 
-    #: Phase 6O-A-2 — default `constraint_type` for ValidationResult.metadata.
+    #: Default `constraint_type` for ValidationResult.metadata.
     #: Subclasses override: "hard" for physical/financial impossibility,
     #: "soft" for preferences/norms, "diagnostic" for informational rules
     #: that never block. (The `ConstraintType` Literal alias used to live at
-    #: `broker.interfaces.validation_metadata`, removed 2026-09 as unused —
+    #: `broker.interfaces.validation_metadata`, removed as unused —
     #: valid values are the three strings above.)
     _DEFAULT_CONSTRAINT_TYPE: str = "soft"
 
@@ -187,7 +187,7 @@ class BaseValidator(ABC):
                     "subcategory": rule.subcategory,
                     "blocked_skill": skill_name,
                     "level": rule.level,
-                    **self._recovery_keys(rule),  # Phase 6O-A-2
+                    **self._recovery_keys(rule),  # 2
                 }
                 if shadow_blocked:
                     metadata.update({

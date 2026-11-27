@@ -9,14 +9,14 @@ Core components for the water agent governance framework:
 - Event management
 """
 
-# Perception filter exports (Task-043)
+# Perception filter exports
 from .social.perception import (
     QualitativePerceptionFilter,
     PassThroughPerceptionFilter,
     PerceptionFilterRegistry,
 )
 
-# Social graph configuration exports (Task-043)
+# Social graph configuration exports
 from .social.config import (
     SocialGraphSpec,
     AGENT_SOCIAL_SPECS,
@@ -32,13 +32,13 @@ from .context.providers import (
     EnvironmentEventProvider,
 )
 
-# Observable state exports (Task-041)
+# Observable state exports
 from .analytics.observable import (
     ObservableStateManager,
     create_rate_metric,
 )
 
-# Event manager exports (Task-042)
+# Event manager exports
 from .events.manager import (
     EnvironmentEventManager,
 )
@@ -49,12 +49,12 @@ from .cognitive.adapters import DomainReflectionAdapter
 __all__ = [
     # Domain adapters
     "DomainReflectionAdapter",
-    # Perception (Task-043)
+    # Perception
     "QualitativePerceptionFilter",
     "HouseholdPerceptionFilter",  # deprecated alias
     "PassThroughPerceptionFilter",
     "PerceptionFilterRegistry",
-    # Social graph (Task-043)
+    # Social graph
     "SocialGraphSpec",
     "AGENT_SOCIAL_SPECS",
     "get_social_spec",
@@ -64,10 +64,10 @@ __all__ = [
     "PerceptionAwareProvider",
     "ObservableStateProvider",
     "EnvironmentEventProvider",
-    # Observable state (Task-041)
+    # Observable state
     "ObservableStateManager",
     "create_rate_metric",
-    # Event manager (Task-042)
+    # Event manager
     "EnvironmentEventManager",
 ]
 

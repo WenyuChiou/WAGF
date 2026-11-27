@@ -66,7 +66,7 @@ ValidatorRegistry; here we keep loose to avoid an import cycle."""
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Memory policy bundle (Phase 6K-A 2026-05-22)
+# Memory policy bundle
 # ─────────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -102,7 +102,7 @@ class MemoryPolicyBundle:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Sub-protocols (Phase 6R-D-1, 2026-05-26)
+# Sub-protocols
 # ─────────────────────────────────────────────────────────────────────
 #
 # The composite :class:`DomainPack` (defined below) inherits from these
@@ -119,13 +119,10 @@ class MemoryPolicyBundle:
 # duplicate declarations and uses the composite class's body as the
 # authoritative source. The sub-protocols here carry only abbreviated
 # docstrings citing the canonical DomainPack location.
-#
-# Phase 6R-D roadmap: 6R-D-1 (this commit) DEFINES the sub-protocols
-# but does not yet narrow any broker consumer's type hints — every
-# call site still uses ``DomainPack``. 6R-D-3 introduces typed
-# accessors on ``DomainPackRegistry`` (``get_reflection_pack(domain)``
-# etc.); 6R-D-4 migrates broker consumers to use the narrowed types
-# at their relevant call sites.
+# Sub-protocols isolate generic framework contracts (reflection, governance,
+# memory, perception, skills, hooks) from consumer type hints. Callers can
+# transition from ``DomainPack`` to the narrowed sub-protocol accessors on
+# ``DomainPackRegistry`` (e.g. ``get_reflection_pack(domain)``).
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -243,7 +240,7 @@ class GovernancePack(Protocol):
     """
     def psychological_framework(self) -> str: ...
     def framework_for_agent_type(self, agent_type: Optional[str]) -> str: ...
-    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]: ...  # DEPRECATED 2026-06-10 — see DomainPack.builtin_checks docstring; use ValidatorRegistry
+    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]: ...  # DEPRECATED — see DomainPack.builtin_checks docstring; use ValidatorRegistry
     def retrieval_policy(self) -> Dict[str, Any]: ...
     def drift_policy(self) -> Dict[str, Any]: ...
     def population_governance_policy(self) -> Dict[str, Any]: ...
@@ -426,7 +423,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Phase 6T-A (2026-05-27): lifecycle hooks ─────
+    # ─── lifecycle hooks ─────
 
     def event_persistence_policy(self, event_type: str) -> Any:
         """Phase 6T-A: lifecycle policy for an event of ``event_type``.
@@ -450,7 +447,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Memory policy (Phase 6K-A) ───────────────────────────────
+    # ─── Memory policy ───────────────────────────────
 
     def action_taxonomy(self) -> Dict[str, "ActionTaxonomyEntry"]:
         """Phase 6O-B: per-skill structural metadata.
@@ -559,7 +556,7 @@ class DomainPack(
         ``FloodMemoryTemplateProvider`` (Phase 6B-2)."""
         ...
 
-    # ─── Perception (Phase 6H DomainPack v2) ──────────────────────
+    # ─── Perception ──────────────────────
 
     def perception_descriptors(self) -> Dict[str, Any]:
         """Numeric→qualitative verbalization rules, keyed by the INPUT
@@ -685,7 +682,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Phase 6T-E (2026-05-27): social-media credibility vocabulary ─
+    # ─── social-media credibility vocabulary ─
 
     def credibility_tiers(self) -> List[str]:
         """Phase 6T-E: ordered tier vocabulary for the domain's
@@ -827,7 +824,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
+    # ─── Retrieval tuning ────────────────
 
     def retrieval_policy(self) -> Dict[str, Any]:
         """Skill-retrieval tuning knobs. Recognised keys: ``"top_n"``
@@ -841,7 +838,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Population drift monitoring (Phase 6L-A 2026-05-22) ──────
+    # ─── Population drift monitoring ──────
 
     def drift_policy(self) -> Dict[str, Any]:
         """Population-level drift-monitor thresholds. Recognised keys
@@ -862,7 +859,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Population-governance thresholds (Phase 6L-B 2026-05-22) ─
+    # ─── Population-governance thresholds ─
 
     def population_governance_policy(self) -> Dict[str, Any]:
         """Population-level governance thresholds bundled into one hook.
@@ -888,17 +885,13 @@ class DomainPack(
         """
         ...
 
-    # Phase 6L-C (2026-05-23) added a ``policy_event_tiers`` hook here.
-    # Removed org-4 cleanup (2026-09): sole consumer was
-    # ``AgentTypeConfig.get_policy_event_tiers_config`` (removed
-    # earlier the same cleanup as dead code — its own sole consumer,
-    # ``PolicyEventGenerator``, was already gone), leaving this hook
+    # Legacy ``policy_event_tiers`` hook removed (sole consumer was
+    # ``AgentTypeConfig.get_policy_event_tiers_config``, removed earlier as
+    # dead code after ``PolicyEventGenerator`` was deleted), leaving this hook
     # with zero production callers, grep-confirmed.
 
-    # Phase 6P-E (2026-05-25) added a ``hazard_severity_thresholds``
-    # hook here. Phase 6Q-B (2026-05-26) removed it — Phase 6P-E's
-    # follow-up audit (5 parallel subagents) confirmed the
-    # ``HazardEventGenerator`` had zero non-test production callers and
+    # Legacy ``hazard_severity_thresholds`` hook removed after audit
+    # confirmed ``HazardEventGenerator`` had zero non-test production callers and
     # carried a flood-implicit payload schema (``depth_m`` / ``depth_ft``
     # / ``m → ft`` conversion / flood-shaped hazard_module API). The
     # generator was therefore relocated to
@@ -906,7 +899,7 @@ class DomainPack(
     # of being decoupled via this hook. The hook is gone; the move
     # automatically closes the hazard-event-payload genericity finding.
 
-    # ─── Psychological framework (Phase 6Q-D 2026-05-26) ──────────
+    # ─── Psychological framework ──────────
 
     def psychological_framework(self) -> str:
         """Framework identifier passed to ``ThinkingValidator(framework=...)``.
@@ -988,7 +981,7 @@ class DomainPack(
         """
         ...
 
-    # ─── Profile loaders (Phase 6P-C 2026-05-25) ──────────────────
+    # ─── Profile loaders ──────────────────
 
     def csv_loader_class(self) -> Optional[Any]:
         """Domain-specific CSV loader class — replaces the hardcoded
@@ -1016,7 +1009,7 @@ class DomainPack(
         generic ``SyntheticLoader``."""
         ...
 
-    # ─── Phase 6T-C (2026-05-27): institutional lifecycle dispatch ─
+    # ─── institutional lifecycle dispatch ─
 
     def institutional_lifecycle_handlers(self) -> Dict[str, Any]:
         """Phase 6T-C: per-agent-type lifecycle-handler dispatch table.
@@ -1094,7 +1087,7 @@ class DomainPack(
         """
         ...
 
-    # ─── MemoryBridge resolution importance (Phase 6L-D 2026-05-23) ─
+    # ─── MemoryBridge resolution importance ─
 
     def bridge_importance_policy(self) -> Dict[str, float]:
         """Per-domain override of the

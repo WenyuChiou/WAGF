@@ -29,7 +29,7 @@ from broker.interfaces.perception import (
 )
 
 
-# Phase 6H Item 5: the flood-domain field-lists and depth descriptor that
+# The flood-domain field-lists and depth descriptor that
 # used to live at this module level moved to
 # examples/governed_flood/adapters/flood_perception.py. QualitativePerceptionFilter
 # is now domain-neutral — it strips and verbalizes nothing unless a
@@ -86,8 +86,8 @@ class QualitativePerceptionFilter:
                 Absent field -> that verbalization step is skipped.
         """
         self.config = config or PerceptionConfig(mode=PerceptionMode.QUALITATIVE)
-        # Verbalization rules keyed by INPUT context field (Phase 6H
-        # Item 5b): {field: DescriptorMapping}. filter() applies each as
+        # Verbalization rules keyed by INPUT context field:
+        # {field: DescriptorMapping}. filter() applies each as
         # a pure lookup -- it never computes a derived quantity itself.
         self._descriptor_mappings = (
             dict(descriptor_mappings) if descriptor_mappings else {}
@@ -122,7 +122,7 @@ class QualitativePerceptionFilter:
         filtered = dict(context)
 
         # Verbalize: numeric -> qualitative. One DescriptorMapping per
-        # INPUT context field (Phase 6H Item 5b). The filter only looks
+        # INPUT context field. The filter only looks
         # up -- never computes. Derived quantities (changes, deltas)
         # arrive as fields the domain environment already produced; a
         # same-context ratio is supported via `denominator_field`.

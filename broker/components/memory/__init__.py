@@ -25,7 +25,7 @@ __all__ = [
     # Legacy (pre-existing)
     "CognitiveMemory",
     "MemoryProvider",
-    # Broker-level memory governance (2026-04-11)
+    # Broker-level memory governance
     "MemoryContentType",
     "classify_memory_content",
     "PolicyFilteredMemoryEngine",

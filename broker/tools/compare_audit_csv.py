@@ -120,7 +120,7 @@ def _timestamp_columns(header: Sequence[str]) -> List[int]:
 #: leaving these raw would make every real-LLM byte-identity check fail for a
 #: reason that has nothing to do with the simulation. Same treatment, and the
 #: same reason, as the wall-clock ``timestamp`` column above. Added with the
-#: columns themselves (2026-09-15).
+#: columns themselves.
 #:
 #: NOTE the cost: this blanks the two columns on EVERY plane, mock included. A
 #: ``--model mock`` run writes a constant ``0.0`` in both today, so blanking

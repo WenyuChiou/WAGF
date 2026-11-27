@@ -65,7 +65,7 @@ class RetryMixin:
         format_retry_count = 0
         max_initial_attempts = 2
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
-        # 2026-09-15 cost columns, SEEDED rather than created on first use. The
+        # cost columns, SEEDED rather than created on first use. The
         # five are one era marker — an analyst dates a corpus by whether the
         # header carries them — so a decision must never publish some of them
         # and not others. Creating them inside accumulate_llm_stats did exactly
@@ -114,7 +114,7 @@ class RetryMixin:
                     # alongside empty-content retries.
                     for _ in range(getattr(llm_stats_obj, 'backoff_retries', 0)):
                         self.auditor.log_backoff_retry()
-                    # Fix round 3 (TIME TO ABORT): the backoff wrapper already
+                    # (TIME TO ABORT): the backoff wrapper already
                     # exhausted every retry against a TRANSPORT failure --
                     # the endpoint is the problem, not the prompt. Re-prompting
                     # it here (and again in the governance retry loop) would
@@ -160,7 +160,7 @@ class RetryMixin:
                         **context
                     })
 
-                # PR-4 (D6): collect whatever the parser stashed for this
+                # Collect whatever the parser stashed for this
                 # attempt before the next one overwrites it.
                 _stashed = getattr(self.model_adapter, "last_parse_warnings", None)
                 if _stashed:
@@ -168,7 +168,7 @@ class RetryMixin:
                     self.model_adapter.last_parse_warnings = []
 
                 if skill_proposal is None:
-                    # Phase 6C-v4 Finding 3: distinguish actual empty LLM
+                    # Distinguish actual empty LLM
                     # response from parser-side rejection. The parse_output
                     # in model_adapter logs the parser-side diagnostic at
                     # ERROR level just before returning None; this log
@@ -214,7 +214,7 @@ class RetryMixin:
                 logger.warning(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
                 prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
 
-        # PR-4 (D6): the warnings from the failed attempts belong to THIS
+        # The warnings from the failed attempts belong to THIS
         # decision either way. If a later attempt parsed, they go in front of
         # that proposal's own warnings (chronological order: the failures came
         # first). If none did, they go back on the adapter for the ABORTED
@@ -658,14 +658,14 @@ class RetryMixin:
                 raw_output, llm_stats_obj = res
                 total_llm_stats["llm_retries"] += llm_stats_obj.retries
                 total_llm_stats["llm_success"] = llm_stats_obj.success
-                # R5-C token counts + 2026-09-15 latency/total columns.
+                # Token counts and latency/total columns.
                 accumulate_llm_stats(total_llm_stats, llm_stats_obj)
-                # Spec item 24 fix round: same backoff-retry accounting as
+                # Same backoff-retry accounting as
                 # _invoke_llm_with_retries above -- a governance-retry LLM
                 # call can ALSO have gone through the backoff wrapper.
                 for _ in range(getattr(llm_stats_obj, 'backoff_retries', 0)):
                     self.auditor.log_backoff_retry()
-                # Fix round 3 (TIME TO ABORT): same reasoning as
+                # (TIME TO ABORT): same reasoning as
                 # _invoke_llm_with_retries -- a governance retry that hits a
                 # transport failure backoff already gave up on must not be
                 # retried again here either. skill_proposal is set to None
@@ -681,7 +681,7 @@ class RetryMixin:
                         f"the same endpoint."
                     )
                     skill_proposal = None
-                    # Fix round 4 (CRITICAL B): this attempt HAPPENED -- it
+                    # (CRITICAL B): this attempt HAPPENED -- it
                     # is the one retry_count was just incremented for, at
                     # the top of this while loop -- it just produced nothing
                     # parseable. Record it as None here, same reasoning as
@@ -744,7 +744,7 @@ class RetryMixin:
                 )
 
             if skill_proposal:
-                # F5 (2026-06-10 review): re-inject the CURRENT attempt's
+                # Re-inject the CURRENT attempt's
                 # magnitude before re-validating. Pre-fix the context kept the
                 # attempt-0 value forever, so a retry that revised its
                 # magnitude was validated against the stale number, and a
@@ -755,7 +755,7 @@ class RetryMixin:
                     validation_context["proposed_magnitude"] = skill_proposal.magnitude_pct
                 else:
                     validation_context.pop("proposed_magnitude", None)
-                # 6W-B4: parallel per-attempt lift of the setpoint dict (a retry that
+                # parallel per-attempt lift of the setpoint dict (a retry that
                 # drops it clears the key). Frozen domains: parameters=={} -> popped.
                 if skill_proposal.parameters:
                     validation_context["proposed_parameters"] = dict(skill_proposal.parameters)
@@ -836,7 +836,7 @@ class RetryMixin:
                 try:
                     fallout_skill = self.skill_registry.get_default_skill()
                 except ValueError:
-                    # get_default_skill() raises when unconfigured (Phase 6J-C).
+                    # get_default_skill raises when unconfigured.
                     # A diagnostic line must never be the thing that aborts a run —
                     # the execution branch raises this properly if it is reached at
                     # all, and in standalone mode (no simulation engine) it never is.

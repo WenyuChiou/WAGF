@@ -346,7 +346,7 @@ class AgentTypeRegistry:
 
 def create_default_registry() -> AgentTypeRegistry:
     """Fail fast because agent-type defaults are domain-owned."""
-    # Phase 6J-C (2026-05-22): the prior registry baked domain-specific
+    # The prior registry baked domain-specific
     # household PMT defaults into generic config code.
     raise RuntimeError(
         "There is no generic default agent-type registry. Pass an explicit "

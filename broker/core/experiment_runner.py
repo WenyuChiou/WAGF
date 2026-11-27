@@ -150,7 +150,7 @@ class ExperimentConfig:
     model: str = "gpt-4"
     num_years: int = 1
     num_steps: Optional[int] = None  # Generic alias for num_years
-    semantic_thresholds: tuple = (0.3, 0.7) # PR 3: Configurable heuristics
+    semantic_thresholds: tuple = (0.3, 0.7) # Configurable heuristics
     governance_profile: str = "default"
     output_dir: Path = Path("results")
     experiment_name: str = "modular_exp"
@@ -158,7 +158,7 @@ class ExperimentConfig:
     verbose: bool = False
     workers: int = 1  # Number of parallel workers for LLM calls (1=sequential)
     phase_order: Optional[List[List[str]]] = None  # Agent type groups for phased execution
-    # 2026-06-10 review F4: CognitiveCache decision reuse is OPT-IN (default OFF).
+    # CognitiveCache decision reuse is OPT-IN (default OFF).
     # When previously always-on, cache hits emitted NO audit row (denominator
     # shrink, the F1 class), dropped magnitude_pct, and replayed state changes
     # without execute_skill (a coupled world never saw the action). v21 row
@@ -258,7 +258,7 @@ class ExperimentRunner:
         # this feature existed.
         self._llm_journal = None
 
-        # r19 G7/G8: the merged Ollama sampling/context params actually
+        # Merged Ollama sampling/context params actually
         # resolved for each agent type this run creates an invoke for (see
         # get_llm_invoke and _collect_reproducibility_metadata's
         # llm_params_resolved block). Populated lazily, same lifecycle as
@@ -643,7 +643,7 @@ class ExperimentRunner:
         )
 
     # ------------------------------------------------------------------
-    # PR-8: deciders — get_llm_invoke generalised to "whatever decides"
+    # Deciders — get_llm_invoke generalised to "whatever decides"
     # ------------------------------------------------------------------
 
     def get_decider_spec(self, agent_type: str):
@@ -937,7 +937,7 @@ class ExperimentRunner:
                 "Configure model/verbosity via ExperimentConfig instead."
             )
         llm_invoke = llm_invoke or self.llm_invoke
-        # Spec item 24 fix round: reset at the TOP of every run(), not only
+        # Reset at the TOP of every run, not only
         # set on abort. Without this, a SECOND run() on the same instance
         # (a reused runner, a test harness) that finishes cleanly would still
         # carry the FIRST run's abort and stamp a clean corpus's manifest
@@ -947,7 +947,7 @@ class ExperimentRunner:
         # safeguard abort above, for the SAME reason (a reused runner's
         # second run() must not inherit the first run's abort stamp).
         self._llm_journal_abort = None
-        # Opus review of WP7 launcher, round 2 (non-blocking): the generic
+        # The generic
         # abort added in round 1 needs the SAME reset-at-the-top discipline
         # as the two above, for the same reason.
         self._generic_abort = None
@@ -970,7 +970,7 @@ class ExperimentRunner:
                 for issue in issues:
                     logger.warning(f"[Governance:Diagnostic] {issue}")
 
-        # PR-8 review P1-c: build every DECLARED decider now, before the
+        # Build every DECLARED decider now, before the
         # first row exists. A decider that cannot be built at all is a
         # config error, and a config error must not arrive as a per-agent
         # exception inside the loop's handler — that handler turns it into
@@ -1070,7 +1070,7 @@ class ExperimentRunner:
                 if journal is not None:
                     journal.step_end(step)
         except LLMFailureRateAborted as exc:
-            # Spec item 24: stash the exception BEFORE `finally` runs, so
+            # Stash the exception BEFORE `finally` runs, so
             # `_finalize_experiment`'s manifest build (unconditional, below)
             # can see it and record `run_status` -- reading it off `self`
             # rather than threading it through `_finalize_experiment`'s
@@ -1097,7 +1097,7 @@ class ExperimentRunner:
             # `run_status` key at all -- indistinguishable from a normal
             # completion that merely covered fewer years than configured. Same
             # stash-before-finally pattern as the two guards above, generalised.
-            # Round 2 (non-blocking): BaseException, not Exception, so
+            # Catch BaseException rather than Exception so
             # KeyboardInterrupt and SystemExit are recorded too -- still
             # re-raised unchanged either way, this only adds a record of why.
             self._generic_abort = exc
@@ -1165,7 +1165,7 @@ class ExperimentRunner:
 
         summary_path = self.config.output_dir / "governance_summary.json"
 
-        # Phase 32: Create Reproducibility Manifest (enhanced per WRR reviewer feedback)
+        # Create Reproducibility Manifest
         # ``json`` is imported at module level so the silent-failure
         # regression test in ``broker/tests/test_silent_failure_fixes.py``
         # can patch ``broker.core.experiment_runner.json.dump`` to
@@ -1177,7 +1177,7 @@ class ExperimentRunner:
             "seed": self.config.seed,
             # The memory engine's own seed, distinct from config.seed. It decides which
             # memories are promoted to the long-term store, so two runs differing only in
-            # it are different experiments -- and it reached no artifact until 2026-08-06,
+            # it are different experiments -- and it reached no artifact,
             # which made `--memory-seed` unrecoverable from a finished corpus. None when
             # the engine does not carry one.
             #
@@ -1217,11 +1217,10 @@ class ExperimentRunner:
             ),
         }
         manifest.update(self._collect_reproducibility_metadata())
-        # Spec item 24 (audit gap F42): when the LLM-failure abort-rate
-        # safeguard stopped this run, say so IN THE MANIFEST, not only in the
-        # exception that already ended the process. `run()`'s own
-        # except-before-finally clause sets `self._llm_safeguard_abort`
-        # before this method runs (it is called from that `finally`), so the
+        # When the LLM-failure abort-rate safeguard stopped this run,
+        # record it in the manifest, not only in the exception that ended
+        # the process. `run()`'s own except-before-finally clause sets
+        # `self._llm_safeguard_abort` before this method runs (it is called from that `finally`), so the
         # value is available here regardless of how deep inside the step the
         # raise happened. Absent (no key at all, not `null`) on every run the
         # safeguard did not abort -- including every run where it was never
@@ -1233,7 +1232,7 @@ class ExperimentRunner:
                 "observed_rate": _llm_abort.observed_rate,
                 "window": _llm_abort.window,
                 "threshold": _llm_abort.threshold,
-                # Fix round 3, WARNING 3: the raw counts behind
+                # The raw counts behind
                 # observed_rate. decisions_in_window can be LESS than
                 # window -- the early-stop rule can fire before the window
                 # ever fills (broker/utils/llm_safeguard.py:LLMAbortTracker).
@@ -1300,7 +1299,7 @@ class ExperimentRunner:
                     config_data['metadata']['actual_model'] = self.config.model
                     config_data['metadata']['seed'] = self.config.seed
                     config_data['metadata']['governance_profile'] = self.config.governance_profile
-                    # Silent-failure P1 (review round 2): record the RESOLVED
+                    # Record the RESOLVED
                     # retry_feedback_mode here too. A CLI override
                     # (examples/single_agent/run_flood.py
                     # --retry-feedback-mode) changes the ENGINE attribute
@@ -1318,7 +1317,6 @@ class ExperimentRunner:
                     # Fallback to simple copy if YAML processing fails
                     shutil.copy(config_src, self.config.output_dir / "config_snapshot.yaml")
 
-        # F3 fix (post-Phase-6T silent-failure audit, 2026-05-27):
         # pre-fix the manifest write was UNWRAPPED — an OSError
         # (disk full, read-only path, permission denied) propagated
         # out of `_finalize_experiment` BEFORE `save_summary` could
@@ -1423,7 +1421,7 @@ class ExperimentRunner:
         # `SUBMISSION_2026/TAE/evidence/e3_run_integrity.py:404` reads the field as a
         # launch-time statement and fails the run on it, so an unrelated commit made
         # while a run was finalising failed a run whose own code path had zero drift
-        # (seed 42, 2026-08-06 -- see runs/_logs/seed42_provenance_attestation.md).
+        # (see runs/_logs/seed42_provenance_attestation.md).
         #
         # `git_commit` had the same defect and it is worse there: the recorded commit was
         # one made DURING the run, so the manifest named code the run never executed.
@@ -1447,7 +1445,7 @@ class ExperimentRunner:
 
         # 3. LLM config snapshot.
         #
-        # r19 G7: `temperature` / `top_p` (and `num_ctx` / `num_predict`
+        # `temperature` / `top_p` (and `num_ctx` / `num_predict`
         # below) reflect the module-level LLM_CONFIG singleton ONLY: the
         # run-wide default from agent_types.yaml's global_config.llm block,
         # or a CLI flag such as --temperature. They are kept for backward
@@ -1517,7 +1515,7 @@ class ExperimentRunner:
         # llm_timeout_seconds_effective above: byte-identity recipes compare
         # the CSVs, not the manifest.
         #
-        # ITS OWN try/except (review round 2, S3), not folded into block 3
+        # ITS OWN try/except, not folded into block 3
         # above: this field must be recorded independently of whatever else
         # is or is not available on `self` (a partially-built runner reaching
         # this method before `self.broker` is assigned, or a test double
@@ -1534,8 +1532,8 @@ class ExperimentRunner:
         except Exception:
             metadata["retry_feedback_mode"] = "full"
 
-        # 3c. Resolved per-agent-type LLM params (r19 G7/G8, verified
-        #     2026-09-23). The gap block 3 documents: one domain's per-type
+        # 3c. Resolved per-agent-type LLM params. The gap block 3
+        #     documents: one domain's per-type
         #     block sending temperature=0.8/top_p=0.9/top_k=40 while another
         #     sends none of the three (the model's own Ollama modelfile
         #     defaults apply), and both previously recorded null/absent
@@ -1639,7 +1637,7 @@ class ExperimentRunner:
             }
             logger.debug(f"[Integrity] llm_model_defaults skipped: {exc}")
 
-        # 3e. Whether Ollama sampling was seeded (r19 G8). Reads the truth off
+        # 3e. Whether Ollama sampling was seeded. Reads the truth off
         #     the request-options builder (see llm_utils.ollama_sampling_is_seeded)
         #     rather than a literal `False` here, so this cannot silently go
         #     stale if a seed is ever wired into the request path. `None`
@@ -1770,7 +1768,7 @@ class ExperimentRunner:
             else None
         )
 
-        # 5.4. Governance-resolution provenance (F9 + F10, 2026-06-10 review).
+        # 5.4. Governance-resolution provenance.
         #     F10: the manifest recorded only the INTENDED profile
         #     (config.governance_profile); rule loading keys on the
         #     GOVERNANCE_PROFILE env var, so a stale/typo'd env value could
@@ -1876,7 +1874,7 @@ class ExperimentRunner:
                 "the manifest records the failure.", governance_error,
             )
 
-        # 5.5. Coupled-world provenance (Phase 6V inc 3, review P0-3). Duck-typed
+        # 5.5. Coupled-world provenance. Duck-typed
         #     on purpose: NO broker.coupling import here (flag-OFF runs must never
         #     load that module), and frozen-path raw engines simply lack the
         #     method -> key absent -> manifest unchanged. A coupled run's manifest
@@ -1906,7 +1904,7 @@ class ExperimentRunner:
         if coupling_error is not None:
             metadata["coupling_provenance_error"] = coupling_error
 
-        # 5.6. Coupling-RETROFIT provenance (PR-9, F1 remediation). A domain
+        # 5.6. Coupling-RETROFIT provenance. A domain
         #     that validates its own physical-state handoff inline (because
         #     its shape does not fit EnvironmentCouplingAdapter's single-dict
         #     model — see examples/irrigation_abm/irrigation_coupling.py)
@@ -1966,7 +1964,7 @@ class ExperimentRunner:
                     "coupling_adapter": True,
                     "sim_engine_class": type(self.sim_engine).__name__,
                 }
-            # PR-9 (F1): a distinct key from "coupling_adapter" above — this
+            # A distinct key from "coupling_adapter" above — this
             # engine reports its OWN inline contract guard, it was never
             # wrapped in EnvironmentCouplingAdapter, so it must never set
             # coupling_adapter=True. Merged (not overwritten) in case a
@@ -1987,7 +1985,7 @@ class ExperimentRunner:
             # runs. Absent on any path that reaches here without finalizing, in
             # which case the coverage block reports "not measured".
             refl_kwargs.update(getattr(self, "_configured_expectation", {}) or {})
-            # R5 walk finding 10: a run whose agents all have no appraisal.
+            # A run whose agents all have no appraisal.
             refl_kwargs["no_appraisal"] = self._all_agents_without_appraisal()
             if getattr(self, "tag_memory_origin", False) is True:
                 # Invariant 7 (python -m broker.run only; frozen runners keep
@@ -2154,7 +2152,7 @@ class ExperimentRunner:
 
         # 3. Legacy immediate memory (kept for backward compat; filtered by
         #    DecisionFilteredMemoryEngine in baseline parity experiments).
-        #    Generic opt-out (2026-09-26): a domain whose pre_year/post_year
+        #    Generic opt-out: a domain whose pre_year/post_year
         #    hook already writes its own outcome line for the period can set
         #    memory.runner_decision_line: false on the agent type to skip
         #    this generic line entirely, instead of writing it and relying
@@ -2207,7 +2205,7 @@ class ExperimentRunner:
             )
         else:
             memory_content = f"{timestamp_prefix}{DECISION_MEMORY_MARKER} {action_desc}"
-        # Phase 6C-v2 (2026-05-10): delegate per-skill emotion/importance
+        # Delegate per-skill emotion/importance
         # to DomainPack instead of hardcoding flood skill names. Flood
         # pack returns the same (major, 0.7) / (positive, 0.6) values
         # the pre-refactor block used; non-flood skills fall through to
@@ -2219,7 +2217,7 @@ class ExperimentRunner:
                 getattr(self.config, "domain", None)
                 or getattr(self, "_domain", None)
             )
-            # Phase 6R-D-4 (2026-05-26): SkillPack-narrowed accessor —
+            # SkillPack-narrowed accessor —
             # skill_emotion_metadata is owned by SkillPack.
             pack = DomainPackRegistry.get_skill_pack(domain_name)
             pack_metadata = pack.skill_emotion_metadata(executed_name)
@@ -2282,7 +2280,7 @@ class ExperimentRunner:
                 unmatched.append(agent)
 
         if unmatched:
-            # F7 (2026-06-10 review): a typo'd phase_order entry (e.g.
+            # A typo'd phase_order entry (e.g.
             # 'goverment') silently ran that agent type LAST — inverting the
             # institutional ordering phase_order exists to guarantee. Loud
             # one-line warning naming the unmatched types (warning, not raise:
@@ -2315,12 +2313,12 @@ class ExperimentRunner:
         # clause's own comment. Imported here (not module level) so a run
         # that never touches the journal feature pays no import cost.
         from broker.utils.llm_journal import JournalReplayDivergence
-        # R1 slice 3: an `expression:` rule that divides by zero stops the run
+        # An `expression:` rule that divides by zero stops the run
         # (no 0 -> 1e-10 swap); it must not become one more ABORTED row.
         from broker.governance.expression_condition import ExpressionEvaluationError
         results = []
         for agent in agents:
-            # PR-8 review P1-c: a DECLARED decider is bound OUTSIDE the try.
+            # A DECLARED decider is bound OUTSIDE the try.
             # The handler below exists for a decision that failed at
             # runtime — a model timing out — and turns what it catches into
             # an ABORTED sentinel. A decider that cannot be built is not
@@ -2338,7 +2336,7 @@ class ExperimentRunner:
                 self.step_counter += 1
 
                 # [Efficiency Hub] Cognitive Cache Check (opt-in, F4).
-                # NOTE (F4 byte-identity correction, 2026-06-10): the early
+                # NOTE: the early
                 # context build is UNCONDITIONAL even with the cache disabled —
                 # UniversalCognitiveEngine.retrieve() updates its EMA surprise
                 # predictor per call (universal.py:_compute_surprise), so every
@@ -2424,7 +2422,7 @@ class ExperimentRunner:
                     step_id=self.step_counter,
                     run_id=run_id,
                     seed=self.config.seed + self.step_counter,
-                    # PR-8: argument-for-argument what it was before for
+                    # Argument-for-argument what it was before for
                     # every agent type that declares no `decider:`.
                     llm_invoke=(_declared_decider if _declared_decider is not None
                                 else self.get_llm_invoke(_atype)),
@@ -2441,7 +2439,7 @@ class ExperimentRunner:
 
                 results.append((agent, result))
             except LLMFailureRateAborted:
-                # Spec item 24: the abort-rate safeguard tripped inside this
+                # The abort-rate safeguard tripped inside this
                 # agent's process_step. This must NOT fall into the broad
                 # handler below -- that one turns a raising step into another
                 # ABORTED row and keeps the run going, which is exactly what
@@ -2466,11 +2464,10 @@ class ExperimentRunner:
                 raise
             except Exception as e:
                 if _is_projection_stop(e) or _is_coupling_stop(e):
-                    # R1 slice 2: the projection check could not judge a
+                    # The projection check could not judge a
                     # proposal. Stop the run (run()'s generic handler records
                     # it in the manifest); never file another ABORTED row.
                     raise
-                # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):
                 # pre-fix path logged + dropped the agent from `results`,
                 # shrinking the audit-CSV denominator silently — the
                 # v0.88.15-class bug (green tests, plausible numbers,
@@ -2532,7 +2529,7 @@ class ExperimentRunner:
         error_type = type(error).__name__
         error_msg = str(error)[:500]
         agent_type = getattr(agent, 'agent_type', 'default')
-        # F6 (2026-06-10 review): under workers>1 every parallel failure used
+        # Under workers>1 every parallel failure used
         # to surface after ALL submissions, so self.step_counter was the LAST
         # agent's step — every sentinel carried the wrong step_id/seed. The
         # parallel path now threads the SUBMITTED step_id; the sequential path
@@ -2583,7 +2580,7 @@ class ExperimentRunner:
                 trace["executed_skill"] = ""
                 trace["executed_via_fallback"] = False
                 trace["execution_path"] = "aborted"
-            # PR-8: attribute the crashed step to whatever was SUPPOSED to
+            # Attribute the crashed step to whatever was SUPPOSED to
             # decide it. Without this the one row written to make a crash
             # visible is the one row with no decider, so a mixed-population
             # CSV grouped by `decider` shows a blank category and the
@@ -2637,14 +2634,14 @@ class ExperimentRunner:
         # JournalReplayDivergence only. Imported here (not module level) so
         # a run that never touches the journal feature pays no import cost.
         from broker.utils.llm_journal import JournalReplayDivergence, JournalWriteError
-        # R1 slice 3: see _run_agents_sequential -- a zero divisor in an
+        # See _run_agents_sequential -- a zero divisor in an
         # `expression:` rule stops the run instead of becoming an ABORTED row.
         from broker.governance.expression_condition import ExpressionEvaluationError
         results = []
 
         def process_agent(agent, step_id, declared_decider=None):
             # ``declared_decider`` is bound on the SUBMITTING thread (see
-            # the submit loop) — PR-8 review P1-c. Everything raised inside
+            # the submit loop). Everything raised inside
             # this function is caught at ``future.result()`` and turned into
             # an ABORTED sentinel, which is right for a decision that failed
             # at runtime and wrong for a decider that could not be built.
@@ -2724,7 +2721,7 @@ class ExperimentRunner:
                 step_id=step_id,
                 run_id=run_id,
                 seed=self.config.seed + step_id,
-                # PR-8: argument-for-argument what it was before for every
+                # Argument-for-argument what it was before for every
                 # agent type that declares no `decider:`.
                 llm_invoke=(declared_decider if declared_decider is not None
                             else self.get_llm_invoke(_atype)),
@@ -2743,7 +2740,7 @@ class ExperimentRunner:
             futures = {}
             for agent in agents:
                 self.step_counter += 1
-                # PR-8 review P1-c: bind a DECLARED decider here, on the
+                # Bind any declared non-LLM decider here on the
                 # submitting thread, so a build failure raises out of this
                 # loop instead of arriving at `future.result()` where the
                 # F4 handler would file it as an aborted agent-year.
@@ -2766,7 +2763,7 @@ class ExperimentRunner:
                     agent, result = future.result()
                     results.append((submitted_step_id, agent, result))
                 except LLMFailureRateAborted:
-                    # Spec item 24: same reasoning as the sequential path's
+                    # Same reasoning as the sequential path's
                     # identical clause -- must escape this handler, not
                     # become another ABORTED row. `future.result()` re-raises
                     # whatever the worker thread raised, so this is reached
@@ -2786,7 +2783,7 @@ class ExperimentRunner:
                     executor.shutdown(wait=True, cancel_futures=True)
                     raise
                 except ExpressionEvaluationError:
-                    # R1 slice 3: a rule expression divided by zero. Stop the
+                    # A rule expression divided by zero. Stop the
                     # run (drain the executor first, as the clause above does)
                     # instead of filing one more ABORTED row.
                     executor.shutdown(wait=True, cancel_futures=True)
@@ -2846,12 +2843,12 @@ class ExperimentRunner:
                     raise
                 except Exception as e:
                     if _is_projection_stop(e) or _is_coupling_stop(e):
-                        # R1 slice 2: same as the sequential handler; drain the
+                        # Same as the sequential handler; drain the
                         # executor first, as the clauses above do.
                         executor.shutdown(wait=True, cancel_futures=True)
                         raise
-                    # F4 fix (post-Phase-6T silent-failure audit,
-                    # 2026-05-27): parallel mirror of F1. The
+                    # Parallel mirror of the sequential abort handler: emit a sentinel
+                    # trace row when a parallel worker raises. The
                     # ``_write_aborted_trace`` helper was deliberately
                     # designed during the F1 fix so this becomes a
                     # one-line shim instead of duplicating sentinel

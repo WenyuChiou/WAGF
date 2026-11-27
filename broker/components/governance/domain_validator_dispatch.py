@@ -36,7 +36,7 @@ from broker.validators.governance.semantic_validator import SemanticGroundingVal
 
 logger = logging.getLogger(__name__)
 
-# Phase 6Q-D-4 (2026-05-26): warn-once dedup set for unregistered-
+# Warn-once dedup set for unregistered-
 # framework downgrade events at dispatch time. Keyed by (domain,
 # framework_string). Same pattern as
 # unified_context_builder._WARNED_UNDECLARED_FRAMEWORK.
@@ -51,7 +51,7 @@ def _empty_validators(framework_aware_labels: bool = False) -> list:
     return [
         PersonalValidator(builtin_checks=no_builtins),
         PhysicalValidator(builtin_checks=no_builtins),
-        # Phase 6Q-D (2026-05-26): pass the blessed escape-hatch
+        # Pass the blessed escape-hatch
         # sentinel — explicit no-metadata signal, generic 5-level
         # VL/L/M/H/VH ordering. Empty domain by definition has no
         # registered framework.
@@ -125,11 +125,11 @@ def build_domain_validators(
     framework: str = ""
     try:
         from broker.domains.registry import DomainPackRegistry
-        # Phase 6R-D-4 (2026-05-26): narrowed to GovernancePack —
+        # Narrowed to GovernancePack —
         # validator dispatch only needs psychological_framework /
         # extreme_actions / builtin_checks, all owned by GovernancePack.
         pack = DomainPackRegistry.get_governance_pack(resolved)
-        # Phase 6Q-D-4 (2026-05-26): each DomainPack accessor wrapped
+        # Each DomainPack accessor wrapped
         # in its own try/except. A custom pack with a broken method
         # (typo'd attribute, missing import, runtime error in a
         # subclass) used to crash the entire governance pipeline via
@@ -146,11 +146,11 @@ def build_domain_validators(
                 resolved, exc,
             )
             extreme = set()
-        # Phase 6T-B (2026-05-27): per-agent-type framework resolution.
+        # Per-agent-type framework resolution.
         # When agent_type is None or the pack doesn't specialise on
         # it, framework_for_agent_type's DefaultDomainPack impl
         # delegates to psychological_framework() — preserving the
-        # pre-6T-B contract for callers that don't plumb agent_type.
+        # legacy contract for callers that don't plumb agent_type.
         try:
             framework = pack.framework_for_agent_type(agent_type)
         except Exception as exc:  # noqa: BLE001 — graceful boundary
@@ -175,7 +175,7 @@ def build_domain_validators(
         extreme = set()
         framework = ""
 
-    # Phase 6Q-D-4 (2026-05-26): pre-construction framework-registry
+    # Pre-construction framework-registry
     # check. Pre-fix the dispatcher passed `framework` straight to
     # `ThinkingValidator(framework=...)`, which raises ValueError if
     # the framework is non-empty AND not in FRAMEWORK_LABEL_ORDERS.
@@ -183,8 +183,8 @@ def build_domain_validators(
     # string → ThinkingValidator raises → validate_all crashes →
     # SkillBrokerEngine retry loop crashes → entire agent decision
     # lost. The boundary-audit subagent flagged this as the HIGHEST-
-    # leverage failure point in the governance subsystem (Phase 6Q-D-3
-    # follow-up audit). Defense: downgrade to escape hatch + warn-
+    # leverage failure point in the governance subsystem (caught during
+    # audit). Defense: downgrade to escape hatch + warn-
     # once per (domain, framework) so the broker keeps running with
     # generic label-ordering instead of dying.
     if framework:

@@ -94,11 +94,11 @@ class SocialGraphSpec:
     radius: int = 2  # For spatial graph
     filter_fn: Optional[str] = None  # For filtered_global (e.g., "has_insurance")
     max_connections: int = 0  # 0 = unlimited
-    # Phase 6T-D (2026-05-27): follower_network configuration. Generic
+    # Follower_network configuration. Generic
     # callables — broker doesn't constrain shape or interpret
     # author/follower identifiers. See
     # broker/components/social/follower_network.py + the genericity
-    # rule in CHANGELOG.md (Phase 6T-D).
+    # rule in CHANGELOG.md.
     follower_seed_fn: Optional[Callable[[str, Any], List[str]]] = None
     weight_fn: Optional[Callable[[str, str], float]] = None
 
@@ -106,7 +106,7 @@ class SocialGraphSpec:
         """Validate graph_type."""
         valid_types = {
             "spatial", "global", "filtered_global", "random",
-            "follower_network",  # Phase 6T-D
+            "follower_network",
         }
         if self.graph_type not in valid_types:
             raise ValueError(
@@ -115,7 +115,7 @@ class SocialGraphSpec:
             )
 
 
-# Phase 6J-C (2026-05-22): domains register agent-type social specs.
+# Domains register agent-type social specs.
 AGENT_SOCIAL_SPECS: Dict[str, SocialGraphSpec] = {}
 
 # Default spec for unknown agent types
@@ -153,7 +153,7 @@ def get_social_spec(agent: Any) -> SocialGraphSpec:
         spec = get_social_spec(agent_dict)  # government
     """
     # Extract attributes from agent (support both object and dict).
-    # Phase 6R-B-2 (2026-05-26 / audit cluster E item #14): removed
+    # Removed
     # three silent fallbacks to ``"household"`` here. The ``is_mg`` and
     # ``tenure`` defaults stay because they're scoped to the actual
     # household lookup path below (lines 145-149) and fire only AFTER
@@ -300,7 +300,7 @@ def configure_social_graph_for_agent(
         return _apply_max_connections(neighbors, spec.max_connections)
 
     elif spec.graph_type == "follower_network":
-        # Phase 6T-D (2026-05-27): follower_network is asymmetric
+        # Follower_network is asymmetric
         # (an author's followers ≠ that author's followed authors),
         # so it can't be expressed via this symmetric "neighbors"
         # dispatch. Callers using ``follower_network`` graph_type

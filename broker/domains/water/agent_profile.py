@@ -43,7 +43,7 @@ class FloodAgentProfile(AgentProfile):
     """
 
     # --- Psychological Constructs (PMT framework, 1-5 scale) ---
-    # Phase 6R-C (audit cluster A #3, 2026-05-26): relocated from base
+    # Relocated from base
     # AgentProfile. These 5 fields are PMT-framework specific labels
     # (Threat Perception / Coping Perception / Stakeholder Perception
     # / Social Capital / Place Attachment) — the names + semantics are

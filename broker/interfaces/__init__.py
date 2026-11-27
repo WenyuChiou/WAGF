@@ -54,13 +54,13 @@ __all__ = [
     "UniversalContext",
     "PromptVariables",
     "PriorityItem",
-    # Rating scales (Task-041)
+    # Rating scales
     "FrameworkType",
     "RatingScale",
     "RatingScaleRegistry",
     "get_scale_for_framework",
     "validate_rating_value",
-    # Perception filters (Task-043)
+    # Perception filters
     "PerceptionMode",
     "DescriptorMapping",
     "PerceptionConfig",

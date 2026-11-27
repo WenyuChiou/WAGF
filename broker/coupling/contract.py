@@ -122,7 +122,7 @@ class VarSpec:
         if self.on_missing not in _ON_MISSING:
             raise ValueError(f"VarSpec[{self.name}]: on_missing {self.on_missing!r} not in {_ON_MISSING}")
         if self.on_missing != "fail_loud":
-            # Env-layer honesty (2026-06-10 review, archetype-C trap): only
+            # Only
             # fail_loud HAS an executor — adapter._validate_observations punts
             # last_good/quarantine to "the domain pipeline", which nothing
             # implements. A flaky-endpoint author writing last_good would

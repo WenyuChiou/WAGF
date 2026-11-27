@@ -142,7 +142,7 @@ class FinancialCostProvider(ContextProvider):
         flood_zone = personal.get("flood_zone", "MEDIUM")
         has_insurance = personal.get("has_insurance", False)
 
-        # MG barrier prompt — DomainPack delegated (Phase 6C-v2)
+        # MG barrier prompt — DomainPack delegated
         if (is_mg and flood_count == 1
                 and not flooded_this_year and not has_insurance):
             barrier_text = ""

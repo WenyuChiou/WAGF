@@ -276,7 +276,7 @@ class EnvironmentCouplingAdapter:
         # writing a world_to_agent observation key is a direction breach (#3).
         for name, value in params.items():
             if name == "magnitude_fallback":
-                continue  # 6W-B5 (R1): audit-only bool, never a setpoint to range-check
+                continue  # (R1): audit-only bool, never a setpoint to range-check
             vs = specs.get(name)
             if vs is not None:
                 rv = vs.range_violation(value)

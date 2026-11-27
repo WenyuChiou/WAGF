@@ -23,7 +23,7 @@ class PersonalValidator(BaseValidator):
     """
 
 
-    # Phase 6O-A-2: financial affordability is the dominant case (cannot-afford = terminal); cognitive sub-cases that are softer are not yet implemented and ride this default until 6O-A-3.
+    # Financial affordability is the dominant case (cannot-afford = terminal); cognitive sub-cases that are softer are not yet implemented and ride this default.
     _DEFAULT_EXPECTED_TERMINAL: bool = True
     _DEFAULT_CONSTRAINT_TYPE: str = "hard"
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):

@@ -54,7 +54,7 @@ from broker.domains.water.calibration.validation_router import (
     ValidatorSpec,
     ValidatorType,
 )
-# PR-7 (2026-09): benchmark_registry / directional_validator /
+# Benchmark_registry / directional_validator /
 # calibration_protocol moved to broker.calibration (generic,
 # water-token-free). Importing directly from the new location here
 # means `import broker.domains.water.calibration` (this package) does

@@ -59,7 +59,7 @@ class HierarchicalMemoryEngine(MemoryEngine):
         """
         agent_id = agent.id
         
-        # Phase 0: Initialize from profile if empty
+        # Initialize from profile if empty
         if agent_id not in self.episodic:
             initial_mem = getattr(agent, 'memory', [])
             self.episodic[agent_id] = []

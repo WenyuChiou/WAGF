@@ -162,7 +162,7 @@ class LLMConfig:
     # Provider selection
     use_chat_api: bool = False  # False = OllamaLLM (completion), True = ChatOllama (chat)
 
-    # Retry settings (Phase 40: Configurable)
+    # Retry settings
     max_retries: int = 2
 
     # Timeout settings — configurable instead of hardcoded model-name checks
@@ -393,7 +393,7 @@ class LLMStats:
     """Statistics from a single LLM invocation."""
     retries: int = 0
     success: bool = True
-    # LLM-level retry tracking (045-H)
+    # LLM-level retry tracking
     empty_content_retries: int = 0  # LLM returned empty content, retry triggered
     empty_content_failure: bool = False  # Terminal: empty after all retries exhausted
     # R5-C: Token monitoring
@@ -401,7 +401,7 @@ class LLMStats:
     response_tokens: int = 0  # Response token count from Ollama (eval_count)
     num_ctx: int = 0          # Context window size used for this call
     context_utilization: float = 0.0  # prompt_tokens / num_ctx
-    # 2026-09-15: per-call timing + multi-attempt accounting.
+    # per-call timing + multi-attempt accounting.
     #
     # `latency_ms` / `tokens_per_second` describe the LAST provider call this
     # object reports on; `calls` / `prompt_tokens_total` / `response_tokens_total`
@@ -417,10 +417,8 @@ class LLMStats:
     calls: int = 1
     prompt_tokens_total: int = 0
     response_tokens_total: int = 0
-    # Spec item 24 fix round (audit gap: 1,638 real HTTP calls vs 1,170
-    # reported): backoff-layer bookkeeping, both additive and both defaulting
-    # to their pre-fix-round values so a call site that never sets them is
-    # unaffected.
+    # Additive backoff-layer bookkeeping fields (defaulting to legacy 0 values
+    # so call sites that omit them stay unaffected).
     #
     # `transport_error` is an internal signal ONLY, from an invoke function to
     # `broker.utils.llm_safeguard.wrap_llm_invoke_with_backoff`: "this specific
@@ -561,7 +559,7 @@ def accumulate_llm_stats(total: Dict[str, Any], stats: Any) -> None:
 
 
 # =============================================================================
-# Abstract LLM Provider Interface (Phase 25 PR7)
+# Abstract LLM Provider Interface
 # =============================================================================
 from abc import ABC, abstractmethod
 
@@ -1157,7 +1155,7 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
 
     url = f"{get_ollama_base_url()}/api/generate"
 
-    # Phase 47: Global Disable of Strict JSON Mode
+    # Global Disable of Strict JSON Mode
     # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.
     # We rely on the prompt to enforce JSON structure.
     options = _build_ollama_options(model, params)
@@ -1222,7 +1220,7 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
             return content, stats
         else:
             _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
-            # Spec item 24 fix round: transport_error=True only for 5xx (a
+            # Transport_error=True only for 5xx (a
             # server-side condition a retry can plausibly ride out); a 4xx is
             # a persistent client-side problem (bad request body, auth) that
             # retrying will not fix, so it is left False -- the backoff
@@ -1262,7 +1260,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     Returns:
         A callable that takes prompt str and returns (content, LLMStats) tuple.
     """
-    # Phase 0.3: Route to modern provider factory ONLY for known cloud providers
+    # Route to modern provider factory ONLY for known cloud providers
     # This prevents "gemma3:4b" from being split into provider="gemma3"
     # (is_cloud_provider_model / KNOWN_CLOUD_PROVIDERS, module-level so the
     # reproducibility manifest can reuse the identical check, not a second
@@ -1317,7 +1315,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         # Build params from global config, merged with any per-agent-type
         # overrides, via the shared helper, so this can never diverge from
         # what ExperimentRunner records in the reproducibility manifest's
-        # llm_params_resolved (r19 G7/G8, see resolve_ollama_params docstring).
+        # llm_params_resolved.
         # 'model' is stripped by the helper (it's passed explicitly above).
         ollama_params = resolve_ollama_params(overrides)
 
@@ -1335,7 +1333,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             if debug_llm:
                 _LOGGER.debug(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
             
-            # Phase 40: Use global or override retry limit
+            # Use global or override retry limit
             max_llm_retries = overrides.get("max_retries", LLM_CONFIG.max_retries) if overrides else LLM_CONFIG.max_retries
 
             # Apply config-driven model quirks (replaces hardcoded DeepSeek/Qwen3 logic)
@@ -1345,9 +1343,9 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             )
 
             llm_retries = 0
-            empty_content_retries = 0  # 045-H: Track empty content retries specifically
+            empty_content_retries = 0  # Track empty content retries specifically
 
-            # 2026-09-15: every return below used to build a FRESH LLMStats and
+            # every return below used to build a FRESH LLMStats and
             # so threw away everything `_invoke_ollama_direct` had measured —
             # which is why `prompt_tokens` / `response_tokens` / `num_ctx` /
             # `context_utilization` read 0 on every row of every released audit
@@ -1375,9 +1373,8 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     calls=max(calls_made, 1),
                     prompt_tokens_total=acc_prompt_tokens,
                     response_tokens_total=acc_response_tokens,
-                    # Spec item 24 fix round 3 (CRITICAL 1): without this,
-                    # _invoke_ollama_direct's transport_error=True (set on a
-                    # ConnectionError or an HTTP 5xx) never survived this
+                    # Forward transport_error=True so any ConnectionError or
+                    # HTTP 5xx from _invoke_ollama_direct survives this
                     # reconstruction, so broker.utils.llm_safeguard's backoff
                     # wrapper -- which wraps THIS closure, not
                     # _invoke_ollama_direct directly -- always saw
@@ -1389,7 +1386,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
 
             for attempt in range(max_llm_retries):
                 try:
-                    # Phase 46F: UNIVERSAL DIRECT API for ALL Ollama models
+                    # UNIVERSAL DIRECT API for ALL Ollama models
                     # This bypasses LangChain entirely and ensures:
                     # 1. Native JSON mode (format: "json") for strict output
                     # 2. Consistent behavior across all model families
@@ -1418,7 +1415,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                         return content, _final_stats(True)  # Return full content for logging
                     else:
                         llm_retries += 1
-                        empty_content_retries += 1  # 045-H: Track empty content retries
+                        empty_content_retries += 1  # Track empty content retries
                         if attempt < max_llm_retries - 1:
                             if content and not stripped_content.strip():
                                 _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned ONLY thinking content. Appending 'Please continue'.")
@@ -1463,7 +1460,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     # Reachability is not hypothetical: this environment already warns that Pydantic V1 is
     # incompatible with Python 3.14, and any dependency update that turns that warning into
     # an exception would, before this change, have silently converted every subsequent run
-    # into constant output. Corrected 2026-08-06.
+    # into constant output. Corrected.
     except ImportError as e:
         raise RuntimeError(
             f"Cannot construct an LLM for model {model!r}: langchain-ollama is not "
@@ -1544,7 +1541,7 @@ def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLM
             return response.content, stats
         except (ConnectionError, OSError) as e:
             _LOGGER.error(f" [LLM:Error] {provider.provider_name} connection failed: {e}")
-            # Spec item 24 fix round: transport_error=True, the same signal
+            # Transport_error=True, the same signal
             # _invoke_ollama_direct sends for its own ConnectionError branch --
             # a connection failure is what the backoff wrapper retries.
             return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0), transport_error=True)

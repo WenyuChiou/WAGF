@@ -78,7 +78,7 @@ class TypeValidator:
         # Get type definition
         defn = self.registry.get(agent_type)
         if not defn:
-            # F9 (2026-06-10 review): an unknown/renamed agent_type used to be
+            # An unknown/renamed agent_type used to be
             # a fully SILENT skip — one YAML rename and an agent population
             # runs with zero type governance, indistinguishable in the audit
             # from a compliant one. Loud once per type; still skip (trailing

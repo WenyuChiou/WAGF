@@ -99,7 +99,7 @@ class AdviseMixin:
     """Provides :meth:`_advisory_pass` and :meth:`_soft_rule_pass`. Mixed into SkillBrokerEngine."""
 
     # ------------------------------------------------------------------
-    # PR-6: the SOFT-RULE channel
+    # The SOFT-RULE channel
     # ------------------------------------------------------------------
     def _soft_rule_pass(
         self, *, all_valid: bool, skill_proposal, validation_results: List,

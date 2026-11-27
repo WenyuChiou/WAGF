@@ -66,7 +66,7 @@ class ReadinessThresholds:
 
     #: Maximum number of dead validators (registered but never fired) the
     #: profile tolerates. None = not enforced; 0 = strict no-dead. Replaces
-    #: the boolean `require_no_dead_validators` (6O-C-1 round-1 fix).
+    #: the boolean `require_no_dead_validators`.
     #: Cross-domain audits where some validators are legitimately
     #: inapplicable will see false-positive dead detections — set this
     #: to a reasonable count > 0 instead of strict 0 in those cases.
@@ -145,10 +145,10 @@ def _profile_from_dict(name: str, raw: Dict[str, Any]) -> ReadinessProfile:
 
     thr_raw = raw.get("thresholds") if isinstance(raw.get("thresholds"), dict) else {}
     thresholds = ReadinessThresholds(
-        # 6O-C-1 round-1 rename: the YAML key stays `min_parse_success_rate`
+        # round-1 rename: the YAML key stays `min_parse_success_rate`
         # for now to preserve any user-shipped override files, but the
         # ReadinessThresholds field is `min_approval_rate` to match its
-        # actual computation. A migration helper can land in 6O-C-2.
+        # actual computation. A migration helper can land.
         min_approval_rate=_as_float_or_none(
             thr_raw.get("min_approval_rate") or thr_raw.get("min_parse_success_rate")
         ),

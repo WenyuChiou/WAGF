@@ -137,7 +137,7 @@ class AgentProfile:
     housing_cost_burden: bool = False
 
     # --- Psychological Constructs ---
-    # Phase 6R-C (audit cluster A #3, 2026-05-26): the 5 PMT-framework
+    # The 5 PMT-framework
     # score fields (tp / cp / sp / sc / pa — Threat Perception, Coping
     # Perception, Stakeholder Perception, Social Capital, Place
     # Attachment) moved to
@@ -204,7 +204,7 @@ class CSVLoader:
         "income_bracket": ["income_bracket", "IncomeBracket"],
         "tenure": ["tenure", "Tenure", "housing_status"],
         "is_mg": ["is_mg", "mg", "MG", "marginalized"],
-        # Phase 6R-C (2026-05-26): 5 PMT score column aliases moved to
+        # 5 PMT score column aliases moved to
         # ``FloodCSVLoader.DEFAULT_COLUMNS`` — they're flood-framework
         # vocabulary (TP / CP / SP / SC / PA) and shouldn't appear in
         # the generic alias map. A non-water CSV with no PMT columns
@@ -275,7 +275,7 @@ class CSVLoader:
         tenure = "Owner" if str(tenure_raw).lower() in ["owner", "mortgage", "own_free"] else "Renter"
         housing_status = "rent" if tenure == "Renter" else "mortgage"
 
-        # Phase 6R-C (2026-05-26): the 5 PMT score kwargs
+        # The 5 PMT score kwargs
         # (tp_score / cp_score / sp_score / sc_score / pa_score)
         # previously constructed here directly moved to
         # ``FloodCSVLoader._populate_domain_fields`` — base loader
@@ -399,7 +399,7 @@ class SurveyLoader:
 class SyntheticLoader:
     """Generate synthetic agent profiles for testing."""
 
-    # Phase 6R-C (audit cluster A #4, 2026-05-26): the
+    # The
     # ``PMT_PARAMS`` distribution dict moved to
     # ``broker.domains.water.loaders.FloodSyntheticLoader``. Pre-fix
     # any non-water domain author using SyntheticLoader silently got
@@ -485,7 +485,7 @@ class SyntheticLoader:
         and override ``_populate_domain_fields`` for domain-specific
         synthetic state.
         """
-        # Phase 6R-C (2026-05-26): PMT score sampling moved to the
+        # PMT score sampling moved to the
         # subclass ``_pre_generate_rng`` hook below — runs BEFORE base
         # random calls so paper-1b byte-identity is preserved. The
         # original water-domain code path sampled PMT first; that order
@@ -507,7 +507,7 @@ class SyntheticLoader:
         housing_status = "mortgage" if is_owner else "rent"
 
         bbox = self._SPATIAL_BBOX
-        # Phase 6R-C (2026-05-26): agent_id prefix is now a subclass
+        # Agent_id prefix is now a subclass
         # hook (``_AGENT_ID_PREFIX``). Base uses domain-neutral "A";
         # FloodSyntheticLoader overrides to "H" + "+1" indexing to
         # preserve paper-1b byte-identity. PMT score kwargs removed —
@@ -711,7 +711,7 @@ def initialize_agents(
     # Step 1: Load profiles based on mode
     logger.info(f"Initializing agents (mode={mode}, seed={seed})")
 
-    # Phase 6J-C (2026-05-22): loader selection must be explicit. A
+    # Loader selection must be explicit. A
     # missing domain silently selected a domain-specific loader before.
     try:
         domain_name = config["domain"]
@@ -721,14 +721,14 @@ def initialize_agents(
             "is explicit."
         ) from exc
 
-    # Phase 6P-C (2026-05-25): registry-driven loader dispatch.
+    # Registry-driven loader dispatch.
     # Replaces the `if domain_name == "flood":` hardcodes that
     # forced every CSV/synthetic mode call to traverse a
     # water-namespace import even when the domain was irrigation,
     # or anything else. Each DomainPack now owns its
     # loader classes; default packs return None → generic loader.
     from broker.domains.registry import DomainPackRegistry
-    # Phase 6R-D-4 (2026-05-26): narrowed to SetupPack —
+    # Narrowed to SetupPack —
     # csv_loader_class + synthetic_loader_class are both
     # SetupPack methods.
     _pack = DomainPackRegistry.get_setup_pack(domain_name)
@@ -767,7 +767,7 @@ def initialize_agents(
             # copy position attributes onto typed fields of a profile
             # subclass — e.g. a water enricher maps the position's zone and
             # depth attributes onto the typed water-profile fields. Generic
-            # broker code stays domain-token-free (Phase 6I-B de-flood;
+            # broker code stays domain-token-free (domain-neutral;
             # previously a hardcoded water-field write block).
             field_map = getattr(enricher, "profile_field_map", {}) or {}
             for profile in profiles:

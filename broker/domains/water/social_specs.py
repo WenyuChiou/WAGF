@@ -4,7 +4,7 @@ from broker.components.social.config import SocialGraphSpec, register_social_spe
 
 def register_water_social_specs() -> None:
     """Register flood household and institution social graph specs."""
-    # Phase 6J-C (2026-05-22): relocated from generic social config.
+    # Relocated from generic social config.
     register_social_spec(
         "household_nmg_owner",
         SocialGraphSpec(graph_type="spatial", radius=2),

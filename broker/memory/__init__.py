@@ -31,16 +31,15 @@ from .strategies import (
     EMASurpriseStrategy,
     SymbolicSurpriseStrategy,
     HybridSurpriseStrategy,
-    # Task-050C: Multi-dimensional surprise
+    # Multi-dimensional surprise
     MultiDimensionalSurpriseStrategy,
 )
-# Phase 6Q-D-2 (2026-05-26): `create_flood_surprise_strategy` factory
-# relocated to broker.domains.water.memory_strategies — was Layer 3
-# audit finding #20 (flood-specific factory in generic broker).
+# `create_flood_surprise_strategy` relocated to
+# broker.domains.water.memory_strategies so generic broker stays domain-neutral.
 from .config import (
     GlobalMemoryConfig,
     DomainMemoryConfig,
-    # Cognitive Constraints (Task-050E)
+    # Cognitive Constraints
     CognitiveConstraints,
     MILLER_STANDARD,
     COWAN_CONSERVATIVE,
@@ -54,13 +53,13 @@ __all__ = [
     "EMASurpriseStrategy",
     "SymbolicSurpriseStrategy",
     "HybridSurpriseStrategy",
-    # Multi-dimensional (Task-050C)
+    # Multi-dimensional
     "MultiDimensionalSurpriseStrategy",
     # Config
     "GlobalMemoryConfig",
     "DomainMemoryConfig",
     "FloodDomainConfig",
-    # Cognitive Constraints (Task-050E)
+    # Cognitive Constraints
     "CognitiveConstraints",
     "MILLER_STANDARD",
     "COWAN_CONSERVATIVE",

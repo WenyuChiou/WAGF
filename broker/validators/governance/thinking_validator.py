@@ -52,7 +52,7 @@ from broker.validators.governance.base_validator import BaseValidator, BuiltinCh
 
 logger = logging.getLogger(__name__)
 
-#: PR-6 review P2: warn-once dedup for a world variable a grounded rule read
+#: Warn-once dedup for a world variable a grounded rule read
 #: but the environment never published, on THIS (non-production) evaluator
 #: plane. Keyed by (rule_id, variable) so a warning is emitted once per
 #: process per (rule, variable) pair rather than once per decision — the same
@@ -88,7 +88,7 @@ _GENERIC_LABEL_MAPPINGS: Dict[str, str] = {
     "HIGH": "H", "VERY HIGH": "VH",
 }
 
-# Phase 6Q-D (2026-05-26): blessed sentinel for the "no framework
+# Blessed sentinel for the "no framework
 # metadata" path. Callers (DefaultDomainPack, _empty_validators in the
 # dispatcher) pass this instead of a bare ``""`` so a future reader
 # greps for the intent rather than the implementation detail. The
@@ -100,7 +100,7 @@ FRAMEWORK_NONE: str = "none"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Per-framework thinking-check registry (Phase 6K-C 2026-05-22)
+# Per-framework thinking-check registry
 # ──────────────────────────────────────────────────────────────────────
 # Domain packs register their framework-specific builtin checks here at
 # import time (e.g. broker.domains.water registers PMT / Utility /
@@ -278,7 +278,7 @@ class ThinkingValidator(BaseValidator):
                 "Phase 6Q-D (2026-05-26)."
             )
         self.framework = framework.lower()
-        # Phase 6C-v3 strict registration check. PMT / utility / financial
+        # Strict registration check. PMT / utility / financial
         # ship pre-registered by broker.domains.water; new domains must call
         # register_framework_metadata("<name>", constructs, label_order, ...)
         # before constructing the validator. We allow blank framework=""
@@ -298,7 +298,7 @@ class ThinkingValidator(BaseValidator):
         self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, _DEFAULT_LABEL_ORDER)
         self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, {})
         self._extreme_actions = extreme_actions or set()
-        # PR-6: reconcile the missing-construct semantics with the other two
+        # Reconcile the missing-construct semantics with the other two
         # condition evaluators. OFF (default) keeps line ~493's fabricated "M":
         # an unreported construct is scored as MEDIUM, so a rule written for
         # `values: ["M"]` FIRES on a decision whose construct the model never
@@ -359,7 +359,7 @@ class ThinkingValidator(BaseValidator):
         Returns:
             List of ValidationResult objects
         """
-        # Phase 6K-C (2026-05-22): inject ``framework`` + ``_extreme_actions``
+        # Inject ``framework`` + ``_extreme_actions``
         # into the context so registered builtin checks (which now live in
         # the domain pack — see broker.domains.water.thinking_checks) can
         # read them without holding a reference to the validator. The
@@ -426,7 +426,7 @@ class ThinkingValidator(BaseValidator):
             violated = False
             matched_conditions = []
 
-            # Multi-condition check (AND logic) - Task-041 Phase 3
+            # Multi-condition check (AND logic) -
             rule_conditions = getattr(rule, 'conditions', None)
             if rule_conditions:
                 violated = self._evaluate_conditions(
@@ -435,7 +435,7 @@ class ThinkingValidator(BaseValidator):
                 )
 
             if violated:
-                # Phase 6N-D-1 (2026-05-24): respect rule.level so WARNING
+                # Respect rule.level so WARNING
                 # rules don't block-and-retry. Previously hardcoded
                 # valid=False regardless of level → any WARNING rule with
                 # `blocked_skills` silently blocked like ERROR. Mirrors
@@ -457,7 +457,7 @@ class ThinkingValidator(BaseValidator):
                         "conditions_matched": matched_conditions,
                         "blocked_skill": skill_name,
                         "level": rule_level,
-                        **self._recovery_keys(rule),  # Phase 6O-A-2 (single source of truth)
+                        **self._recovery_keys(rule),  # (single source of truth)
                         "grounding": self._rule_grounding(rule),
                     }
                 ))
@@ -678,8 +678,8 @@ class ThinkingValidator(BaseValidator):
                 raw_value = reasoning.get(cond["construct"], "M")
             value = self._normalize_label(raw_value, framework)
         elif cond.get("variable"):
-            # PR-6: the env plane is searched FIRST and ``scope:`` can name a
-            # plane explicitly. Pre-PR-6 this read `context["state"]` then the
+            # The env plane is searched FIRST and ``scope:`` can name a
+            # plane explicitly. Previously, this read `context["state"]` then the
             # flattened context, so a variable that lives only in ``env_state``
             # (the broker's declared source of truth for world state) was
             # unreachable and every rule written against one silently never
@@ -703,7 +703,7 @@ class ThinkingValidator(BaseValidator):
                     value = plane[name]
                     break
             if value is None:
-                # PR-6 review P2: this plane gets no `world_variable_missing`
+                # This plane gets no `world_variable_missing`
                 # WARNING and no run-integrity census entry (the AgentValidator
                 # plane's grounding-observability apparatus does not reach
                 # here — see the module docstring). A deduped log line is the

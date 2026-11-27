@@ -71,7 +71,7 @@ from broker.validators.governance.thinking_validator import (
     register_thinking_checks,
 )
 
-# Phase 6U-F (2026-05-28): PMT_* re-exported eagerly at module top so
+# PMT_* re-exported eagerly at module top so
 # the bindings exist BEFORE any subsequent import (e.g.
 # NarrativeDiffusionFramework at the bottom of this file). Pre-fix the
 # re-export sat at the bottom, creating a partial-import window where
@@ -175,10 +175,10 @@ FINANCIAL_LABEL_MAPPINGS = {
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Narrative diffusion framework metadata (NEW — Phase 6T-F prep)
+# Narrative diffusion framework metadata
 # ─────────────────────────────────────────────────────────────────────
 #
-# Per the Phase 6T-D audit doc:
+# Per the audit doc:
 #
 #   narrative_diffusion (constructs: salience, virality, audience_fit,
 #   narrative_consistency)
@@ -217,7 +217,7 @@ NARRATIVE_DIFFUSION_LABEL_MAPPINGS = {
 
 
 # ─────────────────────────────────────────────────────────────────────
-# "generic" framework metadata (2026-06-09 architecture review)
+# "generic" framework metadata
 # ─────────────────────────────────────────────────────────────────────
 #
 # ``scaffold_domain --framework generic`` is the encouraged on-ramp for

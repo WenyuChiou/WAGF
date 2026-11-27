@@ -77,7 +77,7 @@ class DefaultDomainPack:
     def event_handlers(self) -> Dict[str, EventHandler]:
         return {}
 
-    # ─── Phase 6T-A (2026-05-27): lifecycle defaults ──────────────
+    # ─── lifecycle defaults ──────────────
 
     def event_persistence_policy(self, event_type: str):
         """Phase 6T-A default: every event is ``EPHEMERAL``. Matches
@@ -91,7 +91,7 @@ class DefaultDomainPack:
         from broker.components.events.exceptions import EventPersistence
         return EventPersistence.EPHEMERAL
 
-    # ─── Memory policy (Phase 6K-A) ───────────────────────────────
+    # ─── Memory policy ───────────────────────────────
 
     def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
         """Phase 6O-B default — empty mapping (opt-out)."""
@@ -124,7 +124,7 @@ class DefaultDomainPack:
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
         return []
 
-    # ─── Perception (Phase 6H DomainPack v2) ──────────────────────
+    # ─── Perception ──────────────────────
 
     def perception_descriptors(self) -> Dict[str, Any]:
         return {}
@@ -135,7 +135,7 @@ class DefaultDomainPack:
     def passthrough_agent_types(self) -> Set[str]:
         return set()
 
-    # ─── Phase 6T-E (2026-05-27): social-media credibility defaults ─
+    # ─── social-media credibility defaults ─
 
     def credibility_tiers(self) -> List[str]:
         """Phase 6T-E default: empty list — pack doesn't ship a
@@ -181,20 +181,20 @@ class DefaultDomainPack:
         return False
 
     def prompt_placeholder_extensions(self) -> Set[str]:
-        # Phase 6R-B-3 (audit cluster E #16): default contract — no
+        # Default contract — no
         # domain-specific placeholders. Generic domains rely on
         # ``BROKER_FILLED_PLACEHOLDERS`` alone.
         return set()
 
     def decider_factories(self) -> Dict[str, Any]:
-        # PR-8 default contract: this domain ships no decider of its
+        # Default contract: this domain ships no decider of its
         # own, so only the built-in names (llm / rule_based / hybrid /
         # parametric) are available to its configs. See
         # DomainPack.decider_factories.
         return {}
 
     def context_mask_defaults(self) -> Dict[str, Any]:
-        # PR-5 (stack/pr5-replay-ablate): default contract — this domain
+        # Default contract: this domain
         # declares no ablatable context factors, so
         # ``broker.tools.ablate_factor`` refuses rather than guessing at
         # the prompt's wording. See DomainPack.context_mask_defaults.
@@ -203,29 +203,29 @@ class DefaultDomainPack:
     def affordability_constraints(self) -> Dict[str, Any]:
         return {}
 
-    # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
+    # ─── Retrieval tuning ────────────────
 
     def retrieval_policy(self) -> Dict[str, Any]:
         return {}
 
-    # ─── Population drift monitoring (Phase 6L-A) ─────────────────
+    # ─── Population drift monitoring ─────────────────
 
     def drift_policy(self) -> Dict[str, Any]:
         return {}
 
-    # ─── Population-governance thresholds (Phase 6L-B) ────────────
+    # ─── Population-governance thresholds ────────────
 
     def population_governance_policy(self) -> Dict[str, Any]:
         return {}
 
-    # Phase 6L-C added a ``policy_event_tiers`` default here — removed
-    # org-4 cleanup (2026-09), see broker/domains/protocol.py.
+    # Added a ``policy_event_tiers`` default here — removed
+    # cleanup, see broker/domains/protocol.py.
 
-    # Phase 6Q-B (2026-05-26): the ``hazard_severity_thresholds``
-    # default added in 6P-E was removed when ``HazardEventGenerator``
+    # The ``hazard_severity_thresholds``
+    # default added was removed when ``HazardEventGenerator``
     # relocated to ``broker.domains.water.event_generators.hazard_per_agent``.
 
-    # ─── Psychological framework (Phase 6Q-D) ─────────────────────
+    # ─── Psychological framework ─────────────────────
 
     def psychological_framework(self) -> str:
         """Default → blessed escape-hatch sentinel
@@ -256,7 +256,7 @@ class DefaultDomainPack:
         """
         return self.psychological_framework()
 
-    # ─── Profile loaders (Phase 6P-C) ─────────────────────────────
+    # ─── Profile loaders ─────────────────────────────
 
     def csv_loader_class(self) -> Optional[Any]:
         """Default → ``None`` → broker uses the generic ``CSVLoader``."""
@@ -266,7 +266,7 @@ class DefaultDomainPack:
         """Default → ``None`` → broker uses the generic ``SyntheticLoader``."""
         return None
 
-    # ─── Phase 6T-C (2026-05-27): institutional lifecycle defaults ─
+    # ─── institutional lifecycle defaults ─
 
     def institutional_lifecycle_handlers(self) -> Dict[str, Any]:
         """Phase 6T-C default: empty dict — no per-agent-type lifecycle
@@ -286,7 +286,7 @@ class DefaultDomainPack:
         """
         return set()
 
-    # ─── MemoryBridge resolution importance (Phase 6L-D) ──────────
+    # ─── MemoryBridge resolution importance ──────────
 
     def bridge_importance_policy(self) -> Dict[str, float]:
         return {}

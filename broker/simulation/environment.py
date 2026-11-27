@@ -46,7 +46,7 @@ class TieredEnvironment:
         # Layer 4: Social (Neighbor observations)
         self.social_states: Dict[str, Dict[str, Any]] = {}
 
-        # Layer 5: Social-media feeds (Phase 6T-E.B). Empty dict =
+        # Layer 5: Social-media feeds. Empty dict =
         # the SocialMediaProvider walks an empty iterator and writes
         # ``context["social_media_feed"] = ""`` — byte-identical to
         # any earlier code that never built feeds.
@@ -55,7 +55,7 @@ class TieredEnvironment:
         # Optional: Social Graph for neighbor lookups
         self._social_graph: Optional['SocialGraph'] = None
 
-    # ===== Social-media feeds (Phase 6T-E.B) =====
+    # ===== Social-media feeds =====
 
     def add_post(self, post: "Post") -> None:
         """Append a Post to its author's feed.
@@ -158,7 +158,7 @@ class TieredEnvironment:
                             Example for flood domain: ["elevated", "has_insurance", "relocated"]
         """
         if observable_keys is None:
-            # Phase 25 PR6: Removed hard-coded defaults for universality
+            # Generic defaults omitted: callers specify observable keys explicitly
             # Callers must explicitly specify keys for their domain
             return {"neighbor_count": 0, "warning": "observable_keys not specified"}
             

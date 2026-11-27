@@ -131,7 +131,7 @@ class ContinuousBundle(InterfaceBundle):
         A bundle that derives a setpoint from another proposal field overrides it."""
         params = getattr(approved_skill, "parameters", None) or {}
         declared = {vs.name for vs in self.contract.inputs}
-        # 6W-B5 (R1): magnitude_fallback is an audit-only bool the B5 bridge
+        # magnitude_fallback is an audit-only bool the bridge
         # co-locates with the setpoints in ApprovedSkill.parameters; it must never be
         # coerced through float() / applied as a world setpoint, even if a contract
         # input were (mis)named "magnitude_fallback".

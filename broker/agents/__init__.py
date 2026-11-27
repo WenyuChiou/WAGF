@@ -70,7 +70,7 @@ __all__ = [
     # Loader
     "load_agent_configs",
     "load_agents",
-    # Deciders (PR-8): who decides an agent's action, per agent type
+    # Deciders: who decides an agent's action, per agent type
     "DEFAULT_DECIDER_NAME",
     "DEFAULT_DECIDER_SPEC",
     "DeciderRegistry",

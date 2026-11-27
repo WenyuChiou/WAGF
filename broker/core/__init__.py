@@ -38,7 +38,7 @@ from .psychometric import (
 from .skill_broker_engine import SkillBrokerEngine
 
 
-# Phase 6Q-F-1 — PEP 562 lazy access for water-namespace moved
+# PEP 562 lazy access for water-namespace moved
 # classes. Triggers ``broker.domains.water.*`` import only when the
 # attribute is actually accessed, so a plain ``import broker.core``
 # from a non-water domain remains water-module-free at runtime.

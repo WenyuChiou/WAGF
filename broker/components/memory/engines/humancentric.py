@@ -74,7 +74,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # Reserved retrieval slots (weighted mode only): {memory type: count}
         # or a list of types (one slot each). None -> strict no-op.
         reserve_types: Optional[Any] = None,
-        # Design-basis audit + fix proposals, 2026-10-05: three generic,
+        # Three generic,
         # opt-in framework options for a "memory randomness, seed and
         # documentation" finding raised against one consuming domain's
         # case study. Every one defaults to False/off, so a caller that
@@ -178,7 +178,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
             raise ValueError("recall_skip_key is unsupported in weighted mode; use legacy retrieval")
         self.recall_skip_key = recall_skip_key
         # Item 36b: see the three parameters' docstrings above. Opus
-        # review P3-2 (2026-10-06): type-checked here, not left to raise
+        # review P3-2: type-checked here, not left to raise
         # downstream on a string like "true" or "false" read straight
         # from YAML (a plain dict .get() does no coercion) -- the SAME
         # discipline AgentTypeConfig's own boolean getters and
@@ -536,7 +536,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if self._max_working > 0:
             working = self.working.get(agent_id, [])
             if len(working) > self._max_working:
-                # Phase 1: prefer removing consolidated items (safe in longterm)
+                # Prefer removing consolidated items (safe in longterm)
                 consolidated = [m for m in working if m.get("consolidated")]
                 non_consolidated = [m for m in working if not m.get("consolidated")]
 
@@ -724,7 +724,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
              if separate_reflection and _n_sig <= 0:
                  top_significant = []
              
-             # Content-level dedup (2026-09-26): two stored long-term items
+             # Content-level dedup: two stored long-term items
              # can carry visually-identical text that differs only in
              # incidental leading/trailing whitespace, which an exact ==
              # comparison lets through as two distinct significant slots

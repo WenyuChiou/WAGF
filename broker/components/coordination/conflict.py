@@ -130,7 +130,7 @@ class PriorityResolution(ResolutionStrategy):
     """
 
     def __init__(self, type_priorities: Optional[Dict[str, int]] = None):
-        # Phase 6J-C (2026-05-22): proposal priority is the generic default.
+        # Proposal priority is the generic default.
         self.type_priorities = type_priorities or {}
 
     def resolve(

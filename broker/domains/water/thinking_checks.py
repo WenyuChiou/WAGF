@@ -49,11 +49,11 @@ from broker.governance.rule_types import GovernanceRule
 WATER_FRAMEWORK_LABEL_ORDERS: Dict[str, Dict[str, int]] = {
     "dual_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "cognitive_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
-    # Phase 6T-F prep (2026-05-27): ``utility`` + ``financial`` moved
+    # ``utility`` + ``financial`` moved
     # to ``broker/validators/governance/frameworks/`` (generic broker
-    # home — closes the Phase-6P-A-class leak). Both register
+    # home — closes that cross-namespace leak). Both register
     # automatically when broker.validators.governance imports.
-    # Phase 6U-F (2026-05-28): ``pmt`` metadata followed for the same
+    # ``pmt`` metadata followed for the same
     # reason — PMT (Rogers 1975) is a cross-domain behavioural
     # framework, not water-specific. The skill-dependent
     # ``_water_pmt_check`` builtin body still lives in this module.
@@ -70,8 +70,8 @@ WATER_FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {
         "secondary": "ACA_LABEL",
         "all": ["WSA_LABEL", "ACA_LABEL"],
     },
-    # Phase 6T-F prep: utility + financial moved to generic home.
-    # Phase 6U-F: pmt followed for the same reason.
+    # Utility + financial moved to generic home.
+    # PMT followed for the same reason.
 }
 
 WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
@@ -89,8 +89,8 @@ WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
         "HIGH": "H",
         "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
     },
-    # Phase 6T-F prep: utility + financial moved to generic home.
-    # Phase 6U-F: pmt followed for the same reason.
+    # Utility + financial moved to generic home.
+    # PMT followed for the same reason.
 }
 
 
@@ -107,7 +107,7 @@ def register_water_metadata() -> None:
         label_mappings = WATER_LABEL_MAPPINGS.get(fw_name, {})
         register_framework_metadata(fw_name, constructs, label_order, label_mappings)
 
-    # Phase 6K-C (2026-05-22): register builtin thinking checks now
+    # Register builtin thinking checks now
     # that ThinkingValidator no longer carries hardcoded rule bodies.
     register_water_thinking_checks()
 
@@ -124,18 +124,18 @@ def register_water_metadata() -> None:
 
 
 # ---------------------------------------------------------------------
-# Water-domain builtin thinking checks (Phase 6K-C 2026-05-22)
+# Water-domain builtin thinking checks
 # ---------------------------------------------------------------------
 # Free functions that conform to the BuiltinCheck signature
 # ``(skill_name, rules, context) -> List[ValidationResult]``. They were
 # previously hardcoded instance methods on
 # ``broker.validators.governance.thinking_validator.ThinkingValidator``
 # (``_validate_pmt`` / ``_validate_utility`` / ``_validate_financial``);
-# moving them here is the inner-layer counterpart to Phase 6J -- generic
+# moving them here is the inner-layer counterpart — generic
 # broker no longer carries flood-PMT rule bodies. The rules close over
 # the module-level helpers
 # ``broker.validators.governance.thinking_validator.normalize_label`` /
-# ``has_rule_for`` (extracted in 6K-C). ``_extreme_actions`` is read
+# ``has_rule_for``. ``_extreme_actions`` is read
 # from the context dict (injected by ``ThinkingValidator.validate``
 # from its constructor argument).
 # ---------------------------------------------------------------------

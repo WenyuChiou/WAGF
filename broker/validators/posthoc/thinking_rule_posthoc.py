@@ -59,7 +59,7 @@ class ThinkingRulePostHoc:
         self.low_tp_a = low_threat_levels_group_a or {"L", "VL", "M"}
         self.extreme_tp = extreme_threat_levels or {"VH"}
         # State columns whose False->True transition under low threat is
-        # a hallucination — domain-supplied (Phase 6H Item 8). Empty ->
+        # a hallucination — domain-supplied. Empty ->
         # no transition rules (V3 still runs).
         self._transition_columns = list(transition_columns) if transition_columns else []
 
@@ -96,7 +96,7 @@ class ThinkingRulePostHoc:
 
         # Transition rules: a False->True transition into an irreversible
         # state under low threat perception is a hallucination. One rule
-        # per domain-declared state column (Phase 6H Item 8 — replaces the
+        # per domain-declared state column (replaces the
         # hardcoded V1 relocation / V2 elevation rules; a flood
         # domain supplies its two adaptation-state columns).
         for col in self._transition_columns:
