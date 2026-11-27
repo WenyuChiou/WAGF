@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional
 
 from ..interfaces.skill_types import SkillProposal
 from ..utils.llm_utils import accumulate_llm_stats
+from ..utils.llm_call_log import call_context, year_of
 from ..utils.logging import logger
 from ._advise import (
     build_intervention_reports,
@@ -182,7 +183,9 @@ class AdviseMixin:
             total_llm_stats["llm_calls"] += 1
 
         try:
-            res = llm_invoke(advisory_prompt)
+            with call_context(agent_id=agent_id, agent_type=agent_type,
+                              year=year_of(env_context), kind="other", attempt=1):
+                res = llm_invoke(advisory_prompt)
         except Exception as exc:
             # The call happened, so it counts. accumulate_llm_stats is only
             # reached on the tuple branch below, so without this an advisory
@@ -370,7 +373,9 @@ class AdviseMixin:
         if "llm_calls" in total_llm_stats:
             total_llm_stats["llm_calls"] += 1
         try:
-            res = llm_invoke(advisory_prompt)
+            with call_context(agent_id=agent_id, agent_type=agent_type,
+                              year=year_of(env_context), kind="other", attempt=1):
+                res = llm_invoke(advisory_prompt)
         except Exception as exc:
             # Counted for the reason given in `_soft_rule_pass`: the call
             # happened, and the helper that would have counted it runs only on

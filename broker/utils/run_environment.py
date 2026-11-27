@@ -8,9 +8,11 @@ credentials.
 from __future__ import annotations
 
 import importlib.metadata as importlib_metadata
+import os
 import platform
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -135,6 +137,96 @@ def ollama_server_version(base_url: str, timeout: float = 2.0) -> dict:
         return {"version": None, "error": type(exc).__name__}
 
 
+def ollama_loaded_model(model: Any, base_url: str, timeout: float = 2.0) -> dict:
+    """What Ollama reports (``/api/ps``) for ``model``: loaded size, GPU share, context length.
+
+    ``cpu_offload`` is True when part of the loaded model sits outside GPU memory
+    (``size_vram < size``), False when all of it is on the GPU, None when it cannot be told.
+    ``loaded`` is False when the server answers but the model is not in memory (a launch reading
+    taken before the first call). Never raises.
+    """
+    out = {"loaded": None, "name": None, "size": None, "size_vram": None,
+           "context_length": None, "cpu_offload": None, "error": None}
+    try:
+        half = min(timeout, 2.0) / 2
+        response = requests.get(f"{base_url.rstrip('/')}/api/ps", timeout=(half, half))
+        if not 200 <= response.status_code < 300:
+            out["error"] = f"HTTP {response.status_code}"
+            return out
+        body = response.json()
+        entries = body.get("models") if isinstance(body, dict) else None
+        if not isinstance(entries, list):
+            out["error"] = "response had no models list"
+            return out
+        wanted = {model, model if ":" in str(model) else f"{model}:latest"}
+        match = next((e for e in entries if isinstance(e, dict)
+                      and (e.get("name") in wanted or e.get("model") in wanted)), None)
+        if match is None:
+            out["loaded"] = False
+            return out
+        out["loaded"] = True
+        out["name"] = match.get("name") or match.get("model")
+        for key in ("size", "size_vram", "context_length"):
+            value = match.get(key)
+            out[key] = value if isinstance(value, int) and not isinstance(value, bool) else None
+        if out["size"] and out["size_vram"] is not None:
+            out["cpu_offload"] = out["size_vram"] < out["size"]
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = type(exc).__name__
+        return out
+
+
+def endpoint_for_model(model: Any) -> str:
+    """Where a model's calls go: ``mock``, a cloud provider's name, or the Ollama ``host:port``.
+
+    Never a key and never a URL with credentials.
+    """
+    if not isinstance(model, str) or is_mock_model(model):
+        return "mock"
+    if is_cloud_provider_model(model):
+        return model.split(":", 1)[0].lower()
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(get_ollama_base_url())
+        host = parsed.hostname or "unknown"
+        return f"ollama@{host}:{parsed.port}" if parsed.port else f"ollama@{host}"
+    except Exception:  # noqa: BLE001
+        return "ollama"
+
+
+def model_identity(model: Any, refresh: bool = False) -> dict:
+    """Digest, quantization, family and parameter size of an Ollama model; None for mock/cloud.
+
+    Never raises.
+    """
+    out = {"digest": None, "quantization": None, "family": None, "parameter_size": None,
+           "error": None}
+    try:
+        if not isinstance(model, str) or is_mock_model(model) or is_cloud_provider_model(model):
+            return out
+        from broker.utils.llm_utils import get_ollama_show_metadata
+        endpoint = get_ollama_base_url().rstrip("/")
+        info = get_ollama_show_metadata(model, base_url=endpoint, refresh=refresh)
+        info = info if isinstance(info, dict) else {}
+        details = info.get("details") if isinstance(info.get("details"), dict) else {}
+        digest = info.get("digest")
+        if not isinstance(digest, str) or not digest.strip():
+            # Ollama versions whose show response has no digest: take it from /api/tags.
+            tags = requests.get(f"{endpoint}/api/tags", timeout=5).json()
+            names = (model, model if ":" in model else f"{model}:latest")
+            entry = next((m for m in (tags.get("models") or []) if isinstance(m, dict)
+                          and m.get("name", m.get("model")) in names), None)
+            digest = entry.get("digest") if entry else None
+        out["digest"] = digest.strip() if isinstance(digest, str) and digest.strip() else None
+        out["quantization"] = details.get("quantization_level")
+        out["family"] = details.get("family")
+        out["parameter_size"] = details.get("parameter_size")
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = type(exc).__name__
+    return out
+
+
 def wagf_source_git(root: "Path | None" = None) -> "dict | None":
     """Commit and dirty state of the WAGF source tree; None when it is not a git checkout.
 
@@ -155,6 +247,180 @@ def wagf_source_git(root: "Path | None" = None) -> "dict | None":
     except Exception as exc:
         result["error"] = type(exc).__name__
     return result
+
+
+_GPU_QUERY = ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"]
+
+
+def gpu_info(timeout: float = 5.0) -> "list | None":
+    """One ``{name, driver_version, memory_total}`` per NVIDIA GPU; None when there is none.
+
+    Never raises: no ``nvidia-smi``, a failing ``nvidia-smi`` or output that does not parse
+    all answer None.
+    """
+    try:
+        proc = subprocess.run(_GPU_QUERY, capture_output=True, text=True, timeout=timeout, check=False)
+        if proc.returncode != 0:
+            return None
+        gpus = []
+        for line in proc.stdout.splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 3 and parts[0]:
+                gpus.append({"name": parts[0], "driver_version": parts[1],
+                             "memory_total": ",".join(parts[2:])})
+        return gpus or None
+    except Exception:
+        return None
+
+
+def home_collapsed(path: Any) -> "str | None":
+    """``path`` with the user's home folder written as ``~``, so a published manifest carries
+    no user name. Other paths are returned as given. Never raises."""
+    try:
+        if not path:
+            return None
+        text = str(path)
+        home = str(Path.home())
+        norm_text, norm_home = os.path.normcase(text), os.path.normcase(home)
+        if home and (norm_text == norm_home or norm_text.startswith(norm_home + os.sep)):
+            return "~" + text[len(home):]
+        return text
+    except Exception:
+        return None
+
+
+def cpu_info() -> "str | None":
+    try:
+        return platform.processor() or None
+    except Exception:
+        return None
+
+
+def wagf_repo_root() -> "Path | None":
+    try:
+        import broker
+        return Path(broker.__file__).resolve().parents[1]
+    except Exception:
+        return None
+
+
+def repo_relative(path: Any) -> "str | None":
+    """``path`` relative to the WAGF repo root (forward slashes); None when it lies outside.
+
+    A relative path is taken against the current directory first. Never raises.
+    """
+    try:
+        root = wagf_repo_root()
+        if root is None or path is None:
+            return None
+        resolved = Path(str(path)).resolve()
+        return resolved.relative_to(root).as_posix()
+    except Exception:
+        return None
+
+
+def launch_command_repo_relative(argv: "list | None" = None) -> "dict | None":
+    """The launch command with every path inside the WAGF repo made repo-relative.
+
+    ``{"script": ..., "command": ...}``; ``script`` is None when argv[0] is outside the
+    repo. Arguments outside the repo (an output folder, say) keep their path with the home
+    folder written as ``~``.
+    """
+    try:
+        argv = list(sys.argv if argv is None else argv)
+        if not argv:
+            return None
+        rel_script = repo_relative(argv[0])
+        parts = ["python", rel_script or home_collapsed(argv[0]) or argv[0]]
+        for arg in argv[1:]:
+            rel = repo_relative(arg) if (isinstance(arg, str) and (":" in arg or "/" in arg or "\\" in arg)
+                                         and Path(arg).is_absolute()) else None
+            # A path outside the repo (an output folder, say) keeps no user name either.
+            parts.append(rel or (home_collapsed(arg) if isinstance(arg, str) else arg) or arg)
+        return {"script": rel_script, "command": " ".join(parts)}
+    except Exception:
+        return None
+
+
+def file_input_record(path: Any) -> dict:
+    """``{file, path_repo_relative, present, bytes, sha256}`` for one input file; never raises.
+
+    The absolute path is not recorded: ``path_repo_relative`` is None for a file outside the
+    WAGF repo, and ``file`` is then the only name kept. A missing or unreadable file has
+    ``sha256`` None, so the gap shows in the manifest instead of vanishing.
+    """
+    record: dict = {"file": None, "path_repo_relative": None, "present": False,
+                    "bytes": None, "sha256": None}
+    try:
+        p = Path(str(path))
+        record["file"] = p.name
+        record["path_repo_relative"] = repo_relative(p)
+        if p.is_file():
+            import hashlib
+            digest = hashlib.sha256()
+            size = 0
+            with p.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    digest.update(chunk)
+                    size += len(chunk)
+            record.update(present=True, bytes=size, sha256=digest.hexdigest())
+    except Exception as exc:
+        record["error"] = type(exc).__name__
+    return record
+
+
+def require_clean_wagf_tree(model: Any, allow_dirty_tree: bool = False) -> dict:
+    """Refuse a non-mock run whose WAGF source tree has uncommitted changes.
+
+    Returns the record the manifest keeps: ``{"checked", "dirty", "dirty_count",
+    "allow_dirty_tree", "overridden"}``. Raises ``SystemExit`` with the reason when the tree
+    is dirty, the model is not a mock and ``allow_dirty_tree`` is False. Mock runs are not
+    checked. A tree whose state cannot be read is reported, not refused.
+    """
+    record = {"checked": False, "dirty": None, "dirty_count": None,
+              "allow_dirty_tree": bool(allow_dirty_tree), "overridden": False}
+    if isinstance(model, str) and is_mock_model(model):
+        return record
+    state = wagf_source_git()
+    if state is None or state.get("error"):
+        record["checked"] = False
+        return record
+    record["checked"] = True
+    record["dirty"] = state.get("dirty")
+    record["dirty_count"] = state.get("dirty_count")
+    if state.get("dirty"):
+        if allow_dirty_tree:
+            record["overridden"] = True
+            return record
+        raise SystemExit(
+            f"Refusing to start: the WAGF source tree has {state.get('dirty_count')} uncommitted "
+            "change(s) (git status --porcelain), so the manifest could not name the code that "
+            "ran. Commit or stash them, or pass --allow-dirty-tree to run anyway; the manifest "
+            "then records allow_dirty_tree=true.")
+    return record
+
+
+def _flatten(prefix: str, value: Any, out: dict) -> None:
+    if isinstance(value, dict):
+        for key in value:
+            _flatten(f"{prefix}.{key}" if prefix else str(key), value[key], out)
+    else:
+        out[prefix] = value
+
+
+def environment_changed(launch: Any, finalize: Any) -> list:
+    """Sorted dotted keys whose value differs between two ``collect_run_environment`` dicts.
+
+    ``captured_at`` and ``errors`` are not compared. Never raises.
+    """
+    try:
+        a: dict = {}
+        b: dict = {}
+        _flatten("", {k: v for k, v in (launch or {}).items() if k not in ("captured_at", "errors")}, a)
+        _flatten("", {k: v for k, v in (finalize or {}).items() if k not in ("captured_at", "errors")}, b)
+        return sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
+    except Exception:
+        return ["_comparison_failed"]
 
 
 def collect_run_environment(model: Any, captured_at: str) -> dict:
@@ -180,6 +446,15 @@ def collect_run_environment(model: Any, captured_at: str) -> dict:
     except Exception as exc:
         ollama = {"version": None, "error": type(exc).__name__}
         errors["ollama_server_version"] = ollama["error"]
+    loaded: dict = {"loaded": None, "error": NOT_OLLAMA}
+    try:
+        if isinstance(model, str) and not is_mock_model(model) and not is_cloud_provider_model(model):
+            loaded = ollama_loaded_model(model, get_ollama_base_url())
+            if loaded.get("error"):
+                errors["ollama_loaded_model"] = loaded["error"]
+    except Exception as exc:  # noqa: BLE001
+        loaded = {"loaded": None, "error": type(exc).__name__}
+        errors["ollama_loaded_model"] = loaded["error"]
     source_git = None
     try:
         source_git = wagf_source_git()
@@ -188,13 +463,22 @@ def collect_run_environment(model: Any, captured_at: str) -> dict:
     except Exception as exc:
         source_git = {"commit": None, "dirty": None, "dirty_count": None, "error": type(exc).__name__}
         errors["wagf_source_git"] = source_git["error"]
+    gpu = None
+    try:
+        gpu = gpu_info()
+    except Exception:
+        gpu = None
     return {
         "captured_at": captured_at,
         "wagf_version": packages.get("wagf_version"),
         "wagf_version_source": packages.get("wagf_version_source"),
         "packages": packages.get("packages", {}),
         "os": os_part,
+        "cpu": cpu_info(),
+        "gpu": gpu,
+        "python_executable": home_collapsed(sys.executable),
         "ollama_server_version": ollama,
+        "ollama_loaded_model": loaded,
         "wagf_source_git": source_git,
         "errors": errors,
     }

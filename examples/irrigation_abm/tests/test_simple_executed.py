@@ -66,6 +66,12 @@ def test_variant_differs_from_its_frozen_source_only_in_the_line_style(frozen):
     # labels reach the agent) and their rule messages no longer say "blocked".
     assert "intervention_framing" not in a["global_config"]["governance"]
     assert b["global_config"]["governance"].pop("intervention_framing") == "plain"
+    # 2026-11-26: the executed variants also keep the retry-prompt text in the raw trace.
+    assert "retry_prompt_columns" not in a["global_config"]["audit"]
+    assert b["global_config"]["audit"].pop("retry_prompt_columns") is True
+    # The executed variants send a per-call sampling seed; the frozen ones send none.
+    assert "sampling_seed" not in a["global_config"]["llm"]
+    assert b["global_config"]["llm"].pop("sampling_seed") == "per_call"
     rules_a = a["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]
     rules_b = b["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]
     reworded = 0

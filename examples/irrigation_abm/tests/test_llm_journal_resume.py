@@ -38,8 +38,13 @@ _CRASH_AFTER_CALLS = 20
 _VOLATILE_KEYS = {
     "timestamp", "git_commit", "git_dirty",
     "git_commit_at_finalize", "git_dirty_at_finalize", "finalized_at",
+    # The call log counts the calls this process made: a resumed run replays the journal
+    # and makes fewer, and its file hash follows the call order.
+    "llm_call_log",
     # Launch provenance legitimately differs across output folders/processes.
     "launch_command", "git_dirty_files", "git_dirty_files_truncated",
+    # Run records that name the output folder or the clock.
+    "launch_command_repo_relative", "started_at_utc", "finished_at_utc", "wall_seconds",
 }
 
 

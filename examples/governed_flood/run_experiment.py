@@ -312,7 +312,11 @@ class LifecycleHooks:
                 batch, year, reflection_questions=cfg.get("questions", [])
             )
             try:
-                raw = llm_call(prompt)
+                # Model-call log (llm_calls.jsonl): which agents and year this reflection covers.
+                from broker.utils.llm_call_log import call_context
+                with call_context(agent_ids=batch_ids, agent_type="household", year=year,
+                                  kind="reflection", attempt=1):
+                    raw = llm_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw
                 insights = self.reflection_engine.parse_batch_reflection_response(text, batch_ids, year)
                 for aid, insight in insights.items():
@@ -532,6 +536,9 @@ def main():
     # --- Run ---
     print(f"--- Governed Flood Experiment | {args.model} | {len(agents)} agents | {args.years} years | seed={seed} ---")
     runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
+    # Mandatory run records: exit non-zero when they are incomplete.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
 
     # Finalize audit
     if runner.broker.audit_writer:

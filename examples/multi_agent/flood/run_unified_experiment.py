@@ -1517,6 +1517,9 @@ def run_unified_experiment():
     # 6. Execute
     runner = builder.build()
     runner.run(runner.llm_invoke) # Use the selected llm_invoke
+    # Mandatory run records: exit non-zero when they are incomplete.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
 
 
 if __name__ == "__main__":

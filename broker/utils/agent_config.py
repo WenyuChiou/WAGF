@@ -2900,6 +2900,41 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parameters", {})
 
+    def get_provenance_config(self) -> Dict[str, Any]:
+        """``global_config.provenance``: run records every domain gets.
+
+        ``input_files``: mapping of a name to a file path (relative to the WAGF repo root, or
+        absolute) that the run reads; the runner writes each file's sha256 and size to the
+        manifest's ``input_files``. ``allow_dirty_tree``: true lets a non-mock run start on a
+        WAGF tree with uncommitted changes (default false). Other shapes raise.
+        """
+        block = (self._config.get("global_config", {}) or {}).get("provenance", {}) or {}
+        unknown = sorted(set(block) - {"input_files", "allow_dirty_tree"})
+        if unknown:
+            raise ValueError(
+                f"global_config.provenance has no key {unknown}: the run records are mandatory "
+                "and no setting turns them off (only input_files and allow_dirty_tree exist)")
+        files = block.get("input_files") or {}
+        if not isinstance(files, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+            raise ValueError("global_config.provenance.input_files must map a name to a file path")
+        allow = block.get("allow_dirty_tree", False)
+        if not isinstance(allow, bool):
+            raise ValueError("global_config.provenance.allow_dirty_tree must be true or false")
+        return {"input_files": dict(files), "allow_dirty_tree": allow}
+
+    def get_llm_sampling_seed_mode(self) -> str:
+        """``global_config.llm.sampling_seed``: ``off`` (default) or ``per_call``.
+
+        ``per_call`` sends Ollama ``options.seed`` = a stable hash of (run seed, agent id,
+        year, call kind, attempt), so one model call can be repeated exactly. It is a
+        run-level switch, not a request parameter: ``ExperimentRunner.get_llm_invoke`` drops
+        it from the parameters it forwards. Any other value raises.
+        """
+        from broker.utils.llm_call_log import normalise_seed_mode
+        global_llm = (self._config.get("global_config", {}) or {}).get("llm", {}) or {}
+        return normalise_seed_mode(global_llm.get("sampling_seed"))
+
     def get_llm_params(self, agent_type: str) -> Dict[str, Any]:
         """Get LLM parameters (num_predict, num_ctx, etc.) for agent type."""
         cfg = self.get(agent_type)

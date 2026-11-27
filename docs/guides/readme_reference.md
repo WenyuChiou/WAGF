@@ -118,7 +118,7 @@ python -m pip install -e ".[dev,web,analysis]"
 python -m pytest tests/ broker/ examples/single_agent/tests -ra --tb=short --continue-on-collection-errors -k "not real_llm"
 ```
 
-Runs write `reproducibility_manifest.json`, `config_snapshot.yaml` and `run_integrity.json` alongside the traces. Prompt files are referenced by path, not copied into the configuration snapshot; keep them with your run inputs. Record the code revision and retain the inputs: a seed alone does not make live language-model responses identical.
+Runs write `reproducibility_manifest.json`, `config_snapshot.yaml`, `run_integrity.json` and `llm_calls.jsonl` alongside the traces; these records are mandatory and cannot be turned off, and a run with incomplete records exits non-zero (see [run records](../../docs/RUN_RECORDS.md)). Prompt files are referenced by path, not copied into the configuration snapshot; keep them with your run inputs. Record the code revision and retain the inputs: a seed alone does not make live language-model responses identical.
 
 Optional columns record every attempt of a decision. The irrigation runner can also save each model call to a file and replay it to resume a crashed run; see the [irrigation replay runbook](../../examples/irrigation_abm/README.md#resuming-a-crashed-run).
 

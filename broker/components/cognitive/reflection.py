@@ -23,6 +23,7 @@ import json
 import re
 
 from broker.utils.logging import setup_logger
+from broker.utils.llm_call_log import call_context
 from .adapters import DomainReflectionAdapter
 
 logger = setup_logger(__name__)
@@ -359,10 +360,14 @@ def run_checked_reflection(
         flags = [p for p in domain if p.code != "foreign_figure"]
         return _dedup_problems(found), _dedup_problems(flags)
 
-    def _ask(text: str):
+    def _ask(text: str, attempt: int = 0):
         raw = None
         try:
-            raw = _reply_text(llm_call(text))
+            # year: the simulation step, as in the audit CSV (year_created when given).
+            with call_context(agent_id=agent_id, year=period if year_created is None else year_created,
+                              kind="reflection" if attempt == 0 else "reflection_retry",
+                              attempt=attempt + 1):
+                raw = _reply_text(llm_call(text))
             insights = engine.parse_batch_reflection_response(
                 raw, [agent_id], period if year_created is None else year_created,
                 allow_plain_text=True)
@@ -373,7 +378,7 @@ def run_checked_reflection(
     result = CheckedReflection(outcome="dropped")
     current_prompt = prompt
     for attempt in range(retries + 1):
-        raw, insight, error = _ask(current_prompt)
+        raw, insight, error = _ask(current_prompt, attempt)
         result.calls += 1
         if insight is not None:
             insight.reflection_input = input_text

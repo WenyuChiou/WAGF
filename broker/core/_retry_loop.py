@@ -21,9 +21,14 @@ from ..interfaces.skill_types import (
     IDENTITY_TIER, SkillProposal, InterventionReport, ValidationResult,
 )
 from ..utils.llm_utils import accumulate_llm_stats
+from ..utils.llm_call_log import call_context, year_of
 from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
 from ._appraisal_freeze import construct_label_dict
+
+# Model calls allowed for one decision before the reply must parse (the first call plus one
+# format retry). A decision whose reply still does not parse becomes an ABORTED row.
+INITIAL_ATTEMPTS_MAX = 2
 
 # Placebo control for the blocking governance retry loop
 # (``global_config.governance.retry_feedback_mode: placebo``): uses the
@@ -63,7 +68,7 @@ class RetryMixin:
         raw_output = ""
         initial_attempts = 0
         format_retry_count = 0
-        max_initial_attempts = 2
+        max_initial_attempts = INITIAL_ATTEMPTS_MAX
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
         # cost columns, SEEDED rather than created on first use. The
         # five are one era marker — an analyst dates a corpus by whether the
@@ -97,7 +102,11 @@ class RetryMixin:
         while initial_attempts <= max_initial_attempts and not skill_proposal:
             initial_attempts += 1
             try:
-                res = llm_invoke(prompt)
+                # Model-call log: which decision and attempt this call belongs to.
+                with call_context(agent_id=agent_id, agent_type=agent_type,
+                                  year=year_of(env_context), kind="decision",
+                                  attempt=initial_attempts):
+                    res = llm_invoke(prompt)
                 if "llm_calls" in total_llm_stats:
                     total_llm_stats["llm_calls"] += 1
                 if isinstance(res, tuple):
@@ -650,7 +659,10 @@ class RetryMixin:
             if attempt_prompts is not None:
                 attempt_prompts.append(retry_prompt)
 
-            res = llm_invoke(retry_prompt)
+            with call_context(agent_id=agent_id, agent_type=agent_type,
+                              year=year_of(env_context), kind="decision_retry",
+                              attempt=retry_count):
+                res = llm_invoke(retry_prompt)
             if "llm_calls" in total_llm_stats:
                 total_llm_stats["llm_calls"] += 1
 

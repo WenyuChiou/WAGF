@@ -85,6 +85,7 @@ from broker.components.governance.registry import SkillRegistry
 from broker.components.context.builder import TieredContextBuilder
 from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
+from broker.utils.llm_call_log import call_context
 from broker.utils.agent_config import GovernanceAuditor
 from examples.irrigation_abm.validators.irrigation_validators import (
     ALL_IRRIGATION_CHECKS,
@@ -1256,7 +1257,9 @@ class IrrigationLifecycleHooks:
             # stops the run instead of being printed and dropped.
             recorded_call = self._record_reflection_call(llm_call, batch_ids, written_in)
             try:
-                raw = recorded_call(prompt)
+                with call_context(agent_ids=batch_ids, agent_type="irrigation_farmer",
+                                  year=year, kind="reflection", attempt=1):
+                    raw = recorded_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw
                 insights = self.reflection_engine.parse_batch_reflection_response(
                     text, batch_ids, year
@@ -2119,6 +2122,32 @@ def _record_keepfix_provenance(output_dir, package, server_version, prompt_infor
         print(f"[Provenance] WARNING: could not record keepfix in config_snapshot.yaml: {exc}")
 
 
+def _irrigation_input_files(args, ref_dir: Path) -> dict:
+    """Input files a run reads that no other manifest key already fingerprints.
+
+    The ``--real`` CRSS files the profile builder and the precipitation loader read, declared
+    to the runner (``declare_input_files``) and hashed into the manifest ``input_files``. The
+    pinned water-system tables under ``examples/irrigation_abm/data`` are checked against
+    their sha256 at load and recorded by ``_record_water_system_config_provenance`` and the
+    coupling-retrofit block; the config, prompt and registry digests are generic manifest keys.
+    """
+    files: Dict[str, Path] = {}
+    if args.real:
+        crss = ref_dir / "CRSS_DB" / "CRSS_DB"
+        files["abm_params_csv"] = ref_dir / "RL-ABM-CRSS" / "ALL_colorado_ABM_params_cal_1108.csv"
+        files["ub_discrete_states_csv"] = crss / "Div_States" / "UB_discrete_states.csv"
+        files["lb_discrete_states_csv"] = crss / "Div_States" / "LB_discrete_states.csv"
+        files["ub_groups_and_agents_csv"] = crss / "Group_Agt" / "UB_ABM_Groups_and_Agents.csv"
+        files["lb_historical_annual_diversion_csv"] = (
+            crss / "HistoricalData" / "LB_historical_annual_diversion.csv")
+        files["ub_historical_annual_depletion_csv"] = (
+            crss / "HistoricalData" / "UB_historical_annual_depletion.csv")
+        if not args.hindcast:
+            files["precip_projection_csv"] = (
+                crss / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv")
+    return files
+
+
 def main():
     args = parse_args()
     if args.hindcast:
@@ -2176,6 +2205,11 @@ def main():
             "run_fql_baseline.py's --min-utilisation-fraction instead -- until "
             "that message is templated."
         )
+
+    # A real-model run needs a clean WAGF tree so the manifest names the code that ran;
+    # mock runs are exempt. --allow-dirty-tree overrides and is recorded in the manifest.
+    from broker.utils.run_environment import require_clean_wagf_tree
+    tree_check = require_clean_wagf_tree(args.model, args.allow_dirty_tree)
 
     # --- Crash-resume: resolve the source journal and read its header
     # early (cheap: one small file read). The actual checks run below,
@@ -2649,6 +2683,8 @@ def main():
     if resume_source_path is not None:
         builder = builder.with_resume_journal(str(resume_source_path))
     runner = builder.build()
+    runner._clean_tree_check = tree_check
+    runner.declare_input_files(_irrigation_input_files(args, ref_dir))
     _validate_agent_memory_config(agents, agent_type_config.get_memory_config("irrigation_farmer"))
     if args.llm_journal or args.resume_from:
         # Same `runner.broker._xxx = ...` idiom as _derived_from_config /
@@ -2808,6 +2844,7 @@ def main():
 
     GovernanceAuditor().print_summary()
     print(f"--- Complete! Results in {output_dir} ---")
+    return output_dir
 
 
 def parse_args():
@@ -2969,8 +3006,17 @@ def parse_args():
                         "full-config-copy approach (removed 2026-09-27): use "
                         "this flag against the in-tree config instead of "
                         "--config-dir pointing at a stale copy.")
+    p.add_argument("--allow-dirty-tree", action="store_true",
+                   help="Run a non-mock model although the WAGF source tree has uncommitted "
+                        "changes. Without it such a run is refused; the manifest records the "
+                        "flag. Mock runs are never checked.")
     return p.parse_args()
 
 
 if __name__ == "__main__":
-    main()
+    finished_output = main()
+    # Mandatory run records: exit non-zero when they are incomplete (checked on disk, after
+    # every post-run patch).
+    if finished_output is not None:
+        from broker.utils.provenance_requirements import enforce_complete
+        enforce_complete(finished_output)

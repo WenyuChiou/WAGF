@@ -17,6 +17,7 @@ import json
 import random
 import hashlib
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from broker.agents import BaseAgent
@@ -157,6 +158,11 @@ class ExperimentConfig:
     seed: int = 42
     verbose: bool = False
     workers: int = 1  # Number of parallel workers for LLM calls (1=sequential)
+    # Run a non-mock model although the WAGF source tree has uncommitted changes.
+    # Default False: ExperimentRunner.run refuses such a run (see _begin_run_records).
+    # global_config.provenance.allow_dirty_tree or the entry point's --allow-dirty-tree
+    # (examples/single_agent/run_flood.py, examples/irrigation_abm/run_experiment.py) sets it.
+    allow_dirty_tree: bool = False
     phase_order: Optional[List[List[str]]] = None  # Agent type groups for phased execution
     # CognitiveCache decision reuse is OPT-IN (default OFF).
     # When previously always-on, cache hits emitted NO audit row (denominator
@@ -214,6 +220,7 @@ class ExperimentRunner:
         self.agents = agents
         self.config = config
         self._launch_command = " ".join(sys.argv)
+        self._launch_argv = list(sys.argv)
         self._prompt_template_sha256_at_launch = self._prompt_template_hashes()
         self._capture_model_metadata_at_launch()
         self.step_counter = 0
@@ -453,6 +460,10 @@ class ExperimentRunner:
             }:
                 model_override = None
             model_name = model_override or self.config.model
+            # global_config.llm.sampling_seed is a run-level switch read by
+            # _begin_run_records, not a request parameter: it must not reach the Ollama
+            # options or a cloud provider's config.
+            overrides.pop("sampling_seed", None)
 
             # Record the exact parameters sent by create_llm_invoke (plus the
             # resolved per-type model name) for reproducibility_manifest.json.
@@ -479,6 +490,11 @@ class ExperimentRunner:
                 verbose=self.config.verbose,
                 overrides=overrides
             )
+            # Model-call log (llm_calls.jsonl): records the calls the Ollama layer does not
+            # (mock, cloud providers). Passes every prompt and reply through unchanged.
+            from broker.utils.llm_call_log import wrap_invoke_with_call_log
+            raw_invoke = wrap_invoke_with_call_log(
+                raw_invoke, model=model_name, agent_type=agent_type, resolved=resolved_params)
             # Scope wire observations to this runner, even when other runners
             # use the same model concurrently. Enter inside the callable so
             # every worker thread gets its own context; journal replay skips it.
@@ -953,6 +969,8 @@ class ExperimentRunner:
         self._generic_abort = None
         # Invariant 7 decision lines: one run's lines only.
         self._governance_decision_lines = []
+        # Start time, launch environment, model-call log, sampling-seed switch.
+        self._begin_run_records()
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
@@ -1047,6 +1065,9 @@ class ExperimentRunner:
                             self._apply_state_changes(agent, result)
                         if "post_step" in self.hooks:
                             self._call_hook("post_step", agent, result)
+
+                # A mandatory record (the model-call log) failed to write: stop here.
+                self._raise_if_records_failed()
 
                 # --- Lifecycle Hook: Post-Step-End / Post-Year ---
                 # Dual trigger for generic compatibility
@@ -1145,6 +1166,272 @@ class ExperimentRunner:
         except Exception:
             return False
 
+    def _begin_run_records(self) -> None:
+        """Start the records a reviewer checks a run against.
+
+        Sets the start time, reads the launch environment (unless ``broker.run`` already did),
+        resolves ``global_config.llm.sampling_seed`` and opens ``llm_calls.jsonl``.
+        A bad ``sampling_seed`` value raises; everything else only warns.
+        """
+        from broker.utils import llm_call_log
+        self._check_clean_tree()
+        self._record_input_files()
+        self._run_started_utc = llm_call_log.utc_now_iso()
+        self._run_started_perf = time.perf_counter()
+        self._run_finished_utc = None
+        self._run_wall_seconds = None
+        self._llm_call_log_summary = None
+        self._run_environment_at_finalize = None
+
+        getter = getattr(getattr(self.broker, "config", None), "get_llm_sampling_seed_mode", None)
+        mode = getter() if callable(getter) else "off"
+        self._llm_sampling_seed_mode = llm_call_log.configure_sampling_seed(
+            mode if isinstance(mode, str) else "off", getattr(self.config, "seed", None))
+
+        try:
+            if not isinstance(getattr(self, "_run_environment_at_launch", None), dict):
+                from broker.utils.run_environment import collect_run_environment
+                model = getattr(getattr(self, "config", None), "model", None)
+                self._run_environment_at_launch = collect_run_environment(
+                    model if isinstance(model, str) else None, captured_at="launch")
+        except Exception as exc:  # noqa: BLE001 - a side record must not stop a run
+            logger.warning("[Provenance] launch environment unavailable: %s", type(exc).__name__)
+
+        # The call log is a mandatory record: a run that cannot open it does not start.
+        from broker.utils.provenance_requirements import RunRecordsError
+        out = getattr(self.config, "output_dir", None)
+        previous = getattr(self, "_llm_call_log", None)
+        if previous is not None:
+            previous.close()
+        self._llm_call_log = None
+        self._records_errors = []
+        if not isinstance(out, (str, Path)):
+            raise RunRecordsError("cannot start the model-call log: the run has no output folder")
+        try:
+            log = llm_call_log.LLMCallLog(Path(out) / llm_call_log.LOG_FILENAME)
+            log.path.parent.mkdir(parents=True, exist_ok=True)
+            log.path.touch()
+        except OSError as exc:
+            raise RunRecordsError(
+                f"cannot start the model-call log {Path(out) / llm_call_log.LOG_FILENAME}: "
+                f"{type(exc).__name__}: {exc}") from exc
+        llm_call_log.activate(log)
+        self._llm_call_log = log
+
+    def _model_roles_block(self) -> Dict[str, Any]:
+        """One entry per role that made model calls (decision, reflection, other).
+
+        Each entry lists, per agent type that called in that role: model name, digest,
+        quantization, endpoint (``mock``, a cloud provider name or ``ollama@host:port``),
+        the decoding options sent, and ``adaptation``. Roles come from the call log, so a role
+        that made no call has no entry. ``sampling_seed`` is the run's seed mode.
+        """
+        from broker.utils.run_environment import endpoint_for_model, model_identity
+        roles = getattr(self, "_llm_roles_used", None) or {}
+        resolved = getattr(self, "_llm_resolved_params", None) or {}
+        launch = getattr(self, "_model_metadata_at_launch", None) or {}
+        main_model = getattr(getattr(self, "config", None), "model", None)
+        seed_mode = getattr(self, "_llm_sampling_seed_mode", "off")
+        identities: Dict[Any, dict] = {}
+        out: Dict[str, Any] = {}
+        for role, info in roles.items():
+            entries = []
+            for agent_type, model, calls in info["agent_type_models"]:
+                if model not in identities:
+                    if model == main_model and launch.get("model_digest"):
+                        identities[model] = {"digest": launch.get("model_digest"),
+                                             "quantization": launch.get("model_quantization")}
+                    else:
+                        ident = model_identity(model)
+                        identities[model] = {"digest": ident["digest"],
+                                             "quantization": ident["quantization"]}
+                params = resolved.get(agent_type) or {}
+                entries.append({
+                    "agent_type": agent_type,
+                    "model": model,
+                    "digest": identities[model]["digest"],
+                    "quantization": identities[model]["quantization"],
+                    "endpoint": endpoint_for_model(model),
+                    "decoding_options": {k: params.get(k) for k in (
+                        "temperature", "top_p", "top_k", "num_ctx", "num_predict", "think")},
+                    "sampling_seed": seed_mode,
+                    "calls": calls,
+                    "adaptation": "none (off the shelf)",
+                })
+            out[role] = {"calls": info["calls"], "entries": entries}
+        return out
+
+    def _execution_order_block(self) -> Dict[str, Any]:
+        """Worker count and the order agents are stepped within a year, read from this runner.
+
+        The order is the order of ``self.agents`` (set by the domain's setup), keeping only active
+        agents, then grouped by ``config.phase_order`` when one is set. Nothing in the runner
+        shuffles agents. With ``workers`` > 1 the calls run in parallel but results are applied in
+        submission order (the same order).
+        """
+        import hashlib
+        agents = getattr(self, "agents", None) or {}
+        ids = [str(k) for k in agents.keys()] if hasattr(agents, "keys") else []
+        phase_order = getattr(self.config, "phase_order", None)
+        workers = getattr(self.config, "workers", None)
+        shuffle_options = None
+        try:
+            cfg = getattr(getattr(self.broker, "config", None), "_config", None)
+            if isinstance(cfg, dict):
+                shuffle_options = bool(cfg.get("global_config", {}).get(
+                    "governance", {}).get("shuffle_options", False))
+        except Exception:  # noqa: BLE001
+            shuffle_options = None
+        return {
+            "workers": workers if isinstance(workers, int) and not isinstance(workers, bool) else None,
+            "agent_order": "fixed: registration order of the runner's agents, active agents only"
+                           + (", grouped by phase_order" if phase_order else ""),
+            "agents_shuffled": False,
+            "agent_shuffle_seed": None,
+            "phase_order": phase_order if isinstance(phase_order, list) else None,
+            "results_applied_in": "submission order" if (workers or 1) > 1 else "step order",
+            "agent_ids_in_order": ids[:1000],
+            "agent_ids_count": len(ids),
+            "agent_ids_sha256": hashlib.sha256(chr(10).join(ids).encode("utf-8")).hexdigest(),
+            "option_order_shuffled": shuffle_options,
+        }
+
+    def _resolution_policy_block(self) -> Dict[str, Any]:
+        """Retry limits, what happens when they run out, and how often it did (from the audit CSVs)."""
+        from broker.components.analytics.audit import audit_resolution_counts
+        from broker.core._retry_loop import INITIAL_ATTEMPTS_MAX
+        broker = getattr(self, "broker", None)
+
+        def pick(value, kinds):
+            return value if isinstance(value, kinds) and not isinstance(value, bool) else None
+
+        default_skill = None
+        try:
+            default_skill = pick(broker.skill_registry.get_default_skill(), str)
+        except Exception:  # noqa: BLE001
+            default_skill = None
+        counts = audit_resolution_counts(self.config.output_dir)
+        return {
+            "max_governance_retries": pick(getattr(broker, "max_retries", None), int),
+            "max_format_attempts": INITIAL_ATTEMPTS_MAX,
+            "retry_framing": pick(getattr(broker, "_intervention_framing", None), str),
+            "on_parse_failure": "ABORTED row: no decision is made and no skill runs",
+            "on_retry_exhausted": pick(getattr(broker, "_on_retry_exhausted", None), str),
+            "default_skill": default_skill,
+            "counts": counts or None,
+        }
+
+    def declare_input_files(self, files: Dict[str, Any]) -> None:
+        """Name files this run reads; the manifest gets each one's sha256 (``input_files``).
+
+        Adds to anything ``global_config.provenance.input_files`` already lists.
+        """
+        declared = dict(getattr(self, "_declared_input_files", None) or {})
+        declared.update({str(k): v for k, v in files.items()})
+        self._declared_input_files = declared
+
+    def _provenance_config(self) -> Dict[str, Any]:
+        getter = getattr(getattr(self.broker, "config", None), "get_provenance_config", None)
+        cfg = getter() if callable(getter) else None
+        return cfg if isinstance(cfg, dict) else {"input_files": {}, "allow_dirty_tree": False}
+
+    def _check_clean_tree(self) -> None:
+        """Refuse a non-mock run on a WAGF tree with uncommitted changes.
+
+        Skipped when an entry point already did the check and set ``_clean_tree_check``
+        (the paper runners check before they set anything up; ``python -m broker.run`` has
+        its own ``--strict-provenance`` check). The override is ``config.allow_dirty_tree``,
+        ``global_config.provenance.allow_dirty_tree`` or the entry point's flag; it is
+        recorded in the manifest.
+        """
+        if isinstance(getattr(self, "_clean_tree_check", None), dict):
+            return
+        from broker.utils.run_environment import require_clean_wagf_tree
+        allow = (getattr(self.config, "allow_dirty_tree", False) is True
+                 or self._provenance_config().get("allow_dirty_tree") is True)
+        model = getattr(self.config, "model", None)
+        self._clean_tree_check = require_clean_wagf_tree(
+            model if isinstance(model, str) else None, allow)
+
+    def _record_input_files(self) -> None:
+        """Hash every declared input file at launch (config key plus ``declare_input_files``)."""
+        try:
+            from broker.utils.run_environment import file_input_record, wagf_repo_root
+            files = dict(self._provenance_config().get("input_files") or {})
+            files.update(getattr(self, "_declared_input_files", None) or {})
+            root = wagf_repo_root()
+            record = {}
+            for name, raw in files.items():
+                path = Path(str(raw))
+                if not path.is_absolute() and root is not None:
+                    path = root / path
+                record[name] = file_input_record(path)
+            self._input_files_record = record
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[Provenance] input file digests unavailable: %s", type(exc).__name__)
+            self._input_files_record = None
+
+    def _finish_run_records(self) -> None:
+        """End time, wall seconds, second environment reading, closed call log. Never raises."""
+        from broker.utils import llm_call_log
+        try:
+            self._run_finished_utc = llm_call_log.utc_now_iso()
+            started = getattr(self, "_run_started_perf", None)
+            if isinstance(started, float):
+                self._run_wall_seconds = round(time.perf_counter() - started, 3)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from broker.utils.run_environment import collect_run_environment
+            model = getattr(getattr(self, "config", None), "model", None)
+            self._run_environment_at_finalize = collect_run_environment(
+                model if isinstance(model, str) else None, captured_at="finalize")
+        except Exception as exc:  # noqa: BLE001
+            self._run_environment_at_finalize = {"errors": {"_collection": type(exc).__name__}}
+        try:
+            from broker.utils.run_environment import model_identity
+            from broker.utils.llm_utils import is_cloud_provider_model, is_mock_model
+            model = getattr(getattr(self, "config", None), "model", None)
+            if isinstance(model, str) and not is_mock_model(model) \
+                    and not is_cloud_provider_model(model):
+                self._model_digest_at_finalize = model_identity(model, refresh=True)["digest"]
+            else:
+                self._model_digest_at_finalize = None
+        except Exception:  # noqa: BLE001 - the blocker "model digest unavailable" reports it
+            self._model_digest_at_finalize = None
+        log = getattr(self, "_llm_call_log", None)
+        if log is not None:
+            try:
+                log.close()
+                summary = log.summary()
+                summary["file_sha256"] = log.file_sha256()
+                summary["sampling_seed_mode"] = getattr(self, "_llm_sampling_seed_mode", "off")
+                self._llm_roles_used = log.roles_used()
+                self._llm_call_log_summary = summary
+            except Exception as exc:  # noqa: BLE001
+                self._note_records_error(f"call-log summary failed: {type(exc).__name__}: {exc}")
+            finally:
+                llm_call_log.deactivate(log)
+            if log.failure:
+                self._note_records_error(log.failure)
+
+    def _note_records_error(self, message: str) -> None:
+        """Keep a record-writing failure; ``_finalize_experiment`` raises it once the files are down."""
+        errors = getattr(self, "_records_errors", None)
+        if errors is None:
+            errors = self._records_errors = []
+        if message not in errors:
+            errors.append(message)
+        logger.error("[Records] %s", message)
+
+    def _raise_if_records_failed(self) -> None:
+        """Stop the run when a mandatory record could not be written (checked at each step end)."""
+        from broker.utils.provenance_requirements import RunRecordsError
+        log = getattr(self, "_llm_call_log", None)
+        failure = getattr(log, "failure", None)
+        if failure:
+            raise RunRecordsError(f"model-call log: {failure}")
+
     def _finalize_experiment(self, iterations: int):
         """Finalize outputs even if the run exits early."""
         # ORDER IS LOAD-BEARING: finalize() is what writes the audit CSV(s).
@@ -1154,6 +1441,9 @@ class ExperimentRunner:
         # Do not move this call below the manifest build.
         if hasattr(self.broker.audit_writer, 'finalize'):
             self.broker.audit_writer.finalize()
+        # Every model call has been made by now: close the call log, take the end time and
+        # the second environment reading.
+        self._finish_run_records()
 
         # The CONFIGURED expectation, recorded for the coverage block. It has to
         # come from here because `_collect_reproducibility_metadata` never sees
@@ -1195,6 +1485,9 @@ class ExperimentRunner:
             "num_years": iterations,
             "governance_profile": self.config.governance_profile,
             "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown",
+            # The same path relative to the WAGF repo root (None when it lies outside the
+            # repo), so a published manifest needs no home folder to be read.
+            "agent_types_config_repo_relative": self._repo_relative_config_path(),
             # Generic, additive: a domain runner that derives agent_types_config
             # from an original file (e.g. a domain runner that adds a coupling key
             # --coupling flag, which writes an isolated copy with one added key)
@@ -1246,9 +1539,12 @@ class ExperimentRunner:
         _journal_abort = getattr(self, "_llm_journal_abort", None)
         if _journal_abort is not None:
             from broker.utils.llm_journal import JournalReplayDivergence
+            from broker.utils.provenance_requirements import RunRecordsError
             manifest["run_status"] = (
                 "aborted_journal_divergence"
                 if isinstance(_journal_abort, JournalReplayDivergence)
+                else "aborted_records_write_error"
+                if isinstance(_journal_abort, RunRecordsError)
                 else "aborted_journal_write_error"
             )
             manifest["llm_journal_abort"] = {
@@ -1330,10 +1626,24 @@ class ExperimentRunner:
         # The summary save MUST run regardless of whether the
         # manifest write succeeded — summary is the more
         # important artifact for governance reproducibility.
+        # Mandatory records: check what a run must have written, put the verdict in the
+        # manifest and run_integrity.json, and print it. Entry points exit non-zero on a
+        # failed check (provenance_requirements.enforce_complete).
+        from broker.utils import provenance_requirements as _pr
+        try:
+            self._provenance_fields = _pr.seal(manifest, self.config.output_dir)
+            print(_pr.summary_line(self._provenance_fields), flush=True)
+        except Exception as e:  # noqa: BLE001
+            self._provenance_fields = {}
+            self._note_records_error(f"completeness check failed: {type(e).__name__}: {e}")
         try:
             with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
-                json.dump(manifest, f, indent=2)
+                # default=str: one value that is not JSON (a stray object) is written as its
+                # text instead of losing the whole mandatory manifest.
+                json.dump(manifest, f, indent=2, default=str)
         except (OSError, TypeError, ValueError) as e:
+            self._note_records_error(
+                f"reproducibility_manifest.json could not be written: {type(e).__name__}: {e}")
             # TypeError/ValueError matter as much as OSError here: json.dump raises
             # TypeError on a non-serialisable value, so a single bad entry anywhere
             # in `manifest` would abort this block and STARVE the summary save
@@ -1368,6 +1678,23 @@ class ExperimentRunner:
         if journal is not None:
             journal.close()
 
+        # run_integrity.json carries the same verdict (the single-agent flood script rewrites
+        # that file and passes the fields again, see run_flood.py).
+        if getattr(self, "_provenance_fields", None):
+            try:
+                _pr.amend_run_integrity(self.config.output_dir, self._provenance_fields)
+            except _pr.RunRecordsError as e:
+                self._note_records_error(str(e))
+        errors = getattr(self, "_records_errors", None)
+        if errors:
+            # A run already stopping on another error keeps that error: raising here, inside
+            # run()'s finally, would replace it. The records failure is logged above and the
+            # manifest's provenance fields (or its absence) show it.
+            in_flight = any(getattr(self, name, None) is not None for name in (
+                "_llm_safeguard_abort", "_llm_journal_abort", "_generic_abort"))
+            if not in_flight:
+                raise _pr.RunRecordsError("run records could not be written: " + "; ".join(errors))
+
     def _configured_grid_expectation(self, iterations: int) -> dict:
         """This runner's configured agent x year grid.
 
@@ -1389,6 +1716,20 @@ class ExperimentRunner:
             getattr(self, "agents", None), iterations
         )
 
+    def _repo_relative_config_path(self):
+        try:
+            from broker.utils.run_environment import repo_relative
+            path = getattr(getattr(self.broker, "model_adapter", None), "config_path", None)
+            rel = repo_relative(path) if isinstance(path, (str, Path)) else None
+            if rel is None:
+                # The run used a derived copy of the config written outside the repo (see
+                # manifest ``derived_from_config``): name the repo file it was derived from.
+                origin = getattr(self.broker, "_derived_from_config", None)
+                rel = repo_relative(origin) if isinstance(origin, (str, Path)) else None
+            return rel
+        except Exception:  # noqa: BLE001
+            return None
+
     def _collect_reproducibility_metadata(self) -> dict:
         """Collect model digest, git state, and config hashes for reproducibility."""
         metadata = {}
@@ -1399,6 +1740,19 @@ class ExperimentRunner:
         metadata["git_dirty_files"] = getattr(self, "_git_dirty_files_at_launch", None)
         metadata["git_dirty_files_truncated"] = getattr(self, "_git_dirty_files_truncated_at_launch", False)
         metadata["launch_command"] = getattr(self, "_launch_command", " ".join(sys.argv))
+        try:
+            from broker.utils.run_environment import launch_command_repo_relative
+            _rel = launch_command_repo_relative(getattr(self, "_launch_argv", None))
+        except Exception:  # noqa: BLE001
+            _rel = None
+        metadata["launch_command_script_repo_relative"] = _rel["script"] if _rel else None
+        metadata["launch_command_repo_relative"] = _rel["command"] if _rel else None
+        # --allow-dirty-tree (examples/single_agent/run_flood.py, examples/irrigation_abm/
+        # run_experiment.py): what the clean-tree check found and whether it was overridden.
+        _tree = getattr(self, "_clean_tree_check", None)
+        metadata["clean_tree_check"] = _tree if isinstance(_tree, dict) else None
+        metadata["allow_dirty_tree"] = (
+            bool(_tree.get("allow_dirty_tree")) if isinstance(_tree, dict) else None)
         metadata["prompt_template_sha256"] = (
             self._prompt_template_sha256_at_launch if hasattr(self, "_prompt_template_sha256_at_launch")
             else self._prompt_template_hashes()
@@ -1692,8 +2046,11 @@ class ExperimentRunner:
                 from pathlib import Path
                 cp = Path(config_path)
                 if cp.exists():
-                    h = hashlib.sha256(cp.read_bytes()).hexdigest()[:12]
-                    metadata["config_hash"] = h
+                    _full = hashlib.sha256(cp.read_bytes()).hexdigest()
+                    metadata["config_hash"] = _full[:12]
+                    # config_hash is the 12-character short form; the full digest is the
+                    # one to compare across machines.
+                    metadata["agent_types_config_sha256"] = _full
         except Exception:
             pass
 
@@ -1729,22 +2086,70 @@ class ExperimentRunner:
         # 5. Timestamp and Python version
         from datetime import datetime
         metadata["timestamp"] = datetime.now().isoformat()
+        # UTC start / end and wall time of the run. Null when run() never started them
+        # (a runner finalised directly, as some unit tests do).
+        metadata["started_at_utc"] = getattr(self, "_run_started_utc", None)
+        metadata["finished_at_utc"] = getattr(self, "_run_finished_utc", None)
+        metadata["wall_seconds"] = getattr(self, "_run_wall_seconds", None)
         metadata["python_version"] = sys.version.split()[0]
 
         # 5.01. Run environment (WAGF and dependency versions, OS, Ollama server
         #     version for Ollama models). broker.run captures this at launch (see
         #     broker/run/_provenance.py) and the runner replays it here; every
         #     other runner (the paper runners included) collects it at finalize.
+        #     run_environment is the LAUNCH reading (ExperimentRunner.run takes it unless
+        #     broker.run already did); run_environment_at_finalize is a second reading at the
+        #     end and run_environment_changed lists the keys that differ (Ollama version, WAGF
+        #     commit or dirty state, packages). A runner finalised without run() has only the
+        #     finalize reading, which then stands for both.
         try:
+            from broker.utils.run_environment import collect_run_environment, environment_changed
             env = getattr(self, "_run_environment_at_launch", None)
-            if not isinstance(env, dict):
-                from broker.utils.run_environment import collect_run_environment
+            env_final = getattr(self, "_run_environment_at_finalize", None)
+            if not isinstance(env_final, dict):
                 model = getattr(getattr(self, "config", None), "model", None)
-                env = collect_run_environment(
+                env_final = collect_run_environment(
                     model if isinstance(model, str) else None, captured_at="finalize")
+            if not isinstance(env, dict):
+                env = env_final
             metadata["run_environment"] = env
+            metadata["run_environment_at_finalize"] = env_final
+            metadata["run_environment_changed"] = environment_changed(env, env_final)
         except Exception as exc:
             metadata["run_environment"] = {"errors": {"_collection": type(exc).__name__}}
+            metadata["run_environment_at_finalize"] = None
+            metadata["run_environment_changed"] = None
+
+        # 5.02. Model-call log and truncation counts (broker/utils/llm_call_log.py).
+        #     Counts only: nothing here changes integrity_ok.
+        metadata["input_files"] = getattr(self, "_input_files_record", None)
+        _launch_digest = (getattr(self, "_model_metadata_at_launch", None) or {}).get("model_digest")
+        _final_digest = getattr(self, "_model_digest_at_finalize", None)
+        metadata["model_digest_at_finalize"] = _final_digest
+        metadata["model_digest_changed"] = (
+            _launch_digest != _final_digest if _launch_digest and _final_digest else None)
+        metadata["llm_call_log"] = getattr(self, "_llm_call_log_summary", None)
+        metadata["llm_sampling_seed_mode"] = getattr(self, "_llm_sampling_seed_mode", None)
+        # Ollama's own report of the loaded model at launch and at finalize (also inside
+        # run_environment / run_environment_at_finalize above): cpu_offload True means part of
+        # the model ran on the CPU.
+        for _key, _env in (("launch", metadata.get("run_environment")),
+                           ("finalize", metadata.get("run_environment_at_finalize"))):
+            _loaded = _env.get("ollama_loaded_model") if isinstance(_env, dict) else None
+            metadata[f"ollama_loaded_model_at_{_key}"] = _loaded
+        _fin = metadata.get("ollama_loaded_model_at_finalize")
+        _lau = metadata.get("ollama_loaded_model_at_launch")
+        metadata["ollama_cpu_offload"] = next(
+            (m.get("cpu_offload") for m in (_fin, _lau)
+             if isinstance(m, dict) and m.get("cpu_offload") is not None), None)
+        for _name, _build in (("model_roles", self._model_roles_block),
+                              ("execution_order", self._execution_order_block),
+                              ("resolution_policy", self._resolution_policy_block)):
+            try:
+                metadata[_name] = _build()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[Provenance] %s unavailable: %s", _name, type(exc).__name__)
+                metadata[_name] = {"error": type(exc).__name__}
 
         # 5.05. Parallel worker count (ExperimentConfig.workers; F14/F41
         #     parallel-determinism review, F43 crash-resume journal review).
@@ -1981,6 +2386,11 @@ class ExperimentRunner:
                     **refl_kwargs.get("extra", {}),
                     "coupling_provenance_error": coupling_error,
                 }
+            # Truncation counts from the model-call log: calls cut off at num_predict
+            # (done_reason "length"), calls whose prompt reached num_ctx, the largest prompt.
+            _call_summary = getattr(self, "_llm_call_log_summary", None)
+            if isinstance(_call_summary, dict):
+                refl_kwargs["extra"] = {**refl_kwargs.get("extra", {}), "llm_call_log": _call_summary}
             # The configured grid, set by _finalize_experiment just before this
             # runs. Absent on any path that reaches here without finalizing, in
             # which case the coverage block reports "not measured".

@@ -13,6 +13,13 @@ def capture_launch_environment(runner) -> dict:
     model = getattr(getattr(runner, "config", None), "model", None)
     env = collect_run_environment(model, captured_at="launch")
     runner._run_environment_at_launch = env
+    # The clean-tree decision belongs to launch_checks (refuses under --strict-provenance,
+    # records otherwise); the runner must not add a second, different refusal.
+    if not isinstance(getattr(runner, "_clean_tree_check", None), dict):
+        runner._clean_tree_check = {
+            "checked": False, "dirty": None, "dirty_count": None,
+            "allow_dirty_tree": False, "overridden": False,
+            "handled_by": "broker.run launch_checks (--strict-provenance)"}
     return env
 
 

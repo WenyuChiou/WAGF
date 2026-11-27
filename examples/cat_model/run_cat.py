@@ -190,6 +190,9 @@ def main(argv=None) -> int:
     print(f"Catastrophe-model coupling run | model={args.model} years={args.years} pool=${args.pool}")
     print("=" * 64)
     runner.run()
+    # Mandatory run records: exit non-zero when they are incomplete.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
     print(f"\nDone. Audit + traces under: {args.output}")
     return 0
 

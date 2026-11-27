@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every run keeps a complete, checkable record, and no setting turns it off** (`docs/RUN_RECORDS.md`).
+  `ExperimentRunner` always writes `llm_calls.jsonl` (each model call's full prompt and reply, options,
+  token counts, `done_reason`, per-call seed), and the manifest gains UTC start and end times, the machine
+  and Ollama state at launch and at finalize (GPU, CPU, `sys.executable`, `/api/ps` size, GPU share and
+  context length, `cpu_offload`), truncation counts, `model_roles`, `execution_order`, `resolution_policy`
+  (retry limits, what happens when they run out, parse-failure and retry-exhaustion counts and rates),
+  repo-relative config and launch paths, and sha256 for every declared input file
+  (`runner.declare_input_files` or `global_config.provenance.input_files`). A non-mock run on a dirty WAGF
+  tree refuses to start unless `--allow-dirty-tree` is given (recorded). A record that cannot be written
+  stops the run. At finalize the single list in `broker/utils/provenance_requirements.py` is checked and
+  `provenance_complete` / `provenance_missing` and `submission_ready` / `submission_blockers` are written to
+  the manifest and `run_integrity.json`; the paper runners, the other example runners and `python -m
+  broker.run` exit 3 when the records are incomplete. Optional `global_config.llm.sampling_seed: per_call`
+  sends Ollama a stable per-call seed (same for the with-rules and without-rules arms; default off, on in
+  the flood and irrigation executed configs). Both irrigation executed variants set
+  `audit.retry_prompt_columns: true`. Decisions are unchanged (frozen guard: every arm unchanged).
 - **`global_config.governance.intervention_framing: plain` keeps log labels out of the retry text.** The agent
   sees no governance header, no severity tag (`[ERROR]`), no "was BLOCKED", no "violations", no section title,
   no Suggestion line and no `[!NOTE]` tag; each report is one line naming the agent's own choice and the rule's

@@ -354,10 +354,13 @@ class TestF3SummaryWriteIndependentOfManifestWrite:
         # module's dump as the simplest injection point that
         # mimics a write-time disk failure (open succeeded but
         # write didn't).
+        # The manifest is a mandatory record: its write failure stops the run with an error
+        # (provenance_requirements.RunRecordsError) once the rest of finalize has run.
+        from broker.utils.provenance_requirements import RunRecordsError
         with patch(
             "broker.core.experiment_runner.json.dump",
             side_effect=OSError("disk full mid-write"),
-        ):
+        ), pytest.raises(RunRecordsError, match="reproducibility_manifest.json"):
             runner._finalize_experiment(iterations=1)
 
         # save_summary MUST still have been called.

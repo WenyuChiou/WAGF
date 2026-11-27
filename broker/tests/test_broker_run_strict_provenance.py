@@ -188,19 +188,17 @@ def test_failed_manifest_write_is_exit_1_with_the_flag(case, repo, tmp_path, mon
     _failing_manifest_dump(monkeypatch)
     output = tmp_path / "out"
     assert main(_argv(case, output, "--strict-provenance")) == 1
-    assert "--strict-provenance:" in capsys.readouterr().err
-    record = _record(output)
-    assert record["status"] == "provenance_failed"
-    assert record["provenance_checks"]["manifest_write"] == "fail"
+    assert "reproducibility_manifest.json could not be written" in capsys.readouterr().err
+    assert _record(output)["status"] == "records_failed"
 
 
-def test_failed_manifest_write_is_recorded_without_the_flag(case, repo, tmp_path, monkeypatch):
+def test_failed_manifest_write_is_exit_1_without_the_flag_too(case, repo, tmp_path, monkeypatch):
+    # The run records are mandatory: a manifest that cannot be written ends the run with an
+    # error whether or not --strict-provenance is given.
     _failing_manifest_dump(monkeypatch)
     output = tmp_path / "out"
-    assert main(_argv(case, output)) == 0
-    record = _record(output)
-    assert record["status"] == "completed"
-    assert record["provenance_checks"]["manifest_write"] == "fail"
+    assert main(_argv(case, output)) == 1
+    assert _record(output)["status"] == "records_failed"
 
 
 def test_dirty_wagf_source_is_refused_with_clean_cwd(case, repo, tmp_path, monkeypatch, capsys):
@@ -253,8 +251,8 @@ def test_problems_are_printed_without_the_flag(case, repo, tmp_path, capsys):
 
 def test_manifest_problem_is_printed_without_the_flag(case, repo, tmp_path, monkeypatch, capsys):
     _failing_manifest_dump(monkeypatch)
-    assert main(_argv(case, tmp_path / "out")) == 0
-    assert "provenance check: reproducibility_manifest.json" in capsys.readouterr().err
+    assert main(_argv(case, tmp_path / "out")) == 1
+    assert "reproducibility_manifest.json could not be written" in capsys.readouterr().err
 
 
 def test_manifest_problem_survives_an_unreadable_path(tmp_path, monkeypatch):

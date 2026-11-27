@@ -78,6 +78,12 @@ global_config:
   # [Universe Physics] - LLM & System Generation Settings
   llm:
     model: "command-line-override" # NOTE: Overridden by --model in run scripts
+    # Per-call sampling seed (framework option, default off): Ollama gets
+    # options.seed = a stable hash of (run seed, agent id, year, call kind,
+    # attempt). Governance mode is not part of the hash, so the with-rules and
+    # without-rules arms use the same seed at the same agent, year, call kind
+    # and attempt. Each call's seed is written to llm_calls.jsonl.
+    sampling_seed: per_call
     # 2026-10 WRR26 rerun (spec item 37e, "flood sends gemma3:4b's model-file
     # defaults explicitly ... as irrigation does (spec 7.3), so the manifest
     # records them; this is the same effective sampling as WRR26 sending

@@ -26,6 +26,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from broker.utils.llm_call_log import call_context
 from broker.components.cognitive.reflection import (
     ReflectionEngine,
     _memory_text,
@@ -372,13 +373,16 @@ class ReflectionHook:
         resolved = (getattr(self.runner, "_llm_resolved_params", None) or {}).get(agent_type) or {}
         return is_mock_model(resolved.get("model") or self.model)
 
-    def _call(self, agent_type, prompt, year, count):
+    def _call(self, agent_type, prompt, year, count, agent_id=None):
         # The invoke this type's decisions use. Fetched first, even on the mock
         # path, so get_llm_invoke has recorded the model _uses_mock reads.
         invoke = self.runner.get_llm_invoke(agent_type)
         if self._uses_mock(agent_type):
             return f"(mock model) Year {year} reflection over {count} memories."
-        raw = invoke(prompt)
+        # Model-call log (llm_calls.jsonl): which agent and year this reflection belongs to.
+        with call_context(agent_id=agent_id, agent_type=agent_type, year=year,
+                          kind="reflection", attempt=1):
+            raw = invoke(prompt)
         return raw[0] if isinstance(raw, tuple) else raw
 
     def _reflect(self, agent, year):
@@ -401,7 +405,7 @@ class ReflectionHook:
         if self.settings.persona_instruction:
             prompt = f"{self.settings.persona_instruction}\n\n{prompt}"
         try:
-            text = self._call(agent.agent_type, prompt, year, len(memories))
+            text = self._call(agent.agent_type, prompt, year, len(memories), agent_id=agent.id)
         except Exception as exc:  # one agent's failed call must not stop the run
             self.counts["failed_calls"] += 1
             logger.warning("[broker.run] reflection call failed for %s in year %s: %s", agent.id, year, exc)

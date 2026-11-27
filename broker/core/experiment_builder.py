@@ -46,6 +46,13 @@ class ExperimentBuilder:
         # with_resume_journal produces a byte-identical run.
         self._llm_journal_path = None
         self._resume_journal_path = None
+        self._allow_dirty_tree = False
+
+    def with_allow_dirty_tree(self, allow: bool = True) -> "ExperimentBuilder":
+        """Let a non-mock run start on a WAGF tree with uncommitted changes (recorded in the
+        manifest as ``allow_dirty_tree``). Without it ``ExperimentRunner.run`` refuses."""
+        self._allow_dirty_tree = bool(allow)
+        return self
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -701,6 +708,7 @@ class ExperimentBuilder:
             # with_resume_journal was called (see ExperimentConfig docstring).
             llm_journal_path=getattr(self, '_llm_journal_path', None),
             resume_journal_path=getattr(self, '_resume_journal_path', None),
+            allow_dirty_tree=getattr(self, '_allow_dirty_tree', False),
         )
 
         # A projection check saves and restores the process-wide RNG

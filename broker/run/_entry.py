@@ -929,6 +929,10 @@ def _write_run_record(prepared, argv, status, provenance=None):
     (ctx.output_dir / "broker_run.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
+#: Output folder of the last run this process finished (read by ``python -m broker.run``).
+LAST_RUN_OUTPUT = None
+
+
 def main(argv=None) -> int:
     """Run a case.
 
@@ -971,9 +975,21 @@ def main(argv=None) -> int:
           f"agents={len(ctx.agents)} output={ctx.output_dir}", flush=True)
     # Written before the run so a failed run still leaves its record.
     _write_run_record(prepared, argv, "started", provenance())
-    runner.run()
+    from broker.utils.provenance_requirements import RunRecordsError
+    try:
+        runner.run()
+    except RunRecordsError as exc:
+        # A mandatory run record could not be written: the run is not a usable run.
+        print(f"broker.run: {exc}", file=sys.stderr)
+        _write_run_record(prepared, argv, "records_failed", provenance())
+        return 1
     if after_run is not None:
         after_run(ctx.output_dir)
+    # `python -m broker.run` (broker/run/__main__.py) reads this and checks the mandatory run
+    # records of the finished run (broker/utils/provenance_requirements.py), exiting non-zero
+    # when they are incomplete, with or without --strict-provenance.
+    global LAST_RUN_OUTPUT
+    LAST_RUN_OUTPUT = ctx.output_dir
     counts = prepared.reflection_hook.counts if prepared.reflection_hook is not None else {}
     if counts.get("failed_calls") or counts.get("replies_not_stored"):
         print(f"broker.run: reflection: {counts['reflections_stored']} stored, "

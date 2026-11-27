@@ -99,6 +99,12 @@ global_config:
 
   llm:
     model: "command-line-override"
+    # Per-call sampling seed (framework option, default off): Ollama gets
+    # options.seed = a stable hash of (run seed, agent id, year, call kind,
+    # attempt). Governance mode is not part of the hash, so the with-rules and
+    # without-rules arms use the same seed at the same agent, year, call kind
+    # and attempt. Each call's seed is written to llm_calls.jsonl.
+    sampling_seed: per_call
     # Spec 7.3 (v3 launch): these three were previously UNSET here, so every
     # call silently took Ollama's own gemma3:4b modelfile defaults. The
     # matching numbers in broker/tests/test_manifest_llm_params.py's
@@ -230,6 +236,13 @@ global_config:
   # appraisal_drift, appraisal_drifted) in the governance audit CSV
   # (framework default off).
   audit:
+    # Retry-prompt provenance: persist the actual retry-prompt text in the raw
+    # JSONL trace so a reviewer can see what the agent was told on a retry (the
+    # trace otherwise records only the FIRST prompt). Generic framework option
+    # (global_config.audit.retry_prompt_columns), default false; the key never
+    # reaches the audit CSV (trace_to_csv_row copies named keys only), so only
+    # raw/*.jsonl grows. The flood case sets it too.
+    retry_prompt_columns: true
     initial_proposal_columns: true
     # Spec item 24 fix round 3 (CRITICAL 2, PI decision): the audit schema
     # must not depend on whether a given run happened to hit a parse

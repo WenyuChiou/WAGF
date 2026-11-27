@@ -65,6 +65,7 @@ from broker.components.memory.engine import WindowMemoryEngine, ImportanceMemory
 from broker.interfaces.skill_types import ExecutionResult, SkillOutcome
 # from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
+from broker.utils.llm_call_log import call_context
 from broker.utils.agent_config import GovernanceAuditor
 from broker.utils.logging import logger
 
@@ -988,7 +989,9 @@ class FinalParityHook:
                         )
 
                     try:
-                        raw_res = llm_call(prompt)
+                        with call_context(agent_ids=batch_ids, agent_type="household", year=year,
+                                          kind="reflection", attempt=1):
+                            raw_res = llm_call(prompt)
                         response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
 
                         insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
@@ -1465,7 +1468,62 @@ def _preflight_flood_output(output_dir: Path) -> None:
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None):
+def _flood_inputs_block(*, profile_source: str, profile_path, flood_years_path, flood_years_scheduled,
+                        flood_mode: str, seed, years: int, n_agents: int) -> dict:
+    """The ``flood_inputs`` manifest block: the flood schedule actually used and the run size.
+
+    The profile and flood-year files themselves are declared to the runner
+    (``declare_input_files``) and hashed into the generic manifest ``input_files``.
+
+    ``flood_years_used`` is the list of years that held a flood in this run: the schedule
+    for ``fixed`` mode, the keyed per-year draw for ``prob`` mode (the same draw
+    ``ResearchSimulation.advance_year`` makes).
+    """
+    if flood_mode == "prob":
+        used = [y for y in range(1, years + 1)
+                if _flood_random_stream(seed, y, "flood_event").random() < FLOOD_PROBABILITY]
+    else:
+        scheduled = set(flood_years_scheduled)
+        used = [y for y in range(1, years + 1) if y in scheduled]
+    return {
+        "profile_source": profile_source,
+        "flood_years_scheduled": list(flood_years_scheduled),
+        "flood_years_used": used,
+        "flood_mode": flood_mode,
+        "n_agents": n_agents,
+        "n_years": years,
+    }
+
+
+def _record_flood_inputs_provenance(output_dir: Path, flood_inputs: dict) -> bool:
+    """Add the ``flood_inputs`` block to the manifest ``ExperimentRunner`` wrote.
+
+    Returns True when the block is on disk. False (no manifest, or a failed read or write)
+    makes ``run_parity_benchmark`` stop with ``RunRecordsError`` once the run itself has ended
+    normally; a run already stopping on another error keeps that error.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if not manifest_path.exists():
+            print("[Provenance] ERROR: no reproducibility_manifest.json to record flood_inputs in")
+            return False
+        with manifest_path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        manifest["flood_inputs"] = flood_inputs
+        with manifest_path.open("w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        return True
+    except Exception as e:
+        print("[Provenance] ERROR: could not record flood_inputs in "
+              f"reproducibility_manifest.json: {e}")
+        return False
+
+
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None, allow_dirty_tree: bool = False):
+    # A real-model run needs a clean WAGF tree so the manifest names the code that ran;
+    # mock runs are exempt. --allow-dirty-tree overrides and is recorded in the manifest.
+    from broker.utils.run_environment import require_clean_wagf_tree
+    tree_check = require_clean_wagf_tree(model, allow_dirty_tree)
     if custom_output:
         output_dir = Path(custom_output)
         if not output_dir.is_absolute():
@@ -1579,12 +1637,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                 f"Survey file not found: {survey_path}\n"
                 "Survey mode requires 'initial_household data.xlsx' in examples/multi_agent/input/"
             )
+        profile_input_path = survey_path
         agents = load_agents_from_survey(survey_path, max_agents=agents_count, seed=seed or 42)
         print(f"[Survey Mode] Initialized {len(agents)} agents from real survey data")
     else:
         # Legacy CSV-based initialization
         from broker import load_agents_from_csv
         profiles_path = Path(initial_agents_path) if initial_agents_path else base_path / "agent_initial_profiles.csv"
+        profile_input_path = profiles_path
         agents = load_agents_from_csv(str(profiles_path), {
             "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
             "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
@@ -1659,6 +1719,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         print(f" [StressTest] ST-1 Panic Override: Forced flood years {flood_years}")
     
     print(f" Flood Years scheduled: {flood_years}")
+    flood_inputs = _flood_inputs_block(
+        profile_source="survey" if survey_mode else "csv",
+        profile_path=profile_input_path, flood_years_path=base_path / "flood_years.csv",
+        flood_years_scheduled=flood_years, flood_mode=flood_mode, seed=seed,
+        years=years, n_agents=len(agents))
 
     # 4. Setup Components
     # `globals().get('args')`, not the bare name `args`: this function is
@@ -1941,6 +2006,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
     
     runner = builder.build()
+    runner._clean_tree_check = tree_check
+    runner.declare_input_files({"agent_profiles": profile_input_path,
+                                "flood_years": base_path / "flood_years.csv"})
 
     
     # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory, or for
@@ -2011,10 +2079,16 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # The manifest is written in ExperimentRunner.run's own finally block,
     # so the provenance (random_streams marker included) is added in a
     # finally here too: an aborted run must still say which draw scheme it used.
+    flood_inputs_recorded = False
     try:
         runner.run(llm_invoke=create_llm_invoke(model, verbose=False))
     finally:
         _record_flood_memory_options_provenance(output_dir, runner.memory_engine)
+        flood_inputs_recorded = _record_flood_inputs_provenance(output_dir, flood_inputs)
+    if not flood_inputs_recorded:
+        # The flood schedule and run size are part of the mandatory records for this case.
+        from broker.utils.provenance_requirements import RunRecordsError
+        raise RunRecordsError("flood_inputs could not be added to reproducibility_manifest.json")
 
     # Finalize Audit (Generates CSVs and Summary)
     if runner.broker.audit_writer:
@@ -2067,9 +2141,13 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         sentinel_write_failures=(
             _sf if isinstance(_sf := getattr(
                 runner.broker, "_audit_sentinel_write_failures", 0), int) else 0),
+        # Same truncation counts the runner's own run_integrity call carries; this call
+        # rewrites the file, so it has to pass them again.
+        extra=({**({"llm_call_log": _cl}
+                   if isinstance(_cl := getattr(runner, "_llm_call_log_summary", None), dict) else {}),
+                **(getattr(runner, "_provenance_fields", None) or {})} or None),
         **_expectation,
     )
-
     # 6. Save Simulation Log (Parity with baseline simulation_log.csv)
     # We must ensure every agent is represented in every year for the stacked plot
     final_logs = []
@@ -2107,6 +2185,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 8. Print Governance Summary
     auditor = GovernanceAuditor()
     auditor.print_summary()
+    return output_dir
+
 
 if __name__ == "__main__":
     import argparse
@@ -2170,6 +2250,10 @@ if __name__ == "__main__":
     parser.add_argument("--default-skill", type=str, default=None,
                         help="Override default fallback skill (e.g., buy_insurance). "
                              "Default: from skill_registry.yaml (do_nothing)")
+    parser.add_argument("--allow-dirty-tree", action="store_true",
+                        help="Run a non-mock model although the WAGF source tree has uncommitted "
+                             "changes. Without it such a run is refused; the manifest records the "
+                             "flag. Mock runs are never checked.")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -2193,7 +2277,7 @@ if __name__ == "__main__":
     actual_seed = args.seed if args.seed is not None else random.SystemRandom().randint(0, 1000000)
     random.seed(actual_seed)
     
-    run_parity_benchmark(
+    finished_output = run_parity_benchmark(
         config_root=args.config_root,
         model=args.model,
         years=args.years,
@@ -2214,5 +2298,10 @@ if __name__ == "__main__":
         initial_agents_path=args.initial_agents,
         shuffle_skills=args.shuffle_skills,
         default_skill=args.default_skill,
-        retry_feedback_mode=args.retry_feedback_mode
+        retry_feedback_mode=args.retry_feedback_mode,
+        allow_dirty_tree=args.allow_dirty_tree,
     )
+    # Mandatory run records: exit non-zero when they are incomplete (broker/utils/
+    # provenance_requirements.py). Checked on disk, after both rewrites of the two files.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(finished_output)

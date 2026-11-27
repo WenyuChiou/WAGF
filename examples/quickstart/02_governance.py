@@ -138,5 +138,8 @@ print("=" * 40)
 print("Watch: Year 1 approves take_action. Year 2+ blocks it (already protected).")
 print()
 runner.run()
+# Mandatory run records: exit non-zero when they are incomplete.
+from broker.utils.provenance_requirements import enforce_complete
+enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
 print(f"\nTotal LLM calls: {call_count} (includes retries after governance blocks)")
 print("Done! The governance system prevented redundant protection.")

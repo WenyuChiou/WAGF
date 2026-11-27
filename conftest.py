@@ -343,6 +343,29 @@ def _install_guard() -> None:
         _hook_installed = True
 
 
+@pytest.fixture(autouse=True)
+def _tests_do_not_depend_on_the_working_tree(monkeypatch):
+    """A test run must not pass or fail by whether the developer has uncommitted changes.
+
+    ``ExperimentRunner`` refuses a non-mock run on a dirty WAGF tree (broker/utils/
+    run_environment.py:require_clean_wagf_tree). Tests that run the runner with a stubbed
+    non-mock model name read the repository's own git state, so report that state as clean here.
+    Only the call without a path is changed; a test that patches ``wagf_source_git`` itself, or
+    asks about another folder, gets exactly what it asked for.
+    """
+    from broker.utils import run_environment as renv
+
+    real = renv.wagf_source_git
+
+    def clean_for_the_repo_itself(root=None, *args, **kwargs):
+        result = real(root, *args, **kwargs)
+        if root is None and isinstance(result, dict) and result.get("dirty"):
+            return {**result, "dirty": False, "dirty_count": 0}
+        return result
+
+    monkeypatch.setattr(renv, "wagf_source_git", clean_for_the_repo_itself)
+
+
 def pytest_configure(config):
     global _session_active, _original_ollama_host, _ollama_host_forced
 
