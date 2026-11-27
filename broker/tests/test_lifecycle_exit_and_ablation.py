@@ -386,3 +386,33 @@ def test_broker_run_zero_count_population_scoping_and_early_exit_integrity(tmp_p
     assert integrity["inactive_agents_final"] == ["participant_1", "participant_2"]
     assert integrity["reflection_eligible_turns"] == 0
     assert integrity["integrity_ok"] is True
+
+
+def test_empty_memory_retrieval_with_due_active_agent_still_fails_reflection_integrity(
+    tmp_path,
+):
+    from broker.components.memory.engine import WindowMemoryEngine
+    from broker.core.run_integrity import record_run_integrity
+    from broker.run._memory import ReflectionHook, ReflectionSettings
+
+    cfg = SimpleNamespace(get_reflection_questions=lambda _t: [])
+    hook = ReflectionHook(
+        ReflectionSettings(enabled=True, interval=1),
+        cfg,
+        WindowMemoryEngine(window_size=3),
+        "mock",
+        tmp_path,
+    )
+    active_agent = SimpleNamespace(id="a1", agent_type="participant", is_active=True)
+    # Active & due in year 1, but memory engine is empty -> eligible_turns=1, stored=0 -> mismatch
+    hook(1, {"a1": active_agent})
+    assert hook.eligible_turns == 1
+    assert hook.counts["reflections_stored"] == 0
+    audit = record_run_integrity(
+        tmp_path,
+        reflection_enabled=True,
+        reflection_eligible_turns=hook.eligible_turns,
+        verbose=False,
+    )
+    assert audit["reflection_eligible_turns"] == 1
+    assert audit["integrity_ok"] is False

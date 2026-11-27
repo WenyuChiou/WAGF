@@ -382,6 +382,10 @@ class ReflectionHook:
         return raw[0] if isinstance(raw, tuple) else raw
 
     def _reflect(self, agent, year):
+        # Count active, due turns BEFORE checking retrieved memories so a
+        # missing memory-write pipeline (empty retrieval) still surfaces as
+        # integrity_ok=False (Invariant 6) rather than an early-exit waiver.
+        self.eligible_turns += 1
         # Invariant 7: a reflection reads world, decision, seed and social
         # lines only. The engines return text, so the origin cannot be read
         # here; the write gate instead refuses a reflection-origin line that
@@ -389,7 +393,6 @@ class ReflectionHook:
         memories = self._memories(agent)
         if not memories:
             return
-        self.eligible_turns += 1
         context = ReflectionEngine.extract_agent_context(agent, year)
         prompt = self.engine.generate_personalized_reflection_prompt(
             context, memories, year,

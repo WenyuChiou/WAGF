@@ -13,7 +13,7 @@ import sys
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Iterable, List, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
 from broker.utils.logging import setup_logger
