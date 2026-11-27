@@ -54,16 +54,20 @@ RECORD_HEADING = (
     "do not restate it)"
 )
 LESSON_ONLY_INSTRUCTION = (
-    "In the JSON value, write only the lesson: one or two sentences in the first person. "
-    "Do not write any year, amount, percentage or other number; the record "
-    "above is stored with your lesson."
+    "Write only the lesson: one or two sentences in the first person. "
+    "Do not write any year, amount, percentage or other number; what "
+    "happened this year is stored with your lesson."
+)
+
+#: Heading of the program-written record in the one-agent reflection prompt.
+ONE_AGENT_RECORD_HEADING = (
+    "What happened this year (kept with your lesson; do not repeat it):"
 )
 
 #: Shown once, after the original prompt, when a lesson failed a check (45e).
 REFLECTION_RETRY_NOTE = (
-    "### Correction\n"
-    "Your previous answer could not be stored because {reasons}. "
-    "Answer again, following every instruction above."
+    "Your previous lesson cannot be used: {reasons}. "
+    "Please answer again, taking the instructions above into account."
 )
 
 # A four-digit calendar year (1800-2199) not inside a longer number.
@@ -208,6 +212,21 @@ def _per_agent_lines(value: Any, agent_id: str, n_agents: int, name: str) -> Lis
             )
         return [str(v) for v in value]
     raise TypeError(f"generate_batch_reflection_prompt: {name} must be a list or a mapping, got {type(value).__name__}.")
+
+
+def first_sentence(text: str, *, what: str = "persona") -> str:
+    """The first sentence of ``text`` (up to the first ``.``, ``!`` or ``?``
+    followed by a space or the end), whitespace collapsed. Raises when
+    ``text`` is empty: a prompt never falls back to a generic identity.
+
+    Limit: an abbreviation with a period ("St. Louis", "Dr. Lee") ends the
+    sentence early. No shipped persona has one; a domain whose persona does
+    must pass its identity sentence explicitly."""
+    flat = " ".join(str(text or "").split())
+    if not flat:
+        raise ValueError(f"first_sentence: the {what} text is empty.")
+    m = re.match(r".*?[.!?](?=\s|$)", flat)
+    return m.group(0) if m else flat
 
 
 @dataclass
@@ -1129,6 +1148,66 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
         return "\n".join(lines)
     
+    def generate_reflection_prompt_one_agent(
+        self,
+        identity: str,
+        memories: Sequence[Any],
+        period: Any,
+        *,
+        questions: Optional[Sequence[str]] = None,
+        persona_instruction: Optional[str] = None,
+        record_lines: Optional[Sequence[str]] = None,
+        rule_lines: Optional[Sequence[str]] = None,
+        year_lines: bool = True,
+    ) -> str:
+        """The year-end reflection prompt for one agent (the single layout of
+        single-agent flood and irrigation).
+
+        ``identity`` is the first sentence of the agent's decision-prompt
+        persona (use ``first_sentence``); it is the only place an agent id
+        may appear. ``memories`` are the lines the agent looks back on
+        (oldest first when ``year_lines`` and each carries a ``"year"``);
+        with none, no reflection is asked and "" is returned.
+        ``record_lines`` are the program-written lines stored with the
+        lesson, ``rule_lines`` the rules that apply to the agent. The model
+        answers ``{"lesson": "..."}``."""
+        identity = " ".join(str(identity or "").split())
+        if not identity:
+            raise ValueError("generate_reflection_prompt_one_agent: the identity sentence is empty.")
+        if not memories:
+            return ""
+        out = [identity, f"It is the end of {period}. Look back on your recent years and say what you learned."]
+        qs = [str(q) for q in (questions or []) if str(q).strip()]
+        if len(qs) == 1:
+            out.append(f"Question: {qs[0]}")
+        elif qs:
+            out.append("Questions:")
+            out.extend(f"- {q}" for q in qs)
+        out.append("")
+        out.append("Your recent years:")
+        ordered = order_by_year(memories) if year_lines else list(memories)
+        out.extend(f"- {_memory_text(m)}" for m in ordered)
+        record = [str(r) for r in (record_lines or []) if str(r).strip()]
+        if record:
+            out.append("")
+            out.append(ONE_AGENT_RECORD_HEADING)
+            out.extend(f"- {r}" for r in record)
+        rules = [str(r) for r in (rule_lines or []) if str(r).strip()]
+        if rules:
+            out.append("")
+            out.append("Rules that apply to you:")
+            out.extend(f"- {r}" for r in rules)
+        out.append("")
+        if persona_instruction:
+            out.append(str(persona_instruction))
+        if record:
+            out.append(LESSON_ONLY_INSTRUCTION)
+        elif not persona_instruction:
+            out.append("Write one or two sentences in the first person.")
+        out.append("")
+        out.append('Answer with this JSON object only: {"lesson": "<your lesson>"}')
+        return "\n".join(out)
+
     def parse_batch_reflection_response(
         self,
         raw_response: str,

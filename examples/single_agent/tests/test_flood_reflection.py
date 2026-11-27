@@ -388,6 +388,7 @@ def _reflection_harness(tmp_path, monkeypatch, records, *, store=False, memory=N
     agent = SimpleNamespace(
         id="A", relocated=False, elevated=False, has_insurance=False,
         flood_history=[False] * max(records),
+        narrative_persona="You are a homeowner with a mortgage. You live alone.",
     )
     agent._flood_year_record = records
     if memory is None:
@@ -397,11 +398,12 @@ def _reflection_harness(tmp_path, monkeypatch, records, *, store=False, memory=N
     captured = {"calls": []}
 
     class _ReflectionEngine:
-        def generate_batch_reflection_prompt(self, candidates, year, **kwargs):
+        def generate_reflection_prompt_one_agent(self, identity, memories, year, **kwargs):
             captured["calls"].append({
                 "year": year,
-                "candidates": candidates,
-                "facts": kwargs["fact_lines"],
+                "identity": identity,
+                "candidates": [{"memories": memories}],
+                "facts": kwargs["record_lines"],
             })
             return "prompt"
 
@@ -486,6 +488,8 @@ def test_grounded_reflection_carries_year_4_damage_to_year_6_from_true_record(
     _reflect(hook, 6)
 
     call = captured["calls"][-1]
+    # the identity sentence is the first sentence of the persona the decision prompt shows
+    assert call["identity"] == "You are a homeowner with a mortgage."
     assert [item["year"] for item in call["candidates"][0]["memories"]] == [4, 5, 6]
     carried_input = call["candidates"][0]["memories"][0]["content"]
     assert carried_input == fact_line(FloodYear(

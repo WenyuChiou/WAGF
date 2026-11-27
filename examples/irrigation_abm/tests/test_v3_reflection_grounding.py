@@ -398,11 +398,11 @@ class _ReflectingLLM(ScriptedLLM):
         self.reflection_calls: List[Dict[str, Any]] = []
 
     def __call__(self, prompt: str):
-        if "You are a Reflection Assistant" not in prompt:
+        if 'Answer with this JSON object only: {"lesson"' not in prompt:
             return super().__call__(prompt)
-        aid = re.search(r"^(.+?) Memories:", prompt, flags=re.M).group(1)
-        year = int(re.search(r"\(Year (\d{4})\)", prompt).group(1))
-        retry = "### Correction" in prompt
+        aid = re.match(r"You are (\S+?),", prompt).group(1)
+        year = int(re.search(r"It is the end of (\d{4})\.", prompt).group(1))
+        retry = "Your previous lesson cannot be used" in prompt
         with self._lock:
             self.reflection_calls.append({"agent": aid, "year": year, "retry": retry, "prompt": prompt})
         if aid == "Agent_000":
@@ -411,7 +411,7 @@ class _ReflectingLLM(ScriptedLLM):
             lesson = "Asking for 5 percent more was too much."
         else:
             lesson = self.CLEAN
-        return json.dumps({aid: lesson}), LLMStats(retries=0, success=True)
+        return json.dumps({"lesson": lesson}), LLMStats(retries=0, success=True)
 
 
 @pytest.fixture(scope="module")
@@ -461,11 +461,12 @@ def test_year_end_reflection_sees_the_years_own_outcome_line(reflecting_run):
 def test_reflection_prompt_carries_record_rules_and_the_lesson_only_line(reflecting_run):
     c = next(c for c in reflecting_run.llm.reflection_calls if c["agent"] == "Agent_001" and c["year"] == 2021)
     p = c["prompt"]
-    assert "Rules that apply to Agent_001:" in p
-    assert "### Record (written by the simulation and stored with your lesson; do not restate it)" in p
-    assert "Agent_001 Record:\n- 2021: " in p
-    assert p.endswith("Do not write any year, amount, percentage or other number; the record above is "
-                      "stored with your lesson.")
+    assert p.startswith("You are Agent_001, an agricultural water user")
+    assert "\nRules that apply to you:\n- " in p
+    assert "\nWhat happened this year (kept with your lesson; do not repeat it):\n- 2021: " in p
+    assert p.endswith("Do not write any year, amount, percentage or other number; what happened this year "
+                      "is stored with your lesson.\n\nAnswer with this JSON object only: "
+                      '{"lesson": "<your lesson>"}')
     assert "average" in p and "Lesson Learned" not in p  # item 45d: "never call ... above or below average"
 
 
@@ -473,7 +474,7 @@ def test_lessons_are_checked_retried_once_and_counted(reflecting_run):
     llm, out = reflecting_run.llm, reflecting_run.out
     retries = [c for c in llm.reflection_calls if c["retry"]]
     assert {c["agent"] for c in retries} == {"Agent_000", "Agent_002"}
-    assert all("Your previous answer could not be stored because it names a year" in c["prompt"]
+    assert all("Your previous lesson cannot be used: it names a year" in c["prompt"]
                for c in retries if c["agent"] == "Agent_000")
     # the stored line: program facts, then the lesson; Agent_002 stores none
     for agent, stored in (("Agent_000", True), ("Agent_001", True), ("Agent_002", False)):
@@ -506,20 +507,20 @@ def test_dropped_reflection_keeps_previous_reflection_in_next_decision_prompt(
         tmp_path, monkeypatch, drop_reason):
     class CarryForwardLLM(_ReflectingLLM):
         def __call__(self, prompt: str):
-            if "You are a Reflection Assistant" not in prompt:
+            if 'Answer with this JSON object only: {"lesson"' not in prompt:
                 return super().__call__(prompt)
-            year = int(re.search(r"\(Year (\d{4})\)", prompt).group(1))
+            year = int(re.search(r"It is the end of (\d{4})\.", prompt).group(1))
             if year != 2020:
                 return super().__call__(prompt)
             with self._lock:
                 self.reflection_calls.append({
                     "agent": "Agent_000", "year": year,
-                    "retry": "### Correction" in prompt, "prompt": prompt,
+                    "retry": "Your previous lesson cannot be used" in prompt, "prompt": prompt,
                 })
             if drop_reason == "no_reply":
                 return None
             lesson = "Trigger checker failure." if drop_reason == "checker_error" else "Asking for 5 percent more."
-            return json.dumps({"Agent_000": lesson}), LLMStats(retries=0, success=True)
+            return json.dumps({"lesson": lesson}), LLMStats(retries=0, success=True)
 
     if drop_reason == "checker_error":
         original_check = check_lesson
@@ -595,3 +596,19 @@ def test_grounded_startup_requires_subbasin_before_profile_setup(tmp_path, monke
     else:
         with pytest.raises(RuntimeError, match="profile setup reached"):
             runner.main()
+
+
+def test_reflection_prompt_uses_the_one_agent_layout_without_simulation_words(reflecting_run):
+    """Every year-end reflection prompt of the run: the identity sentence first
+    (as the decision prompt shows it), then the year, the recent years, the
+    answer line; none of the retired layout's words."""
+    for c in reflecting_run.llm.reflection_calls:
+        p = c["prompt"]
+        agent = c["agent"]
+        assert p.startswith(f"You are {agent}, an agricultural water user")
+        assert f"\nIt is the end of {c['year']}. Look back on your recent years and say what you learned.\n" in p
+        assert "\nQuestion: " in p and "\nYour recent years:\n- Year " in p
+        assert '\nAnswer with this JSON object only: {"lesson": "<your lesson>"}' in p
+        body = p.split("\n", 1)[1]
+        for word in ("simulation", "Reflection Assistant", "agent", "Agent IDs", "Task Data", "###", agent):
+            assert word not in body, (agent, c["year"], word)

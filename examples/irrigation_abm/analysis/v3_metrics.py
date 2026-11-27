@@ -3839,7 +3839,7 @@ class PromptChecker:
                             stored.add((str(row["agent_id"]), int(row["period"])))
         prompts_path = self.run.info.path / "reflection_prompts.jsonl"
         if stored and prompts_path.is_file():
-            from broker.components.cognitive.reflection import RECORD_HEADING
+            from broker.components.cognitive.reflection import ONE_AGENT_RECORD_HEADING, RECORD_HEADING
 
             seen = set()
             with open(prompts_path, encoding="utf-8") as stream:
@@ -3855,7 +3855,16 @@ class PromptChecker:
                     t = calendar_year - self.run.sim.sim_start_year + 1
                     prompt = str(row.get("prompt") or "")
                     marker = RECORD_HEADING + "\n"
-                    record = prompt.split(marker, 1)[1].split("\n### Output Requirement", 1)[0] if marker in prompt else ""
+                    # The one-agent layout ends the record at the next blank
+                    # line; the retired layout (runs before v0.8) at its
+                    # "### Output Requirement" heading.
+                    one_agent_marker = ONE_AGENT_RECORD_HEADING + "\n"
+                    if one_agent_marker in prompt:
+                        record = prompt.split(one_agent_marker, 1)[1].split("\n\n", 1)[0]
+                    elif marker in prompt:
+                        record = prompt.split(marker, 1)[1].split("\n### Output Requirement", 1)[0]
+                    else:
+                        record = ""
                     fact_texts = [line[2:] for line in record.splitlines() if line.startswith("- ")]
                     if not fact_texts:
                         out.mismatches.append(

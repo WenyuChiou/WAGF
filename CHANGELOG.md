@@ -42,6 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   updated on purpose: flood strict (new retry text, so the prompt-hash mock answers retries differently from
   year 2 on), flood silent (logged reason text only, decisions unchanged) and irrigation strict (logged reason
   text and two retry labels in year 2, decisions unchanged).
+- **One year-end reflection prompt for single-agent flood and irrigation** (`ReflectionEngine.generate_reflection_prompt_one_agent`).
+  It opens with the first sentence of the household's or farmer's decision-prompt persona, then "It is the
+  end of <year>. Look back on your recent years and say what you learned.", the question, "Your recent
+  years:", the program-written lines ("What happened this year (kept with your lesson; do not repeat it):"),
+  the rules, the configured instruction, and asks for `{"lesson": "..."}`. The words "simulation", "agent"
+  and "Reflection Assistant" and the `###` headings are gone from it. The correction note after a failed lesson
+  check now reads "Your previous lesson cannot be used: <reasons>. Please answer again, taking the
+  instructions above into account." Runs made before this change are reproduced from tag v0.7.0.
+  `generate_batch_reflection_prompt` is unchanged and still serves the multi-agent flood batches, the
+  ungrounded paths and `examples/governed_flood`. Frozen fixtures for flood and irrigation change because the
+  reflection prompts do.
 
 ## [0.7.0] - 2026-11-26
 

@@ -80,6 +80,7 @@ from broker.components.cognitive.reflection import (
     compose_lesson_with_facts,
     record_reflection_checks,
     run_checked_reflection,
+    first_sentence,
     store_reflection_memory,
 )
 from examples.single_agent.flood_reflection import (
@@ -1115,13 +1116,19 @@ class FinalParityHook:
                 by_year = {fy.year: fy for fy in listed}
                 facts = [flood_fact_line(by_year[y])
                          for y in flood_key_years(listed, max(by_year))]
-            prompt = engine.generate_batch_reflection_prompt(
-                [{"agent_id": agent_id, "memories": items}],
-                year,
-                reflection_questions=refl_cfg.get("questions", []),
+            # The identity sentence is the first sentence of the persona the
+            # decision prompt shows for this household (no generic fallback).
+            persona = getattr(agent, "narrative_persona", "") or (
+                getattr(agent, "custom_attributes", None) or {}).get("narrative_persona", "")
+            prompt = engine.generate_reflection_prompt_one_agent(
+                first_sentence(persona, what=f"{agent_id} persona"),
+                items,
+                # Flood counts simulation years ("Year 3" in its memory lines), not calendar years.
+                f"year {year}",
+                questions=refl_cfg.get("questions", []),
                 persona_instruction=refl_cfg.get("persona_instruction"),
+                record_lines=facts,
                 year_lines=grounding["year_lines"],
-                fact_lines=facts,
             )
             result = run_checked_reflection(
                 engine,

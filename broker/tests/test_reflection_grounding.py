@@ -367,7 +367,7 @@ def test_run_checked_reflection_outcomes(tmp_path, replies, outcome, calls, stor
         assert result.insight.year_created == 13
     if calls == 2:
         # the one retry: the original prompt, then the reasons
-        assert model.prompts[1].startswith("PROMPT\n\n### Correction\nYour previous answer could not be stored because ")
+        assert model.prompts[1].startswith("PROMPT\n\nYour previous lesson cannot be used: ")
         assert result.first_problems and all(p.message in model.prompts[1] for p in result.first_problems)
     # the raw reply of every reflection not stored at once is logged, one line per attempt
     rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
@@ -383,7 +383,8 @@ def test_retry_note_names_every_reason_and_retries_can_be_zero():
     assert result.outcome == "dropped" and result.calls == 1
     assert [p.code for p in result.final_problems] == ["year"]
     note = REFLECTION_RETRY_NOTE.format(reasons="a; b")
-    assert note.startswith("### Correction") and "a; b" in note
+    assert note == ("Your previous lesson cannot be used: a; b. "
+                    "Please answer again, taking the instructions above into account.")
     with pytest.raises(ValueError):
         run_checked_reflection(ReflectionEngine(), prompt="P", agent_id="A", period=1, llm_call=model, retries=-1)
 
@@ -395,8 +396,9 @@ def test_numbers_pass_when_the_option_is_off():
     assert result.outcome == "stored"
 
 
-def test_json_value_instruction_keeps_json_wrapper():
-    assert LESSON_ONLY_INSTRUCTION.startswith("In the JSON value, write only the lesson")
+def test_lesson_only_instruction_does_not_point_at_a_record_above():
+    assert LESSON_ONLY_INSTRUCTION.startswith("Write only the lesson")
+    assert "record above" not in LESSON_ONLY_INSTRUCTION
 
 
 def test_single_agent_plain_text_is_checked_and_multi_agent_is_not_guessed():

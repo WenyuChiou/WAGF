@@ -35,21 +35,15 @@ def _smart_mock_invoke(prompt: str):
     """Deterministic stand-in for both LLM call sites this run makes:
     the per-year household decision call (numbered-option JSON, the
     framework's standard domain-agnostic mock) and the batch reflection
-    call (JSON keyed by agent id, matching ReflectionEngine's Stage-1
-    parser), distinguished by the reflection prompt's fixed opening line
-    ("You are a Reflection Assistant", ``broker/components/cognitive/
-    reflection.py (ReflectionEngine.generate_batch_reflection_prompt)``),
-    which never appears in the decision prompt (the persona instruction no
+    call (``{"lesson": ...}``), distinguished by the reflection prompt's
+    fixed last line ("Answer with this JSON object only: {"lesson" ...",
+    ``broker/components/cognitive/reflection.py
+    (ReflectionEngine.generate_reflection_prompt_one_agent)``), which never appears in the decision prompt (the persona instruction no
     longer says "Lesson Learned" since irrigation spec item 45d).
     """
     stats = LLMStats(retries=0, success=True)
-    if "You are a Reflection Assistant" in prompt:
-        ids = sorted(set(re.findall(r"Agent_\d+", prompt)))
-        payload = {
-            aid: "I learned to manage water demand carefully after last year."
-            for aid in ids
-        }
-        return json.dumps(payload), stats
+    if 'Answer with this JSON object only: {"lesson"' in prompt:
+        return json.dumps({"lesson": "I learned to manage water demand carefully after last year."}), stats
     options = re.findall(r"(\d+)\.\s+\w+", prompt)
     decision_id = int(options[0]) if options else 1
     return json.dumps({"decision": decision_id}), stats

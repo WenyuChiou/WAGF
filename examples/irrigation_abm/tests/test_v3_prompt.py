@@ -120,11 +120,10 @@ class ScriptedLLM:
 
     def __call__(self, prompt: str):
         stats = LLMStats(retries=0, success=True)
-        if "You are a Reflection Assistant" in prompt:
+        if 'Answer with this JSON object only: {"lesson"' in prompt:
             with self._lock:
                 self.reflections.append(prompt)
-            ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
-            return json.dumps({aid: self.LESSON for aid in ids}), stats
+            return json.dumps({"lesson": self.LESSON}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
         year = int(re.search(r"It is now the year (\d{4})", prompt).group(1))
         with self._lock:
@@ -1014,9 +1013,9 @@ def test_reflection_input_excludes_reflections_and_is_one_agent(golden_run):
     # 45 none ran at the end of 2019, when no line was in memory yet).
     assert len(reflections) == 78 * 15
     for prompt in reflections:
-        assert re.search(r"for 1 agent in a simulation \(Year 20\d\d\)\.", prompt), prompt[:200]
+        assert re.search(r"\nIt is the end of 20\d\d\. Look back on your recent years", prompt), prompt[:300]
         assert "Consolidated Reflection" not in prompt
-        assert len(re.findall(r"^.+? Memories:", prompt, flags=re.M)) == 1
+        assert len(re.findall(r"^Your recent years:$", prompt, flags=re.M)) == 1
     # Spec item 45d: one lesson question; the questions that asked the model
     # to restate facts are gone.
     assert "What does your record teach you about choosing your request next year?" in reflections[0]
@@ -1121,13 +1120,13 @@ def test_reflection_record_names_the_year_just_ended_and_the_worst_year(golden_r
     """Item 46: MohaveValleyIDD has no tier shortfall through 2021, so its
     reflection record contains only the year just ended."""
     prompt = next(p for p in golden_run.llm.reflections
-                  if "MohaveValleyIDD Memories:" in p and "(Year 2021)" in p)
+                  if p.startswith("You are MohaveValleyIDD,") and "It is the end of 2021." in p)
     listed = re.findall(r"^- Year (\d{4}): ", prompt, flags=re.M)
     assert listed == ["2019", "2020", "2021"]
-    record = prompt[prompt.index("MohaveValleyIDD Record:"):prompt.index("### Output Requirement")]
+    record = prompt[prompt.index("What happened this year"):prompt.index("Rules that apply to you:")]
     assert re.findall(r"^- (\d{4}): ", record, flags=re.M) == ["2021"]
     assert "(fully met)" in record and "% unmet" not in record
-    assert "Rules that apply to MohaveValleyIDD:" in prompt
+    assert "Rules that apply to you:" in prompt
     assert "Above the tier ceiling, a larger request adds no deliverable water." in prompt
 
 
@@ -1154,7 +1153,7 @@ def test_cibola_tier2_to_tier0_prompts_keep_the_junior_rule_conditional(golden_r
     tier0 = _first_prompt(golden_run, "CibolaValleyIDD", 2029)
     reflection = next(
         prompt for prompt in golden_run.llm.reflections
-        if "CibolaValleyIDD Memories:" in prompt and "(Year 2029)" in prompt
+        if prompt.startswith("You are CibolaValleyIDD,") and "It is the end of 2029." in prompt
     )
 
     assert "A Tier 2 Lower Basin shortage applies this year" in tier2
@@ -1280,8 +1279,8 @@ def test_every_tier0_decision_and_reflection_avoids_a_current_tier_claim(golden_
         "to a fixed share of your entitlement"
     )
     for prompt in golden_run.llm.reflections:
-        year_match = re.search(r"\(Year (\d{4})\)\.", prompt)
-        agent_match = re.search(r"^(.+?) Memories:$", prompt, flags=re.M)
+        year_match = re.search(r"It is the end of (\d{4})\.", prompt)
+        agent_match = re.match(r"You are (.+?), an agricultural water user", prompt)
         assert year_match and agent_match, prompt[:300]
         key = (agent_match.group(1), int(year_match.group(1)), 0)
         if key not in tier0_decisions:
@@ -1553,7 +1552,7 @@ class _UnreadableIn2020(ScriptedLLM):
     so its 2020 decision is ABORTED and nothing executes."""
 
     def __call__(self, prompt: str):
-        if ("You are a Reflection Assistant" not in prompt and "You are Agent_000," in prompt
+        if ('Answer with this JSON object only: {"lesson"' not in prompt and "You are Agent_000," in prompt
                 and "It is now the year 2020." in prompt):
             with self._lock:
                 attempt = self.calls[("Agent_000", 2020)]

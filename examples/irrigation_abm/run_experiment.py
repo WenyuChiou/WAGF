@@ -63,6 +63,7 @@ from broker.components.cognitive.reflection import (
     compose_lesson_with_facts,
     record_reflection_checks,
     run_checked_reflection,
+    first_sentence,
     store_reflection_memory,
 )
 # Item 45: the figure helpers moved to reflection_checks.py with the lesson
@@ -1115,14 +1116,18 @@ class IrrigationLifecycleHooks:
                                 "ub_supply_mode": self.env.config.ub_supply_mode}
                 if self.prompt_information != "simple":
                     rules = reflection_rule_lines(rule_context)
-            prompt = engine.generate_batch_reflection_prompt(
-                [{"agent_id": aid, "memories": items, "context": agent_ctx}],
+            # The identity sentence is the first sentence of the persona the
+            # decision prompt shows for this agent (no generic fallback).
+            persona = (getattr(agent, "custom_attributes", None) or {}).get("narrative_persona", "")
+            prompt = engine.generate_reflection_prompt_one_agent(
+                first_sentence(persona, what=f"{aid} persona"),
+                items,
                 written_in,
-                reflection_questions=cfg.get("questions", []),
+                questions=cfg.get("questions", []),
                 persona_instruction=cfg.get("persona_instruction"),
-                year_lines=grounding["year_lines"],
-                fact_lines=facts,
+                record_lines=facts,
                 rule_lines=rules,
+                year_lines=grounding["year_lines"],
             )
             own_text = " ".join(item["content"] for item in items)
             result = run_checked_reflection(
