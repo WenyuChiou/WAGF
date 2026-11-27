@@ -11,6 +11,8 @@ Modules:
     config          — SocialGraphSpec, AGENT_SOCIAL_SPECS
     perception      — QualitativePerceptionFilter, PerceptionFilterRegistry
     filter_registry — FilterRegistry (Phase 6B-4) for neighbor-filter plugins
+    knowledge_graph — AsyncKnowledgeGraph, KnowledgeTriple
+    kg_provider     — KnowledgeGraphSocialProvider
 
 Phase 6B-4: register the legacy `has_insurance` neighbor filter at
 package import time so `_get_filtered_neighbors` can dispatch via the
@@ -36,3 +38,24 @@ def _has_account_state_filter(agent) -> bool:
 
 
 FilterRegistry.register("has_insurance", _has_account_state_filter)
+
+
+def __getattr__(name: str):
+    """Lazily resolve experimental social KG exports so flag-OFF runs never load them."""
+    if name in ("AsyncKnowledgeGraph", "KnowledgeTriple"):
+        from broker.components.social import knowledge_graph
+
+        return getattr(knowledge_graph, name)
+    if name == "KnowledgeGraphSocialProvider":
+        from broker.components.social.kg_provider import KnowledgeGraphSocialProvider
+
+        return KnowledgeGraphSocialProvider
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "FilterRegistry",
+    "AsyncKnowledgeGraph",
+    "KnowledgeTriple",
+    "KnowledgeGraphSocialProvider",
+]

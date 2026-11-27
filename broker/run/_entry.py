@@ -68,6 +68,8 @@ class RunContext:
     reflection: ReflectionSettings = None
     world: Any = None
     agents: dict[str, BaseAgent] | None = None
+    social: Any = None
+    coordinator: Any = None
 
 
 class StepWorld:
@@ -93,7 +95,7 @@ class _Parser(argparse.ArgumentParser):
         raise RunError(message)
 
 
-_SLOT_NAMES = ("world", "agents", "hooks", "validators", "mock")
+_SLOT_NAMES = ("world", "agents", "hooks", "validators", "mock", "social", "coordinator")
 _DEFAULTS = {
     "model": "mock",
     "years": 1,
@@ -368,6 +370,87 @@ def _require_coupling_enabled(ctx, world):
         )
 
 
+def _is_context_provider(obj: Any) -> bool:
+    from broker.components.context.providers import ContextProvider
+
+    return isinstance(obj, ContextProvider) or callable(getattr(obj, "provide", None))
+
+
+def _resolve_social_slot(social_obj: Any, period_getter: Any, memory: Any) -> tuple[Any, list[Any] | None]:
+    from broker.components.analytics.interaction import InteractionHub
+
+    if isinstance(social_obj, InteractionHub) or (
+        hasattr(social_obj, "environment") and callable(getattr(social_obj, "build_tiered_context", None))
+    ):
+        return social_obj, None
+    if callable(getattr(social_obj, "as_context_provider", None)):
+        provider = social_obj.as_context_provider(period_getter, memory_engine=memory)
+        if not _is_context_provider(provider):
+            raise SlotError("run.social.as_context_provider() must return a ContextProvider")
+        return None, [provider]
+    if _is_context_provider(social_obj):
+        return None, [social_obj]
+    if isinstance(social_obj, Sequence) and not isinstance(social_obj, (str, bytes)):
+        providers = list(social_obj)
+        if all(_is_context_provider(provider) for provider in providers):
+            return None, providers
+    raise SlotError(
+        "run.social must return a ContextProvider, a sequence of ContextProviders, "
+        "an object with as_context_provider(), or an InteractionHub"
+    )
+
+
+def _chain_hook(name: str, first: Any, second: Any):
+    if name in ("pre_year", "pre_step"):
+        def chained(year, env, agents):
+            first(year, env, agents)
+            second(year, env, agents)
+        return chained
+    if name in ("post_year", "post_step_end"):
+        def chained(year, agents):
+            first(year, agents)
+            second(year, agents)
+        return chained
+    if name == "post_step":
+        def chained(agent, result):
+            first(agent, result)
+            second(agent, result)
+        return chained
+
+    def chained(*args, **kwargs):
+        first(*args, **kwargs)
+        second(*args, **kwargs)
+
+    return chained
+
+
+def _resolve_coordinator_slot(coord_obj: Any, hooks: dict[str, Any]) -> tuple[dict[str, Any], Any]:
+    as_hooks = getattr(coord_obj, "as_hooks", None)
+    if callable(as_hooks):
+        merged = as_hooks(hooks)
+        if not isinstance(merged, Mapping) or not all(
+            isinstance(k, str) and callable(v) for k, v in merged.items()
+        ):
+            raise SlotError("run.coordinator.as_hooks() must return a mapping of hook names to callables")
+        result = dict(merged)
+        return result, result.pop("after_run", None)
+
+    if isinstance(coord_obj, Mapping):
+        if not all(isinstance(k, str) and callable(v) for k, v in coord_obj.items()):
+            raise SlotError("run.coordinator mapping must map hook names to callables")
+        coord_hooks = dict(coord_obj)
+        extra_after_run = coord_hooks.pop("after_run", None)
+        result = dict(hooks)
+        for name, fn in coord_hooks.items():
+            existing = result.get(name)
+            result[name] = _chain_hook(name, fn, existing) if existing is not None else fn
+        return result, extra_after_run
+
+    raise SlotError(
+        "run.coordinator must return an object with as_hooks() or a mapping of hook names to callables"
+    )
+
+
 def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     world_factory = _slot_factory("world", ctx, slots, allowed_modules, loaded)
     world = world_factory(ctx) if world_factory is not None else StepWorld()
@@ -395,6 +478,14 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         raise SlotError("run.validators must return a sequence of callables")
 
     agent_types = tuple(dict.fromkeys(agent.agent_type for agent in ctx.agents.values()))
+    if phase_order is not None:
+        known_types = set(agent_types)
+        unknown = [name for phase in phase_order for name in phase if name not in known_types]
+        if unknown:
+            raise RunError(
+                f"run.phase_order names unknown agent type(s) {unknown}; "
+                f"available agent types: {sorted(known_types)}"
+            )
     mock_factory = _slot_factory("mock", ctx, slots, allowed_modules, loaded)
     invokes = _mock_invokes(mock_factory, ctx, agent_types)
 
@@ -441,9 +532,31 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     # memory_log.jsonl. Writes while the builder seeds agent profiles count as
     # seed writes; any untagged write after that raises.
     built = {}
+    period_getter = lambda: getattr(built.get("runner"), "_current_year", 0)
     gate = install_origin_gate(
-        memory, ctx.output_dir, period=lambda: getattr(built.get("runner"), "_current_year", 0),
+        memory, ctx.output_dir, period=period_getter,
         reflection_prefix=REFLECTION_PREFIX)
+
+    hub = None
+    extend_providers = None
+    social_factory = _slot_factory("social", ctx, slots, allowed_modules, loaded)
+    if social_factory is not None:
+        social_obj = social_factory(ctx)
+        hub, extend_providers = _resolve_social_slot(social_obj, period_getter, memory)
+        ctx.social = social_obj
+
+    coordinator_factory = _slot_factory("coordinator", ctx, slots, allowed_modules, loaded)
+    if coordinator_factory is not None:
+        coord_obj = coordinator_factory(ctx)
+        hooks, coord_after_run = _resolve_coordinator_slot(coord_obj, hooks)
+        if coord_after_run is not None:
+            if after_run is not None:
+                prev_after_run = after_run
+                after_run = lambda out_dir: (coord_after_run(out_dir), prev_after_run(out_dir))
+            else:
+                after_run = coord_after_run
+        ctx.coordinator = coord_obj
+
     reflection_hook = None
     if ctx.reflection.enabled:
         # Runs after the case's own post_year, once the year's state is settled.
@@ -454,8 +567,9 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         hooks["post_year"] = reflection_hook
     config_path = str(ctx.config_path)
     context_builder = TieredContextBuilder(
-        agents=ctx.agents, hub=None, prompt_templates=templates,
+        agents=ctx.agents, hub=hub, prompt_templates=templates,
         yaml_path=config_path, memory_engine=memory,
+        extend_providers=extend_providers,
     )
     builder = (
         ExperimentBuilder()
