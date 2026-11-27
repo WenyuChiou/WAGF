@@ -138,10 +138,18 @@ class MessagePool:
 
         # Registered agent IDs (for broadcast resolution)
         self._registered_agents: Set[str] = set()
+        self._inactive_agents: Set[str] = set()
 
     # ------------------------------------------------------------------
     # Agent registration
     # ------------------------------------------------------------------
+
+    def set_agent_active(self, agent_id: str, active: bool = True) -> None:
+        """Track whether ``agent_id`` is active and eligible to receive messages."""
+        if active:
+            self._inactive_agents.discard(agent_id)
+        else:
+            self._inactive_agents.add(agent_id)
 
     def update_agent_location(
         self,
@@ -171,8 +179,9 @@ class MessagePool:
             self._inferred_location_agents.add(agent_id)
 
     def refresh_agent_locations(self, agents: Mapping[str, Any]) -> None:
-        """Sync inferred locations and types from live agent objects."""
+        """Sync inferred locations, types, and active flags from live agent objects."""
         for agent_id, agent in agents.items():
+            self.set_agent_active(agent_id, getattr(agent, "is_active", True) is not False)
             atype = getattr(agent, "agent_type", None)
             if isinstance(atype, str) and atype:
                 self._agent_types[agent_id] = atype
@@ -188,9 +197,11 @@ class MessagePool:
         location: Optional[str] = None,
         *,
         agent_type: Optional[str] = None,
+        active: bool = True,
     ) -> None:
         """Register an agent to receive messages."""
         self._registered_agents.add(agent_id)
+        self.set_agent_active(agent_id, active)
         if isinstance(agent_type, str) and agent_type:
             self._agent_types[agent_id] = agent_type
         if location is not None:
@@ -203,6 +214,7 @@ class MessagePool:
             self.register_agent(
                 agent_id,
                 agent_type=atype if isinstance(atype, str) and atype else None,
+                active=getattr(agent, "is_active", True) is not False,
             )
             live_loc = resolve_agent_location(agent, self._location_attrs)
             if live_loc is not None:
@@ -498,7 +510,9 @@ class MessagePool:
         if msg.recipients:
             recipients = [
                 r for r in dict.fromkeys(msg.recipients)
-                if r in self._registered_agents and r != msg.sender_id
+                if r in self._registered_agents
+                and r not in self._inactive_agents
+                and r != msg.sender_id
             ]
             if msg.recipient_types:
                 allowed = set(msg.recipient_types)
@@ -511,12 +525,17 @@ class MessagePool:
                 return []
             candidates = [
                 a for a in self._registered_agents
-                if self._agent_locations.get(a) == msg.location and a != msg.sender_id
+                if a not in self._inactive_agents
+                and self._agent_locations.get(a) == msg.location
+                and a != msg.sender_id
             ]
         elif msg.scope == EventScope.AGENT:
             return []
         elif msg.scope == EventScope.GLOBAL:
-            candidates = [a for a in self._registered_agents if a != msg.sender_id]
+            candidates = [
+                a for a in self._registered_agents
+                if a not in self._inactive_agents and a != msg.sender_id
+            ]
         else:
             return []
 

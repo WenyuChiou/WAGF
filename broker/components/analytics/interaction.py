@@ -48,6 +48,7 @@ class InteractionHub:
         # result does not depend on neighbour order. None keeps the legacy
         # draw from the global ``random`` stream unchanged.
         rng_for: Optional[Callable[[str, str], random.Random]] = None,
+        exclude_inactive: bool = False,
     ):
         if graph is None and social_graph is None:
             raise ValueError("InteractionHub requires a social graph")
@@ -64,10 +65,28 @@ class InteractionHub:
         self.action_labels = action_labels or {}
         self.visible_action_specs = visible_action_specs or []
         self.rng_for = rng_for
+        self.exclude_inactive = bool(exclude_inactive)
+
+    def _neighbor_ids(self, agent_id: str, agents: Dict[str, Any]) -> List[str]:
+        raw_neighbors = self.graph.get_neighbors(agent_id)
+        graph_inactive = getattr(self.graph, "inactive_agents", ())
+        if not agents:
+            return [nid for nid in raw_neighbors if nid not in graph_inactive]
+        if getattr(self, "exclude_inactive", False):
+            return [
+                nid for nid in raw_neighbors
+                if nid not in graph_inactive
+                and (ag := agents.get(nid)) is not None
+                and getattr(ag, "is_active", True) is not False
+            ]
+        return [
+            nid for nid in raw_neighbors
+            if nid not in graph_inactive and agents.get(nid) is not None
+        ]
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
         """Tier 1 (Spatial): Aggregated observation of neighbors."""
-        neighbor_ids = self.graph.get_neighbors(agent_id)
+        neighbor_ids = self._neighbor_ids(agent_id, agents)
         if not neighbor_ids:
             return {}
         
@@ -77,7 +96,10 @@ class InteractionHub:
         # Aggregate any attributes defined as observable
         for attr in self.spatial_observables:
             # Count neighbors who have this attribute set to True/Positive
-            count = sum(1 for nid in neighbor_ids if getattr(agents[nid], attr, False))
+            count = sum(
+                1 for nid in neighbor_ids
+                if (ag := agents.get(nid)) is not None and getattr(ag, attr, False)
+            )
             spatial_context[f"{attr}_pct"] = count / total
             
         return spatial_context
@@ -104,7 +126,7 @@ class InteractionHub:
         if not self.visible_action_specs:
             return []
 
-        neighbor_ids = self.graph.get_neighbors(agent_id)
+        neighbor_ids = self._neighbor_ids(agent_id, agents)
         visible_actions = []
 
         for nid in neighbor_ids:
@@ -138,7 +160,11 @@ class InteractionHub:
             # Fallback to legacy method
             return self.get_visible_neighbor_actions(agent_id, agents)
 
-        neighbor_ids = self.graph.get_neighbors(agent_id)
+        observer_agent = agents.get(agent_id)
+        if observer_agent is None:
+            return []
+
+        neighbor_ids = self._neighbor_ids(agent_id, agents)
         visible_actions = []
 
         for nid in neighbor_ids:
@@ -147,7 +173,7 @@ class InteractionHub:
                 continue
 
             # Use SDK observer
-            result = obs.observe(agents[agent_id], neighbor)
+            result = obs.observe(observer_agent, neighbor)
             for action in result.visible_actions:
                 # Add neighbor_id for consistency with legacy format
                 action_copy = dict(action)
@@ -168,7 +194,7 @@ class InteractionHub:
 
         Returns empty string when no neighbor data is available (e.g. year 1).
         """
-        neighbor_ids = self.graph.get_neighbors(agent_id)
+        neighbor_ids = self._neighbor_ids(agent_id, agents)
         if not neighbor_ids:
             return ""
 
@@ -212,7 +238,16 @@ class InteractionHub:
             # Fallback to legacy method
             return self.get_social_context(agent_id, agents, max_gossip)
 
-        neighbor_ids = self.graph.get_neighbors(agent_id)
+        observer_agent = agents.get(agent_id)
+        if observer_agent is None:
+            return {
+                "gossip": [],
+                "visible_actions": [],
+                "neighbor_count": 0,
+                "observable_attrs": {},
+            }
+
+        neighbor_ids = self._neighbor_ids(agent_id, agents)
         gossip = []
         visible_actions = []
         observable_attrs = {}  # Aggregated observable attributes
@@ -223,7 +258,7 @@ class InteractionHub:
                 continue
 
             # Use SDK observer
-            result = obs.observe(agents[agent_id], neighbor)
+            result = obs.observe(observer_agent, neighbor)
 
             # Collect visible actions
             for action in result.visible_actions:
@@ -293,13 +328,15 @@ class InteractionHub:
             return item.get("content", str(item)) if isinstance(item, dict) else str(item)
 
         # Gossip from memory engine
+        neighbor_ids = self._neighbor_ids(agent_id, agents)
         if self.memory_engine:
-            neighbor_ids = self.graph.get_neighbors(agent_id)
-
             # Select chatty neighbors (those who have actual content in memory)
             chatty_neighbors = []
             for nid in neighbor_ids:
-                mem = self.memory_engine.retrieve(agents[nid], top_k=1)
+                neighbor_agent = agents.get(nid)
+                if neighbor_agent is None:
+                    continue
+                mem = self.memory_engine.retrieve(neighbor_agent, top_k=1)
                 if isinstance(mem, dict):
                     if mem.get("episodic") or mem.get("semantic"):
                         chatty_neighbors.append(nid)
@@ -316,8 +353,11 @@ class InteractionHub:
                     rng = rng_for(agent_id, "gossip")
                     selected_neighbors = rng.sample(sorted(chatty_neighbors), sample_size)
                 for nid in selected_neighbors:
+                    neighbor_agent = agents.get(nid)
+                    if neighbor_agent is None:
+                        continue
                     # Retrieve the most recent memory from the neighbor as gossip
-                    neighbor_mems = self.memory_engine.retrieve(agents[nid], top_k=1)
+                    neighbor_mems = self.memory_engine.retrieve(neighbor_agent, top_k=1)
 
                     # Normalize: Hierarchical memory returns a dict, others return a list
                     mems_list = []
@@ -335,7 +375,7 @@ class InteractionHub:
         return {
             "gossip": gossip,
             "visible_actions": visible_actions,
-            "neighbor_count": len(self.graph.get_neighbors(agent_id)),
+            "neighbor_count": len(neighbor_ids),
         }
 
     def build_tiered_context(self, agent_id: str, agents: Dict[str, Any], global_news: List[str] = None, query: Optional[str] = None) -> Dict[str, Any]:

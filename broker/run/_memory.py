@@ -316,6 +316,7 @@ class ReflectionHook:
         )
         self.log_path = Path(self.output_dir) / "reflection_log.jsonl"
         self._stored = {}  # agent id -> reflection memories this hook has stored
+        self.eligible_turns = 0
 
     def _log(self, agent_id, insight):
         """One line per stored reflection, in ReflectionEngine.store_insight's format."""
@@ -388,6 +389,7 @@ class ReflectionHook:
         memories = self._memories(agent)
         if not memories:
             return
+        self.eligible_turns += 1
         context = ReflectionEngine.extract_agent_context(agent, year)
         prompt = self.engine.generate_personalized_reflection_prompt(
             context, memories, year,

@@ -1985,12 +1985,26 @@ class ExperimentRunner:
             # runs. Absent on any path that reaches here without finalizing, in
             # which case the coverage block reports "not measured".
             refl_kwargs.update(getattr(self, "_configured_expectation", {}) or {})
+            _rh = getattr(self, "_reflection_hook", None)
+            _el_turns = getattr(_rh, "eligible_turns", None)
+            if isinstance(_el_turns, int) and not isinstance(_el_turns, bool):
+                refl_kwargs["reflection_eligible_turns"] = _el_turns
             # A run whose agents all have no appraisal.
             refl_kwargs["no_appraisal"] = self._all_agents_without_appraisal()
             if getattr(self, "tag_memory_origin", False) is True:
                 # Invariant 7 (python -m broker.run only; frozen runners keep
                 # their run_integrity.json key set).
                 _agents = getattr(self, "agents", None) or {}
+                _inactive_ids = sorted(
+                    str(aid) for aid, ag in _agents.items()
+                    if getattr(ag, "is_active", True) is False
+                )
+                if _inactive_ids:
+                    refl_kwargs["extra"] = {
+                        **refl_kwargs.get("extra", {}),
+                        "inactive_agents_final_count": len(_inactive_ids),
+                        "inactive_agents_final": _inactive_ids,
+                    }
                 refl_kwargs["governance_carryover"] = {
                     "styles": dict(getattr(self, "rejection_line_styles", None) or {}),
                     "agent_types": {

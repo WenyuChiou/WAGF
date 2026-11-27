@@ -22,6 +22,7 @@ in-memory, domain-agnostic social fact store supporting:
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -177,6 +178,30 @@ class AsyncKnowledgeGraph:
         self._delivered_by_observer: Dict[str, Set[str]] = {}
         self._delivery_cursor_period: Dict[str, int] = {}
         self._channel_cursor_period: Dict[Tuple[Any, ...], int] = {}
+        self._inactive_agents: Set[str] = set()
+        self._observed_inactive_agents: Set[str] = set()
+
+    def set_agent_active(self, agent_id: str, active: bool = True) -> None:
+        """Mark whether ``agent_id`` can observe or relay social KG triples."""
+        aid = str(agent_id)
+        if active:
+            self._inactive_agents.discard(aid)
+        else:
+            self._inactive_agents.add(aid)
+
+    def sync_active_agents(self, agents: Mapping[str, Any]) -> None:
+        """Refresh the observed set of deactivated agents from live agent objects."""
+        self._observed_inactive_agents = {
+            str(aid)
+            for aid, ag in agents.items()
+            if getattr(ag, "is_active", True) is False
+        }
+
+    def _is_active_node(self, agent_id: str) -> bool:
+        if agent_id in self._inactive_agents or agent_id in self._observed_inactive_agents:
+            return False
+        graph_inactive = getattr(self.social_graph, "inactive_agents", ())
+        return agent_id not in graph_inactive
 
     def _validate_no_governance_trace(self, triple: KnowledgeTriple) -> None:
         """Enforce Invariant 7: refuse governance phrases in social KG triples."""
@@ -337,7 +362,7 @@ class AsyncKnowledgeGraph:
         ``published_period`` only if the edge's start period is ``<= published_period``,
         preventing newly connected agents from retroactively reading pre-link facts.
         """
-        if self.social_graph is None or max_hops < 1:
+        if self.social_graph is None or max_hops < 1 or not self._is_active_node(observer_id):
             return {}
         get_edge_start = getattr(self.social_graph, "get_edge_start_period", None)
         hops: Dict[str, int] = {}
@@ -348,7 +373,7 @@ class AsyncKnowledgeGraph:
             if dist >= max_hops:
                 continue
             for nxt in self.social_graph.get_neighbors(cur):
-                if nxt in visited:
+                if nxt in visited or not self._is_active_node(nxt):
                     continue
                 if callable(get_edge_start):
                     edge_start = get_edge_start(cur, nxt)

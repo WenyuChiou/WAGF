@@ -6,6 +6,7 @@ Plugs into the BaseAgentContextBuilder provider pipeline.
 
 Reference: Task-054 Communication Layer
 """
+from collections.abc import Mapping
 from typing import Dict, Any, List, Optional
 import logging
 
@@ -49,6 +50,11 @@ class MessagePoolProvider:
         the agent's top-priority unread messages formatted for
         LLM consumption.
         """
+        if isinstance(agents, Mapping):
+            observer = agents.get(agent_id)
+            if observer is not None and getattr(observer, "is_active", True) is False:
+                context["messages"] = []
+                return
         messages = self.pool.get_messages(agent_id)
         top = sorted(messages, key=lambda m: (-m.priority, -m.timestamp))
         top = top[:self.max_messages]

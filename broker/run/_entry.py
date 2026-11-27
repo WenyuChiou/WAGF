@@ -755,6 +755,12 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         )
     built["runner"] = runner
     gate.seeding = False
+    if ctx.population is not None and inactive_declared_types:
+        _dflag = getattr(getattr(runner.broker, "config", None), "get_audit_decider_columns", None)
+        if callable(_dflag) and _dflag() is True:
+            from broker.core.run_integrity import set_declared_deciders
+
+            set_declared_deciders(ctx.config.declared_decider_names(agent_types=agent_types))
     runner.tag_memory_origin = True
     runner.rejection_line_styles = styles
     for agent in runner.agents.values():
@@ -768,6 +774,7 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         audit_writer.config.always_write_validator_health = True
     if reflection_hook is not None:
         reflection_hook.runner = runner
+        runner._reflection_hook = reflection_hook
         runner.reflection_enabled = True  # run_integrity.json records it
     return runner, after_run, reflection_hook
 
