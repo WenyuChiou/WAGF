@@ -219,9 +219,14 @@ def test_coupling_on_manifest_and_integrity_provenance(tmp_path: Path):
 
     # derived_from_config: original path recorded next to agent_types_config
     # (the derived copy), item 2's manifest hook.
+    # The manifest writes the home folder as "~" (no user name in a published record).
+    from broker.utils.run_environment import collapse_home_in_text
     original_path = str(PROJECT_ROOT / "examples" / "irrigation_abm" / "config" / "agent_types.yaml")
-    assert manifest.get("derived_from_config") == original_path
-    derived_path = Path(manifest["agent_types_config"])
+    assert manifest.get("derived_from_config") == collapse_home_in_text(original_path)
+    # agent_types_config names the derived copy the run loaded (home folder as "~").
+    assert manifest["agent_types_config"] == collapse_home_in_text(
+        str(on_dir / "agent_types.coupling.yaml"))
+    derived_path = Path(manifest["agent_types_config"]).expanduser()
     assert derived_path == on_dir / "agent_types.coupling.yaml"
     assert derived_path.exists(), "the derived config must be a PERSISTENT file, not deleted at exit"
 

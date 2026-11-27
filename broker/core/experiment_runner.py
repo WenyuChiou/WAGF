@@ -1751,13 +1751,16 @@ class ExperimentRunner:
             return manifest
 
     def _agent_types_config_recorded(self) -> str:
-        """``agent_types_config`` for the manifest: repo-relative path, else ``~``-collapsed."""
+        """``agent_types_config`` for the manifest: the file the run actually loaded, repo-relative
+        when it is in the repo, else with the home folder as ``~``. Never the original a derived
+        copy came from (that is ``derived_from_config``)."""
         try:
             if not hasattr(self.broker.model_adapter, "config_path"):
                 return "unknown"
-            from broker.utils.run_environment import home_collapsed
-            return (self._repo_relative_config_path()
-                    or home_collapsed(self.broker.model_adapter.config_path) or "unknown")
+            from broker.utils.run_environment import home_collapsed, repo_relative
+            path = self.broker.model_adapter.config_path
+            rel = repo_relative(path) if isinstance(path, (str, Path)) else None
+            return rel or home_collapsed(path) or "unknown"
         except Exception:  # noqa: BLE001
             return "unknown"
 

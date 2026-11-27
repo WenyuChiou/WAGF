@@ -60,6 +60,20 @@ def test_launch_command_and_config_path_carry_no_home(tmp_path):
     assert r._agent_types_config_recorded().startswith("~")
 
 
+def test_agent_types_config_names_the_derived_copy_not_the_original(tmp_path):
+    # A domain runner that loads a derived copy outside the repo sets _derived_from_config to
+    # the repo original; agent_types_config must still name the copy the run loaded.
+    r = _runner(tmp_path, {})
+    copy = Path.home() / "scratch_run" / "agent_types.coupling.yaml"
+    r.broker.model_adapter.config_path = copy
+    r.broker._derived_from_config = (Path(__file__).resolve().parents[2] / "examples"
+                                     / "irrigation_abm" / "config" / "agent_types.yaml")
+    rec = r._agent_types_config_recorded()
+    assert rec.startswith("~") and rec.endswith("agent_types.coupling.yaml")
+    assert r._repo_relative_config_path().replace("\\", "/") == \
+        "examples/irrigation_abm/config/agent_types.yaml"
+
+
 def test_scrub_home_paths_nested_and_leaves_lookalikes():
     home = str(Path.home())
     bs = chr(92)
