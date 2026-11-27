@@ -1149,3 +1149,9 @@ def test_population_custom_factory_mismatch_and_phase_order_guards(case, tmp_pat
     _write_yaml(config, data)
     with pytest.raises(_entry.RunError, match="default_skill"):
         _entry.prepare([str(config), "--output", str(tmp_path / "bad_default")])
+
+    # Enforced even with on_retry_exhausted=keep_proposal (fallback still runs on UNCERTAIN / hard rejections)
+    data["global_config"]["governance"] = {"on_retry_exhausted": "keep_proposal"}
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="default_skill"):
+        _entry.prepare([str(config), "--output", str(tmp_path / "bad_default_keep")])

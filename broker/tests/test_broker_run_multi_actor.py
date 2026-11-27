@@ -1119,7 +1119,6 @@ def test_bridge_policy_validation_and_default_ttl_survives_across_years():
 
 
 def test_bridge_pool_and_kg_audience_parity_and_generic_location_relocation():
-    from pathlib import Path
     from broker.components.social import AsyncKnowledgeGraph
 
     kg = AsyncKnowledgeGraph()

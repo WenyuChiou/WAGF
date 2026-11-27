@@ -362,9 +362,6 @@ def _default_agents(ctx):
 
     default_skill = registry.get("default_skill")
     known_skill_ids = {item["skill_id"] for item in items}
-    global_cfg = ctx.raw.get("global_config") if isinstance(ctx.raw, Mapping) else {}
-    gov_cfg = global_cfg.get("governance") if isinstance(global_cfg, Mapping) else {}
-    keep_proposal = isinstance(gov_cfg, Mapping) and gov_cfg.get("on_retry_exhausted") == "keep_proposal"
 
     agents = {}
     for agent_type, count in plan:
@@ -390,7 +387,6 @@ def _default_agents(ctx):
             ctx.population is not None
             and isinstance(default_skill, str)
             and default_skill in known_skill_ids
-            and not keep_proposal
             and default_skill not in {skill.skill_id for skill in skills}
         ):
             raise RunError(
