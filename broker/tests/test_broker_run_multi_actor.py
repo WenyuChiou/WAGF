@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import sys
 from textwrap import dedent
 from types import SimpleNamespace
 from uuid import uuid4
+import subprocess
 
 import pytest
 import yaml
@@ -927,6 +929,8 @@ def test_bridge_magnitude_parses_in_async_kg_and_regional_recipient_types_inters
     assert len(pool.get_messages("cons_n")) == 1
     assert pool.get_messages("cons_s") == []
     assert pool.get_messages("reg_1") == []
+    # Explicit visibility="global" intentionally overrides regional mailbox scope on KG
+    assert len(kg.query_visible("cons_s", 1)) == 1
 
     # Local + recipient_types=["provider"] in south has empty intersection -> no broadcast to cons_s/prov_1
     res_reg = SkillBrokerResult(
@@ -989,3 +993,228 @@ def test_bridge_resolves_pool_agent_locations_and_skips_unresolved_spatial_scope
     bridge.post_step(agents["p_noloc"], noloc_res)
     assert len(pool.get_messages("b1")) == 1
     assert pool.get_messages("c1") == []
+
+
+def test_declarative_population_subprocess_e2e_without_agents_factory(multi_actor_case, tmp_path):
+    """Track B1 E2E: run a 3-role population via subprocess with no run.agents factory."""
+    config, data = multi_actor_case
+    # Replace hold with wildcard '*' eligibility to verify _default_agents wildcard support
+    _write_yaml(
+        config.with_name("skill_registry.yaml"),
+        {
+            "default_skill": "hold",
+            "skills": [
+                {"skill_id": "hold", "description": "Hold", "eligible_agent_types": ["*"]},
+                {
+                    "skill_id": "adjust_incentive",
+                    "description": "Adjust program incentive rate",
+                    "eligible_agent_types": ["regulator"],
+                },
+                {
+                    "skill_id": "expand_capacity",
+                    "description": "Expand service capacity",
+                    "eligible_agent_types": ["provider"],
+                },
+                {
+                    "skill_id": "enroll_program",
+                    "description": "Enroll in the program",
+                    "eligible_agent_types": ["consumer"],
+                },
+            ],
+        },
+    )
+    data["global_config"]["run"].pop("agents")
+    data["global_config"]["run"].pop("social")
+    data["global_config"]["run"].pop("coordinator")
+    data["global_config"]["run"].pop("hooks")
+    data["global_config"]["run"]["population"] = {"regulator": 1, "provider": 1, "consumer": 2}
+    data["global_config"]["run"]["years"] = 1
+    data["global_config"]["run"]["strict_keys"] = True
+    # Remove unused {kg_social_digest} if consumer has no social provider here
+    data["consumer"]["prompt_template"] = (
+        "Memory:\n{memory}\nAvailable actions\n{options_text}\n\n{response_format}"
+    )
+    data["consumer"]["actions"] = [
+        {"id": "hold", "aliases": ["1"]},
+        {"id": "enroll_program", "aliases": ["2"]},
+    ]
+    data["consumer"]["parsing"]["skill_map"] = {"1": "hold", "2": "enroll_program"}
+    _write_yaml(config, data)
+
+    output = tmp_path / "pop_subprocess_out"
+    repo_root = Path(__file__).resolve().parents[2]
+    proc = subprocess.run(
+        [sys.executable, "-m", "broker.run", str(config), "--model", "mock", "--output", str(output)],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    assert len(_traces(output, "regulator")) == 1
+    assert len(_traces(output, "provider")) == 1
+    cons_rows = _traces(output, "consumer")
+    assert len(cons_rows) == 2
+    assert {r["agent_id"] for r in cons_rows} == {"consumer_1", "consumer_2"}
+    assert all(r["approved_skill"]["skill_name"] == "enroll_program" for r in cons_rows)
+
+    run_record = json.loads((output / "broker_run.json").read_text(encoding="utf-8"))
+    assert run_record["population"] == {"regulator": 1, "provider": 1, "consumer": 2}
+    assert run_record["agent_count"] == 4
+    integrity = json.loads((output / "run_integrity.json").read_text(encoding="utf-8"))
+    assert integrity["integrity_ok"] is True
+
+
+def test_bridge_policy_validation_and_default_ttl_survives_across_years():
+    from broker.components.social import AsyncKnowledgeGraph
+
+    with pytest.raises(ValueError, match="unknown key"):
+        MultiActorLifecycleBridge(role_message_policy={"consumer": {"recipient_type": ["regulator"]}})
+    with pytest.raises(ValueError, match="unknown value"):
+        MultiActorLifecycleBridge(role_message_policy={"consumer": {"scope": "neighbor"}})
+    with pytest.raises(ValueError, match="visibility"):
+        MultiActorLifecycleBridge(role_message_policy={"consumer": {"visibility": "everywhere"}})
+    with pytest.raises(ValueError, match="requires recipients or target_ids"):
+        MultiActorLifecycleBridge(role_message_policy={"consumer": {"scope": "direct"}})
+    with pytest.raises(ValueError, match="sequence of strings"):
+        MultiActorLifecycleBridge(role_message_policy={"consumer": {"recipients": "cons_1"}})
+
+    graph = SocialGraph(["c1", "c2", "c3"])
+    graph.add_edge("c1", "c2")
+    pool = MessagePool()
+    kg = AsyncKnowledgeGraph(social_graph=graph)
+    # Pool shares KG graph without needing SocialGraph directly on pool
+    bridge = MultiActorLifecycleBridge(message_pool=pool, social_kg=kg)
+    assert bridge.default_ttl == 2
+
+    provider = MessagePoolProvider(pool, max_messages=10)
+    agents = {
+        "c1": SimpleNamespace(id="c1", agent_type="consumer"),
+        "c2": SimpleNamespace(id="c2", agent_type="consumer"),
+        "c3": SimpleNamespace(id="c3", agent_type="consumer"),
+    }
+    ok_res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="enroll_program", agent_id="c1", reasoning={}),
+        approved_skill=ApprovedSkill(skill_name="enroll_program", agent_id="c1", approval_status="APPROVED"),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="enroll_program",
+    )
+
+    bridge.pre_year(1, {}, agents)
+    bridge.post_step(agents["c1"], ok_res)
+
+    # Year 2 pre_year keeps Year 1 messages (ttl=2: 2 - 1 < 2); neighbor c2 sees it in prompt context, c3 does not
+    bridge.pre_year(2, {}, agents)
+    ctx_c2, ctx_c3 = {}, {}
+    provider.provide("c2", agents, ctx_c2)
+    provider.provide("c3", agents, ctx_c3)
+    assert any("c1 (consumer) executed enroll program" in line for line in ctx_c2["local"]["social"])
+    assert ctx_c3["messages"] == []
+
+    # Year 3 pre_year expires Year 1 message (3 - 1 >= 2)
+    bridge.pre_year(3, {}, agents)
+    assert pool.get_messages("c2") == []
+
+
+def test_bridge_pool_and_kg_audience_parity_and_generic_location_relocation():
+    from pathlib import Path
+    from broker.components.social import AsyncKnowledgeGraph
+
+    kg = AsyncKnowledgeGraph()
+    pool = MessagePool()
+    bridge = MultiActorLifecycleBridge(
+        message_pool=pool,
+        social_kg=kg,
+        role_message_policy={
+            "regulator": {"recipients": ["c_north"], "delivery_delay": 0},
+            "provider": {"scope": "regional", "recipient_types": ["consumer"], "delivery_delay": 0},
+            "consumer": {"scope": "regional", "recipient_types": ["provider"], "delivery_delay": 0},
+        },
+    )
+    agents = {
+        "reg_1": SimpleNamespace(id="reg_1", agent_type="regulator", location="north"),
+        "prov_n": SimpleNamespace(id="prov_n", agent_type="provider", location="north"),
+        "c_north": SimpleNamespace(id="c_north", agent_type="consumer", location="north"),
+        "c_south": SimpleNamespace(id="c_south", agent_type="consumer", location="south"),
+        "c_inactive": SimpleNamespace(id="c_inactive", agent_type="consumer", location="north", is_active=False),
+        "c_coord_tuple": SimpleNamespace(id="c_coord_tuple", agent_type="consumer", location=(1.0, 2.0)),
+    }
+    bridge.pre_year(1, {}, agents)
+
+    # 1. Private recipients without explicit visibility -> KG derives direct(target_ids=("c_north",)), no leak
+    reg_res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="adjust_incentive", agent_id="reg_1", reasoning={}),
+        approved_skill=ApprovedSkill(skill_name="adjust_incentive", agent_id="reg_1", approval_status="APPROVED"),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="adjust_incentive",
+    )
+    bridge.post_step(agents["reg_1"], reg_res)
+    assert [t.subject for t in kg.query_visible("c_north", 1)] == ["reg_1"]
+    assert kg.query_visible("c_south", 1) == []
+    assert len(pool.get_messages("c_north")) == 1
+    assert pool.get_messages("c_south") == []
+
+    # 2. Regional + recipient_types=["consumer"] without explicit visibility -> both Pool and KG target active c_north only
+    prov_res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="expand_capacity", agent_id="prov_n", reasoning={}),
+        approved_skill=ApprovedSkill(skill_name="expand_capacity", agent_id="prov_n", approval_status="APPROVED"),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="expand_capacity",
+    )
+    bridge.post_step(agents["prov_n"], prov_res)
+    assert [t.subject for t in kg.query_visible("c_north", 1)] == ["prov_n", "reg_1"]
+    assert kg.query_visible("c_south", 1) == []
+    assert pool.get_messages("c_inactive") == []
+    assert pool.get_messages("c_coord_tuple") == []
+
+    # 3. Relocate prov_n -> south, then None: pre_year refreshes pool location cleanly and skips empty matches
+    agents["prov_n"].location = "south"
+    bridge.pre_year(2, {}, agents)
+    bridge.post_step(agents["prov_n"], prov_res)
+    assert [t.obj for t in kg.query_visible("c_south", 2)] == ["expand_capacity"]
+    assert len(pool.get_messages("c_south")) == 1
+    # c_north still has period 1 message until ttl expires, not period 2
+    assert all(m.timestamp == 1 for m in pool.get_messages("c_north"))
+
+    # Empty south provider match for c_north -> skipped in both Pool and KG (never broadcasts globally)
+    cons_res = SkillBrokerResult(
+        outcome=SkillOutcome.APPROVED,
+        skill_proposal=SkillProposal(skill_name="enroll_program", agent_id="c_north", reasoning={}),
+        approved_skill=ApprovedSkill(skill_name="enroll_program", agent_id="c_north", approval_status="APPROVED"),
+        execution_result=ExecutionResult(success=True),
+        executed_skill="enroll_program",
+    )
+    bridge.post_step(agents["c_north"], cons_res)
+    assert kg.query_visible("prov_n", 2) == []
+    assert pool.get_messages("prov_n") == []
+    assert bridge.skipped_audience_counts.get("consumer", 0) >= 1
+
+    # Clearing prov_n.location drops inferred location on next pre_year
+    agents["prov_n"].location = None
+    bridge.pre_year(3, {}, agents)
+    assert "prov_n" not in pool._agent_locations
+
+    # 4. Direct MessagePool._resolve_recipients enforces registered agent_type and non-empty location
+    direct_pool = MessagePool()
+    direct_pool.register_agent("g1", agent_type="regulator")
+    direct_pool.register_agent("h1", agent_type="consumer")
+    from broker.interfaces.coordination import AgentMessage
+    from broker.interfaces.event_generator import EventScope
+
+    type_filtered = AgentMessage(
+        sender_id="g1", sender_type="regulator", message_type="info", content="reg only",
+        recipient_types=["regulator"], scope=EventScope.GLOBAL,
+    )
+    assert direct_pool.publish(type_filtered) == 0
+    assert direct_pool.peek_count("h1") == 0
+
+    no_loc_regional = AgentMessage(
+        sender_id="g1", sender_type="regulator", message_type="info", content="missing loc",
+        scope=EventScope.REGIONAL, location=None,
+    )
+    assert direct_pool.publish(no_loc_regional) == 0
+    assert direct_pool.peek_count("h1") == 0

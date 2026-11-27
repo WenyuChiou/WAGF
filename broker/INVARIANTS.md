@@ -52,7 +52,7 @@ MemoryEngine.retrieve_content_only(...) -> List[str]   # compatibility helper on
 ### Known current state (as of 2026-04-19)
 - Base `retrieve()` declares `List[str]` return — this is the legacy contract being repaired on `feat/memory-pipeline-v2` by Codex. Target state is `List[MemoryRecord]`.
 - `retrieve_content_only()` already exists (`broker/components/memory/engine.py:53-68`) as the compatibility helper.
-- `AsyncKnowledgeGraph.sync_to_memory` (`broker/components/social/knowledge_graph.py`) stamps `origin="social"` for `OriginGate`, maps `source` to `"neighbor"` (`visibility="neighbors"`) or `"community"` (`"global"`, `"followers"`, `"direct"`), and omits hardcoded `"emotion"` (delivering at most once per observer per period via `_delivery_cursor_period`).
+- `AsyncKnowledgeGraph.sync_to_memory` (`broker/components/social/knowledge_graph.py`) stamps `origin="social"` for `OriginGate`, maps `source` to `"neighbor"` (`visibility="neighbors"`) or `"community"` (`"global"`, `"followers"`, `"direct"`), and omits hardcoded `"emotion"` (delivering at most once per observer per period and channel filter via `_channel_cursor_period`).
 
 ### Documented exemption: WindowMemoryEngine (2026-06-10, architecture review P1-8)
 - `WindowMemoryEngine.retrieve()` returns `List[str]` and is **explicitly

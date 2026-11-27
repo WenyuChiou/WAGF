@@ -502,6 +502,55 @@ class TestSyncToMemoryWithOriginGate:
         assert n == 1
         assert gate.counts["social"] == 1
 
+    def test_provider_materializes_generator_filters_across_sync_and_query(self, tmp_path: Path):
+        engine = WindowMemoryEngine(window_size=10)
+        gate = install_origin_gate(engine, tmp_path, lambda: 1)
+        gate.seeding = False
+
+        social_graph = CustomGraph(["A1", "C1"], lambda _ids: [("A1", "C1")])
+        kg = AsyncKnowledgeGraph(social_graph=social_graph)
+        kg.assert_fact(
+            subject="A1", predicate="action", obj="act_1",
+            text="A1 action fact", author_id="A1", published_period=1, visibility="neighbors",
+        )
+        provider = KnowledgeGraphSocialProvider(
+            kg=kg,
+            period_getter=lambda: 1,
+            memory_engine=engine,
+            predicates=(p for p in ["action"]),
+            subjects=(s for s in ["A1"]),
+        )
+        ctx = {}
+        provider.provide("C1", {}, ctx)
+        assert gate.counts["social"] == 1
+        assert "A1 action fact" in ctx["social_gossip"]
+
+    def test_move_warns_without_period_and_post_year_plus_one_isolates_same_period(self):
+        from broker.components.social.graph import SpatialNeighborhoodGraph
+
+        g = SpatialNeighborhoodGraph(
+            ["A", "B", "C"],
+            positions={"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (10.0, 0.0)},
+            radius=2.0,
+            fallback_k=0,
+        )
+        kg = AsyncKnowledgeGraph(social_graph=g)
+        kg.assert_fact(
+            subject="A", predicate="action", obj="same_year_fact",
+            text="same year fact", author_id="A", published_period=1, delivery_delay=0, visibility="neighbors",
+        )
+        # Moving at period = year + 1 keeps year-1 facts from crossing new edge (A, C)
+        g.move("A", (9.5, 0.0), period=2)
+        assert kg.query_visible("C", 1) == []
+        assert kg.query_visible("C", 2) == []
+
+        # Calling move() without period emits a warning
+        g_warn = SpatialNeighborhoodGraph(
+            ["X", "Y"], positions={"X": (0.0, 0.0), "Y": (10.0, 0.0)}, radius=2.0, fallback_k=0,
+        )
+        with pytest.warns(UserWarning, match="without an explicit period"):
+            g_warn.move("X", (9.5, 0.0))
+
 
 # ---------------------------------------------------------------------------
 # 5. KnowledgeGraphSocialProvider + TieredContextBuilder integration

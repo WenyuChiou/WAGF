@@ -270,7 +270,9 @@ Every key is optional. An unknown `run:` key is refused. Each slot is `module:fu
 | Slot | The function returns | When absent |
 |---|---|---|
 | `world` | Your environment object (`advance_step()` and `execute_skill(...)`). For a coupled model, return `broker.run.Coupled(contract, sources, domain)` and set `global_config.coupling.enable: true`; with coupling off, `broker.run` stops with exit 2 rather than run the model without its coupled checks. | A tiny stand-in world that advances the year and executes every approved action successfully, with no state change |
-| `agents` | A dict of agent name to `BaseAgent` | `agent_count` agents are built for the one agent type in the YAML, with every skill in the skill registry that is eligible for that type. More than one agent type is refused until you set `agents`. |
+| `agents` | A dict of agent name to `BaseAgent` | When `global_config.run.population` is set, builds `{agent_type}_{i}` for each positive count (`>= 1` total; `0` and omitted roles allowed for ablations) using eligible registry skills (`*` or matching `agent_type`). Otherwise, builds `agent_count` agents for the single agent type in the YAML and refuses multiple types unless `agents` or `population` is set. |
+| `social` | `ContextProvider` / sequence / `InteractionHub` / `.as_context_provider()` | None |
+| `coordinator` | Object with `as_hooks()` (e.g. `MultiActorLifecycleBridge`) or hook mapping | None |
 | `hooks` | A dict of lifecycle hooks: `pre_year`, `pre_step`, `post_step`, `post_year`, `post_step_end`. An optional `after_run(output_dir)` runs once after the run. | No hooks |
 | `validators` | A sequence of custom validator callables | None |
 | `mock` | A dict of agent type to scripted responder (a function that returns the model's reply) | The built-in mock model reply. Used only with `--model mock`. |
@@ -285,7 +287,7 @@ Command-line overrides: `--model`, `--years`, `--agents`, `--seed`, `--output`, 
 
 **Physical-only cases.** For agents with no appraisal, set `psychological_framework: none`. `ExperimentBuilder.build()` and `validate_prompt` then refuse a `none` agent that still has appraisal fields, constructs (its own or inherited from the `default` block), `{rating_scale}` or PMT wording, or `construct` references in rules (`AgentTypeConfig.check_theory_free` in `broker/utils/agent_config.py`). An agent type with no declared framework still falls back to PMT, with one warning per agent type.
 
-**Multi-agent cases.** Only `phase_order` comes from the YAML. A social graph, a different memory engine per agent type, or the universal engine still needs the case's own runner, as the paper runners have.
+**Multi-agent cases.** `global_config.run.population` and `global_config.run.phase_order` can both be declared directly in the YAML alongside optional `social` and `coordinator` slots (`MultiActorLifecycleBridge`). A custom per-type memory engine or the universal engine still needs the case's own runner, as the paper runners have.
 
 **Memory, reflection and prompt size.** `global_config.memory.engine_type` picks one engine for the whole run:
 

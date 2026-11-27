@@ -42,6 +42,7 @@ Examples Across Domains:
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import random
+import warnings
 
 
 class SocialGraph(ABC):
@@ -347,13 +348,28 @@ class SpatialNeighborhoodGraph(SocialGraph):
         agent_id: str,
         new_pos: Optional[Tuple[float, float]],
         *,
-        period: int = 0,
+        period: Optional[int] = None,
     ) -> Dict[str, List[str]]:
         """Relocate ``agent_id`` to ``new_pos`` (or ``None`` to isolate) and rewire edges.
 
         New incident edges carry ``edge_start_periods = period`` so pre-move facts
-        are not leaked retroactively across newly formed links.
+        are not leaked retroactively across newly formed links. For relocations
+        executed inside a ``post_year(year)`` hook, pass ``period=year + 1`` so
+        same-year facts emitted before relocation do not traverse newly added links.
         """
+        if period is None:
+            warnings.warn(
+                "SpatialNeighborhoodGraph.move() called without an explicit period; "
+                "defaulting to period=0 (pass period=year + 1 for post_year relocations).",
+                UserWarning,
+                stacklevel=2,
+            )
+            effective_period = 0
+        else:
+            if isinstance(period, bool) or not isinstance(period, int) or period < 0:
+                raise ValueError(f"period must be a non-negative int, got {period!r}")
+            effective_period = period
+
         if agent_id not in self.graph:
             return {"removed": [], "added": [], "neighbors": []}
 
@@ -371,9 +387,9 @@ class SpatialNeighborhoodGraph(SocialGraph):
 
         target_edges = self._compute_target_edges()
         for u, v in sorted(old_edges - target_edges):
-            self.remove_edge(u, v, period=period)
+            self.remove_edge(u, v, period=effective_period)
         for u, v in sorted(target_edges - old_edges):
-            self.add_edge(u, v, period=period)
+            self.add_edge(u, v, period=effective_period)
 
         new_neighbors = set(self.get_neighbors(agent_id))
 

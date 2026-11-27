@@ -975,3 +975,177 @@ def test_attempt_magnitude_columns_off_add_no_column(case, flag):
     assert main([str(config), "--model", "mock"]) == 0
     [row] = _audit_rows(config.parents[1] / "results" / "agent_types")
     assert "initial_magnitude" not in row and "attempt_magnitudes" not in row
+
+
+def test_default_agents_honors_wildcard_skill_eligibility(case):
+    config, data = case
+    _write_yaml(
+        config.with_name("skill_registry.yaml"),
+        {
+            "default_skill": "wait",
+            "skills": [
+                {"skill_id": "wait", "description": "Wait", "eligible_agent_types": ["*"]},
+                {"skill_id": "inspect", "description": "Inspect", "eligible_agent_types": ["agent"]},
+                {"skill_id": "repair", "eligible_agent_types": ["other"]},
+            ],
+        },
+    )
+    data["global_config"]["run"] = {"world": "world:build"}
+    _write_yaml(config, data)
+    prep = _entry.prepare([str(config), "--model", "mock"])
+    assert [s.skill_id for s in prep.ctx.agents["agent_1"].config.skills] == ["wait", "inspect"]
+
+
+def test_population_validation_and_ablation_zero_count_flow(case, tmp_path, capsys):
+    config, data = case
+    data["regulator"] = {
+        "psychological_framework": "generic",
+        "prompt_template": "Regulator actions\n{options_text}\n\n{response_format}",
+        "actions": [{"id": "wait", "aliases": ["1"]}],
+        "parsing": {"skill_map": {"1": "wait"}},
+        "response_format": data["agent"]["response_format"],
+    }
+
+    # Conflicting YAML agent_count vs population
+    data["global_config"]["run"] = {
+        "world": "world:build",
+        "population": {"regulator": 1, "agent": 1},
+        "agent_count": 2,
+    }
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="not both"):
+        _entry.prepare([str(config), "--output", str(tmp_path / "err_both")])
+
+    # CLI --agents conflicts with population
+    data["global_config"]["run"] = {"world": "world:build", "population": {"regulator": 1, "agent": 1}}
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="--agents"):
+        _entry.prepare([str(config), "--agents", "2", "--output", str(tmp_path / "err_cli")])
+
+    # Boolean / negative / undeclared / zero-total counts rejected
+    for bad_pop in (
+        {},
+        {"regulator": 0, "agent": 0},
+        {"agent": True},
+        {"agent": -1},
+        {"typo_type": 1},
+    ):
+        data["global_config"]["run"] = {"world": "world:build", "population": bad_pop}
+        _write_yaml(config, data)
+        with pytest.raises(_entry.RunError):
+            _entry.prepare([str(config), "--output", str(tmp_path / "err_bad")])
+
+    # Zero-count ablation arm with reusable phase_order and mock mapping succeeds
+    (config.parents[1] / "ablation_mock.py").write_text(
+        dedent(
+            '''
+            import json
+            from broker.utils.llm_utils import LLMStats
+
+            def build(ctx):
+                def _say(choice):
+                    return json.dumps({"decision": choice}), LLMStats(success=True)
+                return {"regulator": lambda _p: _say("1"), "agent": lambda _p: _say("2")}
+            '''
+        ),
+        encoding="utf-8",
+    )
+    data["global_config"]["run"] = {
+        "world": "world:build",
+        "mock": "ablation_mock:build",
+        "population": {"regulator": 0, "agent": 2},
+        "phase_order": [["regulator"], ["agent"]],
+    }
+    _write_yaml(config, data)
+    out_ablation = tmp_path / "ablation_ok"
+    assert main([str(config), "--model", "mock", "--output", str(out_ablation)]) == 0
+    err = capsys.readouterr().err
+    assert "regulator" in err
+    manifest = _manifest(out_ablation)
+    assert manifest["population"] == {"regulator": 0, "agent": 2}
+    assert manifest["agent_count"] == 2
+    assert len(_audit_rows(out_ablation)) == 2
+
+
+def test_population_custom_factory_mismatch_and_phase_order_guards(case, tmp_path):
+    config, data = case
+    data["other"] = {
+        "psychological_framework": "generic",
+        "prompt_template": "Other\n{options_text}\n\n{response_format}",
+        "actions": [{"id": "wait", "aliases": ["1"]}, {"id": "repair", "aliases": ["2"]}],
+        "parsing": {"skill_map": {"1": "wait", "2": "repair"}},
+        "response_format": data["agent"]["response_format"],
+    }
+    (config.parents[1] / "bad_pop_agents.py").write_text(
+        dedent(
+            '''
+            from broker.agents import AgentConfig, BaseAgent, Skill
+
+            def wrong_counts(ctx):
+                assert ctx.population == {"agent": 1, "other": 1}
+                return {
+                    "agent_1": BaseAgent(AgentConfig(
+                        "agent_1", "agent", [], [], [], [Skill("wait", "wait", None, "none")]
+                    )),
+                }
+
+            def right_counts(ctx):
+                return {
+                    "agent_1": BaseAgent(AgentConfig(
+                        "agent_1", "agent", [], [], [], [Skill("wait", "wait", None, "none")]
+                    )),
+                    "other_1": BaseAgent(AgentConfig(
+                        "other_1", "other", [], [], [], [Skill("repair", "repair", None, "none")]
+                    )),
+                }
+            '''
+        ),
+        encoding="utf-8",
+    )
+
+    data["global_config"]["run"] = {
+        "world": "world:build",
+        "agents": "bad_pop_agents:wrong_counts",
+        "population": {"agent": 1, "other": 1},
+    }
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="do not match run.population"):
+        _entry.prepare([str(config), "--output", str(tmp_path / "mismatch")])
+
+    # Partial phase_order missing active populated type
+    data["global_config"]["run"] = {
+        "world": "world:build",
+        "agents": "bad_pop_agents:right_counts",
+        "population": {"agent": 1, "other": 1},
+        "phase_order": [["agent"]],
+    }
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="omits populated agent type"):
+        _entry.prepare([str(config), "--output", str(tmp_path / "partial_phase")])
+
+    # Duplicate role in phase_order
+    data["global_config"]["run"]["phase_order"] = [["agent"], ["agent", "other"]]
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="more than one phase"):
+        _entry.prepare([str(config), "--output", str(tmp_path / "dup_phase")])
+
+    # Strict keys + zero eligible skills / ineligible default_skill check
+    _write_yaml(
+        config.with_name("skill_registry.yaml"),
+        {
+            "default_skill": "wait",
+            "skills": [
+                {"skill_id": "wait", "eligible_agent_types": ["agent"]},
+                {"skill_id": "repair", "eligible_agent_types": ["other"]},
+            ],
+        },
+    )
+    data["global_config"]["run"] = {
+        "world": "world:build",
+        "population": {"agent": 1, "other": 1},
+        "phase_order": [["agent"], ["other"]],
+        "strict_keys": True,
+    }
+    _write_yaml(config, data)
+    with pytest.raises(_entry.RunError, match="default_skill"):
+        _entry.prepare([str(config), "--output", str(tmp_path / "bad_default")])

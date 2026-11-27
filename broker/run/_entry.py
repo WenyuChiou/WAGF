@@ -20,7 +20,7 @@ from broker.components.context.builder import TieredContextBuilder
 from broker.components.context.providers import DEFAULT_RETRIEVAL_TOP_K
 from broker.core.experiment_builder import ExperimentBuilder
 from broker.interfaces.skill_types import ExecutionResult
-from broker.utils.agent_config import AgentTypeConfig, NON_AGENT_TOP_LEVEL_KEYS, UnknownConfigKeysError
+from broker.utils.agent_config import AgentTypeConfig, UnknownConfigKeysError
 from broker.utils.llm_utils import LLM_CONFIG, is_mock_model
 
 from ._imports import SlotError, parse_slot, resolve_slot, valid_module_name, vet_import_target
@@ -70,6 +70,7 @@ class RunContext:
     agents: dict[str, BaseAgent] | None = None
     social: Any = None
     coordinator: Any = None
+    population: dict[str, int] | None = None
 
 
 class StepWorld:
@@ -111,6 +112,7 @@ _RUN_TYPES = {
     "output": str,
     "skill_registry": str,
     "phase_order": list,
+    "population": dict,
 }
 _POSITIVE_SETTINGS = {"years", "agent_count", "workers"}
 
@@ -168,6 +170,23 @@ def _run_block(raw):
         for phase in run["phase_order"]
     ):
         raise RunError("run.phase_order must be a list of lists of agent-type strings")
+    if "population" in run:
+        if "agent_count" in run:
+            raise RunError("set run.population or run.agent_count, not both")
+        population = run["population"]
+        if not population:
+            raise RunError("run.population must be a non-empty mapping of agent types to counts")
+        total = 0
+        for agent_type, count in population.items():
+            if type(agent_type) is not str or not agent_type.strip() or "\0" in agent_type:
+                raise RunError(f"run.population key must be a non-empty string, got {agent_type!r}")
+            if type(count) is not int or count < 0:
+                raise RunError(
+                    f"run.population[{agent_type!r}] must be a non-negative integer, got {count!r}"
+                )
+            total += count
+        if total < 1:
+            raise RunError("run.population must instantiate at least 1 agent in total")
     return run
 
 
@@ -208,6 +227,8 @@ def _prepare_run(argv):
     if not isinstance(raw, dict):
         raise RunError(f"agent-types YAML must be a mapping in {config_path}")
     run = _run_block(raw)
+    if "population" in run and args.agent_count is not None:
+        raise RunError("--agents cannot be combined with run.population")
     slots = _plan_slots(run, args)
     settings = {name: _setting(args, run, name, default) for name, default in _DEFAULTS.items()}
     output = _setting(args, run, "output", f"results/{config_path.stem}")
@@ -230,6 +251,29 @@ def _prepare_run(argv):
         raise RunError(f"{config_path}: the strict key check could not run ({exc})") from exc
     except ValueError as exc:  # e.g. a memory fraction outside [0, 1]
         raise RunError(f"{config_path}: {exc}") from exc
+    population: dict[str, int] | None = None
+    effective_agent_count = settings["agent_count"]
+    if "population" in run:
+        declared_types = config.agent_type_names()
+        declared_set = set(declared_types)
+        population = dict(run["population"])
+        for agent_type in population:
+            if agent_type not in declared_set:
+                raise RunError(
+                    f"run.population names undeclared agent type {agent_type!r}; "
+                    f"declared agent types: {declared_types}"
+                )
+        effective_agent_count = sum(population.values())
+        unpopulated = [
+            name for name in declared_types
+            if name != "default" and population.get(name, 0) == 0
+        ]
+        if unpopulated:
+            print(
+                f"broker.run: note: declared agent type(s) {unpopulated} have count 0 "
+                f"in run.population and will not be instantiated",
+                file=sys.stderr,
+            )
     if settings["strict_keys"]:
         from broker.tools.validate_prompt import magnitude_scale_problems
 
@@ -246,10 +290,10 @@ def _prepare_run(argv):
         raise RunError(f"{config_path}: {exc}") from exc
     ctx = RunContext(
         config_path=config_path, case_dir=case_dir, config=config, raw=raw,
-        model=settings["model"], years=settings["years"], agent_count=settings["agent_count"],
+        model=settings["model"], years=settings["years"], agent_count=effective_agent_count,
         seed=settings["seed"], output_dir=output_dir, skill_registry_path=registry_path,
         profile=settings["governance"], workers=settings["workers"],
-        memory=memory, reflection=reflection,
+        memory=memory, reflection=reflection, population=population,
     )
     return ctx, slots, run.get("phase_order"), args
 
@@ -291,12 +335,17 @@ def _slot_factory(name, ctx, slots, allowed_modules, loaded):
 
 
 def _default_agents(ctx):
-    types = [name for name, block in ctx.raw.items()
-             if name not in NON_AGENT_TOP_LEVEL_KEYS and isinstance(block, dict)]
-    if len(types) != 1:
-        found = ", ".join(map(str, types)) or "none"
-        raise RunError(f"default agents require exactly one agent type (found: {found}). Set run.agents to a factory")
-    agent_type = types[0]
+    if ctx.population is not None:
+        plan = [(agent_type, count) for agent_type, count in ctx.population.items() if count > 0]
+    else:
+        types = ctx.config.agent_type_names()
+        if len(types) != 1:
+            found = ", ".join(map(str, types)) or "none"
+            raise RunError(
+                f"default agents require exactly one agent type (found: {found}). Set run.agents to a factory"
+            )
+        plan = [(types[0], ctx.agent_count)]
+
     registry = _read_yaml(ctx.skill_registry_path)
     if not isinstance(registry, dict):
         raise RunError(f"skill registry YAML must be a mapping in {ctx.skill_registry_path}")
@@ -310,27 +359,56 @@ def _default_agents(ctx):
             f"skills in {ctx.skill_registry_path} must be a list of mappings, each with a "
             f"string skill_id (and eligible_agent_types, if given, a list)"
         )
-    skills = [
-        Skill(
-            skill_id=item["skill_id"],
-            description=item.get("description", item["skill_id"]),
-            affected_param=None,
-            direction="none",
-        )
-        for item in items
-        if "eligible_agent_types" not in item or agent_type in item["eligible_agent_types"]
-    ]
+
+    default_skill = registry.get("default_skill")
+    known_skill_ids = {item["skill_id"] for item in items}
+    global_cfg = ctx.raw.get("global_config") if isinstance(ctx.raw, Mapping) else {}
+    gov_cfg = global_cfg.get("governance") if isinstance(global_cfg, Mapping) else {}
+    keep_proposal = isinstance(gov_cfg, Mapping) and gov_cfg.get("on_retry_exhausted") == "keep_proposal"
+
     agents = {}
-    for index in range(1, ctx.agent_count + 1):
-        name = f"{agent_type}_{index}"
-        agents[name] = BaseAgent(AgentConfig(
-            name=name, agent_type=agent_type, state_params=[], objectives=[], constraints=[],
-            skills=skills.copy(),
-        ))
+    for agent_type, count in plan:
+        skills = [
+            Skill(
+                skill_id=item["skill_id"],
+                description=item.get("description", item["skill_id"]),
+                affected_param=None,
+                direction="none",
+            )
+            for item in items
+            if (
+                "eligible_agent_types" not in item
+                or "*" in item["eligible_agent_types"]
+                or agent_type in item["eligible_agent_types"]
+            )
+        ]
+        if not skills:
+            raise RunError(
+                f"agent type {agent_type!r} has no eligible skills in {ctx.skill_registry_path}"
+            )
+        if (
+            ctx.population is not None
+            and isinstance(default_skill, str)
+            and default_skill in known_skill_ids
+            and not keep_proposal
+            and default_skill not in {skill.skill_id for skill in skills}
+        ):
+            raise RunError(
+                f"skill registry default_skill {default_skill!r} is not eligible for populated "
+                f"agent type {agent_type!r}"
+            )
+        for index in range(1, count + 1):
+            name = f"{agent_type}_{index}"
+            if name in agents:
+                raise RunError(f"duplicate generated agent id {name!r}")
+            agents[name] = BaseAgent(AgentConfig(
+                name=name, agent_type=agent_type, state_params=[], objectives=[], constraints=[],
+                skills=skills.copy(),
+            ))
     return agents
 
 
-def _mock_invokes(mock_factory, ctx, agent_types):
+def _mock_invokes(mock_factory, ctx, agent_types, inactive_types=()):
     if mock_factory is None:
         return {}
     result = mock_factory(ctx)
@@ -338,12 +416,17 @@ def _mock_invokes(mock_factory, ctx, agent_types):
         return dict.fromkeys(agent_types, result)
     if not isinstance(result, Mapping):
         raise SlotError("run.mock must return a callable or a mapping of agent types to callables")
+    active_set = set(agent_types)
+    allowed_types = active_set | set(inactive_types)
+    filtered = {}
     for agent_type, invoke in result.items():
-        if agent_type not in agent_types:
+        if agent_type not in allowed_types:
             raise SlotError(f"run.mock returned unknown agent type {agent_type!r}")
         if not callable(invoke):
             raise SlotError(f"run.mock must return a callable for agent type {agent_type!r}")
-    return result
+        if agent_type in active_set:
+            filtered[agent_type] = invoke
+    return filtered
 
 
 def _require_coupling_enabled(ctx, world):
@@ -462,6 +545,16 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         isinstance(name, str) and isinstance(agent, BaseAgent) for name, agent in ctx.agents.items()
     ):
         raise SlotError("run.agents must return a non-empty dictionary of names to BaseAgent instances")
+    if ctx.population is not None and agents_factory is not None:
+        expected_counts = {atype: c for atype, c in ctx.population.items() if c > 0}
+        actual_counts: dict[str, int] = {}
+        for agent in ctx.agents.values():
+            actual_counts[agent.agent_type] = actual_counts.get(agent.agent_type, 0) + 1
+        if actual_counts != expected_counts:
+            raise RunError(
+                f"run.agents returned agent counts {actual_counts} which do not match "
+                f"run.population {expected_counts}"
+            )
 
     hooks_factory = _slot_factory("hooks", ctx, slots, allowed_modules, loaded)
     hooks = hooks_factory(ctx) if hooks_factory is not None else {}
@@ -478,16 +571,52 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         raise SlotError("run.validators must return a sequence of callables")
 
     agent_types = tuple(dict.fromkeys(agent.agent_type for agent in ctx.agents.values()))
+    active_set = set(agent_types)
+    inactive_declared_types = (
+        (set(ctx.config.agent_type_names()) - active_set - {"default"})
+        | {k for k, v in (ctx.population or {}).items() if v == 0}
+    ) if ctx.population is not None else set()
+
+    effective_phase_order = phase_order
     if phase_order is not None:
-        known_types = set(agent_types)
-        unknown = [name for phase in phase_order for name in phase if name not in known_types]
+        allowed_phase_types = active_set | inactive_declared_types
+        unknown = [name for phase in phase_order for name in phase if name not in allowed_phase_types]
         if unknown:
             raise RunError(
                 f"run.phase_order names unknown agent type(s) {unknown}; "
-                f"available agent types: {sorted(known_types)}"
+                f"available agent types: {sorted(active_set)}"
             )
+        if ctx.population is not None:
+            seen_in_phases: set[str] = set()
+            duplicates: list[str] = []
+            for phase in phase_order:
+                for name in phase:
+                    if name in seen_in_phases and name not in duplicates:
+                        duplicates.append(name)
+                    seen_in_phases.add(name)
+            if duplicates:
+                raise RunError(
+                    f"run.phase_order assigns agent type(s) {duplicates} to more than one phase"
+                )
+            missing_active = [atype for atype in agent_types if atype not in seen_in_phases]
+            if missing_active:
+                raise RunError(
+                    f"run.phase_order omits populated agent type(s) {missing_active}"
+                )
+            pruned = [
+                [name for name in phase if name in active_set]
+                for phase in phase_order
+            ]
+            effective_phase_order = [phase for phase in pruned if phase]
+    elif len(agent_types) > 1:
+        print(
+            f"broker.run: warning: multiple agent types {list(agent_types)} running without "
+            f"run.phase_order; all agents will execute in a single phase in population order.",
+            file=sys.stderr,
+        )
+
     mock_factory = _slot_factory("mock", ctx, slots, allowed_modules, loaded)
-    invokes = _mock_invokes(mock_factory, ctx, agent_types)
+    invokes = _mock_invokes(mock_factory, ctx, agent_types, inactive_types=inactive_declared_types)
 
     templates = {}
     for agent_type in agent_types:
@@ -521,6 +650,12 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         if template:
             _warn_undeclared_prompt_placeholders(ctx, agent_type, template)
             templates[agent_type] = template
+        elif len(agent_types) > 1:
+            print(
+                f"broker.run: warning: {agent_type}: no prompt_template or prompt_template_file "
+                f"configured; multi-type run will fall back to the built-in template.",
+                file=sys.stderr,
+            )
     if len(agent_types) == 1 and templates:
         templates["default"] = templates[agent_types[0]]
     memory = build_memory_engine(ctx.memory)
@@ -603,8 +738,8 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
             raise SlotError(f"run.hooks: {exc}") from exc
     if validators_factory is not None:
         builder.with_custom_validators(list(validators))
-    if phase_order is not None:
-        builder.with_phase_order(phase_order)
+    if effective_phase_order is not None:
+        builder.with_phase_order(effective_phase_order)
     if reflection_hook is not None:
         builder.with_reflection_engine(reflection_hook.engine)
     if not ctx.skill_registry_path.is_file():
@@ -783,6 +918,8 @@ def _write_run_record(prepared, argv, status, provenance=None):
     }
     if prepared.reflection_hook is not None:
         record["reflection"].update(prepared.reflection_hook.counts)
+    if ctx.population is not None:
+        record["population"] = dict(ctx.population)
     if provenance:
         record.update(provenance)
     ctx.output_dir.mkdir(parents=True, exist_ok=True)
