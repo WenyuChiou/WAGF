@@ -176,6 +176,7 @@ class AsyncKnowledgeGraph:
         self._seq: int = 0
         self._delivered_by_observer: Dict[str, Set[str]] = {}
         self._delivery_cursor_period: Dict[str, int] = {}
+        self._channel_cursor_period: Dict[Tuple[Any, ...], int] = {}
 
     def _validate_no_governance_trace(self, triple: KnowledgeTriple) -> None:
         """Enforce Invariant 7: refuse governance phrases in social KG triples."""
@@ -535,10 +536,19 @@ class AsyncKnowledgeGraph:
         """Idempotently deliver unseen visible triples into ``memory_engine``."""
         if memory_engine is None or max_items <= 0 or not self._triples:
             return 0
-        if self._delivery_cursor_period.get(observer_id) == current_period:
+        effective_hops = self.neighbor_hops if hops is None else int(hops)
+        predicate_set = _normalize_filter_set(predicates)
+        subject_set = _normalize_filter_set(subjects)
+        channel_key = (
+            observer_id,
+            frozenset(predicate_set) if predicate_set is not None else None,
+            frozenset(subject_set) if subject_set is not None else None,
+            bool(include_self),
+            effective_hops,
+        )
+        if self._channel_cursor_period.get(channel_key) == current_period:
             return 0
 
-        effective_hops = self.neighbor_hops if hops is None else int(hops)
         delivered_ids = self._delivered_by_observer.setdefault(observer_id, set())
         visible_pairs = self._query_visible_with_availability(
             observer_id,
@@ -573,6 +583,7 @@ class AsyncKnowledgeGraph:
             delivered_ids.add(triple.triple_id)
             count += 1
 
+        self._channel_cursor_period[channel_key] = current_period
         self._delivery_cursor_period[observer_id] = current_period
         return count
 

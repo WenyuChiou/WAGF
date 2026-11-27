@@ -446,6 +446,47 @@ class TestSyncToMemoryWithOriginGate:
         )
         assert [t.obj for t in kg.query_visible("A5", 3)] == ["new_a4"]
 
+    def test_move_preserves_incoming_fallback_edges(self):
+        from broker.components.social.graph import SpatialNeighborhoodGraph
+
+        # A=(0,0), B=(1,0), C=(3,0), radius=0, fallback_k=1 -> A-B-C
+        g = SpatialNeighborhoodGraph(
+            ["A", "B", "C"],
+            positions={"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (3.0, 0.0)},
+            radius=0.0,
+            fallback_k=1,
+        )
+        assert set(g.get_neighbors("B")) == {"A", "C"}
+        diff = g.move("B", (1.0, 0.0), period=2)
+        assert diff == {"removed": [], "added": [], "neighbors": ["A", "C"]}
+        assert set(g.get_neighbors("C")) == {"B"}
+        assert g.get_edge_start_period("B", "C") == 0
+        assert g.edge_events == []
+
+    def test_separate_filtered_providers_do_not_starve_each_other(self, tmp_path: Path):
+        engine = WindowMemoryEngine(window_size=10)
+        gate = install_origin_gate(engine, tmp_path, lambda: 1)
+        gate.seeding = False
+
+        social_graph = CustomGraph(["A1", "C1"], lambda _ids: [("A1", "C1")])
+        kg = AsyncKnowledgeGraph(social_graph=social_graph)
+        kg.assert_fact(
+            subject="A1", predicate="action", obj="act_1",
+            text="A1 action fact", author_id="A1", published_period=1, visibility="neighbors",
+        )
+        alerts_provider = KnowledgeGraphSocialProvider(
+            kg=kg, period_getter=lambda: 1, memory_engine=engine, predicates="alert", sync_max_items=5,
+        )
+        actions_provider = KnowledgeGraphSocialProvider(
+            kg=kg, period_getter=lambda: 1, memory_engine=engine, predicates="action", sync_max_items=5,
+        )
+
+        # alerts_provider finds 0 alerts, must not block actions_provider in same period
+        alerts_provider.provide("C1", {}, {})
+        actions_provider.provide("C1", {}, {})
+        actions_provider.provide("C1", {}, {})  # duplicate within channel is still ignored
+        assert gate.counts["social"] == 1
+
 
 # ---------------------------------------------------------------------------
 # 5. KnowledgeGraphSocialProvider + TieredContextBuilder integration

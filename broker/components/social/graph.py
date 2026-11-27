@@ -266,17 +266,17 @@ class SpatialNeighborhoodGraph(SocialGraph):
         else:  # euclidean
             return (dx**2 + dy**2) ** 0.5
 
-    def _build_spatial_graph(self):
-        """Build edges based on spatial proximity."""
-        # Pre-compute all pairwise distances
+    def _compute_target_edges(self) -> Set[Tuple[str, str]]:
+        """Compute canonical undirected spatial + fallback edges for positioned agents."""
         distances: Dict[str, List[Tuple[str, float]]] = {aid: [] for aid in self.agent_ids}
+        target_edges: Set[Tuple[str, str]] = set()
 
         for i, a_id in enumerate(self.agent_ids):
             if a_id not in self.positions:
                 continue
             pos_a = self.positions[a_id]
 
-            for b_id in self.agent_ids[i+1:]:
+            for b_id in self.agent_ids[i + 1:]:
                 if b_id not in self.positions:
                     continue
                 pos_b = self.positions[b_id]
@@ -285,17 +285,33 @@ class SpatialNeighborhoodGraph(SocialGraph):
                 distances[a_id].append((b_id, dist))
                 distances[b_id].append((a_id, dist))
 
-                # Add edge if within radius
                 if dist <= self.radius:
-                    self.add_edge(a_id, b_id)
+                    target_edges.add(self._edge_key(a_id, b_id))
 
-        # Apply fallback for isolated agents
+        # Apply fallback for isolated agents based on total incident edges so far
+        incident_counts: Dict[str, int] = {aid: 0 for aid in self.agent_ids}
+        for u, v in target_edges:
+            incident_counts[u] = incident_counts.get(u, 0) + 1
+            incident_counts[v] = incident_counts.get(v, 0) + 1
+
         for a_id in self.agent_ids:
-            if self.get_neighbor_count(a_id) < self.fallback_k and distances[a_id]:
-                # Sort by distance and connect to k-nearest
+            if a_id not in self.positions:
+                continue
+            if incident_counts.get(a_id, 0) < self.fallback_k and distances[a_id]:
                 sorted_neighbors = sorted(distances[a_id], key=lambda x: x[1])
                 for b_id, _ in sorted_neighbors[:self.fallback_k]:
-                    self.add_edge(a_id, b_id)
+                    edge = self._edge_key(a_id, b_id)
+                    if edge not in target_edges:
+                        target_edges.add(edge)
+                        incident_counts[edge[0]] = incident_counts.get(edge[0], 0) + 1
+                        incident_counts[edge[1]] = incident_counts.get(edge[1], 0) + 1
+
+        return target_edges
+
+    def _build_spatial_graph(self):
+        """Build edges based on spatial proximity."""
+        for a_id, b_id in sorted(self._compute_target_edges()):
+            self.add_edge(a_id, b_id)
 
     def get_neighbors_within_radius(
         self, agent_id: str, radius: Optional[float] = None
@@ -342,28 +358,22 @@ class SpatialNeighborhoodGraph(SocialGraph):
             return {"removed": [], "added": [], "neighbors": []}
 
         old_neighbors = set(self.get_neighbors(agent_id))
+        old_edges: Set[Tuple[str, str]] = {
+            self._edge_key(u, v)
+            for u, adj in self.graph.items()
+            for v in adj
+            if u != v
+        }
         if new_pos is None:
             self.positions.pop(agent_id, None)
-            target_neighbors: Set[str] = set()
         else:
             self.positions[agent_id] = new_pos
-            dists: List[Tuple[str, float]] = []
-            target_neighbors = set()
-            for b_id in self.agent_ids:
-                if b_id == agent_id or b_id not in self.positions:
-                    continue
-                dist = self._calculate_distance(new_pos, self.positions[b_id])
-                dists.append((b_id, dist))
-                if dist <= self.radius:
-                    target_neighbors.add(b_id)
-            if len(target_neighbors) < self.fallback_k and dists:
-                for b_id, _ in sorted(dists, key=lambda x: x[1])[:self.fallback_k]:
-                    target_neighbors.add(b_id)
 
-        for nb in sorted(old_neighbors - target_neighbors):
-            self.remove_edge(agent_id, nb, period=period)
-        for nb in sorted(target_neighbors - old_neighbors):
-            self.add_edge(agent_id, nb, period=period)
+        target_edges = self._compute_target_edges()
+        for u, v in sorted(old_edges - target_edges):
+            self.remove_edge(u, v, period=period)
+        for u, v in sorted(target_edges - old_edges):
+            self.add_edge(u, v, period=period)
 
         new_neighbors = set(self.get_neighbors(agent_id))
 

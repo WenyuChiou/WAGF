@@ -444,8 +444,14 @@ class ExperimentRunner:
                 overrides = self.broker.config.get_llm_params(agent_type)
 
             # Per-type model name: llm_params.model overrides CLI model.
-            # Keep backward compatibility with legacy placeholder values.
-            model_override = _normalize_model_override(overrides.pop("model", None))
+            # Keep backward compatibility with legacy placeholder values and MagicMock brokers.
+            model_override = overrides.pop("model", None)
+            if isinstance(model_override, str) and model_override.strip().lower() in {
+                "",
+                "command-line-override",
+                "cli-override",
+            }:
+                model_override = None
             model_name = model_override or self.config.model
 
             # Record the exact parameters sent by create_llm_invoke (plus the
