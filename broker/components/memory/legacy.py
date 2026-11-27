@@ -1,12 +1,12 @@
 """
 Legacy Memory Module — CognitiveMemory for multi-agent examples.
 
-.. deprecated::
-    This module is retained only for backward compatibility with
-    ``examples/multi_agent/flood/ma_agents/``.  New code should use
-    ``broker.components.memory_engine`` (MemoryEngine hierarchy) instead.
-
-    Will be fully removed in Phase 8C of the generalization plan.
+.. deprecated:: 0.7.0
+    Retained solely for backward compatibility with
+    ``examples/multi_agent/flood/ma_agents/``; use
+    :class:`broker.components.memory.engine.MemoryEngine` or
+    :class:`broker.components.memory.engines.humancentric.HumanCentricMemoryEngine`
+    for all new code.
 """
 from dataclasses import dataclass, field
 from datetime import datetime

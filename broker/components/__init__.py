@@ -1,6 +1,6 @@
 """Broker components package.
 
-Core components for the water agent governance framework:
+Domain-agnostic cognitive governance components:
 - Context building and providers
 - Memory systems
 - Observable state management

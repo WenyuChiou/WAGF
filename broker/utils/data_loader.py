@@ -1,6 +1,8 @@
-import pandas as pd
 from typing import Dict, Any, List, Optional
+import pandas as pd
 from broker.agents import BaseAgent, AgentConfig, StateParam
+
+# Supported compatibility helper used by governed_flood / single_agent frozen runners.
 
 def load_agents_from_csv(
     csv_path: str,

@@ -2,6 +2,7 @@
 import importlib
 import importlib.util
 import pandas as pd
+import pytest
 
 
 def test_csv_loader_module_exists():
@@ -22,7 +23,8 @@ def test_load_csv_with_mapping_basic(tmp_path):
         "field1": {"col": "A"},
         "field2": {"col": "B"}
     }
-    df = load_csv_with_mapping(str(csv_path), column_mapping, required_fields=["field1", "field2"])
+    with pytest.warns(DeprecationWarning, match="csv_loader"):
+        df = load_csv_with_mapping(str(csv_path), column_mapping, required_fields=["field1", "field2"])
 
     assert list(df.columns) == ["field1", "field2"]
     assert df.iloc[0].to_dict() == {"field1": 1, "field2": 2}
@@ -41,9 +43,10 @@ def test_load_csv_with_mapping_missing_column(tmp_path):
         "field2": {"col": "Z"}
     }
 
-    try:
-        load_csv_with_mapping(str(csv_path), column_mapping, required_fields=["field1", "field2"])
-    except ValueError as exc:
-        assert "missing" in str(exc).lower()
-    else:
-        raise AssertionError("Expected ValueError for missing column")
+    with pytest.warns(DeprecationWarning, match="csv_loader"):
+        try:
+            load_csv_with_mapping(str(csv_path), column_mapping, required_fields=["field1", "field2"])
+        except ValueError as exc:
+            assert "missing" in str(exc).lower()
+        else:
+            raise AssertionError("Expected ValueError for missing column")

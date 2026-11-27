@@ -8,10 +8,10 @@ with legacy single-process unit tests only; new domains should not build on it.
 State Manager - Multi-level state management for single and multi-agent scenarios.
 
 State Levels:
-- Individual: Per-agent state (elevated, has_insurance, damage_history)
-- Shared: Environment state visible to all agents (flood_occurred, year)
-- Institutional: Policy/rule state (subsidy_rate, policy_mode)
-- Aggregated: Computed stats (community_elevated_pct)
+- Individual: Per-agent state (e.g., adopted, active, event_history)
+- Shared: Environment state visible to all agents (e.g., event_occurred, step)
+- Institutional: Policy/rule state (e.g., subsidy_rate, policy_mode)
+- Aggregated: Computed stats (e.g., community_adoption_pct)
 
 This design supports both:
 - Single-agent: All agents share same type, use default methods

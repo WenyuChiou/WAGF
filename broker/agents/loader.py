@@ -1,11 +1,14 @@
 """
-YAML Configuration Loader for Base Agents
+YAML Configuration Loader for Base Agents.
 
-Allows users to define any agent type via YAML configuration.
-
-Task-037: Migrated from agents/loader.py to SDK
+.. deprecated:: 0.7.0
+    Direct institutional-YAML instantiation via ``broker.agents.loader`` is
+    deprecated. Configure agent types via ``agent_types.yaml`` and
+    :class:`broker.utils.agent_config.AgentTypeConfig` / ``python -m broker.run``
+    instead.
 """
 
+import warnings
 import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
@@ -21,16 +24,7 @@ from .base import (
 )
 
 
-def load_agent_configs(yaml_path: str) -> List[AgentConfig]:
-    """
-    Load institutional agent configurations from YAML file.
-
-    Args:
-        yaml_path: Path to YAML config file
-
-    Returns:
-        List of AgentConfig objects
-    """
+def _load_agent_configs_impl(yaml_path: str) -> List[AgentConfig]:
     with open(yaml_path, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
 
@@ -111,6 +105,23 @@ def load_agent_configs(yaml_path: str) -> List[AgentConfig]:
     return configs
 
 
+def load_agent_configs(yaml_path: str) -> List[AgentConfig]:
+    """
+    Load institutional agent configurations from YAML file.
+
+    .. deprecated:: 0.7.0
+        Use :class:`broker.utils.agent_config.AgentTypeConfig` or ``python -m broker.run``.
+    """
+    warnings.warn(
+        "broker.agents.loader.load_agent_configs is deprecated since v0.7.0; "
+        "configure agent types via agent_types.yaml and AgentTypeConfig / "
+        "python -m broker.run instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _load_agent_configs_impl(yaml_path)
+
+
 def load_agents(
     yaml_path: str,
     memory_factory: Optional[Callable[[str], Any]] = None
@@ -118,14 +129,17 @@ def load_agents(
     """
     Load and instantiate agents from YAML config.
 
-    Args:
-        yaml_path: Path to YAML config file
-        memory_factory: Optional callable to create memory for each agent
-
-    Returns:
-        Dict mapping agent names to BaseAgent instances
+    .. deprecated:: 0.7.0
+        Use :class:`broker.utils.agent_config.AgentTypeConfig` or ``python -m broker.run``.
     """
-    configs = load_agent_configs(yaml_path)
+    warnings.warn(
+        "broker.agents.loader.load_agents is deprecated since v0.7.0; "
+        "configure agent types via agent_types.yaml and AgentTypeConfig / "
+        "python -m broker.run instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    configs = _load_agent_configs_impl(yaml_path)
 
     agents = {}
     for config in configs:

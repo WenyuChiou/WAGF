@@ -1,17 +1,9 @@
 """
 Shared Message Pool - Agent-to-agent structured messaging.
 
-STATUS: EXPERIMENTAL — not on any production run path (no production
-message producers as of v0.6.0). Verified by grep: the flood runner's
-`--enable-communication` flag (`examples/multi_agent/flood/run_unified_experiment.py`)
-only constructs `MessagePool` + `GameMaster`, registers agents, and
-subscribes households — it never calls `submit_proposal(s)`,
-`submit_artifact`, or `resolve_phase`, the only production call sites
-that would reach `MessagePool.publish()`. The only methods actually
-invoked on a live `message_pool` in production code are the setup/read
-calls `register_agents`, `subscribe`, and `get_unread`
-(`examples/multi_agent/flood/orchestration/lifecycle_hooks.py`). The
-machinery is wired; no producer exists to write into it.
+STATUS: EXPERIMENTAL (Multi-Actor / Coordination Extension — Pre-1.0 API).
+Wired into multi-actor simulations via ``MultiActorLifecycleBridge`` (``run.coordinator``
+slot on ``python -m broker.run``) and ``GameMaster``; inactive on default single-agent runs.
 
 Implements MetaGPT-style shared message pool with pub-sub filtering
 and mailbox delivery. Supports:
@@ -22,7 +14,7 @@ and mailbox delivery. Supports:
 - Priority ordering for context window management
 
 Design Principles:
-1. Domain-agnostic: No knowledge of flood/market/health specifics
+1. Domain-agnostic: No knowledge of specific application domains
 2. Compatible with existing SocialGraph and EventScope
 3. Pluggable into ContextProvider pipeline via MessagePoolProvider
 4. Thread-safe for parallel agent execution
@@ -30,8 +22,6 @@ Design Principles:
 References:
 - MetaGPT (2023). Shared Message Pool + Publish-Subscribe.
 - AgentSociety (2024). Role-based message filtering.
-
-Reference: Task-054 Communication Layer
 """
 from collections import defaultdict
 from collections.abc import Mapping, Sequence

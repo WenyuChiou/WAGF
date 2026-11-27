@@ -1,50 +1,28 @@
 """
-Phase 6T-E (2026-05-27): generic Post dataclass for social-media
-propagation channels.
+Generic ``Post`` dataclass for social-media propagation channels.
 
 Provides :class:`Post` — a domain-agnostic message envelope that
 authors push into ``TieredEnvironment.social_feeds`` and that
-followers' perception filters render into prompt content via
-their DomainPack's :meth:`PerceptionPack.verbalise_post` hook.
-
-Audit-locked design (see Phase 6T-D in ``CHANGELOG.md``)
-======================================================================
-The :class:`Post` dataclass has a ``tier_id: str`` field — NOT a
-broker-hardcoded credibility enum. The tier vocabulary
-(e.g. ``official_authority / verified_account / influencer / peer
-/ bot`` for flood) is owned by the DomainPack via :meth:`PerceptionPack.credibility_tiers`.
-
-This is the **third instance** of the broker/domain separation
-pattern the audit traces:
-
-1. Phase 6P-A: validator dispatch moved out of water namespace.
-2. Phase 6P-E + 6Q-B: hazard event schema moved out of broker/.
-3. **Phase 6T-E: tier vocabulary stays in DomainPack.**
-
-Forbidden literals in this module + everywhere under broker/:
-``OFFICIAL``, ``VERIFIED``, ``INFLUENCER``, ``PEER``, ``BOT`` —
-these belong in ``examples/governed_flood/adapters/flood_perception.py``
-(or wherever each domain documents its tier list). The AST gate
-in ``broker/tests/test_framework_invariants.py`` enforces this.
+:class:`~broker.components.context.providers.SocialMediaProvider` renders
+into prompt content via the DomainPack's :meth:`PerceptionPack.verbalise_post`
+hook. The ``tier_id: str`` field stays domain-owned via
+:meth:`PerceptionPack.credibility_tiers` (see the AST gate in
+``broker/tests/test_framework_invariants.py``).
 
 Lifecycle + persistence
 =======================
-Posts are stored in ``TieredEnvironment.social_feeds: Dict[author_id, List[Post]]``
-(field wiring lands when the Layer-3 SocialMediaProvider arrives,
-not in this commit — see the deferred-work section of the Phase
-6T-E CHANGELOG entry). The :class:`broker.components.events.exceptions.EventPersistence`
-enum determines whether a Post survives the year-boundary clear:
+Posts are stored in ``TieredEnvironment.social_feeds: Dict[author_id, List[Post]]``.
+The :class:`broker.components.events.exceptions.EventPersistence` enum determines
+whether a Post survives period-boundary cleanup:
 
-- ``EPHEMERAL`` — wiped at year boundary (single-cycle propagation;
-  unlikely for posts).
-- ``STICKY_YEAR_DECAY`` — preserved across years with weighted
-  age decay (the default for social-media posts; downstream
-  retrieval applies :func:`age_weight` to discount older posts).
+- ``EPHEMERAL`` — wiped at period boundary.
+- ``STICKY_YEAR_DECAY`` — preserved across periods with weighted age decay
+  (applied by :class:`~broker.components.context.providers.SocialMediaProvider`
+  via :func:`age_weight`).
 - ``STICKY_INDEFINITE`` — never wiped.
 
 The DomainPack's :meth:`EventPack.event_persistence_policy` returns
-the policy per ``event_type``. Posts emitted by an event handler
-inherit that policy.
+the policy per ``event_type``.
 """
 from __future__ import annotations
 
@@ -138,8 +116,8 @@ def age_weight(
 
     The default ``half_life_years=2.0`` matches the
     :class:`broker.components.events.exceptions.EventPersistence`
-    ``STICKY_YEAR_DECAY`` policy's default behaviour. Downstream
-    retrieval (Phase 6T-E SocialMediaProvider, future commit) may
+    ``STICKY_YEAR_DECAY`` policy's default behaviour. Consumers such as
+    :class:`~broker.components.context.providers.SocialMediaProvider` may
     override per-event-type via the pack's persistence policy.
 
     The half-life choice is a research lever — domains studying

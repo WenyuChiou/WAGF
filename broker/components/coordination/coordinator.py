@@ -1,14 +1,9 @@
 """
 Game Master / Coordinator - Central action resolution for MAS.
 
-STATUS: EXPERIMENTAL — not on any production run path (no production
-message producers as of v0.6.0). Verified by grep: production code
-(the flood runner's `--enable-communication` path) only calls
-`GameMaster.get_resolution()`, a pure getter. Nothing in production
-calls `submit_proposal(s)`, `submit_artifact`, or `resolve_phase` — the
-methods that internally call `self.message_pool.publish(msg)`
-(`_broadcast_resolutions`, `submit_artifact`). See the STATUS note in
-`broker/components/coordination/messages.py` for the full trace.
+STATUS: EXPERIMENTAL (Multi-Actor / Coordination Extension — Pre-1.0 API).
+Wired into multi-actor simulations via ``MultiActorLifecycleBridge`` (``run.coordinator``
+slot on ``python -m broker.run``); inactive on default single-agent runs.
 
 Implements Concordia-style Game Master that:
 1. Collects action proposals from all agents in a phase
@@ -26,8 +21,6 @@ Design Principles:
 References:
 - Concordia (2024). Game Master (GM) action resolution.
 - AgentTorch (2024). Transition function S_next = t(S, A).
-
-Reference: Task-054 Communication Layer
 """
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Callable

@@ -1,11 +1,9 @@
 """
-Generic survey data loader for agent initialization.
+Legacy household-survey data loader for agent initialization.
 
-Loads and validates survey data from Excel file, mapping columns to agent attributes.
-Designed to be configurable via YAML schema for different survey formats.
-
-For domain-specific survey loading with additional fields (e.g., flood experience),
-use domain-specific loaders like examples/multi_agent/survey/flood_survey_loader.py.
+STATUS: LEGACY HOUSEHOLD SURVEY LOADER. Retained without runtime warnings
+to preserve frozen flood runners; new domains should use
+:class:`broker.core.agent_initializer.CSVLoader`.
 """
 
 from __future__ import annotations

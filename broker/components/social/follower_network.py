@@ -1,54 +1,19 @@
 """
-Phase 6T-D (2026-05-27): directed asymmetric author→follower graph
-for social-media propagation channels.
+Directed asymmetric author→follower graph for social propagation channels.
 
-Provides :class:`FollowerNetwork`, a generic primitive that the
-Phase 6T-E social-media propagation channel + Phase 6T-F
-influencer agent_type build on top of. The class itself has no
-domain-specific knowledge — it stores ``(author, follower)`` edges
-with optional float weights, and exposes O(1) ``get_followers /
-get_followed`` queries.
-
-Design rationale
-================
-Pre-6T-D the only social-graph primitives in broker were:
-
-- :class:`SpatialNeighborhoodGraph` — symmetric proximity edges
-- :class:`InteractionHub`'s in-memory neighbour list — undirected
-- :func:`get_social_spec`-dispatched ``global / filtered_global /
-  random`` modes — also symmetric
-
-None of these capture the **asymmetric directed** "author publishes
-to followers" relationship that social-media propagation requires:
-
-- A government press office has 100k followers; the followers
-  don't follow each other.
-- An influencer's audience cares about THIS influencer; the
-  influencer doesn't care about each individual follower.
-- A bot account follows 10k accounts to manipulate engagement
-  metrics; none follow back.
-
-Phase 6T-D ships the primitive. The actual ``Post`` propagation
-(weighted by author credibility + age decay) lives in Phase 6T-E
-on top of this graph. The deliberate split: 6T-D's primitives are
-generic + can be tested in isolation; 6T-E adds the semantic
-overlay.
+Provides :class:`FollowerNetwork`, a generic primitive used by
+:class:`~broker.components.context.providers.SocialMediaProvider` and
+:class:`~broker.components.social.knowledge_graph.AsyncKnowledgeGraph`
+(``visibility="followers"``). It stores ``(author, follower)`` edges with
+optional float weights and exposes O(1) ``get_followers`` / ``get_followed``
+queries without domain-specific assumptions.
 
 Persistence semantics
 =====================
-:class:`FollowerNetwork` is **sticky across simulation years** —
-follower relationships persist until explicitly removed via
-:meth:`remove_edge`. Pre-6T-D event-context dicts in
-:class:`MAEventManager` wiped at every year boundary (the Phase
-6T-A persistence policy split makes this explicit via the
-``EventPersistence.EPHEMERAL`` default). Follower edges are
-``STICKY_INDEFINITE`` by default — losing them at year boundary
-would dissolve the network on every Jan 1, which contradicts
-human follower-relationship behaviour.
-
-Operators who want decaying follower relationships (e.g.
-"unfollow if no engagement for N years") can subclass
-:class:`FollowerNetwork` and override :meth:`year_boundary_decay`.
+:class:`FollowerNetwork` relationships persist across simulation periods until
+explicitly removed via :meth:`remove_edge` (matching ``STICKY_INDEFINITE``
+semantics). Subclasses MAY override :meth:`year_boundary_decay` to model
+engagement-based unfollowing or edge-weight decay.
 
 Genericity invariant
 ====================
@@ -233,14 +198,11 @@ class FollowerNetwork:
     # ─────────────────────────────────────────────────────────────────
 
     def year_boundary_decay(self, current_year: int) -> None:
-        """Hook called by future Phase 6T-E/F propagation code at
-        year-boundary clear, AFTER ``EPHEMERAL`` event wipes. Default
-        no-op (follower relationships are sticky by default).
+        """Hook called at period-boundary cleanup AFTER ``EPHEMERAL`` wipes.
 
-        Subclasses MAY override to implement engagement-based
-        unfollowing, time-decayed weights, or churn models. The
-        base class is deliberately no-op so the simplest
-        propagation channel (Phase 6T-E) doesn't need to opt out.
+        Default no-op (follower relationships are sticky by default). Subclasses
+        MAY override to implement engagement-based unfollowing, time-decayed
+        weights, or churn models.
         """
         return None
 

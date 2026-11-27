@@ -1,7 +1,9 @@
 """
-Agent Initializer from Survey Data.
+Legacy Agent Initializer from Household Survey Data.
 
-Generic survey-to-agent profile initialization.
+STATUS: LEGACY HOUSEHOLD SURVEY LOADER. Retained without runtime warnings
+to preserve frozen flood runners; new domains should use
+:class:`broker.core.agent_initializer.CSVLoader`.
 
 Design Pattern (v0.29+):
     Uses Protocol-based dependency injection for enrichers to avoid
@@ -9,10 +11,6 @@ Design Pattern (v0.29+):
     PositionEnricher and ValueEnricher protocols can be passed in.
 
     See broker/interfaces/enrichment.py for protocol definitions.
-
-Domain-Specific Usage:
-    For MA (flood simulation), use examples/multi_agent/survey/ma_initializer.py
-    which adds MG classification and flood extensions.
 """
 
 from __future__ import annotations

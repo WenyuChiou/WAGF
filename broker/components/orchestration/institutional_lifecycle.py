@@ -1,63 +1,24 @@
 """
-Phase 6T-C (2026-05-27): institutional-lifecycle extension point.
+Institutional-lifecycle extension point for heterogeneous multi-actor runs.
 
-STATUS: EXPERIMENTAL (Multi-Actor Extension — Pre-1.0 API). Not invoked by
-default single-agent-type ``python -m broker.run`` runs; reserved for follow-up
-heterogeneous multi-actor studies (e.g., government, insurer, household).
+STATUS: EXPERIMENTAL (Multi-Actor Extension — Pre-1.0 API).
+Inactive on default single-agent-type ``python -m broker.run`` runs; used by
+multi-actor setups to dispatch year-boundary, per-decision, and year-end
+lifecycle hooks per ``agent_type`` via ``SetupPack.institutional_lifecycle_handlers``
+and :class:`~broker.components.coordination.bridge.MultiActorLifecycleBridge`.
 
-Provides the generic :class:`InstitutionalLifecycleHandler` ABC plus
-the supporting type aliases that multi-agent runners use to dispatch
-year-boundary / per-decision / year-end lifecycle logic per
-``agent_type``. Closes engineering-audit findings R5 (no per-
-agent_type lifecycle extension point) and R6 (bespoke flood
-``MultiAgentHooks`` class bloats with every new institutional type).
-
-Design rationale
-================
-Pre-6T-C the only multi-agent lifecycle implementation lived in
-``examples/multi_agent/flood/orchestration/lifecycle_hooks.py`` as a
-single 1237-LOC :class:`MultiAgentHooks` class with ``agent_type ==
-"government"`` / ``"insurance"`` branches inside ``post_step``,
-``pre_year``, and ``post_year``. Adding a new institutional
-agent_type (Phase 6T-F's planned ``social_media_influencer``) would
-either bloat this class further or require yet another bespoke
-branch in already-entangled code.
-
-Phase 6T-C opens the extension point WITHOUT extracting existing
-code:
-
-- :class:`InstitutionalLifecycleHandler` — abstract base class with
-  three no-op lifecycle hooks (``pre_year``, ``post_decision``,
-  ``post_year``). New agent_types implement a subclass.
-- :meth:`SetupPack.institutional_lifecycle_handlers` — DomainPack
-  hook returning ``Dict[str, InstitutionalLifecycleHandler]`` keyed
-  by ``agent_type``. The multi-agent runner dispatches via this map.
-- :meth:`SetupPack.multi_agent_env_keys` — DomainPack hook codifying
-  the env-dict-whitelist convention previously implemented as an
-  emergent pattern in each multi-agent lifecycle file.
-
-The existing flood ``MultiAgentHooks`` is **not** refactored this
-sub-phase. The gov/insurance branches share ``self.env`` /
-``self.memory_engine`` state with the household branch + with
-``pre_year`` metric aggregation; clean extraction is HIGH
-byte-identity risk for paper-3 (400 agents × 13 years production
-runs). The plan defers actual code-movement to Phase 6T-F when the
-``social_media_influencer`` agent_type becomes the second consumer
-of this extension point — at that point the abstraction has TWO
-concrete uses and the extraction can be validated against both.
-
-For now, the value-add is the contract: a future
-``social_media_influencer`` lifecycle handler implements this ABC
-and registers via ``FloodSetupMixin.institutional_lifecycle_handlers``,
-rather than landing as yet another ``elif agent.agent_type ==
-"social_media_influencer":`` branch in the 1237-LOC bespoke file.
+- :class:`InstitutionalLifecycleHandler` — abstract base class with no-op
+  lifecycle hooks (``pre_year``, ``post_decision``, ``post_year``).
+- :meth:`SetupPack.institutional_lifecycle_handlers` — ``DomainPack`` hook
+  returning ``Dict[str, InstitutionalLifecycleHandler]`` keyed by ``agent_type``.
+- :meth:`SetupPack.multi_agent_env_keys` — ``DomainPack`` hook declaring
+  allowed shared-environment keys for multi-agent runs.
 
 Genericity invariant
 ====================
 This module lives in ``broker/components/orchestration/`` so it MUST
-contain no domain tokens (water / flood / household / etc.). The
-ABC's method signatures and the supporting types are domain-
-agnostic. Verified by
+contain no domain tokens. The ABC method signatures and supporting types
+are domain-agnostic, verified by
 ``broker/tests/test_framework_invariants.py::TestDomainGenericity``.
 """
 from __future__ import annotations

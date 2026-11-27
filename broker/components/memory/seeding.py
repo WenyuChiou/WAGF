@@ -46,13 +46,32 @@ def seed_memory_from_agents(memory_engine: MemoryEngine, agents: Dict[str, BaseA
             continue
 
         for mem in initial_mem:
+            content = mem
+            metadata = None
+            if isinstance(mem, dict) and "content" in mem:
+                content = str(mem["content"])
+                raw_meta = mem.get("metadata")
+                metadata = (
+                    dict(raw_meta)
+                    if isinstance(raw_meta, dict)
+                    else {k: v for k, v in mem.items() if k != "content"}
+                )
             if hasattr(memory_engine, "add_memory_for_agent"):
                 try:
-                    memory_engine.add_memory_for_agent(agent, mem)
+                    if metadata is not None:
+                        memory_engine.add_memory_for_agent(agent, content, metadata=metadata)
+                    else:
+                        memory_engine.add_memory_for_agent(agent, content)
                 except TypeError:
-                    memory_engine.add_memory(agent_id, mem)
+                    if metadata is not None:
+                        memory_engine.add_memory(agent_id, content, metadata=metadata)
+                    else:
+                        memory_engine.add_memory(agent_id, content)
             else:
-                memory_engine.add_memory(agent_id, mem)
+                if metadata is not None:
+                    memory_engine.add_memory(agent_id, content, metadata=metadata)
+                else:
+                    memory_engine.add_memory(agent_id, content)
 
         seeded.add(agent_id)
 

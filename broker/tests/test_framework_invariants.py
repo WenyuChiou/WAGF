@@ -421,7 +421,6 @@ class TestDomainGenericity:
         "memory/strategies/symbolic.py",             # FP: generic strategy docstring + soft default
         "memory/strategies/hybrid.py",               # FP: generic strategy docstring + soft default
         "governance/rule_types.py",                  # FP: docstring Example:: blocks
-        "simulation/state_manager.py",               # FP: docstring example
         "simulation/environment.py",                 # FP: docstring examples
         "validators/governance/base_validator.py",   # FP: comment construct examples
         "config/schema.py",                          # FP: Field() description examples
