@@ -87,6 +87,17 @@ def test_dashboard_warning_without_table_is_detected():
     assert "feedback_dashboard" in scan_text(warning)
 
 
+@pytest.mark.parametrize("bullet", [
+    "- Water Supply Outlook: Is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this season?",
+    "- Demand-Supply Balance: Is your current water request well matched to the available supply, or is there a gap?",
+    "- Capacity to Adjust: How much can you change your request this year, given the options below?",
+    "- Cost of Change: What would you risk by changing your request?",
+    "- Benefit of Keeping: What is the advantage of requesting the same amount you received last year?",
+])
+def test_full_mode_bullets_are_detected(bullet):
+    assert "appraisal_guidance" in scan_text(bullet)
+
+
 def test_single_user_sharing_rule_is_detected():
     assert "sharing_sentence" in scan_text(
         "When water is short, a larger request would not add water."
@@ -103,7 +114,12 @@ def test_single_user_sharing_rule_is_detected():
         "Year 2029: maintain demand was applied under the water-right cap.",
         "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below 1,050 feet on 1 January).",
         "Shortfall: 2,000 acre-ft (20.0% unmet).",
-        "First, rate your water_scarcity_assessment: is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this year?",
+        "Then rate how scarce your water supply is: abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH).",
+        "- Cost of Change: what you would risk by changing your request (a larger shortfall if you ask for more than is delivered, or less water to produce with if you ask for less).",
+        "- Water Supply Outlook: how much water is available to you this year.",
+        "- Demand-Supply Balance: whether your current request is well matched to the available supply, or there is a gap.",
+        "- Capacity to Adjust: how much you can change your request this year, given the options below.",
+        "- Benefit of Keeping: what you gain by requesting the same amount you received last year.",
     ],
 )
 def test_retained_simple_text_is_not_classified(retained):

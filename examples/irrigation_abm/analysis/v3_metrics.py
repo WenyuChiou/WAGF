@@ -3159,7 +3159,9 @@ _DIGIT = re.compile(r"\d")
 _R = {
     "persona": re.compile(r"^You are (?P<agent>.+?), an agricultural water user .*?holding a water right of "
                           r"(?P<w>[\d,]+) acre-ft/year\."),
-    "year": re.compile(r"^It is now the year (\d{4})\. You (use|divert) water in the (Upper|Lower) Colorado River Basin\.$"),
+    # The simple prompt (2026-11-27) leaves out the basin clause: the persona names the basin.
+    "year": re.compile(r"^It is now the year (\d{4})\.(?: You (use|divert) water in the (Upper|Lower) "
+                       r"Colorado River Basin\.)?$"),
     "precip": re.compile(r"^Winter precipitation (in your sub-basin|averaged over the Upper Basin) this year was "
                          r"(\d+) mm \((above|below) last year\)\.$"),
     "flow_share": re.compile(r"^The natural flow of the rivers your sub-basin draws on is (\d+%) of its "
@@ -4001,7 +4003,11 @@ class PromptChecker:
         m = _R["year"].match(text)
         if m:
             line.expect(m, 1, str(year), "year")
-            line.check((m.group(2) == "use") == upper and (m.group(3) == "Upper") == upper, "basin wording")
+            line.check(self.prompt_information == "simple" or m.group(2) is not None,
+                       "basin clause required in full mode")
+            if m.group(2) is not None:
+                line.check((m.group(2) == "use") == upper and (m.group(3) == "Upper") == upper,
+                           "basin wording")
             line.cover(m)
             return
         m = _R["precip"].match(text)

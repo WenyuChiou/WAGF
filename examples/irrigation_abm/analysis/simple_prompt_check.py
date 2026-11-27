@@ -75,7 +75,13 @@ REMOVED_SENTENCE_FAMILIES: dict[str, tuple[Pattern[str], ...]] = {
     "appraisal_guidance": _rx(
         r"First, assess your WATER SUPPLY situation by considering:",
         r"Next, assess your ADAPTIVE CAPACITY by considering:",
-        r"- (?:Water Supply Outlook|Demand-Supply Balance|Capacity to Adjust|Cost of Change|Benefit of Keeping):",
+        # The simple rating block (2026-11-27) uses the same bullet labels, so only the
+        # full-mode question wording of each bullet counts as removed text.
+        r"- Water Supply Outlook: Is your water supply",
+        r"- Demand-Supply Balance: Is your current water request",
+        r"- Capacity to Adjust: How much can you change",
+        r"- Cost of Change: What would you risk",
+        r"- Benefit of Keeping: What is the advantage",
     ),
     "keep_asks_received_note": _rx(
         r"If you received less than you requested last year, keeping your request asks only for the amount you received",

@@ -729,10 +729,15 @@ def build_water_situation_text(
     # sentence, so no text calls supply sufficient where the rule blocks.
     r_share = supply_ratio(expected, base)
 
-    lines = [
-        f"It is now the year {year}. You {'use' if upper else 'divert'} water in the "
-        f"{_BASIN_DISPLAY[basin]}."
-    ]
+    # The persona already names the basin ("... in the Lower Basin of the
+    # Colorado River"), so the simple prompt does not repeat it here.
+    if prompt_information == "simple":
+        lines = [f"It is now the year {year}."]
+    else:
+        lines = [
+            f"It is now the year {year}. You {'use' if upper else 'divert'} water in the "
+            f"{_BASIN_DISPLAY[basin]}."
+        ]
 
     # Headline on r only (spec 4.3 as revised by item 36a). TWO states only;
     # the edge is FULL_SUPPLY_RATIO, the same edge the supply rule blocks

@@ -308,14 +308,14 @@ shared:
           type: "appraisal",
           required: true,
           construct: "WSA_LABEL",
-          reason_hint: "One sentence on whether your water supply is abundant, adequate, tight, scarce, or very scarce.",
+          reason_hint: "One sentence on how scarce your water supply is this year.",
         }
       - {
           key: "adaptive_capacity_assessment",
           type: "appraisal",
           required: true,
           construct: "ACA_LABEL",
-          reason_hint: "One sentence on how well you can adapt your water use.",
+          reason_hint: "One sentence on how much you can change your request this year.",
         }
       # Decision comes AFTER reasoning and appraisals
       - { key: "decision", type: "choice", required: true }

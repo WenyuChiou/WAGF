@@ -3,8 +3,16 @@
 Your memory includes:
 {memory}
 
-First, rate your water_scarcity_assessment: is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this year?
-Next, rate your adaptive_capacity_assessment: how much can you change your request this year?
+First, judge your water supply this year, considering:
+- Water Supply Outlook: how much water is available to you this year.
+- Demand-Supply Balance: whether your current request is well matched to the available supply, or there is a gap.
+Then rate how scarce your water supply is: abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH).
+
+Next, judge how much you can adapt, considering:
+- Capacity to Adjust: how much you can change your request this year, given the options below.
+- Cost of Change: what you would risk by changing your request (a larger shortfall if you ask for more than is delivered, or less water to produce with if you ask for less).
+- Benefit of Keeping: what you gain by requesting the same amount you received last year.
+Then rate how much you can change your request: not at all able (VL), slightly able (L), somewhat able (M), very able (H), or extremely able (VH).
 
 Now, choose one of the following water management actions:
 {options_text}{option_notes}

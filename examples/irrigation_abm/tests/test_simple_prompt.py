@@ -87,7 +87,7 @@ def test_simple_tier_status_only_for_senior_and_junior(junior):
                   lb_junior_entitlement_af=40_000.0 if junior else 0.0)
     text = build_water_situation_text(ctx, prompt_information="simple")
     assert text.splitlines() == [
-        "It is now the year 2029. You divert water in the Lower Colorado River Basin.",
+        "It is now the year 2029.",
         "Lake Mead was at 1,050 feet above sea level on 1 January (rising from last year).",
         "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below 1,050 feet on 1 January).",
         "In 2028 you diverted 100,000 acre-ft.",
@@ -148,6 +148,11 @@ def test_simple_memory_preserves_outcomes_and_keep_change(basin, signal):
 def test_variant_exact_overrides_and_frozen_copies(variant):
     expected = _simple_config()
     expected['irrigation_farmer']['prompt_template_file'] = 'prompts/irrigation_farmer.txt'
+    hints = {'water_scarcity_assessment': 'One sentence on how scarce your water supply is this year.',
+             'adaptive_capacity_assessment': 'One sentence on how much you can change your request this year.'}
+    for field in expected['shared']['response_format']['fields']:
+        if field['key'] in hints:
+            field['reason_hint'] = hints[field['key']]
     if variant == "simple_nolimit":
         expected["irrigation_farmer"]["beneficial_use_limit"]["enabled"] = False
     directory = VARIANTS / variant
@@ -223,6 +228,18 @@ def test_simple_four_year_runs_are_clean_and_recorded(simple_runs, variant, mode
     assert snapshot["irrigation_farmer"]["beneficial_use_limit"]["enabled"] is (variant == "simple")
 
 
+RATING_BLOCK = """First, judge your water supply this year, considering:
+- Water Supply Outlook: how much water is available to you this year.
+- Demand-Supply Balance: whether your current request is well matched to the available supply, or there is a gap.
+Then rate how scarce your water supply is: abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH).
+
+Next, judge how much you can adapt, considering:
+- Capacity to Adjust: how much you can change your request this year, given the options below.
+- Cost of Change: what you would risk by changing your request (a larger shortfall if you ask for more than is delivered, or less water to produce with if you ask for less).
+- Benefit of Keeping: what you gain by requesting the same amount you received last year.
+Then rate how much you can change your request: not at all able (VL), slightly able (L), somewhat able (M), very able (H), or extremely able (VH)."""
+
+
 @pytest.mark.parametrize("agent", ["WelltonMohawkIDD", UT2])
 def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
     """Build the entire expected first-year prompt without calling text builders."""
@@ -240,7 +257,7 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
         persona += " All volumes shown to you are consumptive use."
     persona += " " + PERSONA_TEXTS[profile.cluster]
     year = ctx["year"]
-    lines = [persona, f"It is now the year {year}. You {'use' if upper else 'divert'} water in the {basin} Colorado River Basin."]
+    lines = [persona, f"It is now the year {year}."]
     if upper:
         where = "in your sub-basin" if ctx["supply_group"] is not None else "averaged over the Upper Basin"
         lines.append(f"Winter precipitation {where} this year was {ctx['precipitation']:.0f} mm "
@@ -277,8 +294,7 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
             INCREASE_STEP_NOTE if "Increase" in directions else DECREASE_STEP_NOTE)
     lines.extend([f"In {year - 1} you {'used' if upper else 'diverted'} {base:,.0f} acre-ft.",
                   "Your memory includes:", "No memories yet.", "",
-                  "First, rate your water_scarcity_assessment: is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this year?",
-                  "Next, rate your adaptive_capacity_assessment: how much can you change your request this year?", "",
+                  *RATING_BLOCK.splitlines(), "",
                   "Now, choose one of the following water management actions:"])
     lines.extend(f"{number}. {options[direction]}" for number, direction in menu)
     lines.extend([note, "", "### RATING SCALE (You MUST use EXACTLY one of these codes):",
@@ -288,8 +304,8 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
                   f'- "decision" MUST be the NUMERIC ID ({choices}) from the options list.',
                   "- Ensure all keys match the format exactly.", "<<<DECISION_START>>>", "{",
                   '  "reasoning": "Explain your thought process in 2-3 sentences BEFORE making a decision.",',
-                  '  "water_scarcity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on whether your water supply is abundant, adequate, tight, scarce, or very scarce."},',
-                  '  "adaptive_capacity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on how well you can adapt your water use."},',
+                  '  "water_scarcity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on how scarce your water supply is this year."},',
+                  '  "adaptive_capacity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on how much you can change your request this year."},',
                   f'  "decision": "<Numeric ID, choose ONE from: {choices}>"', "}", "<<<DECISION_END>>>", ""])
     assert actual == "\n".join(lines)
 
@@ -337,3 +353,34 @@ def test_reflection_recorder_captures_retry_bytes(tmp_path):
     records = [json.loads(line) for line in (tmp_path / "reflection_prompts.jsonl").read_text().splitlines()]
     assert [row["prompt"] for row in records] == seen
     assert [row["attempt"] for row in records] == [0, 1]
+
+
+@pytest.mark.parametrize("agent", ["WelltonMohawkIDD", UT2])
+@pytest.mark.parametrize("variant", ["simple", "simple_nolimit"])
+def test_simple_rendered_prompt_has_rating_block_and_field_names_only_in_skeleton(simple_runs, agent, variant):
+    """The rendered prompt carries the new rating block, repeats no basin sentence,
+    and names the two appraisal fields only inside the JSON skeleton."""
+    run = simple_runs[(variant, "strict")]
+    prompt = run.llm.decisions[(agent, 2019, 0)]
+    assert RATING_BLOCK in prompt
+    assert "You divert water in the" not in prompt and "You use water in the" not in prompt
+    head, skeleton = prompt.split("<<<DECISION_START>>>")
+    for name in ("water_scarcity_assessment", "adaptive_capacity_assessment"):
+        assert name not in head
+        assert name in skeleton
+    assert '"reason": "One sentence on how scarce your water supply is this year."' in skeleton
+    assert '"reason": "One sentence on how much you can change your request this year."' in skeleton
+
+
+@pytest.mark.parametrize("variant", ["simple", "simple_executed", "simple_nolimit", "simple_nolimit_executed"])
+def test_simple_variant_files_carry_new_rating_block(variant):
+    directory = VARIANTS / variant
+    template = (directory / "prompts/irrigation_farmer.txt").read_text(encoding="utf-8")
+    assert RATING_BLOCK in template
+    assert template == runner.SIMPLE_PROMPT_TEMPLATE
+    body = template.split("Please respond using")[0]
+    assert "water_scarcity_assessment" not in body and "adaptive_capacity_assessment" not in body
+    fields = {f["key"]: f for f in yaml.safe_load(
+        (directory / "agent_types.yaml").read_text(encoding="utf-8"))["shared"]["response_format"]["fields"]}
+    assert fields["water_scarcity_assessment"]["reason_hint"] == "One sentence on how scarce your water supply is this year."
+    assert fields["adaptive_capacity_assessment"]["reason_hint"] == "One sentence on how much you can change your request this year."
