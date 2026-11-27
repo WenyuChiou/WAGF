@@ -466,6 +466,24 @@ def test_coupled_world_uses_the_domain_pack_default(case, monkeypatch):
     assert calls == ["case_pack_on"]
 
 
+def test_coupled_world_refuses_workers_gt_1(case, capsys):
+    """AR-3: python -m broker.run refuses Coupled worlds with --workers > 1."""
+    config, data = case
+    (config.parents[1] / "coupled_workers.py").write_text(dedent('''
+        from broker.coupling import CouplingContract, InterfaceBundle
+        from broker.run import Coupled
+
+        def world(ctx):
+            return Coupled(CouplingContract(), InterfaceBundle())
+    '''), encoding="utf-8")
+    data["global_config"]["coupling"] = {"enable": True}
+    data["global_config"]["run"] = {"world": "coupled_workers:world", "workers": 2}
+    _write_yaml(config, data)
+    assert main([str(config), "--model", "mock"]) == 2
+    err = capsys.readouterr().err
+    assert "workers 1" in err and "AR-3" in err
+
+
 @pytest.mark.parametrize("run, key", [
     ({"unknown": 1}, "unknown"), ({"years": "x"}, "years"),
     ({"agent_count": True}, "agent_count"), ({"phase_order": ["agent"]}, "phase_order"),

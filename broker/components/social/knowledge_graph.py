@@ -21,6 +21,7 @@ in-memory, domain-agnostic social fact store supporting:
 """
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -154,16 +155,22 @@ class AsyncKnowledgeGraph:
         follower_network: Optional[Any] = None,
         half_life_periods: float = 2.0,
         strict_no_governance_trace: bool = True,
+        neighbor_hops: int = 1,
     ) -> None:
         if half_life_periods <= 0:
             raise ValueError(
                 f"AsyncKnowledgeGraph.half_life_periods must be > 0; "
                 f"got {half_life_periods!r}."
             )
+        if int(neighbor_hops) < 1:
+            raise ValueError(
+                f"AsyncKnowledgeGraph.neighbor_hops must be >= 1; got {neighbor_hops!r}."
+            )
         self.social_graph = social_graph
         self.follower_network = follower_network
         self.half_life_periods = float(half_life_periods)
         self.strict_no_governance_trace = bool(strict_no_governance_trace)
+        self.neighbor_hops = int(neighbor_hops)
 
         self._triples: List[KnowledgeTriple] = []
         self._seq: int = 0
@@ -317,56 +324,178 @@ class AsyncKnowledgeGraph:
             return set()
         return set(self.social_graph.get_neighbors(observer_id))
 
+    def _get_neighbor_hop_map(
+        self,
+        observer_id: str,
+        max_hops: int,
+        published_period: int,
+    ) -> Dict[str, int]:
+        """BFS shortest hop distances on ``social_graph`` up to ``max_hops``.
+
+        An edge ``(u, v)`` is traversable for a triple published at
+        ``published_period`` only if the edge's start period is ``<= published_period``,
+        preventing newly connected agents from retroactively reading pre-link facts.
+        """
+        if self.social_graph is None or max_hops < 1:
+            return {}
+        get_edge_start = getattr(self.social_graph, "get_edge_start_period", None)
+        hops: Dict[str, int] = {}
+        visited: Set[str] = {observer_id}
+        queue: deque[Tuple[str, int]] = deque([(observer_id, 0)])
+        while queue:
+            cur, dist = queue.popleft()
+            if dist >= max_hops:
+                continue
+            for nxt in self.social_graph.get_neighbors(cur):
+                if nxt in visited:
+                    continue
+                if callable(get_edge_start):
+                    edge_start = get_edge_start(cur, nxt)
+                    if edge_start is not None and edge_start > published_period:
+                        continue
+                visited.add(nxt)
+                hops[nxt] = dist + 1
+                queue.append((nxt, dist + 1))
+        return hops
+
+    @staticmethod
+    def _effective_available_period(triple: KnowledgeTriple, hop: int) -> int:
+        if hop <= 1:
+            return triple.available_period
+        hop_delay = max(1, int(triple.delivery_delay))
+        return triple.available_period + (hop - 1) * hop_delay
+
     def _get_followed_ids(self, observer_id: str) -> Set[str]:
         if self.follower_network is None:
             return set()
         return set(self.follower_network.get_followed(observer_id))
 
-    def _is_visible_to(
+    def _resolve_triple_availability(
         self,
         triple: KnowledgeTriple,
         observer_id: str,
         current_period: int,
         *,
         include_self: bool,
-        neighbor_ids: Optional[Set[str]],
         followed_ids: Optional[Set[str]],
-    ) -> bool:
-        if triple.available_period > current_period:
-            return False
-        if (
-            triple.ttl_periods is not None
-            and current_period >= triple.available_period + triple.ttl_periods
-        ):
-            return False
-
+        effective_hops: int,
+        hop_cache: Dict[int, Dict[str, int]],
+    ) -> Optional[int]:
         source_id = triple.author_id or triple.subject
         is_self = source_id == observer_id
         if is_self and not include_self:
-            return False
+            return None
 
         vis = triple.visibility
+        effective_avail = triple.available_period
         if vis == "global":
-            return True
-        if vis == "direct":
-            return observer_id in triple.target_ids or (include_self and is_self)
-        if vis == "neighbors":
+            pass
+        elif vis == "direct":
+            if not (observer_id in triple.target_ids or (include_self and is_self)):
+                return None
+        elif vis == "neighbors":
             if include_self and is_self:
-                return True
-            return neighbor_ids is not None and source_id in neighbor_ids
-        if vis == "followers":
+                pass
+            else:
+                if self.social_graph is None:
+                    return None
+                hop_map = hop_cache.get(triple.published_period)
+                if hop_map is None:
+                    hop_map = self._get_neighbor_hop_map(
+                        observer_id, effective_hops, triple.published_period,
+                    )
+                    hop_cache[triple.published_period] = hop_map
+                hop = hop_map.get(source_id)
+                if hop is None:
+                    return None
+                effective_avail = self._effective_available_period(triple, hop)
+        elif vis == "followers":
             if include_self and is_self:
-                return True
-            return followed_ids is not None and source_id in followed_ids
-        return False
+                pass
+            elif followed_ids is None or source_id not in followed_ids:
+                return None
+        else:
+            return None
 
-    def _score_triple(self, triple: KnowledgeTriple, current_period: int) -> float:
+        if effective_avail > current_period:
+            return None
+        if (
+            triple.ttl_periods is not None
+            and current_period >= effective_avail + triple.ttl_periods
+        ):
+            return None
+        return effective_avail
+
+    def _score_triple(
+        self,
+        triple: KnowledgeTriple,
+        current_period: int,
+        *,
+        available_period: Optional[int] = None,
+    ) -> float:
+        avail = triple.available_period if available_period is None else available_period
         decay = age_weight(
-            triple.available_period,
+            avail,
             current_period,
             self.half_life_periods,
         )
         return triple.confidence * decay
+
+    def _query_visible_with_availability(
+        self,
+        observer_id: str,
+        current_period: int,
+        *,
+        predicates: Optional[Union[str, Iterable[str]]] = None,
+        subjects: Optional[Union[str, Iterable[str]]] = None,
+        top_k: int = 10,
+        include_self: bool = False,
+        hops: Optional[int] = None,
+    ) -> List[Tuple[KnowledgeTriple, int]]:
+        """Query visible ``(triple, effective_available_period)`` pairs ranked for ``observer_id``."""
+        if top_k <= 0 or not self._triples:
+            return []
+
+        effective_hops = self.neighbor_hops if hops is None else int(hops)
+        if effective_hops < 1:
+            raise ValueError(f"hops must be >= 1; got {effective_hops!r}.")
+
+        predicate_set = _normalize_filter_set(predicates)
+        subject_set = _normalize_filter_set(subjects)
+
+        followed_ids = self._get_followed_ids(observer_id) if self.follower_network is not None else None
+        hop_cache: Dict[int, Dict[str, int]] = {}
+
+        scored: List[Tuple[float, int, int, int, str, KnowledgeTriple]] = []
+        for idx, triple in enumerate(self._triples):
+            if predicate_set is not None and triple.predicate not in predicate_set:
+                continue
+            if subject_set is not None and triple.subject not in subject_set:
+                continue
+            effective_avail = self._resolve_triple_availability(
+                triple,
+                observer_id,
+                current_period,
+                include_self=include_self,
+                followed_ids=followed_ids,
+                effective_hops=effective_hops,
+                hop_cache=hop_cache,
+            )
+            if effective_avail is None:
+                continue
+
+            score = self._score_triple(triple, current_period, available_period=effective_avail)
+            scored.append((
+                -score,
+                -effective_avail,
+                -triple.published_period,
+                -idx,
+                triple.triple_id,
+                triple,
+            ))
+
+        scored.sort(key=lambda item: item[:5])
+        return [(item[5], -item[1]) for item in scored[:top_k]]
 
     def query_visible(
         self,
@@ -377,45 +506,19 @@ class AsyncKnowledgeGraph:
         subjects: Optional[Union[str, Iterable[str]]] = None,
         top_k: int = 10,
         include_self: bool = False,
+        hops: Optional[int] = None,
     ) -> List[KnowledgeTriple]:
         """Query triples visible to ``observer_id`` at ``current_period``."""
-        if top_k <= 0 or not self._triples:
-            return []
-
-        predicate_set = _normalize_filter_set(predicates)
-        subject_set = _normalize_filter_set(subjects)
-
-        neighbor_ids = self._get_neighbor_ids(observer_id) if self.social_graph is not None else None
-        followed_ids = self._get_followed_ids(observer_id) if self.follower_network is not None else None
-
-        scored: List[Tuple[float, int, int, int, str, KnowledgeTriple]] = []
-        for idx, triple in enumerate(self._triples):
-            if predicate_set is not None and triple.predicate not in predicate_set:
-                continue
-            if subject_set is not None and triple.subject not in subject_set:
-                continue
-            if not self._is_visible_to(
-                triple,
-                observer_id,
-                current_period,
-                include_self=include_self,
-                neighbor_ids=neighbor_ids,
-                followed_ids=followed_ids,
-            ):
-                continue
-
-            score = self._score_triple(triple, current_period)
-            scored.append((
-                -score,
-                -triple.available_period,
-                -triple.published_period,
-                -idx,
-                triple.triple_id,
-                triple,
-            ))
-
-        scored.sort(key=lambda item: item[:5])
-        return [item[5] for item in scored[:top_k]]
+        pairs = self._query_visible_with_availability(
+            observer_id,
+            current_period,
+            predicates=predicates,
+            subjects=subjects,
+            top_k=top_k,
+            include_self=include_self,
+            hops=hops,
+        )
+        return [triple for triple, _ in pairs]
 
     def sync_to_memory(
         self,
@@ -427,32 +530,37 @@ class AsyncKnowledgeGraph:
         predicates: Optional[Union[str, Iterable[str]]] = None,
         subjects: Optional[Union[str, Iterable[str]]] = None,
         include_self: bool = False,
+        hops: Optional[int] = None,
     ) -> int:
         """Idempotently deliver unseen visible triples into ``memory_engine``."""
         if memory_engine is None or max_items <= 0 or not self._triples:
             return 0
+        if self._delivery_cursor_period.get(observer_id) == current_period:
+            return 0
 
+        effective_hops = self.neighbor_hops if hops is None else int(hops)
         delivered_ids = self._delivered_by_observer.setdefault(observer_id, set())
-        visible = self.query_visible(
+        visible_pairs = self._query_visible_with_availability(
             observer_id,
             current_period,
             predicates=predicates,
             subjects=subjects,
             top_k=len(self._triples),
             include_self=include_self,
+            hops=effective_hops,
         )
 
-        unseen = [t for t in visible if t.triple_id not in delivered_ids][:max_items]
+        unseen = [(t, avail) for t, avail in visible_pairs if t.triple_id not in delivered_ids][:max_items]
         count = 0
-        for triple in unseen:
-            score = self._score_triple(triple, current_period)
+        for triple, effective_avail in unseen:
+            score = self._score_triple(triple, current_period, available_period=effective_avail)
             importance = round(max(0.0, min(1.0, score)), 4)
+            source = "neighbor" if triple.visibility == "neighbors" else "community"
             metadata: Dict[str, Any] = {
                 "origin": "social",
                 "period": current_period,
                 "importance": importance,
-                "emotion": "neutral",
-                "source": "social",
+                "source": source,
                 "triple_id": triple.triple_id,
             }
             if triple.author_id:
@@ -475,6 +583,7 @@ class AsyncKnowledgeGraph:
         memory_engine: Optional[Any] = None,
         top_k: int = 5,
         context_key: str = "social_gossip",
+        hops: Optional[int] = None,
     ) -> "KnowledgeGraphSocialProvider":
         """Build a :class:`KnowledgeGraphSocialProvider` bound to this graph."""
         from broker.components.social.kg_provider import KnowledgeGraphSocialProvider
@@ -485,6 +594,7 @@ class AsyncKnowledgeGraph:
             memory_engine=memory_engine,
             top_k=top_k,
             context_key=context_key,
+            hops=hops,
         )
 
     def snapshot(self) -> Dict[str, Any]:

@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from broker.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from ..interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
-from .skill_broker_engine import SkillBrokerEngine
+from .skill_broker_engine import SkillBrokerEngine, _extract_social_context
 from ..components.context.builder import BaseAgentContextBuilder
 from ..components.memory.engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
@@ -45,6 +45,26 @@ def _is_projection_stop(exc: BaseException) -> bool:
     mod = sys.modules.get("broker.coupling.projection_check")
     cls = getattr(mod, "ProjectionCheckError", None) if mod is not None else None
     return cls is not None and isinstance(exc, cls)
+
+
+def _is_coupling_stop(exc: BaseException) -> bool:
+    """True for a coupling contract breach raised during step execution."""
+    mod = sys.modules.get("broker.coupling.adapter")
+    cls = getattr(mod, "CouplingViolation", None) if mod is not None else None
+    return cls is not None and isinstance(exc, cls)
+
+
+def _normalize_model_override(raw: Any) -> Optional[str]:
+    """Return configured per-type model name, ignoring non-string, empty, or CLI placeholders."""
+    if not isinstance(raw, str):
+        return None
+    if raw.strip().lower() in {
+        "",
+        "command-line-override",
+        "cli-override",
+    }:
+        return None
+    return raw
 
 
 def _rebuild_cached_proposal(
@@ -425,13 +445,7 @@ class ExperimentRunner:
 
             # Per-type model name: llm_params.model overrides CLI model.
             # Keep backward compatibility with legacy placeholder values.
-            model_override = overrides.pop("model", None)
-            if isinstance(model_override, str) and model_override.strip().lower() in {
-                "",
-                "command-line-override",
-                "cli-override",
-            }:
-                model_override = None
+            model_override = _normalize_model_override(overrides.pop("model", None))
             model_name = model_override or self.config.model
 
             # Record the exact parameters sent by create_llm_invoke (plus the
@@ -484,6 +498,53 @@ class ExperimentRunner:
                 else backoff_wrapped
             )
         return self._llm_cache[agent_type]
+
+    def _resolve_agent_model_name(self, agent_type: str) -> str:
+        """Resolve the configured model name for ``agent_type``, falling back to ``self.config.model``."""
+        resolved_cache = getattr(self, "_llm_resolved_params", None)
+        if isinstance(resolved_cache, dict):
+            entry = resolved_cache.get(agent_type)
+            if isinstance(entry, dict) and isinstance(entry.get("model"), str) and entry.get("model"):
+                return entry["model"]
+        broker = getattr(self, "broker", None)
+        cfg = getattr(broker, "config", None) if broker is not None else None
+        if cfg is not None and callable(getattr(cfg, "get_llm_params", None)):
+            overrides = cfg.get_llm_params(agent_type)
+            if isinstance(overrides, dict):
+                model_override = _normalize_model_override(overrides.get("model"))
+                if model_override:
+                    return model_override
+        config = getattr(self, "config", None)
+        model = getattr(config, "model", None) if config is not None else None
+        if isinstance(model, str) and model:
+            return model
+        return "unknown"
+
+    def _broker_accepts_model_name(self) -> bool:
+        """True if ``self.broker.process_step`` accepts ``model_name`` (unlike legacy test doubles)."""
+        cached = getattr(self, "_cached_broker_accepts_model_name", None)
+        if cached is not None:
+            return cached
+        broker = getattr(self, "broker", None)
+        fn = getattr(broker, "process_step", None) if broker is not None else None
+        accepted = False
+        if callable(fn):
+            try:
+                params = inspect.signature(fn).parameters
+                accepted = (
+                    "model_name" in params
+                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                )
+            except (TypeError, ValueError):
+                accepted = False
+        self._cached_broker_accepts_model_name = accepted
+        return accepted
+
+    def _model_name_kwargs(self, agent_type: str) -> Dict[str, Any]:
+        """Return ``{"model_name": model}`` when the broker accepts it, else ``{}``."""
+        if not self._broker_accepts_model_name():
+            return {}
+        return {"model_name": self._resolve_agent_model_name(agent_type)}
 
     def _resolve_llm_safeguard_config(self) -> LLMSafeguardConfig:
         """Return cached ``global_config.llm_safeguard`` settings for this run.
@@ -2338,6 +2399,9 @@ class ExperimentRunner:
                             **context.get("state", {}),
                             **env
                         }
+                        _social_ctx = _extract_social_context(context)
+                        if _social_ctx:
+                            cache_validation_context["social_context"] = _social_ctx
                         val_results = self.broker._run_validators(cached_proposal_obj, cache_validation_context)
                         if not all(v.valid for v in val_results):
                             logger.warning(f"[Efficiency] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
@@ -2360,6 +2424,7 @@ class ExperimentRunner:
                                 else self.get_llm_invoke(_atype)),
                     agent_type=_atype,
                     env_context=env,
+                    **self._model_name_kwargs(_atype),
                     **self._decider_kwargs(_atype),
                 )
 
@@ -2394,7 +2459,7 @@ class ExperimentRunner:
                 # run()'s generic handler records it in the manifest.
                 raise
             except Exception as e:
-                if _is_projection_stop(e):
+                if _is_projection_stop(e) or _is_coupling_stop(e):
                     # R1 slice 2: the projection check could not judge a
                     # proposal. Stop the run (run()'s generic handler records
                     # it in the manifest); never file another ABORTED row.
@@ -2411,7 +2476,10 @@ class ExperimentRunner:
                     f"[Sequential] Agent {agent.id} failed: {e}",
                     exc_info=True,
                 )
-                self._write_aborted_trace(agent, run_id, env, e)
+                self._write_aborted_trace(
+                    agent, run_id, env, e,
+                    model_name=self._resolve_agent_model_name(_atype),
+                )
                 error_result = SkillBrokerResult(
                     outcome=SkillOutcome.ABORTED,
                     skill_proposal=None,
@@ -2432,6 +2500,7 @@ class ExperimentRunner:
         env: Dict,
         error: Exception,
         step_id: Optional[int] = None,
+        model_name: Optional[str] = None,
     ) -> None:
         """F1 fix (post-Phase-6T audit, 2026-05-27): emit a sentinel
         audit trace for an agent whose step raised.
@@ -2476,7 +2545,7 @@ class ExperimentRunner:
                 "seed": self.config.seed + sentinel_step,
                 "agent_id": agent.id,
                 "agent_type": agent_type,
-                "model": getattr(self, '_model_name', 'unknown'),
+                "model": model_name or self._resolve_agent_model_name(agent_type),
                 "decision_source": "exception",
                 "validated": False,
                 "fallback_activated": False,
@@ -2631,6 +2700,9 @@ class ExperimentRunner:
                         **context.get("state", {}),
                         **env
                     }
+                    _social_ctx = _extract_social_context(context)
+                    if _social_ctx:
+                        cache_validation_context["social_context"] = _social_ctx
                     val_results = self.broker._run_validators(cached_proposal_obj, cache_validation_context)
                     if not all(v.valid for v in val_results):
                         logger.warning(f"[Efficiency:Parallel] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
@@ -2652,6 +2724,7 @@ class ExperimentRunner:
                             else self.get_llm_invoke(_atype)),
                 agent_type=_atype,
                 env_context=env,
+                **self._model_name_kwargs(_atype),
                 **self._decider_kwargs(_atype),
             )
 
@@ -2766,7 +2839,7 @@ class ExperimentRunner:
                     executor.shutdown(wait=True, cancel_futures=True)
                     raise
                 except Exception as e:
-                    if _is_projection_stop(e):
+                    if _is_projection_stop(e) or _is_coupling_stop(e):
                         # R1 slice 2: same as the sequential handler; drain the
                         # executor first, as the clauses above do.
                         executor.shutdown(wait=True, cancel_futures=True)
@@ -2786,8 +2859,12 @@ class ExperimentRunner:
                         f"[Parallel] Agent {failed_agent.id} failed: {e}",
                         exc_info=True,
                     )
-                    self._write_aborted_trace(failed_agent, run_id, env, e,
-                                              step_id=submitted_step_id)
+                    _failed_type = getattr(failed_agent, "agent_type", "default")
+                    self._write_aborted_trace(
+                        failed_agent, run_id, env, e,
+                        step_id=submitted_step_id,
+                        model_name=self._resolve_agent_model_name(_failed_type),
+                    )
                     error_result = SkillBrokerResult(
                         outcome=SkillOutcome.ABORTED,
                         skill_proposal=None,

@@ -745,7 +745,13 @@ def record_run_integrity(
 # --- Invariant 7: governance_carryover block (design 5.2) -------------------
 # The framework's own wording for a rule that stepped in. A run whose memory
 # style is ``executed`` should never hold these in memory or reflection.
-GOVERNANCE_PHRASES = ("was rejected", "default action applied", "was applied under", "proposal to")
+GOVERNANCE_PHRASES = (
+    "was rejected",
+    "default action applied",
+    "was applied under",
+    "your proposal to",
+    "my proposal to",
+)
 _MIN_TERM_LENGTH = 4
 
 

@@ -40,7 +40,7 @@ Examples Across Domains:
     graph = create_social_graph("neighborhood", user_ids, k=10)  # Follow 10 nearest users
 """
 from abc import ABC, abstractmethod
-from typing import List, Dict, Set, Callable, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import random
 
 
@@ -63,6 +63,12 @@ class SocialGraph(ABC):
     def __init__(self, agent_ids: List[str]):
         self.agent_ids = agent_ids
         self.graph: Dict[str, Set[str]] = {aid: set() for aid in agent_ids}
+        self.edge_start_periods: Dict[Tuple[str, str], int] = {}
+        self.edge_events: List[Dict[str, Any]] = []
+
+    @staticmethod
+    def _edge_key(a_id: str, b_id: str) -> Tuple[str, str]:
+        return (a_id, b_id) if a_id <= b_id else (b_id, a_id)
 
     def get_neighbors(self, agent_id: str) -> List[str]:
         """Get list of neighbor IDs for an agent."""
@@ -72,23 +78,51 @@ class SocialGraph(ABC):
         """Get number of neighbors for an agent."""
         return len(self.graph.get(agent_id, []))
 
-    def add_edge(self, a_id: str, b_id: str):
+    def get_edge_start_period(self, a_id: str, b_id: str) -> Optional[int]:
+        """Return the period when edge ``(a_id, b_id)`` became active, or None."""
+        key = self._edge_key(a_id, b_id)
+        if key in self.edge_start_periods:
+            return self.edge_start_periods[key]
+        if a_id in self.graph and b_id in self.graph.get(a_id, ()):
+            return 0
+        return None
+
+    def add_edge(self, a_id: str, b_id: str, period: int = 0):
         """Add bidirectional edge between two agents."""
-        if a_id in self.graph and b_id in self.graph:
-            self.graph[a_id].add(b_id)
-            self.graph[b_id].add(a_id)
+        if a_id in self.graph and b_id in self.graph and a_id != b_id:
+            if b_id not in self.graph[a_id]:
+                self.graph[a_id].add(b_id)
+                self.graph[b_id].add(a_id)
+                key = self._edge_key(a_id, b_id)
+                p = int(period)
+                self.edge_start_periods[key] = p
+                if p > 0:
+                    self.edge_events.append({
+                        "period": p, "op": "add", "a": key[0], "b": key[1],
+                    })
     
-    def remove_edge(self, a_id: str, b_id: str):
+    def remove_edge(self, a_id: str, b_id: str, period: int = 0):
         """Remove edge between two agents."""
+        existed = (
+            (a_id in self.graph and b_id in self.graph[a_id])
+            or (b_id in self.graph and a_id in self.graph[b_id])
+        )
         if a_id in self.graph:
             self.graph[a_id].discard(b_id)
         if b_id in self.graph:
             self.graph[b_id].discard(a_id)
+        key = self._edge_key(a_id, b_id)
+        self.edge_start_periods.pop(key, None)
+        if existed and int(period) > 0:
+            self.edge_events.append({
+                "period": int(period), "op": "remove", "a": key[0], "b": key[1],
+            })
     
     def clear(self):
         """Remove all edges."""
         for aid in self.graph:
             self.graph[aid] = set()
+        self.edge_start_periods.clear()
     
     def to_dict(self) -> Dict[str, List[str]]:
         """Serialize graph for logging/debugging."""
@@ -291,6 +325,53 @@ class SpatialNeighborhoodGraph(SocialGraph):
                 neighbors.append(b_id)
 
         return neighbors
+
+    def move(
+        self,
+        agent_id: str,
+        new_pos: Optional[Tuple[float, float]],
+        *,
+        period: int = 0,
+    ) -> Dict[str, List[str]]:
+        """Relocate ``agent_id`` to ``new_pos`` (or ``None`` to isolate) and rewire edges.
+
+        New incident edges carry ``edge_start_periods = period`` so pre-move facts
+        are not leaked retroactively across newly formed links.
+        """
+        if agent_id not in self.graph:
+            return {"removed": [], "added": [], "neighbors": []}
+
+        old_neighbors = set(self.get_neighbors(agent_id))
+        if new_pos is None:
+            self.positions.pop(agent_id, None)
+            target_neighbors: Set[str] = set()
+        else:
+            self.positions[agent_id] = new_pos
+            dists: List[Tuple[str, float]] = []
+            target_neighbors = set()
+            for b_id in self.agent_ids:
+                if b_id == agent_id or b_id not in self.positions:
+                    continue
+                dist = self._calculate_distance(new_pos, self.positions[b_id])
+                dists.append((b_id, dist))
+                if dist <= self.radius:
+                    target_neighbors.add(b_id)
+            if len(target_neighbors) < self.fallback_k and dists:
+                for b_id, _ in sorted(dists, key=lambda x: x[1])[:self.fallback_k]:
+                    target_neighbors.add(b_id)
+
+        for nb in sorted(old_neighbors - target_neighbors):
+            self.remove_edge(agent_id, nb, period=period)
+        for nb in sorted(target_neighbors - old_neighbors):
+            self.add_edge(agent_id, nb, period=period)
+
+        new_neighbors = set(self.get_neighbors(agent_id))
+
+        return {
+            "removed": sorted(old_neighbors - new_neighbors),
+            "added": sorted(new_neighbors - old_neighbors),
+            "neighbors": sorted(new_neighbors),
+        }
 
     def get_spatial_stats(self) -> Dict[str, any]:
         """Get spatial graph statistics."""
