@@ -355,6 +355,7 @@ def wrap_invoke_with_call_log(invoke: Callable, *, model: Any, agent_type: Any,
                     error=None if getattr(stats, "success", True) else "call_failed")
             return result
 
+    logged.__wrapped__ = invoke  # the callable that was wrapped (functools convention)
     return logged
 
 

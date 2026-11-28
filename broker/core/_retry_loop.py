@@ -26,9 +26,12 @@ from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
 from ._appraisal_freeze import construct_label_dict
 
-# Model calls allowed for one decision before the reply must parse (the first call plus one
-# format retry). A decision whose reply still does not parse becomes an ABORTED row.
+# Bound of the format-retry loop in _initial_proposal: it runs while the attempt count is
+# <= INITIAL_ATTEMPTS_MAX and counts inside the loop, so one decision gets up to
+# FORMAT_ATTEMPTS_MAX = INITIAL_ATTEMPTS_MAX + 1 model calls (the first call plus two format
+# retries). A decision whose reply still does not parse becomes an ABORTED row.
 INITIAL_ATTEMPTS_MAX = 2
+FORMAT_ATTEMPTS_MAX = INITIAL_ATTEMPTS_MAX + 1
 
 # Placebo control for the blocking governance retry loop
 # (``global_config.governance.retry_feedback_mode: placebo``): uses the

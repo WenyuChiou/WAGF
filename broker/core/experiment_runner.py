@@ -1295,7 +1295,7 @@ class ExperimentRunner:
     def _resolution_policy_block(self) -> Dict[str, Any]:
         """Retry limits, what happens when they run out, and how often it did (from the audit CSVs)."""
         from broker.components.analytics.audit import audit_resolution_counts
-        from broker.core._retry_loop import INITIAL_ATTEMPTS_MAX
+        from broker.core._retry_loop import FORMAT_ATTEMPTS_MAX
         broker = getattr(self, "broker", None)
 
         def pick(value, kinds):
@@ -1309,7 +1309,8 @@ class ExperimentRunner:
         counts = audit_resolution_counts(self.config.output_dir)
         return {
             "max_governance_retries": pick(getattr(broker, "max_retries", None), int),
-            "max_format_attempts": INITIAL_ATTEMPTS_MAX,
+            # Model calls one decision may use before an unparsed reply is ABORTED.
+            "max_format_attempts": FORMAT_ATTEMPTS_MAX,
             "retry_framing": "plain",
             "on_parse_failure": "ABORTED row: no decision is made and no skill runs",
             "on_retry_exhausted": pick(getattr(broker, "_on_retry_exhausted", None), str),

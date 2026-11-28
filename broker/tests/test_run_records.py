@@ -794,7 +794,7 @@ def test_resolution_policy_block_counts_from_the_audit_csv(tmp_path):
         "A,7,APPROVED,0,json", "A,8,APPROVED,0,json", "A,9,APPROVED,0,json", "A,10,APPROVED,0,json"])
     (tmp_path / "household_governance_audit.csv").write_text(csv_text, encoding="utf-8")
     block = _provenance_runner(tmp_path)._resolution_policy_block()
-    assert block["max_governance_retries"] == 3 and block["max_format_attempts"] == 2
+    assert block["max_governance_retries"] == 3 and block["max_format_attempts"] == 3
     assert block["retry_framing"] == "plain" and block["on_retry_exhausted"] == "default"
     assert block["default_skill"] == "do_nothing"
     c = block["counts"]

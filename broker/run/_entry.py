@@ -771,7 +771,14 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
             set_declared_deciders(ctx.config.declared_decider_names(agent_types=agent_types))
     runner.tag_memory_origin = True
     runner.rejection_line_styles = styles
-    runner._llm_cache.update(invokes)
+    # run.mock invokes go straight into the runner's invoke cache, so get_llm_invoke never
+    # wraps them: wrap them here, or their calls are missing from llm_calls.jsonl and
+    # model_roles. The run.mock slot is used only when ctx.model is a mock model.
+    from broker.utils.llm_call_log import wrap_invoke_with_call_log
+    runner._llm_cache.update({
+        agent_type: wrap_invoke_with_call_log(invoke, model=ctx.model, agent_type=agent_type)
+        for agent_type, invoke in invokes.items()
+    })
     # A case with no rules still gets validator_health.csv.
     audit_writer = getattr(getattr(runner, "broker", None), "audit_writer", None)
     if audit_writer is not None and hasattr(audit_writer, "config"):
