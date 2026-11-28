@@ -13,7 +13,7 @@ into structured insights. Domain-agnostic via ``DomainReflectionAdapter`` and
   Batch/personalized callers retain ``reflection.questions`` and
   ``DomainPack.reflection_questions()``.
 """
-from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Union
+from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Tuple, Union
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
@@ -208,14 +208,34 @@ def order_by_year(items: Sequence[Any]) -> List[Any]:
     return sorted(items, key=lambda m: m["year"])
 
 
+STORED_REFLECTION_LABEL = "Looking back:"
+LEGACY_STORED_REFLECTION_LABEL = "Lesson:"
+
+
+def split_stored_reflection(text: str) -> Tuple[str, str]:
+    """Return (program facts, answer), accepting current and legacy labels.
+
+    Unlabelled text is an answer alone. Split at the first label so an
+    answer containing another label remains intact.
+    """
+    separators = [f" {label} " for label in
+                  (STORED_REFLECTION_LABEL, LEGACY_STORED_REFLECTION_LABEL)]
+    positions = [(text.find(separator), separator) for separator in separators
+                 if separator in text]
+    if not positions:
+        return "", text
+    position, separator = min(positions)
+    return text[:position], text[position + len(separator):]
+
+
 def compose_lesson_with_facts(fact_lines: Optional[Sequence[str]], lesson: str) -> str:
     """The text of a grounded reflection (45c): the program-written fact
-    lines, then "Lesson: " and the model's lesson. Without fact lines it is
+    lines, then "Looking back: " and the model's answer. Without fact lines it is
     the lesson alone, as before."""
     facts = [str(f).strip() for f in (fact_lines or []) if str(f).strip()]
     if not facts:
         return lesson
-    return " ".join(facts) + " Lesson: " + lesson
+    return " ".join(facts) + f" {STORED_REFLECTION_LABEL} " + lesson
 
 
 def _per_agent_lines(value: Any, agent_id: str, n_agents: int, name: str) -> List[str]:

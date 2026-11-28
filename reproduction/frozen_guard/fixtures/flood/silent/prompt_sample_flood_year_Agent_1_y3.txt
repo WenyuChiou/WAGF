@@ -6,9 +6,9 @@ Your memory includes:
 - Year 2: I observe 18% of my neighbors have elevated homes.
 - Year 2: I observe 0% of my neighbors have relocated.
 - Year 3: A flood occurred, but my house was protected by its elevation.
-- Year 3: I observe 18% of my neighbors have elevated homes.
-- Year 3: I observe 9% of my neighbors have relocated.
-- Consolidated Reflection (written in Year 2): Year 2: no flood occurred; at the end of the year my house was elevated and I had flood insurance. Lesson: I learned that protecting my home before a flood matters more than reacting after one.
+- Year 3: I observe 27% of my neighbors have elevated homes.
+- Year 3: I observe 0% of my neighbors have relocated.
+- Consolidated Reflection (written in Year 2): Year 2: no flood occurred; at the end of the year my house was elevated and I had flood insurance. Looking back: I learned that protecting my home before a flood matters more than reacting after one.
 
 You currently have flood insurance.
 You have slight doubts about the insurance company. You are skeptical of your neighbors' judgment.

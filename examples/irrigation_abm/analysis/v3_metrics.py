@@ -71,6 +71,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from broker.components.cognitive.reflection import split_stored_reflection  # noqa: E402
+
 from examples.irrigation_abm.irrigation_env import (  # noqa: E402
     HYDROLOGY_V3_SHA256,
     LB_PRIORITY_SPLIT_SHA256,
@@ -3546,7 +3548,7 @@ class PromptChecker:
     sentences of irrigation_personas (spec 4.1 to 4.5) read back line by
     line. Sub-basin flow shares and senior entitlements are compared with the
     pinned data tables the environment reads. For grounded stored reflections,
-    the fact portion before `` Lesson: `` is checked here; the model-written
+    the fact portion before either stored reflection label is checked here; the model-written
     lesson remains P6's responsibility."""
 
     def __init__(self, run: LoadedRun, cfg: WaterSystemConfig, variant: str):
@@ -3727,9 +3729,10 @@ class PromptChecker:
             where = f"{run.label} {agent} {year} line {i}"
             stripped = text.strip()
             program_text, lesson = text, ""
+            facts, answer = split_stored_reflection(text)
             if stripped.startswith("- Consolidated Reflection"):
-                if " Lesson: " in text:
-                    program_text, lesson = text.split(" Lesson: ", 1)
+                if facts:
+                    program_text, lesson = facts, answer
                 elif not program_facts:
                     reflection = _R["reflection"].match(stripped)
                     if reflection:  # Old-style reflection: heading plus model prose.
@@ -3755,14 +3758,14 @@ class PromptChecker:
             if stripped == POWELL_DEAD_POOL_SENTENCE:
                 if system["powell_storage_maf"] > cfg.powell_dead_pool_maf + DEAD_POOL_TOL_MAF:
                     out.mismatches.append(f"{where}: Powell dead-pool sentence above the dead pool")
-            numeric_text = program_text if " Lesson: " in text else text
+            numeric_text = program_text if facts else text
             if not _DIGIT.search(numeric_text):
                 continue
             out.numeric_lines += 1
             line = _Line(numeric_text, where, out)
             grounded_reflection = (
                 stripped.startswith("- Consolidated Reflection")
-                and (program_facts or " Lesson: " in text)
+                and (program_facts or bool(facts))
             )
             self._line(line, agent, t, year, upper, system, w, base, d, trace, out,
                        grounded_reflection=grounded_reflection)
@@ -3886,12 +3889,13 @@ class PromptChecker:
                              out: PromptAudit, *, allow_current: bool) -> None:
         sim = self.run.sim
         rendered = text if text.startswith("- ") else "- " + text
-        program_text = rendered.split(" Lesson: ", 1)[0]
+        facts, _answer = split_stored_reflection(rendered)
+        program_text = facts or rendered
         line = _Line(program_text, where, out)
         d, trace = self.run.decisions[(agent, t)], self.run.traces[(agent, t)]
         self._line(line, agent, t, sim.sim_year(t), sim.basin[agent] == "upper_basin",
                    sim.system[t], sim.num(agent, t, "water_right"), d.keep_request_af,
-                   d, trace, out, grounded_reflection=" Lesson: " in rendered,
+                   d, trace, out, grounded_reflection=bool(facts),
                    allow_current_memory=allow_current)
         line.finish()
         out.stored_memory_lines += 1
@@ -4508,7 +4512,7 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
     reflection lines not written in the previous calendar year unless every
     intervening year has a logged dropped reflection for that same agent.
 
-    Spec item 45c: a grounded reflection reads "{program facts} Lesson:
+    Spec item 45c: a grounded reflection reads "{program facts} Looking back:
     {lesson}". Its lesson is checked against the recorded input of its
     writing year, including the outcome just ended. A carried reflection
     uses that same input, never later outcomes. Lessons carrying any digit are counted
@@ -4577,10 +4581,11 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
                 own = []
                 reflection_input_skipped += 1
             body = m.group(2)
-            if " Lesson: " in body:
+            facts_text, answer = split_stored_reflection(body)
+            if facts_text:
                 # Item 45c: program facts, then the model's lesson.
                 grounded += 1
-                facts_text, body = body.split(" Lesson: ", 1)
+                body = answer
                 if _DIGIT.search(body):
                     with_numbers += 1
                     if len(examples) < 10:

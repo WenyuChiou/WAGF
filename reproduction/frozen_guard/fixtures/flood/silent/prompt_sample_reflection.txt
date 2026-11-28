@@ -8,7 +8,7 @@ Your recent years:
 What happened this year (kept with your answer; do not repeat it):
 - Year 1: no flood occurred; at the end of the year my house was elevated and I did not have flood insurance.
 
-Speak in the first person and base your answer only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it.
+Base your answer only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it.
 Answer in one or two sentences in the first person. Do not write any year, amount, percentage or other number; what happened this year is stored with your answer.
 
 Answer with this JSON object only: {"answer": "<your answer>"}

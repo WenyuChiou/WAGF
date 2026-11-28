@@ -63,16 +63,8 @@ global_config:
     year_lines: true
     program_facts: true
     lesson_no_numbers: true
-    persona_instruction: "Speak in the first person and base your answer only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
+    persona_instruction: "Base your answer only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
     topic: "floods and your home"
-    triggers:
-      crisis: true                    # Triggered by severe flood event
-      periodic_interval: 5            # Every 5 years
-      decision_types:
-        - elevate_house
-        - relocate
-      institutional_threshold: 0.05   # Policy change > 5%
-    method: hybrid
 
   # [Universe Physics] - LLM & System Generation Settings
   llm:

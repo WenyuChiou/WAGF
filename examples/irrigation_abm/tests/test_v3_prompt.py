@@ -1033,8 +1033,8 @@ def test_single_reflection_kept_from_the_previous_year(golden_run):
         # last, oldest first), then the model's lesson.
         assert len(lines) == 1, (agent, year, lines)
         assert lines[0].startswith(f"- Consolidated Reflection (written in {year - 1}): "), (agent, year, lines)
-        assert lines[0].endswith(f" Lesson: {ScriptedLLM.LESSON}"), (agent, year, lines)
-        facts = lines[0].split("): ", 1)[1].split(" Lesson: ")[0]
+        assert lines[0].endswith(f" Looking back: {ScriptedLLM.LESSON}"), (agent, year, lines)
+        facts = lines[0].split("): ", 1)[1].split(" Looking back: ")[0]
         assert re.match(r"^\d{4}: ", facts) and f"{year - 1}: " in facts, (agent, year, facts)
 
 
@@ -1300,6 +1300,8 @@ def test_every_tier0_decision_and_reflection_avoids_a_current_tier_claim(golden_
 
 UT1 = "AgUsesAboveGreenRUt_NonIndian"
 GOLDEN = {
+    # P5 (2026-11-28): only the stored label changes from Lesson: to Looking back:
+    # in the four later-year snapshots. Reversing that label recovers each old hash.
     # (agent, calendar year): (what the year is, sha256 of the full prompt)
     # Items 36a/36d/36g (2026-10-05) changed the four Upper Basin entries
     # below: the two-state headline, the removed Lake Powell sentence, and
@@ -1318,7 +1320,7 @@ GOLDEN = {
     # Spec item 45 (2026-10-07): the four non-2019 entries changed, and only
     # for these reasons (diffed line by line against c7b10c05): the history
     # column reads "received (AF)" (45i); the stored reflection line carries
-    # the program-written facts before "Lesson: " (45c), and from 2020 on
+    # the program-written facts before "Looking back: " (45c), and from 2020 on
     # every agent has one, since the reflection at the end of 2019 now sees
     # the 2019 outcome (45a); Upper Basin memory lines add that year's
     # sub-basin natural-flow share (45f); a keep after a short year states
@@ -1346,16 +1348,16 @@ GOLDEN = {
     # Item 49 changes only UT1 2019/2020: both bases are at X, so the
     # increase menu option and S1 disappear; notes/JSON offer two choices.
     (UT1, 2019): ("UB, normal year", "5b43f36cda78a960663495f65a7be09a4bae621c22aac375cab6f3a94446bdc5"),
-    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "3dc3f337cf8341aa8802818be530e9a444ef1b9fbc22349707dd6dcd10cb1c67"),
+    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "c3e6550fbe0d9ea43f7be4e779f54c23008272f2c44aeea2b1fa5860d3bbaddb"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "fa0603bafd40b59f0e3828c960f9671c20cbd716095e92721caebfcdaac8f3b6"),
     (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
-                  "a38901e22011fd7421f1ba8f96c0d6c20e26889e7043d46fc4da6f84318dc1a1"),
+                  "a09945362aaca8982dbd54109353eeb5c4dbc8d2fd5fe80b4fcd68c9b2ff6a6f"),
     ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "4735a59100b3da0f6d4df7625fc610548958a1cb66d9bc0b9449c71c8d177708"),
     # Spec item 48 (affects_agent): the senior's 2020 and 2021 keep-and-fully-met
     # tier-year lines are hidden; under any_tier the prompt hashes to 9b4c68b1...
-    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "76509036abcce8542ee8003943cfb1a921ed5b4765f86b389211d4a40a489f07"),
+    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "df6eaf78d18c8e56d0958732a66673e23957fcc00ee5c58926909c90748bd08f"),
     ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "46390930fb4b283f252d6dc366cbe8d77bc17fc352506b9fe8eb21ab50d674a8"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "b802fd1ab205c64c96a713f46fb5c2e558bc6fe4e172042179f540128cd12ebf"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "807b19ee565705f53288a86dbc141dd3669bcb01a30e1c0046a4c770ea9484f0"),
 }
 
 
@@ -1625,7 +1627,7 @@ def test_grounded_reflection_storage_respects_keep_latest(keep_latest_only, year
 
 def test_reflection_trailing_comma_stripped():
     records = _grounded_lessons(['  "I learned to keep my request steady.",  '])
-    assert records[-1]["content"].endswith("Lesson: I learned to keep my request steady.")
+    assert records[-1]["content"].endswith("Looking back: I learned to keep my request steady.")
 
 
 MOHAVE_2019 = "Year 2019: You requested 20,155 acre-ft and received 20,155 acre-ft."

@@ -721,7 +721,7 @@ def test_reflection_is_last_in_the_at_most_five_plus_two_plus_one_prompt(reflect
         assert 5 <= len(items) - 1 <= 7, items
         line = items[-1]
         assert line.startswith(f"Consolidated Reflection (written in Year {rec['year'] - 1}): Year ")
-        assert line.endswith(" Lesson: " + stored_lessons[(rec["agent_id"], rec["year"] - 1)])
+        assert line.endswith(" Looking back: " + stored_lessons[(rec["agent_id"], rec["year"] - 1)])
     assert seen > 0
 
 
@@ -775,7 +775,7 @@ def test_scripted_year_5_reflection_carries_year_3_or_4_damage(reflecting_run):
         )
 
     assert any(
-        re.search(r"Year [34]: a flood damaged my house;", reflection.split(" Lesson: ", 1)[0])
+        re.search(r"Year [34]: a flood damaged my house;", reflection.split(" Looking back: ", 1)[0])
         for reflection in year_6_reflections
     ), year_6_reflections
 

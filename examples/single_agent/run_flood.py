@@ -75,6 +75,7 @@ from broker.utils.logging import logger
 # _ensure_flood_registered reverse-import fallback.
 import examples.governed_flood  # noqa: F401 — registers FloodDomainPack + validators
 from broker.components.cognitive.reflection import (
+    split_stored_reflection,
     ReflectionCheckTally,
     add_year_outcome,
     compose_lesson_with_facts,
@@ -145,7 +146,7 @@ def _memory_texts(items: List[Any]) -> List[str]:
 
 
 _STORED_REFLECTION = re.compile(
-    r"^Consolidated Reflection \(written in Year \d+\): (?P<facts>.*?) Lesson: ",
+    r"^Consolidated Reflection \(written in Year \d+\): (?P<body>.*)",
     re.DOTALL,
 )
 _FACT_YEAR = re.compile(r"(?:^|\. )Year (\d+):")
@@ -157,7 +158,9 @@ def _remembered_reflection_years(memory_lines: List[str]) -> List[int]:
     for line in memory_lines:
         match = _STORED_REFLECTION.match(str(line))
         if match:
-            years = [int(value) for value in _FACT_YEAR.findall(match.group("facts"))]
+            facts, _answer = split_stored_reflection(match.group("body"))
+            if facts:
+                years = [int(value) for value in _FACT_YEAR.findall(facts)]
     return sorted(set(years))
 
 
@@ -944,7 +947,7 @@ class FinalParityHook:
         block storage: numbers in a lesson,
         junk, or more than 500 characters. A blocking failure is retried once,
         then dropped. Stored as
-        "Consolidated Reflection (written in Year {Y}): {facts} Lesson:
+        "Consolidated Reflection (written in Year {Y}): {facts} Looking back:
         {lesson}" in the memory engine's reflection slot, shown after five
         recent plus up to two significant event lines."""
         if refl_cfg.get("batch_size", 10) != 1:

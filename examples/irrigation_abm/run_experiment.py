@@ -381,7 +381,7 @@ def _unmet_frac(request: float, delivered: float) -> float:
 
 # Every stored reflection starts with this; the full line is
 # "Consolidated Reflection (written in {calendar year}): {summary}" (spec 4.7),
-# and since spec item 45c "...: {program facts} Lesson: {lesson}".
+# and since spec item 45c "...: {program facts} Looking back: {lesson}".
 _REFLECTION_MEMORY_PREFIX = "Consolidated Reflection"
 
 # Stripped from both ends of a summary before it is stored (spec 4.7): quotes,
@@ -1010,7 +1010,7 @@ class IrrigationLifecycleHooks:
         figures block storage, with one retry then a drop. Every attempt and
         its flags are written to ``reflection_checks.jsonl``; stored flags
         and outcomes are counted per year in the manifest. The stored line
-        reads "Consolidated Reflection (written in {Y}): {fact lines} Lesson:
+        reads "Consolidated Reflection (written in {Y}): {fact lines} Looking back:
         {lesson}".
         ``keep_latest_only`` replaces the previous reflection only when a new
         reflection is stored. A dropped reflection leaves the previous stored

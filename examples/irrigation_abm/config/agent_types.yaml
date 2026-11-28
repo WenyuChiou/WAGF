@@ -83,7 +83,7 @@ global_config:
     # facts now use the framework question with a domain topic. The
     # framework adds the closing "no years or numbers" line
     # (ONE_AGENT_ANSWER_INSTRUCTION) because program_facts is on.
-    persona_instruction: "Speak in the first person and base your answer only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
+    persona_instruction: "Base your answer only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
     topic: "your water supply and your requests"
     # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's
     # latest reflection in memory (framework option, default false:
@@ -97,7 +97,7 @@ global_config:
     #     prompt's memory order stays by salience, spec item 36l);
     # (c) the program writes the key years (the year just ended and the
     #     listed year with the largest shortfall, reflection_checks.key_years)
-    #     and the model writes only the answer: stored as "{facts} Lesson: {lesson}";
+    #     and the model writes only the answer: stored as "{facts} Looking back: {lesson}";
     # (e) a lesson naming a year or any number is retried once, then not
     #     stored; the contradiction checks from the irrigation checker
     #     (reflection_checks.check_lesson) are report-only flags, never
@@ -110,7 +110,6 @@ global_config:
     # -> ReflectionEngine.should_reflect); the trigger-based system this block once
     # configured (ReflectionEngine.load_trigger_config / should_reflect_triggered) is never
     # called anywhere in this domain's runners, so it was removed here.
-    method: hybrid
 
   llm:
     model: "command-line-override"

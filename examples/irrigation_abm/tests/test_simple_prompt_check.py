@@ -203,6 +203,12 @@ def test_check_run_scans_actual_sources_and_separates_retry_and_lesson(tmp_path)
     }
     assert {hit.family for hit in result.lesson_occurrences} == {"field_use_clause"}
 
+    # The same persisted records have identical analysis under the new label.
+    for path in run.rglob("*.jsonl"):
+        path.write_text(path.read_text(encoding="utf-8").replace(" Lesson: ", " Looking back: "),
+                        encoding="utf-8")
+    assert check_run(run) == result
+
 
 def test_check_run_reports_repeated_family_occurrences(tmp_path):
     run = tmp_path / "repeated"

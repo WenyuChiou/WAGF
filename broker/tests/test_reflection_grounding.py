@@ -192,7 +192,7 @@ def test_add_year_outcome_contract():
 
 def test_compose_and_normalize():
     assert compose_lesson_with_facts(None, "I learned.") == "I learned."
-    assert compose_lesson_with_facts([" 2020: a. ", "", "2021: b."], "I learned.") == "2020: a. 2021: b. Lesson: I learned."
+    assert compose_lesson_with_facts([" 2020: a. ", "", "2021: b."], "I learned.") == "2020: a. 2021: b. Looking back: I learned."
     assert normalize_lesson_text('  "I  learned\nthis.",  ') == "I learned this."
     assert normalize_lesson_text("\u201cQuoted.\u201d") == "Quoted."
 
@@ -458,7 +458,7 @@ def test_leading_lesson_label_is_stripped_before_composing():
                                     normalize=lambda text: text.strip())
     assert result.lesson == "I learned to watch."
     assert compose_lesson_with_facts(["Year 1: an outcome."], result.lesson) == (
-        "Year 1: an outcome. Lesson: I learned to watch.")
+        "Year 1: an outcome. Looking back: I learned to watch.")
 
 
 @pytest.mark.parametrize("preamble", [
@@ -473,7 +473,7 @@ def test_short_leading_lesson_openers_are_stripped_before_composing(preamble):
     assert result.outcome == "stored" and result.calls == 1
     assert result.lesson == "I learned caution."
     assert compose_lesson_with_facts(["Period 1: an outcome."], result.lesson) == (
-        "Period 1: an outcome. Lesson: I learned caution.")
+        "Period 1: an outcome. Looking back: I learned caution.")
 
 
 def test_broker_grounding_comments_use_generic_examples():

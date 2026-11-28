@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Grounded one-agent reflections are stored as `<facts> Looking back: <answer>` instead of `<facts> Lesson: <answer>`, so later decision prompts no longer show the word "lesson"; `split_stored_reflection` reads both labels, so runs made before this change analyse the same. The flood and irrigation `persona_instruction` no longer repeats "first person" (the framework line already says it), and their shipped configs drop the unread `reflection.method` and the unread flood `reflection.triggers`.
+
 - `broker.run` and the domain scaffold now use the neutral one-agent question frame and `reflection.topic`; `reflection.questions` is retired on this path (reproduce old runs from tag v0.7.0). Multi-agent flood and `governed_flood` remain unchanged for now.
 
 - One-agent reflection now asks "What do your recent years tell you about <topic>?"; domains set

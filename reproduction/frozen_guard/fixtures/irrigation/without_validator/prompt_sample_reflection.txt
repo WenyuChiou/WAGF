@@ -8,7 +8,7 @@ Your recent years:
 What happened this year (kept with your answer; do not repeat it):
 - 2019: you asked for 27,338 acre-ft and you received 27,338 acre-ft (fully met).
 
-Speak in the first person and base your answer only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it.
+Base your answer only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it.
 Answer in one or two sentences in the first person. Do not write any year, amount, percentage or other number; what happened this year is stored with your answer.
 
 Answer with this JSON object only: {"answer": "<your answer>"}

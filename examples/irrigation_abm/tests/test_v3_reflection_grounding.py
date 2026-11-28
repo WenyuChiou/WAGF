@@ -9,7 +9,7 @@ the checks reuse the reflection error diagnosis's regular expressions
   outcome line, the exact line the next decision prompt shows;
 - (b) one line per year, oldest first;
 - (c) the program writes the key years (the year just ended and the listed
-  year with the largest shortfall) and stores them before "Lesson: ";
+  year with the largest shortfall) and stores them before "Looking back: ";
 - (e) semantic contradictions are measured as flags, with known false
   positives for pilot hand audit. Only enabled numbers, junk, overlong
   lessons and foreign figures retry once then drop; every attempt is logged
@@ -484,7 +484,7 @@ def test_lessons_are_checked_retried_once_and_counted(reflecting_run):
             assert lines == []
             continue
         assert len(lines) == 1
-        head, lesson = lines[0].split(" Lesson: ")
+        head, lesson = lines[0].split(" Looking back: ")
         assert head.startswith("Consolidated Reflection (written in 2020): 2020: ")
         assert lesson == _ReflectingLLM.CLEAN
     manifest = json.loads((out / "reproducibility_manifest.json").read_text(encoding="utf-8"))
@@ -541,7 +541,7 @@ def test_dropped_reflection_keeps_previous_reflection_in_next_decision_prompt(
     carried = [line for line in lines if line.startswith("Consolidated Reflection")]
     assert len(carried) == 1
     assert carried[0].startswith("Consolidated Reflection (written in 2019): ")
-    assert carried[0].endswith(f" Lesson: {_ReflectingLLM.CLEAN}")
+    assert carried[0].endswith(f" Looking back: {_ReflectingLLM.CLEAN}")
 
     from examples.irrigation_abm.analysis import v3_metrics as vm
     gate = vm.gate_p6([vm.load_run(out, keep_prompts=True)])

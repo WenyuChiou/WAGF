@@ -16,7 +16,14 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
+import sys
 from typing import Any, Iterable, Iterator, Mapping, Pattern, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from broker.components.cognitive.reflection import split_stored_reflection  # noqa: E402
 
 
 def _rx(*patterns: str) -> tuple[Pattern[str], ...]:
@@ -221,10 +228,8 @@ def _append_hits(
 
 
 def _split_stored_reflection(text: str) -> tuple[str, str | None]:
-    if " Lesson: " not in text:
-        return text, None
-    program, lesson = text.split(" Lesson: ", 1)
-    return program, lesson
+    program, lesson = split_stored_reflection(text)
+    return (program, lesson) if program else (text, None)
 
 
 def _scan_model_text(
@@ -344,7 +349,7 @@ def check_run(run_dir: str | Path) -> CheckResult:
                 for index, summary in enumerate(_flatten_text(row.get("summary"))):
                     readable_prompts += 1
                     source = f"{reflection_input_name}:{line_number}:summary[{index}]"
-                    if " Lesson: " in summary:
+                    if split_stored_reflection(summary)[0]:
                         _scan_model_text(
                             summary, identity, source, occurrences, lesson_occurrences
                         )
