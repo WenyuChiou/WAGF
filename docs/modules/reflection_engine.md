@@ -128,19 +128,19 @@ The INSTITUTIONAL trigger supports **Double-Loop Learning** (Argyris & Schön 19
 
 ## 5. WRR Experiment Configuration
 
-In the validated WRR experiments, reflection uses a simplified interval-based trigger (every year) with domain-specific guidance questions defined in `agent_types.yaml`:
+The single-agent flood and irrigation runners use one grounded reflection call per agent.
+Both require the following four keys to be true in the effective reflection config.
+The generic engine also supports batch prompts for other domains.
 
 ```yaml
 global_config:
   reflection:
-    interval: 1                       # Reflect every year
-    batch_size: 10                    # Agents per reflection batch
-    importance_boost: 0.9             # Insights are high-importance
-    method: hybrid
-    questions:                        # Domain-specific guidance
-      - "Was your strategy effective given the conditions?"
-      - "What patterns do you notice between your actions and outcomes?"
-      - "How should you adjust your approach going forward?"
+    interval: 1
+    batch_size: 1
+    year_outcome: true
+    year_lines: true
+    program_facts: true
+    lesson_no_numbers: true
 ```
 
 ### Action-Outcome Feedback

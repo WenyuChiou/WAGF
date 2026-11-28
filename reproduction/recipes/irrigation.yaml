@@ -1,3 +1,4 @@
+# The recorded `config_dir` folders exist at tag `paper-irrigation-runs` and were removed from the working tree on 2026-11-27.
 # Recipe for the irrigation paper runs (gemma3:4b, 3 sets of simulations x 5 seeds, 42 years).
 # Read by tests/test_repro_kit.py (reproduction/check_manifests.py reads only the
 # history_rewrite tables, not this file); the prose version is reproduction/recipes/irrigation.md. Paths are repo-relative.
@@ -95,7 +96,7 @@ config_hashes:
   examples/irrigation_abm/config_variants/simple/agent_types.yaml: da90d4c52909          # matches the tracked LF file at the tag
   examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml: 5ee12b76dd71  # recorded as derived_from_config_sha256
 # For `disabled` the run read a derived copy, resolved_agent_types.yaml (in the run folder, not tracked):
-# its hash f7075f293dad is the manifest config_hash, and the tracked simple_nolimit file is the
+# its hash f7075f293dad is the manifest config_hash, and the tracked config file for that arm is the
 # manifest derived_from_config. Both are checked by reproduction/check_manifests.py.
 prompt_hash_in_manifest: absent   # these manifests carry no prompt hash
 

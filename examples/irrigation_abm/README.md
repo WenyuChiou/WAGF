@@ -29,6 +29,15 @@ python examples/irrigation_abm/run_experiment.py --model gemma3:4b --years 42 --
 
 Note: `run_*.bat` / `check_e4b_status.bat` in this folder are archival Windows batch launchers for paper runs. To build a **new domain**, use `python -m broker.run CONFIG` (see [HOW_TO_ADD_A_NEW_DOMAIN.md](../../docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md)).
 
+The working tree supplies two simple-information configurations. Pass the config directory and governance mode together.
+
+| Config directory | Governance mode | Beneficial-use limit |
+|---|---|---|
+| [with_validator](config_variants/with_validator/README.md) | `strict` | On |
+| [without_validator](config_variants/without_validator/README.md) | `disabled` | Off |
+
+The three historical paper arms use the configs at tag `paper-irrigation-runs`. Their commands and hashes are in the [irrigation recipe](../../reproduction/recipes/irrigation.md).
+
 ### Key CLI Flags
 
 | Flag | Default | Description |

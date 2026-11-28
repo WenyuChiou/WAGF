@@ -65,7 +65,7 @@ from broker.components.memory.engine import WindowMemoryEngine, ImportanceMemory
 from broker.interfaces.skill_types import ExecutionResult, SkillOutcome
 # from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
-from broker.utils.llm_call_log import call_context
+from examples.grounded_reflection import require_grounded_reflection
 from broker.utils.agent_config import GovernanceAuditor
 from broker.utils.logging import logger
 
@@ -860,9 +860,6 @@ class FinalParityHook:
                 mem_items = _memory_texts(self.runner.memory_engine.retrieve(agent, top_k=5))
             mem_str = " | ".join(mem_items)
             
-            # Note: Reflection is now handled in BATCH mode after the agent loop.
-            # The old per-agent reflection code has been replaced for efficiency.
-
             decision_data = self.yearly_decisions.get((agent.id, year), {})
             if isinstance(decision_data, dict):
                 yearly_decision = decision_data.get("skill")
@@ -924,92 +921,12 @@ class FinalParityHook:
         # 
         # df_year.to_csv(log_filename, mode=mode, header=header, index=False)
         
-        # --- PILLAR 2: BATCH YEAR-END REFLECTION (Personalized) ---
+        # Grounded year-end reflection
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
             refl_cfg = self.runner.broker.config.get_reflection_config()
-            # Flood design record item 7 (irrigation spec item 45): the
-            # grounded mechanism when any of its framework keys is on; the
-            # block below is the reflection before item 7, unchanged.
-            grounding = self.runner.broker.config.get_reflection_grounding()
-            if any(grounding.values()):
-                self._grounded_reflection(year, refl_cfg, grounding)
-                return
-            from broker.components.cognitive.reflection import AgentReflectionContext
-            batch_size = refl_cfg.get("batch_size", 10)
+            self._grounded_reflection(year, refl_cfg)
 
-            # 1. Collect candidates with identity context
-            candidates = []
-            for agent_id, agent in self.sim.agents.items():
-                if getattr(agent, "relocated", False):
-                    continue
-                mem_engine = self.runner.memory_engine
-                if hasattr(mem_engine, 'retrieve_stratified'):
-                    memories = mem_engine.retrieve_stratified(agent_id, total_k=10)
-                else:
-                    if hasattr(mem_engine, "retrieve_content_only"):
-                        memories = mem_engine.retrieve_content_only(agent, top_k=10)
-                    else:
-                        memories = _memory_texts(mem_engine.retrieve(agent, top_k=10))
-                if memories:
-                    ctx = self.reflection_engine.extract_agent_context(agent, year)
-                    # Flood-domain reflection fields routed through
-                    # custom_traits (Phase 6H Item 9 — extract_agent_context
-                    # is now domain-neutral; FloodDomainPack reads these).
-                    ctx.custom_traits = {
-                        **ctx.custom_traits,
-                        "elevated": getattr(agent, "elevated", False),
-                        "insured": getattr(agent, "insured", False),
-                        "flood_count": sum(
-                            1 for f in getattr(agent, "flood_history", []) if f
-                        ),
-                    }
-                    candidates.append({"agent_id": agent_id, "memories": memories, "context": ctx})
-
-            if candidates:
-                print(f" [Reflection:Batch] Processing {len(candidates)} agents in batches of {batch_size}...")
-                llm_call = self.runner.get_llm_invoke("household")
-
-                for i in range(0, len(candidates), batch_size):
-                    batch = candidates[i:i+batch_size]
-                    batch_ids = [c["agent_id"] for c in batch]
-
-                    if hasattr(self.reflection_engine, 'generate_personalized_batch_prompt'):
-                        prompt = self.reflection_engine.generate_personalized_batch_prompt(batch, year)
-                    else:
-                        prompt = self.reflection_engine.generate_batch_reflection_prompt(
-                            batch, year, reflection_questions=refl_cfg.get("questions", [])
-                        )
-
-                    try:
-                        with call_context(agent_ids=batch_ids, agent_type="household", year=year,
-                                          kind="reflection", attempt=1):
-                            raw_res = llm_call(prompt)
-                        response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
-
-                        insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
-                        for agent_id, insight in insights.items():
-                            if insight:
-                                ctx_item = next((c for c in batch if c["agent_id"] == agent_id), None)
-                                if ctx_item and ctx_item.get("context") and hasattr(self.reflection_engine, 'compute_dynamic_importance'):
-                                    dynamic_imp = self.reflection_engine.compute_dynamic_importance(ctx_item["context"])
-                                    insight.importance = dynamic_imp
-
-                                self.reflection_engine.store_insight(agent_id, insight)
-                                self.runner.memory_engine.add_memory(
-                                    agent_id,
-                                    f"Consolidated Reflection: {insight.summary}",
-                                    {
-                                        **_flood_memory_metadata(reflection=True),
-                                        "importance": insight.importance,
-                                        "type": "reflection",
-                                    }
-                                )
-                    except Exception as e:
-                        print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
-
-                print(f" [Reflection:Batch] Completed reflection for Year {year}.")
-
-    def _grounded_reflection(self, year, refl_cfg, grounding):
+    def _grounded_reflection(self, year, refl_cfg):
         """Year-end reflection, grounded (flood design record PI decision
         2026-10-07 item 7; the irrigation mechanism of spec item 45).
 
@@ -1024,7 +941,7 @@ class FinalParityHook:
         recent damaged year) and the model writes only the lesson; the lesson
         receives report-only semantic flags
         (``flood_reflection.check_flood_lesson``). Only mechanical failures
-        block storage: numbers when ``reflection.lesson_no_numbers`` is on,
+        block storage: numbers in a lesson,
         junk, or more than 500 characters. A blocking failure is retried once,
         then dropped. Stored as
         "Consolidated Reflection (written in Year {Y}): {facts} Lesson:
@@ -1056,10 +973,7 @@ class FinalParityHook:
                 memory_lines = _memory_texts(
                     self.runner.memory_engine.retrieve(agent, top_k=decision_top_k))
             retrieved_lines = {str(line) for line in memory_lines}
-            prior_fact_years = (
-                set(_remembered_reflection_years(memory_lines))
-                if grounding["program_facts"] else set()
-            )
+            prior_fact_years = set(_remembered_reflection_years(memory_lines))
             window_years = set()
             for y, r in record.items():
                 if str(r.get("event_line", "")) in retrieved_lines:
@@ -1087,26 +1001,21 @@ class FinalParityHook:
                 }
                 for fy in years if fy.year != year
             ]
-            outcome = None
-            if grounding["year_outcome"]:
-                this = next((fy for fy in years if fy.year == year), None)
-                if this is None:
-                    raise RuntimeError(f"{agent_id}: no record of year {year} for its year-end reflection.")
-                outcome = {"content": flood_year_line(this), "year": year}
-            items = add_year_outcome(items, outcome, required=grounding["year_outcome"])
+            this = next((fy for fy in years if fy.year == year), None)
+            if this is None:
+                raise RuntimeError(f"{agent_id}: no record of year {year} for its year-end reflection.")
+            outcome = {"content": flood_year_line(this), "year": year}
+            items = add_year_outcome(items, outcome, required=True)
             listed_years = {item["year"] for item in items}
             listed = [fy for fy in years if fy.year in listed_years]
-            if items:
-                candidates.append((agent_id, agent, items, listed))
+            candidates.append((agent_id, agent, items, listed))
         if not candidates:
             return
         print(f" [Reflection] {len(candidates)} households, one per call (grounded, design record item 7)...")
         for agent_id, agent, items, listed in candidates:
-            facts = None
-            if grounding["program_facts"]:
-                by_year = {fy.year: fy for fy in listed}
-                facts = [flood_fact_line(by_year[y])
-                         for y in flood_key_years(listed, max(by_year))]
+            by_year = {fy.year: fy for fy in listed}
+            facts = [flood_fact_line(by_year[y])
+                     for y in flood_key_years(listed, max(by_year))]
             # The identity sentence is the first sentence of the persona the
             # decision prompt shows for this household (no generic fallback).
             persona = getattr(agent, "narrative_persona", "") or (
@@ -1119,7 +1028,7 @@ class FinalParityHook:
                 questions=refl_cfg.get("questions", []),
                 persona_instruction=refl_cfg.get("persona_instruction"),
                 record_lines=facts,
-                year_lines=grounding["year_lines"],
+                year_lines=True,
             )
             result = run_checked_reflection(
                 engine,
@@ -1128,7 +1037,7 @@ class FinalParityHook:
                 period=year,
                 llm_call=llm_call,
                 checker=lambda lesson, _listed=listed: check_flood_lesson(lesson, _listed),
-                lesson_no_numbers=grounding["lesson_no_numbers"],
+                lesson_no_numbers=True,
                 log_path=log_path,
             )
             self.reflection_tally.add(year, result)
@@ -1599,6 +1508,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         from broker.utils.agent_config import assert_governance_profile_declared
         assert_governance_profile_declared(
             agent_cfg_data, governance_mode, "household", agent_config_path)
+        from broker.utils.agent_config import AgentTypeConfig
+        require_grounded_reflection(AgentTypeConfig.load(str(agent_config_path), force_reload=True))
         household_cfg = agent_cfg_data.get('household', {})
         # Load prompt from external file if specified, otherwise fallback to inline
         prompt_file = household_cfg.get('prompt_template_file', '')
@@ -2096,12 +2007,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # reflection in the manifest.
     if reflection_engine is not None:
         _grounding = runner.broker.config.get_reflection_grounding()
-        if any(_grounding.values()):
-            record_reflection_checks(output_dir, parity.reflection_tally, {
-                **_grounding,
-                "retries": 1,
-                "domain_checker": "examples/single_agent/flood_reflection.py (check_flood_lesson)",
-            })
+        record_reflection_checks(output_dir, parity.reflection_tally, {
+            **_grounding,
+            "retries": 1,
+            "domain_checker": "examples/single_agent/flood_reflection.py (check_flood_lesson)",
+        })
 
     # === INTEGRITY GUARDRAIL (Invariant 6 — run-integrity provenance contract) ===
     # config_snapshot.yaml records CONFIG, not RUNTIME — that masked reflection silently

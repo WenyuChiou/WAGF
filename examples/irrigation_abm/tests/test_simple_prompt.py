@@ -21,6 +21,7 @@ from examples.irrigation_abm.analysis.simple_prompt_check import (
 
 IRR = CONFIG.parent.parent
 VARIANTS = IRR / "config_variants"
+VALIDATOR_ARMS = [("with_validator", "strict"), ("without_validator", "disabled")]
 
 
 def _config():
@@ -144,7 +145,7 @@ def test_simple_memory_preserves_outcomes_and_keep_change(basin, signal):
         "and received 64,000 acre-ft. Shortfall: 16,000 acre-ft (20.0% unmet). " + signal)
 
 
-@pytest.mark.parametrize("variant", ["simple", "simple_nolimit"])
+@pytest.mark.parametrize("variant", ["with_validator", "without_validator"])
 def test_variant_exact_overrides_and_frozen_copies(variant):
     expected = _simple_config()
     expected['irrigation_farmer']['prompt_template_file'] = 'prompts/irrigation_farmer.txt'
@@ -153,7 +154,19 @@ def test_variant_exact_overrides_and_frozen_copies(variant):
     for field in expected['shared']['response_format']['fields']:
         if field['key'] in hints:
             field['reason_hint'] = hints[field['key']]
-    if variant == "simple_nolimit":
+    expected["global_config"]["llm"]["sampling_seed"] = "per_call"
+    expected["global_config"]["governance"]["intervention_framing"] = "plain"
+    expected["global_config"]["audit"]["retry_prompt_columns"] = True
+    messages = {
+        "high_scarcity_no_increase": ("increases under scarcity", "an increase"),
+        "low_scarcity_no_decrease": ("decreases without scarcity", "a decrease"),
+    }
+    for rule in expected["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]:
+        if rule["id"] in messages:
+            condition, action = messages[rule["id"]]
+            reason = rule["message"].split(": ", 1)[1]
+            rule["message"] = f"Under the rule on {condition}, {action} is not available in this decision: {reason}"
+    if variant == "without_validator":
         expected["irrigation_farmer"]["beneficial_use_limit"]["enabled"] = False
     directory = VARIANTS / variant
     actual = yaml.safe_load((directory / "agent_types.yaml").read_text(encoding="utf-8"))
@@ -167,7 +180,7 @@ def test_variant_exact_overrides_and_frozen_copies(variant):
             if p.is_file() and p.name != 'NOTES.md'} == {
         str(p.relative_to(default)) for p in default.rglob("*") if p.is_file()}
     for path in default.rglob("*"):
-        if path.is_file() and path.name not in ("agent_types.yaml", "irrigation_farmer.txt"):
+        if path.is_file() and path.name not in ("agent_types.yaml", "irrigation_farmer.txt", "README.md"):
             assert (directory / path.relative_to(default)).read_bytes() == path.read_bytes()
 
 
@@ -175,29 +188,25 @@ def test_variant_exact_overrides_and_frozen_copies(variant):
 def simple_runs(tmp_path_factory):
     runs = {}
     original = runner.IrrigationLifecycleHooks.pre_year
-    for variant in ("simple", "simple_nolimit"):
-        for mode in ("strict", "disabled"):
-            contexts, profiles = {}, {}
+    for variant, mode in VALIDATOR_ARMS:
+        contexts, profiles = {}, {}
 
-            def capture(hooks, year, env_state, agents):
-                original(hooks, year, env_state, agents)
-                profiles.update(hooks.profiles)
-                contexts.update({(aid, year): dict(hooks.env.get_agent_context(aid)) for aid in agents})
+        def capture(hooks, year, env_state, agents):
+            original(hooks, year, env_state, agents)
+            profiles.update(hooks.profiles)
+            contexts.update({(aid, year): dict(hooks.env.get_agent_context(aid)) for aid in agents})
 
-            llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
-            out = tmp_path_factory.mktemp(f"{variant}_{mode}") / "run"
-            with pytest.MonkeyPatch.context() as mp:
-                mp.setattr(runner.IrrigationLifecycleHooks, "pre_year", capture)
-                _run(mp, out, llm, "--real", "--years", "4", "--seed", "42", "--memory-seed", "42",
-                     "--governance-mode", mode, "--config-dir", str(VARIANTS / variant))
-            runs[(variant, mode)] = SimpleNamespace(out=out, llm=llm, contexts=contexts, profiles=profiles)
+        llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
+        out = tmp_path_factory.mktemp(f"{variant}_{mode}") / "run"
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(runner.IrrigationLifecycleHooks, "pre_year", capture)
+            _run(mp, out, llm, "--real", "--years", "4", "--seed", "42", "--memory-seed", "42",
+                 "--governance-mode", mode, "--config-dir", str(VARIANTS / variant))
+        runs[(variant, mode)] = SimpleNamespace(out=out, llm=llm, contexts=contexts, profiles=profiles)
     return runs
 
 
-@pytest.mark.parametrize("variant,mode", [
-    ("simple", "strict"), ("simple", "disabled"),
-    ("simple_nolimit", "strict"), ("simple_nolimit", "disabled"),
-])
+@pytest.mark.parametrize("variant,mode", VALIDATOR_ARMS)
 def test_simple_four_year_runs_are_clean_and_recorded(simple_runs, variant, mode):
     run = simple_runs[(variant, mode)]
     assert len(run.llm.decisions) >= 78 * 4
@@ -225,7 +234,7 @@ def test_simple_four_year_runs_are_clean_and_recorded(simple_runs, variant, mode
     snapshot = yaml.safe_load((run.out / "config_snapshot.yaml").read_text())
     assert snapshot["metadata"]["prompt_information"] == "simple"
     assert snapshot["irrigation_farmer"]["prompt_information"] == "simple"
-    assert snapshot["irrigation_farmer"]["beneficial_use_limit"]["enabled"] is (variant == "simple")
+    assert snapshot["irrigation_farmer"]["beneficial_use_limit"]["enabled"] is (variant == "with_validator")
 
 
 RATING_BLOCK = """First, judge your water supply this year, considering:
@@ -245,7 +254,7 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
     """Build the entire expected first-year prompt without calling text builders."""
     from examples.irrigation_abm.irrigation_personas import hy_threshold_af, resolve_step_bin_af
 
-    run = simple_runs[("simple", "strict")]
+    run = simple_runs[("with_validator", "strict")]
     profile, ctx = run.profiles[agent], run.contexts[(agent, 1)]
     actual = run.llm.decisions[(agent, 2019, 0)]
     upper = profile.basin == "upper_basin"
@@ -314,7 +323,7 @@ def test_simple_rejects_full_template_before_model_call(tmp_path, monkeypatch):
     import shutil
 
     directory = tmp_path / "mixed"
-    shutil.copytree(VARIANTS / "simple", directory)
+    shutil.copytree(VARIANTS / "with_validator", directory)
     shutil.copyfile(CONFIG.parent / "prompts/irrigation_farmer.txt", directory / "prompts/irrigation_farmer.txt")
     llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
     with pytest.raises(ValueError, match="prompt_information"):
@@ -356,11 +365,11 @@ def test_reflection_recorder_captures_retry_bytes(tmp_path):
 
 
 @pytest.mark.parametrize("agent", ["WelltonMohawkIDD", UT2])
-@pytest.mark.parametrize("variant", ["simple", "simple_nolimit"])
-def test_simple_rendered_prompt_has_rating_block_and_field_names_only_in_skeleton(simple_runs, agent, variant):
+@pytest.mark.parametrize("variant,mode", VALIDATOR_ARMS)
+def test_simple_rendered_prompt_has_rating_block_and_field_names_only_in_skeleton(simple_runs, agent, variant, mode):
     """The rendered prompt carries the new rating block, repeats no basin sentence,
     and names the two appraisal fields only inside the JSON skeleton."""
-    run = simple_runs[(variant, "strict")]
+    run = simple_runs[(variant, mode)]
     prompt = run.llm.decisions[(agent, 2019, 0)]
     assert RATING_BLOCK in prompt
     assert "You divert water in the" not in prompt and "You use water in the" not in prompt
@@ -372,7 +381,7 @@ def test_simple_rendered_prompt_has_rating_block_and_field_names_only_in_skeleto
     assert '"reason": "One sentence on how much you can change your request this year."' in skeleton
 
 
-@pytest.mark.parametrize("variant", ["simple", "simple_executed", "simple_nolimit", "simple_nolimit_executed"])
+@pytest.mark.parametrize("variant", ["with_validator", "without_validator"])
 def test_simple_variant_files_carry_new_rating_block(variant):
     directory = VARIANTS / variant
     template = (directory / "prompts/irrigation_farmer.txt").read_text(encoding="utf-8")

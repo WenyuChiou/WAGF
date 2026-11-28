@@ -53,6 +53,7 @@ ABS_TOL = 1e-9
 
 FLOOD_SIZE = {"--model": "mock", "--years": "4", "--agents": "12", "--workers": "1", "--seed": "42"}
 IRR_YEARS = "2"
+IRR_MODES = {"with_validator": "strict", "without_validator": "disabled"}
 MA_COMMON = ["--mode", "random", "--agents", "8", "--years", "4", "--seed", "42",
              "--model", "mock", "--flood-years", "2:0.6,3:1.2"]
 MA_ARMS = {"strict": []}
@@ -70,15 +71,14 @@ def arms(case: str) -> list:
     if case == "flood":
         return [a["set"] for a in _recipe("flood")["arms"]]
     if case == "irrigation":
-        return [a["set"] for a in _recipe("irrigation")["arms"]]
+        return list(IRR_MODES)
     if case == "multi_agent":
         return list(MA_ARMS)
     raise KeyError(case)
 
 
 def harness_and_args(case: str, arm: str, out_dir: Path) -> tuple:
-    """(harness script, argument list) for one arm. Flags come from the recipe where the
-    recipe has them; only the size (agents, years, workers, seed) and the model are replaced."""
+    """Return the mock harness and flags for a working-tree guard arm."""
     if case == "flood":
         recipe = _recipe("flood")
         flags = next(a["flags"] for a in recipe["arms"] if a["set"] == arm)
@@ -91,11 +91,10 @@ def harness_and_args(case: str, arm: str, out_dir: Path) -> tuple:
     if case == "multi_agent":
         return KIT / "harness_multi_agent.py", MA_COMMON + MA_ARMS[arm] + ["--output", str(out_dir)]
     if case == "irrigation":
-        recipe = _recipe("irrigation")
-        spec = next(a for a in recipe["arms"] if a["set"] == arm)
         args = ["--model", "mock", "--real", "--years", IRR_YEARS, "--seed", "42", "--memory-seed", "42",
                 "--paper-water-margin", "0.4", "--cluster-method", "hy2021",
-                "--governance-mode", spec["governance_mode"], "--config-dir", spec["config_dir"],
+                "--governance-mode", IRR_MODES[arm],
+                "--config-dir", f"examples/irrigation_abm/config_variants/{arm}",
                 "--workers", "1", "--output", str(out_dir)]
         return ROOT / "examples" / "irrigation_abm" / "tests" / "_hash_scripted_llm_harness.py", args
     raise KeyError(case)

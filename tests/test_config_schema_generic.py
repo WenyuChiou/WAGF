@@ -27,7 +27,7 @@ def _agent_config(framework: str = "pmt") -> dict:
 
 
 def test_irrigation_yaml_loads_under_agent_types_slot():
-    cfg = load_agent_config(Path("examples/irrigation_abm/config_variants/simple/agent_types.yaml"))
+    cfg = load_agent_config(Path("examples/irrigation_abm/config_variants/with_validator/agent_types.yaml"))
 
     assert cfg.agent_types["irrigation_farmer"].psychological_framework == "cognitive_appraisal"
 

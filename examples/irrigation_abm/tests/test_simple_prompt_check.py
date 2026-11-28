@@ -324,7 +324,7 @@ def test_strict_simple_always_increase_run_separates_supply_rule_feedback(
     from examples.irrigation_abm import run_experiment
     from examples.irrigation_abm.tests.test_v3_prompt import ScriptedLLM, _run
 
-    variant = Path(run_experiment.__file__).parent / "config_variants" / "simple"
+    variant = Path(run_experiment.__file__).parent / "config_variants" / "with_validator"
     llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Increase"))
     out = _run(
         monkeypatch, tmp_path / "run", llm, "--real", "--years", "6",

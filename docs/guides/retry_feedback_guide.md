@@ -59,7 +59,7 @@ The irrigation thinking rules in
   scarce gives up water you could use for production.” Its suggestion says
   that a decrease is unavailable in this decision.
 
-The `simple_executed` and `simple_nolimit_executed` variants word the same two
+The `with_validator` and `without_validator` variants word the same two
 rules without "blocked": "Under the rule on increases under scarcity, an
 increase is not available in this decision: at the start of this decision you
 judged water to be scarce this year, ..." (and the same form for decreases).
@@ -186,10 +186,11 @@ These keys live under `global_config.governance` unless stated otherwise.
   the agent was told; other values above remain at their defaults.
 - **Irrigation:** uses three retries and three reports, adds feasible actions,
   hides rule-id prefixes and duplicate registry backstops, uses plain action
-  names (the `simple_executed` and `simple_nolimit_executed` variants also use
-  the `plain` framing), and sets a placebo-safe closer; `on_retry_exhausted` remains the safe
-  default for its coupled water model. Its YAML does not enable retry-prompt
-  recording, so enable it for a study that needs that review trail.
+  names and sets a placebo-safe closer. The base config leaves retry-prompt
+  recording off. Both validator variants use plain wording and enable
+  `audit.retry_prompt_columns`. The `with_validator` arm runs in strict mode
+  with the beneficial-use limit on. The `without_validator` arm runs in
+  disabled mode with the limit off.
 
 The option readers and defaults are in
 `broker/utils/agent_config.py (AgentTypeConfig)`. Retry-prompt provenance is

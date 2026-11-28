@@ -1,5 +1,7 @@
 # Recipe: irrigation paper runs
 
+The recorded `config_dir` folders exist at tag `paper-irrigation-runs` and were removed from the working tree on 2026-11-27.
+
 Scope: the 15 gemma3:4b irrigation runs (3 sets of simulations x seeds 42-46, 42 years, 78 agents) and the FQL reference. Machine-readable twin: [`irrigation.yaml`](irrigation.yaml). `tests/test_repro_kit.py` checks the YAML file against the history-rewrite tables and, when the run folders are present, against the stored `launch_command.txt` of every run; this page says the same in prose and is kept in step with the YAML by hand.
 
 Every irrigation run folder stores its launch command, so the flags below are the flags as launched, with the machine-specific parts (interpreter, working folder, absolute paths) replaced by repo-relative ones. All 15 runs record `git_dirty: false` at launch and at finalize.
@@ -33,7 +35,7 @@ The history was rewritten on 2026-11-21; every commit id changed. The run folder
 
 Folders: `examples/irrigation_abm/results/v3_simple/v3_simple_<set>_42yr_gemma3_4b_6d06739e_seed<seed>`.
 
-How this map was confirmed: each run's `launch_command.txt` names the `--config-dir` and `--governance-mode`; its manifest records `governance_profile` and the `beneficial_use_limit.enabled` switch, matching the table in all three sets (seed 42 read). The `disabled` runs read a derived copy, `resolved_agent_types.yaml` (kept in the run folder); the manifest names the tracked `simple_nolimit/agent_types.yaml` as its source.
+How this map was confirmed: each run's `launch_command.txt` names the `--config-dir` and `--governance-mode`; its manifest records `governance_profile` and the `beneficial_use_limit.enabled` switch, matching the table in all three sets (seed 42 read). The `disabled` runs read a derived copy, `resolved_agent_types.yaml` (kept in the run folder); the manifest names the tracked `agent_types.yaml` in that arm's recorded `config_dir` as its source.
 
 ## Flags, as launched
 

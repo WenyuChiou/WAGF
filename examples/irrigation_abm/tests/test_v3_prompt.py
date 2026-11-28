@@ -42,7 +42,6 @@ import pytest
 import yaml
 
 import broker.utils.llm_utils as llm_utils
-from broker.components.cognitive.reflection import GROUNDING_KEYS
 from broker.utils.agent_config import AgentTypeConfig
 from broker.utils.llm_utils import LLMStats
 
@@ -1591,152 +1590,45 @@ def test_aborted_year_memory_line_states_no_decision(tmp_path):
 
 
 
-def _reflect_once(summaries, memories, *, keep_latest_only=True, years=(2021,)):
-    """Drive IrrigationLifecycleHooks._batch_reflect on one agent with a real
-    engine and a stub reflection engine returning ``summaries`` in turn, one
-    per year: a string is the summary, None an unreadable reply (no insight
-    for the agent), an exception instance a failed call."""
-    from broker.agents import AgentConfig, BaseAgent
+def _grounded_lessons(replies, *, keep_latest_only=True, adapter=None):
+    """Drive the irrigation hook with settled outcomes and scripted model replies."""
+    from broker.components.cognitive.reflection import ReflectionEngine
     from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
-    from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
 
-    engine = HumanCentricMemoryEngine(window_size=5, top_k_significant=2, seed=1)
-    agent = BaseAgent(AgentConfig(name="A1", agent_type="irrigation_farmer", state_params=[],
-                                  objectives=[], constraints=[], skills=[]))
-    agent.custom_attributes = {}
-    agent.is_active = True
-    for m in memories:
-        engine.add_memory_for_agent(agent, m, {"importance": 0.5, "type": "outcome"})
-    queue = list(summaries)
-    prompts = []
-
-    class _Engine:
-        adapter = None
-
-        def generate_batch_reflection_prompt(self, batch, year, reflection_questions=None,
-                                             persona_instruction=None):
-            prompts.append(" ".join(m["content"] for m in batch[0]["memories"]))
-            return "PROMPT"
-
-        def parse_batch_reflection_response(self, text, batch_ids, year):
-            item = queue.pop(0)
-            if isinstance(item, Exception):
-                raise item
-            if item is None:
-                return {}
-            return {batch_ids[0]: SimpleNamespace(importance=0.6, summary=item)}
-
-        def store_insight(self, aid, ins):
-            pass
-
-    env = SimpleNamespace(get_agent_state=lambda aid: {}, current_year=years[0])
-    runner = SimpleNamespace(
-        broker=SimpleNamespace(config=SimpleNamespace(
-            get_reflection_config=lambda: {"batch_size": 1},
-            get_reflection_keep_latest_only=lambda: keep_latest_only,
-            # Item 45: these unit tests drive the path before item 45 (all
-            # grounding keys off, the framework default).
-            get_reflection_grounding=lambda: {k: False for k in GROUNDING_KEYS})),
-        agents={"A1": agent}, memory_engine=engine, get_llm_invoke=lambda t: (lambda p: "x"))
-    hooks = IrrigationLifecycleHooks(env, runner, [], _Engine(), None)
-    for y in years:
-        env.current_year = y
-        hooks._batch_reflect(year=y - 2018)
-    return engine, prompts
+    memory = HumanCentricMemoryEngine(window_size=5, top_k_significant=2, seed=1)
+    agent = SimpleNamespace(id="A1", is_active=True, drought_count=2,
+                            custom_attributes={"narrative_persona": "You are a water user."})
+    state = {"water_right": 200_000, "request": 100_000, "diversion": 50_000}
+    env = SimpleNamespace(current_year=2020, config=SimpleNamespace(ub_supply_mode="subbasin"),
+                          prompt_information="simple", get_agent_state=lambda aid: state,
+                          get_agent_context=lambda aid: {"basin": "lower_basin"})
+    config = SimpleNamespace(get_reflection_config=lambda: {"batch_size": 1},
+                             get_reflection_keep_latest_only=lambda: keep_latest_only)
+    runner = SimpleNamespace(agents={agent.id: agent}, memory_engine=memory, broker=SimpleNamespace(config=config))
+    reflection = ReflectionEngine(adapter=adapter, insight_importance_boost=0.9)
+    hooks = run_experiment.IrrigationLifecycleHooks(env, runner, [], reflection, None)
+    for year, reply in enumerate(replies, start=1):
+        env.current_year = 2019 + year
+        agent._last_action_context = {"skill_name": "maintain_demand", "year": year}
+        agent._last_year_outcome = dict(state, year=year, calendar_year=env.current_year, preceding_factor=1)
+        runner.get_llm_invoke = lambda agent_type: lambda prompt: json.dumps({"lesson": reply})
+        hooks._batch_reflect_grounded(year)
+    return [item for item in memory.working[agent.id] if item["content"].startswith("Consolidated")]
 
 
-def _reflections(engine) -> List[str]:
-    """The agent's stored reflections, working and long-term memory together
-    (a consolidated item sits in both), each text once."""
-    stores = list(engine.working.get("A1", [])) + list(engine.longterm.get("A1", []))
-    return list(dict.fromkeys(m["content"] for m in stores if m["content"].startswith("Consolidated")))
-
-
-def test_single_reflection_kept_and_input_excludes_it():
-    engine, prompts = _reflect_once(
-        ["I learned one thing.", "I learned a second thing."],
-        ["Year 2020: You requested 1,000 acre-ft and received 1,000 acre-ft."],
-        years=(2020, 2021))
-    contents = [m["content"] for m in engine.working["A1"]]
-    assert [c for c in contents if c.startswith("Consolidated")] == [
-        "Consolidated Reflection (written in 2021): I learned a second thing."]
-    assert "Consolidated" not in prompts[1]  # the 2020 reflection is not in the 2021 input
-
-
-def test_keep_latest_off_keeps_both():
-    engine, _ = _reflect_once(
-        ["I learned one thing.", "I learned a second thing."],
-        ["Year 2020: You requested 1,000 acre-ft."], keep_latest_only=False, years=(2020, 2021))
-    assert [m["content"] for m in engine.working["A1"] if m["content"].startswith("Consolidated")] == [
-        "Consolidated Reflection (written in 2020): I learned one thing.",
-        "Consolidated Reflection (written in 2021): I learned a second thing."]
+@pytest.mark.parametrize("keep_latest_only,years", [(True, [2021]), (False, [2020, 2021])])
+def test_grounded_reflection_storage_respects_keep_latest(keep_latest_only, years):
+    records = _grounded_lessons(["I learned to conserve water.", "I will keep my request steady."],
+                                keep_latest_only=keep_latest_only)
+    assert [record["year"] for record in records] == years
 
 
 def test_reflection_trailing_comma_stripped():
-    engine, _ = _reflect_once(['  "I learned to keep my request steady.",  '],
-                              ["Year 2020: You requested 1,000 acre-ft."])
-    assert engine.working["A1"][-1]["content"] == (
-        "Consolidated Reflection (written in 2021): I learned to keep my request steady.")
-
-
-def test_foreign_figure_not_stored(capsys):
-    """Spec 4.7: a summary quoting an acre-ft figure that matches nothing in
-    the agent's own memory text is not stored; the drop is counted and
-    printed with the figure."""
-    engine, _ = _reflect_once(
-        ["Requesting 14,420 acre-ft satisfied my needs."],
-        ["Year 2020: You requested 160,566 acre-ft and received 160,566 acre-ft."])
-    assert _reflections(engine) == []
-    out = capsys.readouterr().out
-    assert "not stored 1 with a figure foreign to the agent's memory" in out
-    assert "[reflect] A1: not stored, 14,420 acre-ft matches no figure in its memory" in out
-    engine, _ = _reflect_once(
-        ["Requesting 160,566 acre-ft satisfied my needs."],
-        ["Year 2020: You requested 160,566 acre-ft and received 160,566 acre-ft."])
-    assert engine.working["A1"][-1]["content"].endswith("Requesting 160,566 acre-ft satisfied my needs.")
+    records = _grounded_lessons(['  "I learned to keep my request steady.",  '])
+    assert records[-1]["content"].endswith("Lesson: I learned to keep my request steady.")
 
 
 MOHAVE_2019 = "Year 2019: You requested 20,155 acre-ft and received 20,155 acre-ft."
-
-
-@pytest.mark.parametrize("dropped", [
-    "Requesting 14,420 acre-ft satisfied my needs.",  # a foreign figure
-    "   ",                                            # an empty summary
-    None,                                             # no readable reply
-    RuntimeError("model call failed"),               # a failed call
-], ids=["foreign", "empty", "unparsed", "call_failed"])
-def test_summary_not_stored_removes_the_old_reflection(dropped, capsys):
-    """Review HIGH 1 (the reviewer's probe scratchpad/rv/stale_reflection.py):
-    under keep_latest_only the earlier reflection went only when a new one
-    was stored, so a summary dropped at the end of 2021 left the 2020
-    reflection in the 2022 prompt, older than the previous year (S10). Now
-    every path that stores nothing removes it."""
-    engine, _ = _reflect_once(["I learned to keep my request steady.", dropped],
-                              [MOHAVE_2019], years=(2020, 2021))
-    assert _reflections(engine) == []
-    removed = re.findall(r"removed (\d+) earlier reflection items of agents with no new one",
-                         capsys.readouterr().out)
-    assert [int(n) > 0 for n in removed] == [False, True]  # nothing in 2020, the 2020 one in 2021
-
-
-def test_summary_not_stored_keeps_the_old_one_when_keep_latest_is_off():
-    """The removal belongs to keep_latest_only; with it off (the framework
-    default) reflections accumulate as before."""
-    engine, _ = _reflect_once(["I learned to keep my request steady.", None],
-                              [MOHAVE_2019], keep_latest_only=False, years=(2020, 2021))
-    assert _reflections(engine) == [
-        "Consolidated Reflection (written in 2020): I learned to keep my request steady."]
-
-
-def test_rounded_own_figure_is_stored():
-    """Review HIGH 1: "about 20,000 acre-ft" for the memory line's 20,155 is
-    the agent's own figure rounded (within 5 percent), so it is stored and
-    replaces the 2020 reflection (the probe's end-of-2021 summary)."""
-    engine, _ = _reflect_once(["I learned to keep my request steady.",
-                               "I requested about 20,000 acre-ft and it worked."],
-                              [MOHAVE_2019], years=(2020, 2021))
-    assert _reflections(engine) == [
-        "Consolidated Reflection (written in 2021): I requested about 20,000 acre-ft and it worked."]
 
 
 @pytest.mark.parametrize("summary,foreign", [

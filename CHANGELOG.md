@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Renamed the irrigation configurations to `with_validator` and `without_validator` and removed their superseded copies. The irrigation paper recipe retains the paths at tag `paper-irrigation-runs`.
+- Retired ungrounded and partly grounded reflection in the single-agent flood and irrigation runners on 2026-11-27. Both require all four grounding settings to be true. Earlier runs can be reproduced from tag v0.7.0.
+
 - Retired `legacy` and `neutral` retry wording and `explicit` and `neutral` decision memory lines on
   2026-11-27. All runners use `intervention_framing: plain` and `rejection_line_style: executed`.
   Reproduce runs using the retired wording from tag v0.7.0. Retries after an answer that could not be

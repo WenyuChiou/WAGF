@@ -216,6 +216,10 @@ failed model call is counted and the run goes on. `broker_run.json` records
 the settings under `reflection`, with how many reflections were stored, how
 many replies were too short to store and how many calls failed.
 
+The single-agent flood and irrigation paper runners require `year_outcome`,
+`year_lines`, `program_facts` and `lesson_no_numbers` to be true at startup.
+Each reflection call covers one agent. Irrigation also requires subbasin supply.
+
 On `broker.run` these are refused when `enabled` is true: `batch_size` other
 than 1, `triggers.crisis: true`, `triggers.periodic_interval` (use `interval`),
 `triggers.institutional_threshold`, the grounded-reflection keys

@@ -265,8 +265,8 @@ def test_unknown_value_is_named_as_unsupported_not_only_retired():
 NEW_RUN_CONFIGS = (
     "examples/single_agent/agent_types.yaml",
     "examples/single_agent/config_variants/nonudge/agent_types.yaml",
-    "examples/irrigation_abm/config_variants/simple_executed/agent_types.yaml",
-    "examples/irrigation_abm/config_variants/simple_nolimit_executed/agent_types.yaml",
+    "examples/irrigation_abm/config_variants/with_validator/agent_types.yaml",
+    "examples/irrigation_abm/config_variants/without_validator/agent_types.yaml",
 )
 
 

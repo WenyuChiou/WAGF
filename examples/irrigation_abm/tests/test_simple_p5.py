@@ -38,7 +38,7 @@ def numeric_run(request, tmp_path, monkeypatch):
     llm = ScriptedLLM(lambda *_args: ("M", "M", "Increase"))
     args = ["--years", "4", "--agents", "4", "--seed", "42", "--memory-seed", "42"]
     if level == "simple":
-        args += ["--config-dir", str(VARIANTS / "simple")]
+        args += ["--config-dir", str(VARIANTS / "with_validator")]
     out = _run(monkeypatch, tmp_path / level, llm, *args)
     run = vm.load_run(out, keep_prompts=True)
     assert run.info.manifest["prompt_information"] == level
@@ -114,7 +114,7 @@ def test_p5b_real_simple_run_does_not_require_removed_flow_text(tmp_path, monkey
     llm = ScriptedLLM(lambda *_args: ('M', 'M', 'Keep'))
     out = _run(monkeypatch, tmp_path / 'real-simple', llm,
                '--real', '--years', '4', '--seed', '42', '--memory-seed', '42',
-               '--config-dir', str(VARIANTS / 'simple'))
+               '--config-dir', str(VARIANTS / 'with_validator'))
     details = _p5b(vm.load_run(out, keep_prompts=True))
     assert details['b_passed'] is True, details['b_mismatches'] + details['b_unchecked']
 

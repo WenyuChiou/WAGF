@@ -35,6 +35,7 @@ from typing import Any, Dict, List
 import pytest
 import yaml
 
+from broker.components.cognitive.reflection import GROUNDING_KEYS
 from broker.utils.llm_utils import LLMStats
 from examples.irrigation_abm.irrigation_personas import (
     ALLOCATION_RULES,
@@ -570,32 +571,46 @@ def test_adversarial_semantic_claims_are_flagged_and_stored(tmp_path, lesson, co
     assert code in [p["code"] for p in row["flags"]]
 
 
-@pytest.mark.parametrize("enabled", [True, False])
-def test_grounded_startup_requires_subbasin_before_profile_setup(tmp_path, monkeypatch, enabled):
-    import shutil
+def test_grounded_startup_requires_subbasin_before_profile_setup(tmp_path, monkeypatch):
     import sys
     from examples.irrigation_abm import run_experiment as runner
-    cfg = tmp_path / "config"
-    shutil.copytree(CONFIG.parent, cfg)
-    raw = yaml.safe_load((cfg / "agent_types.yaml").read_text(encoding="utf-8"))
-    if not enabled:
-        for key in ("year_outcome", "year_lines", "program_facts", "lesson_no_numbers"):
-            raw["global_config"]["reflection"][key] = False
-    (cfg / "agent_types.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+
     original = runner.WaterSystemConfig
     monkeypatch.setattr(runner, "WaterSystemConfig", lambda **kwargs:
                         original(**kwargs, ub_supply_mode="lees_ferry_pool"))
-    def stop_profiles(*args):
-        raise RuntimeError("profile setup reached")
-    monkeypatch.setattr(runner, "_create_synthetic_profiles", stop_profiles)
+    monkeypatch.setattr(runner, "_create_synthetic_profiles", lambda *a: pytest.fail("profile setup reached"))
     monkeypatch.setattr(sys, "argv", ["run_experiment.py", "--model", "mock", "--seed", "42",
-                        "--output", str(tmp_path / "out"), "--config-dir", str(cfg)])
-    if enabled:
-        with pytest.raises(SystemExit, match="Grounded reflection requires ub_supply_mode"):
-            runner.main()
+                        "--output", str(tmp_path / "out")])
+    with pytest.raises(SystemExit, match="Grounded reflection requires ub_supply_mode"):
+        runner.main()
+
+
+@pytest.mark.parametrize("key", GROUNDING_KEYS)
+@pytest.mark.parametrize("missing", [True, False], ids=["missing", "false"])
+def test_irrigation_refuses_incomplete_grounding_before_llm(tmp_path, monkeypatch, key, missing):
+    import shutil
+    import sys
+    from examples.irrigation_abm import run_experiment as runner
+
+    directory = tmp_path / "config"
+    shutil.copytree(CONFIG.parent, directory)
+    path = directory / "agent_types.yaml"
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    reflection = config["global_config"]["reflection"]
+    if missing:
+        del reflection[key]
     else:
-        with pytest.raises(RuntimeError, match="profile setup reached"):
-            runner.main()
+        reflection[key] = False
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    def unexpected_llm(*args, **kwargs):
+        pytest.fail("LLM setup reached")
+
+    monkeypatch.setattr(runner, "create_llm_invoke", unexpected_llm)
+    monkeypatch.setattr("broker.utils.llm_utils.create_llm_invoke", unexpected_llm)
+    monkeypatch.setattr(sys, "argv", ["run_experiment.py", "--model", "mock", "--config-dir", str(directory),
+                                      "--output", str(tmp_path / "out")])
+    with pytest.raises(ValueError, match=rf"retired on 2026-11-27.*tag v0\.7\.0.*{key}"):
+        runner.main()
 
 
 def test_reflection_prompt_uses_the_one_agent_layout_without_simulation_words(reflecting_run):

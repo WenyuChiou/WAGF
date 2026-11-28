@@ -1,11 +1,9 @@
-"""config_variants/simple_executed and simple_nolimit_executed: Invariant 7 for the irrigation case (mock only).
+"""Validator arms: Invariant 7 for the irrigation case (mock only).
 
 A year a rule overruled and a year the same action was simply chosen leave the
 same memory line and the same memory metadata, so the next year's prompt is
 the same across both variants.
 """
-from pathlib import Path
-
 import pytest
 import yaml
 
@@ -51,39 +49,13 @@ def test_executed_context_reads_the_executed_skill_for_salience():
         "maintain_demand", False)
 
 
-@pytest.mark.parametrize("frozen", ["simple", "simple_nolimit"])
-def test_variant_config_differences_match_the_documented_overrides(frozen):
-    simple, executed = VARIANTS / frozen, VARIANTS / f"{frozen}_executed"
-    names = {p.relative_to(simple).as_posix() for p in simple.rglob("*") if p.is_file()}
-    assert names == {p.relative_to(executed).as_posix() for p in executed.rglob("*") if p.is_file()}
-    for name in names - {"agent_types.yaml", "NOTES.md"}:
-        assert (simple / name).read_bytes() == (executed / name).read_bytes(), name
-    a = yaml.safe_load((simple / "agent_types.yaml").read_text(encoding="utf-8"))
-    b = yaml.safe_load((executed / "agent_types.yaml").read_text(encoding="utf-8"))
-    assert a["irrigation_farmer"]["memory"].pop("rejection_line_style") == "executed"
-    assert b["irrigation_farmer"]["memory"].pop("rejection_line_style") == "executed"
-    # 2026-11-26: the executed variants also retry in plain words (no log
-    # labels reach the agent) and their rule messages no longer say "blocked".
-    assert "intervention_framing" not in a["global_config"]["governance"]
-    assert b["global_config"]["governance"].pop("intervention_framing") == "plain"
-    # 2026-11-26: the executed variants also keep the retry-prompt text in the raw trace.
-    assert "retry_prompt_columns" not in a["global_config"]["audit"]
-    assert b["global_config"]["audit"].pop("retry_prompt_columns") is True
-    # The executed variants send a per-call sampling seed; the frozen ones send none.
-    assert "sampling_seed" not in a["global_config"]["llm"]
-    assert b["global_config"]["llm"].pop("sampling_seed") == "per_call"
-    rules_a = a["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]
-    rules_b = b["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]
-    reworded = 0
-    for rule_a, rule_b in zip(rules_a, rules_b):
-        if rule_a["message"] != rule_b["message"]:
-            assert "blocked" in rule_a["message"] and "blocked" not in rule_b["message"]
-            # Only the lead changes; the reason after the colon stays the same.
-            assert rule_a["message"].split(": ", 1)[1] == rule_b["message"].split(": ", 1)[1]
-            rule_b["message"] = rule_a["message"]
-            reworded += 1
-    assert reworded == 2
-    assert a == b
+def test_validator_arm_settings_differ_only_in_beneficial_use_limit():
+    configs = []
+    for arm, enabled in (("with_validator", True), ("without_validator", False)):
+        cfg = yaml.safe_load((VARIANTS / arm / "agent_types.yaml").read_text(encoding="utf-8"))
+        assert cfg["irrigation_farmer"]["beneficial_use_limit"].pop("enabled") is enabled
+        configs.append(cfg)
+    assert configs[0] == configs[1]
 
 
 def _increase(agent, year, attempt):
@@ -121,9 +93,8 @@ def _twin(tmp_path, variant):
     return out
 
 
-@pytest.mark.parametrize("variant", ["simple", "simple_executed"])
-def test_an_overruled_year_and_a_chosen_year_give_the_same_next_prompt(tmp_path, variant):
-    runs = _twin(tmp_path, variant)
+def test_an_overruled_year_and_a_chosen_year_give_the_same_next_prompt(tmp_path):
+    runs = _twin(tmp_path, "with_validator")
     prompts_a, writes_a, retried_a = runs["A"][:3]
     prompts_b, writes_b, retried_b = runs["B"][:3]
     assert retried_a and not retried_b          # rules stepped in on run A only
@@ -131,8 +102,6 @@ def test_an_overruled_year_and_a_chosen_year_give_the_same_next_prompt(tmp_path,
     assert writes_a and writes_a == writes_b    # same lines, importance, emotion, routine
     assert runs["A"][3] and runs["A"][3] == runs["B"][3]   # same reflection prompts
     assert all(": Action carried out: maintain demand" in content for _a, content, _m in writes_a)
-
-
 
 
 def test_the_without_rules_arm_variant_runs_with_executed_lines(tmp_path):
@@ -149,5 +118,5 @@ def test_the_without_rules_arm_variant_runs_with_executed_lines(tmp_path):
         mp.setattr(HumanCentricMemoryEngine, "add_memory_for_agent", record)
         _run(mp, tmp_path / "run", llm, "--agents", "3", "--years", "2", "--seed", "7",
              "--governance-mode", "disabled",
-             "--config-dir", str(VARIANTS / "simple_nolimit_executed"))
+             "--config-dir", str(VARIANTS / "without_validator"))
     assert writes and all(": Action carried out: increase demand" in w for w in writes)

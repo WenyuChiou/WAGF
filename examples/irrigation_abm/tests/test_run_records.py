@@ -1,6 +1,6 @@
 """Irrigation case: what a mock run leaves behind for a reviewer (model-call log, manifest fields).
 
-One 2-year mock run of the simple_executed variant in a subprocess; the checks read its files.
+One 2-year mock run of the with_validator variant in a subprocess; the checks read its files.
 Needs the optional CRSS bundle (ref/CRSS_DB/CRSS_DB). No Ollama.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ def run(tmp_path_factory):
         [sys.executable, str(SCRIPT), "--model", "mock", "--real", "--years", "2", "--seed", "42",
          "--memory-seed", "42", "--paper-water-margin", "0.4", "--cluster-method", "hy2021",
          "--governance-mode", "strict", "--config-dir",
-         "examples/irrigation_abm/config_variants/simple_executed", "--workers", "1",
+         "examples/irrigation_abm/config_variants/with_validator", "--workers", "1",
          "--output", str(out)],
         cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=900)
@@ -87,7 +87,7 @@ def test_manifest_times_environment_paths_and_inputs(run):
     assert m["llm_sampling_seeded"] is True and all(
         isinstance(c["options"]["seed"], int) for c in calls)
     assert m["agent_types_config_repo_relative"] == (
-        "examples/irrigation_abm/config_variants/simple_executed/agent_types.yaml")
+        "examples/irrigation_abm/config_variants/with_validator/agent_types.yaml")
     assert m["launch_command_script_repo_relative"] == "examples/irrigation_abm/run_experiment.py"
     config = ROOT / m["agent_types_config_repo_relative"]
     assert m["agent_types_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()

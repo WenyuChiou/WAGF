@@ -227,7 +227,7 @@ def test_unknown_blocked_skill_warns_once(tmp_path, caplog):
 
 
 @pytest.mark.parametrize("config_dir", ["examples/single_agent", "examples/irrigation_abm/config",
-                                      "examples/irrigation_abm/config_variants/simple"])
+                                      "examples/irrigation_abm/config_variants/with_validator"])
 def test_paper_configs_have_no_new_warnings(config_dir, caplog):
     from broker.components.governance.registry import SkillRegistry
     from broker.components.memory.factory import create_memory_engine
@@ -264,7 +264,7 @@ def test_irrigation_rejected_proposal_logs_executed_default(tmp_path, monkeypatc
     monkeypatch.setattr("sys.argv", ["run_experiment.py", "--model", "mock",
                         "--agents", "1", "--years", "1", "--seed", "42",
                         "--governance-mode", "strict", "--config-dir",
-                        "examples/irrigation_abm/config_variants/simple", "--output", str(tmp_path / "run")])
+                        "examples/irrigation_abm/config_variants/with_validator", "--output", str(tmp_path / "run")])
     run_experiment.main()
     with (tmp_path / "run/simulation_log.csv").open(newline="", encoding="utf-8-sig") as f:
         row = next(csv.DictReader(f))
