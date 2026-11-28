@@ -109,11 +109,16 @@ class ExogenousFactSchedule:
         for idx, rec in enumerate(records):
             if not isinstance(rec, Mapping):
                 raise ValueError(f"Exogenous schedule record #{idx} must be a mapping")
-            raw_targets = rec.get("target_ids") or ()
-            if isinstance(raw_targets, str):
+            raw_targets = rec.get("target_ids")
+            if raw_targets is None or raw_targets == "":
+                targets: Tuple[str, ...] = ()
+            elif isinstance(raw_targets, str):
                 targets = tuple(t.strip() for t in raw_targets.split("|") if t.strip())
+            elif isinstance(raw_targets, Sequence) and not isinstance(raw_targets, (bytes, bytearray)):
+                targets = tuple(str(t).strip() for t in raw_targets if str(t).strip())
             else:
-                targets = tuple(str(t) for t in raw_targets if str(t).strip())
+                single = str(raw_targets).strip()
+                targets = (single,) if single else ()
             raw_val = rec.get("value")
             value = None if raw_val is None or raw_val == "" else float(raw_val)
             raw_ttl = rec.get("ttl_periods")
@@ -144,14 +149,27 @@ class ExogenousFactSchedule:
         if not resolved.is_file():
             raise FileNotFoundError(f"Exogenous schedule CSV not found: {resolved}")
         sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
-        df = pd.read_csv(resolved)
+        string_cols = {
+            "subject": str,
+            "predicate": str,
+            "obj": str,
+            "object": str,
+            "text": str,
+            "author_id": str,
+            "author_role": str,
+            "visibility": str,
+            "target_ids": str,
+        }
+        df = pd.read_csv(resolved, dtype=string_cols)
         records: List[Dict[str, Any]] = []
-        for _, row in df.iterrows():
+        for row in df.to_dict(orient="records"):
             rec: Dict[str, Any] = {}
-            for col in df.columns:
-                val = row[col]
-                if pd.isna(val):
-                    continue
+            for col, val in row.items():
+                try:
+                    if val is None or bool(pd.isna(val)):
+                        continue
+                except Exception:
+                    pass
                 rec[str(col)] = val.item() if hasattr(val, "item") else val
             records.append(rec)
         return cls.from_records(records, source_path=resolved, sha256=sha256)

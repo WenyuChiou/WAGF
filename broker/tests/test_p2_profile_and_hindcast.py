@@ -375,6 +375,23 @@ class TestExogenousFactSchedule:
         assert len(kg.query_visible("a1", current_period=2001)) == 2
         assert len(kg.query_visible("a3", current_period=2001)) == 1  # Targeted advisory excluded
 
+    def test_csv_preserves_zero_padded_numeric_target_ids_and_subjects(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "numeric_targets.csv"
+        csv_path.write_text(
+            "period,subject,predicate,obj,visibility,target_ids\n"
+            "1999,00999,advisory,evacuate,direct,00123\n"
+            "2000,00999,broadcast,all_clear,global,\n",
+            encoding="utf-8",
+        )
+        sched = ExogenousFactSchedule.from_csv(csv_path)
+        kg = AsyncKnowledgeGraph()
+        added = sched.apply_period(1999, kg)
+        assert len(added) == 1
+        assert added[0].subject == "00999"
+        assert added[0].target_ids == ("00123",)
+        assert len(kg.query_visible("00123", current_period=1999)) == 1
+        assert len(kg.query_visible("123", current_period=1999)) == 0
+
     def test_yaml_schedule_loads(self, tmp_path: Path) -> None:
         yaml_path = tmp_path / "facts.yaml"
         yaml_path.write_text(
