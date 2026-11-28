@@ -548,6 +548,7 @@ class MultiActorLifecycleBridge:
         outcome_text: str,
         year: int,
         audience: _ResolvedAudience,
+        source_step_id: Optional[Any] = None,
     ) -> None:
         if self.message_pool is None:
             return
@@ -579,6 +580,8 @@ class MultiActorLifecycleBridge:
             "executed_skill": skill_name,
             "period": year,
         }
+        if source_step_id is not None:
+            payload["source_step_id"] = source_step_id
         if number_text:
             payload["number_text"] = f"number {number_text}"
         if outcome_text:
@@ -601,14 +604,18 @@ class MultiActorLifecycleBridge:
         self.message_pool.publish(msg)
 
     @staticmethod
-    def _accepts_target_ids(record_fn: Callable[..., Any]) -> bool:
+    def _accepts_kwarg(fn: Callable[..., Any], name: str) -> bool:
         try:
-            sig = inspect.signature(record_fn)
+            sig = inspect.signature(fn)
         except (TypeError, ValueError):
             return False
-        return "target_ids" in sig.parameters or any(
+        return name in sig.parameters or any(
             p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
         )
+
+    @staticmethod
+    def _accepts_target_ids(record_fn: Callable[..., Any]) -> bool:
+        return MultiActorLifecycleBridge._accepts_kwarg(record_fn, "target_ids")
 
     def _record_social_kg(
         self,
@@ -619,6 +626,7 @@ class MultiActorLifecycleBridge:
         number_text: str,
         outcome_text: str,
         audience: _ResolvedAudience,
+        source_step_id: Optional[Any] = None,
     ) -> None:
         if self.social_kg is None:
             return
@@ -630,7 +638,7 @@ class MultiActorLifecycleBridge:
         delivery_delay = policy.get("delivery_delay", self.default_delivery_delay)
         explicit_visibility = policy.get("visibility")
         has_explicit_target_ids = bool(policy.get("has_explicit_target_ids"))
-        accepts_targets = self._accepts_target_ids(record_fn)
+        accepts_targets = self._accepts_kwarg(record_fn, "target_ids")
 
         target_ids: Tuple[str, ...] = ()
         if explicit_visibility is not None:
@@ -682,6 +690,8 @@ class MultiActorLifecycleBridge:
         }
         if target_ids and (accepts_targets or visibility == "direct"):
             kwargs["target_ids"] = target_ids
+        if source_step_id is not None and self._accepts_kwarg(record_fn, "metadata"):
+            kwargs["metadata"] = {"source_step_id": source_step_id}
 
         record_fn(
             agent_id,
@@ -760,12 +770,18 @@ class MultiActorLifecycleBridge:
                 )
             )
 
+        source_step_id = getattr(result, "_step_id", None)
+        if source_step_id is None:
+            source_step_id = getattr(agent, "_last_step_id", None)
+
         audience = self._resolve_audience(agent, agent_id, agent_type)
         self._publish_executed_action(
-            agent, agent_id, agent_type, skill_name, number_text, outcome_text, year, audience
+            agent, agent_id, agent_type, skill_name, number_text, outcome_text, year, audience,
+            source_step_id=source_step_id,
         )
         self._record_social_kg(
-            agent_id, agent_type, skill_name, year, number_text, outcome_text, audience
+            agent_id, agent_type, skill_name, year, number_text, outcome_text, audience,
+            source_step_id=source_step_id,
         )
 
     def post_year(self, year: int, agents: Dict[str, Any]) -> None:
@@ -829,6 +845,43 @@ class MultiActorLifecycleBridge:
         hooks["post_step"] = post_step
         hooks["post_year"] = post_year
         return hooks
+
+    def snapshot(self) -> Dict[str, Any]:
+        """Return a serializable coordination state snapshot for end-of-run audit."""
+        policy_out: Dict[str, Any] = {}
+        for role, cfg in sorted(self.role_message_policy.items()):
+            entry = dict(cfg)
+            for seq_key in ("recipients", "target_ids", "recipient_types"):
+                if isinstance(entry.get(seq_key), tuple):
+                    entry[seq_key] = list(entry[seq_key])
+            policy_out[role] = entry
+
+        out: Dict[str, Any] = {
+            "last_year": self._current_year,
+            "institutional_roles": sorted(self.institutional_roles),
+            "handler_roles": sorted(self.handlers.keys()),
+            "registered_agent_count": len(self._registered_agent_ids),
+            "default_ttl": self.default_ttl,
+            "default_delivery_delay": self.default_delivery_delay,
+            "role_message_policy": policy_out,
+            "skipped_audience_counts": dict(sorted(self.skipped_audience_counts.items())),
+        }
+        graph = self._resolve_graph()
+        if graph is not None and callable(getattr(graph, "summary", None)):
+            out["social_graph"] = graph.summary()
+        if self.message_pool is not None and callable(getattr(self.message_pool, "summary", None)):
+            out["message_pool"] = self.message_pool.summary()
+        if self.game_master is not None and callable(getattr(self.game_master, "summary", None)):
+            out["game_master"] = self.game_master.summary()
+        if self.saga_coordinator is not None:
+            saga_snap = getattr(self.saga_coordinator, "snapshot", None) or getattr(
+                self.saga_coordinator, "summary", None
+            )
+            if callable(saga_snap):
+                out["saga_coordinator"] = saga_snap()
+        if self.social_kg is not None and callable(getattr(self.social_kg, "snapshot", None)):
+            out["social_kg"] = self.social_kg.snapshot()
+        return out
 
 
 __all__ = ["MultiActorLifecycleBridge"]
