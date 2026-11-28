@@ -573,6 +573,14 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         | {k for k, v in (ctx.population or {}).items() if v == 0}
     ) if ctx.population is not None else set()
 
+    if ctx.reflection.enabled:
+        # Agent factories can supply types absent from the YAML's agent blocks.
+        from ._memory import validate_reflection_topics
+        try:
+            validate_reflection_topics(ctx.raw, ctx.config, agent_types)
+        except ValueError as exc:
+            raise RunError(f"{ctx.config_path}: {exc}") from exc
+
     effective_phase_order = phase_order
     if phase_order is not None:
         allowed_phase_types = active_set | inactive_declared_types

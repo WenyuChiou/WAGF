@@ -30,6 +30,8 @@ from broker.utils.llm_call_log import call_context
 from broker.components.cognitive.reflection import (
     ReflectionEngine,
     _memory_text,
+    first_sentence,
+    reflection_question,
     store_reflection_memory,
 )
 from broker.components.context.providers import DEFAULT_RETRIEVAL_TOP_K
@@ -208,6 +210,21 @@ _TRIGGER_REFUSALS = {
 }
 
 
+def validate_reflection_topics(raw, config, agent_types):
+    """Check every scope read by broker.run before any model invocation."""
+    scopes = ["shared", "global_config", *agent_types]
+    for scope in scopes:
+        if "questions" in _block(raw, scope, "reflection"):
+            raise ValueError(
+                "reflection.questions was retired on 2026-11-27. Set reflection.topic instead "
+                "(a short noun phrase naming what the agent faces and what it decides about, "
+                "with no action verb or direction; the framework asks 'What do your recent "
+                "years tell you about <topic>?'). Reproduce old runs from tag v0.7.0."
+            )
+    for agent_type in agent_types:
+        reflection_question(config.get_reflection_topic(agent_type))
+
+
 def reflection_settings(raw, config, memory: MemorySettings) -> ReflectionSettings:
     """Read ``global_config.reflection`` (over the legacy ``shared.reflection``).
 
@@ -263,6 +280,7 @@ def reflection_settings(raw, config, memory: MemorySettings) -> ReflectionSettin
     persona = block.get("persona_instruction")
     if persona is not None and (not isinstance(persona, str) or not persona.strip()):
         raise ValueError("reflection.persona_instruction must be a non-empty string")
+    validate_reflection_topics(raw, config, config.agent_type_names())
     return ReflectionSettings(
         enabled=True, interval=interval, importance_boost=float(boost),
         decision_types=decision_types, keep_latest_only=keep_latest_only,
@@ -383,12 +401,24 @@ class ReflectionHook:
         if not memories:
             return
         context = ReflectionEngine.extract_agent_context(agent, year)
-        prompt = self.engine.generate_personalized_reflection_prompt(
-            context, memories, year,
-            reflection_questions=self.config.get_reflection_questions(agent.agent_type),
+        persona = getattr(getattr(agent, "config", None), "persona", "")
+        identity = (first_sentence(persona) if isinstance(persona, str) and persona.strip()
+                    else f"You are {agent.id}, an agent of type {agent.agent_type}.")
+        # Preserve the personalized builder's first matching DomainPack status.
+        from broker.domains.registry import DomainPackRegistry
+        for name in DomainPackRegistry.domains():
+            pack = DomainPackRegistry.get(name)
+            status = pack.reflection_status_text(context) if pack is not None else None
+            if status:
+                identity += f" {status}"
+                break
+        prompt = self.engine.generate_reflection_prompt_one_agent(
+            identity, memories, f"year {year}",
+            topic=self.config.get_reflection_topic(agent.agent_type),
+            persona_instruction=self.settings.persona_instruction,
+            # broker.run's decision memories have no numeric year metadata.
+            year_lines=False,
         )
-        if self.settings.persona_instruction:
-            prompt = f"{self.settings.persona_instruction}\n\n{prompt}"
         try:
             text = self._call(agent.agent_type, prompt, year, len(memories), agent_id=agent.id)
         except Exception as exc:  # one agent's failed call must not stop the run
@@ -396,10 +426,13 @@ class ReflectionHook:
             logger.warning("[broker.run] reflection call failed for %s in year %s: %s", agent.id, year, exc)
             return
         text = strip_reply_opener(text) if isinstance(text, str) else ""
-        insight = self.engine.parse_reflection_response(text, len(memories), year)
+        insight = self.engine.parse_batch_reflection_response(
+            text, [agent.id], year, allow_plain_text=True,
+        )[agent.id]
         if insight is None:
             self.counts["replies_not_stored"] += 1
             return
+        insight.source_memory_count = len(memories)
         insight.reflection_input = [_memory_text(m) for m in memories]
         self._log(agent.id, insight)  # an OSError here stops the run
         self.engine.store_insight(agent.id, insight)

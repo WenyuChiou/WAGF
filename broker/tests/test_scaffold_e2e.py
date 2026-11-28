@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from broker.utils.agent_config import PMT_TEXT_MARKERS
 
@@ -79,6 +80,13 @@ def test_scaffolded_domain_validates_and_runs_with_mock(tmp_path, scaffold_flags
     )
     _assert_ok(validate, "validate_prompt")
 
+    data = yaml.safe_load(config.read_text(encoding="utf-8"))
+    reflection = data["global_config"]["reflection"]
+    assert reflection["topic"] == "your situation and your decisions"
+    assert "questions" not in reflection
+    reflection["enabled"] = True
+    config.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
     run = _run(
         [
             sys.executable,
@@ -94,6 +102,10 @@ def test_scaffolded_domain_validates_and_runs_with_mock(tmp_path, scaffold_flags
         ]
     )
     _assert_ok(run, "broker.run")
+    entries = [json.loads(line) for line in
+               (output_dir / "reflection_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(entries) == 5
+    assert all("(mock model)" in entry["summary"] for entry in entries)
 
     audit_csv = output_dir / "agent_governance_audit.csv"
     assert audit_csv.exists(), f"missing audit CSV: {audit_csv}"

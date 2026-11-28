@@ -186,22 +186,21 @@ engine = create_memory_engine("my_custom", {"window_size": 10, "custom_param": 0
 
 ## 4. Custom Reflection Engine
 
-### Configuring Reflection Guiding Questions
+### Configuring the Reflection Topic
 
-Define domain-specific reflection questions in `agent_types.yaml`:
+Set a domain-specific `reflection.topic` in `agent_types.yaml`. Use two nouns naming what the agent faces and what it decides about, with no action verb or direction (for example, "floods and your home" or "your water supply and your requests"). The framework asks one question: "What do your recent years tell you about <topic>?"
 
 ```yaml
 global_config:
   reflection:
+    enabled: true                   # Enable reflection on broker.run
     interval: 1                      # Reflect every year
-    batch_size: 10                   # Agents per batch
+    batch_size: 1                    # One agent per call
     importance_boost: 0.9            # Importance score for reflection insights
-    method: hybrid
-    questions:
-      - "Is your strategy effective under current conditions?"
-      - "What patterns exist between your action magnitude and outcomes?"
-      - "How should you adjust your approach going forward?"
+    topic: "your water supply and your requests"
 ```
+
+The topic resolves from the agent-type block, then `global_config`, then `shared`. With reflection enabled, `broker.run` validates each reflecting type before model calls and rejects `reflection.questions` in any scope it reads. The single-agent flood and irrigation runners also use `topic`; multi-agent flood and `governed_flood` retain their existing question builders. Reproduce the retired one-agent configuration from tag v0.7.0.
 
 ### Action-Outcome Feedback
 

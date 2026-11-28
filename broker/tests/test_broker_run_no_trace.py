@@ -244,7 +244,9 @@ def test_an_untagged_write_from_a_case_hook_stops_the_run(case, tmp_path):
 def test_reflection_reads_no_reflection_origin_and_stores_its_own(case, tmp_path):
     config, data = case
     data["global_config"]["memory"] = {"engine_type": "humancentric"}
-    data["global_config"]["reflection"] = {"enabled": True}
+    data["global_config"]["reflection"] = {
+        "enabled": True, "topic": "site conditions and your inspections",
+    }
     _write_yaml(config, data)
     output = tmp_path / "output"
     prepared = _entry.prepare([str(config), "--model", "mock", "--years", "1", "--agents", "1",

@@ -9,7 +9,8 @@ into structured insights. Domain-agnostic via ``DomainReflectionAdapter`` and
   status/trait text, and reflection questions.
 - Without a pack or adapter, prompts carry only the generic identity line and
   importance uses the base score.
-- New domains define reflection questions in ``agent_types.yaml`` or via
+- New one-agent domains and broker.run set ``reflection.topic`` in YAML.
+  Batch/personalized callers retain ``reflection.questions`` and
   ``DomainPack.reflection_questions()``.
 """
 from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Union
@@ -591,6 +592,7 @@ class AgentReflectionContext:
 # Domain authors define their own questions in agent_types.yaml; the
 # resolution order is implemented in
 # ``AgentTypeConfig.get_reflection_questions(agent_type)``.
+# Retained for multi-agent/personalized callers; broker.run uses reflection.topic.
 _DEFAULT_REFLECTION_QUESTIONS: List[str] = [
     "What worked well in your decisions this period, and what did not?",
     "Did your actions match the conditions you observed?",
@@ -794,6 +796,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         tick_label: str = "Year",
     ) -> str:
         """Generate a personalized reflection prompt with agent identity.
+
+        Retained for multi-agent callers; broker.run uses the one-agent template.
 
         Domain-specific status text is provided by the registered
         DomainPack via ``reflection_status_text`` (Phase 6H Item 9). With
@@ -1219,7 +1223,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             out.append(str(persona_instruction))
         if record:
             out.append(ONE_AGENT_ANSWER_INSTRUCTION)
-        elif not persona_instruction:
+        else:
             out.append("Answer in one or two sentences in the first person.")
         out.append("")
         out.append('Answer with this JSON object only: {"answer": "<your answer>"}')

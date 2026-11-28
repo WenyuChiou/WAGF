@@ -272,7 +272,8 @@ def integrated_case(tmp_path, monkeypatch):
 
     data = {
         "global_config": {
-            "reflection": {"enabled": True, "interval": 1, "importance_boost": 0.9},
+            "reflection": {"enabled": True, "interval": 1, "importance_boost": 0.9,
+                           "topic": "service conditions and your decisions"},
             "run": {
                 "world": "case_wiring:build_world",
                 "agents": "case_wiring:build_agents",

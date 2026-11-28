@@ -394,7 +394,8 @@ def multi_actor_case(tmp_path, monkeypatch):
 
     data = {
         "global_config": {
-            "reflection": {"enabled": True, "interval": 1, "importance_boost": 0.9},
+            "reflection": {"enabled": True, "interval": 1, "importance_boost": 0.9,
+                           "topic": "service conditions and your decisions"},
             "run": {
                 "world": "case_hooks:build_world",
                 "agents": "case_hooks:build_agents",

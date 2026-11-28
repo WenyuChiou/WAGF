@@ -123,7 +123,10 @@ class TestGenAgentTypesYaml:
         data = yaml.safe_load(gen_agent_types_yaml(
             "energy", ["a", "b"], framework, physical_only=physical_only))
         assert data["global_config"]["memory"]["engine_type"] == "window"
-        assert data["global_config"]["reflection"] == {"enabled": False, "interval": 1, "importance_boost": 0.9}
+        assert data["global_config"]["reflection"] == {
+            "enabled": False, "interval": 1, "importance_boost": 0.9,
+            "topic": "your situation and your decisions",
+        }
         assert "llm" in data["global_config"]
 
 

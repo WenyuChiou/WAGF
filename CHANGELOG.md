@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `broker.run` and the domain scaffold now use the neutral one-agent question frame and `reflection.topic`; `reflection.questions` is retired on this path (reproduce old runs from tag v0.7.0). Multi-agent flood and `governed_flood` remain unchanged for now.
+
 - One-agent reflection now asks "What do your recent years tell you about <topic>?"; domains set
   `reflection.topic`, the prompt asks for an answer rather than a lesson, and the reply key is `answer`.
   `reflection.questions` is retired for this path (raises; reproduce old runs from tag v0.7.0).
