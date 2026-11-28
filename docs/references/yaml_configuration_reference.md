@@ -236,10 +236,11 @@ the paper runners read the `triggers` sub-block only through
 | `importance_boost` | float | No | 0.9 | Importance score assigned to reflection-generated memories. 0.9 in `get_reflection_config`, `ReflectionEngine` and `broker.run`; `ReflectionTriggerConfig.importance_boost` (read by `load_trigger_config`) defaults to 0.85 |
 | `keep_latest_only` | bool | No | false | Storing a new reflection first removes the agent's earlier ones (needs the humancentric engine) |
 | `persona_instruction` | string | No | (none) | System instruction for persona-aware reflection prompts |
-| `questions` | list[string] | No | [] | Guiding reflection questions injected into the prompt |
+| `topic` | string | Yes, when reflection is on, for the one-agent reflection (single-agent flood and irrigation runners, `broker.run`, scaffolded domains) | (none) | Two nouns naming what the agent faces and what it decides about, with no action verb or direction (e.g. `floods and your home`). The framework asks "What do your recent years tell you about <topic>?". Resolved from the agent-type block, then `global_config`, then `shared` |
+| `questions` | list[string] | No | [] | Guiding questions for the batch and personalized reflection prompts (multi-agent flood, `governed_flood`). Retired on the one-agent paths and `broker.run` on 2026-11-27: there it raises an error naming tag v0.7.0 |
 | `year_outcome`, `year_lines`, `program_facts`, `lesson_no_numbers` | bool | No | false | Grounded-reflection options, read through `get_reflection_config` (`GROUNDING_KEYS` in `broker/components/cognitive/reflection.py`): `year_outcome` shows the reflection the period's own settled outcome, `year_lines` lists the input one line per period, `program_facts` has the program write the key periods so the model writes only the lesson, `lesson_no_numbers` retries once and then drops a lesson that names a year or number. Each must be a YAML bool. `broker.run` refuses them |
-| `method` | string | No | `"hybrid"` | Reflection strategy. Valid values: `hybrid`, `periodic`, `crisis` |
-| `triggers` | object | No | {} | Trigger conditions (see sub-table below) |
+| `method` | string | No | `"hybrid"` | Reflection strategy, read by `ReflectionEngine.load_trigger_config`. Valid values: `hybrid`, `periodic`, `crisis`. The single-agent flood and irrigation runners and `broker.run` reflect every `interval` and do not read it |
+| `triggers` | object | No | {} | Trigger conditions (see sub-table below), read by `load_trigger_config`. The single-agent flood and irrigation runners do not use it; `broker.run` reads only `triggers.decision_types` (also reflect in a year the agent ran one of those skills) and refuses the other trigger keys |
 
 **Trigger sub-fields** (`global_config.reflection.triggers`):
 
