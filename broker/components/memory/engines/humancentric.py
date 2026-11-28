@@ -607,6 +607,17 @@ class HumanCentricMemoryEngine(MemoryEngine):
         selected.sort(key=lambda x: x[1], reverse=True)
         return selected, swapped
 
+    _PROVENANCE_PASSTHROUGH_KEYS = (
+        "memory_id",
+        "origin",
+        "triple_id",
+        "author_id",
+        "source_step_id",
+        "hop",
+        "effective_available_period",
+        "reflection_id",
+    )
+
     @staticmethod
     def _memory_payload(memory: Dict[str, Any], final_score: Optional[float] = None) -> Dict[str, Any]:
         payload = {
@@ -618,6 +629,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
         }
         if final_score is not None:
             payload["final_score"] = final_score
+        for key in HumanCentricMemoryEngine._PROVENANCE_PASSTHROUGH_KEYS:
+            val = memory.get(key)
+            if val is not None:
+                payload[key] = val
         return payload
 
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None, window_size: Optional[int] = None, top_k_significant: Optional[int] = None, **kwargs) -> List[Dict[str, Any]]:

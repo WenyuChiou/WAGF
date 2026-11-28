@@ -46,6 +46,12 @@ class ExperimentBuilder:
         # with_resume_journal produces a byte-identical run.
         self._llm_journal_path = None
         self._resume_journal_path = None
+        self._run_id = None
+
+    def with_run_id(self, run_id: Optional[str]):
+        """Set an explicit run identifier propagated across run artifacts."""
+        self._run_id = run_id
+        return self
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -701,6 +707,7 @@ class ExperimentBuilder:
             # with_resume_journal was called (see ExperimentConfig docstring).
             llm_journal_path=getattr(self, '_llm_journal_path', None),
             resume_journal_path=getattr(self, '_resume_journal_path', None),
+            run_id=getattr(self, '_run_id', None),
         )
 
         # A projection check saves and restores the process-wide RNG

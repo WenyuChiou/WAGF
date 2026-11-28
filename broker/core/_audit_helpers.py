@@ -399,6 +399,8 @@ def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
                 audit[key] = local[key]
         if "messages" in context:
             audit["messages"] = context["messages"]
+        if isinstance(context, dict) and "_social_kg_audit" in context:
+            audit["kg_triples"] = list(context.get("_social_kg_audit") or [])
         return audit
     except Exception as exc:
         logger.warning(f"[Audit] social_audit extraction failed: {exc}")
@@ -807,19 +809,31 @@ class AuditMixin:
         _source_default = UNOBSERVED if corrected else "personal"
 
         # Build memory_audit from pre-retrieval data for audit CSV
+        _mem_provenance_keys = (
+            "memory_id",
+            "origin",
+            "triple_id",
+            "author_id",
+            "source_step_id",
+            "hop",
+            "effective_available_period",
+            "reflection_id",
+        )
         normalized_memories = []
         for memory in memory_pre:
             if isinstance(memory, dict):
-                normalized_memories.append(
-                    {
-                        "content": memory.get("content", ""),
-                        "emotion": memory.get("emotion", _emotion_default),
-                        "importance": memory.get("importance", 0.0),
-                        "source": memory.get("source", _source_default),
-                        "timestamp": memory.get("timestamp"),
-                        "final_score": memory.get("final_score"),
-                    }
-                )
+                mem_entry = {
+                    "content": memory.get("content", ""),
+                    "emotion": memory.get("emotion", _emotion_default),
+                    "importance": memory.get("importance", 0.0),
+                    "source": memory.get("source", _source_default),
+                    "timestamp": memory.get("timestamp"),
+                    "final_score": memory.get("final_score"),
+                }
+                for _mpk in _mem_provenance_keys:
+                    if memory.get(_mpk) is not None:
+                        mem_entry[_mpk] = memory[_mpk]
+                normalized_memories.append(mem_entry)
             else:
                 normalized_memories.append(
                     {"content": memory, "emotion": _emotion_default,
@@ -1022,6 +1036,18 @@ class AuditMixin:
                     continue
                 param_extra[f"proposed_param_{_pk}"] = _pv
 
+        # Opt-in JSONL-only sanitized context snapshot (`global_config.audit.context_snapshot`).
+        context_snapshot_extra: Dict[str, Any] = {}
+        _cs_enabled = getattr(self, "_context_snapshot", None)
+        if not isinstance(_cs_enabled, bool):
+            _get_cs = getattr(self.config, "get_audit_context_snapshot", None)
+            _cs_val = _get_cs() if callable(_get_cs) else False
+            _cs_enabled = _cs_val if isinstance(_cs_val, bool) else False
+        if _cs_enabled and isinstance(context, dict):
+            context_snapshot_extra["context_snapshot"] = {
+                k: v for k, v in context.items() if not str(k).startswith("_")
+            }
+
         self.audit_writer.write_trace(agent_type_final, {
             "run_id": run_id,
             "step_id": step_id,
@@ -1112,6 +1138,8 @@ class AuditMixin:
             **retry_prompt_extra,
             # Default-after-retries projection mark, spread last (same rationale).
             **projection_extra,
+            # Opt-in JSONL-only context snapshot, spread last (same rationale).
+            **context_snapshot_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

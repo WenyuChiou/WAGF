@@ -24,7 +24,7 @@ import json
 import logging
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, List, Optional
 
 from broker.components.cognitive.reflection import (
     ReflectionEngine,
@@ -318,12 +318,26 @@ class ReflectionHook:
         self._stored = {}  # agent id -> reflection memories this hook has stored
         self.eligible_turns = 0
 
-    def _log(self, agent_id, insight):
+    def _log(
+        self,
+        agent_id,
+        insight,
+        *,
+        reflection_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        retrieved_memory_ids: Optional[List[str]] = None,
+    ):
         """One line per stored reflection, in ReflectionEngine.store_insight's format."""
         entry = asdict(insight)
         entry["reflection_input"] = list(insight.reflection_input)
         entry["agent_id"] = agent_id
         entry["timestamp"] = datetime.now().isoformat()
+        if reflection_id is not None:
+            entry["reflection_id"] = reflection_id
+        if run_id is not None:
+            entry["run_id"] = run_id
+        if retrieved_memory_ids is not None:
+            entry["retrieved_memory_ids"] = list(retrieved_memory_ids)
         with open(self.log_path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
@@ -412,12 +426,26 @@ class ReflectionHook:
             self.counts["replies_not_stored"] += 1
             return
         insight.reflection_input = [_memory_text(m) for m in memories]
-        self._log(agent.id, insight)  # an OSError here stops the run
+        reflection_id = f"refl-{agent.id}-{year}"
+        run_id = getattr(self.runner, "run_id", None)
+        retrieved_memory_ids = [
+            m["memory_id"]
+            for m in memories
+            if isinstance(m, dict) and isinstance(m.get("memory_id"), str) and m["memory_id"]
+        ]
+        self._log(
+            agent.id,
+            insight,
+            reflection_id=reflection_id,
+            run_id=run_id if isinstance(run_id, str) else None,
+            retrieved_memory_ids=retrieved_memory_ids,
+        )  # an OSError here stops the run
         self.engine.store_insight(agent.id, insight)
         store_reflection_memory(
             self.memory_engine, agent.id, f"{REFLECTION_PREFIX} {year}): {insight.summary}",
             {"importance": insight.importance, "type": "reflection", "source": "personal",
-             "emotion": "major", "year": year, "origin": "reflection", "period": year},
+             "emotion": "major", "year": year, "origin": "reflection", "period": year,
+             "reflection_id": reflection_id},
             keep_latest_only=self.settings.keep_latest_only,
         )
         self._stored[agent.id] = self._stored.get(agent.id, 0) + 1

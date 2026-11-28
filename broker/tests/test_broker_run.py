@@ -105,6 +105,8 @@ def test_mock_run_renders_menu_and_records_provenance(case, tmp_path):
     assert health.splitlines()[0].startswith("rule_id,")
     case_dir = config.parents[1].resolve()
     record = _manifest(output)
+    run_id = record.pop("run_id")
+    assert isinstance(run_id, str) and run_id.startswith("run_42_")
     for key in ("strict_provenance", "provenance_checks", "provenance_problems"):  # see test_broker_run_strict_provenance.py
         record.pop(key)
     assert record == {

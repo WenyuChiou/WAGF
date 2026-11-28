@@ -66,6 +66,7 @@ REPLAY_DECIDER = "governance_carryover_replay"
 TRACE_FIELDS = ("input", "memory_pre", "memory_post", "state_before", "state_after",
                 "environment_context", "social_audit")
 REFLECTION_FIELDS = ("reflection_input", "summary")
+MEMORY_IGNORE_FIELDS = frozenset({"run_id"})
 
 
 class TwinError(Exception):
@@ -194,8 +195,9 @@ def _run(argv, output, table=None):
     return world_calls, writes
 
 
-def _diff_lists(name, a, b, label, fields=None):
+def _diff_lists(name, a, b, label, fields=None, ignore_fields=()):
     found = []
+    ignored = set(ignore_fields)
     for index in range(max(len(a), len(b))):
         left = a[index] if index < len(a) else None
         right = b[index] if index < len(b) else None
@@ -203,7 +205,10 @@ def _diff_lists(name, a, b, label, fields=None):
             found.append({"file": name, "where": label(left or right), "field": "(missing)",
                           "a": left is not None, "b": right is not None})
             continue
-        keys = fields or sorted(k for k in set(left) | set(right) if not k.startswith("_"))
+        keys = fields or sorted(
+            k for k in set(left) | set(right)
+            if not k.startswith("_") and k not in ignored
+        )
         for key in keys:
             if left.get(key) != right.get(key):
                 found.append({"file": name, "where": label(left), "field": key,
@@ -215,7 +220,8 @@ def compare(out_a, out_b, calls_a, calls_b):
     """Every difference between the twins as ``{file, where, field, a, b}``."""
     who = lambda e: f"agent {e.get('agent_id')} period {e.get('period', e.get('year'))}"
     found = _diff_lists("memory_log.jsonl", _read_jsonl(out_a / "memory_log.jsonl"),
-                        _read_jsonl(out_b / "memory_log.jsonl"), who)
+                        _read_jsonl(out_b / "memory_log.jsonl"), who,
+                        ignore_fields=MEMORY_IGNORE_FIELDS)
     found += _diff_lists("reflection_log.jsonl", _read_jsonl(out_a / "reflection_log.jsonl"),
                          _read_jsonl(out_b / "reflection_log.jsonl"), who, REFLECTION_FIELDS)
     key = lambda r: (str(r.get("agent_id")), int(r.get("year") or 0))

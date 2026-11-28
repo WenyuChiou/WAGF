@@ -40,21 +40,32 @@ from typing import Any, Callable, Optional
 ORIGINS = ("world", "decision", "reflection", "social", "seed")
 MEMORY_LOG_NAME = "memory_log.jsonl"
 _LOGGED_KEYS = ("importance", "emotion", "type", "source")
+_OPTIONAL_PROVENANCE_KEYS = (
+    "triple_id",
+    "author_id",
+    "source_step_id",
+    "hop",
+    "effective_available_period",
+    "reflection_id",
+)
 
 
 class OriginGate:
     """The gate installed on one engine; ``counts`` holds writes per origin."""
 
     def __init__(self, engine: Any, log_path: Path, period: Callable[[], Any],
-                 reflection_prefix: Optional[str] = None):
+                 reflection_prefix: Optional[str] = None,
+                 run_id: Optional[str] = None):
         self.engine = engine
         self.reflection_prefix = reflection_prefix
+        self.run_id = run_id
         self.log_path = Path(log_path)
         self._period = period
         # While True (the builder seeding agent profiles), an untagged write
         # is a seed write. broker.run turns it off once the runner is built.
         self.seeding = True
         self.counts = {origin: 0 for origin in ORIGINS}
+        self._seq = 0
         self._depth = 0
         self._started = False
         self._add_memory = engine.add_memory
@@ -81,13 +92,25 @@ class OriginGate:
             )
         return origin
 
-    def _log(self, agent_id, content, metadata, origin):
+    def _log(self, agent_id, content, metadata, origin, memory_id):
         meta = metadata if isinstance(metadata, dict) else {}
         period = meta.get("period")
         if period is None:
             period = 0 if origin == "seed" else self._period()
-        entry = {"agent_id": agent_id, "period": period, "origin": origin, "content": content}
+        entry = {
+            "agent_id": agent_id,
+            "period": period,
+            "origin": origin,
+            "memory_id": memory_id,
+            "content": content,
+        }
+        if self.run_id is not None:
+            entry["run_id"] = self.run_id
         entry.update({key: meta.get(key) for key in _LOGGED_KEYS})
+        for key in _OPTIONAL_PROVENANCE_KEYS:
+            val = meta.get(key)
+            if val is not None:
+                entry[key] = val
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         # The first write of this run replaces a log left by an earlier run.
         mode = "a" if self._started else "w"
@@ -96,31 +119,66 @@ class OriginGate:
         self._started = True
         self.counts[origin] += 1
 
+    def _stamp_stored_item(self, agent_id: Any, memory_id: str, origin: str) -> None:
+        """Attach memory_id/origin to the latest stored dict when metadata was omitted."""
+        aid = str(agent_id)
+        for attr in ("working", "longterm", "storage", "episodic"):
+            buf = getattr(self.engine, attr, None)
+            if not isinstance(buf, dict):
+                continue
+            items = buf.get(aid)
+            if isinstance(items, list) and items and isinstance(items[-1], dict):
+                if "memory_id" not in items[-1]:
+                    items[-1]["memory_id"] = memory_id
+                    items[-1].setdefault("origin", origin)
+
     def _gated(self, agent_id, content, metadata, write):
         # An engine's add_memory_for_agent may call its own add_memory: only
         # the outermost call is checked and logged.
         if self._depth:
-            return write()
+            return write(metadata)
         origin = self._check(agent_id, content, metadata)
+        next_seq = self._seq + 1
+        memory_id = f"mem-{next_seq}"
+        if isinstance(metadata, dict) and metadata:
+            # Never mutate caller's dict; keep empty/None seeding branch untouched
+            # so HumanCentricMemoryEngine._add_memory_internal keeps identical scoring.
+            write_meta = dict(metadata)
+            write_meta.setdefault("origin", origin)
+            write_meta["memory_id"] = memory_id
+            log_meta = write_meta
+            stamped_in_store = False
+        else:
+            write_meta = metadata
+            log_meta = {"origin": origin, "memory_id": memory_id}
+            stamped_in_store = True
         self._depth += 1
         try:
-            result = write()
+            result = write(write_meta)
         finally:
             self._depth -= 1
-        self._log(agent_id, content, metadata, origin)
+        if stamped_in_store:
+            self._stamp_stored_item(agent_id, memory_id, origin)
+        self._seq = next_seq
+        self._log(agent_id, content, log_meta, origin, memory_id)
         return result
 
     def add_memory(self, agent_id, content, metadata=None, *args, **kwargs):
-        return self._gated(agent_id, content, metadata,
-                           lambda: self._add_memory(agent_id, content, metadata, *args, **kwargs))
+        return self._gated(
+            agent_id, content, metadata,
+            lambda meta: self._add_memory(agent_id, content, meta, *args, **kwargs),
+        )
 
     def add_memory_for_agent(self, agent, content, metadata=None, *args, **kwargs):
-        return self._gated(getattr(agent, "id", agent), content, metadata,
-                           lambda: self._add_memory_for_agent(agent, content, metadata, *args, **kwargs))
+        return self._gated(
+            getattr(agent, "id", agent), content, metadata,
+            lambda meta: self._add_memory_for_agent(agent, content, meta, *args, **kwargs),
+        )
 
 
 def install_origin_gate(engine: Any, output_dir: Path, period: Callable[[], Any],
-                        reflection_prefix: Optional[str] = None) -> OriginGate:
+                        reflection_prefix: Optional[str] = None,
+                        run_id: Optional[str] = None) -> OriginGate:
     """Gate ``engine``'s writes in place and log them to ``output_dir``/memory_log.jsonl.
 
     ``period`` gives the period a write without ``metadata['period']`` is
@@ -128,7 +186,10 @@ def install_origin_gate(engine: Any, output_dir: Path, period: Callable[[], Any]
     at this run's first write, not before. With ``reflection_prefix``, a
     reflection-origin line must start with it.
     """
-    gate = OriginGate(engine, Path(output_dir) / MEMORY_LOG_NAME, period, reflection_prefix)
+    gate = OriginGate(
+        engine, Path(output_dir) / MEMORY_LOG_NAME, period,
+        reflection_prefix=reflection_prefix, run_id=run_id,
+    )
     engine.add_memory = gate.add_memory
     if gate._add_memory_for_agent is not None:
         engine.add_memory_for_agent = gate.add_memory_for_agent

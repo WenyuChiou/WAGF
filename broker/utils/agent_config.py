@@ -1520,6 +1520,24 @@ class AgentTypeConfig:
             )
         return value
 
+    def get_audit_context_snapshot(self) -> bool:
+        """Opt-in sanitized prompt-context snapshot in the raw JSONL trace (default OFF).
+
+        Writes ``context_snapshot`` to raw JSONL traces without altering the
+        CSV fieldnames. Private internal keys prefixed with ``_`` (such as
+        ``_social_kg_audit`` or frozen-label caches) are omitted from the snapshot.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict) or "context_snapshot" not in block:
+            return False
+        value = block["context_snapshot"]
+        if not isinstance(value, bool):
+            raise ValueError(
+                "global_config.audit.context_snapshot must be true or "
+                f"false (a YAML bool), got {type(value).__name__} {value!r}."
+            )
+        return value
+
     def get_audit_state_columns(self) -> List[str]:
         """Opt-in AGENT-STATE audit columns (default: none).
 
