@@ -356,6 +356,72 @@ def scan_context_budget(output_dir) -> Dict[str, Any]:
     }
 
 
+def scan_leakage_patterns(output_dir, patterns) -> Dict[str, Any]:
+    """Scan trace and reflection outputs for opt-in contamination regex patterns. Never raises."""
+    pattern_list = [str(p) for p in (patterns or []) if isinstance(p, str) and p.strip()]
+    compiled: List[Tuple[str, re.Pattern]] = []
+    for pat in pattern_list:
+        try:
+            compiled.append((pat, re.compile(pat, re.IGNORECASE)))
+        except re.error as exc:
+            logger.warning(f"[Integrity] skipping invalid leakage regex {pat!r}: {exc}")
+
+    matches_by_pattern: Dict[str, int] = {pat: 0 for pat, _ in compiled}
+    flagged_trace_rows = 0
+    flagged_reflection_rows = 0
+    if not compiled:
+        return {
+            "patterns_checked": pattern_list,
+            "flagged_trace_rows": 0,
+            "flagged_reflection_rows": 0,
+            "matches_by_pattern": matches_by_pattern,
+            "clean": True,
+        }
+
+    base = Path(output_dir)
+    raw_dir = base / "raw"
+    try:
+        trace_paths = sorted(raw_dir.glob("*_traces.jsonl")) if raw_dir.is_dir() else []
+    except OSError:
+        trace_paths = []
+
+    def _scan_text(text: str) -> bool:
+        hit = False
+        for pat, regex in compiled:
+            if regex.search(text):
+                matches_by_pattern[pat] += 1
+                hit = True
+        return hit
+
+    for trace_path in trace_paths:
+        for row in _jsonl(trace_path, []):
+            if not isinstance(row, dict) or "_metadata" in row:
+                continue
+            parts: List[str] = []
+            if isinstance(row.get("raw_output"), str):
+                parts.append(row["raw_output"])
+            sp = row.get("skill_proposal")
+            if isinstance(sp, dict) and isinstance(sp.get("reasoning"), dict):
+                parts.extend(str(v) for v in sp["reasoning"].values() if isinstance(v, str))
+            if parts and _scan_text("\n".join(parts)):
+                flagged_trace_rows += 1
+
+    refl_path = base / "reflection_log.jsonl"
+    if refl_path.exists():
+        for entry in _jsonl(refl_path, []):
+            if isinstance(entry, dict) and isinstance(entry.get("summary"), str):
+                if _scan_text(entry["summary"]):
+                    flagged_reflection_rows += 1
+
+    return {
+        "patterns_checked": [pat for pat, _ in compiled],
+        "flagged_trace_rows": flagged_trace_rows,
+        "flagged_reflection_rows": flagged_reflection_rows,
+        "matches_by_pattern": matches_by_pattern,
+        "clean": (flagged_trace_rows == 0 and flagged_reflection_rows == 0),
+    }
+
+
 def count_reflection_entries(output_dir) -> Tuple[bool, int]:
     """Return ``(exists, n_entries)`` for ``reflection_log.jsonl`` in ``output_dir``.
 

@@ -9,6 +9,7 @@ Includes optional SDK experiment config loader integration.
 
 import yaml
 import os
+import re
 import sys
 import json
 import threading
@@ -469,6 +470,9 @@ class AgentTypeConfig:
             self._warn_unknown_keys(unknown)
         self._validate_supplied_fractions()
         self._validate_expression_conditions()
+        _gc = self._config.get("global_config")
+        if isinstance(_gc, dict) and isinstance(_gc.get("audit"), dict) and "leakage_patterns" in _gc["audit"]:
+            self.get_audit_leakage_patterns()
         if strict_keys and unknown:
             raise UnknownConfigKeysError(self._yaml_path, unknown)
 
@@ -1537,6 +1541,28 @@ class AgentTypeConfig:
                 f"false (a YAML bool), got {type(value).__name__} {value!r}."
             )
         return value
+
+    def get_audit_leakage_patterns(self) -> List[str]:
+        """Opt-in regex patterns to detect historical contamination in outputs."""
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict) or block.get("leakage_patterns") is None:
+            return []
+        value = block["leakage_patterns"]
+        if not isinstance(value, list) or not all(
+            isinstance(pat, str) and pat.strip() for pat in value
+        ):
+            raise ValueError(
+                "global_config.audit.leakage_patterns must be a list of "
+                f"non-empty regex strings, got {value!r}."
+            )
+        for pat in value:
+            try:
+                re.compile(pat, re.IGNORECASE)
+            except re.error as exc:
+                raise ValueError(
+                    f"global_config.audit.leakage_patterns contains invalid regex {pat!r}: {exc}"
+                ) from exc
+        return [str(pat) for pat in value]
 
     def get_audit_state_columns(self) -> List[str]:
         """Opt-in AGENT-STATE audit columns (default: none).

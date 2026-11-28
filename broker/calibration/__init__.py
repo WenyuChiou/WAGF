@@ -82,6 +82,16 @@ from broker.calibration.optimize import (
     TargetSplit,
     ObjectiveFn,
 )
+from broker.calibration.hindcast_metrics import (
+    aggregate_seed_metrics,
+    compute_bias,
+    compute_kge,
+    compute_mae,
+    compute_nse,
+    compute_rmse,
+    evaluate_hindcast_series,
+    split_hindcast_periods,
+)
 
 __all__ = [
     # Benchmark registry
@@ -124,4 +134,13 @@ __all__ = [
     "OptimizeResult",
     "TargetSplit",
     "ObjectiveFn",
+    # Hindcast verification metrics
+    "aggregate_seed_metrics",
+    "compute_bias",
+    "compute_kge",
+    "compute_mae",
+    "compute_nse",
+    "compute_rmse",
+    "evaluate_hindcast_series",
+    "split_hindcast_periods",
 ]

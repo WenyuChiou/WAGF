@@ -2001,6 +2001,15 @@ class ExperimentRunner:
                 refl_kwargs["reflection_eligible_turns"] = _el_turns
             # A run whose agents all have no appraisal.
             refl_kwargs["no_appraisal"] = self._all_agents_without_appraisal()
+            _get_lp = getattr(getattr(self.broker, "config", None), "get_audit_leakage_patterns", None)
+            _leak_pats = _get_lp() if callable(_get_lp) else []
+            if isinstance(_leak_pats, list) and _leak_pats:
+                from broker.core.run_integrity import scan_leakage_patterns
+
+                refl_kwargs["extra"] = {
+                    **refl_kwargs.get("extra", {}),
+                    "leakage_scan": scan_leakage_patterns(self.config.output_dir, _leak_pats),
+                }
             if getattr(self, "tag_memory_origin", False) is True:
                 # Invariant 7 (python -m broker.run only; frozen runners keep
                 # their run_integrity.json key set).
