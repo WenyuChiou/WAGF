@@ -124,11 +124,12 @@ Optional columns record every attempt of a decision. The irrigation runner can a
 
 Default traces do not retain every retry's complete prompt and response. The [audit schema](../../docs/AUDIT_SCHEMA.md) explains placeholders and proposed versus executed actions.
 
-The comparison tool ignores timestamps, run times and the order of unordered lists; the recovery tool rebuilds CSVs from JSONL. Inspect their usage:
+The comparison tool ignores timestamps, run times and the order of unordered lists, the recovery tool rebuilds CSVs from JSONL, and `export_odd_llm` exports Blocks A-E ODD-LLM protocol documentation (`odd_llm.json` and `ODD_LLM.md`) from any run directory. Inspect their usage:
 
 ```bash
 python -m broker.tools.compare_audit_csv --help
 python -m broker.tools.recover_csv_from_jsonl --help
+python -m broker.tools.export_odd_llm --help
 ```
 
 ## Related publications
