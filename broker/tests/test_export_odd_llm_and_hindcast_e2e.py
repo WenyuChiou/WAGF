@@ -508,3 +508,75 @@ def test_export_odd_llm_sparse_run_and_error_guards(tmp_path: Path) -> None:
     assert "block_e_reproducibility_hindcast_and_integrity.git_commit" in report["unobserved_fields"]
     assert "block_e_reproducibility_hindcast_and_integrity.hindcast_verification" in report["unobserved_fields"]
     assert report["block_e_reproducibility_hindcast_and_integrity"]["leakage_scan"]["clean"] is False
+
+
+def test_export_odd_llm_manifest_digest_file_templates_and_resolved_llm_params(tmp_path: Path) -> None:
+    case_dir = tmp_path / "case"
+    cfg_dir = case_dir / "config"
+    prompts_dir = case_dir / "prompts"
+    run_dir = tmp_path / "run_out"
+    cfg_dir.mkdir(parents=True)
+    prompts_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+
+    prompt_file = prompts_dir / "op_prompt.txt"
+    prompt_file.write_text("Period {current_year} unit {agent_id} state {level}\n", encoding="utf-8")
+    expected_sha = hashlib.sha256(prompt_file.read_bytes()).hexdigest()
+
+    cfg_payload = {
+        "operator": {
+            "prompt_template_file": "../prompts/op_prompt.txt",
+            "llm_params": {"model": "qwen3:8b", "temperature": 0.25},
+            "actions": [{"id": "hold", "description": "Hold"}],
+        },
+        "auditor": {
+            "prompt_template": "Audit unit {agent_id} period {current_year}",
+            "llm_params": {"temperature": 0.1},
+            "actions": [{"id": "pass", "description": "Pass"}],
+        },
+        "global_config": {
+            "llm": {"num_ctx": 4096, "top_p": 0.9},
+        },
+    }
+    cfg_path = cfg_dir / "agent_types.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg_payload), encoding="utf-8")
+    # Also simulate config_snapshot.yaml copied into run_dir (different parent dir than config/)
+    (run_dir / "config_snapshot.yaml").write_text(yaml.safe_dump(cfg_payload), encoding="utf-8")
+
+    (run_dir / "reproducibility_manifest.json").write_text(
+        json.dumps({
+            "model": "llama3.2:3b",
+            "seed": 42,
+            "git_commit": "abc1234",
+            "agent_types_config": str(cfg_path),
+            "model_digest": "sha256:abc123def456",
+            "prompt_template_sha256": {"operator": expected_sha},
+            "temperature": 0.25,
+            "num_ctx": 8192,
+            "llm_params_resolved": {
+                "operator": {"model": "qwen3:8b", "temperature": 0.25, "num_ctx": 8192},
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    report = build_odd_llm_report(run_dir)
+    block_c = report["block_c_llm_specification_and_prompt_contract"]
+
+    assert block_c["model_digest"] == "sha256:abc123def456"
+    assert block_c["llm_parameters_source"] == "manifest"
+    assert block_c["llm_parameters"]["num_ctx"] == 8192
+
+    op_role = block_c["roles"]["operator"]
+    assert op_role["prompt_template_file"] == "../prompts/op_prompt.txt"
+    assert op_role["prompt_sha256"] == expected_sha
+    assert op_role["prompt_placeholders"] == ["agent_id", "current_year", "level"]
+    assert op_role["llm_params"]["model"] == "qwen3:8b"
+    assert op_role["llm_params_source"] == "manifest_resolved"
+    assert "block_c_llm_specification_and_prompt_contract.roles.operator.prompt_template" not in report["unobserved_fields"]
+
+    aud_role = block_c["roles"]["auditor"]
+    assert aud_role["llm_params_source"] == "config_fallback"
+    assert aud_role["llm_params"]["model"] == "llama3.2:3b"
+    assert aud_role["llm_params"]["temperature"] == pytest.approx(0.1)
+    assert aud_role["llm_params"]["num_ctx"] == 4096

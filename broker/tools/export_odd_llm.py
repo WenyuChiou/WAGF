@@ -295,12 +295,60 @@ def _collect_role_rule_grounding(
     return dict(sorted(counts.items())) if counts else None
 
 
+def _template_base_dirs(
+    explicit_config: Optional[Path],
+    manifest: Optional[Dict[str, Any]],
+    resolved_cfg_path: Optional[Path],
+) -> List[Path]:
+    dirs: List[Path] = []
+    seen: set[Path] = set()
+
+    def _add_parent(candidate: Any) -> None:
+        if isinstance(candidate, Path):
+            p = candidate.parent
+        elif isinstance(candidate, str) and candidate.strip() and candidate != "unknown":
+            p = Path(candidate).parent
+        else:
+            return
+        if p not in seen:
+            seen.add(p)
+            dirs.append(p)
+
+    _add_parent(explicit_config)
+    if isinstance(manifest, dict):
+        _add_parent(manifest.get("derived_from_config"))
+        _add_parent(manifest.get("agent_types_config"))
+    _add_parent(resolved_cfg_path)
+    return dirs
+
+
+def _resolve_prompt_file_text(
+    file_ref: str,
+    base_dirs: List[Path],
+) -> Tuple[Optional[str], Optional[str]]:
+    raw_ref = Path(file_ref)
+    candidates = [raw_ref] if raw_ref.is_absolute() else [base / raw_ref for base in base_dirs]
+    for cand in candidates:
+        if cand.is_file():
+            try:
+                raw_bytes = cand.read_bytes()
+                return raw_bytes.decode("utf-8"), hashlib.sha256(raw_bytes).hexdigest()
+            except (OSError, UnicodeError):
+                continue
+    return None, None
+
+
 def _extract_role_specs(
     cfg: Optional[Dict[str, Any]],
     observed_roles: List[str],
     broker_run: Optional[Dict[str, Any]],
     governance_profile: str,
     unobserved: set[str],
+    *,
+    manifest: Optional[Dict[str, Any]] = None,
+    explicit_config: Optional[Path] = None,
+    resolved_cfg_path: Optional[Path] = None,
+    default_model: Any = None,
 ) -> Tuple[List[str], Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     role_names: List[str] = []
     seen: set[str] = set()
@@ -312,6 +360,7 @@ def _extract_role_specs(
                 k in val
                 for k in (
                     "prompt_template",
+                    "prompt_template_file",
                     "actions",
                     "response_format",
                     "psychological_framework",
@@ -331,8 +380,31 @@ def _extract_role_specs(
             role_names.append(role)
             seen.add(role)
 
-    shared = cfg.get("shared", {}) if isinstance(cfg, dict) else {}
+    shared = cfg.get("shared", {}) if isinstance(cfg, dict) and isinstance(cfg.get("shared"), dict) else {}
+    global_cfg = (
+        cfg.get("global_config", {})
+        if isinstance(cfg, dict) and isinstance(cfg.get("global_config"), dict)
+        else {}
+    )
+    default_rcfg = (
+        cfg.get("default", {}) if isinstance(cfg, dict) and isinstance(cfg.get("default"), dict) else {}
+    )
     shared_rf = shared.get("response_format") if isinstance(shared, dict) else None
+    shared_llm = shared.get("llm") if isinstance(shared.get("llm"), dict) else {}
+    global_llm = global_cfg.get("llm") if isinstance(global_cfg.get("llm"), dict) else {}
+    default_llm = default_rcfg.get("llm_params") if isinstance(default_rcfg.get("llm_params"), dict) else {}
+
+    base_dirs = _template_base_dirs(explicit_config, manifest, resolved_cfg_path)
+    manifest_hashes = (
+        manifest.get("prompt_template_sha256")
+        if isinstance(manifest, dict) and isinstance(manifest.get("prompt_template_sha256"), dict)
+        else {}
+    )
+    manifest_resolved = (
+        manifest.get("llm_params_resolved")
+        if isinstance(manifest, dict) and isinstance(manifest.get("llm_params_resolved"), dict)
+        else {}
+    )
 
     cognitive_roles: Dict[str, Dict[str, Any]] = {}
     prompt_roles: Dict[str, Dict[str, Any]] = {}
@@ -364,13 +436,25 @@ def _extract_role_specs(
             "rule_grounding_counts": rule_grounding_counts,
         }
 
-        template = rcfg.get("prompt_template")
-        prompt_sha256: Optional[str] = None
-        placeholders: Optional[List[str]] = None
-        if isinstance(template, str):
-            prompt_sha256 = hashlib.sha256(template.encode("utf-8")).hexdigest()
-            placeholders = _extract_placeholders(template)
-        else:
+        template_file = rcfg.get("prompt_template_file") or default_rcfg.get("prompt_template_file")
+        template_inline = rcfg.get("prompt_template")
+        if template_inline is None:
+            template_inline = default_rcfg.get("prompt_template")
+
+        resolved_text: Optional[str] = None
+        fallback_sha: Optional[str] = None
+        if isinstance(template_file, str) and template_file.strip():
+            resolved_text, fallback_sha = _resolve_prompt_file_text(template_file.strip(), base_dirs)
+        if resolved_text is None and isinstance(template_inline, str):
+            resolved_text = template_inline
+            fallback_sha = hashlib.sha256(template_inline.encode("utf-8")).hexdigest()
+
+        manifest_sha = manifest_hashes.get(role)
+        if manifest_sha is None and len(role_names) == 1:
+            manifest_sha = manifest_hashes.get("default")
+        prompt_sha256 = manifest_sha if isinstance(manifest_sha, str) and manifest_sha.strip() else fallback_sha
+        placeholders = _extract_placeholders(resolved_text) if isinstance(resolved_text, str) else None
+        if prompt_sha256 is None and placeholders is None:
             unobserved.add(f"block_c_llm_specification_and_prompt_contract.roles.{role}.prompt_template")
 
         actions_cfg = rcfg.get("actions") if isinstance(rcfg.get("actions"), list) else []
@@ -378,12 +462,47 @@ def _extract_role_specs(
             a.get("id") for a in actions_cfg if isinstance(a, dict) and isinstance(a.get("id"), str)
         ]
         decider_cfg = rcfg.get("decider") if isinstance(rcfg.get("decider"), dict) else {}
+        decider_type = decider_cfg.get("type") or ("llm" if rcfg else None)
+
+        role_llm_params: Optional[Dict[str, Any]] = None
+        llm_params_source: Optional[str] = None
+        role_model: Any = default_model if decider_type == "llm" else None
+        if isinstance(manifest_resolved.get(role), dict):
+            role_llm_params = dict(manifest_resolved[role])
+            llm_params_source = "manifest_resolved"
+            role_model = role_llm_params.get("model") or role_model
+        elif isinstance(cfg, dict):
+            agent_llm = rcfg.get("llm_params") if isinstance(rcfg.get("llm_params"), dict) else {}
+            if any((shared_llm, global_llm, default_llm, agent_llm)):
+                merged: Dict[str, Any] = {}
+                merged.update(shared_llm)
+                merged.update(global_llm)
+                merged.update(default_llm)
+                merged.update(agent_llm)
+                raw_override = merged.get("model")
+                if isinstance(raw_override, str) and raw_override.strip().lower() in {
+                    "",
+                    "command-line-override",
+                    "cli-override",
+                }:
+                    raw_override = None
+                effective_role_model = raw_override or default_model
+                if effective_role_model is not None:
+                    merged["model"] = effective_role_model
+                role_llm_params = merged
+                llm_params_source = "config_fallback"
+                role_model = effective_role_model if decider_type == "llm" else merged.get("model")
+
         prompt_roles[role] = {
+            "model": role_model,
+            "llm_params": role_llm_params,
+            "llm_params_source": llm_params_source,
+            "prompt_template_file": template_file.strip() if isinstance(template_file, str) and template_file.strip() else None,
             "prompt_sha256": prompt_sha256,
             "prompt_placeholders": placeholders,
             "response_format_fields": fields_meta or None,
             "action_ids": action_ids or None,
-            "decider_type": decider_cfg.get("type") or ("llm" if rcfg else None),
+            "decider_type": decider_type,
         }
 
     return role_names, cognitive_roles, prompt_roles
@@ -440,24 +559,6 @@ def build_odd_llm_report(
     trace_stats = _collect_trace_statistics(resolved_dir)
     mem_stats = _collect_memory_and_reflection_stats(resolved_dir, broker_run, integrity)
 
-    governance_profile = (
-        (broker_run or {}).get("governance")
-        or (manifest or {}).get("governance_profile")
-        or (integrity or {}).get("governance_mode")
-        or "default"
-    )
-    role_names, cognitive_roles, prompt_roles = _extract_role_specs(
-        cfg, trace_stats["observed_roles"], broker_run, str(governance_profile), unobserved
-    )
-
-    run_id: Optional[str] = None
-    for src in (coord_snap, manifest, broker_run):
-        if isinstance(src, dict) and isinstance(src.get("run_id"), str) and src["run_id"].strip():
-            run_id = src["run_id"].strip()
-            break
-    if run_id is None:
-        unobserved.add("run_id")
-
     global_cfg = cfg.get("global_config", {}) if isinstance(cfg, dict) else {}
     if not isinstance(global_cfg, dict):
         global_cfg = {}
@@ -469,6 +570,33 @@ def build_odd_llm_report(
     )
     if model is None:
         unobserved.add("block_c_llm_specification_and_prompt_contract.model")
+
+    governance_profile = (
+        (broker_run or {}).get("governance")
+        or (manifest or {}).get("governance_profile")
+        or (integrity or {}).get("governance_mode")
+        or "default"
+    )
+    explicit_cfg_path = Path(config_path) if config_path else None
+    role_names, cognitive_roles, prompt_roles = _extract_role_specs(
+        cfg,
+        trace_stats["observed_roles"],
+        broker_run,
+        str(governance_profile),
+        unobserved,
+        manifest=manifest,
+        explicit_config=explicit_cfg_path,
+        resolved_cfg_path=resolved_cfg_path,
+        default_model=model,
+    )
+
+    run_id: Optional[str] = None
+    for src in (coord_snap, manifest, broker_run):
+        if isinstance(src, dict) and isinstance(src.get("run_id"), str) and src["run_id"].strip():
+            run_id = src["run_id"].strip()
+            break
+    if run_id is None:
+        unobserved.add("run_id")
 
     years = (broker_run or {}).get("years") or (manifest or {}).get("num_years")
     if years is None:
@@ -551,10 +679,38 @@ def build_odd_llm_report(
 
     # Block C: LLM Specification & Prompt/Parsing Contract
     llm_cfg = global_cfg.get("llm") if isinstance(global_cfg.get("llm"), dict) else None
-    model_meta = (manifest or {}).get("model_metadata") if isinstance(manifest, dict) else None
-    model_digest = (
-        model_meta.get("model_digest") if isinstance(model_meta, dict) else None
-    )
+    manifest_llm_fields: Dict[str, Any] = {}
+    if isinstance(manifest, dict):
+        for k in (
+            "temperature",
+            "top_p",
+            "num_ctx",
+            "num_predict",
+            "llm_timeout_seconds_effective",
+            "llm_model_defaults",
+        ):
+            if k in manifest and manifest[k] is not None:
+                manifest_llm_fields[k] = manifest[k]
+    if manifest_llm_fields:
+        llm_parameters: Optional[Dict[str, Any]] = {**(llm_cfg or {}), **manifest_llm_fields}
+        llm_parameters_source: Optional[str] = "manifest"
+    elif llm_cfg:
+        llm_parameters = dict(llm_cfg)
+        llm_parameters_source = "config_fallback"
+    else:
+        llm_parameters = None
+        llm_parameters_source = None
+
+    llm_parameters_by_role = {
+        role: {"params": info["llm_params"], "source": info["llm_params_source"]}
+        for role, info in prompt_roles.items()
+        if info.get("llm_params") is not None
+    } or None
+
+    model_digest = (manifest or {}).get("model_digest") if isinstance(manifest, dict) else None
+    if model_digest is None and isinstance(manifest, dict) and isinstance(manifest.get("model_metadata"), dict):
+        model_digest = manifest["model_metadata"].get("model_digest")
+
     parse_layer_dist = (
         (integrity or {}).get("parse_layer_distribution")
         or trace_stats["parse_layer_distribution"]
@@ -563,8 +719,10 @@ def build_odd_llm_report(
     block_c: Dict[str, Any] = {
         "model": model,
         "model_digest": model_digest,
-        "thinking_mode": (broker_run or {}).get("thinking_mode"),
-        "llm_parameters": llm_cfg,
+        "thinking_mode": (broker_run or {}).get("thinking_mode") or (manifest or {}).get("thinking_mode"),
+        "llm_parameters": llm_parameters,
+        "llm_parameters_source": llm_parameters_source,
+        "llm_parameters_by_role": llm_parameters_by_role,
         "llm_stats": (manifest or {}).get("llm_stats"),
         "roles": prompt_roles,
         "parse_layer_distribution": parse_layer_dist,
@@ -755,11 +913,11 @@ def render_odd_llm_markdown(report: Mapping[str, Any]) -> str:
         "",
         f"- Model: {_fmt(c.get('model'))} (digest={_fmt(c.get('model_digest'))})",
         f"- Thinking Mode: {_fmt(c.get('thinking_mode'))}",
-        f"- LLM Parameters: {_fmt(c.get('llm_parameters'))}",
+        f"- LLM Parameters ({_fmt(c.get('llm_parameters_source'))}): {_fmt(c.get('llm_parameters'))}",
         f"- Parse Layer Distribution: {_fmt(c.get('parse_layer_distribution'))}",
         "",
-        "| Role | Decider | Prompt SHA-256 | Placeholders | Actions |",
-        "|---|---|---|---|---|",
+        "| Role | Decider | Model | LLM Params | Prompt SHA-256 | Placeholders | Actions |",
+        "|---|---|---|---|---|---|---|",
     ])
     for role, info in (c.get("roles") or {}).items():
         sha_short = (
@@ -768,11 +926,12 @@ def render_odd_llm_markdown(report: Mapping[str, Any]) -> str:
             else "unobserved"
         )
         lines.append(
-            f"| `{role}` | {_fmt(info.get('decider_type'))} | `{sha_short}` | "
+            f"| `{role}` | {_fmt(info.get('decider_type'))} | {_fmt(info.get('model'))} | "
+            f"{_fmt(info.get('llm_params'))} | `{sha_short}` | "
             f"{_fmt(info.get('prompt_placeholders'))} | {_fmt(info.get('action_ids'))} |"
         )
     if not (c.get("roles") or {}):
-        lines.append("| (none) | unobserved | unobserved | unobserved | unobserved |")
+        lines.append("| (none) | unobserved | unobserved | unobserved | unobserved | unobserved | unobserved |")
 
     inv7 = d.get("invariant_7_isolation") or {}
     causal = (d.get("coordination_and_social_kg") or {}).get("causal_join_keys") or {}
