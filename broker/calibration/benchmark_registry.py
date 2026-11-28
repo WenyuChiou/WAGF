@@ -580,6 +580,8 @@ class BenchmarkRegistry:
         self,
         observed: Dict[str, float],
         tolerance: float = 0.3,
+        *,
+        round_digits: Optional[int] = None,
     ) -> BenchmarkReport:
         """Compare observed metrics against registered benchmarks.
 
@@ -590,6 +592,10 @@ class BenchmarkRegistry:
         tolerance : float
             Tolerance factor for range checking.  An observed value
             within ``[low * (1 - tol), high * (1 + tol)]`` passes.
+        round_digits : int, optional
+            When set, round each observed value to ``round_digits`` decimal
+            places before range checking (``None`` preserves unrounded
+            ``legacy_epi_v1`` behaviour).
 
         Returns
         -------
@@ -605,7 +611,9 @@ class BenchmarkRegistry:
                     missing.append(metric)
                 continue
 
-            obs = observed[metric]
+            obs = float(observed[metric])
+            if round_digits is not None:
+                obs = round(obs, int(round_digits))
             comp = self._compare_single(bm, obs, tolerance)
             comparisons.append(comp)
 
@@ -632,6 +640,11 @@ class BenchmarkRegistry:
             else:
                 by_category[cat] = 0.0
 
+        formula_ver = (
+            f"rounded_epi_r{int(round_digits)}_tol{tolerance:g}"
+            if round_digits is not None
+            else "legacy_epi_v1"
+        )
         return BenchmarkReport(
             comparisons=comparisons,
             n_within_range=sum(1 for c in comparisons if c.within_range),
@@ -639,6 +652,7 @@ class BenchmarkRegistry:
             plausibility_score=epi,
             by_category=by_category,
             missing_metrics=missing,
+            formula_version=formula_ver,
             tolerance=tolerance,
         )
 
@@ -646,13 +660,17 @@ class BenchmarkRegistry:
         self,
         observed: Dict[str, float],
         tolerance: float = 0.3,
+        *,
+        round_digits: Optional[int] = None,
     ) -> float:
         """Compute weighted Empirical Plausibility Index.
 
         Convenience method — equivalent to
-        ``self.compare(observed, tolerance).plausibility_score``.
+        ``self.compare(observed, tolerance, round_digits=round_digits).plausibility_score``.
         """
-        return self.compare(observed, tolerance).plausibility_score
+        return self.compare(
+            observed, tolerance, round_digits=round_digits
+        ).plausibility_score
 
     # -------------------------------------------------------------------
     # Internal

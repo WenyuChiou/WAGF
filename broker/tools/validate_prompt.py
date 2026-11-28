@@ -278,6 +278,7 @@ KNOWN_AUDIT_KEYS: Set[str] = {
     "state_columns",             # agent_config.get_audit_state_columns
     "retry_prompt_columns",      # agent_config.get_audit_retry_prompt_columns
     "context_snapshot",          # agent_config.get_audit_context_snapshot
+    "leakage_patterns",          # agent_config.get_audit_leakage_patterns
 }
 
 # The single opt-in parsing-hardening flag, default-OFF, same fail-open

@@ -50,6 +50,10 @@ def __getattr__(name: str):
         from broker.components.social.kg_provider import KnowledgeGraphSocialProvider
 
         return KnowledgeGraphSocialProvider
+    if name in ("ExogenousFactEntry", "ExogenousFactSchedule"):
+        from broker.components.social import fact_schedule
+
+        return getattr(fact_schedule, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -58,4 +62,6 @@ __all__ = [
     "AsyncKnowledgeGraph",
     "KnowledgeTriple",
     "KnowledgeGraphSocialProvider",
+    "ExogenousFactEntry",
+    "ExogenousFactSchedule",
 ]

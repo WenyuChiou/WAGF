@@ -19,6 +19,12 @@ from broker.agents import AgentConfig, BaseAgent, Skill
 from broker.components.context.builder import TieredContextBuilder
 from broker.components.context.providers import DEFAULT_RETRIEVAL_TOP_K
 from broker.core.experiment_builder import ExperimentBuilder
+from broker.core.tabular_profile_loader import (
+    TabularProfileLoader,
+    append_seed_memories,
+    apply_agent_attributes,
+    read_tabular_dataframe,
+)
 from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.agent_config import AgentTypeConfig, UnknownConfigKeysError
 from broker.utils.llm_utils import LLM_CONFIG, is_mock_model
@@ -71,6 +77,8 @@ class RunContext:
     social: Any = None
     coordinator: Any = None
     population: dict[str, int] | None = None
+    population_specs: dict[str, dict[str, Any]] | None = None
+    population_sources: dict[str, dict[str, Any]] | None = None
 
 
 class StepWorld:
@@ -115,6 +123,152 @@ _RUN_TYPES = {
     "population": dict,
 }
 _POSITIVE_SETTINGS = {"years", "agent_count", "workers"}
+_POPULATION_SPEC_KEYS = frozenset({
+    "count",
+    "table",
+    "id_col",
+    "columns",
+    "state_columns",
+    "memory_cols",
+    "attributes",
+    "initial_memories",
+    "memory_template",
+})
+
+
+def _validate_population_column_map(agent_type: str, field: str, value: Any) -> None:
+    if isinstance(value, list):
+        if not all(isinstance(col, str) and col.strip() and "\0" not in col for col in value):
+            raise RunError(f"run.population[{agent_type!r}].{field} list entries must be non-empty strings")
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            if not (isinstance(k, str) and k.strip() and "\0" not in k):
+                raise RunError(
+                    f"run.population[{agent_type!r}].{field} mapping keys must be non-empty strings"
+                )
+            if isinstance(v, str):
+                if not v.strip() or "\0" in v:
+                    raise RunError(
+                        f"run.population[{agent_type!r}].{field}[{k!r}] column name must be a non-empty string"
+                    )
+            elif field == "state_columns" and isinstance(v, dict):
+                unknown = sorted(set(v) - {"col", "raw_range"})
+                if unknown:
+                    raise RunError(
+                        f"run.population[{agent_type!r}].state_columns[{k!r}] has unknown key(s): "
+                        f"{', '.join(unknown)}"
+                    )
+                col = v.get("col")
+                if not isinstance(col, str) or not col.strip() or "\0" in col:
+                    raise RunError(
+                        f"run.population[{agent_type!r}].state_columns[{k!r}].col must be a non-empty string"
+                    )
+                if "raw_range" in v and v["raw_range"] is not None:
+                    rr = v["raw_range"]
+                    if (
+                        not isinstance(rr, (list, tuple))
+                        or len(rr) != 2
+                        or any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in rr)
+                        or float(rr[0]) > float(rr[1])
+                    ):
+                        raise RunError(
+                            f"run.population[{agent_type!r}].state_columns[{k!r}].raw_range must be "
+                            f"[low, high] numbers with low <= high"
+                        )
+            else:
+                raise RunError(
+                    f"run.population[{agent_type!r}].{field}[{k!r}] must be a non-empty column name string"
+                    + (" or {'col': ..., 'raw_range': [low, high]}" if field == "state_columns" else "")
+                )
+    else:
+        raise RunError(f"run.population[{agent_type!r}].{field} must be a list or mapping of column names")
+
+
+def _validate_population_spec(agent_type: str, spec: dict[str, Any]) -> None:
+    unknown = sorted(set(spec) - _POPULATION_SPEC_KEYS)
+    if unknown:
+        raise RunError(
+            f"run.population[{agent_type!r}] has unknown key(s): {', '.join(unknown)}"
+        )
+    if "table" not in spec and "count" not in spec:
+        raise RunError(
+            f"run.population[{agent_type!r}] mapping must specify 'count' or 'table'"
+        )
+    if "count" in spec:
+        count = spec["count"]
+        if type(count) is not int or count < 0:
+            raise RunError(
+                f"run.population[{agent_type!r}].count must be a non-negative integer, got {count!r}"
+            )
+    if "table" in spec:
+        table = spec["table"]
+        if type(table) is not str or not table.strip() or "\0" in table:
+            raise RunError(f"run.population[{agent_type!r}].table must be a non-empty string")
+    if "id_col" in spec:
+        id_col = spec["id_col"]
+        if type(id_col) is not str or not id_col.strip() or "\0" in id_col:
+            raise RunError(f"run.population[{agent_type!r}].id_col must be a non-empty string")
+    if "columns" in spec:
+        _validate_population_column_map(agent_type, "columns", spec["columns"])
+    if "state_columns" in spec:
+        _validate_population_column_map(agent_type, "state_columns", spec["state_columns"])
+    if "memory_cols" in spec:
+        mcols = spec["memory_cols"]
+        if not isinstance(mcols, list) or not all(
+            isinstance(col, str) and col.strip() and "\0" not in col for col in mcols
+        ):
+            raise RunError(
+                f"run.population[{agent_type!r}].memory_cols must be a list of non-empty strings"
+            )
+    if "memory_template" in spec:
+        tmpl = spec["memory_template"]
+        if type(tmpl) is not str or not tmpl.strip() or "\0" in tmpl:
+            raise RunError(f"run.population[{agent_type!r}].memory_template must be a non-empty string")
+    if "attributes" in spec:
+        attrs = spec["attributes"]
+        if isinstance(attrs, dict):
+            if not all(isinstance(k, str) and k.strip() for k in attrs):
+                raise RunError(f"run.population[{agent_type!r}].attributes keys must be non-empty strings")
+        elif isinstance(attrs, list):
+            if not all(isinstance(item, dict) and all(isinstance(k, str) and k.strip() for k in item) for item in attrs):
+                raise RunError(
+                    f"run.population[{agent_type!r}].attributes list entries must be mappings with string keys"
+                )
+        else:
+            raise RunError(
+                f"run.population[{agent_type!r}].attributes must be a mapping or list of mappings"
+            )
+    if "initial_memories" in spec:
+        mems = spec["initial_memories"]
+        if not isinstance(mems, list):
+            raise RunError(f"run.population[{agent_type!r}].initial_memories must be a list")
+        if mems and all(isinstance(item, list) for item in mems):
+            if not all(all(isinstance(entry, str) for entry in item) for item in mems):
+                raise RunError(
+                    f"run.population[{agent_type!r}].initial_memories nested entries must be strings"
+                )
+        elif not all(isinstance(item, str) for item in mems):
+            raise RunError(
+                f"run.population[{agent_type!r}].initial_memories entries must be strings or lists of strings"
+            )
+
+
+def _resolve_population_table_path(case_dir: Path, agent_type: str, rel_path: str) -> Path:
+    if Path(rel_path).is_absolute():
+        raise RunError(
+            f"run.population[{agent_type!r}].table must be relative to the case directory, got {rel_path!r}"
+        )
+    base_real = Path(os.path.realpath(case_dir))
+    resolved = Path(os.path.realpath(case_dir / rel_path))
+    if not resolved.is_relative_to(base_real):
+        raise RunError(
+            f"run.population[{agent_type!r}].table resolves outside case directory: {rel_path!r}"
+        )
+    if not resolved.is_file():
+        raise RunError(
+            f"run.population[{agent_type!r}].table file does not exist: {resolved}"
+        )
+    return resolved
 
 
 def _parse_args(argv):
@@ -176,16 +330,28 @@ def _run_block(raw):
         population = run["population"]
         if not population:
             raise RunError("run.population must be a non-empty mapping of agent types to counts")
-        total = 0
-        for agent_type, count in population.items():
+        known_total = 0
+        has_deferred_table_count = False
+        for agent_type, spec in population.items():
             if type(agent_type) is not str or not agent_type.strip() or "\0" in agent_type:
                 raise RunError(f"run.population key must be a non-empty string, got {agent_type!r}")
-            if type(count) is not int or count < 0:
+            if type(spec) is int:
+                if spec < 0:
+                    raise RunError(
+                        f"run.population[{agent_type!r}] must be a non-negative integer, got {spec!r}"
+                    )
+                known_total += spec
+            elif isinstance(spec, dict):
+                _validate_population_spec(agent_type, spec)
+                if "count" in spec:
+                    known_total += spec["count"]
+                else:
+                    has_deferred_table_count = True
+            else:
                 raise RunError(
-                    f"run.population[{agent_type!r}] must be a non-negative integer, got {count!r}"
+                    f"run.population[{agent_type!r}] must be a non-negative integer or specification mapping, got {spec!r}"
                 )
-            total += count
-        if total < 1:
+        if not has_deferred_table_count and known_total < 1:
             raise RunError("run.population must instantiate at least 1 agent in total")
     return run
 
@@ -252,18 +418,75 @@ def _prepare_run(argv):
     except ValueError as exc:  # e.g. a memory fraction outside [0, 1]
         raise RunError(f"{config_path}: {exc}") from exc
     population: dict[str, int] | None = None
+    population_specs: dict[str, dict[str, Any]] | None = None
+    population_sources: dict[str, dict[str, Any]] | None = None
     effective_agent_count = settings["agent_count"]
     if "population" in run:
         declared_types = config.agent_type_names()
         declared_set = set(declared_types)
-        population = dict(run["population"])
-        for agent_type in population:
+        raw_population = dict(run["population"])
+        population = {}
+        population_specs = {}
+        for agent_type, spec in raw_population.items():
             if agent_type not in declared_set:
                 raise RunError(
                     f"run.population names undeclared agent type {agent_type!r}; "
                     f"declared agent types: {declared_types}"
                 )
+            if type(spec) is int:
+                population[agent_type] = spec
+                continue
+            spec_copy = dict(spec)
+            if "agents" in slots and (set(spec_copy) - {"count"}):
+                raise RunError(
+                    f"run.agents cannot be combined with declarative profile options in "
+                    f"run.population[{agent_type!r}]"
+                )
+            if "table" in spec_copy:
+                table_path = _resolve_population_table_path(case_dir, agent_type, spec_copy["table"])
+                spec_copy["_resolved_table_path"] = str(table_path)
+                if spec_copy.get("count") == 0:
+                    count = 0
+                else:
+                    try:
+                        df, _sha = read_tabular_dataframe(table_path)
+                    except (FileNotFoundError, ValueError, ImportError) as exc:
+                        raise RunError(f"run.population[{agent_type!r}].table: {exc}") from exc
+                    if "count" in spec_copy:
+                        requested = spec_copy["count"]
+                        if len(df) < requested:
+                            raise RunError(
+                                f"run.population[{agent_type!r}].count={requested} exceeds "
+                                f"table rows ({len(df)}) in {table_path}"
+                            )
+                        count = requested
+                    else:
+                        count = len(df)
+            else:
+                count = spec_copy["count"]
+            if count > 0:
+                if isinstance(spec_copy.get("attributes"), list) and len(spec_copy["attributes"]) != count:
+                    raise RunError(
+                        f"run.population[{agent_type!r}].attributes list length "
+                        f"({len(spec_copy['attributes'])}) must match count ({count})"
+                    )
+                if (
+                    isinstance(spec_copy.get("initial_memories"), list)
+                    and spec_copy["initial_memories"]
+                    and all(isinstance(item, list) for item in spec_copy["initial_memories"])
+                    and len(spec_copy["initial_memories"]) != count
+                ):
+                    raise RunError(
+                        f"run.population[{agent_type!r}].initial_memories list length "
+                        f"({len(spec_copy['initial_memories'])}) must match count ({count})"
+                    )
+            population[agent_type] = count
+            population_specs[agent_type] = spec_copy
         effective_agent_count = sum(population.values())
+        if effective_agent_count < 1:
+            raise RunError("run.population must instantiate at least 1 agent in total")
+        if population_specs:
+            population_sources = {}
         unpopulated = [
             name for name in declared_types
             if name != "default" and population.get(name, 0) == 0
@@ -294,6 +517,8 @@ def _prepare_run(argv):
         seed=settings["seed"], output_dir=output_dir, skill_registry_path=registry_path,
         profile=settings["governance"], workers=settings["workers"],
         memory=memory, reflection=reflection, population=population,
+        population_specs=population_specs or None,
+        population_sources=population_sources,
     )
     return ctx, slots, run.get("phase_order"), args
 
@@ -393,14 +618,80 @@ def _default_agents(ctx):
                 f"skill registry default_skill {default_skill!r} is not eligible for populated "
                 f"agent type {agent_type!r}"
             )
-        for index in range(1, count + 1):
-            name = f"{agent_type}_{index}"
-            if name in agents:
-                raise RunError(f"duplicate generated agent id {name!r}")
-            agents[name] = BaseAgent(AgentConfig(
-                name=name, agent_type=agent_type, state_params=[], objectives=[], constraints=[],
-                skills=skills.copy(),
-            ))
+        spec = (ctx.population_specs or {}).get(agent_type)
+        created: list[BaseAgent] = []
+        if spec and "table" in spec:
+            loader = TabularProfileLoader(
+                id_col=spec.get("id_col", "agent_id"),
+                columns=spec.get("columns"),
+                state_columns=spec.get("state_columns"),
+                memory_cols=spec.get("memory_cols"),
+                memory_template=spec.get("memory_template"),
+            )
+            try:
+                load_result = loader.load_agents(
+                    Path(spec["_resolved_table_path"]),
+                    agent_type=agent_type,
+                    skills=skills,
+                    limit=count,
+                    extra_attributes=spec.get("attributes"),
+                )
+            except (FileNotFoundError, ValueError, KeyError, ImportError) as exc:
+                raise RunError(f"run.population[{agent_type!r}].table: {exc}") from exc
+            for name, loaded_agent in load_result.agents.items():
+                if name in agents:
+                    raise RunError(f"duplicate generated agent id {name!r}")
+                agents[name] = loaded_agent
+                created.append(loaded_agent)
+            if ctx.population_sources is None:
+                ctx.population_sources = {}
+            ctx.population_sources[agent_type] = {
+                "table": spec["table"],
+                "sha256": load_result.sha256,
+                "rows_loaded": load_result.rows_loaded,
+            }
+        else:
+            for index in range(1, count + 1):
+                name = f"{agent_type}_{index}"
+                if name in agents:
+                    raise RunError(f"duplicate generated agent id {name!r}")
+                created_agent = BaseAgent(AgentConfig(
+                    name=name, agent_type=agent_type, state_params=[], objectives=[], constraints=[],
+                    skills=skills.copy(),
+                ))
+                agents[name] = created_agent
+                created.append(created_agent)
+            if spec and created:
+                attrs_spec = spec.get("attributes")
+                if isinstance(attrs_spec, dict):
+                    for created_agent in created:
+                        apply_agent_attributes(created_agent, attrs_spec)
+                elif isinstance(attrs_spec, list):
+                    for created_agent, row_attrs in zip(created, attrs_spec):
+                        apply_agent_attributes(created_agent, row_attrs)
+                if "memory_template" in spec:
+                    tmpl = spec["memory_template"]
+                    for created_agent in created:
+                        ctx_vars = {
+                            **dict(created_agent.custom_attributes),
+                            "agent_id": created_agent.id,
+                            "agent_type": created_agent.agent_type,
+                        }
+                        try:
+                            append_seed_memories(created_agent, [tmpl.format(**ctx_vars)])
+                        except KeyError as exc:
+                            raise RunError(
+                                f"run.population[{agent_type!r}].memory_template references missing attribute {exc}"
+                            ) from exc
+        if spec and created:
+            mems_spec = spec.get("initial_memories")
+            if isinstance(mems_spec, list) and mems_spec:
+                if all(isinstance(item, list) for item in mems_spec):
+                    for created_agent, mem_list in zip(created, mems_spec):
+                        append_seed_memories(created_agent, mem_list)
+                else:
+                    for created_agent in created:
+                        append_seed_memories(created_agent, mems_spec)
     return agents
 
 
@@ -926,6 +1217,8 @@ def _write_run_record(prepared, argv, status, provenance=None):
         record["reflection"].update(prepared.reflection_hook.counts)
     if ctx.population is not None:
         record["population"] = dict(ctx.population)
+    if ctx.population_sources:
+        record["population_sources"] = dict(ctx.population_sources)
     if provenance:
         record.update(provenance)
     ctx.output_dir.mkdir(parents=True, exist_ok=True)

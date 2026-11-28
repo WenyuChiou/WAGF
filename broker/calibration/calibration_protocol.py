@@ -587,15 +587,30 @@ class CalibrationProtocol:
         for i in range(1, cfg.max_iterations + 1):
             logger.info("Pilot iteration %d/%d", i, cfg.max_iterations)
 
-            # Run simulation
-            df = simulate_fn(
-                n_agents=cfg.n_agents,
-                n_years=cfg.n_years,
-                seed=42 + i,
-            )
-
-            # Compute metrics
-            observed = compute_metrics_fn(df)
+            n_seeds = max(1, int(cfg.n_seeds))
+            if n_seeds == 1:
+                df = simulate_fn(
+                    n_agents=cfg.n_agents,
+                    n_years=cfg.n_years,
+                    seed=42 + i,
+                )
+                observed = compute_metrics_fn(df)
+            else:
+                per_seed_obs = []
+                for s_idx in range(n_seeds):
+                    seed_val = 42 + i * 100 + s_idx
+                    df_s = simulate_fn(
+                        n_agents=cfg.n_agents,
+                        n_years=cfg.n_years,
+                        seed=seed_val,
+                    )
+                    per_seed_obs.append(compute_metrics_fn(df_s))
+                all_metric_keys = sorted({k for m in per_seed_obs for k in m})
+                observed = {
+                    k: sum(float(m[k]) for m in per_seed_obs if k in m)
+                    / sum(1 for m in per_seed_obs if k in m)
+                    for k in all_metric_keys
+                }
 
             # Compare against benchmarks
             bench_report = self._registry.compare(
@@ -721,6 +736,12 @@ class CalibrationProtocol:
 
         mean_epi = float(np.mean(seed_epis)) if seed_epis else 0.0
         std_epi = float(np.std(seed_epis)) if seed_epis else 0.0
+        median_epi = float(np.median(seed_epis)) if seed_epis else 0.0
+        iqr_epi = (
+            float(np.percentile(seed_epis, 75) - np.percentile(seed_epis, 25))
+            if seed_epis
+            else 0.0
+        )
         passed = mean_epi >= cfg.epi_threshold
 
         return StageReport(
@@ -729,6 +750,8 @@ class CalibrationProtocol:
             summary={
                 "mean_epi": round(mean_epi, 4),
                 "std_epi": round(std_epi, 4),
+                "median_epi": round(median_epi, 4),
+                "iqr_epi": round(iqr_epi, 4),
                 "epi_threshold": cfg.epi_threshold,
                 "n_seeds": cfg.n_seeds,
                 "all_seeds_pass": all(
