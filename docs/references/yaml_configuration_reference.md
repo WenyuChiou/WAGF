@@ -374,6 +374,7 @@ per retry prompt.
 | `shuffle_options` | bool | No | false | Randomize skill option order per LLM call (mitigates positional bias) |
 | `domain` | string | No | (none) | Domain selector for domain-specific validator injection (e.g., `irrigation`) |
 | `advise_mode` | string | No | `off` | Soft-rule channel: `off` / `record` / `feedback`. See below. |
+| `intervention_framing` | string | No | `plain` | The only supported retry wording. Each report gives the rule’s reason in plain language. |
 | `retry_feedback_mode` | string | No | `full` | Red-team objection 3 ablation on the BLOCKING retry loop: `full` / `placebo` / `silent`. See below. |
 | `feasible_set_feedback` | bool | No | false | Ends every ERROR retry prompt with the actions that pass every rule this step |
 | `appraisal_freeze` | bool | No | false | Within one decision, every rule reads each construct label (a key containing `_LABEL`) as the agent FIRST STATED it (the first parsed attempt's value, or the first later value if that attempt gave none), so a retry cannot pass a label rule by rewriting its label; the feasible-set line uses the same labels. Refused with `multi_skill.enabled` or the runner's cognitive cache. See `ARCHITECTURE.md`, "Appraisal freeze". |
@@ -436,17 +437,13 @@ specific rule".
 
 | Value | Validator decides WHEN a proposal is rejected | LLM-facing retry text |
 |---|---|---|
-| `full` (default) | same rules, same schedule, same `on_retry_exhausted` fallback | the rendered `InterventionReport`(s): rule id, reason, suggestion |
+| `full` (default) | same rules, same schedule, same `on_retry_exhausted` fallback | one plain line per report with the choice and the reason |
 | `placebo` | identical | the adapter's wrapper-only rendering — header + closer + original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`) |
 | `silent` | identical | the ORIGINAL prompt, byte-for-byte, on every retry attempt: no header, no closer, no rules block, no framing at all |
 
-`placebo` removes rule-SPECIFIC content (identity, reason, suggestion) from the
-retry prompt while KEEPING the governance framing ("your previous response was
-flagged / triggered the governance layer... please reconsider") — the
-contrast is "rule-specific information" vs. "another attempt with the same
-framing", not vs. "another attempt with no framing at all". `failed_rules` /
-`error_messages` in the audit CSV are unaffected in either mode — they read
-from the real `ValidationResult` objects, never from the retry prompt text.
+The placebo wrapper keeps the plain retry header and closer. In every mode
+the audit CSV records `failed_rules` and `error_messages` from the original
+validation results.
 
 This is mechanically the **A'' wrapper-only control** already used by
 `governance.advise`'s own `mode="wrapper"` for the advisory channel — NOT the
@@ -870,7 +867,7 @@ corresponding dictionary.
 | `multi_skill` | object | No | {enabled: false} | Multi-skill configuration (see below) |
 | `parsing` | object | No | {} | LLM output parsing configuration (see below) |
 | `log_fields` | list[string] | No | [] | Construct field names to log per decision |
-| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included, with the window engine (the humancentric engine in legacy ranking uses `window_size` and `top_k_significant` instead, §2.1.1). `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. `ExperimentBuilder.build` replaces each agent's `memory_config` with this block (whenever `with_governance` gave it a config path), so a `memory_config` set on an agent object before `build` is lost; set it after `build`, as `broker.run` does. `rejection_line_style` sets the runner's yearly memory line: `executed` (`Year N: Action carried out: X.`, plus ` (number V)` when the action that ran had a number, the same on every row whether the agent's answer ran or a default replaced it; Invariant 7 in `broker/INVARIANTS.md`), `explicit` (`Decided to: X`, or `Proposal to X was rejected; default action applied: Y`) or `neutral` (names the rule). `python -m broker.run` uses `executed` when the key is not set; other runners built on `ExperimentRunner` use `explicit`. |
+| `memory` | object | No | {} | Per-type memory settings. `retrieval_top_k` (default 3) is how many memories go in the prompt in runners built on `ExperimentBuilder`, `broker.run` included, with the window engine (the humancentric engine in legacy ranking uses `window_size` and `top_k_significant` instead, §2.1.1). `ExperimentBuilder` uses this block, or the `default` block's `memory` when this one is empty; it does not fall back to `global_config.memory`. `ExperimentBuilder.build` replaces each agent's `memory_config` with this block (whenever `with_governance` gave it a config path), so a `memory_config` set on an agent object before `build` is lost. `rejection_line_style` accepts only `executed`, the default for every runner. The line names the action that ran and any executed magnitude (Invariant 7 in `broker/INVARIANTS.md`). |
 | `feedback` | object | No | {} | Feedback dashboard configuration |
 | `actions` | list[object] | No | [] | Action definitions (legacy path -- may also be under `parsing.actions`) |
 | `governance` | object | No | {} | Inline governance profile (for agent types that nest rules inside their block) |
@@ -1135,8 +1132,7 @@ repeats the `strict` rules verbatim and adds one world-grounded ERROR rule, so a
 `strict`-versus-`grounded_v1` comparison isolates that one rule. Select it with
 `--governance-mode grounded_v1`. See `docs/guides/governance_layers.md`.
 
-A thinking rule may carry an optional `suggestion:` string, rendered as the
-retry report's "Suggestion:" line (legacy framing).
+A thinking rule may carry an optional `suggestion:` string in its validation metadata. The plain retry prompt displays the rule message.
 
 #### 2.4.2 thinking_rules
 

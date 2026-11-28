@@ -119,15 +119,6 @@ def test_executed_style_passes(make_case, tmp_path):
     assert {e["origin"] for e in twin._read_jsonl(out_b / "memory_log.jsonl")} == {"decision"}
 
 
-def test_explicit_style_fails_and_names_the_line(make_case, tmp_path, capsys):
-    config = make_case(style="explicit")
-    assert twin.main([str(config), *ARGS, "--output", str(tmp_path / "twin")]) == 1
-    out = capsys.readouterr().out
-    assert "FAIL:" in out
-    assert "memory_log.jsonl | agent agent_1 period 1 | content" in out
-    assert "was rejected" in out
-
-
 def test_a_hook_that_writes_was_rejected_fails(make_case, tmp_path, monkeypatch):
     """The must-fail case: the runner's own line is clean, a case hook leaks."""
     prepare = twin._entry.prepare

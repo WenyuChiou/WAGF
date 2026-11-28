@@ -28,7 +28,7 @@ from broker.components.cognitive.reflection import ReflectionEngine, store_refle
 from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
 from broker.components.memory.engines.window import WindowMemoryEngine
 from broker.core._advise import render_intervention_prompt
-from broker.core._retry_loop import RETRY_FEEDBACK_PLACEBO_TEXT, RetryMixin
+from broker.core._retry_loop import RetryMixin
 from broker.interfaces.skill_types import SkillProposal, ValidationResult
 from broker.utils.agent_config import AgentTypeConfig
 from broker.utils.parsing.unified_adapter import UnifiedAdapter
@@ -216,7 +216,6 @@ class _Host(RetryMixin):
         self.auditor = _Auditor()
         self.model_adapter = UnifiedAdapter.__new__(UnifiedAdapter)
         self._retry_feedback_mode = mode
-        self._intervention_framing = "legacy"
         self._feasible_set_feedback = True
         self._on_retry_exhausted = "default"
         self.skill_registry = _Registry()
@@ -256,8 +255,8 @@ def _first_retry_prompt(host, skill="grow_more"):
 def test_plain_action_names_off_by_default_on_when_set():
     off = _first_retry_prompt(_Host())
     on = _first_retry_prompt(_Host(plain=True))
-    assert "Your proposed action 'grow_more' was BLOCKED." in off
-    assert "Your proposed action 'grow more' was BLOCKED." in on
+    assert "You chose 'grow_more'." in off
+    assert "You chose 'grow more'." in on
     assert "grow_more" not in on
     assert on.replace("'grow more'", "'grow_more'") == off  # nothing else differs
 
@@ -265,40 +264,24 @@ def test_plain_action_names_off_by_default_on_when_set():
 def test_placebo_closer_replaces_the_closer_only_in_placebo():
     default = _first_retry_prompt(_Host(mode="placebo"))
     custom = _first_retry_prompt(_Host(mode="placebo", closer="Please reconsider your decision."))
-    assert default == (
-        "Your previous response was flagged by the governance layer.\n\n"
-        "Please reconsider your decision. Ensure your new response addresses the "
-        "violations above.\n\nORIGINAL")
-    assert custom == (
-        "Your previous response was flagged by the governance layer.\n\n"
-        "Please reconsider your decision.\n\nORIGINAL")
-    # full mode keeps the shipped closer whatever placebo_closer says
+    assert default.endswith("Please answer again.\n\nORIGINAL")
+    assert custom == default.replace("Please answer again.", "Please reconsider your decision.")
     full = _first_retry_prompt(_Host(closer="Please reconsider your decision."))
-    assert "Ensure your new response addresses the violations above." in full
-    # an adapter without format_intervention_prompt cannot render a closer
-    legacy = SimpleNamespace(format_retry_prompt=lambda *a, **k: "x")
-    with pytest.raises(ValueError, match="closer"):
-        render_intervention_prompt(legacy, "P", [], closer="c")
+    assert "Please answer again, taking the information above into account." in full
 
 
-def test_legacy_adapter_placebo_refuses_a_configured_closer():
-    """Review LOW 10: an adapter without format_intervention_prompt cannot
-    render a closer. With placebo_closer configured, a placebo retry raises
-    instead of silently sending the fixed placebo sentence without it; with
-    the option unset it sends that sentence as before."""
-    legacy = SimpleNamespace(format_retry_prompt=lambda *a, **k: "x")
+def test_retry_only_adapter_honours_configured_placebo_closer():
     host = _Host(mode="placebo", closer="Please reconsider your decision.")
-    host.model_adapter = legacy
-    with pytest.raises(ValueError, match="placebo_closer"):
-        _first_retry_prompt(host)
-    plain = _Host(mode="placebo")
-    plain.model_adapter = legacy
-    assert _first_retry_prompt(plain) == RETRY_FEEDBACK_PLACEBO_TEXT + "\n\nORIGINAL"
+    host.model_adapter = SimpleNamespace(format_retry_prompt=lambda *a, **k: "x")
+    assert _first_retry_prompt(host) == (
+        "Your previous answer cannot be used in this decision.\n\n"
+        "Please reconsider your decision.\n\nORIGINAL"
+    )
 
 
 def test_missing_field_feasible_line_names_the_cause():
     text = _first_retry_prompt(_Host(validator=_missing_field), skill="keep_same")
-    assert ("No action passes every rule this step, because your response did not "
+    assert ("No action passes every rule in this decision, because your response did not "
             "include every required field; if this continues, the default action "
             "(keep same) will be applied.") in text
     # any other empty set keeps the shipped wording
@@ -306,7 +289,7 @@ def test_missing_field_feasible_line_names_the_cause():
         return [ValidationResult(valid=False, validator_name="v", errors=["no"],
                                  metadata={"rule_id": "all"})]
     other = _first_retry_prompt(_Host(validator=block_all))
-    assert ("No action passes every rule this step; if this continues, the default "
+    assert ("No action passes every rule in this decision; if this continues, the default "
             "action (keep same) will be applied.") in other
 
 

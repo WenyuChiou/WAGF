@@ -80,25 +80,10 @@ _REPLY_OPENER = re.compile(
 
 
 def rejection_line_styles(config, agent_types) -> dict:
-    """Per agent type, the ``memory.rejection_line_style`` broker.run applies.
+    """Validate and record the decision memory style of each agent type."""
+    from broker.config.decision_wording import memory_line_style
 
-    ``executed`` (Invariant 7: one memory line form for every row) unless the
-    agent type's memory block sets another style; ``explicit`` gives back the
-    lines of broker.run before 2026-11-26.
-    """
-    from broker.core.experiment_runner import REJECTION_LINE_STYLES
-
-    styles = {}
-    for agent_type in agent_types:
-        block = config.get_memory_config(agent_type) or {}
-        style = block.get("rejection_line_style", "executed") if isinstance(block, dict) else "executed"
-        if style not in REJECTION_LINE_STYLES:
-            raise ValueError(
-                f"{agent_type}.memory.rejection_line_style {style!r} is not one of "
-                f"{', '.join(REJECTION_LINE_STYLES)}"
-            )
-        styles[agent_type] = style
-    return styles
+    return {kind: memory_line_style(config.get_memory_config(kind)) for kind in agent_types}
 
 
 def strip_reply_opener(text: str) -> str:

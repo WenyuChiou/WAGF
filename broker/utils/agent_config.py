@@ -462,6 +462,12 @@ class AgentTypeConfig:
 
         # Validate outside the tolerant file-read block: an unsupported option
         # is a configuration error, never an empty-config fallback.
+        from broker.config.decision_wording import memory_line_style
+
+        self.get_governance_intervention_framing()
+        for block in self._config.values():
+            if isinstance(block, dict):
+                memory_line_style(block.get("memory"))
         self._validate_rule_exceptions(self._config)
         self._warn_missing_rule_messages()
         unknown = self._unknown_config_keys(strict=strict_keys)
@@ -1336,9 +1342,8 @@ class AgentTypeConfig:
 
         The closing sentence of a ``retry_feedback_mode: placebo`` retry
         prompt, the only mode that renders the wrapper without the rules
-        block. None keeps the adapter's own closer byte-for-byte; the
-        shipped legacy closer refers to "the violations above", which a
-        placebo prompt does not show. Must be a non-empty string when set.
+        block. The default closer is "Please answer again." A configured
+        closer must be a non-empty string.
         """
         gov = self._config.get("global_config", {}).get("governance", {})
         if not isinstance(gov, dict) or gov.get("placebo_closer") is None:
@@ -1956,33 +1961,12 @@ class AgentTypeConfig:
         }
 
     def get_governance_intervention_framing(self) -> str:
-        """P0-1c: retry/advisory prompt framing — ``legacy`` (default), ``neutral`` or ``plain``.
+        """Return the supported retry wording or identify the retired setting."""
+        from broker.config.decision_wording import require_wording
 
-        ``legacy`` reproduces the shipped retry prompt byte-for-byte and stays the
-        default forever, so every published arm-C prompt is unchanged.
-
-        ``neutral`` is opt-in and used by the NEW 7-arm runs. It replaces the
-        "was BLOCKED" verb with a disposition-free one and suppresses the optional
-        Suggestion line, so the text an agent sees is IDENTICAL in the advise,
-        placebo and enforce arms — making the enforce-minus-advise contrast pure
-        enforcement with zero wording delta.
-
-        ``plain`` is opt-in and keeps every log label out of the text the agent
-        sees ("governance layer", "flagged", "[ERROR]", "BLOCKED",
-        "violations", the Suggestion line): one line per report naming the
-        agent's choice and the rule's own reason. The labels stay in the logs
-        and the audit. See UnifiedAdapter.format_intervention_prompt.
-        """
         gov = self._config.get("global_config", {}).get("governance", {})
-        if not isinstance(gov, dict):
-            return "legacy"
-        framing = str(gov.get("intervention_framing", "legacy")).strip().lower()
-        if framing not in {"legacy", "neutral", "plain"}:
-            raise ValueError(
-                f"global_config.governance.intervention_framing {framing!r} "
-                "not in ['legacy', 'neutral', 'plain']"
-            )
-        return framing
+        value = gov.get("intervention_framing", "plain") if isinstance(gov, dict) else "plain"
+        return require_wording("global_config.governance.intervention_framing", value, "plain")
 
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
@@ -2750,11 +2734,7 @@ class AgentTypeConfig:
                     blocked_skills=rule.get("blocked_skills"),
                     level=level,
                     message=rule.get("message", ""),
-                    # Optional `suggestion:` -- rendered as the retry prompt's
-                    # "Suggestion:" line (legacy framing), the same slot a
-                    # custom validator fills through metadata["suggestion"].
-                    # A rule without the key gets exactly the {} it always
-                    # had, so its results carry no new metadata key.
+                    # Preserve author-supplied suggestions in validator metadata.
                     metadata=(
                         ({"suggestion": str(rule["suggestion"])}
                          if rule.get("suggestion") else {})

@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 import broker.run
+from broker.utils.retry_prompt import PLAIN_RETRY_HEADER
 from broker.coupling import (
     BmiControlSink,
     ContinuousBundle,
@@ -780,7 +781,7 @@ def _year_mock(first_by_year, retry):
     def respond(prompt):
         import re as _re
         year = int(_re.search(r"Year: (\d+)", prompt).group(1))
-        blocked = "BLOCKED" in prompt or "dead_pool_violation" in prompt
+        blocked = prompt.startswith(PLAIN_RETRY_HEADER)
         return ops_case.decision_payload(
             "set_release", magnitude=retry if blocked else first_by_year.get(year, 1.0))
     return respond

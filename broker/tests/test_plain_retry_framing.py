@@ -5,9 +5,7 @@ The retry text an agent sees must carry no log label: "governance layer",
 titles, the Suggestion line, the "[!NOTE]" truncation tag, or the
 parse-failure summary written for model builders ("LLM output ... delimiter").
 Those stay in the logs and the audit, which read the validation results,
-never the retry text. ``legacy`` (the default) and ``neutral`` are unchanged;
-their golden strings live in ``test_retry_feedback_placebo.py`` and
-``test_advise_disposition_p0_1c.py``.
+never the retry text.
 """
 from __future__ import annotations
 
@@ -175,11 +173,10 @@ class _Host(RetryMixin):
     max_retries = 1
     max_reports = 3
 
-    def __init__(self, framing, plain_action_names=True):
+    def __init__(self, plain_action_names=True):
         self.auditor = _NoopAuditor()
         self.model_adapter = _adapter()
         self._retry_feedback_mode = "full"
-        self._intervention_framing = framing
         self._plain_action_names = plain_action_names
 
     def _run_validators(self, proposal, context):
@@ -216,38 +213,53 @@ def _run(host, skill_proposal):
 def test_retry_loop_plain_rule_block():
     proposal = SkillProposal(skill_name="do_nothing", agent_id="H01",
                              agent_type="household", reasoning={})
-    prompt = _run(_Host("plain"), proposal)
+    prompt = _run(_Host(), proposal)
     assert prompt.startswith(PLAIN_RETRY_HEADER)
     assert f"- You chose 'do nothing'. {REASON}" in prompt
     _assert_no_log_labels(prompt)
 
 
 def test_retry_loop_plain_unreadable_answer():
-    prompt = _run(_Host("plain"), None)
+    prompt = _run(_Host(), None)
     assert PLAIN_FORMAT_LINE in prompt
     _assert_no_log_labels(prompt)
 
 
-def test_retry_loop_legacy_still_shows_the_log_labels():
-    """The default stays byte-identical to the published prompt."""
-    proposal = SkillProposal(skill_name="do_nothing", agent_id="H01",
-                             agent_type="household", reasoning={})
-    prompt = _run(_Host("legacy"), proposal)
-    assert prompt.startswith("Your previous response was flagged by the governance layer.")
-    assert "- [ERROR] Your proposed action 'do nothing' was BLOCKED." in prompt
 
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-def test_getter_accepts_plain_and_rejects_others():
+@pytest.mark.parametrize("retired", ["legacy", "neutral", "blocked", None])
+def test_retry_setting_defaults_to_plain_and_rejects_retired_values(retired):
     cfg = AgentTypeConfig.__new__(AgentTypeConfig)
-    cfg._config = {"global_config": {"governance": {"intervention_framing": "Plain"}}}
+    cfg._config = {}
     assert cfg.get_governance_intervention_framing() == "plain"
-    cfg._config = {"global_config": {"governance": {"intervention_framing": "blocked"}}}
-    with pytest.raises(ValueError, match="plain"):
+    cfg._config = {"global_config": {"governance": {"intervention_framing": retired}}}
+    with pytest.raises(ValueError, match=r"retired on 2026-11-27.*tag v0\.7\.0"):
         cfg.get_governance_intervention_framing()
+
+
+@pytest.mark.parametrize("written", ["Plain", " plain ", "PLAIN"])
+def test_retry_setting_ignores_case_and_spaces(written):
+    cfg = AgentTypeConfig.__new__(AgentTypeConfig)
+    cfg._config = {"global_config": {"governance": {"intervention_framing": written}}}
+    assert cfg.get_governance_intervention_framing() == "plain"
+
+
+@pytest.mark.parametrize("written", ["Executed", " executed "])
+def test_memory_style_ignores_case_and_spaces(written):
+    from broker.config.decision_wording import memory_line_style
+
+    assert memory_line_style({"rejection_line_style": written}) == "executed"
+
+
+def test_unknown_value_is_named_as_unsupported_not_only_retired():
+    from broker.config.decision_wording import memory_line_style
+
+    with pytest.raises(ValueError, match=r"'chatty' is not supported: the only value is 'executed'"):
+        memory_line_style({"rejection_line_style": "chatty"})
 
 
 NEW_RUN_CONFIGS = (

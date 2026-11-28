@@ -139,7 +139,7 @@ def test_simple_memory_preserves_outcomes_and_keep_change(basin, signal):
         flow_share=0.7, previous_request=100_000, previous_diversion=80_000,
         prompt_information="simple")
     assert text == (
-        "Year 2029: You chose to maintain demand, so your request fell from 100,000 acre-ft "
+        "Year 2029: Action carried out: maintain demand, so your request fell from 100,000 acre-ft "
         "to the 80,000 acre-ft you received the year before. You requested 80,000 acre-ft "
         "and received 64,000 acre-ft. Shortfall: 16,000 acre-ft (20.0% unmet). " + signal)
 

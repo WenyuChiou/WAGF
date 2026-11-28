@@ -56,7 +56,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
-from broker.core.experiment_runner import DECISION_MEMORY_MARKER, FALLBACK_MEMORY_MARKER
+from broker.core.experiment_runner import EXECUTED_MEMORY_MARKER
 from broker.components.social.graph import NeighborhoodGraph
 from broker.components.analytics.interaction import InteractionHub
 from broker.components.context.builder import TieredContextBuilder, PrioritySchemaProvider
@@ -422,19 +422,10 @@ class DecisionFilteredMemoryEngine:
             return metadata
         return {**(metadata or {}), "year": 0, "importance": 0.0, "type": "initial"}
 
-    # The GENERIC framework (experiment_runner.py) writes an immediate
-    # decision line for approved rows ("Decided to: X") and, since the
-    # F06/F20 fix, for fallback rows ("... default action applied: Y").
-    # Both are dropped here, independently of the domain-level own-action
-    # line that `FinalParityHook.pre_year` used to add (F3): that deferred
-    # line was removed outright in the 2026-10 WRR26 rerun (it is not in
-    # WRR26), so no action memory of any kind reaches the agent now, and
-    # this filter exists purely to keep the generic runner's own two
-    # markers from leaking into the WRR26-parity memory stream.
+    # The flood case omits the generic runner decision line from recall.
     @staticmethod
     def _is_decision_memory(content: str) -> bool:
-        return (DECISION_MEMORY_MARKER in content
-                or FALLBACK_MEMORY_MARKER in content)
+        return EXECUTED_MEMORY_MARKER in content
 
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         if self._is_decision_memory(content):

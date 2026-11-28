@@ -111,7 +111,7 @@ def test_parse_reads_the_item_45_format():
     applied = build_action_outcome_feedback(
         {"skill_name": "maintain_demand", "was_fallback": True, "proposed_skill": "increase_demand",
          "blocking_rules": ["high_scarcity_no_increase"]}, 2022, 50_000.0, 50_000.0, 1,
-        basin="upper_basin", rejection_line_style="neutral", flow_share=0.93)
+        basin="upper_basin", flow_share=0.93)
     none = build_action_outcome_feedback(None, 2023, 1_000.0, 900.0, 0, basin="lower_basin",
                                          gap_reason=describe_gap_reason({"gap_reason": "lb_mead_availability"}, "past"),
                                          decision_read=False, previous_request=1_200.0, previous_diversion=1_000.0)
@@ -293,23 +293,23 @@ def test_keep_after_a_short_year_states_the_fall_in_the_request():
     common = dict(year=2023, request=2_278.0, diversion=1_572.0, preceding_factor=0, basin="lower_basin",
                   gap_reason=TIER_PAST, previous_request=3_051.0, previous_diversion=2_278.0)
     chose = build_action_outcome_feedback({"skill_name": "maintain_demand"}, **common)
-    assert chose.startswith("Year 2023: You chose to maintain demand" + clause + " You requested 2,278")
+    assert chose.startswith("Year 2023: Action carried out: maintain demand" + clause + " You requested 2,278")
     applied = build_action_outcome_feedback(
         {"skill_name": "maintain_demand", "was_fallback": True, "proposed_skill": "increase_demand",
-         "blocking_rules": ["supply_gap_block_increase"]}, rejection_line_style="neutral", **common)
-    assert applied.startswith("Year 2023: maintain demand was applied under the shortage-sharing rule" + clause)
+         "blocking_rules": ["supply_gap_block_increase"]}, **common)
+    assert applied.startswith("Year 2023: Action carried out: maintain demand" + clause)
     none = build_action_outcome_feedback(None, decision_read=False, **common)
     assert none.startswith("Year 2023: no valid decision was read" + clause + " You requested 2,278")
     # after a full year, or with no year before, the line reads as before
     full = dict(common, previous_request=2_278.0, previous_diversion=2_278.0)
     assert build_action_outcome_feedback({"skill_name": "maintain_demand"}, **full).startswith(
-        "Year 2023: You chose to maintain demand. You requested")
+        "Year 2023: Action carried out: maintain demand. You requested")
     assert build_action_outcome_feedback(None, decision_read=False, **dict(common, previous_request=None)).startswith(
         "Year 2023: no valid decision was read; your request stayed at the amount you received the year before.")
     # an increase or a decrease never carries the clause, whatever its numbers
     inc = build_action_outcome_feedback({"skill_name": "increase_demand", "magnitude_pct": 8.0},
                                         **dict(common, request=2_460.0))
-    assert inc.startswith("Year 2023: You chose to increase demand (by 8%). You requested 2,460")
+    assert inc.startswith("Year 2023: Action carried out: increase demand (by 8%). You requested 2,460")
     # a keep whose request is not last year's receipt would state something false
     with pytest.raises(ValueError, match="refusing"):
         build_action_outcome_feedback({"skill_name": "maintain_demand"}, **dict(common, request=2_500.0))

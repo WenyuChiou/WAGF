@@ -1,50 +1,4 @@
-"""Red-team objection 3: the retry-feedback ablation (full vs placebo).
-
-``global_config.governance.retry_feedback_mode`` (default ``full``) governs
-ONLY the text of the BLOCKING governance retry loop
-(``RetryMixin._governance_retry_loop``, ``broker/core/_retry_loop.py``). The
-validator still decides WHEN a proposal is rejected — same rules, same
-schedule, same ``on_retry_exhausted`` fallback.
-
-DESIGN (review round 2, opus W1): ``placebo`` is the adapter's existing
-WRAPPER-ONLY control — ``format_intervention_prompt(...,
-include_reports=False)`` (``broker/utils/parsing/unified_adapter.py``
-~1461-1467): header + closer + the original prompt, NO rules block at all.
-That is the same "A''" mechanism ``governance.advise``'s own
-``mode="wrapper"`` already uses for the advisory channel. It removes
-rule-SPECIFIC content (identity, reason, suggestion) while KEEPING the
-governance framing ("your previous response was flagged / triggered the
-governance layer... please reconsider") — the contrast is "rule-specific
-information" vs. "another attempt with the SAME framing", not vs. "another
-attempt with no framing at all". A hand-written fixed sentence
-(``RETRY_FEEDBACK_PLACEBO_TEXT``) is used ONLY as a fallback for a
-third-party adapter that predates P0-1c and cannot render
-``include_reports=False`` (every adapter shipped in this repo can).
-
-NOT the same mechanism as ``governance.advise``'s own ``mode="placebo"``
-(P0-1c, arm B', ``_advise_pass.py``): that one keeps the SAME report
-count/shape and replaces each report's TEXT, for the separate, NON-BLOCKING
-single advisory call issued for rules *demoted* from ERROR. This one renders
-NO reports at all, for the actual BLOCKING retry loop. Same knob VALUE name
-on purpose (opus W1 decision) — mechanically distinct; they gate different
-code paths, different config keys, and never share state.
-
-FALSIFICATION (recorded in PR description, not re-run automatically here):
-
-* Round 1 — ``test_placebo_mode_...`` (the hand-written-sentence version)
-  was run against the PRE-CHANGE ``broker/core/_retry_loop.py`` (git HEAD at
-  branch creation, ``c3391a53`` on ``main``; this test file did not exist
-  there, so the module was temporarily swapped back in, not stashed) and
-  FAILED, because pre-change code has no ``_retry_feedback_mode`` concept at
-  all. Restored immediately afterward.
-* Round 2 — each new/changed test below was re-run against a temporarily
-  reverted (commented-out) placebo branch in ``_retry_loop.py`` (the round-1
-  hand-written-sentence version) and FAILED on the wrapper-text assertions
-  (the round-1 code never called ``include_reports=False`` at all, so it
-  never produced the adapter's real header/closer text); restored, and
-  PASSES against the current module. Exact commands + counts in the PR
-  description.
-"""
+"""Blocking retries show rule reasons in full mode and the plain wrapper in placebo mode."""
 from __future__ import annotations
 
 import logging
@@ -55,33 +9,9 @@ import pytest
 
 from broker.core._retry_loop import RetryMixin
 from broker.interfaces.skill_types import InterventionReport, SkillProposal, ValidationResult
-from broker.utils.parsing.unified_adapter import UnifiedAdapter
-
-# The FALLBACK-ONLY sentence (see module docstring: used only when the
-# adapter cannot render include_reports=False at all). Not imported from
-# broker.core._retry_loop at module scope on purpose: a golden literal here
-# means this file can still be COLLECTED (and every test that does not need
-# the real export still runs) against a module that predates the export.
-# The one test that needs the real export
-# (`test_fallback_constant_matches_expected_text`) imports it locally.
-EXPECTED_FALLBACK_PLACEBO_TEXT = (
-    "Your previous decision was not accepted. Please reconsider and answer "
-    "again in the required format."
+from broker.utils.parsing.unified_adapter import (
+    PLAIN_FORMAT_LINE, PLAIN_RETRY_HEADER, PLAIN_WRAPPER_CLOSER, UnifiedAdapter,
 )
-
-# The real adapter's wrapper-only header/closer text, quoted verbatim from
-# UnifiedAdapter.format_intervention_prompt (broker/utils/parsing/
-# unified_adapter.py ~1441-1459) — pinned here so a change to that wording
-# is caught by THIS file too, not only by the adapter's own golden-string
-# tests.
-LEGACY_HEADER = "Your previous response was flagged by the governance layer."
-LEGACY_CLOSER = (
-    "Please reconsider your decision. Ensure your new response "
-    "addresses the violations above."
-)
-NEUTRAL_HEADER = "Your previous response triggered the governance layer."
-NEUTRAL_CLOSER = "Please reconsider your decision in light of the information above."
-
 
 class _NoopAuditor:
     def log_parse_error(self):
@@ -89,53 +19,18 @@ class _NoopAuditor:
 
 
 def _real_adapter() -> UnifiedAdapter:
-    """A REAL ``UnifiedAdapter`` instance, not a hand-rolled stand-in.
-
-    ``format_intervention_prompt`` (and ``format_retry_prompt``, its
-    ``framing="legacy"`` delegate) reference no ``self.*`` state at all —
-    confirmed empirically and by reading the method body — so
-    ``UnifiedAdapter.__new__(UnifiedAdapter)`` (skipping ``__init__``
-    entirely, the same idiom ``test_advise_disposition_p0_1c.py`` uses) is
-    safe here. Every test that needs to see what the model ACTUALLY receives
-    uses this, not a stand-in that could silently drift from production
-    rendering. ``parse_output`` is never invoked in these tests: every
-    ``llm_invoke`` in this file returns a ``SkillProposal`` directly, which
-    ``_governance_retry_loop`` adopts without calling the adapter's parser.
-    """
+    """Construct the stateless retry renderer without loading model configuration."""
     return UnifiedAdapter.__new__(UnifiedAdapter)
-
-
-class _LegacyAdapter:
-    """Predates P0-1c: implements ONLY ``format_retry_prompt``, not
-    ``format_intervention_prompt`` — exercises the FALLBACK branch in
-    ``_governance_retry_loop`` (a third-party adapter that cannot render
-    ``include_reports=False`` at all; ``render_intervention_prompt`` would
-    raise ``ValueError`` for such an adapter rather than silently falling
-    back to full content — see ``broker/core/_advise.py``).
-    """
-
-    def format_retry_prompt(self, prompt, errors, max_reports=None):
-        lines = []
-        for e in errors:
-            if isinstance(e, InterventionReport):
-                lines.append(e.to_prompt_string())
-            else:
-                lines.append(f"- {e}")
-        return "Your previous response was flagged.\n\n" + "\n".join(lines) + f"\n\n{prompt}"
-
-    def parse_output(self, raw_output, context):
-        return raw_output if isinstance(raw_output, SkillProposal) else None
 
 
 class _Host(RetryMixin):
     max_retries = 1
     max_reports = 3
 
-    def __init__(self, retry_feedback_mode="full", adapter=None, framing="legacy"):
+    def __init__(self, retry_feedback_mode="full", adapter=None):
         self.auditor = _NoopAuditor()
         self.model_adapter = adapter if adapter is not None else _real_adapter()
         self._retry_feedback_mode = retry_feedback_mode
-        self._intervention_framing = framing
 
     def _run_validators(self, proposal, context):
         return [ValidationResult(valid=True, validator_name="ok")]
@@ -203,66 +98,14 @@ def _run_retry_loop(host, **kwargs):
 def test_full_mode_shows_rule_id_and_reason_in_retry_prompt():
     """Default behaviour, unchanged: the retry prompt names the rule."""
     prompt = _run_retry_loop(_Host(retry_feedback_mode="full"))
-    assert RULE_ID in prompt
     assert REASON_TEXT in prompt
     assert ORIGINAL_PROMPT in prompt
 
 
-def test_placebo_mode_renders_the_adapters_wrapper_only_control_legacy_framing():
-    """The falsified assertion: neither the rule id, the reason, nor the
-    blocked-skill name reaches the model — only the adapter's real
-    wrapper-only header/closer (quoted verbatim from
-    UnifiedAdapter.format_intervention_prompt) plus the original prompt."""
-    prompt = _run_retry_loop(_Host(retry_feedback_mode="placebo", framing="legacy"))
-    assert RULE_ID not in prompt
-    assert REASON_TEXT not in prompt
-    assert "elevate_structure" not in prompt  # the blocked_skill name
-    assert LEGACY_HEADER in prompt
-    assert LEGACY_CLOSER in prompt
-    assert ORIGINAL_PROMPT in prompt
-    # The round-1 hand-written fallback sentence must NOT appear: a
-    # P0-1c-capable adapter (every adapter shipped in this repo) takes the
-    # primary wrapper-only path, never the fallback.
-    assert EXPECTED_FALLBACK_PLACEBO_TEXT not in prompt
-    # Exact rendering, quoted, so a future wording change to either the
-    # adapter or this test is forced to look at both:
-    assert prompt == (
-        f"{LEGACY_HEADER}\n\n{LEGACY_CLOSER}\n\n{ORIGINAL_PROMPT}"
-    )
-
-
-def test_placebo_mode_still_honours_intervention_framing_neutral():
-    """S2: `_intervention_framing` STILL applies under placebo — the
-    wrapper's header/closer text depends on it even with no rules block,
-    because `include_reports=False` is evaluated inside the SAME
-    `format_intervention_prompt` call that honours `framing`."""
-    prompt = _run_retry_loop(_Host(retry_feedback_mode="placebo", framing="neutral"))
-    assert RULE_ID not in prompt
-    assert REASON_TEXT not in prompt
-    assert NEUTRAL_HEADER in prompt
-    assert NEUTRAL_CLOSER in prompt
-    assert LEGACY_HEADER not in prompt  # confirms framing genuinely switched
-    assert ORIGINAL_PROMPT in prompt
-
-
-def test_placebo_mode_falls_back_to_fixed_sentence_for_a_legacy_adapter():
-    """An adapter that predates P0-1c (only `format_retry_prompt`) cannot
-    render `include_reports=False` — this is the ONE case where the
-    hand-written RETRY_FEEDBACK_PLACEBO_TEXT constant is actually used."""
-    prompt = _run_retry_loop(_Host(retry_feedback_mode="placebo", adapter=_LegacyAdapter()))
-    assert RULE_ID not in prompt
-    assert REASON_TEXT not in prompt
-    assert EXPECTED_FALLBACK_PLACEBO_TEXT in prompt
-    assert ORIGINAL_PROMPT in prompt
-
-
-def test_fallback_constant_matches_expected_text():
-    """Pins the real export against the golden literal above, so a future
-    edit to the sentence cannot drift the two apart silently. Imported
-    locally (not at module scope) so this is the ONLY test in the file that
-    cannot even be collected against a module predating the export."""
-    from broker.core._retry_loop import RETRY_FEEDBACK_PLACEBO_TEXT
-    assert RETRY_FEEDBACK_PLACEBO_TEXT == EXPECTED_FALLBACK_PLACEBO_TEXT
+@pytest.mark.parametrize("adapter", [None, SimpleNamespace(format_retry_prompt=lambda *args: "old")])
+def test_placebo_uses_plain_wrapper_for_both_adapter_interfaces(adapter):
+    prompt = _run_retry_loop(_Host(retry_feedback_mode="placebo", adapter=adapter))
+    assert prompt == f"{PLAIN_RETRY_HEADER}\n\n{PLAIN_WRAPPER_CLOSER}\n\n{ORIGINAL_PROMPT}"
 
 
 def test_default_mode_is_full_when_attribute_absent():
@@ -282,7 +125,7 @@ def test_default_mode_is_full_when_attribute_absent():
             return [ValidationResult(valid=True, validator_name="ok")]
 
     prompt = _run_retry_loop(_BareHost())
-    assert RULE_ID in prompt
+    assert REASON_TEXT in prompt
 
 
 def test_unknown_retry_feedback_mode_value_raises_in_retry_loop():
@@ -347,7 +190,7 @@ def test_cross_mode_all_validation_history_is_identical_per_attempt():
 
     assert len(captured_prompts["full"]) == len(captured_prompts["placebo"]) == 1
     assert captured_prompts["full"][0] != captured_prompts["placebo"][0]
-    assert RULE_ID in captured_prompts["full"][0]
+    assert REASON_TEXT in captured_prompts["full"][0]
     assert RULE_ID not in captured_prompts["placebo"][0]
 
 
@@ -384,7 +227,7 @@ def test_format_violation_path_under_placebo_has_no_parsing_language():
         _Host(retry_feedback_mode="placebo"), skill_proposal=None)
     for forbidden in ("delimiter", "JSON structure", "required fields", "parsing"):
         assert forbidden not in prompt, f"{forbidden!r} leaked into the placebo retry prompt"
-    assert LEGACY_HEADER in prompt
+    assert PLAIN_RETRY_HEADER in prompt
     assert ORIGINAL_PROMPT in prompt
 
 
@@ -394,8 +237,7 @@ def test_format_violation_path_under_full_mode_still_shows_parsing_guidance():
     not vacuously true because nothing was ever rendered either way."""
     prompt = _run_retry_loop(
         _Host(retry_feedback_mode="full"), skill_proposal=None)
-    assert "delimiter" in prompt
-    assert "JSON structure" in prompt
+    assert PLAIN_FORMAT_LINE in prompt
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +261,6 @@ def _engine_config(**overrides) -> MagicMock:
     config.get_governance_retry_feedback_mode.return_value = "full"
     config.get_governance_advise.return_value = None
     config.get_governance_advise_mode.return_value = "off"
-    config.get_governance_intervention_framing.return_value = "legacy"
     config.get_governance_on_retry_exhausted.return_value = "default"
     config.get_audit_advise_columns.return_value = False
     for key, value in overrides.items():

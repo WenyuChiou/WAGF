@@ -67,7 +67,7 @@ class TestBuildActionOutcomeFeedback:
             request=120_000, diversion=100_000,
             preceding_factor=0,
         )
-        assert "You chose to increase demand (by 15%)" in result
+        assert "Action carried out: increase demand (by 15%)" in result
         assert "120,000 acre-ft" in result
         assert "100,000 acre-ft" in result
         assert "Shortfall: 20,000" in result
@@ -79,7 +79,7 @@ class TestBuildActionOutcomeFeedback:
             request=80_000, diversion=80_000,
             preceding_factor=1,
         )
-        assert "You chose to adopt efficiency" in result
+        assert "Action carried out: adopt efficiency" in result
         assert "by" not in result.split("efficiency")[1].split(".")[0]  # no "(by X%)"
         assert "Demand fully met." in result
 
@@ -101,7 +101,7 @@ class TestBuildActionOutcomeFeedback:
             preceding_factor=0,
         )
         assert result.startswith("Year 1:")
-        assert "You chose" not in result
+        assert "Action carried out:" not in result
         assert "100,000 acre-ft" in result
 
     def test_fallback_empty_action_ctx(self):
@@ -110,7 +110,7 @@ class TestBuildActionOutcomeFeedback:
             request=50_000, diversion=50_000,
             preceding_factor=1,
         )
-        assert "You chose" not in result
+        assert "Action carried out:" not in result
         assert "Demand fully met." in result
 
     def test_maintain_demand_no_magnitude(self):
@@ -120,7 +120,7 @@ class TestBuildActionOutcomeFeedback:
             request=70_000, diversion=70_000,
             preceding_factor=1,
         )
-        assert "You chose to maintain demand" in result
+        assert "Action carried out: maintain demand" in result
         assert "Demand fully met." in result
 
     def test_basin_selects_precipitation_vs_lake_mead_wording(self):

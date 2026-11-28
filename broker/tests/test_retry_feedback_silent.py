@@ -38,8 +38,8 @@ from broker.interfaces.skill_types import SkillDefinition, SkillProposal, Valida
 from broker.utils.parsing.unified_adapter import UnifiedAdapter
 
 from test_retry_feedback_placebo import (
-    LEGACY_HEADER,
-    LEGACY_CLOSER,
+    PLAIN_RETRY_HEADER,
+    PLAIN_WRAPPER_CLOSER,
     ORIGINAL_PROMPT,
     REASON_TEXT,
     RULE_ID,
@@ -193,7 +193,6 @@ def test_full_mode_prompt_unchanged_by_the_silent_addition():
     """Adding the `silent` branch to `_governance_retry_loop` must not alter
     `full`'s rendering at all."""
     prompt = _run_retry_loop(_Host(retry_feedback_mode="full"))
-    assert RULE_ID in prompt
     assert REASON_TEXT in prompt
     assert ORIGINAL_PROMPT in prompt
 
@@ -203,8 +202,8 @@ def test_placebo_mode_golden_text_unchanged_by_the_silent_addition():
     test_retry_feedback_placebo.py's own pin). The new
     `if _retry_feedback_mode == "silent":` branch sits strictly BEFORE the
     placebo branches in `_retry_loop.py` and must never intercept them."""
-    prompt = _run_retry_loop(_Host(retry_feedback_mode="placebo", framing="legacy"))
-    assert prompt == f"{LEGACY_HEADER}\n\n{LEGACY_CLOSER}\n\n{ORIGINAL_PROMPT}"
+    prompt = _run_retry_loop(_Host(retry_feedback_mode="placebo"))
+    assert prompt == f"{PLAIN_RETRY_HEADER}\n\n{PLAIN_WRAPPER_CLOSER}\n\n{ORIGINAL_PROMPT}"
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +325,6 @@ def _silent_engine(*, max_retries=2):
     config.get_audit_advise_columns.return_value = False
     config.get_governance_advise.return_value = None
     config.get_governance_advise_mode.return_value = "off"
-    config.get_governance_intervention_framing.return_value = "legacy"
     config.get_governance_on_retry_exhausted.return_value = "default"
     config.get_governance_retry_feedback_mode.return_value = "silent"
 

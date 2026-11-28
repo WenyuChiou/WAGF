@@ -1,21 +1,6 @@
-"""Generic opt-out for the runner's own decision/fallback memory line.
-
-``ExperimentRunner._apply_state_changes`` writes a generic "legacy immediate
-memory" line every period ("Year N: Decided to: X" on approved rows, "Year N:
-default action applied: X" / the neutral rejection line on fallback rows).
-Irrigation's ``pre_year`` hook (``build_action_outcome_feedback``,
-``examples/irrigation_abm/run_experiment.py``) already writes its own domain
-outcome line describing the executed action and the rule, so the generic line
-doubled every year up in the composed 5-recent-memory retrieval window,
-covering ~2.5 years of history instead of 5 (2026-09-26 finding).
-
-Flood already solves the same duplication problem with a DIFFERENT mechanism
-(``DecisionFilteredMemoryEngine``, ``examples/single_agent/run_flood.py``),
-which filters these lines back OUT after they are written. This test file
-covers a second, generic mechanism: ``agent.memory_config["runner_decision_line"]``
-(from the agent type's YAML ``memory:`` block), which skips writing the line
-at all. Default True: every existing run (including flood, which never sets
-this key) is byte-identical to before this opt-out existed.
+"""The runner writes one immediate executed-action line per decision by default.
+A domain that writes its own outcome can disable that line with
+``memory.runner_decision_line``. State and action context still update.
 """
 from __future__ import annotations
 
@@ -156,7 +141,7 @@ def test_default_writes_approved_decision_line(tmp_path):
     runner = _run_one_period(tmp_path, agent, result)
     assert agent.holds_policy is True
     assert agent._last_action_context == {"skill_name": PROPOSED, "year": 1}
-    assert any("Decided to: Take action" in m for m in _memories(runner, agent))
+    assert any("Action carried out: Take action." in m for m in _memories(runner, agent))
 
 
 def test_default_writes_fallback_line(tmp_path):
@@ -166,16 +151,16 @@ def test_default_writes_fallback_line(tmp_path):
     runner = _run_one_period(tmp_path, agent, result)
     assert agent.holds_policy is False
     mems = _memories(runner, agent)
-    assert any("default action applied: Default action" in m for m in mems), mems
+    assert any("Action carried out: Default action." in m for m in mems), mems
 
 
 def test_memory_config_without_key_still_defaults_true(tmp_path):
     """An agent type with SOME memory config, just not this key, keeps the
     line (e.g. flood's rejection_line_style block never sets this key)."""
     result, _, _ = _broker_result(blocked=False)
-    agent = _agent(holds_policy=False, memory_config={"rejection_line_style": "neutral"})
+    agent = _agent(holds_policy=False, memory_config={"rejection_line_style": "executed"})
     runner = _run_one_period(tmp_path, agent, result)
-    assert any("Decided to:" in m for m in _memories(runner, agent))
+    assert any("Action carried out:" in m for m in _memories(runner, agent))
 
 
 # Opt-out (memory.runner_decision_line: false) --------------------------------
@@ -202,8 +187,8 @@ def test_optout_writes_no_line_on_fallback_row_but_still_applies_state(tmp_path)
     assert agent.holds_policy is False
     ctx = agent._last_action_context
     assert ctx["skill_name"] == DEFAULT_SKILL
-    assert ctx["was_fallback"] is True
-    assert ctx["proposed_skill"] == PROPOSED
+    assert "was_fallback" not in ctx
+    assert "proposed_skill" not in ctx
     assert _memories(runner, agent) == []
 
 
@@ -215,8 +200,7 @@ def test_optout_false_suppresses_both_decided_and_fallback_markers(tmp_path):
         agent = _agent(holds_policy=True, memory_config={"runner_decision_line": False})
         runner = _run_one_period(tmp_path, agent, result)
         mems = _memories(runner, agent)
-        assert not any("Decided to:" in m for m in mems), mems
-        assert not any("default action applied:" in m for m in mems), mems
+        assert not any("Action carried out:" in m for m in mems), mems
 
 
 def test_non_bool_runner_decision_line_raises_instead_of_silently_truthy(tmp_path):

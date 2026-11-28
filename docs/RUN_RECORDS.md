@@ -38,7 +38,7 @@ The list lives in one place, `broker/utils/provenance_requirements.py`
   key), decoding options, `adaptation: "none (off the shelf)"`.
 - `execution_order`: `workers`, how agents are ordered within a year (fixed registration order, never
   shuffled by the runner), `agent_ids_in_order` and its hash.
-- `resolution_policy`: `max_governance_retries`, `max_format_attempts`, `retry_framing`,
+- `resolution_policy`: `max_governance_retries`, `max_format_attempts`, `retry_framing` (always `plain`),
   `on_retry_exhausted`, `default_skill`, and `counts` taken from the audit CSV at finalize: parse
   failures and retry exhaustion, as counts and rates.
 - Paths and code: `agent_types_config_sha256`, `agent_types_config_repo_relative`,

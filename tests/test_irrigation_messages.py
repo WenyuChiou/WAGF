@@ -1,7 +1,6 @@
 """Irrigation messages (supply-side redesign, 2026-09-25, spec S1 to S6; v3
 WP4, spec 4.3 to 4.6): one reason helper, with a present and a past form,
-shared by the situation text, the rule messages and the memory line; neutral
-and explicit rejection lines; realised F07 magnitude."""
+shared by the situation text, the rule messages and the memory line; realised F07 magnitude."""
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -163,21 +162,6 @@ def test_full_delivery_wording_at_full_supply():
     assert "No Lower Basin shortage applies this year." in text
 
 
-def test_neutral_rejection_line_names_rule_not_proposal():
-    """T13."""
-    ctx = {"skill_name": "maintain_demand", "was_fallback": True,
-           "proposed_skill": "increase_large", "blocking_rules": ["supply_gap_block_increase"]}
-    neutral = build_action_outcome_feedback(ctx, 3, 100_000, 90_000, 0,
-                                            rejection_line_style="neutral")
-    assert neutral.startswith("Year 3: maintain demand was applied under the shortage-sharing rule. ")
-    unmapped = dict(ctx, blocking_rules=["some_new_rule"])
-    assert build_action_outcome_feedback(unmapped, 3, 100_000, 90_000, 0,
-                                         rejection_line_style="neutral").startswith(
-        "Year 3: maintain demand was applied under a governance rule. ")
-    assert "rejected" not in neutral and "increase large" not in neutral
-    explicit = build_action_outcome_feedback(ctx, 3, 100_000, 90_000, 0)
-    assert explicit.startswith("Year 3: your proposal to increase large was rejected; "
-                               "maintain demand was applied. ")
 
 
 def test_f07_decrease_magnitude_is_realised_at_the_floor():
@@ -222,7 +206,7 @@ def test_option_descriptions_have_no_yield():
         d = d.lower()
         assert "yield" not in d and "crop" not in d and "curtailment risk" not in d
         assert "%" not in d and "percent" not in d
-    assert cfg["irrigation_farmer"]["memory"]["rejection_line_style"] == "neutral"
+    assert cfg["irrigation_farmer"]["memory"]["rejection_line_style"] == "executed"
 
 
 def test_dashboard_situation_and_memory_state_the_same_numbers(tmp_path):

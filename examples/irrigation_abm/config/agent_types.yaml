@@ -231,7 +231,7 @@ global_config:
     # (framework default false).
     plain_action_names: true
     # v3 (WP4, spec 4.8, L3 M12): the closer of a placebo retry, which shows
-    # no rule text; the framework default points at "the violations above".
+    # no rule text; the framework default is "Please answer again.".
     placebo_closer: "Please reconsider your decision."
 
   # First-attempt proposal columns (initial_skill, initial_labels,
@@ -506,11 +506,8 @@ irrigation_farmer:
     # 2026-09-26: the composed retrieval above provides the event slots and
     # global_config.memory.reflection_slot provides the separate final
     # reflection slot.
-    # How the memory line of a year whose proposal was overruled reads:
-    # neutral (default here) names the rule and the action applied, not the
-    # rejected proposal; explicit is the pre-redesign text, kept as an
-    # ablation (spec S6, FW5).
-    rejection_line_style: neutral
+    # Every decision line names the action that ran.
+    rejection_line_style: executed
 
     # Generic runner opt-out (2026-09-26, ExperimentRunner._apply_state_changes):
     # irrigation already writes its own per-year outcome line in pre_year

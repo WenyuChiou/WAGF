@@ -763,10 +763,6 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
             set_declared_deciders(ctx.config.declared_decider_names(agent_types=agent_types))
     runner.tag_memory_origin = True
     runner.rejection_line_styles = styles
-    for agent in runner.agents.values():
-        # A new dict: the agent type's memory block itself stays as loaded.
-        mem_cfg = agent.memory_config if isinstance(getattr(agent, "memory_config", None), dict) else {}
-        agent.memory_config = {**mem_cfg, "rejection_line_style": styles[agent.agent_type]}
     runner._llm_cache.update(invokes)
     # A case with no rules still gets validator_health.csv.
     audit_writer = getattr(getattr(runner, "broker", None), "audit_writer", None)

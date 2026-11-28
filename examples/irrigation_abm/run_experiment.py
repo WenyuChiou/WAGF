@@ -360,17 +360,11 @@ def _create_synthetic_profiles(
 # Lifecycle Hooks
 # ---------------------------------------------------------------------------
 def _proposed_and_fallback(action_ctx: Optional[Dict[str, Any]]) -> Tuple[str, bool]:
-    """(the agent's own proposal, whether it was overruled) for one year.
+    """Read the action used for memory salience.
 
-    On an approved row the executed skill IS the proposal. On a rejected
-    row ExperimentRunner._apply_state_changes records ``proposed_skill``
-    (None on UNCERTAIN rows, where no usable proposal existed) and
-    ``was_fallback``. Memory salience reads the proposal, not the executed
-    fallback (supply-side redesign, 2026-09-25, spec M1/M2/M4).
-
-    Under ``rejection_line_style: executed`` the runner records neither key,
-    so this returns the executed skill and False: importance, emotion and
-    routine then follow the action that ran only (Invariant 7)."""
+    Current runner contexts describe the executed skill. Older recorded
+    contexts may also identify a proposal and a fallback.
+    """
     ctx = action_ctx or {}
     was_fallback = bool(ctx.get("was_fallback", False))
     proposed = ctx.get("proposed_skill") if "proposed_skill" in ctx else ctx.get("skill_name", "")
@@ -432,9 +426,6 @@ class IrrigationLifecycleHooks:
         self.feedback_config: Dict = {}
         # Band importance / emotion for the yearly outcome memory line.
         self.memory_adapter = IrrigationAdapter()
-        # memory.rejection_line_style for the yearly memory line (set by main()
-        # from the irrigation_farmer.memory YAML block).
-        self.rejection_line_style = "neutral"
         # Spec item 45e: per-year counts of checked reflections (stored,
         # retried, dropped), printed each year and written to the manifest
         # by main() when the grounded reflection keys are on.
@@ -452,25 +443,6 @@ class IrrigationLifecycleHooks:
         preserves (Review P1-b).
         """
         return read_lake_mead_level_for_log(self.env)
-
-    def _retries_name_rules(self) -> bool:
-        """False in the placebo and silent arms, whose retry prompts carry no
-        rule text: their memory line of an overruled year then says "under a
-        governance rule" instead of naming the rule (spec 4.5). Read from the
-        broker at each call, so a --retry-feedback-mode override applies. A
-        runner without a broker, or a broker without the mode, raises (review
-        LOW 10): falling back to "full" would name rules in a placebo run."""
-        broker = getattr(self.runner, "broker", None)
-        if broker is None or not hasattr(broker, "_retry_feedback_mode"):
-            raise RuntimeError(
-                "IrrigationLifecycleHooks: the runner's broker has no "
-                "_retry_feedback_mode; refusing to guess whether this arm's "
-                "retries name the rules."
-            )
-        mode = broker._retry_feedback_mode
-        if mode not in ("full", "placebo", "silent"):
-            raise ValueError(f"IrrigationLifecycleHooks: unknown _retry_feedback_mode {mode!r}.")
-        return mode == "full"
 
     def _outcome_line(self, agent, snapshot: Dict[str, Any], basin: str) -> Tuple[str, Optional[Dict[str, Any]]]:
         """(the memory line of the year ``snapshot`` describes, the action
@@ -505,10 +477,6 @@ class IrrigationLifecycleHooks:
             # the rule messages use (spec 4.4).
             gap_reason=("" if self.prompt_information == "simple"
                         else describe_gap_reason(snapshot, "past")),
-            rejection_line_style=self.rejection_line_style,
-            # Spec 4.5: placebo and silent retries name no rule, so
-            # neither does their memory line (L3 M13).
-            name_rule=self._retries_name_rules(),
             subbasin=snapshot.get("supply_group") is not None,
             decision_read=decision_read,
             # Spec item 45f: the sub-basin natural-flow share of that year.
@@ -2762,12 +2730,6 @@ def main():
     # Attach feedback tracker so pre_year can record metrics
     hooks.metrics_tracker = _metrics_tracker
     hooks.feedback_config = feedback_cfg
-    hooks.rejection_line_style = irr_mem.get("rejection_line_style", "neutral")
-    if hooks.rejection_line_style not in ("neutral", "explicit", "executed"):
-        raise SystemExit(
-            f"irrigation_farmer.memory.rejection_line_style "
-            f"{hooks.rejection_line_style!r} is not 'neutral', 'explicit' or 'executed'."
-        )
     runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,

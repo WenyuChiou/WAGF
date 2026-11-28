@@ -58,7 +58,6 @@ class _Host(RetryMixin):
         self.auditor = _Auditor()
         self.model_adapter = UnifiedAdapter.__new__(UnifiedAdapter)
         self._retry_feedback_mode = "full"
-        self._intervention_framing = "legacy"
         self._feasible_set_feedback = feasible
         self._on_retry_exhausted = "default"
         self.skill_registry = _Registry()
@@ -101,7 +100,7 @@ def _run(host, proposal_skill="grow_a", replies=None, feasible_by_attempt=None, 
 def test_feasible_line_present_and_equals_probe_set():
     fba = []
     prompts = _run(_Host(), feasible_by_attempt=fba)
-    line = ("Actions that pass every rule this step: "
+    line = ("Actions that pass every rule in this decision: "
             "3 (keep), 4 (shrink a), 5 (shrink b).")
     assert line in prompts[0]
     assert fba == [["keep", "shrink_a", "shrink_b"]]
@@ -123,7 +122,7 @@ def test_feasible_line_survives_report_truncation():
     errs = [ValidationResult(valid=False, validator_name="v", errors=[f"e{i}"],
                              metadata={"rule_id": f"r{i}"}) for i in range(4)]
     prompts = _run(host, errors=errs)
-    assert "only the top 1 are shown" in prompts[0]
+    assert "Only the first 1 reasons are shown" in prompts[0]
     assert "Actions that pass every rule" in prompts[0]
 
 
@@ -132,18 +131,17 @@ def test_empty_feasible_set_wording():
         return [ValidationResult(valid=False, validator_name="v", errors=["no"],
                                  metadata={"rule_id": "all"})]
     prompts = _run(_Host(validator=block_all))
-    assert ("No action passes every rule this step; if this continues, "
+    assert ("No action passes every rule in this decision; if this continues, "
             "the default action (keep) will be applied.") in prompts[0]
 
 
 def test_names_without_skill_map():
     prompts = _run(_Host(with_map=False))
-    assert "this step: keep, shrink a, shrink b." in prompts[0]
+    assert "in this decision: keep, shrink a, shrink b." in prompts[0]
 
 
 def test_plain_framing_says_in_this_decision():
     host = _Host()
-    host._intervention_framing = "plain"
     prompt = _run(host)[0]
     assert ("Actions that pass every rule in this decision: "
             "3 (keep), 4 (shrink a), 5 (shrink b).") in prompt
@@ -156,7 +154,6 @@ def test_plain_framing_says_in_this_decision():
                                         "will be applied."),
                             ("keep_proposal", ".")):
         host = _Host(validator=block_all)
-        host._intervention_framing = "plain"
         host._on_retry_exhausted = exhausted
         prompt = _run(host)[0]
         assert "No action passes every rule in this decision" + tail in prompt
@@ -274,45 +271,6 @@ def test_feasible_by_attempt_column():
 
 
 # --------------------------------------------------------------------------
-# Neutral rejection memory line (memory.rejection_line_style)
-# --------------------------------------------------------------------------
-
-def _apply(style):
-    from broker.core.experiment_runner import ExperimentRunner
-
-    runner = ExperimentRunner.__new__(ExperimentRunner)
-    runner._current_year = 3
-    runner.config = SimpleNamespace(domain=None)
-    stored = []
-    runner.memory_engine = SimpleNamespace(
-        add_memory_for_agent=lambda agent, content, meta: stored.append(content))
-    agent = SimpleNamespace(id="A1", apply_delta=lambda d: None,
-                            memory_config={} if style is None else {"rejection_line_style": style})
-    result = SimpleNamespace(
-        outcome=SkillOutcome.REJECTED,
-        approved_skill=SimpleNamespace(skill_name="grow_a", parameters={}),
-        executed_skill="keep", executed_via_fallback=True,
-        execution_result=SimpleNamespace(success=True, state_changes={}, action_context={}),
-        blocking_rule_ids=["no_grow"],
-    )
-    runner._apply_state_changes(agent, result)
-    return stored[0], agent._last_action_context
-
-
-def test_explicit_is_default_and_unchanged():
-    line, ctx = _apply(None)
-    assert line == "Year 3: Proposal to grow a was rejected; default action applied: Keep"
-    assert "blocking_rules" not in ctx
-    assert _apply("explicit")[0] == line
-
-
-def test_neutral_names_rule_not_proposal():
-    line, ctx = _apply("neutral")
-    assert line == "Year 3: under rule no_grow, default action applied: Keep"
-    assert "grow a" not in line and "rejected" not in line
-    assert ctx["blocking_rules"] == ["no_grow"]
-
-
 def test_unparsed_final_attempt_is_not_drift():
     host = _AuditHost(True)
     host._write_audit_trace(
@@ -338,27 +296,5 @@ def test_keep_proposal_empty_set_wording():
     host = _Host(validator=block_all)
     host._on_retry_exhausted = "keep_proposal"
     prompts = _run(host)
-    assert "No action passes every rule this step." in prompts[0]
+    assert "No action passes every rule in this decision." in prompts[0]
     assert "default action" not in prompts[0].split("No action passes")[1].split("\n")[0]
-
-
-def test_neutral_line_with_several_rules():
-    from broker.core.experiment_runner import ExperimentRunner
-
-    runner = ExperimentRunner.__new__(ExperimentRunner)
-    runner._current_year = 3
-    runner.config = SimpleNamespace(domain=None)
-    stored = []
-    runner.memory_engine = SimpleNamespace(
-        add_memory_for_agent=lambda agent, content, meta: stored.append(content))
-    agent = SimpleNamespace(id="A1", apply_delta=lambda d: None,
-                            memory_config={"rejection_line_style": "neutral"})
-    result = SimpleNamespace(
-        outcome=SkillOutcome.REJECTED,
-        approved_skill=SimpleNamespace(skill_name="grow_a", parameters={}),
-        executed_skill="keep", executed_via_fallback=True,
-        execution_result=SimpleNamespace(success=True, state_changes={}, action_context={}),
-        blocking_rule_ids=["r1", "r2"],
-    )
-    runner._apply_state_changes(agent, result)
-    assert stored[0] == "Year 3: under rules (r1, r2), default action applied: Keep"

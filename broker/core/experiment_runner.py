@@ -20,6 +20,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from broker.config.decision_wording import memory_line_style
 from broker.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from ..interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
@@ -180,16 +181,9 @@ class ExperimentConfig:
     llm_journal_path: Optional[Path] = None
     resume_journal_path: Optional[Path] = None
 
-# Substrings that identify the runner's own immediate decision memories
-# (written by ExperimentRunner._apply_state_changes). Domains that filter
-# these lines out of memory (e.g. a baseline-parity proxy engine) should
-# match on both markers.
-DECISION_MEMORY_MARKER = "Decided to:"
-FALLBACK_MEMORY_MARKER = "default action applied:"
 # Invariant 7 (memory.rejection_line_style: executed): the one line form for
 # every row, whether governance stepped in or not.
 EXECUTED_MEMORY_MARKER = "Action carried out:"
-REJECTION_LINE_STYLES = ("explicit", "neutral", "executed")
 
 
 def _executed_number_text(value) -> str:
@@ -217,6 +211,8 @@ class ExperimentRunner:
                  hooks: Optional[Dict[str, Callable]] = None):
         self.broker = broker
         self.sim_engine = sim_engine
+        for agent in agents.values():
+            memory_line_style(getattr(agent, "memory_config", None))
         self.agents = agents
         self.config = config
         self._launch_command = " ".join(sys.argv)
@@ -1314,7 +1310,7 @@ class ExperimentRunner:
         return {
             "max_governance_retries": pick(getattr(broker, "max_retries", None), int),
             "max_format_attempts": INITIAL_ATTEMPTS_MAX,
-            "retry_framing": pick(getattr(broker, "_intervention_framing", None), str),
+            "retry_framing": "plain",
             "on_parse_failure": "ABORTED row: no decision is made and no skill runs",
             "on_retry_exhausted": pick(getattr(broker, "_on_retry_exhausted", None), str),
             "default_skill": default_skill,
@@ -2265,6 +2261,7 @@ class ExperimentRunner:
         #     documented_unconstrained_skills-only types), so instead of
         #     judging it we RECORD the per-type resolved rule count below
         #     and let the artifact reader decide.
+        metadata["intervention_framing_resolved"] = "plain"
         try:
             import os
             metadata["governance_profile_resolved"] = os.environ.get(
@@ -2325,9 +2322,6 @@ class ExperimentRunner:
                 }
             else:
                 metadata["advise_spec_resolved"] = None
-            framing = getattr(self.broker, "_intervention_framing", "legacy")
-            metadata["intervention_framing_resolved"] = (
-                framing if isinstance(framing, str) else "legacy")
             retries = getattr(self.broker, "max_retries", None)
             # bool is a subclass of int, so exclude it explicitly: recording
             # `true` as a retry count would look plausible and be wrong.
@@ -2576,35 +2570,18 @@ class ExperimentRunner:
         Also stores action context on agent._last_action_context for
         deferred feedback by domain pre_year hooks.
 
-        Approved rows (APPROVED / RETRY_SUCCESS) describe the approved skill.
-        Rejected rows (REJECTED / UNCERTAIN) that reach here had a skill
-        executed by the broker (see ``_executed_on_rejected_row``); their
-        action context names the skill that EXECUTED, not the blocked
-        proposal, and carries ``was_fallback`` (True when the registry default
-        ran in place of the proposal) plus ``proposed_skill`` (the blocked
-        proposal on REJECTED; None on UNCERTAIN, where no usable proposal
-        existed), so domain feedback builders can say the default action was
-        applied after the proposal was rejected instead of "you chose".
-
-        Under ``memory.rejection_line_style: executed`` (Invariant 7, opt-in)
-        a rejected row gets neither key: its context has the same keys as an
-        approved row with the same executed skill, and the memory line has
-        one form on every row ("Year N: Action carried out: X."). The
-        governance facts stay on ``result`` for the audit writer.
+        Store only the action and parameters that ran. Intervention details
+        remain on the result for the audit writer.
         """
+        _mem_cfg = getattr(agent, "memory_config", None)
+        memory_line_style(_mem_cfg)
         rejected_row = result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN)
         if rejected_row:
             executed_name = getattr(result, "executed_skill", None) or result.approved_skill.skill_name
             was_fallback = bool(getattr(result, "executed_via_fallback", False))
-            proposed_name = (
-                result.approved_skill.skill_name
-                if result.outcome == SkillOutcome.REJECTED and result.approved_skill
-                else None
-            )
         else:
             executed_name = result.approved_skill.skill_name
             was_fallback = False
-            proposed_name = None
 
         # 1. Update State Flags using canonical method
         if result.execution_result and result.execution_result.state_changes:
@@ -2621,46 +2598,11 @@ class ExperimentRunner:
         if params.get("magnitude_pct") is not None:
             action_ctx["magnitude_pct"] = params["magnitude_pct"]
             action_ctx["magnitude_fallback"] = params.get("magnitude_fallback", False)
-        # Wording of the memory line on a rejected row, from the agent type's
-        # memory config: "explicit" (default, the shipped text naming the
-        # rejected proposal), "neutral" (names the rule(s) and the executed
-        # action, not the proposal) or "executed" (Invariant 7: one line form
-        # for every row, naming only the action that ran, and no governance
-        # keys on the action context).
-        _mem_cfg = getattr(agent, "memory_config", None)
-        line_style = (
-            _mem_cfg.get("rejection_line_style", "explicit")
-            if isinstance(_mem_cfg, dict) else "explicit"
-        )
-        if line_style not in REJECTION_LINE_STYLES:
-            raise ValueError(
-                f"memory.rejection_line_style {line_style!r} is not one of "
-                f"{', '.join(repr(s) for s in REJECTION_LINE_STYLES)}"
-            )
-        blocking_rules = list(getattr(result, "blocking_rule_ids", None) or [])
-        if rejected_row and line_style != "executed":
-            # Keys added only on rejected rows so approved-row contexts keep
-            # exactly the keys they always had.
-            action_ctx["was_fallback"] = was_fallback
-            action_ctx["proposed_skill"] = proposed_name
-            if line_style == "neutral":
-                # Only under the opt-in style, so default runs keep the
-                # exact rejected-row key set.
-                action_ctx["blocking_rules"] = blocking_rules
         if result.execution_result and result.execution_result.action_context:
             action_ctx.update(result.execution_result.action_context)
         agent._last_action_context = action_ctx
 
-        # 3. Legacy immediate memory (kept for backward compat; filtered by
-        #    DecisionFilteredMemoryEngine in baseline parity experiments).
-        #    Generic opt-out: a domain whose pre_year/post_year
-        #    hook already writes its own outcome line for the period can set
-        #    memory.runner_decision_line: false on the agent type to skip
-        #    this generic line entirely, instead of writing it and relying
-        #    on a filtering memory engine downstream (the flood pattern,
-        #    unchanged here). Default True keeps every existing run
-        #    byte-identical; a domain that turns this off is by definition
-        #    changing its own memory stream (see CHANGELOG).
+        # Domains writing their own outcome can skip the runner's decision line.
         runner_decision_line = (
             _mem_cfg.get("runner_decision_line", True)
             if isinstance(_mem_cfg, dict) else True
@@ -2674,38 +2616,10 @@ class ExperimentRunner:
             return
         action_desc = executed_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
-        if line_style == "executed":
-            # Invariant 7: the same form on an approved row, an approved-after-
-            # retry row, a default after a rejection and a default after an
-            # unreadable answer. The number is the one that ran (a default
-            # runs with none), never the blocked proposal's.
-            memory_content = (
-                f"{timestamp_prefix}{EXECUTED_MEMORY_MARKER} {action_desc}"
-                f"{_executed_number_text(params.get('magnitude_pct'))}."
-            )
-        elif was_fallback and line_style == "neutral":
-            if len(blocking_rules) == 1:
-                rule_part = f"under rule {blocking_rules[0]}, "
-            elif blocking_rules:
-                rule_part = f"under rules ({', '.join(blocking_rules)}), "
-            else:
-                rule_part = ""
-            memory_content = (
-                f"{timestamp_prefix}{rule_part}{FALLBACK_MEMORY_MARKER} {action_desc}"
-            )
-        elif was_fallback and proposed_name:
-            proposed_desc = proposed_name.replace("_", " ")
-            memory_content = (
-                f"{timestamp_prefix}Proposal to {proposed_desc} was rejected; "
-                f"{FALLBACK_MEMORY_MARKER} {action_desc}"
-            )
-        elif was_fallback:
-            memory_content = (
-                f"{timestamp_prefix}No valid proposal; "
-                f"{FALLBACK_MEMORY_MARKER} {action_desc}"
-            )
-        else:
-            memory_content = f"{timestamp_prefix}{DECISION_MEMORY_MARKER} {action_desc}"
+        memory_content = (
+            f"{timestamp_prefix}{EXECUTED_MEMORY_MARKER} {action_desc}"
+            f"{_executed_number_text(params.get('magnitude_pct'))}."
+        )
         # Delegate per-skill emotion/importance
         # to DomainPack instead of hardcoding flood skill names. Flood
         # pack returns the same (major, 0.7) / (positive, 0.6) values

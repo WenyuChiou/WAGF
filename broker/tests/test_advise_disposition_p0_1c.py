@@ -48,7 +48,7 @@ def _cfg(global_config=None) -> AgentTypeConfig:
 def test_advise_absent_by_default():
     assert _cfg().get_governance_advise() is None
     assert _cfg({"governance": {}}).get_governance_advise() is None
-    assert _cfg().get_governance_intervention_framing() == "legacy"
+    assert _cfg().get_governance_intervention_framing() == "plain"
     assert _cfg().get_audit_advise_columns() is False
 
 
@@ -142,81 +142,43 @@ def _report(summary, sug=None, sev="RULE"):
                               severity=sev, domain_context={})
 
 
-def test_legacy_prompt_is_byte_identical_golden():
-    """Pins the published arm-C prompt character for character."""
-    a = UnifiedAdapter.__new__(UnifiedAdapter)
-    got = a.format_retry_prompt("ORIGINAL PROMPT", [
-        InterventionReport(rule_id="r1", blocked_skill="elevate_house",
-                           violation_summary="Threat too low",
-                           suggested_correction="try insurance", severity="ERROR",
-                           domain_context={})
-    ])
-    assert got == (
-        "Your previous response was flagged by the governance layer.\n\n"
-        "**Issues Detected:**\n"
-        "- [ERROR] Your proposed action 'elevate_house' was BLOCKED.\n"
-        "  - Reason: Threat too low\n"
-        "  - Suggestion: try insurance\n\n\n"
-        "Please reconsider your decision. Ensure your new response addresses the violations above.\n\n"
-        "ORIGINAL PROMPT"
-    )
-
-
 def test_advise_and_placebo_differ_on_exactly_the_reason_line():
     """(B - B') must isolate RULE CONTENT, so everything else must match."""
     a = UnifiedAdapter.__new__(UnifiedAdapter)
     advise, _ = a.format_intervention_prompt(
         "TASK", [_report("[Rule: r1] Increase blocked under high scarcity.", "reduce")],
-        framing="neutral")
+        framing="plain")
     placebo, _ = a.format_intervention_prompt(
         "TASK", [_report("A governance rule was triggered by this decision.", "reduce")],
-        framing="neutral")
+        framing="plain")
     al, pl = advise.split("\n"), placebo.split("\n")
     assert len(al) == len(pl)
     differing = [i for i, (x, y) in enumerate(zip(al, pl)) if x != y]
     assert differing, "the two arms must differ somewhere"
-    assert all(al[i].lstrip().startswith("- Reason:") for i in differing)
-
-
-def test_neutral_framing_never_says_blocked_and_hides_suggestion():
-    """Advice must not claim the action was blocked — the agent can detect the lie,
-    and the Suggestion line is absent from YAML rules but present on custom
-    validators, so leaving it in makes report SHAPE covary with rule family."""
-    a = UnifiedAdapter.__new__(UnifiedAdapter)
-    out, _ = a.format_intervention_prompt("TASK", [_report("x", "do y")], framing="neutral")
-    assert "BLOCKED" not in out
-    assert "Suggestion" not in out
-    assert "triggered a governance rule" in out
+    assert all(al[i].lstrip().startswith("- You chose") for i in differing)
 
 
 def test_wrapper_only_has_scaffolding_but_no_rule_content():
     a = UnifiedAdapter.__new__(UnifiedAdapter)
     out, shown = a.format_intervention_prompt(
-        "TASK", [_report("secret rule text")], framing="neutral", include_reports=False)
+        "TASK", [_report("secret rule text")], framing="plain", include_reports=False)
     assert shown == 0
     assert "secret rule text" not in out
     assert "Rules Triggered" not in out
     assert out.endswith("TASK")
 
 
-def test_legacy_adapter_without_new_method_still_works():
-    """ModelAdapter is a user-extensible seam; requiring the new method would break
-    every custom adapter that implements only format_retry_prompt."""
-    class Legacy:
-        def format_retry_prompt(self, prompt, errors, max_reports=None):
-            return f"LEGACY::{prompt}::{len(errors)}"
-    text, shown = render_intervention_prompt(Legacy(), "TASK", [_report("x")], framing="legacy")
-    assert text.startswith("LEGACY::TASK::1")
+def test_retry_only_adapter_gets_plain_wording_and_actual_shown_count():
+    class RetryOnly:
+        def format_retry_prompt(self, original_prompt, errors):
+            return "custom retry"
+
+    text, shown = render_intervention_prompt(RetryOnly(), "TASK", [_report("x"), _report("y")],
+                                             max_reports=1, framing="plain")
     assert shown == 1
-
-
-def test_legacy_adapter_rejects_neutral_framing_loudly():
-    """Silently rendering the wrong text into an experiment arm would be worse."""
-    class Legacy:
-        def format_retry_prompt(self, prompt, errors, max_reports=None):
-            return "x"
-    with pytest.raises(ValueError, match="format_intervention_prompt"):
-        render_intervention_prompt(Legacy(), "TASK", [_report("x")], framing="neutral")
+    assert text == UnifiedAdapter.__new__(UnifiedAdapter).format_retry_prompt(
+        "TASK", [_report("x"), _report("y")], max_reports=1)
+    assert "- You chose 'increase_large'. x" in text
 
 
 def test_advisory_reports_built_only_from_advised_results():
@@ -300,7 +262,6 @@ def _engine(*, mode, rule_ids, proposals, blocked_skills=("increase_large",),
     config.get_governance_advise.return_value = {
         "mode": mode, "rule_ids": list(rule_ids),
         "placebo_text": "A governance rule was triggered by this decision."}
-    config.get_governance_intervention_framing.return_value = "neutral"
 
     eng = SkillBrokerEngine(
         skill_registry=registry, model_adapter=adapter, validators=[validator],

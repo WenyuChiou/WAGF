@@ -371,7 +371,6 @@ def gen_agent_types_yaml(
             # Rules correct only the current decision (Invariant 7): every
             # year's memory line reads "Year N: Action carried out: X.", the
             # same whether the agent's answer ran or a default replaced it.
-            # explicit writes "Proposal to X was rejected; ..." instead.
             rejection_line_style: executed
 
           actions:

@@ -1,12 +1,5 @@
-"""Single-agent flood hooks after the F06/F20 runner fix.
-
-1. DecisionFilteredMemoryEngine must drop the runner's fallback memory line as
-   well as "Decided to:", so a rejected year leaves only the deferred pre_year
-   action line in memory (baseline parity), the same as an approved year.
-2. FinalParityHook.post_step must gate the elevation threshold on what the
-   engine EXECUTED on rejected rows (the default skill, or the kept proposal
-   under on_retry_exhausted=keep_proposal), since the runner now applies that
-   execution's state changes.
+"""The flood memory filter omits generic executed-action lines. The flood
+threshold changes only when the corresponding action actually executes.
 """
 from __future__ import annotations
 
@@ -28,18 +21,13 @@ class _Ag:
 def test_filter_drops_runner_fallback_and_decision_lines():
     inner = WindowMemoryEngine(window_size=5)
     eng = DecisionFilteredMemoryEngine(inner)
-    eng.add_memory("A1", "Year 1: Decided to: Buy insurance")
-    eng.add_memory("A1", "Year 1: Proposal to buy insurance was rejected; "
-                         "default action applied: Do nothing")
-    eng.add_memory("A1", "Year 1: No valid proposal; default action applied: Do nothing")
-    eng.add_memory_for_agent(_Ag(), "Year 1: Proposal to elevate house was rejected; "
-                                    "default action applied: Do nothing")
-    eng.add_memory("A1", "Year 1: Your proposal to buy insurance was rejected; "
-                         "do nothing was applied.")
+    eng.add_memory("A1", "Year 1: Action carried out: Buy insurance.")
+    eng.add_memory_for_agent(_Ag(), "Year 2: Action carried out: Do nothing.")
+    eng.add_memory("A1", "Year 2: The river rose.")
     kept = inner.retrieve(_Ag(), top_k=10)
-    contents = [m["content"] if isinstance(m, dict) else str(m) for m in kept]
-    assert contents == ["Year 1: Your proposal to buy insurance was rejected; "
-                        "do nothing was applied."]
+    assert [m["content"] if isinstance(m, dict) else str(m) for m in kept] == [
+        "Year 2: The river rose."
+    ]
 
 
 @dataclass

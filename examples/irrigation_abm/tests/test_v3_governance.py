@@ -61,8 +61,6 @@ from examples.irrigation_abm.irrigation_env import (
 from examples.irrigation_abm.irrigation_personas import (
     FULL_SUPPLY_RATIO,
     IrrigationAgentProfile,
-    _RULE_LABELS,
-    _precondition_violation_label,
     build_option_texts,
     build_water_situation_text,
 )
@@ -289,18 +287,6 @@ def test_dispatch_list_exact():
     assert irrigation_governance_validator(proposal, ctx) == []
 
 
-def test_rule_labels_six_entries():
-    assert _RULE_LABELS == {
-        SUPPLY: "the shortage-sharing rule",
-        "water_right_cap": "the water-right cap",
-        "beneficial_use_limit": "the beneficial-use limit",
-        "minimum_utilisation_floor": "the minimum-use floor",
-        TR1: "the rule on increases under scarcity",
-        TR3: "the rule on decreases without scarcity",
-    }
-    assert _precondition_violation_label("precondition_violation", "increase_demand") == "the request-increase limit"
-    assert _precondition_violation_label("precondition_violation", "decrease_demand") == "the minimum-use floor"
-    assert _precondition_violation_label("curtailment_awareness", "increase_demand") == "a governance rule"
 
 
 # ===========================================================================
@@ -735,7 +721,7 @@ def _retry_block(results, skill) -> str:
     reports = build_intervention_reports(results, proposal, source="errors")
     text, _ = render_intervention_prompt(
         UnifiedAdapter.__new__(UnifiedAdapter), "<<ORIGINAL>>", reports, max_reports=3,
-        feasible_line="Actions that pass every rule this step: 1 (maintain demand).")
+        feasible_line="Actions that pass every rule in this decision: 1 (maintain demand).")
     return text[:text.index("<<ORIGINAL>>")]
 
 
@@ -773,7 +759,7 @@ def test_retry_texts_no_label_codes(monkeypatch):
         blocks.append(_retry_block(supply_gap_block_increase("increase_demand", [], ctx),
                                    "increase_demand"))
     for block in blocks:
-        assert "Reason:" in block
+        assert "- You chose " in block
         _assert_plain(block)
 
 
@@ -907,8 +893,8 @@ def test_e2e_freeze_relabel_cannot_pass_and_columns_filled(monkeypatch, tmp_path
         if attempt == 0:
             continue
         block = prompt[:prompt.index(originals[(agent, year)])]
-        assert TR1_MESSAGE in block and TR1_SUGGESTION in block
-        assert "Actions that pass every rule this step: 2 (maintain demand), 3 (decrease demand)." in block
+        assert TR1_MESSAGE in block and TR1_SUGGESTION not in block
+        assert "Actions that pass every rule in this decision: 2 (maintain demand), 3 (decrease demand)." in block
         _assert_plain(block)
     manifest = json.loads((out / "reproducibility_manifest.json").read_text(encoding="utf-8"))
     assert manifest["appraisal_freeze_resolved"] is True
@@ -1051,13 +1037,13 @@ def test_retry_text_hides_registry_backstop_after_identity_block(monkeypatch, tm
         return block, row
 
     block, row = run(hide=True)
-    assert [line.strip() for line in block.splitlines() if "Reason:" in line] == [
-        f"- Reason: {CAP_MESSAGE}"]
+    assert [line.strip() for line in block.splitlines() if line.startswith("- ")] == [
+        f"- You chose 'increase demand'. {CAP_MESSAGE}"]
     for internal in ("Precondition", "at_allocation_cap", "Required field", "'decision'",
                      "output_schema", "precondition_violation", "Suggestion"):
         assert internal not in block, internal
     _assert_plain(block)
-    assert "Actions that pass every rule this step: 1 (maintain demand), 2 (decrease demand)." in block
+    assert "Actions that pass every rule in this decision: 1 (maintain demand), 2 (decrease demand)." in block
     # the audit keeps all three blocks of the off-menu attempt
     assert {"water_right_cap", "precondition_violation", "output_schema_violation"} <= set(
         row["failed_rules"].split("|"))
@@ -1070,7 +1056,8 @@ def test_retry_text_hides_registry_backstop_after_identity_block(monkeypatch, tm
         "output_schema_violation", "precondition_violation"}
 
     leaked, _ = run(hide=False)
-    assert "Precondition failed" in leaked and "Required field 'decision'" in leaked
+    assert "This action is not available to you in your current situation." in leaked
+    assert "Your answer is missing a value that this action needs." in leaked
     AgentTypeConfig.clear_cache()
 
 

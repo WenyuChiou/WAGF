@@ -2545,10 +2545,10 @@ def test_p5a_scans_the_retry_wrapper_and_the_feasible_lines():
     texts = vm.retry_text_samples()
     joined = "\n".join(texts.values())
     assert texts["placebo retry"].strip().endswith("Please reconsider your decision.")  # the config's closer
-    assert "Your proposed action 'increase demand' was BLOCKED." in joined  # plain_action_names
-    assert "Under this rule an increase is not available in this decision." in joined  # a rule suggestion
-    assert "Actions that pass every rule this step: 1 (increase demand), 2 (maintain demand)." in joined
-    assert "Actions that pass every rule this step: 1 (maintain demand)." in joined  # the cap menu
+    assert "You chose 'increase demand'." in joined  # plain_action_names
+    assert "Under this rule an increase is not available in this decision." not in joined  # suggestions stay in the audit
+    assert "Actions that pass every rule in this decision: 1 (increase demand), 2 (maintain demand)." in joined
+    assert "Actions that pass every rule in this decision: 1 (maintain demand)." in joined  # the cap menu
     assert "if this continues, the default action (maintain demand) will be applied." in joined
     assert vm.banned_phrase_hits(texts) == ({}, [])
     assert vm.banned_phrase_hits({"x": "a TREND here"}) == ({"TREND": 1}, ["x: 'TREND'"])

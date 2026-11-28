@@ -3205,7 +3205,7 @@ _R = {
     "dash_warn": re.compile(r"^WARNING: You requested ([\d,]+) AF and received ([\d,]+) AF \(([\d.]+)% unmet\)\."),
     "reflection": re.compile(r"^- Consolidated Reflection \(written in (\d{4})\): (.*)$"),
     "memory": re.compile(r"^- Year (\d{4}): "),
-    "mem_chose": re.compile(r"You chose to (increase|maintain|decrease) demand(?: \(by (\d+)%\))?[.,]"),
+    "mem_action": re.compile(r"(You chose to|Action carried out:) (increase|maintain|decrease) demand(?: \(by (\d+)%\))?[.,]"),
     "mem_applied": re.compile(r"^- Year \d{4}: (?:no valid decision was read; |no valid proposal was made; "
                               r"|your proposal to (?:increase|maintain|decrease) demand was rejected; )?"
                               r"(increase|maintain|decrease) demand was applied"),
@@ -3322,12 +3322,11 @@ def _memory_visibility_mismatches(
         action_ctx = None if decision.aborted else {
             "year": tick,
             "skill_name": decision.executed_skill,
-            # The runner marks both a REJECTED row that executes the registry
-            # default (rejected_default) and REJECTED_FALLBACK (fallback) as
-            # executed_via_fallback in the deferred action context.
-            "was_fallback": decision.execution_path in ("rejected_default", "fallback"),
             "magnitude_pct": run.sim.opt_num(agent, tick, "magnitude_pct"),
         }
+        # Historical lines exposed the fallback in their salience context.
+        if action_ctx is not None and ": Action carried out:" not in item:
+            action_ctx["was_fallback"] = decision.execution_path in ("rejected_default", "fallback")
         snapshot = {
             "year": tick,
             "request": run.sim.num(agent, tick, "request"),
@@ -3434,7 +3433,6 @@ def retry_text_samples(config_path: Path = CONFIG_PATH,
     try:
         config = AgentTypeConfig.load(str(config_path))
         adapter = get_adapter("mock", config_path=str(config_path))
-        framing = config.get_governance_intervention_framing()
         closer = config.get_governance_placebo_closer()
         plain = config.get_governance_plain_action_names()
         max_reports = config.get_governance_max_reports()
@@ -3462,7 +3460,7 @@ def retry_text_samples(config_path: Path = CONFIG_PATH,
 
     def wrapper(**kwargs: Any) -> str:
         text, _shown = render_intervention_prompt(adapter, _RETRY_ORIGINAL_PROMPT, reports,
-                                                  framing=framing, **kwargs)
+                                                  **kwargs)
         return text.replace(_RETRY_ORIGINAL_PROMPT, "")
 
     samples = {
@@ -4273,14 +4271,15 @@ class PromptChecker:
             dk = self.run.decisions.get((agent, tk))
             executed = dk.executed_skill if dk else None
             path = dk.execution_path if dk else None
-            mc = _R["mem_chose"].search(text)
+            mc = _R["mem_action"].search(text)
             if mc:
-                line.check(path == "approved" and executed == f"{mc.group(1)}_demand",
-                           f"{past}: states 'You chose to {mc.group(1)} demand', the audit executed "
-                           f"{executed!r} ({path})")
-                if mc.group(2) is not None:
+                lead, direction, amount = mc.groups()
+                # Historical "You chose" lines assert approval as well as execution.
+                line.check(executed == f"{direction}_demand" and (lead != "You chose to" or path == "approved"),
+                           f"{past}: states '{lead} {direction} demand', the audit executed {executed!r} ({path})")
+                if amount is not None:
                     mag = sim.opt_num(agent, tk, "magnitude_pct")
-                    line.expect(mc, 2, f"{mag:.0f}" if mag is not None else "(none)", f"{past}: realised change")
+                    line.expect(mc, 3, f"{mag:.0f}" if mag is not None else "(none)", f"{past}: realised change")
                 line.cover(mc)
             ma = _R["mem_applied"].search(text)
             if ma:
@@ -4303,7 +4302,7 @@ class PromptChecker:
             # Item 45g: a keep after a short year states the fall in the
             # request, from last year's request to last year's receipt; no
             # other line carries the clause.
-            is_keep = bool((mc and mc.group(1) == "maintain") or (ma and ma.group(1) == "maintain") or mn)
+            is_keep = bool((mc and direction == "maintain") or (ma and ma.group(1) == "maintain") or mn)
             prev_short = tk > 1 and supply_ratio(sim.num(agent, tk - 1, "diversion"),
                                                  sim.num(agent, tk - 1, "request")) < FULL_SUPPLY_RATIO
             mk = _R["mem_keep_change"].search(text)

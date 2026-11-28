@@ -344,42 +344,17 @@ teach the agent that it was corrected.
 - `broker/tests/test_framework_invariants.py::TestGovernanceLeavesNoTrace` — an
   approved row and a default row (after a rejection, and after an unreadable
   answer) with the same executed skill give the same memory line, metadata and
-  context keys under `executed`; the number in the line is the one that ran; the
-  `explicit` and `neutral` lines and keys are pinned unchanged.
+  context keys. The line records the number that ran.
 
-### Known current state (added 2026-11-26)
+### Current implementation
 
-- `ExperimentRunner`'s own default stays `explicit`, so the frozen flood and
-  irrigation paper runners are byte-identical. Flood keeps its runner line out of
-  memory with `DecisionFilteredMemoryEngine` (`examples/single_agent/run_flood.py`);
-  the 2026-11-25 trace audit found no governance text in later flood memory,
-  reflection or reasoning.
-- The frozen irrigation paper configs (`config_variants/simple`, `simple_nolimit`,
-  `config/agent_types.yaml`) use `neutral` with `runner_decision_line: false`, and
-  the case writes its own line that names the rule on a default year; a default
-  year is also never marked routine and raises a lesson's importance. Those runs do
-  not meet this invariant. They stay frozen. For a re-run, use
-  `config_variants/simple_executed` (with rules) and `simple_nolimit_executed`
-  (without rules), added 2026-11-26. They are copies that change only
-  `rejection_line_style: executed`, so every year reads "Year Y: Action carried
-  out: <action>", and importance, emotion and routine follow the action that ran
-  (`build_action_outcome_feedback`, `_proposed_and_fallback`). A year where no
-  answer could be read and nothing ran (an aborted year) still reads "no valid
-  decision was read"; an unreadable answer that ran the default reads "Action
-  carried out", like any other year.
-  Tests: `examples/irrigation_abm/tests/test_simple_executed.py`, including a run
-  where a blocked year and a year with the same action chosen give the same next
-  prompt.
-- `python -m broker.run` applies `executed` to every agent type whose memory block
-  sets no style, and `broker.tools.scaffold_domain` writes it (2026-11-26). On
-  broker.run every memory write must carry `metadata['origin']` (`world`,
-  `decision`, `reflection`, `social`, `seed`); `install_origin_gate`
-  (`broker/components/memory/origin_gate.py`) refuses any other, refuses a
-  `reflection` line that does not start with `REFLECTION_PREFIX` (so
-  `ReflectionHook._memories` leaves every lesson out of reflection input), and
-  logs every write to `memory_log.jsonl`. `broker_run.json` records
-  `rejection_line_style` and `memory_writes_by_origin`. Tests:
-  `broker/tests/test_broker_run_no_trace.py`.
+- Every runner uses `executed`. The flood paper runner filters its immediate
+  decision line with `DecisionFilteredMemoryEngine`. The irrigation variants
+  write their own executed-action line and physical outcome. Use tag v0.7.0
+  to reproduce the earlier wording.
+- On `broker.run`, every memory write carries an origin. The write gate logs
+  each write to `memory_log.jsonl`. The per-type style and counts by origin
+  are recorded in `broker_run.json`.
 - Twin-run check (2026-11-26): `python -m broker.tools.check_governance_carryover
   <case.yaml>` runs a broker.run case twice with the mock model, once with rules
   blocking and once with every agent proposing the actions that ran (a registered
@@ -401,12 +376,12 @@ teach the agent that it was corrected.
   shown in the prompt can trip the term counts, so the block is a flag to read; the
   twin run is the proof. Frozen runners do not write the block. Tests:
   `broker/tests/test_broker_run_no_trace.py`.
-- `examples/governed_flood/run_experiment.py` writes its own rejection line. In the
+- `examples/governed_flood/run_experiment.py` names the executed action in its own line. In the
   multi-agent flood traces (156 trace files, 83,510 decisions, scanned 2026-11-26)
   the runner's rejection text never reaches memory or prompts, but a year where the
   default ran leaves no decision line at all (0 of 3,007 next-year memories, against
   16,967 of 67,211 after approved years), so the memory still differs by whether a
-  rule stepped in. Neither runner is changed yet.
+  rule stepped in.
 
 ---
 

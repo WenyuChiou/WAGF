@@ -970,13 +970,13 @@ def test_calendar_year_memory_and_dashboard(golden_run):
     memory = prompt[prompt.index("Your memory includes:"):prompt.index("First, assess")]
     # Item 47: the tier-0 unchanged keep is routine, while tier years remain.
     assert "- Year 2019:" not in memory
-    assert "- Year 2020: You chose to maintain demand." in memory
+    assert "- Year 2020: Action carried out: maintain demand." in memory
     # Item 46: the 28,295 AF request is below Mohave Valley IDD's entitlement
     # ceiling in both tier years, so keeping it does not ratchet the request.
-    assert ("- Year 2021: You chose to maintain demand. You requested 28,295 acre-ft and "
+    assert ("- Year 2021: Action carried out: maintain demand. You requested 28,295 acre-ft and "
             "received 28,295 acre-ft. Demand fully met.") in memory
     assert re.search(r"- Year \d{1,2}:", memory) is None
-    assert ("- Year 2020: You chose to maintain demand. You requested 28,295 acre-ft and received "
+    assert ("- Year 2020: Action carried out: maintain demand. You requested 28,295 acre-ft and received "
             "28,295 acre-ft. Demand fully met. On 1 January that year Lake Mead was lower than "
             "a year earlier.") in memory
     dashboard = prompt[prompt.index("PERFORMANCE HISTORY:"):prompt.index("Your memory includes:")]
@@ -1351,13 +1351,13 @@ GOLDEN = {
     (UT1, 2020): ("UB, own sub-basin short at 2018 use", "3dc3f337cf8341aa8802818be530e9a444ef1b9fbc22349707dd6dcd10cb1c67"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "fa0603bafd40b59f0e3828c960f9671c20cbd716095e92721caebfcdaac8f3b6"),
     (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
-                  "314bad46e711074342f12e0eafd8f0a537861d3bed5fa0ff1bf095c490f87dff"),
+                  "a38901e22011fd7421f1ba8f96c0d6c20e26889e7043d46fc4da6f84318dc1a1"),
     ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "4735a59100b3da0f6d4df7625fc610548958a1cb66d9bc0b9449c71c8d177708"),
     # Spec item 48 (affects_agent): the senior's 2020 and 2021 keep-and-fully-met
     # tier-year lines are hidden; under any_tier the prompt hashes to 9b4c68b1...
     ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "76509036abcce8542ee8003943cfb1a921ed5b4765f86b389211d4a40a489f07"),
     ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "46390930fb4b283f252d6dc366cbe8d77bc17fc352506b9fe8eb21ab50d674a8"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "453e87e183ad3aaab245005f292800b71908279671a865862f22ab8b316f08fb"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "b802fd1ab205c64c96a713f46fb5c2e558bc6fe4e172042179f540128cd12ebf"),
 }
 
 
@@ -1474,36 +1474,31 @@ def test_retry_texts_no_label_codes_or_skill_ids(arm_runs):
             assert "[Rule:" not in block
     assert seen > 0
     strict = [b for (_a, _y, _t, b) in arm_runs["strict"].retry_blocks()]
-    assert all("Your proposed action 'increase demand' was BLOCKED." in b for b in strict)
+    assert all("You chose 'increase demand'." in b for b in strict)
     tr3 = [b for (_a, _y, _t, b) in arm_runs["strict_tr3"].retry_blocks()]
-    assert tr3 and all("Your proposed action 'decrease demand' was BLOCKED." in b for b in tr3)
+    assert tr3 and all("You chose 'decrease demand'." in b for b in tr3)
 
 
 def test_placebo_closer_and_silent_resend(arm_runs):
     placebo = arm_runs["placebo"].retry_blocks()
     assert placebo and all(
-        b == "Your previous response was flagged by the governance layer.\n\n"
+        b == "Your previous answer cannot be used in this decision.\n\n"
              "Please reconsider your decision.\n\n" for (_a, _y, _t, b) in placebo)
     silent = arm_runs["silent"].retry_blocks()
     assert silent and all(b == "<SAME>" for (_a, _y, _t, b) in silent)
 
 
-def test_generic_rejection_line_placebo_silent(arm_runs):
-    """Spec 4.5 (L3 M13): an overruled year names the rule in strict only;
-    placebo and silent read "under a governance rule"."""
+def test_executed_memory_is_the_same_across_retry_modes(arm_runs):
     def memory_lines(llm):
         return [line for (agent, year, attempt), p in llm.decisions.items()
                 if year == 2020 and attempt == 0
                 for line in p.splitlines() if line.startswith("- Year 2019:")]
-    strict = memory_lines(arm_runs["strict"])
-    assert strict and all(
-        line.startswith("- Year 2019: maintain demand was applied under the rule on increases "
-                        "under scarcity.") for line in strict)
-    for arm in ("placebo", "silent"):
-        lines = memory_lines(arm_runs[arm])
-        assert lines and all(
-            line.startswith("- Year 2019: maintain demand was applied under a governance rule.")
-            for line in lines), (arm, lines)
+    # A fully delivered keep is routine even when the broker applied it.
+    # Decision prompts omit it. Reflection inputs retain the executed outcome.
+    for arm in ("strict", "placebo", "silent"):
+        assert memory_lines(arm_runs[arm]) == []
+        assert any("Year 2019: Action carried out: maintain demand." in p
+                   for p in arm_runs[arm].reflections)
 
 
 def test_no_action_line_after_omitted_field_is_true(arm_runs):
@@ -1512,13 +1507,13 @@ def test_no_action_line_after_omitted_field_is_true(arm_runs):
     check without the field); it no longer implies every action is ruled
     out by the rules."""
     blocks = [b for (_a, _y, attempt, b) in arm_runs["strict_omit"].retry_blocks()
-              if "Response missing required fields" in b]
+              if "Your answer is missing these required fields" in b]
     assert blocks
     for b in blocks:
-        assert ("No action passes every rule this step, because your response did not include "
+        assert ("No action passes every rule in this decision, because your response did not include "
                 "every required field; if this continues, the default action (maintain demand) "
                 "will be applied.") in b
-        assert "No action passes every rule this step;" not in b
+        assert "No action passes every rule in this decision;" not in b
 
 
 # ===========================================================================
@@ -1581,7 +1576,7 @@ def test_aborted_year_memory_line_states_no_decision(tmp_path):
     for year in (2021, 2022):
         memory = {line[:12]: line for line in llm.decisions[("Agent_000", year, 0)].splitlines()
                   if line.startswith("- Year ")}
-        assert memory["- Year 2019:"].startswith("- Year 2019: You chose to increase demand (by ")
+        assert memory["- Year 2019:"].startswith("- Year 2019: Action carried out: increase demand (by ")
         assert memory["- Year 2020:"].startswith(
             f"- Year 2020: {NO_DECISION_LEAD} You requested {request_2020:,.0f} acre-ft and received ")
         assert "You chose to" not in memory["- Year 2020:"]
@@ -1594,27 +1589,6 @@ def test_aborted_year_memory_line_states_no_decision(tmp_path):
 # 4.7 reflection unit behaviour
 # ===========================================================================
 
-def test_retries_name_rules_reads_the_broker_mode_or_raises():
-    """Review LOW 10: the memory line of an overruled year names the rule
-    only in full mode; a runner whose broker carries no retry-feedback mode
-    raises instead of falling back to "full", which would name rules in a
-    placebo or silent run."""
-    from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
-
-    def hooks(runner):
-        return IrrigationLifecycleHooks(SimpleNamespace(), runner, [], None, None)
-
-    def with_mode(mode):
-        return SimpleNamespace(broker=SimpleNamespace(_retry_feedback_mode=mode))
-
-    assert hooks(with_mode("full"))._retries_name_rules() is True
-    for mode in ("placebo", "silent"):
-        assert hooks(with_mode(mode))._retries_name_rules() is False
-    for runner in (SimpleNamespace(), SimpleNamespace(broker=SimpleNamespace())):
-        with pytest.raises(RuntimeError, match="_retry_feedback_mode"):
-            hooks(runner)._retries_name_rules()
-    with pytest.raises(ValueError, match="unknown"):
-        hooks(with_mode("loud"))._retries_name_rules()
 
 
 def _reflect_once(summaries, memories, *, keep_latest_only=True, years=(2021,)):
@@ -1785,6 +1759,6 @@ def test_foreign_figures_tolerate_rounding_and_read_every_format(summary, foreig
     too; years, counts and tier numbers are not figures."""
     from examples.irrigation_abm.run_experiment import _foreign_figures
 
-    own = (MOHAVE_2019 + " Year 2020: You chose to maintain demand. You requested 20,155 "
+    own = (MOHAVE_2019 + " Year 2020: Action carried out: maintain demand. You requested 20,155 "
            "acre-ft and received 17,132 acre-ft. Shortfall: 3,023 acre-ft (15.0% unmet).")
     assert _foreign_figures(summary, own) == foreign

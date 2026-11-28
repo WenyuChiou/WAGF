@@ -846,8 +846,7 @@ def governance_carryover_block(
     (``intervened``: the row ended REJECTED or UNCERTAIN; ``default_ran``: the
     registry default ran in its place).
 
-    Counts are over agent types whose style is ``executed`` (the other styles
-    name the rule on purpose). ``ok`` is False when one of them is above 0,
+    Counts cover every configured agent type. ``ok`` is False when one of them is above 0,
     when ``memory_log.jsonl`` holds fewer rows than the write gate counted, or
     when a file the block reads cannot be read.
     A world rule shown in the prompt of both arms can trip the term counts,
@@ -855,7 +854,11 @@ def governance_carryover_block(
     (``python -m broker.tools.check_governance_carryover``).
     """
     output_dir = Path(output_dir)
-    checked = sorted(t for t, s in styles.items() if s == "executed")
+    from broker.config.decision_wording import require_wording
+
+    for style in styles.values():
+        require_wording("memory.rejection_line_style", style, "executed")
+    checked = sorted(styles)
     in_scope = lambda agent_id: agent_types.get(str(agent_id)) in checked
     unreadable: List[str] = []
     terms = _governance_terms(output_dir, unreadable)

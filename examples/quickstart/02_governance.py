@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from broker.utils.retry_prompt import PLAIN_RETRY_HEADER
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory.engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
@@ -86,7 +87,7 @@ def mock_llm(prompt: str) -> str:
     global call_count
     call_count += 1
     # After a governance block, the prompt contains "BLOCKED" — switch to do_nothing
-    if "BLOCKED" in prompt or "blocked" in prompt.lower():
+    if prompt.startswith(PLAIN_RETRY_HEADER):
         return DO_NOTHING
     return TAKE_ACTION
 

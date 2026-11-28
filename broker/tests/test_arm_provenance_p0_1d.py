@@ -167,15 +167,12 @@ def test_manifest_fields_degrade_safely_on_a_duck_typed_broker():
                                             "rule_ids": sorted(str(r) for r in spec["rule_ids"])}
     else:
         metadata["advise_spec_resolved"] = None
-    framing = getattr(runner.broker, "_intervention_framing", "legacy")
-    metadata["intervention_framing_resolved"] = framing if isinstance(framing, str) else "legacy"
     retries = getattr(runner.broker, "max_retries", None)
     metadata["max_retries_resolved"] = (
         retries if isinstance(retries, int) and not isinstance(retries, bool) else None)
 
     json.dumps(metadata)  # must not raise
     assert metadata["advise_spec_resolved"] is None
-    assert metadata["intervention_framing_resolved"] == "legacy"
     assert metadata["max_retries_resolved"] is None
 
 

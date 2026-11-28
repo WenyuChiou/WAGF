@@ -387,7 +387,6 @@ def test_mock_config_leaves_advise_and_counters_off():
     assert eng._advise_mode == "off"
     assert eng._advise_spec is None
     assert eng._count_llm_calls is False
-    assert eng._intervention_framing == "legacy"
 
 
 def test_mock_config_does_not_enable_keep_proposal():

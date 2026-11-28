@@ -159,7 +159,6 @@ class AdviseMixin:
         advisory_prompt, _shown = render_intervention_prompt(
             self.model_adapter, prompt, reports,
             max_reports=self.max_reports,
-            framing=getattr(self, "_intervention_framing", "legacy"),
         )
         # Set BEFORE the call and never cleared on failure: the claim the column
         # supports is "the model was shown this advice", and that became true at
@@ -333,7 +332,6 @@ class AdviseMixin:
         }))
 
         # --- Build the arm-specific prompt -------------------------------------
-        framing = getattr(self, "_intervention_framing", "legacy")
         spec = getattr(self, "_advise_spec", None) or {}
 
         if mode == "resample":
@@ -343,7 +341,7 @@ class AdviseMixin:
         elif mode == "wrapper":
             # Arm A'': wrapper scaffolding only, no rules block.
             advisory_prompt, reports_shown = render_intervention_prompt(
-                self.model_adapter, prompt, [], framing=framing, include_reports=False,
+                self.model_adapter, prompt, [], include_reports=False,
             )
         else:
             reports = build_intervention_reports(
@@ -358,7 +356,7 @@ class AdviseMixin:
                     r.suggested_correction = None
             advisory_prompt, reports_shown = render_intervention_prompt(
                 self.model_adapter, prompt, reports,
-                max_reports=self.max_reports, framing=framing,
+                max_reports=self.max_reports,
             )
         info["advisory_reports_shown"] = reports_shown
         info["advisory_prompt_chars"] = len(advisory_prompt)

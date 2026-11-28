@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
+from broker.utils.retry_prompt import PLAIN_RETRY_HEADER
 from broker.agents import AgentConfig, BaseAgent
 from broker.agents.base import Skill
 from broker.coupling import (
@@ -75,7 +76,7 @@ def scripted_operator(prompt: str):
     # ops_modules docstring arithmetic); review C2: 0.6 also projected below
     # dead pool, so the retry never resolved and the insurer-pattern
     # narrative (wall -> retry -> APPROVED) was broken.
-    magnitude = 0.5 if "BLOCKED" in prompt or "dead_pool_violation" in prompt else 1.0
+    magnitude = 0.5 if prompt.startswith(PLAIN_RETRY_HEADER) else 1.0
     return decision_payload(
         "set_release",
         magnitude=magnitude,

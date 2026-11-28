@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Retired `legacy` and `neutral` retry wording and `explicit` and `neutral` decision memory lines on
+  2026-11-27. All runners use `intervention_framing: plain` and `rejection_line_style: executed`.
+  Reproduce runs using the retired wording from tag v0.7.0. Retries after an answer that could not be
+  parsed now also use the plain wording; before, they always used the legacy text. The memory line
+  reads "Action carried out: X." in every runner, including the multi-agent flood case and
+  `examples/governed_flood`. The two values are read without regard to case or surrounding spaces.
+
 ### Added
 
 - **Every run keeps a complete, checkable record, and no setting turns it off** (`docs/RUN_RECORDS.md`).
@@ -30,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sees no governance header, no severity tag (`[ERROR]`), no "was BLOCKED", no "violations", no section title,
   no Suggestion line and no `[!NOTE]` tag; each report is one line naming the agent's own choice and the rule's
   reason, and an unreadable answer gets one line saying the response format was not followed. The labels stay in
-  the logs and the audit, which read the validation results. `legacy` stays the default and is byte-identical.
+  the logs and the audit, which read the validation results.
 
 ### Changed
 

@@ -1,24 +1,9 @@
-"""Irrigation's runner-decision-line opt-out (2026-09-26), end-to-end.
-
-Irrigation's ``pre_year`` hook already writes its own per-year outcome line
-(``build_action_outcome_feedback``), so the generic "Decided to: X" /
-"default action applied: X" line ``ExperimentRunner._apply_state_changes``
-writes every period doubled every year up in the composed 5-recent-memory
-retrieval window (SI section 3.8), covering ~2.5 years of history instead of
-5. ``examples/irrigation_abm/config/agent_types.yaml`` now sets
-``irrigation_farmer.memory.runner_decision_line: false`` to suppress the
-generic line (see ``broker/tests/test_runner_decision_line_optout.py`` for
-the framework-level unit tests of that mechanism).
-
-This test drives a REAL 3-year, 2-agent run through
-``examples.irrigation_abm.run_experiment.main()`` with a deterministic mock
-LLM (no Ollama / network), and inspects the actual composed memory block a
-target agent sees at year 3 — one line per prior year (years 1 and 2) plus
-the reflection written at the end of year 2, and none of the runner's own
-generic markers.
+"""The irrigation runner stores one domain outcome per year and filters routine
+outcomes from the next decision prompt. Exercise both paths with the mock model.
 """
 from __future__ import annotations
 
+import csv
 import json
 import re
 import sys
@@ -27,8 +12,7 @@ import broker.utils.llm_utils as llm_utils
 from broker.utils.llm_utils import LLMStats
 from examples.irrigation_abm import run_experiment
 
-DECISION_MEMORY_MARKER = "Decided to:"
-FALLBACK_MEMORY_MARKER = "default action applied:"
+
 
 
 def _smart_mock_invoke(prompt: str):
@@ -109,19 +93,18 @@ def test_year3_memory_block_has_no_generic_runner_lines(monkeypatch, tmp_path):
     ]
     assert contents, "year-3 memory block is empty"
 
-    # No generic runner line of either shape.
-    assert not any(DECISION_MEMORY_MARKER in c for c in contents), contents
-    assert not any(FALLBACK_MEMORY_MARKER in c for c in contents), contents
+    # Runner lines use simulation years; domain outcomes use calendar years.
+    assert not any(c.startswith(("Year 1: Action carried out:", "Year 2: Action carried out:"))
+                   for c in contents)
 
-    # Exactly one domain outcome line per prior year (years 1 and 2), each
-    # written by build_action_outcome_feedback (irrigation_personas.py),
-    # not the runner's suppressed generic line.
-    # WP4 (spec 4.5): memory lines name calendar years (loop years 1 and 2
-    # are 2019 and 2020).
-    year1_lines = [c for c in contents if c.startswith("Year 2019:")]
-    year2_lines = [c for c in contents if c.startswith("Year 2020:")]
-    assert len(year1_lines) == 1, contents
-    assert len(year2_lines) == 1, contents
+    # These fully delivered keeps are routine. The log records both outcomes
+    # even though the composed decision memory omits them.
+    with (tmp_path / "simulation_log.csv").open(encoding="utf-8", newline="") as stream:
+        row = next(r for r in csv.DictReader(stream) if r["year"] == "3" and r["agent_id"] == target)
+    stored = row["memory"].split(" | ")
+    assert len(stored) == 3
+    for year in (2019, 2020):
+        assert sum(line.startswith(f"Year {year}: Action carried out: maintain demand.") for line in stored) == 1
 
     # Plus the reflection written at the end of year 2 (2020); the one
     # written at the end of 2019 was replaced (reflection.keep_latest_only).
@@ -129,5 +112,4 @@ def test_year3_memory_block_has_no_generic_runner_lines(monkeypatch, tmp_path):
                         if c.startswith("Consolidated Reflection (written in 2020): ")]
     assert len(reflection_lines) == 1, contents
 
-    # Exactly these three lines: no duplication, no stray fourth item.
-    assert len(contents) == 3, contents
+    assert contents == reflection_lines

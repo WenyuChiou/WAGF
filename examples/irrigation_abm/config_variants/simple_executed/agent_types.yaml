@@ -224,11 +224,10 @@ global_config:
     # agent sees carries no log label -- no "governance layer", "flagged",
     # "[ERROR]", "BLOCKED", "violations" or Suggestion line. Each report is
     # one line naming the agent's choice and the rule's own reason. The
-    # labels stay in the logs and the audit. Generic framework option
-    # (framework default "legacy").
+    # labels stay in the logs and the audit.
     intervention_framing: plain
     # v3 (WP4, spec 4.8, L3 M12): the closer of a placebo retry, which shows
-    # no rule text; the framework default points at "the violations above".
+    # no rule text; the framework default is "Please answer again.".
     placebo_closer: "Please reconsider your decision."
 
   # First-attempt proposal columns (initial_skill, initial_labels,
@@ -511,11 +510,7 @@ irrigation_farmer:
     # 2026-09-26: the composed retrieval above provides the event slots and
     # global_config.memory.reflection_slot provides the separate final
     # reflection slot.
-    # How the memory line of a year whose proposal was overruled reads.
-    # This variant: executed (Invariant 7, broker/INVARIANTS.md). Every year
-    # reads "Year Y: Action carried out: <action>", overruled or not, and
-    # importance, emotion and routine follow the action that ran only.
-    # (config_variants/simple keeps neutral, which names the rule.)
+    # Every decision line names the action that ran.
     rejection_line_style: executed
 
     # Generic runner opt-out (2026-09-26, ExperimentRunner._apply_state_changes):

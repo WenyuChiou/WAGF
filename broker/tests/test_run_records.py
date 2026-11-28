@@ -747,7 +747,6 @@ def _provenance_runner(tmp_path):
     runner = _finalize_runner(tmp_path)
     runner.broker.config = _ProvCfg()
     runner.broker.max_retries = 3
-    runner.broker._intervention_framing = "plain"
     runner.broker._on_retry_exhausted = "default"
     runner.broker.skill_registry.get_default_skill.return_value = "do_nothing"
     runner.config.workers = 2

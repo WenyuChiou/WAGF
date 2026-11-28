@@ -2,7 +2,7 @@
 
 A year a rule overruled and a year the same action was simply chosen leave the
 same memory line and the same memory metadata, so the next year's prompt is
-the same. The frozen variants are not touched.
+the same across both variants.
 """
 from pathlib import Path
 
@@ -52,7 +52,7 @@ def test_executed_context_reads_the_executed_skill_for_salience():
 
 
 @pytest.mark.parametrize("frozen", ["simple", "simple_nolimit"])
-def test_variant_differs_from_its_frozen_source_only_in_the_line_style(frozen):
+def test_variant_config_differences_match_the_documented_overrides(frozen):
     simple, executed = VARIANTS / frozen, VARIANTS / f"{frozen}_executed"
     names = {p.relative_to(simple).as_posix() for p in simple.rglob("*") if p.is_file()}
     assert names == {p.relative_to(executed).as_posix() for p in executed.rglob("*") if p.is_file()}
@@ -60,7 +60,7 @@ def test_variant_differs_from_its_frozen_source_only_in_the_line_style(frozen):
         assert (simple / name).read_bytes() == (executed / name).read_bytes(), name
     a = yaml.safe_load((simple / "agent_types.yaml").read_text(encoding="utf-8"))
     b = yaml.safe_load((executed / "agent_types.yaml").read_text(encoding="utf-8"))
-    assert a["irrigation_farmer"]["memory"].pop("rejection_line_style") == "neutral"
+    assert a["irrigation_farmer"]["memory"].pop("rejection_line_style") == "executed"
     assert b["irrigation_farmer"]["memory"].pop("rejection_line_style") == "executed"
     # 2026-11-26: the executed variants also retry in plain words (no log
     # labels reach the agent) and their rule messages no longer say "blocked".
@@ -121,8 +121,9 @@ def _twin(tmp_path, variant):
     return out
 
 
-def test_an_overruled_year_and_a_chosen_year_give_the_same_next_prompt(tmp_path):
-    runs = _twin(tmp_path, "simple_executed")
+@pytest.mark.parametrize("variant", ["simple", "simple_executed"])
+def test_an_overruled_year_and_a_chosen_year_give_the_same_next_prompt(tmp_path, variant):
+    runs = _twin(tmp_path, variant)
     prompts_a, writes_a, retried_a = runs["A"][:3]
     prompts_b, writes_b, retried_b = runs["B"][:3]
     assert retried_a and not retried_b          # rules stepped in on run A only
@@ -132,12 +133,6 @@ def test_an_overruled_year_and_a_chosen_year_give_the_same_next_prompt(tmp_path)
     assert all(": Action carried out: maintain demand" in content for _a, content, _m in writes_a)
 
 
-def test_the_frozen_simple_variant_still_names_the_rule(tmp_path):
-    # Control: the same twin on the frozen variant differs, so the test above can fail.
-    runs = _twin(tmp_path, "simple")
-    assert runs["A"][2]
-    assert runs["A"][0] != runs["B"][0]
-    assert any("was applied under" in content for _a, content, _m in runs["A"][1])
 
 
 def test_the_without_rules_arm_variant_runs_with_executed_lines(tmp_path):

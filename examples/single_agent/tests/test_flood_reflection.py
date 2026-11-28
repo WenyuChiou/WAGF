@@ -162,8 +162,8 @@ def test_reflection_slot_shows_the_reflection_after_the_five_event_lines():
     assert got[5] == "Consolidated Reflection (written in Year 6): x Lesson: y."
     assert proxy.remove_by_type("A", "reflection") == 1
     assert proxy.retrieve(_Agent("A"), top_k=5) == [f"Year {i}: event." for i in range(2, 7)]
-    proxy.add_memory("A", "Decided to: x", {})  # the runner's decision line is still dropped
-    assert "Decided to: x" not in proxy.retrieve(_Agent("A"), top_k=5)
+    proxy.add_memory("A", "Action carried out: X.", {})  # the runner's decision line is still dropped
+    assert "Action carried out: X." not in proxy.retrieve(_Agent("A"), top_k=5)
 
 
 def test_slot_off_passes_every_call_through_as_before():
