@@ -146,9 +146,18 @@ def test_default_year_and_approved_year_get_the_same_line(case, tmp_path):
     assert [e["content"] for e in decisions] == [
         "Year 1: Action carried out: Wait.", "Year 2: Action carried out: Wait."]
     assert [e["period"] for e in decisions] == [1, 2]
-    # Same metadata on the default year and the approved year.
-    strip = lambda e: {k: v for k, v in e.items() if k not in ("content", "period")}
+    # Same decision-line shape on the default year and the approved year;
+    # memory_id and source_step_id advance sequentially per write while run_id matches.
+    strip = lambda e: {
+        k: v for k, v in e.items()
+        if k not in ("content", "period", "memory_id", "source_step_id")
+    }
     assert strip(decisions[0]) == strip(decisions[1])
+    assert decisions[0]["memory_id"].startswith("mem-")
+    assert decisions[0]["memory_id"] != decisions[1]["memory_id"]
+    assert decisions[0]["source_step_id"] == 1
+    assert decisions[1]["source_step_id"] == 2
+    assert decisions[0]["run_id"] == decisions[1]["run_id"]
     prompt = _first_prompt(output, 2)
     assert "Year 1: Action carried out: Wait." in prompt
     for word in ("reject", "default action", "inspect is not allowed", "no_inspect", "Proposal"):

@@ -670,11 +670,12 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
     # Invariant 7: every memory write is tagged with its origin and logged to
     # memory_log.jsonl. Writes while the builder seeds agent profiles count as
     # seed writes; any untagged write after that raises.
+    run_id = f"run_{ctx.seed}_{os.urandom(4).hex()}"
     built = {}
     period_getter = lambda: getattr(built.get("runner"), "_current_year", 0)
     gate = install_origin_gate(
         memory, ctx.output_dir, period=period_getter,
-        reflection_prefix=REFLECTION_PREFIX)
+        reflection_prefix=REFLECTION_PREFIX, run_id=run_id)
 
     hub = None
     extend_providers = None
@@ -721,6 +722,7 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         .with_exact_output(str(ctx.output_dir))
         .with_workers(ctx.workers)
         .with_seed(ctx.seed)
+        .with_run_id(run_id)
     )
     try:
         builder.with_governance(ctx.profile, config_path)
@@ -904,6 +906,7 @@ def _write_run_record(prepared, argv, status, provenance=None):
     ctx, args = prepared.ctx, prepared.args
     used = prepared.slot_files  # the mock slot is absent under a real model
     record = {
+        "run_id": getattr(prepared.runner, "run_id", None),
         "status": status,
         "config": str(ctx.config_path),
         "case_dir": str(ctx.case_dir),
@@ -942,6 +945,41 @@ def _write_run_record(prepared, argv, status, provenance=None):
 
 #: Output folder of the last run this process finished (read by ``python -m broker.run``).
 LAST_RUN_OUTPUT = None
+
+
+def _snapshot_component(obj: Any) -> Any:
+    if obj is None:
+        return None
+    if callable(getattr(obj, "snapshot", None)):
+        return obj.snapshot()
+    if callable(getattr(obj, "summary", None)):
+        return obj.summary()
+    if hasattr(obj, "kg"):
+        return _snapshot_component(getattr(obj, "kg"))
+    if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
+        return [_snapshot_component(item) for item in obj]
+    return {"type": type(obj).__name__}
+
+
+def _write_coordination_snapshot(ctx: RunContext, runner: Any) -> None:
+    """Write ``coordination_snapshot.json`` when a social or coordinator slot ran."""
+    if ctx.social is None and ctx.coordinator is None:
+        return
+    payload: dict[str, Any] = {
+        "run_id": getattr(runner, "run_id", None),
+    }
+    if ctx.social is not None:
+        payload["social"] = _snapshot_component(ctx.social)
+        graph = getattr(ctx.social, "social_graph", None) or getattr(ctx.social, "environment", None)
+        if graph is not None and callable(getattr(graph, "summary", None)):
+            payload["social_graph"] = graph.summary()
+    if ctx.coordinator is not None:
+        payload["coordinator"] = _snapshot_component(ctx.coordinator)
+    ctx.output_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.output_dir / "coordination_snapshot.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n",
+        encoding="utf-8",
+    )
 
 
 def main(argv=None) -> int:
@@ -996,6 +1034,7 @@ def main(argv=None) -> int:
         return 1
     if after_run is not None:
         after_run(ctx.output_dir)
+    _write_coordination_snapshot(ctx, runner)
     # `python -m broker.run` (broker/run/__main__.py) reads this and checks the mandatory run
     # records of the finished run (broker/utils/provenance_requirements.py), exiting non-zero
     # when they are incomplete, with or without --strict-provenance.

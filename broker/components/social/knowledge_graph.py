@@ -396,7 +396,7 @@ class AsyncKnowledgeGraph:
             return set()
         return set(self.follower_network.get_followed(observer_id))
 
-    def _resolve_triple_availability(
+    def _resolve_triple_availability_with_hop(
         self,
         triple: KnowledgeTriple,
         observer_id: str,
@@ -406,7 +406,7 @@ class AsyncKnowledgeGraph:
         followed_ids: Optional[Set[str]],
         effective_hops: int,
         hop_cache: Dict[int, Dict[str, int]],
-    ) -> Optional[int]:
+    ) -> Optional[Tuple[int, Optional[int]]]:
         source_id = triple.author_id or triple.subject
         is_self = source_id == observer_id
         if is_self and not include_self:
@@ -414,6 +414,7 @@ class AsyncKnowledgeGraph:
 
         vis = triple.visibility
         effective_avail = triple.available_period
+        hop: Optional[int] = 0 if is_self else None
         if vis == "global":
             pass
         elif vis == "direct":
@@ -450,7 +451,29 @@ class AsyncKnowledgeGraph:
             and current_period >= effective_avail + triple.ttl_periods
         ):
             return None
-        return effective_avail
+        return effective_avail, hop
+
+    def _resolve_triple_availability(
+        self,
+        triple: KnowledgeTriple,
+        observer_id: str,
+        current_period: int,
+        *,
+        include_self: bool,
+        followed_ids: Optional[Set[str]],
+        effective_hops: int,
+        hop_cache: Dict[int, Dict[str, int]],
+    ) -> Optional[int]:
+        resolved = self._resolve_triple_availability_with_hop(
+            triple,
+            observer_id,
+            current_period,
+            include_self=include_self,
+            followed_ids=followed_ids,
+            effective_hops=effective_hops,
+            hop_cache=hop_cache,
+        )
+        return None if resolved is None else resolved[0]
 
     def _score_triple(
         self,
@@ -467,7 +490,7 @@ class AsyncKnowledgeGraph:
         )
         return triple.confidence * decay
 
-    def _query_visible_with_availability(
+    def _query_visible_with_provenance(
         self,
         observer_id: str,
         current_period: int,
@@ -477,8 +500,8 @@ class AsyncKnowledgeGraph:
         top_k: int = 10,
         include_self: bool = False,
         hops: Optional[int] = None,
-    ) -> List[Tuple[KnowledgeTriple, int]]:
-        """Query visible ``(triple, effective_available_period)`` pairs ranked for ``observer_id``."""
+    ) -> List[Tuple[KnowledgeTriple, int, Optional[int], float]]:
+        """Query ranked ``(triple, effective_available_period, hop, score)`` tuples."""
         if top_k <= 0 or not self._triples:
             return []
 
@@ -492,13 +515,13 @@ class AsyncKnowledgeGraph:
         followed_ids = self._get_followed_ids(observer_id) if self.follower_network is not None else None
         hop_cache: Dict[int, Dict[str, int]] = {}
 
-        scored: List[Tuple[float, int, int, int, str, KnowledgeTriple]] = []
+        scored: List[Tuple[float, int, int, int, str, KnowledgeTriple, Optional[int]]] = []
         for idx, triple in enumerate(self._triples):
             if predicate_set is not None and triple.predicate not in predicate_set:
                 continue
             if subject_set is not None and triple.subject not in subject_set:
                 continue
-            effective_avail = self._resolve_triple_availability(
+            resolved = self._resolve_triple_availability_with_hop(
                 triple,
                 observer_id,
                 current_period,
@@ -507,8 +530,9 @@ class AsyncKnowledgeGraph:
                 effective_hops=effective_hops,
                 hop_cache=hop_cache,
             )
-            if effective_avail is None:
+            if resolved is None:
                 continue
+            effective_avail, hop = resolved
 
             score = self._score_triple(triple, current_period, available_period=effective_avail)
             scored.append((
@@ -518,10 +542,34 @@ class AsyncKnowledgeGraph:
                 -idx,
                 triple.triple_id,
                 triple,
+                hop,
             ))
 
         scored.sort(key=lambda item: item[:5])
-        return [(item[5], -item[1]) for item in scored[:top_k]]
+        return [(item[5], -item[1], item[6], -item[0]) for item in scored[:top_k]]
+
+    def _query_visible_with_availability(
+        self,
+        observer_id: str,
+        current_period: int,
+        *,
+        predicates: Optional[Union[str, Iterable[str]]] = None,
+        subjects: Optional[Union[str, Iterable[str]]] = None,
+        top_k: int = 10,
+        include_self: bool = False,
+        hops: Optional[int] = None,
+    ) -> List[Tuple[KnowledgeTriple, int]]:
+        """Query visible ``(triple, effective_available_period)`` pairs ranked for ``observer_id``."""
+        rows = self._query_visible_with_provenance(
+            observer_id,
+            current_period,
+            predicates=predicates,
+            subjects=subjects,
+            top_k=top_k,
+            include_self=include_self,
+            hops=hops,
+        )
+        return [(triple, effective_avail) for triple, effective_avail, _hop, _score in rows]
 
     def query_visible(
         self,
@@ -545,6 +593,50 @@ class AsyncKnowledgeGraph:
             hops=hops,
         )
         return [triple for triple, _ in pairs]
+
+    def query_visible_with_metadata(
+        self,
+        observer_id: str,
+        current_period: int,
+        *,
+        predicates: Optional[Union[str, Iterable[str]]] = None,
+        subjects: Optional[Union[str, Iterable[str]]] = None,
+        top_k: int = 10,
+        include_self: bool = False,
+        hops: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Query visible triples with causal provenance metadata for retrospective audit."""
+        rows = self._query_visible_with_provenance(
+            observer_id,
+            current_period,
+            predicates=predicates,
+            subjects=subjects,
+            top_k=top_k,
+            include_self=include_self,
+            hops=hops,
+        )
+        out: List[Dict[str, Any]] = []
+        for triple, effective_avail, hop, score in rows:
+            entry: Dict[str, Any] = {
+                "triple_id": triple.triple_id,
+                "subject": triple.subject,
+                "predicate": triple.predicate,
+                "obj": triple.obj,
+                "value": triple.value,
+                "author_id": triple.author_id,
+                "author_role": triple.author_role,
+                "visibility": triple.visibility,
+                "published_period": triple.published_period,
+                "delivery_delay": triple.delivery_delay,
+                "effective_available_period": effective_avail,
+                "hop": hop,
+                "score": round(score, 4),
+                "text": self.format_triple(triple),
+            }
+            if isinstance(triple.metadata, dict) and triple.metadata.get("source_step_id") is not None:
+                entry["source_step_id"] = triple.metadata["source_step_id"]
+            out.append(entry)
+        return out
 
     def sync_to_memory(
         self,
@@ -575,7 +667,7 @@ class AsyncKnowledgeGraph:
             return 0
 
         delivered_ids = self._delivered_by_observer.setdefault(observer_id, set())
-        visible_pairs = self._query_visible_with_availability(
+        visible_rows = self._query_visible_with_provenance(
             observer_id,
             current_period,
             predicates=predicate_set,
@@ -585,10 +677,13 @@ class AsyncKnowledgeGraph:
             hops=effective_hops,
         )
 
-        unseen = [(t, avail) for t, avail in visible_pairs if t.triple_id not in delivered_ids][:max_items]
+        unseen = [
+            (t, avail, hop, score)
+            for t, avail, hop, score in visible_rows
+            if t.triple_id not in delivered_ids
+        ][:max_items]
         count = 0
-        for triple, effective_avail in unseen:
-            score = self._score_triple(triple, current_period, available_period=effective_avail)
+        for triple, effective_avail, hop, score in unseen:
             importance = round(max(0.0, min(1.0, score)), 4)
             source = "neighbor" if triple.visibility == "neighbors" else "community"
             metadata: Dict[str, Any] = {
@@ -597,9 +692,14 @@ class AsyncKnowledgeGraph:
                 "importance": importance,
                 "source": source,
                 "triple_id": triple.triple_id,
+                "effective_available_period": effective_avail,
             }
+            if hop is not None:
+                metadata["hop"] = hop
             if triple.author_id:
                 metadata["author_id"] = triple.author_id
+            if isinstance(triple.metadata, dict) and triple.metadata.get("source_step_id") is not None:
+                metadata["source_step_id"] = triple.metadata["source_step_id"]
             memory_engine.add_memory(
                 observer_id,
                 self.format_triple(triple),

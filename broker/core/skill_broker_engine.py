@@ -414,6 +414,10 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
         _get_rpc = getattr(self.config, "get_audit_retry_prompt_columns", None)
         _rpc = _get_rpc() if callable(_get_rpc) else False
         self._retry_prompt_columns = _rpc if isinstance(_rpc, bool) else False
+        # Opt-in full context snapshot in raw JSONL trace (default OFF, JSONL-only).
+        _get_cs = getattr(self.config, "get_audit_context_snapshot", None)
+        _cs = _get_cs() if callable(_get_cs) else False
+        self._context_snapshot = _cs if isinstance(_cs, bool) else False
         # Agent-state audit columns (global_config.audit.state_columns,
         # default none): each listed state key is written as state_<key>.
         _get_scol = getattr(self.config, "get_audit_state_columns", None)

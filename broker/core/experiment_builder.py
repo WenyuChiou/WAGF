@@ -47,11 +47,17 @@ class ExperimentBuilder:
         self._llm_journal_path = None
         self._resume_journal_path = None
         self._allow_dirty_tree = False
+        self._run_id = None
 
     def with_allow_dirty_tree(self, allow: bool = True) -> "ExperimentBuilder":
         """Let a non-mock run start on a WAGF tree with uncommitted changes (recorded in the
         manifest as ``allow_dirty_tree``). Without it ``ExperimentRunner.run`` refuses."""
         self._allow_dirty_tree = bool(allow)
+        return self
+
+    def with_run_id(self, run_id: Optional[str]):
+        """Set an explicit run identifier propagated across run artifacts."""
+        self._run_id = run_id
         return self
 
     def with_workers(self, workers: int = 4):
@@ -709,6 +715,7 @@ class ExperimentBuilder:
             llm_journal_path=getattr(self, '_llm_journal_path', None),
             resume_journal_path=getattr(self, '_resume_journal_path', None),
             allow_dirty_tree=getattr(self, '_allow_dirty_tree', False),
+            run_id=getattr(self, '_run_id', None),
         )
 
         # A projection check saves and restores the process-wide RNG

@@ -83,6 +83,7 @@ class KnowledgeGraphSocialProvider(ContextProvider):
             observer = agents.get(agent_id)
             if observer is not None and getattr(observer, "is_active", True) is False:
                 context[self.context_key] = ""
+                context["_social_kg_audit"] = []
                 return
 
         current_period = self._resolve_period(context, kwargs)
@@ -100,16 +101,34 @@ class KnowledgeGraphSocialProvider(ContextProvider):
                 hops=self.hops,
             )
 
-        triples = self.kg.query_visible(
-            agent_id,
-            current_period,
-            predicates=self.predicates,
-            subjects=self.subjects,
-            top_k=self.top_k,
-            include_self=self.include_self,
-            hops=self.hops,
-        )
-        lines = [self.kg.format_triple(t) for t in triples]
+        query_meta_fn = getattr(self.kg, "query_visible_with_metadata", None)
+        if callable(query_meta_fn):
+            kg_items = query_meta_fn(
+                agent_id,
+                current_period,
+                predicates=self.predicates,
+                subjects=self.subjects,
+                top_k=self.top_k,
+                include_self=self.include_self,
+                hops=self.hops,
+            )
+            lines = [str(item.get("text", "")) for item in kg_items]
+        else:
+            triples = self.kg.query_visible(
+                agent_id,
+                current_period,
+                predicates=self.predicates,
+                subjects=self.subjects,
+                top_k=self.top_k,
+                include_self=self.include_self,
+                hops=self.hops,
+            )
+            lines = [self.kg.format_triple(t) for t in triples]
+            kg_items = [
+                {"triple_id": getattr(t, "triple_id", None), "text": line}
+                for t, line in zip(triples, lines)
+            ]
+        context["_social_kg_audit"] = kg_items
 
         if lines:
             context[self.context_key] = "\n".join(f"- {line}" for line in lines)

@@ -180,6 +180,7 @@ class ExperimentConfig:
     # broker.utils.llm_journal.LLMJournalManager for the mechanism.
     llm_journal_path: Optional[Path] = None
     resume_journal_path: Optional[Path] = None
+    run_id: Optional[str] = None
 
 # Invariant 7 (memory.rejection_line_style: executed): the one line form for
 # every row, whether governance stepped in or not.
@@ -220,6 +221,8 @@ class ExperimentRunner:
         self._prompt_template_sha256_at_launch = self._prompt_template_hashes()
         self._capture_model_metadata_at_launch()
         self.step_counter = 0
+        self._configured_run_id: Optional[str] = getattr(config, "run_id", None)
+        self.run_id: Optional[str] = self._configured_run_id
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
 
@@ -967,7 +970,12 @@ class ExperimentRunner:
         self._governance_decision_lines = []
         # Start time, launch environment, model-call log, sampling-seed switch.
         self._begin_run_records()
-        run_id = f"exp_{random.randint(1000, 9999)}"
+        explicit_run_id = getattr(self, "_configured_run_id", None) or getattr(self.config, "run_id", None)
+        if explicit_run_id:
+            run_id = str(explicit_run_id)
+        else:
+            run_id = f"exp_{random.randint(1000, 9999)}"
+        self.run_id = run_id
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
         # Inject model name into broker for audit trace enrichment
@@ -1508,6 +1516,8 @@ class ExperimentRunner:
                 ) else None
             ),
         }
+        if getattr(self, "tag_memory_origin", False) is True or getattr(self.config, "run_id", None) is not None:
+            manifest["run_id"] = getattr(self, "run_id", None)
         manifest.update(self._collect_reproducibility_metadata())
         # When the LLM-failure abort-rate safeguard stopped this run,
         # record it in the manifest, not only in the exception that ended
@@ -2602,6 +2612,9 @@ class ExperimentRunner:
         if result.execution_result and result.execution_result.action_context:
             action_ctx.update(result.execution_result.action_context)
         agent._last_action_context = action_ctx
+        step_id = getattr(result, "_step_id", None)
+        if step_id is not None:
+            agent._last_step_id = step_id
 
         # Domains writing their own outcome can skip the runner's decision line.
         runner_decision_line = (
@@ -2651,6 +2664,8 @@ class ExperimentRunner:
             # python -m broker.run's write gate (Invariant 7) needs every
             # write tagged; the frozen runners leave this False.
             memory_metadata["origin"] = "decision"
+            if step_id is not None:
+                memory_metadata["source_step_id"] = step_id
             # The run-integrity governance_carryover block (Invariant 7)
             # compares the line of a year a rule changed with the lines of
             # years it did not. Kept on the runner, never in memory.
@@ -2827,9 +2842,11 @@ class ExperimentRunner:
                             logger.warning(f"[Efficiency] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
                             self.efficiency.invalidate(context_hash)
                         else:
+                            result._step_id = self.step_counter
                             results.append((agent, result))
                             continue
                     else:
+                        result._step_id = self.step_counter
                         results.append((agent, result))
                         continue
 
@@ -2847,6 +2864,7 @@ class ExperimentRunner:
                     **self._model_name_kwargs(_atype),
                     **self._decider_kwargs(_atype),
                 )
+                result._step_id = self.step_counter
 
                 # Store validated result in cache (opt-in, F4)
                 if self.efficiency is not None and result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
@@ -2909,6 +2927,7 @@ class ExperimentRunner:
                         f"{str(e)[:500]}"
                     ],
                 )
+                error_result._step_id = self.step_counter
                 results.append((agent, error_result))
         return results
 
@@ -3127,8 +3146,10 @@ class ExperimentRunner:
                         logger.warning(f"[Efficiency:Parallel] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
                         self.efficiency.invalidate(context_hash)
                     else:
+                        result._step_id = step_id
                         return agent, result
                 else:
+                    result._step_id = step_id
                     return agent, result
 
             _atype = getattr(agent, 'agent_type', 'default')
@@ -3146,6 +3167,7 @@ class ExperimentRunner:
                 **self._model_name_kwargs(_atype),
                 **self._decider_kwargs(_atype),
             )
+            result._step_id = step_id
 
             if self.efficiency is not None and result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
                 self.efficiency.put(context_hash, result.to_dict())
@@ -3294,6 +3316,7 @@ class ExperimentRunner:
                             f"{str(e)[:500]}"
                         ],
                     )
+                    error_result._step_id = submitted_step_id
                     results.append((submitted_step_id, failed_agent, error_result))
 
         # feat/v3-parallel-determinism: reorder to SUBMISSION order. The loop
