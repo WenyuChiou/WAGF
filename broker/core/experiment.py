@@ -1,8 +1,9 @@
 """
-Modular Experiment System - The "Puzzle" Architecture
+Modular Experiment System - Supported backward-compatibility re-export shim.
 
-Re-export shim: the actual classes live in experiment_runner.py and
-experiment_builder.py.  All existing imports continue to work.
+The canonical implementations live in :mod:`broker.core.experiment_runner` and
+:mod:`broker.core.experiment_builder`. Retained without deprecation warnings
+for all existing runners and examples.
 """
 from .experiment_runner import ExperimentConfig, ExperimentRunner  # noqa: F401
 from .experiment_builder import ExperimentBuilder  # noqa: F401

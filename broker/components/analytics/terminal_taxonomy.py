@@ -1,24 +1,12 @@
-"""Phase 6O-A-1 — Terminal outcome classifier (domain-agnostic).
+"""Domain-agnostic terminal outcome classifier.
 
-Classifies one audit trace row into one of 8 categories. Generic: reads
-only the **existing** audit CSV / JSONL columns plus the optional
-metadata contract (documented inline below: `rule_id` / `category` /
-`level` / `feasible_actions` / `recovery_hint` / `expected_terminal` /
-`constraint_type` — the `ValidatorMetadata` TypedDict that used to
-live at `broker/interfaces/validation_metadata.py` was removed 2026-09
-as unused; no validator ever populated it). Contains zero
-domain-specific strings — verified by the I5 token guard
-(`TestDomainGenericity`).
-
-Phase 6O-A-1 scope: classifier + tests only. Validators do NOT yet
-populate `expected_terminal` / `feasible_actions` — that lands in
-6O-A-2 as a per-validator update. Until 6O-A-2 ships, real audit data
-will tend to classify as `unknown_terminal` when the data lacks the
-new metadata keys; synthetic tests cover the full taxonomy.
-
-Per the gap-matrix audit, this module is imported ONLY by new test
-code in 6O-A-1, NOT by any existing experiment runtime path —
-paper-1b byte-identical guarantee preserved.
+Classifies one audit trace row into one of 8 categories using existing
+audit CSV / JSONL columns and optional validator metadata keys
+(``rule_id``, ``category``, ``level``, ``feasible_actions``,
+``recovery_hint``, ``expected_terminal``, ``constraint_type`` — populated
+by ``BaseValidator``, ``ThinkingValidator``, ``SocialValidator``, and
+``SkillBrokerEngine``). Contains zero domain-specific strings — verified
+by the Invariant 5 token guard (``TestDomainGenericity``).
 """
 from __future__ import annotations
 

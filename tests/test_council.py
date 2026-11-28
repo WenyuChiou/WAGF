@@ -34,6 +34,7 @@ def test_majority_council_pass():
     assert all(r.valid for r in results)
     # It should only return the valid results
     assert len(results) == 2
+    assert (v1.validate.call_count, v2.validate.call_count, v3.validate.call_count) == (1, 1, 1)
 
 def test_majority_council_fail():
     v1 = MagicMock()
@@ -52,3 +53,9 @@ def test_majority_council_fail():
     assert all(not r.valid for r in results)
     assert len(results) == 2
     assert "Error 2" in results[0].errors[0]
+    assert (v1.validate.call_count, v2.validate.call_count, v3.validate.call_count) == (1, 1, 1)
+
+
+def test_empty_council_returns_empty():
+    council = CouncilValidator(validators=[], consensus_mode="MAJORITY")
+    assert council.validate(MagicMock(), {}, MagicMock()) == []

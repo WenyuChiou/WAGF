@@ -1,8 +1,8 @@
 """
-Model Adapter - Thin layer for multi-LLM support.
+Model Adapter - Supported backward-compatibility re-export shim.
 
-Re-export shim: the actual classes live in broker/utils/parsing/.
-All existing imports continue to work.
+The canonical implementations live in :mod:`broker.utils.parsing`. Retained
+without deprecation warnings for existing runners and tests.
 """
 from .parsing import ModelAdapter, UnifiedAdapter, get_adapter  # noqa: F401
 from .adapters.deepseek import deepseek_preprocessor  # noqa: F401

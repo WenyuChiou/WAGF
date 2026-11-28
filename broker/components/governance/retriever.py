@@ -31,7 +31,7 @@ class SkillRetriever:
                 "SkillRetriever instantiated without global_skills; will not "
                 "surface a domain-specific fallback. Pass global_skills via "
                 "SkillBrokerEngine config (see "
-                "broker/config/agent_types_config.py:get_global_skills)."
+                "broker/utils/agent_config.py: AgentTypeConfig.get_global_skills)."
             )
             self.global_skills: List[str] = []
         else:

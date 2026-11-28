@@ -612,13 +612,12 @@ class PerceptionAwareProvider(ContextProvider):
     This provider MUST be added LAST to the provider chain. It transforms
     the full context based on agent type:
 
-    - Household agents: Numerical data → qualitative descriptions
-      ("$25,000 damage" → "significant damage")
-    - Government agents: Full numerical data preserved
-    - Insurance agents: Full numerical data for policyholders
+    - Individual participant agents: numerical quantities -> qualitative descriptions
+      (e.g., numeric loss -> severity descriptor)
+    - Institutional / oversight agents: full numerical data preserved
 
-    For MG (Marginalized Group) agents, community-wide observables are
-    removed, keeping only personal ("my_" prefixed) observables.
+    Role-specific observation rules and restricted-group scoping are resolved
+    via ``PerceptionFilterRegistry``.
 
     Usage:
         from .providers import PerceptionAwareProvider

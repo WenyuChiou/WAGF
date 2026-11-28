@@ -30,18 +30,11 @@ After generation, the test imports the package + customises:
         def reflection_status_text(self, context):
             return "custom narrative"
 
-The ``--sub-pack`` flag is informational today (records the intended
-sub-protocol focus in the generated pack's docstring); it becomes
-load-bearing after Phase 6R-D wires the sub-protocol split, when
-``gen_test_fixture --sub-pack reflection`` will emit a minimal
-``ReflectionPack``-implementing class instead of inheriting all 31
-methods from ``DefaultDomainPack``.
+The ``--sub-pack`` flag is an informational tag recorded in the generated
+pack's docstring; generated classes subclass ``DefaultDomainPack``.
 
 Reference:
 - ``broker.tools.scaffold_domain`` — production-grade scaffolder.
-
-Phase 6R-A (2026-05-26). See
-``~/.claude/plans/swirling-knitting-lighthouse.md``.
 """
 from __future__ import annotations
 
@@ -221,10 +214,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default="any",
         help=(
             "Informational tag declaring which sub-protocol this fixture is "
-            "intended to exercise. **No effect on generated code today** — "
-            "the flag's value is recorded in the generated pack's docstring "
-            "only. Becomes structurally load-bearing after Phase 6R-D wires "
-            "the sub-protocol split (default: any)."
+            "intended to exercise; recorded in the generated pack's docstring "
+            "(default: any)."
         ),
     )
     parser.add_argument(

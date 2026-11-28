@@ -1,9 +1,14 @@
 
 """
 Generic CSV loader with flexible column mapping.
+
+.. deprecated:: 0.7.0
+    Use :class:`broker.core.agent_initializer.CSVLoader` for schema-mapped
+    profile loading in new domains.
 """
 from __future__ import annotations
 
+import warnings
 from typing import Dict, List
 import pandas as pd
 
@@ -15,14 +20,15 @@ def load_csv_with_mapping(
 ) -> pd.DataFrame:
     """Generic CSV loader with flexible column mapping.
 
-    Args:
-        csv_path: Path to CSV file
-        column_mapping: Dict mapping output field -> {"col": <name>} or {"index": <int>}
-        required_fields: List of required output fields
-
-    Returns:
-        DataFrame with mapped output columns only
+    .. deprecated:: 0.7.0
+        Use :class:`broker.core.agent_initializer.CSVLoader` instead.
     """
+    warnings.warn(
+        "broker.utils.csv_loader.load_csv_with_mapping is deprecated since v0.7.0; "
+        "use broker.core.agent_initializer.CSVLoader instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     df = pd.read_csv(csv_path)
 
     missing_required = [f for f in required_fields if f not in column_mapping]

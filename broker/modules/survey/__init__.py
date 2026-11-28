@@ -1,13 +1,10 @@
 """
-Generic survey data processing module for agent initialization.
+Legacy household-survey processing module for agent initialization.
 
-This module provides:
-- SurveyLoader: Load and validate survey data from Excel/CSV
-- AgentInitializer: Create agent profiles from survey data
-- AgentProfile: Complete agent profile ready for simulation
-
-Domain-specific features (e.g., MG classification for MA flood simulation)
-should be implemented in domain-specific modules (e.g., examples/multi_agent/survey/).
+STATUS: LEGACY HOUSEHOLD SURVEY LOADER. Retained without runtime warnings
+to preserve frozen flood paper runners (``examples/single_agent/run_flood.py``
+and ``examples/multi_agent/flood/survey/``). New domains should use
+:class:`broker.core.agent_initializer.CSVLoader` for generic profile loading.
 """
 
 from .survey_loader import SurveyLoader, SurveyRecord, load_survey_data, INCOME_MIDPOINTS

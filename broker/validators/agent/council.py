@@ -34,64 +34,33 @@ class CouncilValidator:
         self.warnings = []
 
     def validate(self, proposal, context, registry) -> List[ValidationResult]:
-        """Validate using multiple sub-validators and aggregate results."""
+        """Validate using multiple sub-validators once and aggregate results."""
         self.errors = []
         self.warnings = []
-        
-        all_results = []
+
+        if not self.validators:
+            return []
+
+        per_validator: List[List[ValidationResult]] = []
+        all_results: List[ValidationResult] = []
         for validator in self.validators:
             res = validator.validate(proposal, context, registry)
-            if isinstance(res, list):
-                all_results.extend(res)
-            else:
-                all_results.append(res)
-        
-        # Determine consensus
+            group = res if isinstance(res, list) else [res]
+            per_validator.append(group)
+            all_results.extend(group)
+
         if self.consensus_mode == "UNANIMOUS":
             return all_results
-        
-        elif self.consensus_mode == "MAJORITY":
-            # For each distinct rule/type of validation, if majority fail, then it's an error.
-            # But the SkillBrokerEngine treats any ValidationResult with valid=False as a block.
-            # So CouncilValidator must return a SINGLE (or reduced) set of ValidationResults
-            # that represent the council's decision.
-            
-            valid_votes = 0
+
+        if self.consensus_mode == "MAJORITY":
             total_votes = len(self.validators)
-            
-            # Count valid validators (a validator is valid if all its results are valid)
-            # This is a bit simplified.
-            for validator in self.validators:
-                # We need to re-run or inspect results per validator.
-                # Since we flattened all_results, we lost the per-validator grouping.
-                pass
-            
-            # TODO: the all_results loop above is
-            # effectively dead in MAJORITY mode — every validator
-            # is re-run below to populate validator_votes. Unify
-            # both passes in a future cleanup; do not block the
-            # quorum_threshold extraction on it.
-            # Alternative: Run and check each
-            validator_votes = []
-            for validator in self.validators:
-                res = validator.validate(proposal, context, registry)
-                is_ok = True
-                if isinstance(res, list):
-                    if any(not r.valid for r in res): is_ok = False
-                elif not res.valid:
-                    is_ok = False
-                validator_votes.append(is_ok)
-            
-            passed_votes = sum(1 for v in validator_votes if v)
+            passed_votes = sum(
+                1 for group in per_validator if all(r.valid for r in group)
+            )
             if (passed_votes / total_votes) >= self.quorum_threshold:
-                # Council approves, even if some validators failed
-                # Return empty list or only warnings
                 return [r for r in all_results if r.valid]
-            else:
-                # Council rejects
-                # Return all errors
-                return [r for r in all_results if not r.valid]
-        
+            return [r for r in all_results if not r.valid]
+
         return all_results
 
     def reset(self):

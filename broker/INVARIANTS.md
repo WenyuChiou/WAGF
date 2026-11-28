@@ -92,7 +92,7 @@ Every column in an audit CSV MUST correspond to one of:
 ### Known current state
 - `broker/core/_audit_helpers.py:64` hardcodes `{"emotion": "neutral", "source": "personal"}` — being fixed by Codex Fix D on `feat/memory-pipeline-v2`.
 - `broker/components/analytics/audit.py:325-330, 351-359` hardcodes `cog_*` and `social_*` defaults to `0` / `False` / `""` when upstream dicts absent — **will be fixed in Phase D of this plan** by replacing with `None` sentinels and one-time WARNING.
-- `fallback_activated` column writer side: row-construction now reads `trace['fallback_activated']` when present, falling back to status-string inference for older traces. The retry_loop write side (Phase 6G #4a) is still pending and should populate the trace dict directly — see [[wagf-design-flaws-harness-engineering-audit-2026-05-14]].
+- `fallback_activated` column writer side: both the live audit writer (`broker/core/_audit_helpers.py`, including corrected truth under `global_config.audit.corrected_status_columns`) and `trace_to_csv_row()` (`broker/components/analytics/audit.py`, with status-string fallback for legacy traces) populate `fallback_activated`.
 - **`fallback_activated` semantic change (commit `0e3187c`, intentional bug-fix of the flaw-4 schema inconsistency):** the status-string inference set now includes `"REJECTED_FALLBACK"` (old set was only `FALLBACK`/`fallback`/`MODIFIED`). This is the *correct* behaviour — a `REJECTED_FALLBACK` decision genuinely did activate the fallback skill. **Consequence for crash recovery:** running `broker.tools.recover_csv_from_jsonl` on a *pre-`0e3187c`* JSONL trace will set `fallback_activated=True` for rows whose `approved_skill.status == "REJECTED_FALLBACK"`, whereas the original on-disk CSV (written by the old buggy logic) holds `False` for those same rows. v21 5-seed Gemma-3 4B has 105 such rows / 16,380 decisions (0.64%). **No paper number is affected** — Paper 1b IBR is computed from `proposed_skill` (proposal-level) and the fallback rate is read from the `status` column directly; nothing reads the `fallback_activated` column. Do NOT naively diff a recovered CSV's `fallback_activated` column against an old on-disk CSV's — they will differ by exactly the REJECTED_FALLBACK rows, by design.
 
 ---
@@ -132,7 +132,7 @@ Schema fields, dataclasses, and code paths MUST be either production-live or exp
 - Manual review: quarterly scan for `@deprecated` markers older than 6 months; decide to activate or remove.
 
 ### Known current state (dormant items identified by 2026-04-19 audit)
-- `broker/components/cognitive/trace.py::CognitiveTrace` — dataclass defined, never populated. **Will be marked `@deprecated` in Phase D** with a pointer to the future V2 cognitive module.
+- `broker/components/cognitive/trace.py::CognitiveTrace` — populated by `UniversalCognitiveEngine` (`broker/components/memory/universal.py`) for research runs, whereas `python -m broker.run` uses `WindowMemoryEngine` / `HumanCentricMemoryEngine` with audit-level `cognitive_audit`.
 - `broker/components/cognitive/adapters.py::DomainReflectionAdapter` — no longer dormant: `broker/components/cognitive/reflection.py::compute_dynamic_importance` delegates to the registered `DomainPack.compute_importance` when available. The hardcoded flood block was removed in Phase 6H Item 9; a domain supplies importance scoring through its `DomainPack` or adapter.
 - `broker/components/memory/engines/hierarchical.py::_consolidate` — no-op stub. Module already `@deprecated`; cleanup deferred to a separate hygiene pass.
 
