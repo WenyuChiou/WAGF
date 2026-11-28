@@ -119,18 +119,52 @@ class OriginGate:
         self._started = True
         self.counts[origin] += 1
 
-    def _stamp_stored_item(self, agent_id: Any, memory_id: str, origin: str) -> None:
-        """Attach memory_id/origin to the latest stored dict when metadata was omitted."""
+    def _snapshot_buffer_ids(self, agent_id: Any) -> dict[str, set[int]]:
+        aid = str(agent_id)
+        out: dict[str, set[int]] = {}
+        for attr in ("working", "longterm", "storage", "episodic"):
+            buf = getattr(self.engine, attr, None)
+            if isinstance(buf, dict):
+                out[attr] = {
+                    id(item)
+                    for item in (buf.get(aid) or ())
+                    if isinstance(item, dict)
+                }
+        return out
+
+    def _stamp_stored_item(
+        self,
+        agent_id: Any,
+        memory_id: str,
+        origin: str,
+        pre_ids: Optional[dict[str, set[int]]] = None,
+    ) -> None:
+        """Attach memory_id/origin to newly created stored dict(s) when metadata was omitted.
+
+        Matches by object identity against a pre-write snapshot so bounded
+        capacity eviction/reordering (e.g. sorting longterm by importance)
+        still stamps the newly inserted record regardless of final list index.
+        """
         aid = str(agent_id)
         for attr in ("working", "longterm", "storage", "episodic"):
             buf = getattr(self.engine, attr, None)
             if not isinstance(buf, dict):
                 continue
             items = buf.get(aid)
-            if isinstance(items, list) and items and isinstance(items[-1], dict):
-                if "memory_id" not in items[-1]:
-                    items[-1]["memory_id"] = memory_id
-                    items[-1].setdefault("origin", origin)
+            if not isinstance(items, list) or not items:
+                continue
+            if pre_ids is None:
+                candidates = [items[-1]] if isinstance(items[-1], dict) else []
+            else:
+                known = pre_ids.get(attr, set())
+                candidates = [
+                    item for item in items
+                    if isinstance(item, dict) and id(item) not in known
+                ]
+            for item in candidates:
+                if "memory_id" not in item:
+                    item["memory_id"] = memory_id
+                    item.setdefault("origin", origin)
 
     def _gated(self, agent_id, content, metadata, write):
         # An engine's add_memory_for_agent may call its own add_memory: only
@@ -148,17 +182,19 @@ class OriginGate:
             write_meta["memory_id"] = memory_id
             log_meta = write_meta
             stamped_in_store = False
+            pre_ids = None
         else:
             write_meta = metadata
             log_meta = {"origin": origin, "memory_id": memory_id}
             stamped_in_store = True
+            pre_ids = self._snapshot_buffer_ids(agent_id)
         self._depth += 1
         try:
             result = write(write_meta)
         finally:
             self._depth -= 1
         if stamped_in_store:
-            self._stamp_stored_item(agent_id, memory_id, origin)
+            self._stamp_stored_item(agent_id, memory_id, origin, pre_ids=pre_ids)
         self._seq = next_seq
         self._log(agent_id, content, log_meta, origin, memory_id)
         return result

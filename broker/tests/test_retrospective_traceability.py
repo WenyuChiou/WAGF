@@ -334,3 +334,35 @@ def test_origin_gate_preserves_caller_metadata_and_seed_scoring(tmp_path: Path):
     ]
     assert log_rows[0]["memory_id"] == "mem-1" and log_rows[0]["run_id"] == "run_test_1"
     assert log_rows[1]["memory_id"] == "mem-2" and log_rows[1]["source_step_id"] == 7
+
+
+def test_origin_gate_stamps_bare_seed_memories_across_bounded_longterm_reordering(tmp_path: Path):
+    engine = HumanCentricMemoryEngine(
+        window_size=1,
+        top_k_significant=2,
+        max_working=1,
+        max_longterm=2,
+        deterministic_consolidation=True,
+        seed=42,
+    )
+    install_origin_gate(engine, tmp_path, period=lambda: 0, run_id="run_bounded")
+
+    # Sequence reproduces Codex P2: longterm capacity eviction sorts by importance,
+    # so the newly consolidated dict may sit at index 0 rather than longterm[-1].
+    for line in (
+        "my critical failure and loss",
+        "my success outcome",
+        "my important decision today",
+        "uneventful routine note",
+    ):
+        engine.add_memory("a1", line)
+
+    for bucket in (engine.working["a1"], engine.longterm["a1"]):
+        assert all("memory_id" in item and item.get("origin") == "seed" for item in bucket)
+
+    ids_by_content = {
+        row["content"]: row["memory_id"]
+        for row in map(json.loads, (tmp_path / "memory_log.jsonl").read_text(encoding="utf-8").splitlines())
+    }
+    for item in engine.longterm["a1"]:
+        assert item["memory_id"] == ids_by_content[item["content"]]
