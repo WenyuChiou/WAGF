@@ -308,10 +308,6 @@ shared:
     # apply (irrigation_personas.build_option_notes, set in pre_year).
     - option_notes
 
-  rating_scale: |
-    ### RATING SCALE (You MUST use EXACTLY one of these codes):
-    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
-
   response_format:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"

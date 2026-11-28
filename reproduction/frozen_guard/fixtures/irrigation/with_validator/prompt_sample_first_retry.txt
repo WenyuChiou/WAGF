@@ -1,16 +1,16 @@
 Your previous answer cannot be used in this decision.
 
-- You chose 'increase demand'. Under the rule on increases under scarcity, an increase is not available in this decision: at the start of this decision you judged water to be scarce this year, and a larger request when water is scarce draws more from a supply you share with other users.
+- You chose 'decrease demand'. Under the rule on decreases without scarcity, a decrease is not available in this decision: at the start of this decision you judged that water is not scarce this year, and cutting your request when water is not scarce gives up water you could use for production.
 
-Actions that pass every rule in this decision: 2 (maintain demand), 3 (decrease demand).
+Actions that pass every rule in this decision: 1 (increase demand), 2 (maintain demand).
 
 Please answer again, taking the information above into account.
 
-You are NorthGilaValleyIDD, an agricultural water user (an irrigation district, a tribal water user, or a group of water users) in the Lower Basin of the Colorado River, holding a water right of 68,000 acre-ft/year. The more water you receive, the more you can produce. Users in your group tend to be more concerned by a shortfall between what they request and what they receive than other users are. They tend to revise their expectations more quickly than other users do and to give future years more weight than other users do.
+You are GilaMonsterFarms, an agricultural water user (an irrigation district, a tribal water user, or a group of water users) in the Lower Basin of the Colorado River, holding a water right of 17,400 acre-ft/year. The more water you receive, the more you can produce. Users in your group tend to be more concerned by a shortfall between what they request and what they receive than other users are. They tend to revise their expectations more quickly than other users do and to give future years more weight than other users do.
 It is now the year 2019.
 Lake Mead was at 1,081 feet above sea level on 1 January (declining from last year).
 No Lower Basin shortage applies this year.
-In 2018 you diverted 42,719 acre-ft.
+In 2018 you diverted 7,882 acre-ft.
 Your memory includes:
 No memories yet.
 
@@ -26,14 +26,10 @@ Next, judge how much you can adapt, considering:
 Then rate how much you can change your request: not at all able (VL), slightly able (L), somewhat able (M), very able (H), or extremely able (VH).
 
 Now, choose one of the following water management actions:
-1. Increase your request to about 43,909 acre-ft: the 42,719 acre-ft you received last year plus your typical step of about 1,190 acre-ft.
-2. Keep your request at 42,719 acre-ft, the amount you received last year.
-3. Decrease your request to about 41,529 acre-ft: the 42,719 acre-ft you received last year minus your typical step of about 1,190 acre-ft.
+1. Increase your request to about 8,181 acre-ft: the 7,882 acre-ft you received last year plus your typical step of about 299 acre-ft.
+2. Keep your request at 7,882 acre-ft, the amount you received last year.
+3. Decrease your request to about 7,583 acre-ft: the 7,882 acre-ft you received last year minus your typical step of about 299 acre-ft.
 The exact size of an increase or a decrease is drawn at random around your typical step.
-
-### RATING SCALE (You MUST use EXACTLY one of these codes):
-VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
-
 
 Please respond using the EXACT JSON format below.
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.

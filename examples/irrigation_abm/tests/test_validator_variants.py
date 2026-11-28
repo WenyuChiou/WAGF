@@ -120,3 +120,19 @@ def test_the_without_rules_arm_variant_runs_with_executed_lines(tmp_path):
              "--governance-mode", "disabled",
              "--config-dir", str(VARIANTS / "without_validator"))
     assert writes and all(": Action carried out: increase demand" in w for w in writes)
+
+
+@pytest.mark.parametrize("variant", ["with_validator", "without_validator"])
+def test_simple_prompt_has_no_generic_rating_scale_block(variant):
+    """Owner decision 2026-11-27: the simple prompt explains each five-level
+    rating in plain words, so the generic "### RATING SCALE ... VL = Very Low"
+    block is not shown (it repeated those levels, and "Very Low" reads backwards
+    for water scarcity, where VL means abundant). The full-information prompt
+    under config/ keeps the block: it does not explain the levels itself."""
+    assert "{rating_scale}" not in runner.SIMPLE_PROMPT_TEMPLATE
+    folder = VARIANTS / variant
+    assert "{rating_scale}" not in (folder / "prompts" / "irrigation_farmer.txt").read_text(encoding="utf-8")
+    shared = yaml.safe_load((folder / "agent_types.yaml").read_text(encoding="utf-8"))["shared"]
+    assert "rating_scale" not in shared
+    full = CONFIG.parent / "prompts" / "irrigation_farmer.txt"
+    assert "{rating_scale}" in full.read_text(encoding="utf-8")

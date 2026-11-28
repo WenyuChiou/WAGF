@@ -157,6 +157,9 @@ def test_variant_exact_overrides_and_frozen_copies(variant):
     expected["global_config"]["llm"]["sampling_seed"] = "per_call"
     expected["global_config"]["governance"]["intervention_framing"] = "plain"
     expected["global_config"]["audit"]["retry_prompt_columns"] = True
+    # 2026-11-27: the simple prompt explains each rating in plain words, so the
+    # generic rating-scale block is not shown.
+    del expected["shared"]["rating_scale"]
     messages = {
         "high_scarcity_no_increase": ("increases under scarcity", "an increase"),
         "low_scarcity_no_decrease": ("decreases without scarcity", "a decrease"),
@@ -306,8 +309,7 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
                   *RATING_BLOCK.splitlines(), "",
                   "Now, choose one of the following water management actions:"])
     lines.extend(f"{number}. {options[direction]}" for number, direction in menu)
-    lines.extend([note, "", "### RATING SCALE (You MUST use EXACTLY one of these codes):",
-                  "VL = Very Low | L = Low | M = Medium | H = High | VH = Very High", "", "",
+    lines.extend([note, "",
                   "Please respond using the EXACT JSON format below.",
                   "- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.",
                   f'- "decision" MUST be the NUMERIC ID ({choices}) from the options list.',

@@ -17,8 +17,6 @@ Then rate how much you can change your request: not at all able (VL), slightly a
 Now, choose one of the following water management actions:
 {options_text}{option_notes}
 
-{rating_scale}
-
 Please respond using the EXACT JSON format below.
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
 - "decision" MUST be the NUMERIC ID ({valid_choices_text}) from the options list.

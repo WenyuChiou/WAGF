@@ -23,10 +23,6 @@ Now, choose one of the following water management actions:
 3. Decrease your request to about 26,044 acre-ft: the 28,295 acre-ft you received last year minus your typical step of about 2,251 acre-ft.
 The exact size of an increase or a decrease is drawn at random around your typical step.
 
-### RATING SCALE (You MUST use EXACTLY one of these codes):
-VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
-
-
 Please respond using the EXACT JSON format below.
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
 - "decision" MUST be the NUMERIC ID (1, 2, or 3) from the options list.

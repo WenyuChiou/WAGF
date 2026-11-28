@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The irrigation simple prompt (`with_validator`, `without_validator`) no longer shows the generic
+  "### RATING SCALE ... VL = Very Low | ... | VH = Very High" block. The prompt already explains each
+  five-level rating in plain words, and "Very Low" read backwards for water scarcity (VL = abundant).
+  The full-information prompt under `config/` keeps the block.
 - **Flood and the irrigation `simple_executed` / `simple_nolimit_executed` configs use the `plain` framing, and
   their rule messages no longer say "blocked"** (for example "Under the rule on severe-threat response, doing
   nothing is not available in this decision: ..."). The irrigation shortage-sharing message, written by
