@@ -281,6 +281,19 @@ def build_artifacts(case: str, out: Path, calls: Path = None) -> dict:
                             for k, v in sorted(by_kind.items())}
     art["prompts.json"] = ("json", prompts)
 
+    # Keep one complete one-agent prompt for wording review and the task report.
+    # Multi-agent artifacts and their canonicalization remain byte-identical.
+    if case == "flood":
+        records = (json.loads(line) for line in calls.read_text(encoding="utf-8").splitlines()
+                   if line.strip())
+        reflection = next(row["prompt"] for row in records if row["kind"] == "reflection")
+        art["prompt_sample_reflection.txt"] = ("text", reflection)
+    elif case == "irrigation":
+        records = (json.loads(line) for line in (run / "reflection_prompts.jsonl").read_text(
+            encoding="utf-8").splitlines() if line.strip())
+        reflection = next(row["prompt"] for row in records if int(row.get("attempt", 0)) == 0)
+        art["prompt_sample_reflection.txt"] = ("text", reflection)
+
     # a few full prompts so a failing diff can be read: the first decision of each household
     # type (irrigation: of the farmer type), the first decision of year 3 (flood only), and
     # the first retry prompt

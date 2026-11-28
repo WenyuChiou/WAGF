@@ -217,7 +217,7 @@ def test_lesson_number_problems(lesson, codes):
 @pytest.mark.parametrize("raw", [
     '{"AgentID": "TunnelDiversionBelowCrystalForAg_1971CompStudyAg": "I learned to watch demand."}',
     '{"AgentID": "Agent": "I learned to watch demand."}',
-    '{"agent_id": "Bostwick", "lesson": "I learned to watch demand."}',
+    '{"agent_id": "Bostwick", "answer": "I learned to watch demand."}',
 ])
 def test_single_agent_lenient_forms_recover_and_record(raw, tmp_path):
     log = tmp_path / "reflection_checks.jsonl"
@@ -264,15 +264,15 @@ def test_lenient_chained_form_rejects_long_non_id_middle():
 
 
 @pytest.mark.parametrize("raw", [
-    '{"lesson": ""}',
-    '{"agent_id": "X", "lesson": "  "}',
+    '{"answer": ""}',
+    '{"agent_id": "X", "answer": "  "}',
 ])
 def test_lenient_blank_lesson_stays_no_reply(raw):
     assert ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031) == {"X": None}
 
 
 def test_lenient_lesson_uses_stage1_repaired_object():
-    raw = '{"agent_id": "X1", "lesson": "I learned to watch demand.",}'
+    raw = '{"agent_id": "X1", "answer": "I learned to watch demand.",}'
     insight = ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031)["X"]
     assert insight is not None
     assert insight.summary == "I learned to watch demand."
@@ -366,7 +366,7 @@ def test_run_checked_reflection_outcomes(tmp_path, replies, outcome, calls, stor
         assert result.insight.year_created == 13
     if calls == 2:
         # the one retry: the original prompt, then the reasons
-        assert model.prompts[1].startswith("PROMPT\n\nYour previous lesson cannot be used: ")
+        assert model.prompts[1].startswith("PROMPT\n\nYour previous answer cannot be used: ")
         assert result.first_problems and all(p.message in model.prompts[1] for p in result.first_problems)
     # the raw reply of every reflection not stored at once is logged, one line per attempt
     rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
@@ -382,7 +382,7 @@ def test_retry_note_names_every_reason_and_retries_can_be_zero():
     assert result.outcome == "dropped" and result.calls == 1
     assert [p.code for p in result.final_problems] == ["year"]
     note = REFLECTION_RETRY_NOTE.format(reasons="a; b")
-    assert note == ("Your previous lesson cannot be used: a; b. "
+    assert note == ("Your previous answer cannot be used: a; b. "
                     "Please answer again, taking the instructions above into account.")
     with pytest.raises(ValueError):
         run_checked_reflection(ReflectionEngine(), prompt="P", agent_id="A", period=1, llm_call=model, retries=-1)

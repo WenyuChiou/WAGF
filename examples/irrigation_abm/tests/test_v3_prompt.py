@@ -119,10 +119,10 @@ class ScriptedLLM:
 
     def __call__(self, prompt: str):
         stats = LLMStats(retries=0, success=True)
-        if 'Answer with this JSON object only: {"lesson"' in prompt:
+        if 'Answer with this JSON object only: {"answer"' in prompt:
             with self._lock:
                 self.reflections.append(prompt)
-            return json.dumps({"lesson": self.LESSON}), stats
+            return json.dumps({"answer": self.LESSON}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
         year = int(re.search(r"It is now the year (\d{4})", prompt).group(1))
         with self._lock:
@@ -1015,9 +1015,8 @@ def test_reflection_input_excludes_reflections_and_is_one_agent(golden_run):
         assert re.search(r"\nIt is the end of 20\d\d\. Look back on your recent years", prompt), prompt[:300]
         assert "Consolidated Reflection" not in prompt
         assert len(re.findall(r"^Your recent years:$", prompt, flags=re.M)) == 1
-    # Spec item 45d: one lesson question; the questions that asked the model
-    # to restate facts are gone.
-    assert "What does your record teach you about choosing your request next year?" in reflections[0]
+    # One framework question, built from the domain's topic.
+    assert "Question: What do your recent years tell you about your water supply and your requests?" in reflections[0]
     assert "Did the direction you chose" not in reflections[0]
 
 
@@ -1546,7 +1545,7 @@ class _UnreadableIn2020(ScriptedLLM):
     so its 2020 decision is ABORTED and nothing executes."""
 
     def __call__(self, prompt: str):
-        if ('Answer with this JSON object only: {"lesson"' not in prompt and "You are Agent_000," in prompt
+        if ('Answer with this JSON object only: {"answer"' not in prompt and "You are Agent_000," in prompt
                 and "It is now the year 2020." in prompt):
             with self._lock:
                 attempt = self.calls[("Agent_000", 2020)]
@@ -1603,6 +1602,7 @@ def _grounded_lessons(replies, *, keep_latest_only=True, adapter=None):
                           prompt_information="simple", get_agent_state=lambda aid: state,
                           get_agent_context=lambda aid: {"basin": "lower_basin"})
     config = SimpleNamespace(get_reflection_config=lambda: {"batch_size": 1},
+                             get_reflection_topic=lambda _agent_type: "your water supply and your requests",
                              get_reflection_keep_latest_only=lambda: keep_latest_only)
     runner = SimpleNamespace(agents={agent.id: agent}, memory_engine=memory, broker=SimpleNamespace(config=config))
     reflection = ReflectionEngine(adapter=adapter, insight_importance_boost=0.9)
@@ -1611,7 +1611,7 @@ def _grounded_lessons(replies, *, keep_latest_only=True, adapter=None):
         env.current_year = 2019 + year
         agent._last_action_context = {"skill_name": "maintain_demand", "year": year}
         agent._last_year_outcome = dict(state, year=year, calendar_year=env.current_year, preceding_factor=1)
-        runner.get_llm_invoke = lambda agent_type: lambda prompt: json.dumps({"lesson": reply})
+        runner.get_llm_invoke = lambda agent_type: lambda prompt: json.dumps({"answer": reply})
         hooks._batch_reflect_grounded(year)
     return [item for item in memory.working[agent.id] if item["content"].startswith("Consolidated")]
 

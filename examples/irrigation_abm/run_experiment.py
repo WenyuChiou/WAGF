@@ -1087,7 +1087,7 @@ class IrrigationLifecycleHooks:
                 first_sentence(persona, what=f"{aid} persona"),
                 items,
                 written_in,
-                questions=cfg.get("questions", []),
+                topic=self.runner.broker.config.get_reflection_topic("irrigation_farmer"),
                 persona_instruction=cfg.get("persona_instruction"),
                 record_lines=facts,
                 rule_lines=rules,
@@ -2149,7 +2149,7 @@ def main():
         config_kwargs.update(hindcast_config_kwargs())
     config = WaterSystemConfig(seed=seed, **config_kwargs)
     agent_type_config = AgentTypeConfig.load(str(agent_config_path), force_reload=True)
-    require_grounded_reflection(agent_type_config)
+    require_grounded_reflection(agent_type_config, agent_type="irrigation_farmer")
     if config.ub_supply_mode != "subbasin":
         raise SystemExit(
             "Grounded reflection requires ub_supply_mode == 'subbasin'; "

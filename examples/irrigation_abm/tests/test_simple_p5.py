@@ -74,6 +74,22 @@ def test_p5b_accepts_clean_program_numbers_at_both_levels(numeric_run):
     assert details["b_reflection_prompt_fact_lines_checked"] > 0
 
 
+@pytest.mark.parametrize("heading", [
+    "What happened this year (kept with your answer; do not repeat it):",
+    "What happened this year (kept with your lesson; do not repeat it):",
+])
+def test_reflection_prompt_facts_are_audited_with_current_and_historical_headings(numeric_run, heading):
+    path = numeric_run.info.path / "reflection_prompts.jsonl"
+    text = path.read_text(encoding="utf-8")
+    current = "What happened this year (kept with your answer; do not repeat it):"
+    assert current in text
+    path.write_text(text.replace(current, heading), encoding="utf-8")
+    audit = _audit(numeric_run)
+    assert not audit.mismatches
+    assert not audit.unchecked
+    assert audit.reflection_prompt_fact_lines > 0
+
+
 def test_p5b_rejects_tampered_outcome_memory_at_both_levels(numeric_run):
     _tamper_first(
         numeric_run,

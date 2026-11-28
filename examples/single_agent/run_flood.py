@@ -1025,7 +1025,7 @@ class FinalParityHook:
                 items,
                 # Flood counts simulation years ("Year 3" in its memory lines), not calendar years.
                 f"year {year}",
-                questions=refl_cfg.get("questions", []),
+                topic=self.runner.broker.config.get_reflection_topic("household"),
                 persona_instruction=refl_cfg.get("persona_instruction"),
                 record_lines=facts,
                 year_lines=True,
@@ -1509,7 +1509,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         assert_governance_profile_declared(
             agent_cfg_data, governance_mode, "household", agent_config_path)
         from broker.utils.agent_config import AgentTypeConfig
-        require_grounded_reflection(AgentTypeConfig.load(str(agent_config_path), force_reload=True))
+        require_grounded_reflection(AgentTypeConfig.load(str(agent_config_path), force_reload=True),
+                                    agent_type="household")
         household_cfg = agent_cfg_data.get('household', {})
         # Load prompt from external file if specified, otherwise fallback to inline
         prompt_file = household_cfg.get('prompt_template_file', '')

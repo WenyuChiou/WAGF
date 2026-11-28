@@ -56,8 +56,8 @@ class HashScriptedLLM:
         time.sleep(((h >> 32) % 21) / 1000.0)
         stats = LLMStats(retries=0, success=True)
 
-        if 'Answer with this JSON object only: {"lesson"' in prompt:
-            return json.dumps({"lesson": "Noted for next year."}), stats
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            return json.dumps({"answer": "Noted for next year."}), stats
 
         wsa = _LABELS[h % 5]
         aca = _LABELS[(h // 5) % 5]

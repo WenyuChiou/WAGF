@@ -411,6 +411,7 @@ def _reflection_harness(tmp_path, monkeypatch, records, *, store=False, memory=N
 
     config = SimpleNamespace(
         get_reflection_keep_latest_only=lambda: store,
+        get_reflection_topic=lambda _agent_type: "floods and your home",
     )
     runner = SimpleNamespace(
         broker=SimpleNamespace(
@@ -445,7 +446,7 @@ def _add_realistic_year(memory, record, year, line_count):
 def _reflect(hook, year):
     hook._grounded_reflection(
         year,
-        {"batch_size": 1, "questions": []},
+        {"batch_size": 1, "topic": "floods and your home"},
     )
 
 

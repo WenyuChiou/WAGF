@@ -3856,8 +3856,11 @@ class PromptChecker:
                     # The one-agent layout ends the record at the next blank
                     # line; the retired layout (runs before v0.8) at its
                     # "### Output Requirement" heading.
-                    one_agent_marker = ONE_AGENT_RECORD_HEADING + "\n"
-                    if one_agent_marker in prompt:
+                    one_agent_marker = next((heading + "\n" for heading in (
+                        ONE_AGENT_RECORD_HEADING,
+                        "What happened this year (kept with your lesson; do not repeat it):",
+                    ) if heading + "\n" in prompt), None)
+                    if one_agent_marker is not None:
                         record = prompt.split(one_agent_marker, 1)[1].split("\n\n", 1)[0]
                     elif marker in prompt:
                         record = prompt.split(marker, 1)[1].split("\n### Output Requirement", 1)[0]

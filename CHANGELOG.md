@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- One-agent reflection now asks "What do your recent years tell you about <topic>?"; domains set
+  `reflection.topic`, the prompt asks for an answer rather than a lesson, and the reply key is `answer`.
+  `reflection.questions` is retired for this path (raises; reproduce old runs from tag v0.7.0).
+  Batch and `broker.run` reflection are unchanged for now.
 - The irrigation simple prompt (`with_validator`, `without_validator`) no longer shows the generic
   "### RATING SCALE ... VL = Very Low | ... | VH = Very High" block. The prompt already explains each
   five-level rating in plain words, and "Very Low" read backwards for water scarcity (VL = abundant).

@@ -2447,6 +2447,20 @@ class AgentTypeConfig:
         # two canonical keys.
         return {k: merged[k] for k in defaults}
 
+    def get_reflection_topic(self, agent_type: str) -> Any:
+        """Raw one-agent topic: agent block, global_config, then shared.
+
+        An explicitly configured invalid value is returned for validation;
+        it must not silently fall through to a lower-precedence topic.
+        """
+        block = self.get(agent_type) if agent_type else {}
+        scopes = [block] + [self._config.get(scope, {}) for scope in ("global_config", "shared")]
+        for scope in scopes:
+            reflection = (scope or {}).get("reflection", {}) or {}
+            if "topic" in reflection:
+                return reflection["topic"]
+        return None
+
     def get_reflection_questions(self, agent_type: str) -> List[str]:
         """Resolve reflection questions for an agent type (Phase 6H Item 4).
 

@@ -50,6 +50,8 @@ def _log(kind: str, prompt: str) -> None:
     if _CALLS_PATH is None:
         return
     rec = {"kind": kind, "sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()}
+    if kind in ("reflection", "reflection_retry"):
+        rec["prompt"] = prompt
     with open(_CALLS_PATH, "a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(rec) + "\n")
 
@@ -92,8 +94,8 @@ def _reflection(prompt: str) -> str:
     in four make a claim their own listed years contradict, the rest are clean."""
     # The one-agent prompt names no household id: the bucket is a pure function of
     # the prompt before any correction note, so a retry lands in the same bucket.
-    retry = "Your previous lesson cannot be used" in prompt
-    core = prompt.split("\n\nYour previous lesson cannot be used", 1)[0]
+    retry = "Your previous answer cannot be used" in prompt
+    core = prompt.split("\n\nYour previous answer cannot be used", 1)[0]
     year = re.search(r"It is the end of year (\d+)\.", prompt).group(1)
     bucket = _h(core) % 4
     listed = core.split("What happened this year", 1)[0]
@@ -105,13 +107,13 @@ def _reflection(prompt: str) -> str:
         lesson = "I learned that a flood comes every year, so I must always be ready."
     else:
         lesson = "I learned that protecting my home before a flood matters more than reacting after one."
-    return json.dumps({"lesson": lesson})
+    return json.dumps({"answer": lesson})
 
 
 def hash_scripted_invoke(prompt: str):
     stats = LLMStats(retries=0, success=True)
-    if 'Answer with this JSON object only: {"lesson"' in prompt:
-        _log("reflection_retry" if "Your previous lesson cannot be used" in prompt else "reflection", prompt)
+    if 'Answer with this JSON object only: {"answer"' in prompt:
+        _log("reflection_retry" if "Your previous answer cannot be used" in prompt else "reflection", prompt)
         return _reflection(prompt), stats
 
     retry = prompt.lstrip().startswith(RETRY_MARK)

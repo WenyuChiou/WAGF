@@ -64,12 +64,11 @@ global_config:
     # the pilot's precipitation rules had a counterexample in their own
     # input). The "Lesson Learned" / "patterns" wording that invited those
     # rules is gone, and the three questions that asked the model to restate
-    # facts are one lesson question (literature scan 2026-10-07, A2). The
+    # facts now use the framework question with a domain topic. The
     # framework adds the closing "no years or numbers" line
-    # (LESSON_ONLY_INSTRUCTION) because program_facts is on.
-    persona_instruction: "Speak in the first person and base your lesson only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
-    questions:
-      - "What does your record teach you about choosing your request next year?"
+    # (ONE_AGENT_ANSWER_INSTRUCTION) because program_facts is on.
+    persona_instruction: "Speak in the first person and base your answer only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it."
+    topic: "your water supply and your requests"
     # v3 (WP4, spec 4.7, PI item 8, provenance H10): keep only each agent's
     # latest reflection in memory (framework option, default false:
     # broker/components/cognitive/reflection.py, store_reflection_memory).
@@ -82,7 +81,7 @@ global_config:
     #     prompt's memory order stays by salience, spec item 36l);
     # (c) the program writes the key years (the year just ended and the
     #     listed year with the largest shortfall, reflection_checks.key_years)
-    #     and the model writes only the lesson: stored as "{facts} Lesson: {lesson}";
+    #     and the model writes only the answer: stored as "{facts} Lesson: {lesson}";
     # (e) a lesson naming a year or any number is retried once, then not
     #     stored; the contradiction checks from the irrigation checker
     #     (reflection_checks.check_lesson) are report-only flags, never

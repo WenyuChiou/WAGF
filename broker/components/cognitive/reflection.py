@@ -61,12 +61,33 @@ LESSON_ONLY_INSTRUCTION = (
 
 #: Heading of the program-written record in the one-agent reflection prompt.
 ONE_AGENT_RECORD_HEADING = (
-    "What happened this year (kept with your lesson; do not repeat it):"
+    "What happened this year (kept with your answer; do not repeat it):"
 )
+ONE_AGENT_ANSWER_INSTRUCTION = (
+    "Answer in one or two sentences in the first person. "
+    "Do not write any year, amount, percentage or other number; what "
+    "happened this year is stored with your answer."
+)
+REFLECTION_QUESTION_FRAME = "What do your recent years tell you about {topic}?"
+
+
+def reflection_question(topic: str) -> str:
+    """Build the framework's one-agent question from a domain topic."""
+    explanation = (
+        "reflection.topic must be a short noun phrase naming what the agent faces "
+        "and what it decides about, with no action verb or direction; the framework "
+        "asks 'What do your recent years tell you about <topic>?'"
+    )
+    if not isinstance(topic, str):
+        raise ValueError(explanation)
+    topic = topic.strip()
+    if not topic or len(topic.splitlines()) != 1 or "?" in topic or topic.endswith("."):
+        raise ValueError(explanation)
+    return REFLECTION_QUESTION_FRAME.format(topic=topic)
 
 #: Shown once, after the original prompt, when a lesson failed a check (45e).
 REFLECTION_RETRY_NOTE = (
-    "Your previous lesson cannot be used: {reasons}. "
+    "Your previous answer cannot be used: {reasons}. "
     "Please answer again, taking the instructions above into account."
 )
 
@@ -371,7 +392,7 @@ def run_checked_reflection(
         if not any(c.isalpha() for c in lesson) or len(lesson.split()) < 3:
             found.append(LessonProblem("empty", "the answer has no letters or fewer than three words"))
         if len(lesson) > 500:
-            found.append(LessonProblem("too_long", "the lesson exceeds the 500-character limit"))
+            found.append(LessonProblem("too_long", "the answer exceeds the 500-character limit"))
         if lesson_no_numbers:
             found.extend(lesson_number_problems(lesson))
         domain = list(checker(lesson)) if checker is not None else []
@@ -419,7 +440,7 @@ def run_checked_reflection(
                 problems, flags = _problems(lesson)
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
-            problems = [LessonProblem("checker_error", "the lesson checker failed")]
+            problems = [LessonProblem("checker_error", "the answer checker failed")]
             flags = []
             logger.error("[Reflection] checker failed for %s in period %s: %s",
                          agent_id, period, error)
@@ -1154,7 +1175,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         memories: Sequence[Any],
         period: Any,
         *,
-        questions: Optional[Sequence[str]] = None,
+        topic: str,
         persona_instruction: Optional[str] = None,
         record_lines: Optional[Sequence[str]] = None,
         rule_lines: Optional[Sequence[str]] = None,
@@ -1169,20 +1190,16 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         (oldest first when ``year_lines`` and each carries a ``"year"``);
         with none, no reflection is asked and "" is returned.
         ``record_lines`` are the program-written lines stored with the
-        lesson, ``rule_lines`` the rules that apply to the agent. The model
-        answers ``{"lesson": "..."}``."""
+        answer, ``rule_lines`` the rules that apply to the agent. The model
+        answers ``{"answer": "..."}``."""
         identity = " ".join(str(identity or "").split())
         if not identity:
             raise ValueError("generate_reflection_prompt_one_agent: the identity sentence is empty.")
+        question = reflection_question(topic)
         if not memories:
             return ""
-        out = [identity, f"It is the end of {period}. Look back on your recent years and say what you learned."]
-        qs = [str(q) for q in (questions or []) if str(q).strip()]
-        if len(qs) == 1:
-            out.append(f"Question: {qs[0]}")
-        elif qs:
-            out.append("Questions:")
-            out.extend(f"- {q}" for q in qs)
+        out = [identity, f"It is the end of {period}. Look back on your recent years."]
+        out.append(f"Question: {question}")
         out.append("")
         out.append("Your recent years:")
         ordered = order_by_year(memories) if year_lines else list(memories)
@@ -1201,11 +1218,11 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         if persona_instruction:
             out.append(str(persona_instruction))
         if record:
-            out.append(LESSON_ONLY_INSTRUCTION)
+            out.append(ONE_AGENT_ANSWER_INSTRUCTION)
         elif not persona_instruction:
-            out.append("Write one or two sentences in the first person.")
+            out.append("Answer in one or two sentences in the first person.")
         out.append("")
-        out.append('Answer with this JSON object only: {"lesson": "<your lesson>"}')
+        out.append('Answer with this JSON object only: {"answer": "<your answer>"}')
         return "\n".join(out)
 
     def parse_batch_reflection_response(
@@ -1285,8 +1302,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             try:
                 if not isinstance(data, dict):
                     data = json.loads(json_content)
-                if isinstance(data, dict) and isinstance(data.get("lesson"), str):
-                    candidate = data["lesson"]
+                if isinstance(data, dict) and isinstance(data.get("answer"), str):
+                    candidate = data["answer"]
                     if candidate.strip():
                         value = candidate
             except Exception:
@@ -1313,8 +1330,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                 insight.parse = "lenient"
                 results[batch_agent_ids[0]] = insight
                 success = True
-            elif (isinstance(data, dict) and isinstance(data.get("lesson"), str)
-                  and not data["lesson"].strip()):
+            elif (isinstance(data, dict) and isinstance(data.get("answer"), str)
+                  and not data["answer"].strip()):
                 return results
 
         # Checked one-agent replies must retain the whole value. The legacy

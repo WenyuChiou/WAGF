@@ -19,10 +19,7 @@ global_config:
     program_facts: true
     lesson_no_numbers: true
     importance_boost: 0.9     # Boost emotional weight for reflected memories
-    questions:
-      - "What risks feel most urgent to your family right now?"
-      - "Have your neighbors' choices influenced your thinking?"
-      - "What trade-offs have you faced between cost and safety?"
+    topic: "floods and your home"
 
   # [Universe Physics] - LLM & System Generation Settings
   llm:

@@ -55,7 +55,7 @@ global_config:
     # state at the end of it; one line per year, oldest first; the program
     # writes the key years (the year just ended and the most recent damaged
     # year, examples/single_agent/flood_reflection.py (key_years)) and the
-    # model writes only the lesson; a lesson naming a year or any number is
+    # model writes only the answer; an answer naming a year or any number is
     # retried once, then not stored. Contradictions with a listed year from
     # flood_reflection.check_flood_lesson are report-only flags: never retried
     # or dropped.
@@ -63,9 +63,8 @@ global_config:
     year_lines: true
     program_facts: true
     lesson_no_numbers: true
-    persona_instruction: "Speak in the first person and base your lesson only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
-    questions:
-      - "What does your record teach you about protecting your home from floods?"
+    persona_instruction: "Speak in the first person and base your answer only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it."
+    topic: "floods and your home"
     triggers:
       crisis: true                    # Triggered by severe flood event
       periodic_interval: 5            # Every 5 years

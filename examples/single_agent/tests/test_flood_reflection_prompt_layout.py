@@ -26,12 +26,12 @@ def test_flood_reflection_prompt_has_the_one_agent_layout_and_no_simulation_word
     items = [{"content": year_line(fy), "year": fy.year} for fy in years]
     prompt = ReflectionEngine().generate_reflection_prompt_one_agent(
         identity, items, "year 3",  # run_flood passes f"year {year}"
-        questions=refl["questions"], persona_instruction=refl["persona_instruction"],
+        topic=refl["topic"], persona_instruction=refl["persona_instruction"],
         record_lines=[fact_line(years[0])], year_lines=True)
-    assert prompt.startswith(identity + "\nIt is the end of year 3. Look back on your recent years and say what you learned.\n"
-                             "Question: " + refl["questions"][0] + "\n\nYour recent years:\n- ")
-    assert "\n\nWhat happened this year (kept with your lesson; do not repeat it):\n- " in prompt
-    assert prompt.endswith('\n\nAnswer with this JSON object only: {"lesson": "<your lesson>"}')
+    assert prompt.startswith(identity + "\nIt is the end of year 3. Look back on your recent years.\n"
+                             "Question: " + "What do your recent years tell you about " + refl["topic"] + "?" + "\n\nYour recent years:\n- ")
+    assert "\n\nWhat happened this year (kept with your answer; do not repeat it):\n- " in prompt
+    assert prompt.endswith('\n\nAnswer with this JSON object only: {"answer": "<your answer>"}')
     body = prompt[len(identity):]
     for word in ("simulation", "Reflection Assistant", "agent", "Agent IDs", "Task Data", "###", "Agent_1"):
         assert word not in body, word

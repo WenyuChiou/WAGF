@@ -2671,8 +2671,8 @@ class ScriptedModel:
     def __call__(self, prompt: str):
         from broker.utils.llm_utils import LLMStats
         stats = LLMStats(retries=0, success=True)
-        if 'Answer with this JSON object only: {"lesson"' in prompt:
-            return json.dumps({"lesson": "I learned to watch my supply before changing my request."}), stats
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            return json.dumps({"answer": "I learned to watch my supply before changing my request."}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
         year = int(re.search(r"It is now the year (\d{4})", prompt).group(1))
         with self.lock:

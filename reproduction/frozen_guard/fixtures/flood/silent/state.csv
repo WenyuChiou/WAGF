@@ -12,38 +12,38 @@ Agent_10,1,Only House Elevation,elevate_house,elevate_house,elevate_house,False,
 Agent_11,1,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,L,VH,False,True,False,0.38,0.38,<sha256:b6dcb9d9f6539710:len335>
 Agent_12,1,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,M,False,False,False,0.31,0.54,<sha256:5f3d2591cf6f3389:len357>
 Agent_1,2,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,True,True,False,0.34,0.38,<sha256:e196ac290343df58:len598>
-Agent_2,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.28,0.45,<sha256:267707bbfec408d7:len583>
+Agent_2,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,VH,M,False,False,False,0.28,0.45,<sha256:3d28f5885611c42a:len602>
 Agent_3,2,Relocate,relocate,relocate,relocate,False,,,0,VH,L,True,False,True,0.24,0.4,<sha256:6c163ae5081b457f:len598>
-Agent_4,2,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,M,M,False,True,False,0.44,0.33,<sha256:72a50ba0985949d8:len722>
-Agent_5,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.38,0.4,<sha256:267707bbfec408d7:len583>
-Agent_6,2,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,H,H,False,True,False,0.41,0.48,<sha256:8af9b18718b996aa:len574>
-Agent_7,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.3,0.48,<sha256:267707bbfec408d7:len583>
-Agent_8,2,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,M,False,False,False,0.17,0.5,<sha256:267707bbfec408d7:len583>
-Agent_9,2,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,L,M,False,False,False,0.19,0.51,<sha256:17c81d52c3909561:len649>
+Agent_4,2,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,VL,M,False,False,False,0.4,0.33,<sha256:53de5f5f6915ad7f:len741>
+Agent_5,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,VH,M,False,False,False,0.38,0.4,<sha256:3d28f5885611c42a:len602>
+Agent_6,2,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,M,False,False,False,0.37,0.48,<sha256:12d1712c0b4ee936:len593>
+Agent_7,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,VH,M,False,False,False,0.3,0.48,<sha256:3d28f5885611c42a:len602>
+Agent_8,2,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,L,H,False,False,False,0.17,0.5,<sha256:3d28f5885611c42a:len602>
+Agent_9,2,Only House Elevation,elevate_house,elevate_house,elevate_house,False,,,0,H,VL,True,False,False,0.19,0.51,<sha256:769e8acac4219bea:len668>
 Agent_10,2,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,True,True,False,0.43,0.43,<sha256:e196ac290343df58:len598>
-Agent_11,2,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,H,H,False,True,False,0.4,0.37,<sha256:8af9b18718b996aa:len574>
-Agent_12,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,,,0,VL,H,False,False,False,0.29,0.53,<sha256:6a7ade62282bcc6c:len644>
-Agent_1,3,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,True,True,False,0.36,0.37,<sha256:113ce317819b81b5:len623>
-Agent_2,3,Do Nothing,do_nothing,do_nothing,do_nothing,False,,,0,H,VL,False,False,False,0.33,0.44,<sha256:ef1a26d256a8b032:len619>
+Agent_11,2,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,M,False,False,False,0.36,0.37,<sha256:12d1712c0b4ee936:len593>
+Agent_12,2,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.29,0.53,<sha256:3948d0565df792e6:len663>
+Agent_1,3,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,True,True,False,0.36,0.42,<sha256:618b90539751da16:len624>
+Agent_2,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,L,False,True,False,0.18,0.49,<sha256:80070aed5a73a431:len619>
 Agent_3,3,Relocate,relocated,N/A,N/A,False,,,0,N/A,N/A,True,False,True,0.24,0.4,<sha256:6c163ae5081b457f:len598>
-Agent_4,3,Both Flood Insurance and House Elevation,elevate_house,elevate_house,elevate_house,False,,,0,H,VH,True,True,False,0.34,0.32,<sha256:5ee8555dd0cc3dec:len666>
-Agent_5,3,Do Nothing,do_nothing,do_nothing,do_nothing,False,,,0,H,VL,False,False,False,0.43,0.39,<sha256:ef1a26d256a8b032:len619>
-Agent_6,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VH,L,False,True,False,0.31,0.47,<sha256:c52f9cf48c4aa65d:len591>
-Agent_7,3,Do Nothing,do_nothing,do_nothing,do_nothing,False,,,0,H,VL,False,False,False,0.35,0.47,<sha256:ef1a26d256a8b032:len619>
-Agent_8,3,Relocate,relocate,relocate,relocate,False,,,0,VH,H,False,False,True,0.17,0.5,<sha256:397efcffc2b9ceb8:len675>
-Agent_9,3,Do Nothing,do_nothing,do_nothing,do_nothing,False,,,0,H,VL,False,False,False,0.17,0.5,<sha256:752b9a1334c54110:len624>
-Agent_10,3,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,True,True,False,0.45,0.42,<sha256:113ce317819b81b5:len623>
-Agent_11,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VH,L,False,True,False,0.3,0.36,<sha256:c52f9cf48c4aa65d:len591>
-Agent_12,3,Only House Elevation,elevate_house,elevate_house,elevate_house,False,,,0,VH,VL,True,False,False,0.34,0.52,<sha256:ef1a26d256a8b032:len619>
-Agent_1,4,Only House Elevation,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,H,True,False,False,0.34,0.41,<sha256:008d1434715e2ec4:len666>
-Agent_2,4,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,L,M,False,False,False,0.31,0.48,<sha256:3bd7565b9628e540:len648>
+Agent_4,3,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.45,0.37,<sha256:50a7761705600d1a:len675>
+Agent_5,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,L,False,True,False,0.28,0.44,<sha256:80070aed5a73a431:len619>
+Agent_6,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,L,False,True,False,0.27,0.52,<sha256:80070aed5a73a431:len619>
+Agent_7,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,L,False,True,False,0.2,0.52,<sha256:80070aed5a73a431:len619>
+Agent_8,3,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,M,False,False,False,0.22,0.54,<sha256:31a3f6109c7bdde1:len675>
+Agent_9,3,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,L,True,True,False,0.21,0.55,<sha256:b118f3f0bf5d9ce2:len614>
+Agent_10,3,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,True,True,False,0.45,0.47,<sha256:618b90539751da16:len624>
+Agent_11,3,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,L,False,True,False,0.26,0.41,<sha256:80070aed5a73a431:len619>
+Agent_12,3,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.34,0.57,<sha256:80070aed5a73a431:len619>
+Agent_1,4,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VH,VH,True,True,False,0.38,0.46,<sha256:df4319cb51be6eb5:len685>
+Agent_2,4,Both Flood Insurance and House Elevation,elevate_house,elevate_house,elevate_house,False,,,0,M,VH,True,True,False,0.2,0.53,<sha256:a181de1624f61473:len638>
 Agent_3,4,Relocate,relocated,N/A,N/A,False,,,0,N/A,N/A,True,False,True,0.24,0.4,<sha256:6c163ae5081b457f:len598>
-Agent_4,4,Only House Elevation,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,True,False,False,0.32,0.36,<sha256:8ec801b984dc5ad2:len648>
-Agent_5,4,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,M,False,False,False,0.48,0.43,<sha256:45cc577e0ff8581a:len643>
-Agent_6,4,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,L,VH,False,False,False,0.29,0.51,<sha256:749dc229def3d0c4:len620>
-Agent_7,4,Relocate,relocate,relocate,relocate,False,,,0,H,H,False,False,True,0.35,0.47,<sha256:eebe5ddf4b8c76f5:len692>
-Agent_8,4,Relocate,relocated,N/A,N/A,False,,,0,N/A,N/A,False,False,True,0.17,0.5,<sha256:397efcffc2b9ceb8:len675>
-Agent_9,4,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VL,VL,False,True,False,0.07,0.54,<sha256:f94efcfe65f10e0a:len649>
-Agent_10,4,Both Flood Insurance and House Elevation,buy_insurance,buy_insurance,buy_insurance,False,,,0,VH,M,True,True,False,0.47,0.46,<sha256:c99dad6161358e3b:len733>
-Agent_11,4,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,L,M,False,False,False,0.35,0.4,<sha256:794ef264014c121d:len615>
-Agent_12,4,Only House Elevation,do_nothing,do_nothing,do_nothing,False,,,0,M,H,True,False,False,0.39,0.56,<sha256:38157b961c427d2b:len658>
+Agent_4,4,Only House Elevation,elevate_house,elevate_house,elevate_house,False,,,0,H,VL,True,False,False,0.43,0.41,<sha256:cddc2f5177cbb777:len647>
+Agent_5,4,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,VH,False,False,False,0.33,0.48,<sha256:f2de241bfdbea475:len633>
+Agent_6,4,Only Flood Insurance,buy_insurance,buy_insurance,buy_insurance,False,,,0,VH,VH,False,True,False,0.29,0.56,<sha256:a181de1624f61473:len638>
+Agent_7,4,Do Nothing,elevate_house,do_nothing,elevate_house,False,elevation_threat_low,,3,L,M,False,False,False,0.18,0.56,<sha256:5152be52a401b18a:len682>
+Agent_8,4,Do Nothing,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,False,False,False,0.27,0.58,<sha256:76a45820e0a8a2cf:len676>
+Agent_9,4,Only House Elevation,do_nothing,do_nothing,do_nothing,False,extreme_threat_block,,3,H,M,True,False,False,0.26,0.59,<sha256:67195682ed3adc86:len686>
+Agent_10,4,Only House Elevation,do_nothing,do_nothing,do_nothing,False,,,0,L,VH,True,False,False,0.43,0.51,<sha256:a6a0d89fbc4a2c5d:len751>
+Agent_11,4,Do Nothing,relocate,do_nothing,relocate,False,relocation_threat_low,,3,L,VH,False,False,False,0.31,0.45,<sha256:f2de241bfdbea475:len633>
+Agent_12,4,Relocate,relocate,relocate,relocate,False,,,0,M,VL,False,False,True,0.34,0.57,<sha256:b5542288df9d87c8:len642>

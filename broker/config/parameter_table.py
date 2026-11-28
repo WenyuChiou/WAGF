@@ -646,6 +646,7 @@ _NONNUMERIC: Dict[str, Dict[str, str]] = {
     "reflection": {
         "enabled": "examples/single_agent/run_flood.py (_reflection_enabled)",
         "questions": "broker/utils/agent_config.py (get_reflection_questions)",
+        "topic": "broker/utils/agent_config.py (get_reflection_topic)",
         "persona_instruction": "examples/single_agent/run_flood.py (_grounded_reflection)",
         "method": "broker/components/cognitive/reflection.py (load_trigger_config)",
         "triggers": "broker/components/cognitive/reflection.py (load_trigger_config)",
