@@ -634,6 +634,7 @@ def _default_agents(ctx):
                     agent_type=agent_type,
                     skills=skills,
                     limit=count,
+                    extra_attributes=spec.get("attributes"),
                 )
             except (FileNotFoundError, ValueError, KeyError, ImportError) as exc:
                 raise RunError(f"run.population[{agent_type!r}].table: {exc}") from exc
@@ -660,28 +661,29 @@ def _default_agents(ctx):
                 ))
                 agents[name] = created_agent
                 created.append(created_agent)
+            if spec and created:
+                attrs_spec = spec.get("attributes")
+                if isinstance(attrs_spec, dict):
+                    for created_agent in created:
+                        apply_agent_attributes(created_agent, attrs_spec)
+                elif isinstance(attrs_spec, list):
+                    for created_agent, row_attrs in zip(created, attrs_spec):
+                        apply_agent_attributes(created_agent, row_attrs)
+                if "memory_template" in spec:
+                    tmpl = spec["memory_template"]
+                    for created_agent in created:
+                        ctx_vars = {
+                            **dict(created_agent.custom_attributes),
+                            "agent_id": created_agent.id,
+                            "agent_type": created_agent.agent_type,
+                        }
+                        try:
+                            append_seed_memories(created_agent, [tmpl.format(**ctx_vars)])
+                        except KeyError as exc:
+                            raise RunError(
+                                f"run.population[{agent_type!r}].memory_template references missing attribute {exc}"
+                            ) from exc
         if spec and created:
-            attrs_spec = spec.get("attributes")
-            if isinstance(attrs_spec, dict):
-                for created_agent in created:
-                    apply_agent_attributes(created_agent, attrs_spec)
-            elif isinstance(attrs_spec, list):
-                for created_agent, row_attrs in zip(created, attrs_spec):
-                    apply_agent_attributes(created_agent, row_attrs)
-            if "table" not in spec and "memory_template" in spec:
-                tmpl = spec["memory_template"]
-                for created_agent in created:
-                    ctx_vars = {
-                        **dict(created_agent.custom_attributes),
-                        "agent_id": created_agent.id,
-                        "agent_type": created_agent.agent_type,
-                    }
-                    try:
-                        append_seed_memories(created_agent, [tmpl.format(**ctx_vars)])
-                    except KeyError as exc:
-                        raise RunError(
-                            f"run.population[{agent_type!r}].memory_template references missing attribute {exc}"
-                        ) from exc
             mems_spec = spec.get("initial_memories")
             if isinstance(mems_spec, list) and mems_spec:
                 if all(isinstance(item, list) for item in mems_spec):

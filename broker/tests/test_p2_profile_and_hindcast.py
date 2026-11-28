@@ -182,6 +182,19 @@ class TestTabularProfileLoader:
             bad.write_text("{}", encoding="utf-8")
             read_tabular_dataframe(bad)
 
+    def test_preserves_numeric_and_zero_padded_identifiers_with_float_columns(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "numeric_ids.csv"
+        csv_path.write_text(
+            "unit_id,elevation_m\n"
+            "00123,12.5\n"
+            "00456,8.0\n",
+            encoding="utf-8",
+        )
+        loader = TabularProfileLoader(id_col="unit_id", columns=["elevation_m"])
+        res = loader.load_agents(csv_path, agent_type="role_a")
+        assert list(res.agents.keys()) == ["00123", "00456"]
+        assert res.agents["00123"].custom_attributes["elevation_m"] == pytest.approx(12.5)
+
 
 class TestDeclarativePopulationRunner:
     """U6 integration tests for declarative run.population specs in broker.run."""
@@ -257,6 +270,49 @@ class TestDeclarativePopulationRunner:
         assert any("Prior event X" == row.get("content", "") for row in seed_lines)
         assert any("Unit alpha_1 operates in East" in row.get("content", "") for row in seed_lines)
         assert any("Inline initial note for role_b" in row.get("content", "") for row in seed_lines)
+
+    def test_table_inline_attributes_available_and_override_for_memory_template(self, tmp_path: Path) -> None:
+        case_dir = tmp_path / "case"
+        cfg_dir = case_dir / "config"
+        prof_dir = case_dir / "profiles"
+        out_dir = tmp_path / "out"
+        cfg_dir.mkdir(parents=True)
+        prof_dir.mkdir(parents=True)
+        (prof_dir / "role_a.csv").write_text(
+            "pid,district\n"
+            "00123,OldEast\n",
+            encoding="utf-8",
+        )
+        _write_skill_registry(cfg_dir / "skill_registry.yaml")
+        cfg_path = cfg_dir / "agent_types.yaml"
+        _write_case_yaml(
+            cfg_path,
+            run_extra="""    years: 1
+    model: mock
+    population:
+      role_a:
+        table: profiles/role_a.csv
+        id_col: pid
+        columns:
+          - district
+        attributes:
+          district: OverrideEast
+          sector: CentralHub
+        memory_template: "Unit {agent_id} at {sector} in {district}"
+""",
+        )
+        assert broker_run_main([str(cfg_path), "--output", str(out_dir)]) == 0
+        mem_lines = [
+            json.loads(line)
+            for line in (out_dir / "memory_log.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        seed_lines = [row for row in mem_lines if row.get("origin") == "seed"]
+        assert any(
+            row.get("agent_id") == "00123"
+            and row.get("content") == "Unit 00123 at CentralHub in OverrideEast"
+            for row in seed_lines
+        )
 
     def test_broker_run_rejects_table_path_traversal_and_bad_specs(self, tmp_path: Path) -> None:
         outside = tmp_path / "secret.csv"

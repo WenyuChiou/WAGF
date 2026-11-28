@@ -81,19 +81,24 @@ def append_seed_memories(agent: BaseAgent, contents: Sequence[str]) -> None:
     agent.memory = mem_list
 
 
-def read_tabular_dataframe(path: Path) -> Tuple[pd.DataFrame, str]:
+def read_tabular_dataframe(
+    path: Path,
+    *,
+    id_col: Optional[str] = None,
+) -> Tuple[pd.DataFrame, str]:
     """Load CSV, TSV, or Excel table into a DataFrame alongside its file SHA-256."""
     resolved = Path(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"Tabular profile file not found: {resolved}")
     sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
     suffix = resolved.suffix.lower()
+    dtype_kw: Dict[str, Any] = {"dtype": {id_col: str}} if id_col else {}
     if suffix == ".csv":
-        df = pd.read_csv(resolved)
+        df = pd.read_csv(resolved, **dtype_kw)
     elif suffix in (".tsv", ".tab"):
-        df = pd.read_csv(resolved, sep="\t")
+        df = pd.read_csv(resolved, sep="\t", **dtype_kw)
     elif suffix in (".xlsx", ".xls"):
-        df = pd.read_excel(resolved)
+        df = pd.read_excel(resolved, **dtype_kw)
     else:
         raise ValueError(
             f"Unsupported tabular profile format {suffix!r} for {resolved}; "
@@ -156,9 +161,10 @@ class TabularProfileLoader:
         limit: Optional[int] = None,
         persona: str = "",
         role_description: str = "",
+        extra_attributes: Optional[Union[Mapping[str, Any], Sequence[Mapping[str, Any]]]] = None,
     ) -> TabularLoadResult:
         """Instantiate ``BaseAgent`` objects from ``path`` according to configured mappings."""
-        df, sha256 = read_tabular_dataframe(path)
+        df, sha256 = read_tabular_dataframe(path, id_col=self.id_col)
         if limit is not None:
             if limit < 0:
                 raise ValueError(f"limit must be >= 0, got {limit!r}")
@@ -210,7 +216,15 @@ class TabularProfileLoader:
 
         skill_list = list(skills or ())
         agents: Dict[str, BaseAgent] = {}
-        for row_idx, (_, row) in enumerate(df.iterrows(), start=1):
+        rows = df.to_dict(orient="records")
+        if extra_attributes is not None and isinstance(extra_attributes, Sequence) and not isinstance(
+            extra_attributes, (str, bytes)
+        ):
+            if len(extra_attributes) != len(rows):
+                raise ValueError(
+                    f"extra_attributes length ({len(extra_attributes)}) must match rows loaded ({len(rows)})"
+                )
+        for row_idx, row in enumerate(rows, start=1):
             if self.id_col is not None:
                 raw_id = row[self.id_col]
                 if _is_missing_cell(raw_id) or not str(raw_id).strip():
@@ -263,6 +277,14 @@ class TabularProfileLoader:
             }
             apply_agent_attributes(agent, mapped_attrs)
 
+            row_extra_attrs: Dict[str, Any] = {}
+            if extra_attributes is not None:
+                if isinstance(extra_attributes, Mapping):
+                    row_extra_attrs = dict(extra_attributes)
+                else:
+                    row_extra_attrs = dict(extra_attributes[row_idx - 1])
+                apply_agent_attributes(agent, row_extra_attrs)
+
             seed_lines: List[str] = []
             for mem_col in self.memory_cols:
                 raw_mem = row[mem_col]
@@ -278,6 +300,9 @@ class TabularProfileLoader:
                 }
                 fmt_context.update(
                     {k: _to_python_scalar(v) for k, v in mapped_attrs.items()}
+                )
+                fmt_context.update(
+                    {k: _to_python_scalar(v) for k, v in agent.custom_attributes.items()}
                 )
                 fmt_context.setdefault("agent_id", agent_id)
                 fmt_context.setdefault("agent_type", agent_type)
