@@ -26,9 +26,10 @@ import pytest
 from broker.interfaces.skill_types import SkillProposal, ValidationResult
 
 from test_retry_feedback_placebo import (
-    LEGACY_HEADER,
+    PLAIN_RETRY_HEADER,
     ORIGINAL_PROMPT,
     RULE_ID,
+    REASON_TEXT,
     _Host,
     _rejected_results,
     _retry_kwargs,
@@ -102,7 +103,7 @@ def test_on_records_one_entry_per_retry_attempt():
     assert retry_count == 1
     assert len(attempt_prompts) == retry_count == 1
     assert ORIGINAL_PROMPT in attempt_prompts[0]
-    assert RULE_ID in attempt_prompts[0]  # full mode: real rule content
+    assert REASON_TEXT in attempt_prompts[0]  # full mode: real rule content
 
 
 def test_on_records_three_entries_across_three_retries():
@@ -152,8 +153,8 @@ def test_full_mode_records_the_real_header_rule_and_original_prompt():
     host._governance_retry_loop(
         llm_invoke=_fixed_invoke(), attempt_prompts=attempt_prompts, **_retry_kwargs())
     assert len(attempt_prompts) == 1
-    assert LEGACY_HEADER in attempt_prompts[0]
-    assert RULE_ID in attempt_prompts[0]
+    assert PLAIN_RETRY_HEADER in attempt_prompts[0]
+    assert REASON_TEXT in attempt_prompts[0]
     assert ORIGINAL_PROMPT in attempt_prompts[0]
 
 
@@ -163,8 +164,8 @@ def test_placebo_mode_records_the_wrapper_only_text_no_rule_content():
     host._governance_retry_loop(
         llm_invoke=_fixed_invoke(), attempt_prompts=attempt_prompts, **_retry_kwargs())
     assert len(attempt_prompts) == 1
-    assert LEGACY_HEADER in attempt_prompts[0]
-    assert RULE_ID not in attempt_prompts[0]
+    assert PLAIN_RETRY_HEADER in attempt_prompts[0]
+    assert REASON_TEXT not in attempt_prompts[0]
     assert ORIGINAL_PROMPT in attempt_prompts[0]
 
 
@@ -210,7 +211,7 @@ def test_trace_to_csv_row_never_emits_retry_prompts():
     trace = {
         "run_id": "r1", "step_id": "s1", "agent_id": "H01", "year": 1,
         "input": ORIGINAL_PROMPT, "raw_output": "{}",
-        "retry_prompts": [f"{LEGACY_HEADER}\n\n{ORIGINAL_PROMPT}"],
+        "retry_prompts": [f"{PLAIN_RETRY_HEADER}\n\n{ORIGINAL_PROMPT}"],
         "skill_proposal": None, "approved_skill": None,
         "execution_result": None, "outcome": "APPROVED",
         "retry_count": 1, "format_retries": 0,
@@ -231,7 +232,6 @@ def _engine_config(**overrides) -> MagicMock:
     config.get_governance_retry_feedback_mode.return_value = "full"
     config.get_governance_advise.return_value = None
     config.get_governance_advise_mode.return_value = "off"
-    config.get_governance_intervention_framing.return_value = "legacy"
     config.get_governance_on_retry_exhausted.return_value = "default"
     config.get_audit_advise_columns.return_value = False
     config.get_audit_attempt_columns.return_value = False

@@ -143,58 +143,30 @@ def render_intervention_prompt(
     reports: List[Any],
     *,
     max_reports: Optional[int] = None,
-    framing: str = "legacy",
+    framing: str = "plain",
     include_reports: bool = True,
     feasible_line: Optional[str] = None,
     closer: Optional[str] = None,
 ) -> "tuple[str, int]":
-    """Render a retry/advisory prompt, tolerating adapters that predate P0-1c.
+    """Render plain feedback. The framing keyword is accepted for one release."""
+    from broker.config.decision_wording import require_wording
+    from broker.utils.retry_prompt import format_plain_intervention_prompt
 
-    ``ModelAdapter`` is a user-extensible seam — domains and tests supply their own
-    subclasses — so requiring the new two-value ``format_intervention_prompt`` would
-    break every existing custom adapter that implements only ``format_retry_prompt``.
-    This shim keeps that contract:
-
-    * adapter exposes ``format_intervention_prompt``  -> use it; accept either the
-      ``(text, shown)`` tuple or a bare string (test doubles return the latter);
-    * adapter exposes only ``format_retry_prompt``    -> use it, which can express
-      the legacy framing only. Asking for a non-legacy framing on such an adapter
-      is a configuration error and raises rather than silently rendering the
-      wrong text into an experiment arm.
-
-    ``feasible_line`` (the feasible-set sentence, default None) is passed on
-    only when set, so adapters and test doubles without that keyword keep
-    working on every run that does not ask for it. An adapter exposing only
-    ``format_retry_prompt`` gets it as one extra report after truncation.
-
-    ``closer`` (default None: the adapter's own closing sentence) is passed
-    on only when set, like ``feasible_line``; it is the
-    ``global_config.governance.placebo_closer`` of a placebo retry. An
-    adapter exposing only ``format_retry_prompt`` cannot render it and
-    raises.
-    """
+    require_wording("intervention_framing", framing, "plain")
     fn = getattr(adapter, "format_intervention_prompt", None)
-    if callable(fn):
-        extra = {} if feasible_line is None else {"feasible_line": feasible_line}
-        if closer is not None:
-            extra["closer"] = closer
-        res = fn(original_prompt, reports, max_reports=max_reports,
-                 framing=framing, include_reports=include_reports, **extra)
-        if isinstance(res, tuple) and len(res) == 2:
-            return res
-        return res, len(reports)
-    if framing != "legacy" or not include_reports or closer is not None:
-        raise ValueError(
-            f"model adapter {type(adapter).__name__} does not implement "
-            "format_intervention_prompt, so it cannot render "
-            f"framing={framing!r}/include_reports={include_reports}"
-            f"{'' if closer is None else '/closer'}. Upgrade the "
-            "adapter before running a non-legacy experiment arm."
+    if not callable(fn):
+        return format_plain_intervention_prompt(
+            original_prompt, reports, max_reports=max_reports, include_reports=include_reports,
+            feasible_line=feasible_line, closer=closer,
         )
-    if feasible_line is not None:
-        shown = list(reports[:max_reports]) if max_reports else list(reports)
-        return adapter.format_retry_prompt(original_prompt, shown + [feasible_line]), len(shown)
-    return adapter.format_retry_prompt(original_prompt, reports, max_reports=max_reports), len(reports)
+    extra = {} if feasible_line is None else {"feasible_line": feasible_line}
+    if closer is not None:
+        extra["closer"] = closer
+    result = fn(original_prompt, reports, max_reports=max_reports, framing="plain",
+                include_reports=include_reports, **extra)
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    return result, len(reports)
 
 
 # Validator categories the soft channel can name, longest-prefix first so

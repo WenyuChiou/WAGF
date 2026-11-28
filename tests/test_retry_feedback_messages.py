@@ -246,8 +246,8 @@ def test_water_matrix_includes_every_shipped_runner_config():
     # --config-dir reads agent_types.yaml from a complete isolated config tree.
     irrigation = [p for p in WATER_CONFIGS if "irrigation_abm" in p.parts]
     assert irrigation
-    assert ROOT / "examples/irrigation_abm/config_variants/simple/agent_types.yaml" in irrigation
-    assert ROOT / "examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml" in irrigation
+    assert ROOT / "examples/irrigation_abm/config_variants/with_validator/agent_types.yaml" in irrigation
+    assert ROOT / "examples/irrigation_abm/config_variants/without_validator/agent_types.yaml" in irrigation
 
 
 @pytest.mark.parametrize("path", WATER_CONFIGS, ids=lambda p: str(p.relative_to(ROOT)))

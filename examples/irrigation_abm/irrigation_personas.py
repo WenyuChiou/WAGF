@@ -729,10 +729,15 @@ def build_water_situation_text(
     # sentence, so no text calls supply sufficient where the rule blocks.
     r_share = supply_ratio(expected, base)
 
-    lines = [
-        f"It is now the year {year}. You {'use' if upper else 'divert'} water in the "
-        f"{_BASIN_DISPLAY[basin]}."
-    ]
+    # The persona already names the basin ("... in the Lower Basin of the
+    # Colorado River"), so the simple prompt does not repeat it here.
+    if prompt_information == "simple":
+        lines = [f"It is now the year {year}."]
+    else:
+        lines = [
+            f"It is now the year {year}. You {'use' if upper else 'divert'} water in the "
+            f"{_BASIN_DISPLAY[basin]}."
+        ]
 
     # Headline on r only (spec 4.3 as revised by item 36a). TWO states only;
     # the edge is FULL_SUPPLY_RATIO, the same edge the supply rule blocks
@@ -1295,40 +1300,6 @@ def dashboard_sharing_flags(agent_state: Dict[str, Any]) -> Dict[str, float]:
     return flags
 
 
-# Plain-language label (with its article) for the first blocking rule in the
-# neutral memory line of an overruled year. v3 (WP3, spec 3.6): exactly the
-# six v3 rules -- the supply rule, three identity rules (including item 49),
-# and two thinking rules (TR1, TR3). The registry backstop enforces the
-# increase limits or decrease floor a second time. Its generic rule id does
-# not distinguish the two increase preconditions. Every entry of the retired rule set
-# (curtailment_awareness, the old R1/R2/R4 and observed-scarcity rules, the
-# zero-escape, consecutive-increase and zero-delivery checks) is gone.
-_RULE_LABELS = {
-    "supply_gap_block_increase": "the shortage-sharing rule",
-    "water_right_cap": "the water-right cap",
-    "beneficial_use_limit": "the beneficial-use limit",
-    "minimum_utilisation_floor": "the minimum-use floor",
-    "high_scarcity_no_increase": "the rule on increases under scarcity",
-    "low_scarcity_no_decrease": "the rule on decreases without scarcity",
-}
-
-
-def _precondition_violation_label(rule_id: str, proposed_skill: str) -> str:
-    """Name a registry backstop by direction without inventing its cause.
-
-    An increase may fail ``not at_allocation_cap`` or item 49's ``not
-    at_beneficial_use_limit``. The generic id does not say which failed,
-    so it names their shared request-increase limit. A decrease names the
-    minimum-use floor; specific rule ids retain their exact labels.
-    """
-    if rule_id == "precondition_violation":
-        if proposed_skill.startswith("increase"):
-            return "the request-increase limit"
-        if proposed_skill.startswith("decrease"):
-            return _RULE_LABELS["minimum_utilisation_floor"]
-    return _RULE_LABELS.get(rule_id, "a governance rule")
-
-
 def _keep_change_clause(request: float, previous_request: Optional[float],
                         previous_diversion: Optional[float]) -> str:
     """Spec item 45g: ", so your request fell from R0 acre-ft to the R acre-ft
@@ -1358,8 +1329,7 @@ def build_action_outcome_feedback(
     preceding_factor: int,
     basin: str = "upper_basin",
     gap_reason: str = "",
-    rejection_line_style: str = "explicit",
-    name_rule: bool = True,
+    rejection_line_style: str = "executed",
     subbasin: bool = True,
     decision_read: bool = True,
     flow_share: Optional[float] = None,
@@ -1372,7 +1342,7 @@ def build_action_outcome_feedback(
     ``prompt_information`` is ``full`` (default) or ``simple`` (no reason or
     natural-flow share):
 
-    "Year {Y}: You chose to {increase demand | maintain demand | decrease
+    "Year {Y}: Action carried out: {increase demand | maintain demand | decrease
     demand}{ (by N%)}. You requested R acre-ft and received D acre-ft.
     {Demand fully met. | Shortfall: x acre-ft (p% unmet), because {past
     reason}.} {water-information sentence}"
@@ -1383,16 +1353,7 @@ def build_action_outcome_feedback(
     ``describe_gap_reason`` phrase. N% is the realised change as a share
     of the base (``action_ctx["magnitude_pct"]``). No drought index.
 
-    An overruled year (retries exhausted, the default applied) under
-    ``rejection_line_style="neutral"`` reads "Year {Y}: maintain demand was
-    applied under {label}." with the rule label of spec 3.6 when
-    ``name_rule`` is True (strict, feasibility-only), or "under a governance
-    rule" when False (placebo and silent, whose retries name no rule; L3
-    M13). ``explicit`` is the pre-redesign ablation wording.
-    ``executed`` (Invariant 7, ``broker/INVARIANTS.md``): every year with a
-    decision reads "Year {Y}: Action carried out: {skill}{ (by N%)}", approved
-    or overruled alike, naming no rule, no proposal and no "You chose"; the
-    number is the one that ran (a default runs with none).
+    Every decision names the action that ran and its realized magnitude.
     ``subbasin``: an Upper Basin agent with a real sub-basin (False only for
     a synthetic mock agent).
 
@@ -1410,14 +1371,16 @@ def build_action_outcome_feedback(
 
     Spec item 45g (P5(c) claim map 1.3 g): keeping a request asks for the
     amount received the year before (spec 2.1), so after a short year a
-    keep LOWERS the request, while the line used to read only "You chose
-    to maintain demand". When ``previous_request`` and ``previous_diversion``
+    keep lowers the request. When ``previous_request`` and ``previous_diversion``
     (the year before this one) are given and that year was short (below
     FULL_SUPPLY_RATIO, the edge of "Demand fully met."), a keep line (chosen,
     applied under a rule, or a year with no decision read) states the
     change: ", so your request fell from {previous request} acre-ft to the
     {request} acre-ft you received the year before".
     """
+    from broker.config.decision_wording import require_wording
+
+    require_wording("memory.rejection_line_style", rejection_line_style, "executed")
     _validate_prompt_information(prompt_information)
     share = supply_ratio(diversion, request)
     if share >= FULL_SUPPLY_RATIO:
@@ -1448,47 +1411,11 @@ def build_action_outcome_feedback(
         # the change in the request.
         change = (_keep_change_clause(request, previous_request, previous_diversion)
                   if action_ctx["skill_name"] == "maintain_demand" else "")
-        if rejection_line_style == "executed":
-            # Invariant 7: the same form whether or not a rule stepped in.
-            # The runner leaves was_fallback off the context under this
-            # style; a default runs with no number of its own.
-            lead = f"Year {year}: Action carried out: {skill}"
-            # The runner never sets was_fallback under this style; the guard
-            # is for a hand-built context.
-            mag = None if action_ctx.get("was_fallback") else action_ctx.get("magnitude_pct")
-            if mag is not None:
-                lead += f" (by {mag:.0f}%)"
-            return lead + change + ". " + outcome
-        if action_ctx.get("was_fallback") and rejection_line_style == "neutral":
-            # Neutral style (memory.rejection_line_style): names the rule and
-            # the action that was applied, not the rejected proposal.
-            rules = action_ctx.get("blocking_rules") or []
-            proposed_skill_for_label = action_ctx.get("proposed_skill")
-            if proposed_skill_for_label and rules and name_rule:
-                label = _precondition_violation_label(rules[0], proposed_skill_for_label)
-                lead = f"Year {year}: {skill} was applied under {label}"
-            elif proposed_skill_for_label:
-                lead = f"Year {year}: {skill} was applied under a governance rule"
-            else:
-                lead = f"Year {year}: no valid decision was read; {skill} was applied"
-            return lead + change + ". " + outcome
-        if action_ctx.get("was_fallback"):
-            # Governance rejected the proposal and the registry default skill
-            # was executed in its place; "You chose" would be false here.
-            proposed = action_ctx.get("proposed_skill")
-            if proposed:
-                lead = (f"Year {year}: your proposal to "
-                        f"{proposed.replace('_', ' ')} was rejected; "
-                        f"{skill} was applied")
-            else:
-                lead = (f"Year {year}: no valid proposal was made; "
-                        f"{skill} was applied")
-            return lead + change + ". " + outcome
-        parts = [f"Year {year}: You chose to {skill}"]
-        mag = action_ctx.get("magnitude_pct")
+        lead = f"Year {year}: Action carried out: {skill}"
+        mag = None if action_ctx.get("was_fallback") else action_ctx.get("magnitude_pct")
         if mag is not None:
-            parts.append(f"(by {mag:.0f}%)")
-        return " ".join(parts) + change + ". " + outcome
+            lead += f" (by {mag:.0f}%)"
+        return lead + change + ". " + outcome
 
     # Fallback: outcome-only (year 1 or missing context)
     return f"Year {year}: {outcome}"

@@ -2,8 +2,7 @@
 
 - The runner's memory line has one form on every row ("Year N: Action carried
   out: X."), because broker.run applies ``memory.rejection_line_style:
-  executed`` unless the YAML sets a style; ``explicit`` gives back the old
-  lines.
+  executed`` on every run.
 - Every memory write carries ``metadata['origin']`` and is logged to
   ``memory_log.jsonl``; an untagged write after the builder's seeding raises.
 - A reflection reads only world, decision, seed and social lines, and the
@@ -165,25 +164,20 @@ def test_default_year_and_approved_year_get_the_same_line(case, tmp_path):
         assert word not in prompt.split("Available actions", 1)[0]
     record = json.loads((output / "broker_run.json").read_text(encoding="utf-8"))
     assert record["rejection_line_style"] == {"agent": "executed"}
+    manifest = json.loads((output / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["resolution_policy"]["retry_framing"] == "plain"
+    assert manifest["intervention_framing_resolved"] == "plain"
     assert record["memory_writes_by_origin"]["decision"] == 2
 
 
-def test_explicit_gives_back_the_old_lines(case, tmp_path):
-    output = _run(case, tmp_path, style="explicit")
-    contents = [e["content"] for e in _memory_log(output) if e["origin"] == "decision"]
-    assert contents == [
-        "Year 1: Proposal to inspect was rejected; default action applied: Wait",
-        "Year 2: Decided to: Wait"]
-    record = json.loads((output / "broker_run.json").read_text(encoding="utf-8"))
-    assert record["rejection_line_style"] == {"agent": "explicit"}
-
-
-def test_unknown_style_is_refused_before_the_run(case, tmp_path, capsys):
+@pytest.mark.parametrize("style", ["explicit", "neutral", "quiet"])
+def test_retired_style_is_refused_before_the_run(case, tmp_path, capsys, style):
     config, data = case
-    data["agent"]["memory"] = {"rejection_line_style": "quiet"}
+    data["agent"]["memory"] = {"rejection_line_style": style}
     _write_yaml(config, data)
     assert main([str(config), "--model", "mock", "--output", str(tmp_path / "out")]) == 2
-    assert "rejection_line_style 'quiet'" in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert repr(style) in error and "2026-11-27" in error and "v0.7.0" in error
 
 
 # -- the write gate ----------------------------------------------------------
@@ -259,7 +253,9 @@ def test_an_untagged_write_from_a_case_hook_stops_the_run(case, tmp_path):
 def test_reflection_reads_no_reflection_origin_and_stores_its_own(case, tmp_path):
     config, data = case
     data["global_config"]["memory"] = {"engine_type": "humancentric"}
-    data["global_config"]["reflection"] = {"enabled": True}
+    data["global_config"]["reflection"] = {
+        "enabled": True, "topic": "site conditions and your inspections",
+    }
     _write_yaml(config, data)
     output = tmp_path / "output"
     prepared = _entry.prepare([str(config), "--model", "mock", "--years", "1", "--agents", "1",
@@ -307,11 +303,15 @@ def test_strip_reply_opener(text, expected):
 
 
 @pytest.mark.parametrize("physical_only", [False, True])
-def test_scaffold_writes_the_executed_style(physical_only):
+def test_scaffold_defaults_to_plain_and_executed(physical_only, tmp_path):
+    from broker.utils.agent_config import AgentTypeConfig
     from broker.tools.scaffold_domain import gen_agent_types_yaml
 
     data = yaml.safe_load(gen_agent_types_yaml(
         "demo", ["act", "hold"], "generic", physical_only=physical_only))
+    config = tmp_path / "agent_types.yaml"
+    config.write_text(yaml.safe_dump(data), encoding="utf-8")
+    assert AgentTypeConfig.load(str(config)).get_governance_intervention_framing() == "plain"
     assert data["agent"]["memory"]["rejection_line_style"] == "executed"
 
 
@@ -335,13 +335,6 @@ def test_an_executed_run_records_a_clean_carryover_block(case, tmp_path):
     assert (block["governance_terms_in_memory"], block["governance_terms_in_reflection_input"],
             block["governance_terms_in_reflection_output"]) == (0, 0, 0)
     assert block["ok"] is True and data["integrity_ok"] is True
-
-
-def test_an_explicit_run_is_not_checked(case, tmp_path):
-    output = _run(case, tmp_path, style="explicit")
-    block = _integrity(output)["governance_carryover"]
-    assert block["checked_agent_types"] == []
-    assert block["ok"] is True
 
 
 def test_rule_wording_written_by_a_hook_fails_the_run_integrity_check(case, tmp_path, capsys):
@@ -390,9 +383,6 @@ def test_a_rejected_year_line_in_a_form_approved_years_never_have_is_counted(tmp
     block = governance_carryover_block(tmp_path, styles={"farmer": "executed"}, **kwargs)
     assert block["default_year_line_shapes_not_seen_in_approved_years"] == 1
     assert block["ok"] is False
-    # Only executed agent types are checked.
-    other = governance_carryover_block(tmp_path, styles={"farmer": "explicit"}, **kwargs)
-    assert other["checked_agent_types"] == [] and other["ok"] is True
     # Nothing to compare against: no count, no failure.
     alone = governance_carryover_block(tmp_path, styles={"farmer": "executed"},
                                        agent_types={"a1": "farmer"}, writes_by_origin={},
@@ -509,4 +499,3 @@ def test_world_proposal_to_phrase_not_flagged_by_integrity(tmp_path):
     block = governance_carryover_block(tmp_path, **kwargs)
     assert block["governance_terms_in_memory"] == 0
     assert block["ok"] is True
-

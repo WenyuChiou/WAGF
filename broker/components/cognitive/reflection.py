@@ -9,10 +9,11 @@ into structured insights. Domain-agnostic via ``DomainReflectionAdapter`` and
   status/trait text, and reflection questions.
 - Without a pack or adapter, prompts carry only the generic identity line and
   importance uses the base score.
-- New domains define reflection questions in ``agent_types.yaml`` or via
+- New one-agent domains and broker.run set ``reflection.topic`` in YAML.
+  Batch/personalized callers retain ``reflection.questions`` and
   ``DomainPack.reflection_questions()``.
 """
-from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Union
+from typing import Dict, Any, List, Optional, Callable, Mapping, Sequence, Tuple, Union
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
@@ -23,6 +24,7 @@ import json
 import re
 
 from broker.utils.logging import setup_logger
+from broker.utils.llm_call_log import call_context
 from .adapters import DomainReflectionAdapter
 
 logger = setup_logger(__name__)
@@ -53,16 +55,41 @@ RECORD_HEADING = (
     "do not restate it)"
 )
 LESSON_ONLY_INSTRUCTION = (
-    "In the JSON value, write only the lesson: one or two sentences in the first person. "
-    "Do not write any year, amount, percentage or other number; the record "
-    "above is stored with your lesson."
+    "Write only the lesson: one or two sentences in the first person. "
+    "Do not write any year, amount, percentage or other number; what "
+    "happened this year is stored with your lesson."
 )
+
+#: Heading of the program-written record in the one-agent reflection prompt.
+ONE_AGENT_RECORD_HEADING = (
+    "What happened this year (kept with your answer; do not repeat it):"
+)
+ONE_AGENT_ANSWER_INSTRUCTION = (
+    "Answer in one or two sentences in the first person. "
+    "Do not write any year, amount, percentage or other number; what "
+    "happened this year is stored with your answer."
+)
+REFLECTION_QUESTION_FRAME = "What do your recent years tell you about {topic}?"
+
+
+def reflection_question(topic: str) -> str:
+    """Build the framework's one-agent question from a domain topic."""
+    explanation = (
+        "reflection.topic must be a short noun phrase naming what the agent faces "
+        "and what it decides about, with no action verb or direction; the framework "
+        "asks 'What do your recent years tell you about <topic>?'"
+    )
+    if not isinstance(topic, str):
+        raise ValueError(explanation)
+    topic = topic.strip()
+    if not topic or len(topic.splitlines()) != 1 or "?" in topic or topic.endswith("."):
+        raise ValueError(explanation)
+    return REFLECTION_QUESTION_FRAME.format(topic=topic)
 
 #: Shown once, after the original prompt, when a lesson failed a check (45e).
 REFLECTION_RETRY_NOTE = (
-    "### Correction\n"
-    "Your previous answer could not be stored because {reasons}. "
-    "Answer again, following every instruction above."
+    "Your previous answer cannot be used: {reasons}. "
+    "Please answer again, taking the instructions above into account."
 )
 
 # A four-digit calendar year (1800-2199) not inside a longer number.
@@ -181,14 +208,34 @@ def order_by_year(items: Sequence[Any]) -> List[Any]:
     return sorted(items, key=lambda m: m["year"])
 
 
+STORED_REFLECTION_LABEL = "Looking back:"
+LEGACY_STORED_REFLECTION_LABEL = "Lesson:"
+
+
+def split_stored_reflection(text: str) -> Tuple[str, str]:
+    """Return (program facts, answer), accepting current and legacy labels.
+
+    Unlabelled text is an answer alone. Split at the first label so an
+    answer containing another label remains intact.
+    """
+    separators = [f" {label} " for label in
+                  (STORED_REFLECTION_LABEL, LEGACY_STORED_REFLECTION_LABEL)]
+    positions = [(text.find(separator), separator) for separator in separators
+                 if separator in text]
+    if not positions:
+        return "", text
+    position, separator = min(positions)
+    return text[:position], text[position + len(separator):]
+
+
 def compose_lesson_with_facts(fact_lines: Optional[Sequence[str]], lesson: str) -> str:
     """The text of a grounded reflection (45c): the program-written fact
-    lines, then "Lesson: " and the model's lesson. Without fact lines it is
+    lines, then "Looking back: " and the model's answer. Without fact lines it is
     the lesson alone, as before."""
     facts = [str(f).strip() for f in (fact_lines or []) if str(f).strip()]
     if not facts:
         return lesson
-    return " ".join(facts) + " Lesson: " + lesson
+    return " ".join(facts) + f" {STORED_REFLECTION_LABEL} " + lesson
 
 
 def _per_agent_lines(value: Any, agent_id: str, n_agents: int, name: str) -> List[str]:
@@ -207,6 +254,21 @@ def _per_agent_lines(value: Any, agent_id: str, n_agents: int, name: str) -> Lis
             )
         return [str(v) for v in value]
     raise TypeError(f"generate_batch_reflection_prompt: {name} must be a list or a mapping, got {type(value).__name__}.")
+
+
+def first_sentence(text: str, *, what: str = "persona") -> str:
+    """The first sentence of ``text`` (up to the first ``.``, ``!`` or ``?``
+    followed by a space or the end), whitespace collapsed. Raises when
+    ``text`` is empty: a prompt never falls back to a generic identity.
+
+    Limit: an abbreviation with a period ("St. Louis", "Dr. Lee") ends the
+    sentence early. No shipped persona has one; a domain whose persona does
+    must pass its identity sentence explicitly."""
+    flat = " ".join(str(text or "").split())
+    if not flat:
+        raise ValueError(f"first_sentence: the {what} text is empty.")
+    m = re.match(r".*?[.!?](?=\s|$)", flat)
+    return m.group(0) if m else flat
 
 
 @dataclass
@@ -351,7 +413,7 @@ def run_checked_reflection(
         if not any(c.isalpha() for c in lesson) or len(lesson.split()) < 3:
             found.append(LessonProblem("empty", "the answer has no letters or fewer than three words"))
         if len(lesson) > 500:
-            found.append(LessonProblem("too_long", "the lesson exceeds the 500-character limit"))
+            found.append(LessonProblem("too_long", "the answer exceeds the 500-character limit"))
         if lesson_no_numbers:
             found.extend(lesson_number_problems(lesson))
         domain = list(checker(lesson)) if checker is not None else []
@@ -359,10 +421,14 @@ def run_checked_reflection(
         flags = [p for p in domain if p.code != "foreign_figure"]
         return _dedup_problems(found), _dedup_problems(flags)
 
-    def _ask(text: str):
+    def _ask(text: str, attempt: int = 0):
         raw = None
         try:
-            raw = _reply_text(llm_call(text))
+            # year: the simulation step, as in the audit CSV (year_created when given).
+            with call_context(agent_id=agent_id, year=period if year_created is None else year_created,
+                              kind="reflection" if attempt == 0 else "reflection_retry",
+                              attempt=attempt + 1):
+                raw = _reply_text(llm_call(text))
             insights = engine.parse_batch_reflection_response(
                 raw, [agent_id], period if year_created is None else year_created,
                 allow_plain_text=True)
@@ -373,7 +439,7 @@ def run_checked_reflection(
     result = CheckedReflection(outcome="dropped")
     current_prompt = prompt
     for attempt in range(retries + 1):
-        raw, insight, error = _ask(current_prompt)
+        raw, insight, error = _ask(current_prompt, attempt)
         result.calls += 1
         if insight is not None:
             insight.reflection_input = input_text
@@ -395,7 +461,7 @@ def run_checked_reflection(
                 problems, flags = _problems(lesson)
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
-            problems = [LessonProblem("checker_error", "the lesson checker failed")]
+            problems = [LessonProblem("checker_error", "the answer checker failed")]
             flags = []
             logger.error("[Reflection] checker failed for %s in period %s: %s",
                          agent_id, period, error)
@@ -546,6 +612,7 @@ class AgentReflectionContext:
 # Domain authors define their own questions in agent_types.yaml; the
 # resolution order is implemented in
 # ``AgentTypeConfig.get_reflection_questions(agent_type)``.
+# Retained for multi-agent/personalized callers; broker.run uses reflection.topic.
 _DEFAULT_REFLECTION_QUESTIONS: List[str] = [
     "What worked well in your decisions this period, and what did not?",
     "Did your actions match the conditions you observed?",
@@ -749,6 +816,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         tick_label: str = "Year",
     ) -> str:
         """Generate a personalized reflection prompt with agent identity.
+
+        Retained for multi-agent callers; broker.run uses the one-agent template.
 
         Domain-specific status text is provided by the registered
         DomainPack via ``reflection_status_text`` (Phase 6H Item 9). With
@@ -1124,6 +1193,62 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
         return "\n".join(lines)
     
+    def generate_reflection_prompt_one_agent(
+        self,
+        identity: str,
+        memories: Sequence[Any],
+        period: Any,
+        *,
+        topic: str,
+        persona_instruction: Optional[str] = None,
+        record_lines: Optional[Sequence[str]] = None,
+        rule_lines: Optional[Sequence[str]] = None,
+        year_lines: bool = True,
+    ) -> str:
+        """The year-end reflection prompt for one agent (the single layout of
+        single-agent flood and irrigation).
+
+        ``identity`` is the first sentence of the agent's decision-prompt
+        persona (use ``first_sentence``); it is the only place an agent id
+        may appear. ``memories`` are the lines the agent looks back on
+        (oldest first when ``year_lines`` and each carries a ``"year"``);
+        with none, no reflection is asked and "" is returned.
+        ``record_lines`` are the program-written lines stored with the
+        answer, ``rule_lines`` the rules that apply to the agent. The model
+        answers ``{"answer": "..."}``."""
+        identity = " ".join(str(identity or "").split())
+        if not identity:
+            raise ValueError("generate_reflection_prompt_one_agent: the identity sentence is empty.")
+        question = reflection_question(topic)
+        if not memories:
+            return ""
+        out = [identity, f"It is the end of {period}. Look back on your recent years."]
+        out.append(f"Question: {question}")
+        out.append("")
+        out.append("Your recent years:")
+        ordered = order_by_year(memories) if year_lines else list(memories)
+        out.extend(f"- {_memory_text(m)}" for m in ordered)
+        record = [str(r) for r in (record_lines or []) if str(r).strip()]
+        if record:
+            out.append("")
+            out.append(ONE_AGENT_RECORD_HEADING)
+            out.extend(f"- {r}" for r in record)
+        rules = [str(r) for r in (rule_lines or []) if str(r).strip()]
+        if rules:
+            out.append("")
+            out.append("Rules that apply to you:")
+            out.extend(f"- {r}" for r in rules)
+        out.append("")
+        if persona_instruction:
+            out.append(str(persona_instruction))
+        if record:
+            out.append(ONE_AGENT_ANSWER_INSTRUCTION)
+        else:
+            out.append("Answer in one or two sentences in the first person.")
+        out.append("")
+        out.append('Answer with this JSON object only: {"answer": "<your answer>"}')
+        return "\n".join(out)
+
     def parse_batch_reflection_response(
         self,
         raw_response: str,
@@ -1201,8 +1326,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             try:
                 if not isinstance(data, dict):
                     data = json.loads(json_content)
-                if isinstance(data, dict) and isinstance(data.get("lesson"), str):
-                    candidate = data["lesson"]
+                if isinstance(data, dict) and isinstance(data.get("answer"), str):
+                    candidate = data["answer"]
                     if candidate.strip():
                         value = candidate
             except Exception:
@@ -1229,8 +1354,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                 insight.parse = "lenient"
                 results[batch_agent_ids[0]] = insight
                 success = True
-            elif (isinstance(data, dict) and isinstance(data.get("lesson"), str)
-                  and not data["lesson"].strip()):
+            elif (isinstance(data, dict) and isinstance(data.get("answer"), str)
+                  and not data["answer"].strip()):
                 return results
 
         # Checked one-agent replies must retain the whole value. The legacy

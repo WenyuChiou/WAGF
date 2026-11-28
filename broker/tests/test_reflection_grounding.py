@@ -88,10 +88,9 @@ def test_only_irrigation_and_flood_opt_in():
             opted.add(path.relative_to(REPO).as_posix())
     assert opted == {
         "examples/irrigation_abm/config/agent_types.yaml",
-        "examples/irrigation_abm/config_variants/simple/agent_types.yaml",
-        "examples/irrigation_abm/config_variants/simple_executed/agent_types.yaml",
-        "examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml",
-        "examples/irrigation_abm/config_variants/simple_nolimit_executed/agent_types.yaml",
+        "examples/irrigation_abm/config_variants/with_validator/agent_types.yaml",
+        "examples/irrigation_abm/config_variants/without_validator/agent_types.yaml",
+        "examples/single_agent/agent_types_stress.yaml",
         "examples/single_agent/agent_types.yaml",
         "examples/single_agent/config_variants/nonudge/agent_types.yaml",
     }
@@ -193,7 +192,7 @@ def test_add_year_outcome_contract():
 
 def test_compose_and_normalize():
     assert compose_lesson_with_facts(None, "I learned.") == "I learned."
-    assert compose_lesson_with_facts([" 2020: a. ", "", "2021: b."], "I learned.") == "2020: a. 2021: b. Lesson: I learned."
+    assert compose_lesson_with_facts([" 2020: a. ", "", "2021: b."], "I learned.") == "2020: a. 2021: b. Looking back: I learned."
     assert normalize_lesson_text('  "I  learned\nthis.",  ') == "I learned this."
     assert normalize_lesson_text("\u201cQuoted.\u201d") == "Quoted."
 
@@ -218,7 +217,7 @@ def test_lesson_number_problems(lesson, codes):
 @pytest.mark.parametrize("raw", [
     '{"AgentID": "TunnelDiversionBelowCrystalForAg_1971CompStudyAg": "I learned to watch demand."}',
     '{"AgentID": "Agent": "I learned to watch demand."}',
-    '{"agent_id": "Bostwick", "lesson": "I learned to watch demand."}',
+    '{"agent_id": "Bostwick", "answer": "I learned to watch demand."}',
 ])
 def test_single_agent_lenient_forms_recover_and_record(raw, tmp_path):
     log = tmp_path / "reflection_checks.jsonl"
@@ -265,15 +264,15 @@ def test_lenient_chained_form_rejects_long_non_id_middle():
 
 
 @pytest.mark.parametrize("raw", [
-    '{"lesson": ""}',
-    '{"agent_id": "X", "lesson": "  "}',
+    '{"answer": ""}',
+    '{"agent_id": "X", "answer": "  "}',
 ])
 def test_lenient_blank_lesson_stays_no_reply(raw):
     assert ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031) == {"X": None}
 
 
 def test_lenient_lesson_uses_stage1_repaired_object():
-    raw = '{"agent_id": "X1", "lesson": "I learned to watch demand.",}'
+    raw = '{"agent_id": "X1", "answer": "I learned to watch demand.",}'
     insight = ReflectionEngine().parse_batch_reflection_response(raw, ["X"], 2031)["X"]
     assert insight is not None
     assert insight.summary == "I learned to watch demand."
@@ -367,7 +366,7 @@ def test_run_checked_reflection_outcomes(tmp_path, replies, outcome, calls, stor
         assert result.insight.year_created == 13
     if calls == 2:
         # the one retry: the original prompt, then the reasons
-        assert model.prompts[1].startswith("PROMPT\n\n### Correction\nYour previous answer could not be stored because ")
+        assert model.prompts[1].startswith("PROMPT\n\nYour previous answer cannot be used: ")
         assert result.first_problems and all(p.message in model.prompts[1] for p in result.first_problems)
     # the raw reply of every reflection not stored at once is logged, one line per attempt
     rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
@@ -383,7 +382,8 @@ def test_retry_note_names_every_reason_and_retries_can_be_zero():
     assert result.outcome == "dropped" and result.calls == 1
     assert [p.code for p in result.final_problems] == ["year"]
     note = REFLECTION_RETRY_NOTE.format(reasons="a; b")
-    assert note.startswith("### Correction") and "a; b" in note
+    assert note == ("Your previous answer cannot be used: a; b. "
+                    "Please answer again, taking the instructions above into account.")
     with pytest.raises(ValueError):
         run_checked_reflection(ReflectionEngine(), prompt="P", agent_id="A", period=1, llm_call=model, retries=-1)
 
@@ -395,8 +395,9 @@ def test_numbers_pass_when_the_option_is_off():
     assert result.outcome == "stored"
 
 
-def test_json_value_instruction_keeps_json_wrapper():
-    assert LESSON_ONLY_INSTRUCTION.startswith("In the JSON value, write only the lesson")
+def test_lesson_only_instruction_does_not_point_at_a_record_above():
+    assert LESSON_ONLY_INSTRUCTION.startswith("Write only the lesson")
+    assert "record above" not in LESSON_ONLY_INSTRUCTION
 
 
 def test_single_agent_plain_text_is_checked_and_multi_agent_is_not_guessed():
@@ -457,7 +458,7 @@ def test_leading_lesson_label_is_stripped_before_composing():
                                     normalize=lambda text: text.strip())
     assert result.lesson == "I learned to watch."
     assert compose_lesson_with_facts(["Year 1: an outcome."], result.lesson) == (
-        "Year 1: an outcome. Lesson: I learned to watch.")
+        "Year 1: an outcome. Looking back: I learned to watch.")
 
 
 @pytest.mark.parametrize("preamble", [
@@ -472,7 +473,7 @@ def test_short_leading_lesson_openers_are_stripped_before_composing(preamble):
     assert result.outcome == "stored" and result.calls == 1
     assert result.lesson == "I learned caution."
     assert compose_lesson_with_facts(["Period 1: an outcome."], result.lesson) == (
-        "Period 1: an outcome. Lesson: I learned caution.")
+        "Period 1: an outcome. Looking back: I learned caution.")
 
 
 def test_broker_grounding_comments_use_generic_examples():

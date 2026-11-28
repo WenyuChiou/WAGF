@@ -21,6 +21,7 @@ from examples.irrigation_abm.analysis.simple_prompt_check import (
 
 IRR = CONFIG.parent.parent
 VARIANTS = IRR / "config_variants"
+VALIDATOR_ARMS = [("with_validator", "strict"), ("without_validator", "disabled")]
 
 
 def _config():
@@ -87,7 +88,7 @@ def test_simple_tier_status_only_for_senior_and_junior(junior):
                   lb_junior_entitlement_af=40_000.0 if junior else 0.0)
     text = build_water_situation_text(ctx, prompt_information="simple")
     assert text.splitlines() == [
-        "It is now the year 2029. You divert water in the Lower Colorado River Basin.",
+        "It is now the year 2029.",
         "Lake Mead was at 1,050 feet above sea level on 1 January (rising from last year).",
         "A Tier 2 Lower Basin shortage applies this year (Lake Mead was below 1,050 feet on 1 January).",
         "In 2028 you diverted 100,000 acre-ft.",
@@ -139,16 +140,36 @@ def test_simple_memory_preserves_outcomes_and_keep_change(basin, signal):
         flow_share=0.7, previous_request=100_000, previous_diversion=80_000,
         prompt_information="simple")
     assert text == (
-        "Year 2029: You chose to maintain demand, so your request fell from 100,000 acre-ft "
+        "Year 2029: Action carried out: maintain demand, so your request fell from 100,000 acre-ft "
         "to the 80,000 acre-ft you received the year before. You requested 80,000 acre-ft "
         "and received 64,000 acre-ft. Shortfall: 16,000 acre-ft (20.0% unmet). " + signal)
 
 
-@pytest.mark.parametrize("variant", ["simple", "simple_nolimit"])
+@pytest.mark.parametrize("variant", ["with_validator", "without_validator"])
 def test_variant_exact_overrides_and_frozen_copies(variant):
     expected = _simple_config()
     expected['irrigation_farmer']['prompt_template_file'] = 'prompts/irrigation_farmer.txt'
-    if variant == "simple_nolimit":
+    hints = {'water_scarcity_assessment': 'One sentence on how scarce your water supply is this year.',
+             'adaptive_capacity_assessment': 'One sentence on how much you can change your request this year.'}
+    for field in expected['shared']['response_format']['fields']:
+        if field['key'] in hints:
+            field['reason_hint'] = hints[field['key']]
+    expected["global_config"]["llm"]["sampling_seed"] = "per_call"
+    expected["global_config"]["governance"]["intervention_framing"] = "plain"
+    expected["global_config"]["audit"]["retry_prompt_columns"] = True
+    # 2026-11-27: the simple prompt explains each rating in plain words, so the
+    # generic rating-scale block is not shown.
+    del expected["shared"]["rating_scale"]
+    messages = {
+        "high_scarcity_no_increase": ("increases under scarcity", "an increase"),
+        "low_scarcity_no_decrease": ("decreases without scarcity", "a decrease"),
+    }
+    for rule in expected["irrigation_farmer"]["governance"]["strict"]["thinking_rules"]:
+        if rule["id"] in messages:
+            condition, action = messages[rule["id"]]
+            reason = rule["message"].split(": ", 1)[1]
+            rule["message"] = f"Under the rule on {condition}, {action} is not available in this decision: {reason}"
+    if variant == "without_validator":
         expected["irrigation_farmer"]["beneficial_use_limit"]["enabled"] = False
     directory = VARIANTS / variant
     actual = yaml.safe_load((directory / "agent_types.yaml").read_text(encoding="utf-8"))
@@ -162,7 +183,7 @@ def test_variant_exact_overrides_and_frozen_copies(variant):
             if p.is_file() and p.name != 'NOTES.md'} == {
         str(p.relative_to(default)) for p in default.rglob("*") if p.is_file()}
     for path in default.rglob("*"):
-        if path.is_file() and path.name not in ("agent_types.yaml", "irrigation_farmer.txt"):
+        if path.is_file() and path.name not in ("agent_types.yaml", "irrigation_farmer.txt", "README.md"):
             assert (directory / path.relative_to(default)).read_bytes() == path.read_bytes()
 
 
@@ -170,29 +191,25 @@ def test_variant_exact_overrides_and_frozen_copies(variant):
 def simple_runs(tmp_path_factory):
     runs = {}
     original = runner.IrrigationLifecycleHooks.pre_year
-    for variant in ("simple", "simple_nolimit"):
-        for mode in ("strict", "disabled"):
-            contexts, profiles = {}, {}
+    for variant, mode in VALIDATOR_ARMS:
+        contexts, profiles = {}, {}
 
-            def capture(hooks, year, env_state, agents):
-                original(hooks, year, env_state, agents)
-                profiles.update(hooks.profiles)
-                contexts.update({(aid, year): dict(hooks.env.get_agent_context(aid)) for aid in agents})
+        def capture(hooks, year, env_state, agents):
+            original(hooks, year, env_state, agents)
+            profiles.update(hooks.profiles)
+            contexts.update({(aid, year): dict(hooks.env.get_agent_context(aid)) for aid in agents})
 
-            llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
-            out = tmp_path_factory.mktemp(f"{variant}_{mode}") / "run"
-            with pytest.MonkeyPatch.context() as mp:
-                mp.setattr(runner.IrrigationLifecycleHooks, "pre_year", capture)
-                _run(mp, out, llm, "--real", "--years", "4", "--seed", "42", "--memory-seed", "42",
-                     "--governance-mode", mode, "--config-dir", str(VARIANTS / variant))
-            runs[(variant, mode)] = SimpleNamespace(out=out, llm=llm, contexts=contexts, profiles=profiles)
+        llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
+        out = tmp_path_factory.mktemp(f"{variant}_{mode}") / "run"
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(runner.IrrigationLifecycleHooks, "pre_year", capture)
+            _run(mp, out, llm, "--real", "--years", "4", "--seed", "42", "--memory-seed", "42",
+                 "--governance-mode", mode, "--config-dir", str(VARIANTS / variant))
+        runs[(variant, mode)] = SimpleNamespace(out=out, llm=llm, contexts=contexts, profiles=profiles)
     return runs
 
 
-@pytest.mark.parametrize("variant,mode", [
-    ("simple", "strict"), ("simple", "disabled"),
-    ("simple_nolimit", "strict"), ("simple_nolimit", "disabled"),
-])
+@pytest.mark.parametrize("variant,mode", VALIDATOR_ARMS)
 def test_simple_four_year_runs_are_clean_and_recorded(simple_runs, variant, mode):
     run = simple_runs[(variant, mode)]
     assert len(run.llm.decisions) >= 78 * 4
@@ -220,7 +237,19 @@ def test_simple_four_year_runs_are_clean_and_recorded(simple_runs, variant, mode
     snapshot = yaml.safe_load((run.out / "config_snapshot.yaml").read_text())
     assert snapshot["metadata"]["prompt_information"] == "simple"
     assert snapshot["irrigation_farmer"]["prompt_information"] == "simple"
-    assert snapshot["irrigation_farmer"]["beneficial_use_limit"]["enabled"] is (variant == "simple")
+    assert snapshot["irrigation_farmer"]["beneficial_use_limit"]["enabled"] is (variant == "with_validator")
+
+
+RATING_BLOCK = """First, judge your water supply this year, considering:
+- Water Supply Outlook: how much water is available to you this year.
+- Demand-Supply Balance: whether your current request is well matched to the available supply, or there is a gap.
+Then rate how scarce your water supply is: abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH).
+
+Next, judge how much you can adapt, considering:
+- Capacity to Adjust: how much you can change your request this year, given the options below.
+- Cost of Change: what you would risk by changing your request (a larger shortfall if you ask for more than is delivered, or less water to produce with if you ask for less).
+- Benefit of Keeping: what you gain by requesting the same amount you received last year.
+Then rate how much you can change your request: not at all able (VL), slightly able (L), somewhat able (M), very able (H), or extremely able (VH)."""
 
 
 @pytest.mark.parametrize("agent", ["WelltonMohawkIDD", UT2])
@@ -228,7 +257,7 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
     """Build the entire expected first-year prompt without calling text builders."""
     from examples.irrigation_abm.irrigation_personas import hy_threshold_af, resolve_step_bin_af
 
-    run = simple_runs[("simple", "strict")]
+    run = simple_runs[("with_validator", "strict")]
     profile, ctx = run.profiles[agent], run.contexts[(agent, 1)]
     actual = run.llm.decisions[(agent, 2019, 0)]
     upper = profile.basin == "upper_basin"
@@ -240,7 +269,7 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
         persona += " All volumes shown to you are consumptive use."
     persona += " " + PERSONA_TEXTS[profile.cluster]
     year = ctx["year"]
-    lines = [persona, f"It is now the year {year}. You {'use' if upper else 'divert'} water in the {basin} Colorado River Basin."]
+    lines = [persona, f"It is now the year {year}."]
     if upper:
         where = "in your sub-basin" if ctx["supply_group"] is not None else "averaged over the Upper Basin"
         lines.append(f"Winter precipitation {where} this year was {ctx['precipitation']:.0f} mm "
@@ -277,19 +306,17 @@ def test_simple_full_golden_prompt_from_fixture_numbers(simple_runs, agent):
             INCREASE_STEP_NOTE if "Increase" in directions else DECREASE_STEP_NOTE)
     lines.extend([f"In {year - 1} you {'used' if upper else 'diverted'} {base:,.0f} acre-ft.",
                   "Your memory includes:", "No memories yet.", "",
-                  "First, rate your water_scarcity_assessment: is your water supply abundant (VL), adequate (L), tight (M), scarce (H), or very scarce (VH) this year?",
-                  "Next, rate your adaptive_capacity_assessment: how much can you change your request this year?", "",
+                  *RATING_BLOCK.splitlines(), "",
                   "Now, choose one of the following water management actions:"])
     lines.extend(f"{number}. {options[direction]}" for number, direction in menu)
-    lines.extend([note, "", "### RATING SCALE (You MUST use EXACTLY one of these codes):",
-                  "VL = Very Low | L = Low | M = Medium | H = High | VH = Very High", "", "",
+    lines.extend([note, "",
                   "Please respond using the EXACT JSON format below.",
                   "- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.",
                   f'- "decision" MUST be the NUMERIC ID ({choices}) from the options list.',
                   "- Ensure all keys match the format exactly.", "<<<DECISION_START>>>", "{",
                   '  "reasoning": "Explain your thought process in 2-3 sentences BEFORE making a decision.",',
-                  '  "water_scarcity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on whether your water supply is abundant, adequate, tight, scarce, or very scarce."},',
-                  '  "adaptive_capacity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on how well you can adapt your water use."},',
+                  '  "water_scarcity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on how scarce your water supply is this year."},',
+                  '  "adaptive_capacity_assessment": {"label": "VL/L/M/H/VH", "reason": "One sentence on how much you can change your request this year."},',
                   f'  "decision": "<Numeric ID, choose ONE from: {choices}>"', "}", "<<<DECISION_END>>>", ""])
     assert actual == "\n".join(lines)
 
@@ -298,7 +325,7 @@ def test_simple_rejects_full_template_before_model_call(tmp_path, monkeypatch):
     import shutil
 
     directory = tmp_path / "mixed"
-    shutil.copytree(VARIANTS / "simple", directory)
+    shutil.copytree(VARIANTS / "with_validator", directory)
     shutil.copyfile(CONFIG.parent / "prompts/irrigation_farmer.txt", directory / "prompts/irrigation_farmer.txt")
     llm = ScriptedLLM(lambda agent, year, attempt: ("M", "M", "Keep"))
     with pytest.raises(ValueError, match="prompt_information"):
@@ -337,3 +364,34 @@ def test_reflection_recorder_captures_retry_bytes(tmp_path):
     records = [json.loads(line) for line in (tmp_path / "reflection_prompts.jsonl").read_text().splitlines()]
     assert [row["prompt"] for row in records] == seen
     assert [row["attempt"] for row in records] == [0, 1]
+
+
+@pytest.mark.parametrize("agent", ["WelltonMohawkIDD", UT2])
+@pytest.mark.parametrize("variant,mode", VALIDATOR_ARMS)
+def test_simple_rendered_prompt_has_rating_block_and_field_names_only_in_skeleton(simple_runs, agent, variant, mode):
+    """The rendered prompt carries the new rating block, repeats no basin sentence,
+    and names the two appraisal fields only inside the JSON skeleton."""
+    run = simple_runs[(variant, mode)]
+    prompt = run.llm.decisions[(agent, 2019, 0)]
+    assert RATING_BLOCK in prompt
+    assert "You divert water in the" not in prompt and "You use water in the" not in prompt
+    head, skeleton = prompt.split("<<<DECISION_START>>>")
+    for name in ("water_scarcity_assessment", "adaptive_capacity_assessment"):
+        assert name not in head
+        assert name in skeleton
+    assert '"reason": "One sentence on how scarce your water supply is this year."' in skeleton
+    assert '"reason": "One sentence on how much you can change your request this year."' in skeleton
+
+
+@pytest.mark.parametrize("variant", ["with_validator", "without_validator"])
+def test_simple_variant_files_carry_new_rating_block(variant):
+    directory = VARIANTS / variant
+    template = (directory / "prompts/irrigation_farmer.txt").read_text(encoding="utf-8")
+    assert RATING_BLOCK in template
+    assert template == runner.SIMPLE_PROMPT_TEMPLATE
+    body = template.split("Please respond using")[0]
+    assert "water_scarcity_assessment" not in body and "adaptive_capacity_assessment" not in body
+    fields = {f["key"]: f for f in yaml.safe_load(
+        (directory / "agent_types.yaml").read_text(encoding="utf-8"))["shared"]["response_format"]["fields"]}
+    assert fields["water_scarcity_assessment"]["reason_hint"] == "One sentence on how scarce your water supply is this year."
+    assert fields["adaptive_capacity_assessment"]["reason_hint"] == "One sentence on how much you can change your request this year."

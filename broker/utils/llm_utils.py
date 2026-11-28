@@ -24,6 +24,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from urllib.parse import urlparse, urlunparse
 
+from broker.utils import llm_call_log as _call_log
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -439,6 +441,11 @@ class LLMStats:
     # toward `total_extra_llm_calls` in the audit / governance_summary.json,
     # instead of being invisible the way it was before this field existed.
     backoff_retries: int = 0
+    # Ollama's own reason the last reply stopped: "stop" (the model finished) or "length"
+    # (cut off at num_predict or the context window). None when the call path reports none
+    # (mock, cloud providers, a failed request). Kept off to_dict(): it feeds the call log
+    # (broker/utils/llm_call_log.py) and run_integrity, not an audit CSV column.
+    done_reason: Optional[str] = None
 
     def to_dict(self) -> Dict:
         d = {
@@ -662,6 +669,12 @@ def _build_ollama_options(model: str, params: Dict[str, Any]) -> Dict[str, Any]:
     # Apply thinking budget (if any) into options; think flag is top-level
     # (set at the request-dict level in _invoke_ollama_direct, not here).
     options = LLM_CONFIG.apply_thinking_control(model, options)
+
+    # Optional per-call seed (global_config.llm.sampling_seed: per_call, default off):
+    # a stable hash of (run seed, agent id, year, call kind, attempt).
+    call_seed = _call_log.sampling_seed_for_call()
+    if call_seed is not None:
+        options["seed"] = call_seed
     return options
 
 
@@ -1174,6 +1187,29 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     # the run actually paid for this call (queueing at the server included) and
     # not a figure derived from the server's own self-report.
     t0 = time.perf_counter()
+    started_at_utc = _call_log.utc_now_iso()
+    sent_options = {
+        "model": model,
+        "temperature": options.get("temperature"),
+        "top_p": options.get("top_p"),
+        "top_k": options.get("top_k"),
+        "num_ctx": options.get("num_ctx"),
+        "num_predict": options.get("num_predict"),
+        "think": data.get("think"),
+        "seed": options.get("seed"),
+    }
+
+    logged = [False]  # one log line per request, even if code after the 200 branch raises
+
+    def _log_call(reply, *, prompt_eval=None, eval_count=None, done_reason=None, error=None):
+        if logged[0]:
+            return
+        logged[0] = True
+        _call_log.record_llm_call(
+            prompt=prompt, reply=reply, options=sent_options, prompt_eval_count=prompt_eval,
+            eval_count=eval_count, done_reason=done_reason,
+            wall_seconds=time.perf_counter() - t0, error=error, started_at_utc=started_at_utc)
+
     try:
         # Config-driven timeout: large/slow models get extended timeout
         timeout = LLM_CONFIG.get_timeout(model)
@@ -1183,6 +1219,10 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         if response.status_code == 200:
             result = response.json()
             content = result.get('response', '')
+            done_reason = result.get('done_reason')
+            done_reason = done_reason if isinstance(done_reason, str) else None
+            _log_call(content, prompt_eval=result.get('prompt_eval_count'),
+                      eval_count=result.get('eval_count'), done_reason=done_reason)
             if verbose:
                 _LOGGER.debug(f" [LLM:Direct] Model '{model}' responded successfully ({len(content)} chars).")
             # R5-C: Extract token counts from Ollama response
@@ -1216,9 +1256,11 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
                 calls=1,
                 prompt_tokens_total=prompt_tokens,
                 response_tokens_total=response_tokens,
+                done_reason=done_reason,
             )
             return content, stats
         else:
+            _log_call("", error=f"HTTP {response.status_code}")
             _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
             # Transport_error=True only for 5xx (a
             # server-side condition a retry can plausibly ride out); a 4xx is
@@ -1230,17 +1272,20 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
                 transport_error=(response.status_code >= 500),
             )
     except requests.exceptions.Timeout:
+        _log_call("", error="Timeout")
         _LOGGER.error(f" [LLM:Direct] Model '{model}' timed out after {timeout}s. Consider increasing timeout for this model.")
         # transport_error stays False (default) on purpose: this call already
         # waited the full configured timeout, so the backoff wrapper must not
         # retry it and wait again for no benefit (spec item 24 fix round).
         return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0))
     except requests.exceptions.ConnectionError:
+        _log_call("", error="ConnectionError")
         _LOGGER.error(f" [LLM:Direct] Model '{model}' connection refused. Is Ollama running at {url}?")
         # transport_error=True: a refused/reset connection is exactly the
         # transient failure the backoff wrapper exists to retry.
         return "", LLMStats(retries=0, success=False, latency_ms=_elapsed_ms(t0), transport_error=True)
     except Exception as e:
+        _log_call("", error=type(e).__name__)
         _LOGGER.error(f" [LLM:Direct] Model '{model}' unexpected error: {type(e).__name__}: {e}")
         # transport_error stays False: an unclassified exception (a bug, a
         # parsing error in this function) is not assumed safe to retry.
@@ -1382,6 +1427,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     # Ollama connection failure. Verified with the real
                     # create_llm_invoke('gemma3:4b').
                     transport_error=getattr(last_stats, "transport_error", False),
+                    done_reason=getattr(last_stats, "done_reason", None),
                 )
 
             for attempt in range(max_llm_retries):

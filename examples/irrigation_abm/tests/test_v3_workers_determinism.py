@@ -66,6 +66,10 @@ def _assert_runs_match(base_dir: Path, other_dir: Path, label: str) -> None:
 
     base_integrity = json.loads((base_dir / "run_integrity.json").read_text(encoding="utf-8"))
     other_integrity = json.loads((other_dir / "run_integrity.json").read_text(encoding="utf-8"))
+    # llm_calls.jsonl is written in completion order, so its hash (and line order) follows the
+    # worker count; the decisions it records are what the CSV comparisons above pin.
+    for doc in (base_integrity, other_integrity):
+        doc.get("llm_call_log", {}).pop("file_sha256", None)
     assert base_integrity == other_integrity, f"run_integrity.json differs {label}"
 
 

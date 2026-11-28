@@ -71,6 +71,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from broker.components.cognitive.reflection import split_stored_reflection  # noqa: E402
+
 from examples.irrigation_abm.irrigation_env import (  # noqa: E402
     HYDROLOGY_V3_SHA256,
     LB_PRIORITY_SPLIT_SHA256,
@@ -3159,7 +3161,9 @@ _DIGIT = re.compile(r"\d")
 _R = {
     "persona": re.compile(r"^You are (?P<agent>.+?), an agricultural water user .*?holding a water right of "
                           r"(?P<w>[\d,]+) acre-ft/year\."),
-    "year": re.compile(r"^It is now the year (\d{4})\. You (use|divert) water in the (Upper|Lower) Colorado River Basin\.$"),
+    # The simple prompt (2026-11-27) leaves out the basin clause: the persona names the basin.
+    "year": re.compile(r"^It is now the year (\d{4})\.(?: You (use|divert) water in the (Upper|Lower) "
+                       r"Colorado River Basin\.)?$"),
     "precip": re.compile(r"^Winter precipitation (in your sub-basin|averaged over the Upper Basin) this year was "
                          r"(\d+) mm \((above|below) last year\)\.$"),
     "flow_share": re.compile(r"^The natural flow of the rivers your sub-basin draws on is (\d+%) of its "
@@ -3203,7 +3207,7 @@ _R = {
     "dash_warn": re.compile(r"^WARNING: You requested ([\d,]+) AF and received ([\d,]+) AF \(([\d.]+)% unmet\)\."),
     "reflection": re.compile(r"^- Consolidated Reflection \(written in (\d{4})\): (.*)$"),
     "memory": re.compile(r"^- Year (\d{4}): "),
-    "mem_chose": re.compile(r"You chose to (increase|maintain|decrease) demand(?: \(by (\d+)%\))?[.,]"),
+    "mem_action": re.compile(r"(You chose to|Action carried out:) (increase|maintain|decrease) demand(?: \(by (\d+)%\))?[.,]"),
     "mem_applied": re.compile(r"^- Year \d{4}: (?:no valid decision was read; |no valid proposal was made; "
                               r"|your proposal to (?:increase|maintain|decrease) demand was rejected; )?"
                               r"(increase|maintain|decrease) demand was applied"),
@@ -3320,12 +3324,11 @@ def _memory_visibility_mismatches(
         action_ctx = None if decision.aborted else {
             "year": tick,
             "skill_name": decision.executed_skill,
-            # The runner marks both a REJECTED row that executes the registry
-            # default (rejected_default) and REJECTED_FALLBACK (fallback) as
-            # executed_via_fallback in the deferred action context.
-            "was_fallback": decision.execution_path in ("rejected_default", "fallback"),
             "magnitude_pct": run.sim.opt_num(agent, tick, "magnitude_pct"),
         }
+        # Historical lines exposed the fallback in their salience context.
+        if action_ctx is not None and ": Action carried out:" not in item:
+            action_ctx["was_fallback"] = decision.execution_path in ("rejected_default", "fallback")
         snapshot = {
             "year": tick,
             "request": run.sim.num(agent, tick, "request"),
@@ -3432,7 +3435,6 @@ def retry_text_samples(config_path: Path = CONFIG_PATH,
     try:
         config = AgentTypeConfig.load(str(config_path))
         adapter = get_adapter("mock", config_path=str(config_path))
-        framing = config.get_governance_intervention_framing()
         closer = config.get_governance_placebo_closer()
         plain = config.get_governance_plain_action_names()
         max_reports = config.get_governance_max_reports()
@@ -3460,7 +3462,7 @@ def retry_text_samples(config_path: Path = CONFIG_PATH,
 
     def wrapper(**kwargs: Any) -> str:
         text, _shown = render_intervention_prompt(adapter, _RETRY_ORIGINAL_PROMPT, reports,
-                                                  framing=framing, **kwargs)
+                                                  **kwargs)
         return text.replace(_RETRY_ORIGINAL_PROMPT, "")
 
     samples = {
@@ -3546,7 +3548,7 @@ class PromptChecker:
     sentences of irrigation_personas (spec 4.1 to 4.5) read back line by
     line. Sub-basin flow shares and senior entitlements are compared with the
     pinned data tables the environment reads. For grounded stored reflections,
-    the fact portion before `` Lesson: `` is checked here; the model-written
+    the fact portion before either stored reflection label is checked here; the model-written
     lesson remains P6's responsibility."""
 
     def __init__(self, run: LoadedRun, cfg: WaterSystemConfig, variant: str):
@@ -3727,9 +3729,10 @@ class PromptChecker:
             where = f"{run.label} {agent} {year} line {i}"
             stripped = text.strip()
             program_text, lesson = text, ""
+            facts, answer = split_stored_reflection(text)
             if stripped.startswith("- Consolidated Reflection"):
-                if " Lesson: " in text:
-                    program_text, lesson = text.split(" Lesson: ", 1)
+                if facts:
+                    program_text, lesson = facts, answer
                 elif not program_facts:
                     reflection = _R["reflection"].match(stripped)
                     if reflection:  # Old-style reflection: heading plus model prose.
@@ -3755,14 +3758,14 @@ class PromptChecker:
             if stripped == POWELL_DEAD_POOL_SENTENCE:
                 if system["powell_storage_maf"] > cfg.powell_dead_pool_maf + DEAD_POOL_TOL_MAF:
                     out.mismatches.append(f"{where}: Powell dead-pool sentence above the dead pool")
-            numeric_text = program_text if " Lesson: " in text else text
+            numeric_text = program_text if facts else text
             if not _DIGIT.search(numeric_text):
                 continue
             out.numeric_lines += 1
             line = _Line(numeric_text, where, out)
             grounded_reflection = (
                 stripped.startswith("- Consolidated Reflection")
-                and (program_facts or " Lesson: " in text)
+                and (program_facts or bool(facts))
             )
             self._line(line, agent, t, year, upper, system, w, base, d, trace, out,
                        grounded_reflection=grounded_reflection)
@@ -3837,7 +3840,7 @@ class PromptChecker:
                             stored.add((str(row["agent_id"]), int(row["period"])))
         prompts_path = self.run.info.path / "reflection_prompts.jsonl"
         if stored and prompts_path.is_file():
-            from broker.components.cognitive.reflection import RECORD_HEADING
+            from broker.components.cognitive.reflection import ONE_AGENT_RECORD_HEADING, RECORD_HEADING
 
             seen = set()
             with open(prompts_path, encoding="utf-8") as stream:
@@ -3853,7 +3856,19 @@ class PromptChecker:
                     t = calendar_year - self.run.sim.sim_start_year + 1
                     prompt = str(row.get("prompt") or "")
                     marker = RECORD_HEADING + "\n"
-                    record = prompt.split(marker, 1)[1].split("\n### Output Requirement", 1)[0] if marker in prompt else ""
+                    # The one-agent layout ends the record at the next blank
+                    # line; the retired layout (runs before v0.8) at its
+                    # "### Output Requirement" heading.
+                    one_agent_marker = next((heading + "\n" for heading in (
+                        ONE_AGENT_RECORD_HEADING,
+                        "What happened this year (kept with your lesson; do not repeat it):",
+                    ) if heading + "\n" in prompt), None)
+                    if one_agent_marker is not None:
+                        record = prompt.split(one_agent_marker, 1)[1].split("\n\n", 1)[0]
+                    elif marker in prompt:
+                        record = prompt.split(marker, 1)[1].split("\n### Output Requirement", 1)[0]
+                    else:
+                        record = ""
                     fact_texts = [line[2:] for line in record.splitlines() if line.startswith("- ")]
                     if not fact_texts:
                         out.mismatches.append(
@@ -3874,12 +3889,13 @@ class PromptChecker:
                              out: PromptAudit, *, allow_current: bool) -> None:
         sim = self.run.sim
         rendered = text if text.startswith("- ") else "- " + text
-        program_text = rendered.split(" Lesson: ", 1)[0]
+        facts, _answer = split_stored_reflection(rendered)
+        program_text = facts or rendered
         line = _Line(program_text, where, out)
         d, trace = self.run.decisions[(agent, t)], self.run.traces[(agent, t)]
         self._line(line, agent, t, sim.sim_year(t), sim.basin[agent] == "upper_basin",
                    sim.system[t], sim.num(agent, t, "water_right"), d.keep_request_af,
-                   d, trace, out, grounded_reflection=" Lesson: " in rendered,
+                   d, trace, out, grounded_reflection=bool(facts),
                    allow_current_memory=allow_current)
         line.finish()
         out.stored_memory_lines += 1
@@ -4001,7 +4017,11 @@ class PromptChecker:
         m = _R["year"].match(text)
         if m:
             line.expect(m, 1, str(year), "year")
-            line.check((m.group(2) == "use") == upper and (m.group(3) == "Upper") == upper, "basin wording")
+            line.check(self.prompt_information == "simple" or m.group(2) is not None,
+                       "basin clause required in full mode")
+            if m.group(2) is not None:
+                line.check((m.group(2) == "use") == upper and (m.group(3) == "Upper") == upper,
+                           "basin wording")
             line.cover(m)
             return
         m = _R["precip"].match(text)
@@ -4258,14 +4278,15 @@ class PromptChecker:
             dk = self.run.decisions.get((agent, tk))
             executed = dk.executed_skill if dk else None
             path = dk.execution_path if dk else None
-            mc = _R["mem_chose"].search(text)
+            mc = _R["mem_action"].search(text)
             if mc:
-                line.check(path == "approved" and executed == f"{mc.group(1)}_demand",
-                           f"{past}: states 'You chose to {mc.group(1)} demand', the audit executed "
-                           f"{executed!r} ({path})")
-                if mc.group(2) is not None:
+                lead, direction, amount = mc.groups()
+                # Historical "You chose" lines assert approval as well as execution.
+                line.check(executed == f"{direction}_demand" and (lead != "You chose to" or path == "approved"),
+                           f"{past}: states '{lead} {direction} demand', the audit executed {executed!r} ({path})")
+                if amount is not None:
                     mag = sim.opt_num(agent, tk, "magnitude_pct")
-                    line.expect(mc, 2, f"{mag:.0f}" if mag is not None else "(none)", f"{past}: realised change")
+                    line.expect(mc, 3, f"{mag:.0f}" if mag is not None else "(none)", f"{past}: realised change")
                 line.cover(mc)
             ma = _R["mem_applied"].search(text)
             if ma:
@@ -4288,7 +4309,7 @@ class PromptChecker:
             # Item 45g: a keep after a short year states the fall in the
             # request, from last year's request to last year's receipt; no
             # other line carries the clause.
-            is_keep = bool((mc and mc.group(1) == "maintain") or (ma and ma.group(1) == "maintain") or mn)
+            is_keep = bool((mc and direction == "maintain") or (ma and ma.group(1) == "maintain") or mn)
             prev_short = tk > 1 and supply_ratio(sim.num(agent, tk - 1, "diversion"),
                                                  sim.num(agent, tk - 1, "request")) < FULL_SUPPLY_RATIO
             mk = _R["mem_keep_change"].search(text)
@@ -4491,7 +4512,7 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
     reflection lines not written in the previous calendar year unless every
     intervening year has a logged dropped reflection for that same agent.
 
-    Spec item 45c: a grounded reflection reads "{program facts} Lesson:
+    Spec item 45c: a grounded reflection reads "{program facts} Looking back:
     {lesson}". Its lesson is checked against the recorded input of its
     writing year, including the outcome just ended. A carried reflection
     uses that same input, never later outcomes. Lessons carrying any digit are counted
@@ -4560,10 +4581,11 @@ def reflection_checks(run: LoadedRun) -> Dict[str, Any]:
                 own = []
                 reflection_input_skipped += 1
             body = m.group(2)
-            if " Lesson: " in body:
+            facts_text, answer = split_stored_reflection(body)
+            if facts_text:
                 # Item 45c: program facts, then the model's lesson.
                 grounded += 1
-                facts_text, body = body.split(" Lesson: ", 1)
+                body = answer
                 if _DIGIT.search(body):
                     with_numbers += 1
                     if len(examples) < 10:

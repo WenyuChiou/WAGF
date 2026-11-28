@@ -124,7 +124,8 @@ def test_all_keep_memory_and_reflection_inputs_match_between_arms(tmp_path, leve
             args = ['--years', '4', '--agents', '4', '--seed', '42', '--memory-seed', '42',
                     '--governance-mode', mode]
             if level == 'simple':
-                args += ['--config-dir', str(VARIANTS / 'simple')]
+                variant = 'with_validator' if mode == 'strict' else 'without_validator'
+                args += ['--config-dir', str(VARIANTS / variant)]
             out = _run(mp, tmp_path / mode, llm, *args)
         with (out / 'simulation_log.csv').open(newline='') as stream:
             memories = {(row['agent_id'], row['year']): row['memory'] for row in csv.DictReader(stream)}

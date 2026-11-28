@@ -108,17 +108,13 @@ attempt with no framing at all" (nothing states or implies the latter).
 | Value | Validator behaviour | Content in the retry prompt | Audit (`failed_rules`, `error_messages`) |
 |---|---|---|---|
 | `full` (default) | rejects on the same rules, same schedule, same `on_retry_exhausted` fallback | the rendered `InterventionReport`(s): rule id, reason, suggestion | the real validation results |
-| `placebo` | identical — same rules, same schedule, same fallback | the adapter's wrapper only — header + closer + the original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`, the same "A''" mechanism `governance.advise`'s own `mode="wrapper"` uses for the advisory channel). Header/closer text still depends on `intervention_framing` ("was flagged by..." / "triggered..."), but neither wording names a rule id, a blocked skill, a reason, or a suggestion. | the real validation results — unchanged |
+| `placebo` | identical — same rules, same schedule, same fallback | the adapter's wrapper only — header + closer + the original prompt, no rules block at all (`format_intervention_prompt(..., include_reports=False)`, the same "A''" mechanism `governance.advise`'s own `mode="wrapper"` uses for the advisory channel). The wrapper uses the plain retry header and the configured placebo closer. | the real validation results — unchanged |
 | `silent` | identical (same rules, same schedule, same fallback) | the ORIGINAL prompt, byte-for-byte, on every retry attempt: no header, no closer, no rules block, no governance framing at all. `_governance_retry_loop` sets `retry_prompt = prompt` directly rather than calling the adapter at all, so there is nothing left to differ between attempts except the LLM's own sampling. | the real validation results, unchanged |
 
-`silent` is a strictly more content-free control than `placebo`: `placebo`
-still tells the model "your previous response was flagged / triggered the
-governance layer... please reconsider" (the framing is kept on purpose, to
-isolate rule content from framing); `silent` removes that framing too, so a
-`silent` retry is indistinguishable from the model simply being asked the
-same question again. It answers a stricter version of the same red-team
-objection: not "was it the rule content or the framing", but "was it
-anything the framework said at all, or just another roll of the dice".
+In `placebo` mode the agent sees “Your previous answer cannot be used in this
+decision.” followed by the placebo closer and the original prompt. In `silent`
+mode the broker resends the original prompt verbatim. This comparison measures
+the effect of the wrapper when both arms omit the rule reasons.
 
 `silent` only measures something under non-zero sampling temperature and no
 fixed generation seed: an identical prompt sent to a deterministic decoding

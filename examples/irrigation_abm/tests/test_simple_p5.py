@@ -38,7 +38,7 @@ def numeric_run(request, tmp_path, monkeypatch):
     llm = ScriptedLLM(lambda *_args: ("M", "M", "Increase"))
     args = ["--years", "4", "--agents", "4", "--seed", "42", "--memory-seed", "42"]
     if level == "simple":
-        args += ["--config-dir", str(VARIANTS / "simple")]
+        args += ["--config-dir", str(VARIANTS / "with_validator")]
     out = _run(monkeypatch, tmp_path / level, llm, *args)
     run = vm.load_run(out, keep_prompts=True)
     assert run.info.manifest["prompt_information"] == level
@@ -74,6 +74,22 @@ def test_p5b_accepts_clean_program_numbers_at_both_levels(numeric_run):
     assert details["b_reflection_prompt_fact_lines_checked"] > 0
 
 
+@pytest.mark.parametrize("heading", [
+    "What happened this year (kept with your answer; do not repeat it):",
+    "What happened this year (kept with your lesson; do not repeat it):",
+])
+def test_reflection_prompt_facts_are_audited_with_current_and_historical_headings(numeric_run, heading):
+    path = numeric_run.info.path / "reflection_prompts.jsonl"
+    text = path.read_text(encoding="utf-8")
+    current = "What happened this year (kept with your answer; do not repeat it):"
+    assert current in text
+    path.write_text(text.replace(current, heading), encoding="utf-8")
+    audit = _audit(numeric_run)
+    assert not audit.mismatches
+    assert not audit.unchecked
+    assert audit.reflection_prompt_fact_lines > 0
+
+
 def test_p5b_rejects_tampered_outcome_memory_at_both_levels(numeric_run):
     _tamper_first(
         numeric_run,
@@ -87,7 +103,7 @@ def test_p5b_rejects_tampered_outcome_memory_at_both_levels(numeric_run):
 def test_p5b_rejects_tampered_grounded_reflection_fact_at_both_levels(numeric_run):
     _tamper_first(
         numeric_run,
-        r"^- Consolidated Reflection .*?you asked for (?P<value>[\d,]+) acre-ft.*? Lesson: ",
+        r"^- Consolidated Reflection .*?you asked for (?P<value>[\d,]+) acre-ft.*? Looking back: ",
         _increment,
     )
     audit = _audit(numeric_run)
@@ -97,7 +113,7 @@ def test_p5b_rejects_tampered_grounded_reflection_fact_at_both_levels(numeric_ru
 def test_p5b_rejects_malformed_grounded_reflection_number_at_both_levels(numeric_run):
     _tamper_first(
         numeric_run,
-        r"(^- Consolidated Reflection .*?you asked for )(?P<value>[\d,]+)( acre-ft.*? Lesson: )",
+        r"(^- Consolidated Reflection .*?you asked for )(?P<value>[\d,]+)( acre-ft.*? Looking back: )",
         lambda match: match.group(1) + match.group("value") + "x" + match.group(3),
     )
     audit = _audit(numeric_run)
@@ -114,7 +130,7 @@ def test_p5b_real_simple_run_does_not_require_removed_flow_text(tmp_path, monkey
     llm = ScriptedLLM(lambda *_args: ('M', 'M', 'Keep'))
     out = _run(monkeypatch, tmp_path / 'real-simple', llm,
                '--real', '--years', '4', '--seed', '42', '--memory-seed', '42',
-               '--config-dir', str(VARIANTS / 'simple'))
+               '--config-dir', str(VARIANTS / 'with_validator'))
     details = _p5b(vm.load_run(out, keep_prompts=True))
     assert details['b_passed'] is True, details['b_mismatches'] + details['b_unchecked']
 
@@ -175,9 +191,12 @@ def test_p5b_rejects_final_stored_reflection_fact_tamper_outside_decision_prompt
 
 
 def test_p5b_excludes_model_lesson_digits_in_csv_memory(numeric_run):
+    from broker.components.cognitive.reflection import compose_lesson_with_facts, split_stored_reflection
+
     for row in numeric_run.sim.rows.values():
-        if ' Lesson: ' in row.get('memory', ''):
-            row['memory'] = row['memory'].split(' Lesson: ', 1)[0] + ' Lesson: I learned 987654321 things.'
+        facts, _answer = split_stored_reflection(row.get('memory', ''))
+        if facts:
+            row['memory'] = compose_lesson_with_facts([facts], 'I learned 987654321 things.')
             break
     else:
         pytest.fail('fixture has no stored reflection in memory')

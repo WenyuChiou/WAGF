@@ -56,7 +56,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
-from broker.core.experiment_runner import DECISION_MEMORY_MARKER, FALLBACK_MEMORY_MARKER
+from broker.core.experiment_runner import EXECUTED_MEMORY_MARKER
 from broker.components.social.graph import NeighborhoodGraph
 from broker.components.analytics.interaction import InteractionHub
 from broker.components.context.builder import TieredContextBuilder, PrioritySchemaProvider
@@ -65,6 +65,7 @@ from broker.components.memory.engine import WindowMemoryEngine, ImportanceMemory
 from broker.interfaces.skill_types import ExecutionResult, SkillOutcome
 # from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
+from examples.grounded_reflection import require_grounded_reflection
 from broker.utils.agent_config import GovernanceAuditor
 from broker.utils.logging import logger
 
@@ -74,11 +75,13 @@ from broker.utils.logging import logger
 # _ensure_flood_registered reverse-import fallback.
 import examples.governed_flood  # noqa: F401 — registers FloodDomainPack + validators
 from broker.components.cognitive.reflection import (
+    split_stored_reflection,
     ReflectionCheckTally,
     add_year_outcome,
     compose_lesson_with_facts,
     record_reflection_checks,
     run_checked_reflection,
+    first_sentence,
     store_reflection_memory,
 )
 from examples.single_agent.flood_reflection import (
@@ -143,7 +146,7 @@ def _memory_texts(items: List[Any]) -> List[str]:
 
 
 _STORED_REFLECTION = re.compile(
-    r"^Consolidated Reflection \(written in Year \d+\): (?P<facts>.*?) Lesson: ",
+    r"^Consolidated Reflection \(written in Year \d+\): (?P<body>.*)",
     re.DOTALL,
 )
 _FACT_YEAR = re.compile(r"(?:^|\. )Year (\d+):")
@@ -155,7 +158,9 @@ def _remembered_reflection_years(memory_lines: List[str]) -> List[int]:
     for line in memory_lines:
         match = _STORED_REFLECTION.match(str(line))
         if match:
-            years = [int(value) for value in _FACT_YEAR.findall(match.group("facts"))]
+            facts, _answer = split_stored_reflection(match.group("body"))
+            if facts:
+                years = [int(value) for value in _FACT_YEAR.findall(facts)]
     return sorted(set(years))
 
 
@@ -420,19 +425,10 @@ class DecisionFilteredMemoryEngine:
             return metadata
         return {**(metadata or {}), "year": 0, "importance": 0.0, "type": "initial"}
 
-    # The GENERIC framework (experiment_runner.py) writes an immediate
-    # decision line for approved rows ("Decided to: X") and, since the
-    # F06/F20 fix, for fallback rows ("... default action applied: Y").
-    # Both are dropped here, independently of the domain-level own-action
-    # line that `FinalParityHook.pre_year` used to add (F3): that deferred
-    # line was removed outright in the 2026-10 WRR26 rerun (it is not in
-    # WRR26), so no action memory of any kind reaches the agent now, and
-    # this filter exists purely to keep the generic runner's own two
-    # markers from leaking into the WRR26-parity memory stream.
+    # The flood case omits the generic runner decision line from recall.
     @staticmethod
     def _is_decision_memory(content: str) -> bool:
-        return (DECISION_MEMORY_MARKER in content
-                or FALLBACK_MEMORY_MARKER in content)
+        return EXECUTED_MEMORY_MARKER in content
 
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         if self._is_decision_memory(content):
@@ -867,9 +863,6 @@ class FinalParityHook:
                 mem_items = _memory_texts(self.runner.memory_engine.retrieve(agent, top_k=5))
             mem_str = " | ".join(mem_items)
             
-            # Note: Reflection is now handled in BATCH mode after the agent loop.
-            # The old per-agent reflection code has been replaced for efficiency.
-
             decision_data = self.yearly_decisions.get((agent.id, year), {})
             if isinstance(decision_data, dict):
                 yearly_decision = decision_data.get("skill")
@@ -931,90 +924,12 @@ class FinalParityHook:
         # 
         # df_year.to_csv(log_filename, mode=mode, header=header, index=False)
         
-        # --- PILLAR 2: BATCH YEAR-END REFLECTION (Personalized) ---
+        # Grounded year-end reflection
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
             refl_cfg = self.runner.broker.config.get_reflection_config()
-            # Flood design record item 7 (irrigation spec item 45): the
-            # grounded mechanism when any of its framework keys is on; the
-            # block below is the reflection before item 7, unchanged.
-            grounding = self.runner.broker.config.get_reflection_grounding()
-            if any(grounding.values()):
-                self._grounded_reflection(year, refl_cfg, grounding)
-                return
-            from broker.components.cognitive.reflection import AgentReflectionContext
-            batch_size = refl_cfg.get("batch_size", 10)
+            self._grounded_reflection(year, refl_cfg)
 
-            # 1. Collect candidates with identity context
-            candidates = []
-            for agent_id, agent in self.sim.agents.items():
-                if getattr(agent, "relocated", False):
-                    continue
-                mem_engine = self.runner.memory_engine
-                if hasattr(mem_engine, 'retrieve_stratified'):
-                    memories = mem_engine.retrieve_stratified(agent_id, total_k=10)
-                else:
-                    if hasattr(mem_engine, "retrieve_content_only"):
-                        memories = mem_engine.retrieve_content_only(agent, top_k=10)
-                    else:
-                        memories = _memory_texts(mem_engine.retrieve(agent, top_k=10))
-                if memories:
-                    ctx = self.reflection_engine.extract_agent_context(agent, year)
-                    # Flood-domain reflection fields routed through
-                    # custom_traits (Phase 6H Item 9 — extract_agent_context
-                    # is now domain-neutral; FloodDomainPack reads these).
-                    ctx.custom_traits = {
-                        **ctx.custom_traits,
-                        "elevated": getattr(agent, "elevated", False),
-                        "insured": getattr(agent, "insured", False),
-                        "flood_count": sum(
-                            1 for f in getattr(agent, "flood_history", []) if f
-                        ),
-                    }
-                    candidates.append({"agent_id": agent_id, "memories": memories, "context": ctx})
-
-            if candidates:
-                print(f" [Reflection:Batch] Processing {len(candidates)} agents in batches of {batch_size}...")
-                llm_call = self.runner.get_llm_invoke("household")
-
-                for i in range(0, len(candidates), batch_size):
-                    batch = candidates[i:i+batch_size]
-                    batch_ids = [c["agent_id"] for c in batch]
-
-                    if hasattr(self.reflection_engine, 'generate_personalized_batch_prompt'):
-                        prompt = self.reflection_engine.generate_personalized_batch_prompt(batch, year)
-                    else:
-                        prompt = self.reflection_engine.generate_batch_reflection_prompt(
-                            batch, year, reflection_questions=refl_cfg.get("questions", [])
-                        )
-
-                    try:
-                        raw_res = llm_call(prompt)
-                        response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
-
-                        insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
-                        for agent_id, insight in insights.items():
-                            if insight:
-                                ctx_item = next((c for c in batch if c["agent_id"] == agent_id), None)
-                                if ctx_item and ctx_item.get("context") and hasattr(self.reflection_engine, 'compute_dynamic_importance'):
-                                    dynamic_imp = self.reflection_engine.compute_dynamic_importance(ctx_item["context"])
-                                    insight.importance = dynamic_imp
-
-                                self.reflection_engine.store_insight(agent_id, insight)
-                                self.runner.memory_engine.add_memory(
-                                    agent_id,
-                                    f"Consolidated Reflection: {insight.summary}",
-                                    {
-                                        **_flood_memory_metadata(reflection=True),
-                                        "importance": insight.importance,
-                                        "type": "reflection",
-                                    }
-                                )
-                    except Exception as e:
-                        print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
-
-                print(f" [Reflection:Batch] Completed reflection for Year {year}.")
-
-    def _grounded_reflection(self, year, refl_cfg, grounding):
+    def _grounded_reflection(self, year, refl_cfg):
         """Year-end reflection, grounded (flood design record PI decision
         2026-10-07 item 7; the irrigation mechanism of spec item 45).
 
@@ -1029,10 +944,10 @@ class FinalParityHook:
         recent damaged year) and the model writes only the lesson; the lesson
         receives report-only semantic flags
         (``flood_reflection.check_flood_lesson``). Only mechanical failures
-        block storage: numbers when ``reflection.lesson_no_numbers`` is on,
+        block storage: numbers in a lesson,
         junk, or more than 500 characters. A blocking failure is retried once,
         then dropped. Stored as
-        "Consolidated Reflection (written in Year {Y}): {facts} Lesson:
+        "Consolidated Reflection (written in Year {Y}): {facts} Looking back:
         {lesson}" in the memory engine's reflection slot, shown after five
         recent plus up to two significant event lines."""
         if refl_cfg.get("batch_size", 10) != 1:
@@ -1061,10 +976,7 @@ class FinalParityHook:
                 memory_lines = _memory_texts(
                     self.runner.memory_engine.retrieve(agent, top_k=decision_top_k))
             retrieved_lines = {str(line) for line in memory_lines}
-            prior_fact_years = (
-                set(_remembered_reflection_years(memory_lines))
-                if grounding["program_facts"] else set()
-            )
+            prior_fact_years = set(_remembered_reflection_years(memory_lines))
             window_years = set()
             for y, r in record.items():
                 if str(r.get("event_line", "")) in retrieved_lines:
@@ -1092,33 +1004,34 @@ class FinalParityHook:
                 }
                 for fy in years if fy.year != year
             ]
-            outcome = None
-            if grounding["year_outcome"]:
-                this = next((fy for fy in years if fy.year == year), None)
-                if this is None:
-                    raise RuntimeError(f"{agent_id}: no record of year {year} for its year-end reflection.")
-                outcome = {"content": flood_year_line(this), "year": year}
-            items = add_year_outcome(items, outcome, required=grounding["year_outcome"])
+            this = next((fy for fy in years if fy.year == year), None)
+            if this is None:
+                raise RuntimeError(f"{agent_id}: no record of year {year} for its year-end reflection.")
+            outcome = {"content": flood_year_line(this), "year": year}
+            items = add_year_outcome(items, outcome, required=True)
             listed_years = {item["year"] for item in items}
             listed = [fy for fy in years if fy.year in listed_years]
-            if items:
-                candidates.append((agent_id, agent, items, listed))
+            candidates.append((agent_id, agent, items, listed))
         if not candidates:
             return
         print(f" [Reflection] {len(candidates)} households, one per call (grounded, design record item 7)...")
         for agent_id, agent, items, listed in candidates:
-            facts = None
-            if grounding["program_facts"]:
-                by_year = {fy.year: fy for fy in listed}
-                facts = [flood_fact_line(by_year[y])
-                         for y in flood_key_years(listed, max(by_year))]
-            prompt = engine.generate_batch_reflection_prompt(
-                [{"agent_id": agent_id, "memories": items}],
-                year,
-                reflection_questions=refl_cfg.get("questions", []),
+            by_year = {fy.year: fy for fy in listed}
+            facts = [flood_fact_line(by_year[y])
+                     for y in flood_key_years(listed, max(by_year))]
+            # The identity sentence is the first sentence of the persona the
+            # decision prompt shows for this household (no generic fallback).
+            persona = getattr(agent, "narrative_persona", "") or (
+                getattr(agent, "custom_attributes", None) or {}).get("narrative_persona", "")
+            prompt = engine.generate_reflection_prompt_one_agent(
+                first_sentence(persona, what=f"{agent_id} persona"),
+                items,
+                # Flood counts simulation years ("Year 3" in its memory lines), not calendar years.
+                f"year {year}",
+                topic=self.runner.broker.config.get_reflection_topic("household"),
                 persona_instruction=refl_cfg.get("persona_instruction"),
-                year_lines=grounding["year_lines"],
-                fact_lines=facts,
+                record_lines=facts,
+                year_lines=True,
             )
             result = run_checked_reflection(
                 engine,
@@ -1127,7 +1040,7 @@ class FinalParityHook:
                 period=year,
                 llm_call=llm_call,
                 checker=lambda lesson, _listed=listed: check_flood_lesson(lesson, _listed),
-                lesson_no_numbers=grounding["lesson_no_numbers"],
+                lesson_no_numbers=True,
                 log_path=log_path,
             )
             self.reflection_tally.add(year, result)
@@ -1465,7 +1378,62 @@ def _preflight_flood_output(output_dir: Path) -> None:
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None):
+def _flood_inputs_block(*, profile_source: str, profile_path, flood_years_path, flood_years_scheduled,
+                        flood_mode: str, seed, years: int, n_agents: int) -> dict:
+    """The ``flood_inputs`` manifest block: the flood schedule actually used and the run size.
+
+    The profile and flood-year files themselves are declared to the runner
+    (``declare_input_files``) and hashed into the generic manifest ``input_files``.
+
+    ``flood_years_used`` is the list of years that held a flood in this run: the schedule
+    for ``fixed`` mode, the keyed per-year draw for ``prob`` mode (the same draw
+    ``ResearchSimulation.advance_year`` makes).
+    """
+    if flood_mode == "prob":
+        used = [y for y in range(1, years + 1)
+                if _flood_random_stream(seed, y, "flood_event").random() < FLOOD_PROBABILITY]
+    else:
+        scheduled = set(flood_years_scheduled)
+        used = [y for y in range(1, years + 1) if y in scheduled]
+    return {
+        "profile_source": profile_source,
+        "flood_years_scheduled": list(flood_years_scheduled),
+        "flood_years_used": used,
+        "flood_mode": flood_mode,
+        "n_agents": n_agents,
+        "n_years": years,
+    }
+
+
+def _record_flood_inputs_provenance(output_dir: Path, flood_inputs: dict) -> bool:
+    """Add the ``flood_inputs`` block to the manifest ``ExperimentRunner`` wrote.
+
+    Returns True when the block is on disk. False (no manifest, or a failed read or write)
+    makes ``run_parity_benchmark`` stop with ``RunRecordsError`` once the run itself has ended
+    normally; a run already stopping on another error keeps that error.
+    """
+    try:
+        manifest_path = output_dir / "reproducibility_manifest.json"
+        if not manifest_path.exists():
+            print("[Provenance] ERROR: no reproducibility_manifest.json to record flood_inputs in")
+            return False
+        with manifest_path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        manifest["flood_inputs"] = flood_inputs
+        with manifest_path.open("w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        return True
+    except Exception as e:
+        print("[Provenance] ERROR: could not record flood_inputs in "
+              f"reproducibility_manifest.json: {e}")
+        return False
+
+
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None, config_root: str = None, retry_feedback_mode: str = None, allow_dirty_tree: bool = False):
+    # A real-model run needs a clean WAGF tree so the manifest names the code that ran;
+    # mock runs are exempt. --allow-dirty-tree overrides and is recorded in the manifest.
+    from broker.utils.run_environment import require_clean_wagf_tree
+    tree_check = require_clean_wagf_tree(model, allow_dirty_tree)
     if custom_output:
         output_dir = Path(custom_output)
         if not output_dir.is_absolute():
@@ -1543,6 +1511,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         from broker.utils.agent_config import assert_governance_profile_declared
         assert_governance_profile_declared(
             agent_cfg_data, governance_mode, "household", agent_config_path)
+        from broker.utils.agent_config import AgentTypeConfig
+        require_grounded_reflection(AgentTypeConfig.load(str(agent_config_path), force_reload=True),
+                                    agent_type="household")
         household_cfg = agent_cfg_data.get('household', {})
         # Load prompt from external file if specified, otherwise fallback to inline
         prompt_file = household_cfg.get('prompt_template_file', '')
@@ -1579,12 +1550,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                 f"Survey file not found: {survey_path}\n"
                 "Survey mode requires 'initial_household data.xlsx' in examples/multi_agent/input/"
             )
+        profile_input_path = survey_path
         agents = load_agents_from_survey(survey_path, max_agents=agents_count, seed=seed or 42)
         print(f"[Survey Mode] Initialized {len(agents)} agents from real survey data")
     else:
         # Legacy CSV-based initialization
         from broker import load_agents_from_csv
         profiles_path = Path(initial_agents_path) if initial_agents_path else base_path / "agent_initial_profiles.csv"
+        profile_input_path = profiles_path
         agents = load_agents_from_csv(str(profiles_path), {
             "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
             "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
@@ -1659,6 +1632,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         print(f" [StressTest] ST-1 Panic Override: Forced flood years {flood_years}")
     
     print(f" Flood Years scheduled: {flood_years}")
+    flood_inputs = _flood_inputs_block(
+        profile_source="survey" if survey_mode else "csv",
+        profile_path=profile_input_path, flood_years_path=base_path / "flood_years.csv",
+        flood_years_scheduled=flood_years, flood_mode=flood_mode, seed=seed,
+        years=years, n_agents=len(agents))
 
     # 4. Setup Components
     # `globals().get('args')`, not the bare name `args`: this function is
@@ -1941,6 +1919,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
     
     runner = builder.build()
+    runner._clean_tree_check = tree_check
+    runner.declare_input_files({"agent_profiles": profile_input_path,
+                                "flood_years": base_path / "flood_years.csv"})
 
     
     # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory, or for
@@ -2011,10 +1992,16 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # The manifest is written in ExperimentRunner.run's own finally block,
     # so the provenance (random_streams marker included) is added in a
     # finally here too: an aborted run must still say which draw scheme it used.
+    flood_inputs_recorded = False
     try:
         runner.run(llm_invoke=create_llm_invoke(model, verbose=False))
     finally:
         _record_flood_memory_options_provenance(output_dir, runner.memory_engine)
+        flood_inputs_recorded = _record_flood_inputs_provenance(output_dir, flood_inputs)
+    if not flood_inputs_recorded:
+        # The flood schedule and run size are part of the mandatory records for this case.
+        from broker.utils.provenance_requirements import RunRecordsError
+        raise RunRecordsError("flood_inputs could not be added to reproducibility_manifest.json")
 
     # Finalize Audit (Generates CSVs and Summary)
     if runner.broker.audit_writer:
@@ -2024,12 +2011,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # reflection in the manifest.
     if reflection_engine is not None:
         _grounding = runner.broker.config.get_reflection_grounding()
-        if any(_grounding.values()):
-            record_reflection_checks(output_dir, parity.reflection_tally, {
-                **_grounding,
-                "retries": 1,
-                "domain_checker": "examples/single_agent/flood_reflection.py (check_flood_lesson)",
-            })
+        record_reflection_checks(output_dir, parity.reflection_tally, {
+            **_grounding,
+            "retries": 1,
+            "domain_checker": "examples/single_agent/flood_reflection.py (check_flood_lesson)",
+        })
 
     # === INTEGRITY GUARDRAIL (Invariant 6 — run-integrity provenance contract) ===
     # config_snapshot.yaml records CONFIG, not RUNTIME — that masked reflection silently
@@ -2067,9 +2053,13 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         sentinel_write_failures=(
             _sf if isinstance(_sf := getattr(
                 runner.broker, "_audit_sentinel_write_failures", 0), int) else 0),
+        # Same truncation counts the runner's own run_integrity call carries; this call
+        # rewrites the file, so it has to pass them again.
+        extra=({**({"llm_call_log": _cl}
+                   if isinstance(_cl := getattr(runner, "_llm_call_log_summary", None), dict) else {}),
+                **(getattr(runner, "_provenance_fields", None) or {})} or None),
         **_expectation,
     )
-
     # 6. Save Simulation Log (Parity with baseline simulation_log.csv)
     # We must ensure every agent is represented in every year for the stacked plot
     final_logs = []
@@ -2107,6 +2097,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 8. Print Governance Summary
     auditor = GovernanceAuditor()
     auditor.print_summary()
+    return output_dir
+
 
 if __name__ == "__main__":
     import argparse
@@ -2170,6 +2162,10 @@ if __name__ == "__main__":
     parser.add_argument("--default-skill", type=str, default=None,
                         help="Override default fallback skill (e.g., buy_insurance). "
                              "Default: from skill_registry.yaml (do_nothing)")
+    parser.add_argument("--allow-dirty-tree", action="store_true",
+                        help="Run a non-mock model although the WAGF source tree has uncommitted "
+                             "changes. Without it such a run is refused; the manifest records the "
+                             "flag. Mock runs are never checked.")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -2193,7 +2189,7 @@ if __name__ == "__main__":
     actual_seed = args.seed if args.seed is not None else random.SystemRandom().randint(0, 1000000)
     random.seed(actual_seed)
     
-    run_parity_benchmark(
+    finished_output = run_parity_benchmark(
         config_root=args.config_root,
         model=args.model,
         years=args.years,
@@ -2214,5 +2210,10 @@ if __name__ == "__main__":
         initial_agents_path=args.initial_agents,
         shuffle_skills=args.shuffle_skills,
         default_skill=args.default_skill,
-        retry_feedback_mode=args.retry_feedback_mode
+        retry_feedback_mode=args.retry_feedback_mode,
+        allow_dirty_tree=args.allow_dirty_tree,
     )
+    # Mandatory run records: exit non-zero when they are incomplete (broker/utils/
+    # provenance_requirements.py). Checked on disk, after both rewrites of the two files.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(finished_output)

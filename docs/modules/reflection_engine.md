@@ -128,19 +128,19 @@ The INSTITUTIONAL trigger supports **Double-Loop Learning** (Argyris & Schön 19
 
 ## 5. WRR Experiment Configuration
 
-In the validated WRR experiments, reflection uses a simplified interval-based trigger (every year) with domain-specific guidance questions defined in `agent_types.yaml`:
+The single-agent flood and irrigation runners use one grounded reflection call per agent.
+Both require the following four keys to be true in the effective reflection config.
+The generic engine also supports batch prompts for other domains.
 
 ```yaml
 global_config:
   reflection:
-    interval: 1                       # Reflect every year
-    batch_size: 10                    # Agents per reflection batch
-    importance_boost: 0.9             # Insights are high-importance
-    method: hybrid
-    questions:                        # Domain-specific guidance
-      - "Was your strategy effective given the conditions?"
-      - "What patterns do you notice between your actions and outcomes?"
-      - "How should you adjust your approach going forward?"
+    interval: 1
+    batch_size: 1
+    year_outcome: true
+    year_lines: true
+    program_facts: true
+    lesson_no_numbers: true
 ```
 
 ### Action-Outcome Feedback
@@ -149,11 +149,15 @@ Each year, agents receive combined memories connecting their decisions to conseq
 
 > "Year 5: You chose to decrease_demand by 15%. Outcome: Supply was adequate, utilisation dropped to 65%."
 
-This feedback is injected via the `pre_year` lifecycle hook and enables causal learning through the reflection loop. The combination of guidance questions + action-outcome feedback allows agents to correlate specific action magnitudes with supply outcomes across years.
+This feedback is injected via the `pre_year` lifecycle hook and enables causal learning through the reflection loop. The combination of the reflection question + action-outcome feedback allows agents to correlate specific action magnitudes with supply outcomes across years.
 
-### Configurable Guidance Questions
+### Configurable Reflection Topic
 
-Reflection questions are no longer hardcoded — they are defined per-domain in `agent_types.yaml` under `global_config.reflection.questions`. The flood domain uses PMT-aligned questions about risk, neighbor influence, and cost-safety trade-offs. The irrigation domain uses questions about demand strategy effectiveness and magnitude calibration.
+The single-agent flood and irrigation runners, `python -m broker.run`, and newly scaffolded domains use one framework question: "What do your recent years tell you about <topic>?". A domain sets `reflection.topic` in `agent_types.yaml`: two nouns naming what the agent faces and what it decides about, with no action verb or direction. Examples are "floods and your home" and "your water supply and your requests". Resolution is agent type, then `global_config`, then `shared`.
+
+`broker.run` enables reflection with `global_config.reflection.enabled: true`. Each agent receives its own prompt, with optional `persona_instruction` after its memories, and answers `{"answer": "..."}`. There are no program-written record or rule lines on this path. Before model calls, every reflecting type must have a valid topic, and `reflection.questions` in any scope the run reads raises an error naming its 2026-11-27 retirement and tag v0.7.0. Disabled reflection requires neither check. The four grounding keys above belong to the paper runners and are refused on `broker.run`.
+
+Multi-agent flood and `governed_flood` retain their current question builders and `reflection.questions` for now. Reproduce retired one-agent runs from tag v0.7.0.
 
 ### References
 

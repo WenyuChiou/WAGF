@@ -2288,7 +2288,8 @@ def test_p5b_reads_the_item_45_memory_and_floor_sentences(tmp_path):
     assert "floor sentence beside a decrease on the menu" in joined
 
 
-def test_p6_reads_back_the_program_facts_of_a_grounded_reflection(tmp_path):
+@pytest.mark.parametrize("label", ["Lesson:", "Looking back:"])
+def test_p6_reads_back_the_program_facts_of_a_grounded_reflection(tmp_path, label):
     """Spec item 45c: a grounded reflection's facts are checked against the
     log and its lesson for digits; the lesson's figures are checked against
     the memory of the year it was written and the next year's prompt."""
@@ -2299,6 +2300,7 @@ def test_p6_reads_back_the_program_facts_of_a_grounded_reflection(tmp_path):
     good = ("Your memory includes:\n- Consolidated Reflection (written in 2020): " + fact
             + " Lesson: I learned to keep my request.\n- Year 2020: You chose to maintain demand. You requested "
               "1,000 acre-ft and received 900 acre-ft. Shortfall: 100 acre-ft (10.0% unmet).\n")
+    good = good.replace("Lesson:", label)
     r = vm.reflection_checks(_prompt_run(tmp_path / "good", {("UB2", 2): memory_2020, ("UB2", 3): good}))
     assert (r["grounded_reflection_lines"], r["facts_read"], r["fact_mismatches"], r["lessons_with_numbers"],
             r["foreign_figure_reflections"]) == (1, 1, 0, 0, 0), r
@@ -2545,10 +2547,10 @@ def test_p5a_scans_the_retry_wrapper_and_the_feasible_lines():
     texts = vm.retry_text_samples()
     joined = "\n".join(texts.values())
     assert texts["placebo retry"].strip().endswith("Please reconsider your decision.")  # the config's closer
-    assert "Your proposed action 'increase demand' was BLOCKED." in joined  # plain_action_names
-    assert "Under this rule an increase is not available in this decision." in joined  # a rule suggestion
-    assert "Actions that pass every rule this step: 1 (increase demand), 2 (maintain demand)." in joined
-    assert "Actions that pass every rule this step: 1 (maintain demand)." in joined  # the cap menu
+    assert "You chose 'increase demand'." in joined  # plain_action_names
+    assert "Under this rule an increase is not available in this decision." not in joined  # suggestions stay in the audit
+    assert "Actions that pass every rule in this decision: 1 (increase demand), 2 (maintain demand)." in joined
+    assert "Actions that pass every rule in this decision: 1 (maintain demand)." in joined  # the cap menu
     assert "if this continues, the default action (maintain demand) will be applied." in joined
     assert vm.banned_phrase_hits(texts) == ({}, [])
     assert vm.banned_phrase_hits({"x": "a TREND here"}) == ({"TREND": 1}, ["x: 'TREND'"])
@@ -2571,7 +2573,9 @@ def test_p5a_counts_a_banned_phrase_in_the_retry_texts(strict_run, monkeypatch):
     ("- Consolidated Reflection (written in 2019): Facts. Lesson: I trust my demand. Lesson: I trust my records.", False, 1),
     ("- Consolidated Reflection (written in 2019): records say demand was met. Lesson: I trust my records.", True, 1),
 ])
-def test_p5a_gates_program_text_and_reports_reflection_lessons(tmp_path, text, gated, lesson_hits):
+@pytest.mark.parametrize("label", ["Lesson:", "Looking back:"])
+def test_p5a_gates_program_text_and_reports_reflection_lessons(tmp_path, text, gated, lesson_hits, label):
+    text = text.replace("Lesson:", label)
     run = _prompt_run(tmp_path, {("UB1", 2): text})
     review = {"prompts_reviewed": vm.P5C_MIN_PROMPTS, "sentences_without_source": 0,
               "reviewer_wrote_code": False, "reviewer": "independent"}
@@ -2671,9 +2675,8 @@ class ScriptedModel:
     def __call__(self, prompt: str):
         from broker.utils.llm_utils import LLMStats
         stats = LLMStats(retries=0, success=True)
-        if "You are a Reflection Assistant" in prompt:
-            ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
-            return json.dumps({a: "I learned to watch my supply before changing my request." for a in ids}), stats
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            return json.dumps({"answer": "I learned to watch my supply before changing my request."}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
         year = int(re.search(r"It is now the year (\d{4})", prompt).group(1))
         with self.lock:

@@ -64,27 +64,7 @@ class TestInterventionReport(unittest.TestCase):
 
         prompt_str = report.to_prompt_string()
 
-        # Verify key elements are present
-        self.assertIn("BLOCKED", prompt_str)
-        self.assertIn("do_nothing", prompt_str)
-        self.assertIn("Very High threat perception", prompt_str)
-        self.assertIn("ERROR", prompt_str)
-
-    def test_intervention_report_with_suggestion(self):
-        """Test that suggested_correction appears in prompt string."""
-        from broker.interfaces.skill_types import InterventionReport
-
-        report = InterventionReport(
-            rule_id="capability_deficit",
-            blocked_skill="elevate_house",
-            violation_summary="Very Low coping ability blocks expensive actions",
-            suggested_correction="Consider buy_insurance or do_nothing",
-            severity="ERROR"
-        )
-
-        prompt_str = report.to_prompt_string()
-        self.assertIn("Suggestion", prompt_str)
-        self.assertIn("buy_insurance", prompt_str)
+        self.assertEqual(prompt_str, "- You chose 'do_nothing'. Very High threat perception requires action")
 
 
 class TestModelAdapterRetryFormat(unittest.TestCase):
@@ -102,7 +82,7 @@ class TestModelAdapterRetryFormat(unittest.TestCase):
 
         retry_prompt = self.adapter.format_retry_prompt(original_prompt, errors)
 
-        self.assertIn("Issues Detected", retry_prompt)
+        self.assertTrue(retry_prompt.startswith("Your previous answer cannot be used in this decision."))
         self.assertIn("Invalid skill name", retry_prompt)
         self.assertIn("Missing TP_LABEL", retry_prompt)
 

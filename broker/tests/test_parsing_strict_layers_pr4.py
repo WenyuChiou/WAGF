@@ -948,6 +948,9 @@ def test_retry_loop_restashes_when_every_attempt_fails():
     ABORTED sentinel to write."""
     host, proposal, _retries = _run_retry([None, None, None, None])
     assert proposal is None
+    # The manifest's resolution_policy.max_format_attempts reports this budget.
+    from broker.core._retry_loop import FORMAT_ATTEMPTS_MAX
+    assert host.model_adapter.calls == FORMAT_ATTEMPTS_MAX == 3
     assert host.model_adapter.last_parse_warnings == [
         "STRICT_LAYERS: attempt 1 suppressed 3",
         "STRICT_LAYERS: attempt 2 suppressed 3",

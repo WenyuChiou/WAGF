@@ -145,22 +145,21 @@ your_agent_type:
 
 ## 4. 自定義反思引擎 (Reflection)
 
-### 配置反思引導問題
+### 配置反思主題
 
-在 `agent_types.yaml` 中定義領域特定的反思引導問題：
+在 `agent_types.yaml` 中設定領域特定的 `reflection.topic`。用兩個名詞，分別說出代理人面對什麼、決定什麼，不放動作動詞，也不放方向（例如 "floods and your home" 或 "your water supply and your requests"）。框架只問一個問題："What do your recent years tell you about <topic>?"
 
 ```yaml
 global_config:
   reflection:
+    enabled: true                   # 在 broker.run 上開啟反思
     interval: 1                      # 每年反思一次
-    batch_size: 10                   # 每批代理人數
+    batch_size: 1                    # 每次呼叫一位代理人
     importance_boost: 0.9            # 反思見解的重要性分數
-    method: hybrid
-    questions:
-      - "你的策略在當前條件下是否有效？"
-      - "你的行動幅度與結果之間有什麼模式？"
-      - "你應該如何調整未來的做法？"
+    topic: "your water supply and your requests"
 ```
+
+主題依序從代理人類型區塊、`global_config`、`shared` 讀取。反思開啟時，`broker.run` 會在呼叫模型前檢查每個會反思的類型，並拒絕它讀取的任何層級中的 `reflection.questions`。單代理洪水與灌溉 runner 也使用 `topic`；多代理洪水與 `governed_flood` 保留現有的問題產生方式。已退役的單代理設定請從 tag v0.7.0 重現。
 
 ### 行動-結果回饋
 

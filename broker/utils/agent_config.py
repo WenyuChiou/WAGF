@@ -462,6 +462,12 @@ class AgentTypeConfig:
 
         # Validate outside the tolerant file-read block: an unsupported option
         # is a configuration error, never an empty-config fallback.
+        from broker.config.decision_wording import memory_line_style
+
+        self.get_governance_intervention_framing()
+        for block in self._config.values():
+            if isinstance(block, dict):
+                memory_line_style(block.get("memory"))
         self._validate_rule_exceptions(self._config)
         self._warn_missing_rule_messages()
         unknown = self._unknown_config_keys(strict=strict_keys)
@@ -1336,9 +1342,8 @@ class AgentTypeConfig:
 
         The closing sentence of a ``retry_feedback_mode: placebo`` retry
         prompt, the only mode that renders the wrapper without the rules
-        block. None keeps the adapter's own closer byte-for-byte; the
-        shipped legacy closer refers to "the violations above", which a
-        placebo prompt does not show. Must be a non-empty string when set.
+        block. The default closer is "Please answer again." A configured
+        closer must be a non-empty string.
         """
         gov = self._config.get("global_config", {}).get("governance", {})
         if not isinstance(gov, dict) or gov.get("placebo_closer") is None:
@@ -1974,27 +1979,12 @@ class AgentTypeConfig:
         }
 
     def get_governance_intervention_framing(self) -> str:
-        """P0-1c: retry/advisory prompt framing — ``legacy`` (default) or ``neutral``.
+        """Return the supported retry wording or identify the retired setting."""
+        from broker.config.decision_wording import require_wording
 
-        ``legacy`` reproduces the shipped retry prompt byte-for-byte and stays the
-        default forever, so every published arm-C prompt is unchanged.
-
-        ``neutral`` is opt-in and used by the NEW 7-arm runs. It replaces the
-        "was BLOCKED" verb with a disposition-free one and suppresses the optional
-        Suggestion line, so the text an agent sees is IDENTICAL in the advise,
-        placebo and enforce arms — making the enforce-minus-advise contrast pure
-        enforcement with zero wording delta.
-        """
         gov = self._config.get("global_config", {}).get("governance", {})
-        if not isinstance(gov, dict):
-            return "legacy"
-        framing = str(gov.get("intervention_framing", "legacy")).strip().lower()
-        if framing not in {"legacy", "neutral"}:
-            raise ValueError(
-                f"global_config.governance.intervention_framing {framing!r} "
-                "not in ['legacy', 'neutral']"
-            )
-        return framing
+        value = gov.get("intervention_framing", "plain") if isinstance(gov, dict) else "plain"
+        return require_wording("global_config.governance.intervention_framing", value, "plain")
 
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
@@ -2475,6 +2465,20 @@ class AgentTypeConfig:
         # two canonical keys.
         return {k: merged[k] for k in defaults}
 
+    def get_reflection_topic(self, agent_type: str) -> Any:
+        """Raw one-agent topic: agent block, global_config, then shared.
+
+        An explicitly configured invalid value is returned for validation;
+        it must not silently fall through to a lower-precedence topic.
+        """
+        block = self.get(agent_type) if agent_type else {}
+        scopes = [block] + [self._config.get(scope, {}) for scope in ("global_config", "shared")]
+        for scope in scopes:
+            reflection = (scope or {}).get("reflection", {}) or {}
+            if "topic" in reflection:
+                return reflection["topic"]
+        return None
+
     def get_reflection_questions(self, agent_type: str) -> List[str]:
         """Resolve reflection questions for an agent type (Phase 6H Item 4).
 
@@ -2762,11 +2766,7 @@ class AgentTypeConfig:
                     blocked_skills=rule.get("blocked_skills"),
                     level=level,
                     message=rule.get("message", ""),
-                    # Optional `suggestion:` -- rendered as the retry prompt's
-                    # "Suggestion:" line (legacy framing), the same slot a
-                    # custom validator fills through metadata["suggestion"].
-                    # A rule without the key gets exactly the {} it always
-                    # had, so its results carry no new metadata key.
+                    # Preserve author-supplied suggestions in validator metadata.
                     metadata=(
                         ({"suggestion": str(rule["suggestion"])}
                          if rule.get("suggestion") else {})
@@ -2911,6 +2911,41 @@ class AgentTypeConfig:
         """Get domain parameters for agent type."""
         cfg = self.get(agent_type)
         return cfg.get("parameters", {})
+
+    def get_provenance_config(self) -> Dict[str, Any]:
+        """``global_config.provenance``: run records every domain gets.
+
+        ``input_files``: mapping of a name to a file path (relative to the WAGF repo root, or
+        absolute) that the run reads; the runner writes each file's sha256 and size to the
+        manifest's ``input_files``. ``allow_dirty_tree``: true lets a non-mock run start on a
+        WAGF tree with uncommitted changes (default false). Other shapes raise.
+        """
+        block = (self._config.get("global_config", {}) or {}).get("provenance", {}) or {}
+        unknown = sorted(set(block) - {"input_files", "allow_dirty_tree"})
+        if unknown:
+            raise ValueError(
+                f"global_config.provenance has no key {unknown}: the run records are mandatory "
+                "and no setting turns them off (only input_files and allow_dirty_tree exist)")
+        files = block.get("input_files") or {}
+        if not isinstance(files, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+            raise ValueError("global_config.provenance.input_files must map a name to a file path")
+        allow = block.get("allow_dirty_tree", False)
+        if not isinstance(allow, bool):
+            raise ValueError("global_config.provenance.allow_dirty_tree must be true or false")
+        return {"input_files": dict(files), "allow_dirty_tree": allow}
+
+    def get_llm_sampling_seed_mode(self) -> str:
+        """``global_config.llm.sampling_seed``: ``off`` (default) or ``per_call``.
+
+        ``per_call`` sends Ollama ``options.seed`` = a stable hash of (run seed, agent id,
+        year, call kind, attempt), so one model call can be repeated exactly. It is a
+        run-level switch, not a request parameter: ``ExperimentRunner.get_llm_invoke`` drops
+        it from the parameters it forwards. Any other value raises.
+        """
+        from broker.utils.llm_call_log import normalise_seed_mode
+        global_llm = (self._config.get("global_config", {}) or {}).get("llm", {}) or {}
+        return normalise_seed_mode(global_llm.get("sampling_seed"))
 
     def get_llm_params(self, agent_type: str) -> Dict[str, Any]:
         """Get LLM parameters (num_predict, num_ctx, etc.) for agent type."""

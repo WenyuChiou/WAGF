@@ -9,7 +9,7 @@ the checks reuse the reflection error diagnosis's regular expressions
   outcome line, the exact line the next decision prompt shows;
 - (b) one line per year, oldest first;
 - (c) the program writes the key years (the year just ended and the listed
-  year with the largest shortfall) and stores them before "Lesson: ";
+  year with the largest shortfall) and stores them before "Looking back: ";
 - (e) semantic contradictions are measured as flags, with known false
   positives for pilot hand audit. Only enabled numbers, junk, overlong
   lessons and foreign figures retry once then drop; every attempt is logged
@@ -35,6 +35,7 @@ from typing import Any, Dict, List
 import pytest
 import yaml
 
+from broker.components.cognitive.reflection import GROUNDING_KEYS
 from broker.utils.llm_utils import LLMStats
 from examples.irrigation_abm.irrigation_personas import (
     ALLOCATION_RULES,
@@ -111,7 +112,7 @@ def test_parse_reads_the_item_45_format():
     applied = build_action_outcome_feedback(
         {"skill_name": "maintain_demand", "was_fallback": True, "proposed_skill": "increase_demand",
          "blocking_rules": ["high_scarcity_no_increase"]}, 2022, 50_000.0, 50_000.0, 1,
-        basin="upper_basin", rejection_line_style="neutral", flow_share=0.93)
+        basin="upper_basin", flow_share=0.93)
     none = build_action_outcome_feedback(None, 2023, 1_000.0, 900.0, 0, basin="lower_basin",
                                          gap_reason=describe_gap_reason({"gap_reason": "lb_mead_availability"}, "past"),
                                          decision_read=False, previous_request=1_200.0, previous_diversion=1_000.0)
@@ -293,23 +294,23 @@ def test_keep_after_a_short_year_states_the_fall_in_the_request():
     common = dict(year=2023, request=2_278.0, diversion=1_572.0, preceding_factor=0, basin="lower_basin",
                   gap_reason=TIER_PAST, previous_request=3_051.0, previous_diversion=2_278.0)
     chose = build_action_outcome_feedback({"skill_name": "maintain_demand"}, **common)
-    assert chose.startswith("Year 2023: You chose to maintain demand" + clause + " You requested 2,278")
+    assert chose.startswith("Year 2023: Action carried out: maintain demand" + clause + " You requested 2,278")
     applied = build_action_outcome_feedback(
         {"skill_name": "maintain_demand", "was_fallback": True, "proposed_skill": "increase_demand",
-         "blocking_rules": ["supply_gap_block_increase"]}, rejection_line_style="neutral", **common)
-    assert applied.startswith("Year 2023: maintain demand was applied under the shortage-sharing rule" + clause)
+         "blocking_rules": ["supply_gap_block_increase"]}, **common)
+    assert applied.startswith("Year 2023: Action carried out: maintain demand" + clause)
     none = build_action_outcome_feedback(None, decision_read=False, **common)
     assert none.startswith("Year 2023: no valid decision was read" + clause + " You requested 2,278")
     # after a full year, or with no year before, the line reads as before
     full = dict(common, previous_request=2_278.0, previous_diversion=2_278.0)
     assert build_action_outcome_feedback({"skill_name": "maintain_demand"}, **full).startswith(
-        "Year 2023: You chose to maintain demand. You requested")
+        "Year 2023: Action carried out: maintain demand. You requested")
     assert build_action_outcome_feedback(None, decision_read=False, **dict(common, previous_request=None)).startswith(
         "Year 2023: no valid decision was read; your request stayed at the amount you received the year before.")
     # an increase or a decrease never carries the clause, whatever its numbers
     inc = build_action_outcome_feedback({"skill_name": "increase_demand", "magnitude_pct": 8.0},
                                         **dict(common, request=2_460.0))
-    assert inc.startswith("Year 2023: You chose to increase demand (by 8%). You requested 2,460")
+    assert inc.startswith("Year 2023: Action carried out: increase demand (by 8%). You requested 2,460")
     # a keep whose request is not last year's receipt would state something false
     with pytest.raises(ValueError, match="refusing"):
         build_action_outcome_feedback({"skill_name": "maintain_demand"}, **dict(common, request=2_500.0))
@@ -398,11 +399,11 @@ class _ReflectingLLM(ScriptedLLM):
         self.reflection_calls: List[Dict[str, Any]] = []
 
     def __call__(self, prompt: str):
-        if "You are a Reflection Assistant" not in prompt:
+        if 'Answer with this JSON object only: {"answer"' not in prompt:
             return super().__call__(prompt)
-        aid = re.search(r"^(.+?) Memories:", prompt, flags=re.M).group(1)
-        year = int(re.search(r"\(Year (\d{4})\)", prompt).group(1))
-        retry = "### Correction" in prompt
+        aid = re.match(r"You are (\S+?),", prompt).group(1)
+        year = int(re.search(r"It is the end of (\d{4})\.", prompt).group(1))
+        retry = "Your previous answer cannot be used" in prompt
         with self._lock:
             self.reflection_calls.append({"agent": aid, "year": year, "retry": retry, "prompt": prompt})
         if aid == "Agent_000":
@@ -411,7 +412,7 @@ class _ReflectingLLM(ScriptedLLM):
             lesson = "Asking for 5 percent more was too much."
         else:
             lesson = self.CLEAN
-        return json.dumps({aid: lesson}), LLMStats(retries=0, success=True)
+        return json.dumps({"answer": lesson}), LLMStats(retries=0, success=True)
 
 
 @pytest.fixture(scope="module")
@@ -461,11 +462,12 @@ def test_year_end_reflection_sees_the_years_own_outcome_line(reflecting_run):
 def test_reflection_prompt_carries_record_rules_and_the_lesson_only_line(reflecting_run):
     c = next(c for c in reflecting_run.llm.reflection_calls if c["agent"] == "Agent_001" and c["year"] == 2021)
     p = c["prompt"]
-    assert "Rules that apply to Agent_001:" in p
-    assert "### Record (written by the simulation and stored with your lesson; do not restate it)" in p
-    assert "Agent_001 Record:\n- 2021: " in p
-    assert p.endswith("Do not write any year, amount, percentage or other number; the record above is "
-                      "stored with your lesson.")
+    assert p.startswith("You are Agent_001, an agricultural water user")
+    assert "\nRules that apply to you:\n- " in p
+    assert "\nWhat happened this year (kept with your answer; do not repeat it):\n- 2021: " in p
+    assert p.endswith("Do not write any year, amount, percentage or other number; what happened this year "
+                      "is stored with your answer.\n\nAnswer with this JSON object only: "
+                      '{"answer": "<your answer>"}')
     assert "average" in p and "Lesson Learned" not in p  # item 45d: "never call ... above or below average"
 
 
@@ -473,7 +475,7 @@ def test_lessons_are_checked_retried_once_and_counted(reflecting_run):
     llm, out = reflecting_run.llm, reflecting_run.out
     retries = [c for c in llm.reflection_calls if c["retry"]]
     assert {c["agent"] for c in retries} == {"Agent_000", "Agent_002"}
-    assert all("Your previous answer could not be stored because it names a year" in c["prompt"]
+    assert all("Your previous answer cannot be used: it names a year" in c["prompt"]
                for c in retries if c["agent"] == "Agent_000")
     # the stored line: program facts, then the lesson; Agent_002 stores none
     for agent, stored in (("Agent_000", True), ("Agent_001", True), ("Agent_002", False)):
@@ -482,7 +484,7 @@ def test_lessons_are_checked_retried_once_and_counted(reflecting_run):
             assert lines == []
             continue
         assert len(lines) == 1
-        head, lesson = lines[0].split(" Lesson: ")
+        head, lesson = lines[0].split(" Looking back: ")
         assert head.startswith("Consolidated Reflection (written in 2020): 2020: ")
         assert lesson == _ReflectingLLM.CLEAN
     manifest = json.loads((out / "reproducibility_manifest.json").read_text(encoding="utf-8"))
@@ -506,20 +508,20 @@ def test_dropped_reflection_keeps_previous_reflection_in_next_decision_prompt(
         tmp_path, monkeypatch, drop_reason):
     class CarryForwardLLM(_ReflectingLLM):
         def __call__(self, prompt: str):
-            if "You are a Reflection Assistant" not in prompt:
+            if 'Answer with this JSON object only: {"answer"' not in prompt:
                 return super().__call__(prompt)
-            year = int(re.search(r"\(Year (\d{4})\)", prompt).group(1))
+            year = int(re.search(r"It is the end of (\d{4})\.", prompt).group(1))
             if year != 2020:
                 return super().__call__(prompt)
             with self._lock:
                 self.reflection_calls.append({
                     "agent": "Agent_000", "year": year,
-                    "retry": "### Correction" in prompt, "prompt": prompt,
+                    "retry": "Your previous answer cannot be used" in prompt, "prompt": prompt,
                 })
             if drop_reason == "no_reply":
                 return None
             lesson = "Trigger checker failure." if drop_reason == "checker_error" else "Asking for 5 percent more."
-            return json.dumps({"Agent_000": lesson}), LLMStats(retries=0, success=True)
+            return json.dumps({"answer": lesson}), LLMStats(retries=0, success=True)
 
     if drop_reason == "checker_error":
         original_check = check_lesson
@@ -539,7 +541,7 @@ def test_dropped_reflection_keeps_previous_reflection_in_next_decision_prompt(
     carried = [line for line in lines if line.startswith("Consolidated Reflection")]
     assert len(carried) == 1
     assert carried[0].startswith("Consolidated Reflection (written in 2019): ")
-    assert carried[0].endswith(f" Lesson: {_ReflectingLLM.CLEAN}")
+    assert carried[0].endswith(f" Looking back: {_ReflectingLLM.CLEAN}")
 
     from examples.irrigation_abm.analysis import v3_metrics as vm
     gate = vm.gate_p6([vm.load_run(out, keep_prompts=True)])
@@ -569,29 +571,59 @@ def test_adversarial_semantic_claims_are_flagged_and_stored(tmp_path, lesson, co
     assert code in [p["code"] for p in row["flags"]]
 
 
-@pytest.mark.parametrize("enabled", [True, False])
-def test_grounded_startup_requires_subbasin_before_profile_setup(tmp_path, monkeypatch, enabled):
-    import shutil
+def test_grounded_startup_requires_subbasin_before_profile_setup(tmp_path, monkeypatch):
     import sys
     from examples.irrigation_abm import run_experiment as runner
-    cfg = tmp_path / "config"
-    shutil.copytree(CONFIG.parent, cfg)
-    raw = yaml.safe_load((cfg / "agent_types.yaml").read_text(encoding="utf-8"))
-    if not enabled:
-        for key in ("year_outcome", "year_lines", "program_facts", "lesson_no_numbers"):
-            raw["global_config"]["reflection"][key] = False
-    (cfg / "agent_types.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+
     original = runner.WaterSystemConfig
     monkeypatch.setattr(runner, "WaterSystemConfig", lambda **kwargs:
                         original(**kwargs, ub_supply_mode="lees_ferry_pool"))
-    def stop_profiles(*args):
-        raise RuntimeError("profile setup reached")
-    monkeypatch.setattr(runner, "_create_synthetic_profiles", stop_profiles)
+    monkeypatch.setattr(runner, "_create_synthetic_profiles", lambda *a: pytest.fail("profile setup reached"))
     monkeypatch.setattr(sys, "argv", ["run_experiment.py", "--model", "mock", "--seed", "42",
-                        "--output", str(tmp_path / "out"), "--config-dir", str(cfg)])
-    if enabled:
-        with pytest.raises(SystemExit, match="Grounded reflection requires ub_supply_mode"):
-            runner.main()
+                        "--output", str(tmp_path / "out")])
+    with pytest.raises(SystemExit, match="Grounded reflection requires ub_supply_mode"):
+        runner.main()
+
+
+@pytest.mark.parametrize("key", GROUNDING_KEYS)
+@pytest.mark.parametrize("missing", [True, False], ids=["missing", "false"])
+def test_irrigation_refuses_incomplete_grounding_before_llm(tmp_path, monkeypatch, key, missing):
+    import shutil
+    import sys
+    from examples.irrigation_abm import run_experiment as runner
+
+    directory = tmp_path / "config"
+    shutil.copytree(CONFIG.parent, directory)
+    path = directory / "agent_types.yaml"
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    reflection = config["global_config"]["reflection"]
+    if missing:
+        del reflection[key]
     else:
-        with pytest.raises(RuntimeError, match="profile setup reached"):
-            runner.main()
+        reflection[key] = False
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    def unexpected_llm(*args, **kwargs):
+        pytest.fail("LLM setup reached")
+
+    monkeypatch.setattr(runner, "create_llm_invoke", unexpected_llm)
+    monkeypatch.setattr("broker.utils.llm_utils.create_llm_invoke", unexpected_llm)
+    monkeypatch.setattr(sys, "argv", ["run_experiment.py", "--model", "mock", "--config-dir", str(directory),
+                                      "--output", str(tmp_path / "out")])
+    with pytest.raises(ValueError, match=rf"retired on 2026-11-27.*tag v0\.7\.0.*{key}"):
+        runner.main()
+
+
+def test_reflection_prompt_uses_the_one_agent_layout_without_simulation_words(reflecting_run):
+    """Every year-end reflection prompt of the run: the identity sentence first
+    (as the decision prompt shows it), then the year, the recent years, the
+    answer line; none of the retired layout's words."""
+    for c in reflecting_run.llm.reflection_calls:
+        p = c["prompt"]
+        agent = c["agent"]
+        assert p.startswith(f"You are {agent}, an agricultural water user")
+        assert f"\nIt is the end of {c['year']}. Look back on your recent years.\n" in p
+        assert "\nQuestion: " in p and "\nYour recent years:\n- Year " in p
+        assert '\nAnswer with this JSON object only: {"answer": "<your answer>"}' in p
+        body = p.split("\n", 1)[1]
+        for word in ("simulation", "Reflection Assistant", "agent", "Agent IDs", "Task Data", "###", agent):
+            assert word not in body, (agent, c["year"], word)

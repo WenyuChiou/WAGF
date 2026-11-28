@@ -17,6 +17,10 @@ from ..adapters.deepseek import deepseek_preprocessor
 from ..normalization import _THINK_TAG_RE, FRAMEWORK_NORMALIZATION_MAP, normalize_construct_value
 from ..parsing_audits import is_list_item, parse_numeric_value, audit_demographic_grounding
 from ..agent_config import load_agent_config
+from ..retry_prompt import (
+    PLAIN_FORMAT_LINE, PLAIN_RETRY_CLOSER, PLAIN_RETRY_HEADER, PLAIN_WRAPPER_CLOSER,
+    format_plain_intervention_prompt,
+)
 from .base import ModelAdapter
 
 # Characters searched after a keyword for its value, when the agent's ``parsing``
@@ -1474,20 +1478,8 @@ class UnifiedAdapter(ModelAdapter):
 
 
     def format_retry_prompt(self, original_prompt: str, errors: List[Any], max_reports: Optional[int] = None) -> str:
-        """
-        Format retry prompt with validation errors or InterventionReports.
-
-        Supports both legacy List[str] errors and new List[InterventionReport] for XAI.
-
-        P0-1c: thin delegation to :meth:`format_intervention_prompt` with the
-        ``legacy`` framing, whose body is this method's original code verbatim.
-        Kept as a separate name because it is the published arm-C entry point and
-        a golden-string test pins its exact output.
-        """
-        text, _shown = self.format_intervention_prompt(
-            original_prompt, errors, max_reports=max_reports, framing="legacy",
-        )
-        return text
+        """Format retry feedback using the shared plain renderer."""
+        return self.format_intervention_prompt(original_prompt, errors, max_reports=max_reports)[0]
 
     def format_intervention_prompt(
         self,
@@ -1495,99 +1487,17 @@ class UnifiedAdapter(ModelAdapter):
         errors: List[Any],
         *,
         max_reports: Optional[int] = None,
-        framing: str = "legacy",
+        framing: str = "plain",
         header: Optional[str] = None,
         closer: Optional[str] = None,
         include_reports: bool = True,
         feasible_line: Optional[str] = None,
     ) -> "tuple[str, int]":
-        """P0-1c: shared renderer for retry AND advisory prompts.
+        """Render retry or advisory feedback. Accept framing for one release."""
+        from broker.config.decision_wording import require_wording
 
-        Returns ``(prompt_text, reports_shown)``. ``reports_shown`` is emitted to the
-        audit trace so "truncation never bound" is a MEASURED fact per decision
-        rather than an assumption in the Methods.
-
-        ``framing="legacy"`` (default) reproduces the shipped retry prompt
-        byte-for-byte -- same truncation warning, same ``[!NOTE]`` suffix, same
-        f-string. ``framing="neutral"`` is opt-in and used by the new experiment
-        arms: it states only that a rule was triggered, never that the action was
-        blocked, and suppresses the optional Suggestion line so report SHAPE is
-        constant across rule families (YAML thinking rules carry no suggestion;
-        domain custom validators do). That constancy is what makes the
-        enforce-minus-advise contrast pure enforcement.
-
-        ``include_reports=False`` renders the wrapper alone (header + closer +
-        original prompt) with no rules block -- the A'' wrapper-only control, which
-        exists because otherwise the placebo-minus-resample term absorbs prompt
-        restructuring and position shift alongside generic corrective pressure.
-
-        ``feasible_line`` (default None) is one sentence naming the actions
-        that pass every rule; it is appended after the reports block and any
-        truncation note, before the closer, so ``max_reports`` never drops
-        it. None renders byte-identically to the prompt without it.
-        """
-        from ...interfaces.skill_types import InterventionReport
-
-        if framing not in ("legacy", "neutral"):
-            raise ValueError(f"framing {framing!r} not in ['legacy', 'neutral']")
-
-        if framing == "neutral":
-            verb, show_suggestion = "triggered a governance rule", False
-            header = header if header is not None else (
-                "Your previous response triggered the governance layer."
-            )
-            closer = closer if closer is not None else (
-                "Please reconsider your decision in light of the information above."
-            )
-            section = "**Rules Triggered:**"
-        else:
-            verb, show_suggestion = "was BLOCKED", True
-            header = header if header is not None else (
-                "Your previous response was flagged by the governance layer."
-            )
-            closer = closer if closer is not None else (
-                "Please reconsider your decision. Ensure your new response "
-                "addresses the violations above."
-            )
-            section = "**Issues Detected:**"
-
-        if not include_reports:
-            # Wrapper-only (arm A''): identical scaffolding, zero rule content.
-            return f"""{header}
-
-{closer}
-
-{original_prompt}""", 0
-
-        if max_reports and len(errors) > max_reports:
-            logger.warning(f" [Adapter] Truncating retry reports from {len(errors)} to {max_reports} to save context.")
-            errors = errors[:max_reports]
-            truncated = True
-        else:
-            truncated = False
-
-        error_lines = []
-        for e in errors:
-            if isinstance(e, InterventionReport):
-                error_lines.append(e.to_prompt_string(
-                    verb=verb, show_suggestion=show_suggestion))
-            elif isinstance(e, str):
-                error_lines.append(f"- {e}")
-            else:
-                error_lines.append(f"- {str(e)}")
-
-        if truncated:
-            error_lines.append(f"\n[!NOTE] There were more issues detected, but only the top {max_reports} are shown for brevity. Please fix these first.")
-
-        if feasible_line:
-            error_lines.append(f"\n{feasible_line}")
-
-        error_text = "\n".join(error_lines)
-        return f"""{header}
-
-{section}
-{error_text}
-
-{closer}
-
-{original_prompt}""", len(errors)
+        require_wording("intervention_framing", framing, "plain")
+        return format_plain_intervention_prompt(
+            original_prompt, errors, max_reports=max_reports, header=header,
+            closer=closer, include_reports=include_reports, feasible_line=feasible_line,
+        )

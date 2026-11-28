@@ -42,7 +42,6 @@ import pytest
 import yaml
 
 import broker.utils.llm_utils as llm_utils
-from broker.components.cognitive.reflection import GROUNDING_KEYS
 from broker.utils.agent_config import AgentTypeConfig
 from broker.utils.llm_utils import LLMStats
 
@@ -120,11 +119,10 @@ class ScriptedLLM:
 
     def __call__(self, prompt: str):
         stats = LLMStats(retries=0, success=True)
-        if "You are a Reflection Assistant" in prompt:
+        if 'Answer with this JSON object only: {"answer"' in prompt:
             with self._lock:
                 self.reflections.append(prompt)
-            ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
-            return json.dumps({aid: self.LESSON for aid in ids}), stats
+            return json.dumps({"answer": self.LESSON}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
         year = int(re.search(r"It is now the year (\d{4})", prompt).group(1))
         with self._lock:
@@ -971,13 +969,13 @@ def test_calendar_year_memory_and_dashboard(golden_run):
     memory = prompt[prompt.index("Your memory includes:"):prompt.index("First, assess")]
     # Item 47: the tier-0 unchanged keep is routine, while tier years remain.
     assert "- Year 2019:" not in memory
-    assert "- Year 2020: You chose to maintain demand." in memory
+    assert "- Year 2020: Action carried out: maintain demand." in memory
     # Item 46: the 28,295 AF request is below Mohave Valley IDD's entitlement
     # ceiling in both tier years, so keeping it does not ratchet the request.
-    assert ("- Year 2021: You chose to maintain demand. You requested 28,295 acre-ft and "
+    assert ("- Year 2021: Action carried out: maintain demand. You requested 28,295 acre-ft and "
             "received 28,295 acre-ft. Demand fully met.") in memory
     assert re.search(r"- Year \d{1,2}:", memory) is None
-    assert ("- Year 2020: You chose to maintain demand. You requested 28,295 acre-ft and received "
+    assert ("- Year 2020: Action carried out: maintain demand. You requested 28,295 acre-ft and received "
             "28,295 acre-ft. Demand fully met. On 1 January that year Lake Mead was lower than "
             "a year earlier.") in memory
     dashboard = prompt[prompt.index("PERFORMANCE HISTORY:"):prompt.index("Your memory includes:")]
@@ -1014,12 +1012,11 @@ def test_reflection_input_excludes_reflections_and_is_one_agent(golden_run):
     # 45 none ran at the end of 2019, when no line was in memory yet).
     assert len(reflections) == 78 * 15
     for prompt in reflections:
-        assert re.search(r"for 1 agent in a simulation \(Year 20\d\d\)\.", prompt), prompt[:200]
+        assert re.search(r"\nIt is the end of 20\d\d\. Look back on your recent years", prompt), prompt[:300]
         assert "Consolidated Reflection" not in prompt
-        assert len(re.findall(r"^.+? Memories:", prompt, flags=re.M)) == 1
-    # Spec item 45d: one lesson question; the questions that asked the model
-    # to restate facts are gone.
-    assert "What does your record teach you about choosing your request next year?" in reflections[0]
+        assert len(re.findall(r"^Your recent years:$", prompt, flags=re.M)) == 1
+    # One framework question, built from the domain's topic.
+    assert "Question: What do your recent years tell you about your water supply and your requests?" in reflections[0]
     assert "Did the direction you chose" not in reflections[0]
 
 
@@ -1036,8 +1033,8 @@ def test_single_reflection_kept_from_the_previous_year(golden_run):
         # last, oldest first), then the model's lesson.
         assert len(lines) == 1, (agent, year, lines)
         assert lines[0].startswith(f"- Consolidated Reflection (written in {year - 1}): "), (agent, year, lines)
-        assert lines[0].endswith(f" Lesson: {ScriptedLLM.LESSON}"), (agent, year, lines)
-        facts = lines[0].split("): ", 1)[1].split(" Lesson: ")[0]
+        assert lines[0].endswith(f" Looking back: {ScriptedLLM.LESSON}"), (agent, year, lines)
+        facts = lines[0].split("): ", 1)[1].split(" Looking back: ")[0]
         assert re.match(r"^\d{4}: ", facts) and f"{year - 1}: " in facts, (agent, year, facts)
 
 
@@ -1121,13 +1118,13 @@ def test_reflection_record_names_the_year_just_ended_and_the_worst_year(golden_r
     """Item 46: MohaveValleyIDD has no tier shortfall through 2021, so its
     reflection record contains only the year just ended."""
     prompt = next(p for p in golden_run.llm.reflections
-                  if "MohaveValleyIDD Memories:" in p and "(Year 2021)" in p)
+                  if p.startswith("You are MohaveValleyIDD,") and "It is the end of 2021." in p)
     listed = re.findall(r"^- Year (\d{4}): ", prompt, flags=re.M)
     assert listed == ["2019", "2020", "2021"]
-    record = prompt[prompt.index("MohaveValleyIDD Record:"):prompt.index("### Output Requirement")]
+    record = prompt[prompt.index("What happened this year"):prompt.index("Rules that apply to you:")]
     assert re.findall(r"^- (\d{4}): ", record, flags=re.M) == ["2021"]
     assert "(fully met)" in record and "% unmet" not in record
-    assert "Rules that apply to MohaveValleyIDD:" in prompt
+    assert "Rules that apply to you:" in prompt
     assert "Above the tier ceiling, a larger request adds no deliverable water." in prompt
 
 
@@ -1154,7 +1151,7 @@ def test_cibola_tier2_to_tier0_prompts_keep_the_junior_rule_conditional(golden_r
     tier0 = _first_prompt(golden_run, "CibolaValleyIDD", 2029)
     reflection = next(
         prompt for prompt in golden_run.llm.reflections
-        if "CibolaValleyIDD Memories:" in prompt and "(Year 2029)" in prompt
+        if prompt.startswith("You are CibolaValleyIDD,") and "It is the end of 2029." in prompt
     )
 
     assert "A Tier 2 Lower Basin shortage applies this year" in tier2
@@ -1280,8 +1277,8 @@ def test_every_tier0_decision_and_reflection_avoids_a_current_tier_claim(golden_
         "to a fixed share of your entitlement"
     )
     for prompt in golden_run.llm.reflections:
-        year_match = re.search(r"\(Year (\d{4})\)\.", prompt)
-        agent_match = re.search(r"^(.+?) Memories:$", prompt, flags=re.M)
+        year_match = re.search(r"It is the end of (\d{4})\.", prompt)
+        agent_match = re.match(r"You are (.+?), an agricultural water user", prompt)
         assert year_match and agent_match, prompt[:300]
         key = (agent_match.group(1), int(year_match.group(1)), 0)
         if key not in tier0_decisions:
@@ -1303,6 +1300,8 @@ def test_every_tier0_decision_and_reflection_avoids_a_current_tier_claim(golden_
 
 UT1 = "AgUsesAboveGreenRUt_NonIndian"
 GOLDEN = {
+    # P5 (2026-11-28): only the stored label changes from Lesson: to Looking back:
+    # in the four later-year snapshots. Reversing that label recovers each old hash.
     # (agent, calendar year): (what the year is, sha256 of the full prompt)
     # Items 36a/36d/36g (2026-10-05) changed the four Upper Basin entries
     # below: the two-state headline, the removed Lake Powell sentence, and
@@ -1321,7 +1320,7 @@ GOLDEN = {
     # Spec item 45 (2026-10-07): the four non-2019 entries changed, and only
     # for these reasons (diffed line by line against c7b10c05): the history
     # column reads "received (AF)" (45i); the stored reflection line carries
-    # the program-written facts before "Lesson: " (45c), and from 2020 on
+    # the program-written facts before "Looking back: " (45c), and from 2020 on
     # every agent has one, since the reflection at the end of 2019 now sees
     # the 2019 outcome (45a); Upper Basin memory lines add that year's
     # sub-basin natural-flow share (45f); a keep after a short year states
@@ -1349,16 +1348,16 @@ GOLDEN = {
     # Item 49 changes only UT1 2019/2020: both bases are at X, so the
     # increase menu option and S1 disappear; notes/JSON offer two choices.
     (UT1, 2019): ("UB, normal year", "5b43f36cda78a960663495f65a7be09a4bae621c22aac375cab6f3a94446bdc5"),
-    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "3dc3f337cf8341aa8802818be530e9a444ef1b9fbc22349707dd6dcd10cb1c67"),
+    (UT1, 2020): ("UB, own sub-basin short at 2018 use", "c3e6550fbe0d9ea43f7be4e779f54c23008272f2c44aeea2b1fa5860d3bbaddb"),
     (UT2, 2019): ("UT2 alone in its sub-basin, normal year", "fa0603bafd40b59f0e3828c960f9671c20cbd716095e92721caebfcdaac8f3b6"),
     (UT2, 2033): ("UT2 alone in its sub-basin, short (its own right no longer binds)",
-                  "314bad46e711074342f12e0eafd8f0a537861d3bed5fa0ff1bf095c490f87dff"),
+                  "a09945362aaca8982dbd54109353eeb5c4dbc8d2fd5fe80b4fcd68c9b2ff6a6f"),
     ("WelltonMohawkIDD", 2019): ("LB senior, normal year", "4735a59100b3da0f6d4df7625fc610548958a1cb66d9bc0b9449c71c8d177708"),
     # Spec item 48 (affects_agent): the senior's 2020 and 2021 keep-and-fully-met
     # tier-year lines are hidden; under any_tier the prompt hashes to 9b4c68b1...
-    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "76509036abcce8542ee8003943cfb1a921ed5b4765f86b389211d4a40a489f07"),
+    ("WelltonMohawkIDD", 2022): ("LB senior, Tier 2", "df6eaf78d18c8e56d0958732a66673e23957fcc00ee5c58926909c90748bd08f"),
     ("MohaveValleyIDD", 2019): ("LB partly junior, normal year", "46390930fb4b283f252d6dc366cbe8d77bc17fc352506b9fe8eb21ab50d674a8"),
-    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "453e87e183ad3aaab245005f292800b71908279671a865862f22ab8b316f08fb"),
+    ("MohaveValleyIDD", 2022): ("LB partly junior, Tier 2 entitlement ceiling", "807b19ee565705f53288a86dbc141dd3669bcb01a30e1c0046a4c770ea9484f0"),
 }
 
 
@@ -1475,36 +1474,31 @@ def test_retry_texts_no_label_codes_or_skill_ids(arm_runs):
             assert "[Rule:" not in block
     assert seen > 0
     strict = [b for (_a, _y, _t, b) in arm_runs["strict"].retry_blocks()]
-    assert all("Your proposed action 'increase demand' was BLOCKED." in b for b in strict)
+    assert all("You chose 'increase demand'." in b for b in strict)
     tr3 = [b for (_a, _y, _t, b) in arm_runs["strict_tr3"].retry_blocks()]
-    assert tr3 and all("Your proposed action 'decrease demand' was BLOCKED." in b for b in tr3)
+    assert tr3 and all("You chose 'decrease demand'." in b for b in tr3)
 
 
 def test_placebo_closer_and_silent_resend(arm_runs):
     placebo = arm_runs["placebo"].retry_blocks()
     assert placebo and all(
-        b == "Your previous response was flagged by the governance layer.\n\n"
+        b == "Your previous answer cannot be used in this decision.\n\n"
              "Please reconsider your decision.\n\n" for (_a, _y, _t, b) in placebo)
     silent = arm_runs["silent"].retry_blocks()
     assert silent and all(b == "<SAME>" for (_a, _y, _t, b) in silent)
 
 
-def test_generic_rejection_line_placebo_silent(arm_runs):
-    """Spec 4.5 (L3 M13): an overruled year names the rule in strict only;
-    placebo and silent read "under a governance rule"."""
+def test_executed_memory_is_the_same_across_retry_modes(arm_runs):
     def memory_lines(llm):
         return [line for (agent, year, attempt), p in llm.decisions.items()
                 if year == 2020 and attempt == 0
                 for line in p.splitlines() if line.startswith("- Year 2019:")]
-    strict = memory_lines(arm_runs["strict"])
-    assert strict and all(
-        line.startswith("- Year 2019: maintain demand was applied under the rule on increases "
-                        "under scarcity.") for line in strict)
-    for arm in ("placebo", "silent"):
-        lines = memory_lines(arm_runs[arm])
-        assert lines and all(
-            line.startswith("- Year 2019: maintain demand was applied under a governance rule.")
-            for line in lines), (arm, lines)
+    # A fully delivered keep is routine even when the broker applied it.
+    # Decision prompts omit it. Reflection inputs retain the executed outcome.
+    for arm in ("strict", "placebo", "silent"):
+        assert memory_lines(arm_runs[arm]) == []
+        assert any("Year 2019: Action carried out: maintain demand." in p
+                   for p in arm_runs[arm].reflections)
 
 
 def test_no_action_line_after_omitted_field_is_true(arm_runs):
@@ -1513,13 +1507,13 @@ def test_no_action_line_after_omitted_field_is_true(arm_runs):
     check without the field); it no longer implies every action is ruled
     out by the rules."""
     blocks = [b for (_a, _y, attempt, b) in arm_runs["strict_omit"].retry_blocks()
-              if "Response missing required fields" in b]
+              if "Your answer is missing these required fields" in b]
     assert blocks
     for b in blocks:
-        assert ("No action passes every rule this step, because your response did not include "
+        assert ("No action passes every rule in this decision, because your response did not include "
                 "every required field; if this continues, the default action (maintain demand) "
                 "will be applied.") in b
-        assert "No action passes every rule this step;" not in b
+        assert "No action passes every rule in this decision;" not in b
 
 
 # ===========================================================================
@@ -1553,7 +1547,7 @@ class _UnreadableIn2020(ScriptedLLM):
     so its 2020 decision is ABORTED and nothing executes."""
 
     def __call__(self, prompt: str):
-        if ("You are a Reflection Assistant" not in prompt and "You are Agent_000," in prompt
+        if ('Answer with this JSON object only: {"answer"' not in prompt and "You are Agent_000," in prompt
                 and "It is now the year 2020." in prompt):
             with self._lock:
                 attempt = self.calls[("Agent_000", 2020)]
@@ -1582,7 +1576,7 @@ def test_aborted_year_memory_line_states_no_decision(tmp_path):
     for year in (2021, 2022):
         memory = {line[:12]: line for line in llm.decisions[("Agent_000", year, 0)].splitlines()
                   if line.startswith("- Year ")}
-        assert memory["- Year 2019:"].startswith("- Year 2019: You chose to increase demand (by ")
+        assert memory["- Year 2019:"].startswith("- Year 2019: Action carried out: increase demand (by ")
         assert memory["- Year 2020:"].startswith(
             f"- Year 2020: {NO_DECISION_LEAD} You requested {request_2020:,.0f} acre-ft and received ")
         assert "You chose to" not in memory["- Year 2020:"]
@@ -1595,175 +1589,48 @@ def test_aborted_year_memory_line_states_no_decision(tmp_path):
 # 4.7 reflection unit behaviour
 # ===========================================================================
 
-def test_retries_name_rules_reads_the_broker_mode_or_raises():
-    """Review LOW 10: the memory line of an overruled year names the rule
-    only in full mode; a runner whose broker carries no retry-feedback mode
-    raises instead of falling back to "full", which would name rules in a
-    placebo or silent run."""
-    from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
-
-    def hooks(runner):
-        return IrrigationLifecycleHooks(SimpleNamespace(), runner, [], None, None)
-
-    def with_mode(mode):
-        return SimpleNamespace(broker=SimpleNamespace(_retry_feedback_mode=mode))
-
-    assert hooks(with_mode("full"))._retries_name_rules() is True
-    for mode in ("placebo", "silent"):
-        assert hooks(with_mode(mode))._retries_name_rules() is False
-    for runner in (SimpleNamespace(), SimpleNamespace(broker=SimpleNamespace())):
-        with pytest.raises(RuntimeError, match="_retry_feedback_mode"):
-            hooks(runner)._retries_name_rules()
-    with pytest.raises(ValueError, match="unknown"):
-        hooks(with_mode("loud"))._retries_name_rules()
 
 
-def _reflect_once(summaries, memories, *, keep_latest_only=True, years=(2021,)):
-    """Drive IrrigationLifecycleHooks._batch_reflect on one agent with a real
-    engine and a stub reflection engine returning ``summaries`` in turn, one
-    per year: a string is the summary, None an unreadable reply (no insight
-    for the agent), an exception instance a failed call."""
-    from broker.agents import AgentConfig, BaseAgent
+def _grounded_lessons(replies, *, keep_latest_only=True, adapter=None):
+    """Drive the irrigation hook with settled outcomes and scripted model replies."""
+    from broker.components.cognitive.reflection import ReflectionEngine
     from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
-    from examples.irrigation_abm.run_experiment import IrrigationLifecycleHooks
 
-    engine = HumanCentricMemoryEngine(window_size=5, top_k_significant=2, seed=1)
-    agent = BaseAgent(AgentConfig(name="A1", agent_type="irrigation_farmer", state_params=[],
-                                  objectives=[], constraints=[], skills=[]))
-    agent.custom_attributes = {}
-    agent.is_active = True
-    for m in memories:
-        engine.add_memory_for_agent(agent, m, {"importance": 0.5, "type": "outcome"})
-    queue = list(summaries)
-    prompts = []
-
-    class _Engine:
-        adapter = None
-
-        def generate_batch_reflection_prompt(self, batch, year, reflection_questions=None,
-                                             persona_instruction=None):
-            prompts.append(" ".join(m["content"] for m in batch[0]["memories"]))
-            return "PROMPT"
-
-        def parse_batch_reflection_response(self, text, batch_ids, year):
-            item = queue.pop(0)
-            if isinstance(item, Exception):
-                raise item
-            if item is None:
-                return {}
-            return {batch_ids[0]: SimpleNamespace(importance=0.6, summary=item)}
-
-        def store_insight(self, aid, ins):
-            pass
-
-    env = SimpleNamespace(get_agent_state=lambda aid: {}, current_year=years[0])
-    runner = SimpleNamespace(
-        broker=SimpleNamespace(config=SimpleNamespace(
-            get_reflection_config=lambda: {"batch_size": 1},
-            get_reflection_keep_latest_only=lambda: keep_latest_only,
-            # Item 45: these unit tests drive the path before item 45 (all
-            # grounding keys off, the framework default).
-            get_reflection_grounding=lambda: {k: False for k in GROUNDING_KEYS})),
-        agents={"A1": agent}, memory_engine=engine, get_llm_invoke=lambda t: (lambda p: "x"))
-    hooks = IrrigationLifecycleHooks(env, runner, [], _Engine(), None)
-    for y in years:
-        env.current_year = y
-        hooks._batch_reflect(year=y - 2018)
-    return engine, prompts
+    memory = HumanCentricMemoryEngine(window_size=5, top_k_significant=2, seed=1)
+    agent = SimpleNamespace(id="A1", is_active=True, drought_count=2,
+                            custom_attributes={"narrative_persona": "You are a water user."})
+    state = {"water_right": 200_000, "request": 100_000, "diversion": 50_000}
+    env = SimpleNamespace(current_year=2020, config=SimpleNamespace(ub_supply_mode="subbasin"),
+                          prompt_information="simple", get_agent_state=lambda aid: state,
+                          get_agent_context=lambda aid: {"basin": "lower_basin"})
+    config = SimpleNamespace(get_reflection_config=lambda: {"batch_size": 1},
+                             get_reflection_topic=lambda _agent_type: "your water supply and your requests",
+                             get_reflection_keep_latest_only=lambda: keep_latest_only)
+    runner = SimpleNamespace(agents={agent.id: agent}, memory_engine=memory, broker=SimpleNamespace(config=config))
+    reflection = ReflectionEngine(adapter=adapter, insight_importance_boost=0.9)
+    hooks = run_experiment.IrrigationLifecycleHooks(env, runner, [], reflection, None)
+    for year, reply in enumerate(replies, start=1):
+        env.current_year = 2019 + year
+        agent._last_action_context = {"skill_name": "maintain_demand", "year": year}
+        agent._last_year_outcome = dict(state, year=year, calendar_year=env.current_year, preceding_factor=1)
+        runner.get_llm_invoke = lambda agent_type: lambda prompt: json.dumps({"answer": reply})
+        hooks._batch_reflect_grounded(year)
+    return [item for item in memory.working[agent.id] if item["content"].startswith("Consolidated")]
 
 
-def _reflections(engine) -> List[str]:
-    """The agent's stored reflections, working and long-term memory together
-    (a consolidated item sits in both), each text once."""
-    stores = list(engine.working.get("A1", [])) + list(engine.longterm.get("A1", []))
-    return list(dict.fromkeys(m["content"] for m in stores if m["content"].startswith("Consolidated")))
-
-
-def test_single_reflection_kept_and_input_excludes_it():
-    engine, prompts = _reflect_once(
-        ["I learned one thing.", "I learned a second thing."],
-        ["Year 2020: You requested 1,000 acre-ft and received 1,000 acre-ft."],
-        years=(2020, 2021))
-    contents = [m["content"] for m in engine.working["A1"]]
-    assert [c for c in contents if c.startswith("Consolidated")] == [
-        "Consolidated Reflection (written in 2021): I learned a second thing."]
-    assert "Consolidated" not in prompts[1]  # the 2020 reflection is not in the 2021 input
-
-
-def test_keep_latest_off_keeps_both():
-    engine, _ = _reflect_once(
-        ["I learned one thing.", "I learned a second thing."],
-        ["Year 2020: You requested 1,000 acre-ft."], keep_latest_only=False, years=(2020, 2021))
-    assert [m["content"] for m in engine.working["A1"] if m["content"].startswith("Consolidated")] == [
-        "Consolidated Reflection (written in 2020): I learned one thing.",
-        "Consolidated Reflection (written in 2021): I learned a second thing."]
+@pytest.mark.parametrize("keep_latest_only,years", [(True, [2021]), (False, [2020, 2021])])
+def test_grounded_reflection_storage_respects_keep_latest(keep_latest_only, years):
+    records = _grounded_lessons(["I learned to conserve water.", "I will keep my request steady."],
+                                keep_latest_only=keep_latest_only)
+    assert [record["year"] for record in records] == years
 
 
 def test_reflection_trailing_comma_stripped():
-    engine, _ = _reflect_once(['  "I learned to keep my request steady.",  '],
-                              ["Year 2020: You requested 1,000 acre-ft."])
-    assert engine.working["A1"][-1]["content"] == (
-        "Consolidated Reflection (written in 2021): I learned to keep my request steady.")
-
-
-def test_foreign_figure_not_stored(capsys):
-    """Spec 4.7: a summary quoting an acre-ft figure that matches nothing in
-    the agent's own memory text is not stored; the drop is counted and
-    printed with the figure."""
-    engine, _ = _reflect_once(
-        ["Requesting 14,420 acre-ft satisfied my needs."],
-        ["Year 2020: You requested 160,566 acre-ft and received 160,566 acre-ft."])
-    assert _reflections(engine) == []
-    out = capsys.readouterr().out
-    assert "not stored 1 with a figure foreign to the agent's memory" in out
-    assert "[reflect] A1: not stored, 14,420 acre-ft matches no figure in its memory" in out
-    engine, _ = _reflect_once(
-        ["Requesting 160,566 acre-ft satisfied my needs."],
-        ["Year 2020: You requested 160,566 acre-ft and received 160,566 acre-ft."])
-    assert engine.working["A1"][-1]["content"].endswith("Requesting 160,566 acre-ft satisfied my needs.")
+    records = _grounded_lessons(['  "I learned to keep my request steady.",  '])
+    assert records[-1]["content"].endswith("Looking back: I learned to keep my request steady.")
 
 
 MOHAVE_2019 = "Year 2019: You requested 20,155 acre-ft and received 20,155 acre-ft."
-
-
-@pytest.mark.parametrize("dropped", [
-    "Requesting 14,420 acre-ft satisfied my needs.",  # a foreign figure
-    "   ",                                            # an empty summary
-    None,                                             # no readable reply
-    RuntimeError("model call failed"),               # a failed call
-], ids=["foreign", "empty", "unparsed", "call_failed"])
-def test_summary_not_stored_removes_the_old_reflection(dropped, capsys):
-    """Review HIGH 1 (the reviewer's probe scratchpad/rv/stale_reflection.py):
-    under keep_latest_only the earlier reflection went only when a new one
-    was stored, so a summary dropped at the end of 2021 left the 2020
-    reflection in the 2022 prompt, older than the previous year (S10). Now
-    every path that stores nothing removes it."""
-    engine, _ = _reflect_once(["I learned to keep my request steady.", dropped],
-                              [MOHAVE_2019], years=(2020, 2021))
-    assert _reflections(engine) == []
-    removed = re.findall(r"removed (\d+) earlier reflection items of agents with no new one",
-                         capsys.readouterr().out)
-    assert [int(n) > 0 for n in removed] == [False, True]  # nothing in 2020, the 2020 one in 2021
-
-
-def test_summary_not_stored_keeps_the_old_one_when_keep_latest_is_off():
-    """The removal belongs to keep_latest_only; with it off (the framework
-    default) reflections accumulate as before."""
-    engine, _ = _reflect_once(["I learned to keep my request steady.", None],
-                              [MOHAVE_2019], keep_latest_only=False, years=(2020, 2021))
-    assert _reflections(engine) == [
-        "Consolidated Reflection (written in 2020): I learned to keep my request steady."]
-
-
-def test_rounded_own_figure_is_stored():
-    """Review HIGH 1: "about 20,000 acre-ft" for the memory line's 20,155 is
-    the agent's own figure rounded (within 5 percent), so it is stored and
-    replaces the 2020 reflection (the probe's end-of-2021 summary)."""
-    engine, _ = _reflect_once(["I learned to keep my request steady.",
-                               "I requested about 20,000 acre-ft and it worked."],
-                              [MOHAVE_2019], years=(2020, 2021))
-    assert _reflections(engine) == [
-        "Consolidated Reflection (written in 2021): I requested about 20,000 acre-ft and it worked."]
 
 
 @pytest.mark.parametrize("summary,foreign", [
@@ -1786,6 +1653,6 @@ def test_foreign_figures_tolerate_rounding_and_read_every_format(summary, foreig
     too; years, counts and tier numbers are not figures."""
     from examples.irrigation_abm.run_experiment import _foreign_figures
 
-    own = (MOHAVE_2019 + " Year 2020: You chose to maintain demand. You requested 20,155 "
+    own = (MOHAVE_2019 + " Year 2020: Action carried out: maintain demand. You requested 20,155 "
            "acre-ft and received 17,132 acre-ft. Shortfall: 3,023 acre-ft (15.0% unmet).")
     assert _foreign_figures(summary, own) == foreign

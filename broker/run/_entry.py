@@ -573,6 +573,14 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
         | {k for k, v in (ctx.population or {}).items() if v == 0}
     ) if ctx.population is not None else set()
 
+    if ctx.reflection.enabled:
+        # Agent factories can supply types absent from the YAML's agent blocks.
+        from ._memory import validate_reflection_topics
+        try:
+            validate_reflection_topics(ctx.raw, ctx.config, agent_types)
+        except ValueError as exc:
+            raise RunError(f"{ctx.config_path}: {exc}") from exc
+
     effective_phase_order = phase_order
     if phase_order is not None:
         allowed_phase_types = active_set | inactive_declared_types
@@ -765,11 +773,14 @@ def _build_runner(ctx, slots, phase_order, allowed_modules, loaded):
             set_declared_deciders(ctx.config.declared_decider_names(agent_types=agent_types))
     runner.tag_memory_origin = True
     runner.rejection_line_styles = styles
-    for agent in runner.agents.values():
-        # A new dict: the agent type's memory block itself stays as loaded.
-        mem_cfg = agent.memory_config if isinstance(getattr(agent, "memory_config", None), dict) else {}
-        agent.memory_config = {**mem_cfg, "rejection_line_style": styles[agent.agent_type]}
-    runner._llm_cache.update(invokes)
+    # run.mock invokes go straight into the runner's invoke cache, so get_llm_invoke never
+    # wraps them: wrap them here, or their calls are missing from llm_calls.jsonl and
+    # model_roles. The run.mock slot is used only when ctx.model is a mock model.
+    from broker.utils.llm_call_log import wrap_invoke_with_call_log
+    runner._llm_cache.update({
+        agent_type: wrap_invoke_with_call_log(invoke, model=ctx.model, agent_type=agent_type)
+        for agent_type, invoke in invokes.items()
+    })
     # A case with no rules still gets validator_health.csv.
     audit_writer = getattr(getattr(runner, "broker", None), "audit_writer", None)
     if audit_writer is not None and hasattr(audit_writer, "config"):
@@ -932,6 +943,10 @@ def _write_run_record(prepared, argv, status, provenance=None):
     (ctx.output_dir / "broker_run.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
+#: Output folder of the last run this process finished (read by ``python -m broker.run``).
+LAST_RUN_OUTPUT = None
+
+
 def _snapshot_component(obj: Any) -> Any:
     if obj is None:
         return None
@@ -1009,10 +1024,22 @@ def main(argv=None) -> int:
           f"agents={len(ctx.agents)} output={ctx.output_dir}", flush=True)
     # Written before the run so a failed run still leaves its record.
     _write_run_record(prepared, argv, "started", provenance())
-    runner.run()
+    from broker.utils.provenance_requirements import RunRecordsError
+    try:
+        runner.run()
+    except RunRecordsError as exc:
+        # A mandatory run record could not be written: the run is not a usable run.
+        print(f"broker.run: {exc}", file=sys.stderr)
+        _write_run_record(prepared, argv, "records_failed", provenance())
+        return 1
     if after_run is not None:
         after_run(ctx.output_dir)
     _write_coordination_snapshot(ctx, runner)
+    # `python -m broker.run` (broker/run/__main__.py) reads this and checks the mandatory run
+    # records of the finished run (broker/utils/provenance_requirements.py), exiting non-zero
+    # when they are incomplete, with or without --strict-provenance.
+    global LAST_RUN_OUTPUT
+    LAST_RUN_OUTPUT = ctx.output_dir
     counts = prepared.reflection_hook.counts if prepared.reflection_hook is not None else {}
     if counts.get("failed_calls") or counts.get("replies_not_stored"):
         print(f"broker.run: reflection: {counts['reflections_stored']} stored, "

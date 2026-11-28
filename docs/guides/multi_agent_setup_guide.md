@@ -777,7 +777,7 @@ Retrieves gossip from neighbors' memories:
 ```python
 social = hub.get_social_context("Farmer_1", agents, max_gossip=2)
 # -> {
-#     "gossip": ["Neighbor Farmer_2 mentioned: 'Year 3: Decided to: Decrease usage'"],
+#     "gossip": ["Neighbor Farmer_2 mentioned: 'Year 3: Action carried out: Decrease usage.'"],
 #     "visible_actions": [...],
 #     "neighbor_count": 4
 # }

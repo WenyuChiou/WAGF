@@ -21,9 +21,17 @@ from ..interfaces.skill_types import (
     IDENTITY_TIER, SkillProposal, InterventionReport, ValidationResult,
 )
 from ..utils.llm_utils import accumulate_llm_stats
+from ..utils.llm_call_log import call_context, year_of
 from ..utils.logging import logger
 from ._advise import build_intervention_reports, render_intervention_prompt
 from ._appraisal_freeze import construct_label_dict
+
+# Bound of the format-retry loop in _initial_proposal: it runs while the attempt count is
+# <= INITIAL_ATTEMPTS_MAX and counts inside the loop, so one decision gets up to
+# FORMAT_ATTEMPTS_MAX = INITIAL_ATTEMPTS_MAX + 1 model calls (the first call plus two format
+# retries). A decision whose reply still does not parse becomes an ABORTED row.
+INITIAL_ATTEMPTS_MAX = 2
+FORMAT_ATTEMPTS_MAX = INITIAL_ATTEMPTS_MAX + 1
 
 # Placebo control for the blocking governance retry loop
 # (``global_config.governance.retry_feedback_mode: placebo``): uses the
@@ -32,11 +40,6 @@ from ._appraisal_freeze import construct_label_dict
 # rule ids, reasons, or suggestions. Distinct from the non-blocking advisory
 # channel's ``mode="placebo"`` (in ``_advise_pass.py``), which keeps report
 # shapes but substitutes placeholder report text.
-RETRY_FEEDBACK_PLACEBO_TEXT = (
-    "Your previous decision was not accepted. Please reconsider and answer "
-    "again in the required format."
-)
-
 # The registry-level backstop checks of SkillBrokerEngine._run_validators
 # (the rule ids it stamps on a failed precondition / output-schema check).
 # Used by RetryMixin._retry_report_results together with IDENTITY_TIER
@@ -63,7 +66,7 @@ class RetryMixin:
         raw_output = ""
         initial_attempts = 0
         format_retry_count = 0
-        max_initial_attempts = 2
+        max_initial_attempts = INITIAL_ATTEMPTS_MAX
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
         # cost columns, SEEDED rather than created on first use. The
         # five are one era marker — an analyst dates a corpus by whether the
@@ -97,7 +100,11 @@ class RetryMixin:
         while initial_attempts <= max_initial_attempts and not skill_proposal:
             initial_attempts += 1
             try:
-                res = llm_invoke(prompt)
+                # Model-call log: which decision and attempt this call belongs to.
+                with call_context(agent_id=agent_id, agent_type=agent_type,
+                                  year=year_of(env_context), kind="decision",
+                                  attempt=initial_attempts):
+                    res = llm_invoke(prompt)
                 if "llm_calls" in total_llm_stats:
                     total_llm_stats["llm_calls"] += 1
                 if isinstance(res, tuple):
@@ -402,7 +409,7 @@ class RetryMixin:
 
         if feasible:
             return (
-                "Actions that pass every rule this step: "
+                "Actions that pass every rule in this decision: "
                 + ", ".join(label(n) for n in feasible) + "."
             )
         cause = (
@@ -410,14 +417,14 @@ class RetryMixin:
             if missing_fields else ""
         )
         if getattr(self, "_on_retry_exhausted", "default") == "keep_proposal":
-            return "No action passes every rule this step" + cause + "."
+            return "No action passes every rule in this decision" + cause + "."
         try:
             default_name = self.skill_registry.get_default_skill()
             tail = "the default action (" + default_name.replace("_", " ") + ") will be applied."
         except ValueError:
             tail = "the default action will be applied."
         return (
-            "No action passes every rule this step" + cause + "; if this "
+            "No action passes every rule in this decision" + cause + "; if this "
             "continues, " + tail
         )
 
@@ -523,27 +530,8 @@ class RetryMixin:
                     e for v in report_results if v and hasattr(v, 'errors') for e in v.errors
                 ]
 
-            # Red-team objection 3: retry-feedback ablation (opus W1 design: the
-            # A'' wrapper-only control -- see the module-level comment on
-            # RETRY_FEEDBACK_PLACEBO_TEXT above for exactly what this isolates
-            # and how it differs from `advise.mode="placebo"`). `errors_to_send`
-            # above is still built from the REAL validation results -- WHEN a
-            # proposal is rejected, and the retry schedule, are completely
-            # unchanged -- but under "placebo" none of that rule content
-            # reaches the model: `include_reports=False` renders ONLY the
-            # adapter's header + closer + original prompt, so `errors_to_send`
-            # (built above either way, including the synthetic
-            # `format_violation` report on the parse-failure branch) is never
-            # turned into text. The audit trail is unaffected: failed_rules /
-            # error_messages (broker/components/analytics/audit.py) are
-            # derived from validation_results / all_validation_history below,
-            # never from errors_to_send or retry_prompt.
-            #
-            # `_intervention_framing` STILL applies under placebo: the
-            # wrapper's header/closer text differs between "legacy" ("was
-            # flagged by the governance layer...") and "neutral" ("triggered
-            # the governance layer...") even with include_reports=False --
-            # only the RULES block is suppressed, not the framing choice.
+            # Feedback mode controls only the retry text. The validation history
+            # records every real finding for the audit in all three modes.
             _retry_feedback_mode = getattr(self, "_retry_feedback_mode", "full")
             if _retry_feedback_mode not in ("full", "placebo", "silent"):
                 # Fail loud, not "full": a config/override bug that sets this
@@ -568,49 +556,15 @@ class RetryMixin:
                 # just the first.
                 retry_prompt = prompt
                 _reports_shown = 0
-            elif _retry_feedback_mode == "placebo" and hasattr(
-                self.model_adapter, "format_intervention_prompt"
-            ):
-                # global_config.governance.placebo_closer (default None: the
-                # adapter's own closer, byte-for-byte). The shipped legacy
-                # closer points at "the violations above", which this
-                # wrapper-only prompt never shows.
-                _placebo_closer = getattr(self, "_placebo_closer", None)
-                _closer_kw = {} if _placebo_closer is None else {"closer": _placebo_closer}
+            elif _retry_feedback_mode == "placebo":
                 retry_prompt, _reports_shown = render_intervention_prompt(
                     self.model_adapter, prompt, errors_to_send,
                     max_reports=self.max_reports,
-                    framing=getattr(self, "_intervention_framing", "legacy"),
+
                     include_reports=False,
-                    **_closer_kw,
+                    closer=getattr(self, "_placebo_closer", None),
                 )
-            elif _retry_feedback_mode == "placebo":
-                # Adapter predates P0-1c (implements only `format_retry_prompt`,
-                # not `format_intervention_prompt`) and so CANNOT render
-                # include_reports=False -- render_intervention_prompt raises
-                # ValueError for such an adapter rather than silently falling
-                # back to full content (see _advise.py). Degrade to the fixed
-                # sentence instead of crashing an old custom adapter's placebo
-                # run. Every adapter shipped in this repo implements
-                # format_intervention_prompt, so this branch is untaken on any
-                # in-repo run; it exists for a third-party adapter only. A
-                # configured global_config.governance.placebo_closer cannot be
-                # applied here, so it raises (review LOW 10) instead of
-                # silently sending the fixed sentence without it, as
-                # render_intervention_prompt does for the same adapter.
-                if getattr(self, "_placebo_closer", None) is not None:
-                    raise ValueError(
-                        "global_config.governance.placebo_closer is set, but the "
-                        "model adapter has no format_intervention_prompt and "
-                        "cannot render a closer; refusing to send a placebo "
-                        "retry without the configured closer."
-                    )
-                retry_prompt = f"{RETRY_FEEDBACK_PLACEBO_TEXT}\n\n{prompt}"
-                _reports_shown = 0
             else:
-                # P0-1c: framing defaults to "legacy", which delegates to the byte-identical
-                # published prompt. Arms B/B'/C set "neutral" so the enforce arm's text
-                # matches the advisory arms' exactly and (C-B) carries no wording delta.
                 _feasible_kw = {}
                 if (getattr(self, "_feasible_set_feedback", False) is True
                         and skill_proposal is not None
@@ -640,7 +594,7 @@ class RetryMixin:
                 retry_prompt, _reports_shown = render_intervention_prompt(
                     self.model_adapter, prompt, _reports_to_render,
                     max_reports=self.max_reports,
-                    framing=getattr(self, "_intervention_framing", "legacy"),
+
                     **_feasible_kw,
                 )
             # global_config.audit.retry_prompt_columns (default off): record
@@ -650,7 +604,10 @@ class RetryMixin:
             if attempt_prompts is not None:
                 attempt_prompts.append(retry_prompt)
 
-            res = llm_invoke(retry_prompt)
+            with call_context(agent_id=agent_id, agent_type=agent_type,
+                              year=year_of(env_context), kind="decision_retry",
+                              attempt=retry_count):
+                res = llm_invoke(retry_prompt)
             if "llm_calls" in total_llm_stats:
                 total_llm_stats["llm_calls"] += 1
 

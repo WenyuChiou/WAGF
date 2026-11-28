@@ -11,7 +11,7 @@
   counts and flags per year go to the run log and the manifest;
 - the stored reflection is a high-importance memory shown after five recent
   event lines and up to two significant older event lines;
-- with ``global_config.reflection.enabled`` false and the grounding keys off,
+- with ``global_config.reflection.enabled`` false,
   nothing of this runs (no reflection engine under the window memory, the
   proxy passes every call through, as before).
 
@@ -29,6 +29,8 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
+
+from broker.components.cognitive.reflection import GROUNDING_KEYS
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from scripted_mock_driver import REFLECTION_LESSON, reset_state, run_scripted_mock  # noqa: E402
@@ -162,8 +164,8 @@ def test_reflection_slot_shows_the_reflection_after_the_five_event_lines():
     assert got[5] == "Consolidated Reflection (written in Year 6): x Lesson: y."
     assert proxy.remove_by_type("A", "reflection") == 1
     assert proxy.retrieve(_Agent("A"), top_k=5) == [f"Year {i}: event." for i in range(2, 7)]
-    proxy.add_memory("A", "Decided to: x", {})  # the runner's decision line is still dropped
-    assert "Decided to: x" not in proxy.retrieve(_Agent("A"), top_k=5)
+    proxy.add_memory("A", "Action carried out: X.", {})  # the runner's decision line is still dropped
+    assert "Action carried out: X." not in proxy.retrieve(_Agent("A"), top_k=5)
 
 
 def test_slot_off_passes_every_call_through_as_before():
@@ -388,6 +390,7 @@ def _reflection_harness(tmp_path, monkeypatch, records, *, store=False, memory=N
     agent = SimpleNamespace(
         id="A", relocated=False, elevated=False, has_insurance=False,
         flood_history=[False] * max(records),
+        narrative_persona="You are a homeowner with a mortgage. You live alone.",
     )
     agent._flood_year_record = records
     if memory is None:
@@ -397,16 +400,18 @@ def _reflection_harness(tmp_path, monkeypatch, records, *, store=False, memory=N
     captured = {"calls": []}
 
     class _ReflectionEngine:
-        def generate_batch_reflection_prompt(self, candidates, year, **kwargs):
+        def generate_reflection_prompt_one_agent(self, identity, memories, year, **kwargs):
             captured["calls"].append({
                 "year": year,
-                "candidates": candidates,
-                "facts": kwargs["fact_lines"],
+                "identity": identity,
+                "candidates": [{"memories": memories}],
+                "facts": kwargs["record_lines"],
             })
             return "prompt"
 
     config = SimpleNamespace(
         get_reflection_keep_latest_only=lambda: store,
+        get_reflection_topic=lambda _agent_type: "floods and your home",
     )
     runner = SimpleNamespace(
         broker=SimpleNamespace(
@@ -441,9 +446,7 @@ def _add_realistic_year(memory, record, year, line_count):
 def _reflect(hook, year):
     hook._grounded_reflection(
         year,
-        {"batch_size": 1, "questions": []},
-        {"year_outcome": True, "year_lines": True,
-         "program_facts": True, "lesson_no_numbers": True},
+        {"batch_size": 1, "topic": "floods and your home"},
     )
 
 
@@ -486,6 +489,8 @@ def test_grounded_reflection_carries_year_4_damage_to_year_6_from_true_record(
     _reflect(hook, 6)
 
     call = captured["calls"][-1]
+    # the identity sentence is the first sentence of the persona the decision prompt shows
+    assert call["identity"] == "You are a homeowner with a mortgage."
     assert [item["year"] for item in call["candidates"][0]["memories"]] == [4, 5, 6]
     carried_input = call["candidates"][0]["memories"][0]["content"]
     assert carried_input == fact_line(FloodYear(
@@ -629,32 +634,6 @@ def test_dropped_reflection_keeps_year_4_damage_for_year_6(
         "Year 4", "Year 6"]
 
 
-def test_previous_fact_years_are_ignored_when_program_facts_are_off(tmp_path, monkeypatch):
-    records = _records({4})
-    rf, hook, memory, _agent, captured = _reflection_harness(
-        tmp_path, monkeypatch, records)
-    memory.add_memory(
-        "A", "Consolidated Reflection (written in Year 5): "
-        f"{fact_line(FloodYear(4, True, True, False, False, records[4]['event_line']))} "
-        "Lesson: Protecting my home early matters.", {"type": "reflection"})
-    _add_realistic_year(memory, records, 6, 4)
-    monkeypatch.setattr(
-        rf, "_remembered_reflection_years",
-        lambda _lines: pytest.fail("previous facts must not be parsed when program_facts is off"),
-    )
-
-    hook._grounded_reflection(
-        6,
-        {"batch_size": 1, "questions": []},
-        {"year_outcome": True, "year_lines": True,
-         "program_facts": False, "lesson_no_numbers": True},
-    )
-
-    call = captured["calls"][-1]
-    assert [item["year"] for item in call["candidates"][0]["memories"]] == [6]
-    assert call["facts"] is None
-
-
 def test_relocated_household_is_skipped_by_grounded_reflection(tmp_path, monkeypatch):
     records = _records({4})
     _rf, hook, memory, agent, captured = _reflection_harness(
@@ -742,7 +721,7 @@ def test_reflection_is_last_in_the_at_most_five_plus_two_plus_one_prompt(reflect
         assert 5 <= len(items) - 1 <= 7, items
         line = items[-1]
         assert line.startswith(f"Consolidated Reflection (written in Year {rec['year'] - 1}): Year ")
-        assert line.endswith(" Lesson: " + stored_lessons[(rec["agent_id"], rec["year"] - 1)])
+        assert line.endswith(" Looking back: " + stored_lessons[(rec["agent_id"], rec["year"] - 1)])
     assert seen > 0
 
 
@@ -796,34 +775,21 @@ def test_scripted_year_5_reflection_carries_year_3_or_4_damage(reflecting_run):
         )
 
     assert any(
-        re.search(r"Year [34]: a flood damaged my house;", reflection.split(" Lesson: ", 1)[0])
+        re.search(r"Year [34]: a flood damaged my house;", reflection.split(" Looking back: ", 1)[0])
         for reflection in year_6_reflections
     ), year_6_reflections
 
 
 def _variant_without_reflection(tmp_path: Path) -> Path:
-    """An isolated --config-root: the base flood config with the whole
-    item-7 reflection block reverted to the c7b10c05 one."""
+    """Disable scheduled window reflection while retaining grounded settings."""
     root = tmp_path / "noreflect"
     root.mkdir()
     for name in ("agent_initial_profiles.csv", "flood_years.csv", "skill_registry.yaml"):
         shutil.copy(SA / name, root / name)
     (root / "config" / "prompts").mkdir(parents=True)
     shutil.copy(SA / "config" / "prompts" / "household.txt", root / "config" / "prompts" / "household.txt")
-    raw = (SA / "agent_types.yaml").read_text(encoding="utf-8")
-    start = raw.index("  reflection:\n")
-    end = raw.index("    triggers:\n", start)
-    old_block = ("  reflection:\n"
-                 "    interval: 1               # Reflect every N years\n"
-                 "    batch_size: 10            # Reduced from 25 to avoid LLM output truncation\n"
-                 "    importance_boost: 0.9     # Boost emotional weight for reflected memories\n"
-                 "    questions:\n"
-                 "      - \"What risks feel most urgent to your family right now?\"\n"
-                 "      - \"Have your neighbors' choices influenced your thinking?\"\n"
-                 "      - \"What trade-offs have you faced between cost and safety?\"\n")
-    (root / "agent_types.yaml").write_text(raw[:start] + old_block + raw[end:], encoding="utf-8")
-    cfg = yaml.safe_load((root / "agent_types.yaml").read_text(encoding="utf-8"))
-    assert "enabled" not in cfg["global_config"]["reflection"]
+    cfg = yaml.safe_load((SA / "agent_types.yaml").read_text(encoding="utf-8"))
+    cfg["global_config"]["reflection"]["enabled"] = False
     cfg["global_config"]["memory"].pop("event_memory_5_2_1", None)
     (root / "agent_types.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     return root
@@ -847,3 +813,38 @@ def test_reflection_off_leaves_the_window_memory_as_before(tmp_path):
         "reflection_slot": None,
         "importance_by_event_type": None,
     }
+
+
+@pytest.mark.parametrize("key", GROUNDING_KEYS)
+@pytest.mark.parametrize("missing", [True, False], ids=["missing", "false"])
+def test_flood_refuses_incomplete_grounding_before_llm(tmp_path, monkeypatch, key, missing):
+    from examples.single_agent import run_flood
+
+    root = _variant_without_reflection(tmp_path)
+    path = root / "agent_types.yaml"
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    reflection = config["global_config"]["reflection"]
+    if missing:
+        del reflection[key]
+    else:
+        reflection[key] = False
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    def unexpected_llm(*args, **kwargs):
+        pytest.fail("LLM setup reached")
+
+    monkeypatch.setattr(run_flood, "create_llm_invoke", unexpected_llm)
+    monkeypatch.setattr("broker.utils.llm_utils.create_llm_invoke", unexpected_llm)
+    with pytest.raises(ValueError, match=rf"retired on 2026-11-27.*tag v0\.7\.0.*{key}"):
+        run_flood.run_parity_benchmark(model="mock", config_root=str(root), custom_output=str(tmp_path / "out"))
+
+
+def test_flood_stress_config_supports_grounded_reflection(tmp_path):
+    from examples.single_agent import run_flood
+
+    root = _variant_without_reflection(tmp_path)
+    shutil.copyfile(SA / "agent_types_stress.yaml", root / "agent_types.yaml")
+    run_flood.run_parity_benchmark(model="mock", config_root=str(root), custom_output=str(tmp_path / "out"),
+                                   agents_count=1, years=1, workers=1, seed=42, memory_engine_type="humancentric")
+    manifest = json.loads((tmp_path / "out" / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+    assert all(manifest["reflection_checks"]["settings"][key] is True for key in GROUNDING_KEYS)
+    assert "1" in manifest["reflection_checks"]["per_period"]

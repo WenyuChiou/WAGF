@@ -113,11 +113,12 @@ makes relative to the `83fa97e1` corpus:
     insurance state that is not the house's,
     `flood_reflection.check_flood_lesson`) are report-only flags and do not
     trigger retry or prevent storage. The stored
-    line, "Consolidated Reflection (written in Year {t}): {facts} Lesson:
+    line, "Consolidated Reflection (written in Year {t}): {facts} Looking back:
     {lesson}", is shown after the five recent and up to two significant older
     event lines (`DecisionFilteredMemoryEngine`'s reflection slot), never in
     one of those event slots. Its remembered years may also occur in the
-    significant event lines. Counts of stored, retried and
+    significant event lines. Runs before this change store `Lesson:`; new
+    runs store `Looking back:`, and analysis accepts both labels. Counts of stored, retried and
     dropped reflections are printed per year and written to
     `reproducibility_manifest.json`
     (`reflection_checks`), including `flagged_by_reason` at the total and

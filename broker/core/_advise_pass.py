@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional
 
 from ..interfaces.skill_types import SkillProposal
 from ..utils.llm_utils import accumulate_llm_stats
+from ..utils.llm_call_log import call_context, year_of
 from ..utils.logging import logger
 from ._advise import (
     build_intervention_reports,
@@ -158,7 +159,6 @@ class AdviseMixin:
         advisory_prompt, _shown = render_intervention_prompt(
             self.model_adapter, prompt, reports,
             max_reports=self.max_reports,
-            framing=getattr(self, "_intervention_framing", "legacy"),
         )
         # Set BEFORE the call and never cleared on failure: the claim the column
         # supports is "the model was shown this advice", and that became true at
@@ -182,7 +182,9 @@ class AdviseMixin:
             total_llm_stats["llm_calls"] += 1
 
         try:
-            res = llm_invoke(advisory_prompt)
+            with call_context(agent_id=agent_id, agent_type=agent_type,
+                              year=year_of(env_context), kind="other", attempt=1):
+                res = llm_invoke(advisory_prompt)
         except Exception as exc:
             # The call happened, so it counts. accumulate_llm_stats is only
             # reached on the tuple branch below, so without this an advisory
@@ -330,7 +332,6 @@ class AdviseMixin:
         }))
 
         # --- Build the arm-specific prompt -------------------------------------
-        framing = getattr(self, "_intervention_framing", "legacy")
         spec = getattr(self, "_advise_spec", None) or {}
 
         if mode == "resample":
@@ -340,7 +341,7 @@ class AdviseMixin:
         elif mode == "wrapper":
             # Arm A'': wrapper scaffolding only, no rules block.
             advisory_prompt, reports_shown = render_intervention_prompt(
-                self.model_adapter, prompt, [], framing=framing, include_reports=False,
+                self.model_adapter, prompt, [], include_reports=False,
             )
         else:
             reports = build_intervention_reports(
@@ -355,7 +356,7 @@ class AdviseMixin:
                     r.suggested_correction = None
             advisory_prompt, reports_shown = render_intervention_prompt(
                 self.model_adapter, prompt, reports,
-                max_reports=self.max_reports, framing=framing,
+                max_reports=self.max_reports,
             )
         info["advisory_reports_shown"] = reports_shown
         info["advisory_prompt_chars"] = len(advisory_prompt)
@@ -370,7 +371,9 @@ class AdviseMixin:
         if "llm_calls" in total_llm_stats:
             total_llm_stats["llm_calls"] += 1
         try:
-            res = llm_invoke(advisory_prompt)
+            with call_context(agent_id=agent_id, agent_type=agent_type,
+                              year=year_of(env_context), kind="other", attempt=1):
+                res = llm_invoke(advisory_prompt)
         except Exception as exc:
             # Counted for the reason given in `_soft_rule_pass`: the call
             # happened, and the helper that would have counted it runs only on

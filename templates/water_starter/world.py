@@ -115,7 +115,7 @@ def build_hooks(ctx: RunContext) -> Dict[str, Any]:
 
 def _scripted_operator(prompt: str):
     """Demo mock: request 1.0 of demand initially, then curtail to 0.4 if blocked."""
-    blocked = "BLOCKED" in prompt or "dead_pool_guard" in prompt
+    blocked = "projected storage below the dead-pool threshold" in prompt
     magnitude = 0.4 if blocked else 1.0
     payload = {
         "reasoning": f"Propose release fraction {magnitude} for coming water year.",

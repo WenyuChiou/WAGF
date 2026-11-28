@@ -61,8 +61,6 @@ from examples.irrigation_abm.irrigation_env import (
 from examples.irrigation_abm.irrigation_personas import (
     FULL_SUPPLY_RATIO,
     IrrigationAgentProfile,
-    _RULE_LABELS,
-    _precondition_violation_label,
     build_option_texts,
     build_water_situation_text,
 )
@@ -289,18 +287,6 @@ def test_dispatch_list_exact():
     assert irrigation_governance_validator(proposal, ctx) == []
 
 
-def test_rule_labels_six_entries():
-    assert _RULE_LABELS == {
-        SUPPLY: "the shortage-sharing rule",
-        "water_right_cap": "the water-right cap",
-        "beneficial_use_limit": "the beneficial-use limit",
-        "minimum_utilisation_floor": "the minimum-use floor",
-        TR1: "the rule on increases under scarcity",
-        TR3: "the rule on decreases without scarcity",
-    }
-    assert _precondition_violation_label("precondition_violation", "increase_demand") == "the request-increase limit"
-    assert _precondition_violation_label("precondition_violation", "decrease_demand") == "the minimum-use floor"
-    assert _precondition_violation_label("curtailment_awareness", "increase_demand") == "a governance rule"
 
 
 # ===========================================================================
@@ -608,7 +594,7 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
     crir_msg = supply_gap_block_increase("increase_demand", [], crir)[0].errors[0]
     hopi_msg = supply_gap_block_increase("increase_demand", [], hopi)[0].errors[0]
     assert crir_msg == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         f"the 880,000 acre-ft you received last year, you can expect "
         f"{880_000.0 * crir['supply_ratio']:,.0f} acre-ft this year "
         f"({crir['supply_ratio']:.1%}), because Lake Mead cannot meet all Lower "
@@ -621,7 +607,7 @@ def test_supply_rule_blocks_on_phi_with_the_true_message():
     ceiling = hopi["lb_junior_ceiling_af"]
     entitlement = hopi["lb_junior_entitlement_af"]
     assert hopi_msg == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         f"the 5,900 acre-ft you received last year, you can expect "
         f"{hopi['supply_expected_at_keep_af']:,.0f} acre-ft this year "
         f"({hopi['supply_ratio']:.1%}), because the declared Lower Basin shortage "
@@ -664,7 +650,7 @@ def test_retry_texts_golden_upper_basin_variants():
     base = dict(basin="upper_basin", keep=20_000.0, physical=0.674)
     sub = supply_gap_block_increase("increase_demand", [], _supply_ctx(**base))[0]
     assert sub.errors[0] == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         "the 20,000 acre-ft you received last year, you can expect 13,480 acre-ft "
         "this year (67.4%), because the water your sub-basin can draw this year, a "
         "fixed share of the natural flow of its rivers, is below the combined "
@@ -695,7 +681,7 @@ def test_retry_text_golden_zero_delivery():
     msg = supply_gap_block_increase(
         "increase_demand", [], _supply_ctx(basin="lower_basin", physical=0.0))[0].errors[0]
     assert msg == (
-        "Demand increase blocked under the shortage-sharing rule: if you request "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request "
         "the 100,000 acre-ft you received last year, you can expect 0 acre-ft this "
         "year (0.0%), because Lake Mead cannot meet all Lower Basin withdrawals "
         "without falling below its minimum pool, so all Lower Basin deliveries "
@@ -735,7 +721,7 @@ def _retry_block(results, skill) -> str:
     reports = build_intervention_reports(results, proposal, source="errors")
     text, _ = render_intervention_prompt(
         UnifiedAdapter.__new__(UnifiedAdapter), "<<ORIGINAL>>", reports, max_reports=3,
-        feasible_line="Actions that pass every rule this step: 1 (maintain demand).")
+        feasible_line="Actions that pass every rule in this decision: 1 (maintain demand).")
     return text[:text.index("<<ORIGINAL>>")]
 
 
@@ -773,7 +759,7 @@ def test_retry_texts_no_label_codes(monkeypatch):
         blocks.append(_retry_block(supply_gap_block_increase("increase_demand", [], ctx),
                                    "increase_demand"))
     for block in blocks:
-        assert "Reason:" in block
+        assert "- You chose " in block
         _assert_plain(block)
 
 
@@ -829,10 +815,8 @@ class ScriptedIrrigationLLM:
 
     def __call__(self, prompt: str):
         stats = LLMStats(retries=0, success=True)
-        if "You are a Reflection Assistant" in prompt:
-            ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
-            return json.dumps({aid: "I learned to watch my supply before changing my request."
-                               for aid in ids}), stats
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            return json.dumps({"answer": "I learned to watch my supply before changing my request."}), stats
         agent = re.search(r"You are (.+?), an agricultur", prompt).group(1)
         year = int(re.search(r"It is now the year (\d{4})", prompt).group(1))
         with self._lock:
@@ -909,8 +893,8 @@ def test_e2e_freeze_relabel_cannot_pass_and_columns_filled(monkeypatch, tmp_path
         if attempt == 0:
             continue
         block = prompt[:prompt.index(originals[(agent, year)])]
-        assert TR1_MESSAGE in block and TR1_SUGGESTION in block
-        assert "Actions that pass every rule this step: 2 (maintain demand), 3 (decrease demand)." in block
+        assert TR1_MESSAGE in block and TR1_SUGGESTION not in block
+        assert "Actions that pass every rule in this decision: 2 (maintain demand), 3 (decrease demand)." in block
         _assert_plain(block)
     manifest = json.loads((out / "reproducibility_manifest.json").read_text(encoding="utf-8"))
     assert manifest["appraisal_freeze_resolved"] is True
@@ -1053,13 +1037,13 @@ def test_retry_text_hides_registry_backstop_after_identity_block(monkeypatch, tm
         return block, row
 
     block, row = run(hide=True)
-    assert [line.strip() for line in block.splitlines() if "Reason:" in line] == [
-        f"- Reason: {CAP_MESSAGE}"]
+    assert [line.strip() for line in block.splitlines() if line.startswith("- ")] == [
+        f"- You chose 'increase demand'. {CAP_MESSAGE}"]
     for internal in ("Precondition", "at_allocation_cap", "Required field", "'decision'",
                      "output_schema", "precondition_violation", "Suggestion"):
         assert internal not in block, internal
     _assert_plain(block)
-    assert "Actions that pass every rule this step: 1 (maintain demand), 2 (decrease demand)." in block
+    assert "Actions that pass every rule in this decision: 1 (maintain demand), 2 (decrease demand)." in block
     # the audit keeps all three blocks of the off-menu attempt
     assert {"water_right_cap", "precondition_violation", "output_schema_violation"} <= set(
         row["failed_rules"].split("|"))
@@ -1072,7 +1056,8 @@ def test_retry_text_hides_registry_backstop_after_identity_block(monkeypatch, tm
         "output_schema_violation", "precondition_violation"}
 
     leaked, _ = run(hide=False)
-    assert "Precondition failed" in leaked and "Required field 'decision'" in leaked
+    assert "This action is not available to you in your current situation." in leaked
+    assert "Your answer is missing a value that this action needs." in leaked
     AgentTypeConfig.clear_cache()
 
 

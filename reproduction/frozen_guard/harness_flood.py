@@ -33,7 +33,12 @@ import broker.utils.llm_utils as llm_utils  # noqa: E402
 from broker.utils.llm_utils import LLMStats  # noqa: E402
 
 LABELS = ["VL", "L", "M", "H", "VH"]
-RETRY_MARK = "Your previous response was flagged by the governance layer."
+# A retry prompt starts with the header of its framing: legacy, or plain
+# (global_config.governance.intervention_framing; plain has no log labels).
+RETRY_MARK = (
+    "Your previous response was flagged by the governance layer.",
+    "Your previous answer cannot be used in this decision.",
+)
 _CALLS_PATH = None
 
 
@@ -45,6 +50,8 @@ def _log(kind: str, prompt: str) -> None:
     if _CALLS_PATH is None:
         return
     rec = {"kind": kind, "sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()}
+    if kind in ("reflection", "reflection_retry"):
+        rec["prompt"] = prompt
     with open(_CALLS_PATH, "a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(rec) + "\n")
 
@@ -85,11 +92,13 @@ def _reflection(prompt: str) -> str:
     """Per-household year-end reflection; a pure function of the prompt. A quarter of the
     households name a year on the first try (the grounding check then asks again), one
     in four make a claim their own listed years contradict, the rest are clean."""
-    aid = re.search(r"^(.+?) Memories:", prompt, flags=re.M).group(1)
-    year = re.search(r"\(Year (\d+)\)", prompt).group(1)
-    retry = "### Correction" in prompt
-    bucket = _h(f"{aid}|{year}") % 4
-    listed = prompt.split("### Record", 1)[0]
+    # The one-agent prompt names no household id: the bucket is a pure function of
+    # the prompt before any correction note, so a retry lands in the same bucket.
+    retry = "Your previous answer cannot be used" in prompt
+    core = prompt.split("\n\nYour previous answer cannot be used", 1)[0]
+    year = re.search(r"It is the end of year (\d+)\.", prompt).group(1)
+    bucket = _h(core) % 4
+    listed = core.split("What happened this year", 1)[0]
     if bucket == 1 and not retry:
         lesson = f"In Year {year} I learned to watch the river closely."
     elif bucket == 2 and ("damage on my house" in listed or "severe enough to cause damage" in listed):
@@ -98,13 +107,13 @@ def _reflection(prompt: str) -> str:
         lesson = "I learned that a flood comes every year, so I must always be ready."
     else:
         lesson = "I learned that protecting my home before a flood matters more than reacting after one."
-    return json.dumps({aid: lesson})
+    return json.dumps({"answer": lesson})
 
 
 def hash_scripted_invoke(prompt: str):
     stats = LLMStats(retries=0, success=True)
-    if "You are a Reflection Assistant" in prompt:
-        _log("reflection_retry" if "### Correction" in prompt else "reflection", prompt)
+    if 'Answer with this JSON object only: {"answer"' in prompt:
+        _log("reflection_retry" if "Your previous answer cannot be used" in prompt else "reflection", prompt)
         return _reflection(prompt), stats
 
     retry = prompt.lstrip().startswith(RETRY_MARK)

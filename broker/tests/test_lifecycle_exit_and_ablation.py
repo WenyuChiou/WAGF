@@ -338,7 +338,7 @@ def test_broker_run_zero_count_population_scoping_and_early_exit_integrity(tmp_p
                     "phase_order": [["regulator"], ["participant"]],
                     "years": 3,
                 },
-                "reflection": {"enabled": True, "interval": 3},
+                "reflection": {"enabled": True, "interval": 3, "topic": "your situation and your decisions"},
             },
             "regulator": {
                 "psychological_framework": "generic",
@@ -395,7 +395,7 @@ def test_empty_memory_retrieval_with_due_active_agent_still_fails_reflection_int
     from broker.core.run_integrity import record_run_integrity
     from broker.run._memory import ReflectionHook, ReflectionSettings
 
-    cfg = SimpleNamespace(get_reflection_questions=lambda _t: [])
+    cfg = SimpleNamespace(get_reflection_topic=lambda _t: "your situation and your decisions")
     hook = ReflectionHook(
         ReflectionSettings(enabled=True, interval=1),
         cfg,

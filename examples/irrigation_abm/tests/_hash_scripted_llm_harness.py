@@ -56,12 +56,8 @@ class HashScriptedLLM:
         time.sleep(((h >> 32) % 21) / 1000.0)
         stats = LLMStats(retries=0, success=True)
 
-        if "You are a Reflection Assistant" in prompt:
-            ids = re.findall(r"^(.+?) Memories:", prompt, flags=re.M)
-            return (
-                json.dumps({aid: "Noted for next year." for aid in ids}),
-                stats,
-            )
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            return json.dumps({"answer": "Noted for next year."}), stats
 
         wsa = _LABELS[h % 5]
         aca = _LABELS[(h // 5) % 5]

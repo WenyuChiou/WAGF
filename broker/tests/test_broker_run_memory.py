@@ -8,6 +8,7 @@ as before (the mock byte-identity check in the PR covers that).
 from __future__ import annotations
 
 import json
+import re
 import sys
 from textwrap import dedent
 from types import SimpleNamespace
@@ -57,6 +58,7 @@ def case(tmp_path, monkeypatch):
     data = {
         "global_config": {"run": {"world": "world:build"}},
         "agent": {
+            "reflection": {"topic": "site conditions and your inspections"},
             "psychological_framework": "generic",
             "prompt_template": "Memory:\n{memory}\n\nAvailable actions\n{options_text}\n\n{response_format}",
             "actions": [{"id": "wait", "aliases": ["1"]}, {"id": "inspect", "aliases": ["2"]}],
@@ -214,6 +216,7 @@ def test_reflection_enabled_stores_each_lesson_as_a_memory_the_next_prompt_shows
     log = [json.loads(line) for line in (output / "reflection_log.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [entry["year_created"] for entry in log] == [1, 2, 3]
     assert all(entry["importance"] == 0.9 for entry in log)
+    assert [entry["source_memory_count"] for entry in log] == [1, 2, 3]
     # The year-2 reflection read the year memories, not the year-1 reflection.
     assert not any(line.startswith("Reflection") for line in log[1]["reflection_input"])
     assert _record(output)["reflection"] == {
@@ -326,7 +329,7 @@ def test_reflection_runs_after_the_cases_own_post_year_hook(case, tmp_path):
 def test_reflection_prompt_and_reply_under_a_real_model(case, tmp_path):
     prepared, _ = _prepare(case, tmp_path, years=1, reflection={
         "enabled": True, "persona_instruction": "Speak as the site manager.",
-        "questions": ["What did the inspection show?"],
+        "topic": "site conditions and your inspections",
     })
     hook, agent = prepared.reflection_hook, prepared.runner.agents["agent_1"]
     hook.memory_engine.add_memory(agent.id, "Year 1: you waited", {"origin": "world"})
@@ -339,8 +342,10 @@ def test_reflection_prompt_and_reply_under_a_real_model(case, tmp_path):
     hook.model = "some-real-model"
     hook.runner = SimpleNamespace(get_llm_invoke=lambda agent_type: invoke)
     hook(1, {agent.id: agent})
-    assert prompts[0].startswith("Speak as the site manager.\n\n")
-    assert "What did the inspection show?" in prompts[0] and "Year 1: you waited" in prompts[0]
+    assert prompts[0].startswith("You are agent_1, an agent of type agent.\n")
+    assert "\nSpeak as the site manager.\nAnswer in one or two sentences" in prompts[0]
+    assert "Question: What do your recent years tell you about site conditions and your inspections?" in prompts[0]
+    assert "Year 1: you waited" in prompts[0]
     assert hook.memory_engine.retrieve(agent, top_k=3)[-1] == \
         "Reflection (year 1): Waiting kept the site safe this year."
 
@@ -362,7 +367,7 @@ def test_an_agent_type_with_its_own_real_model_reflects_with_that_model(case, tm
         models.append(model)
 
         def invoke(prompt):
-            if "What did the inspection show?" in prompt:
+            if "Question: What do your recent years tell you about" in prompt:
                 reflection_prompts.append(prompt)
                 return "Waiting kept the site safe this year.", {"tokens": 1}
             return mock_invoke(prompt)
@@ -371,7 +376,7 @@ def test_an_agent_type_with_its_own_real_model_reflects_with_that_model(case, tm
     monkeypatch.setattr(llm_utils, "create_llm_invoke", fake_create_llm_invoke)
     case[1]["agent"]["llm_params"] = {"model": "openai:site-model"}
     prepared, output = _prepare(case, tmp_path, years=1, reflection={
-        "enabled": True, "questions": ["What did the inspection show?"],
+        "enabled": True,
     })
     prepared.runner.run()
     assert "openai:site-model" in models  # the decisions' invoke for this agent type
@@ -450,3 +455,123 @@ def test_reflection_settings_broker_run_cannot_honour_are_refused(case, tmp_path
     _write_yaml(config, data)
     assert main(_argv(config, tmp_path / "output")) == 2
     assert message in capsys.readouterr().err
+
+
+def test_mock_reflection_uses_neutral_frame_and_persona_slot(case, tmp_path, monkeypatch):
+    prepared, _ = _prepare(case, tmp_path, years=1, reflection={
+        "enabled": True, "persona_instruction": "Speak as the site manager.",
+    })
+    hook, agent = prepared.reflection_hook, prepared.runner.agents["agent_1"]
+    agent.config.persona = "You manage this site. You inspect it daily."
+    prompts = []
+    original = hook._call
+
+    def capture(*args, **kwargs):
+        prompts.append(args[1])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(hook, "_call", capture)
+    prepared.runner.run()
+    prompt = prompts[0]
+    assert prompt.startswith("You manage this site.\nIt is the end of year 1.")
+    assert "You inspect it daily." not in prompt
+    assert "Question: What do your recent years tell you about site conditions and your inspections?" in prompt
+    assert "\nSpeak as the site manager.\nAnswer in one or two sentences in the first person." in prompt
+    assert not re.search("lesson|learn|teach", prompt, re.I)
+    assert prompt.endswith('Answer with this JSON object only: {"answer": "<your answer>"}')
+    assert any(m.startswith(_memory.REFLECTION_PREFIX) and "(mock model)" in m
+               for m in hook.memory_engine.retrieve(agent, top_k=10))
+
+
+@pytest.mark.parametrize("reply,stored", [
+    ('{"answer": "I watch the site conditions."}', True),
+    ('{"answer": ""}', False),
+    ('{"answer": ["unreadable"]}', False),
+    ('{"answer":', False),
+])
+def test_one_agent_json_reply_is_stored_or_counted(case, tmp_path, monkeypatch, reply, stored):
+    prepared, output = _prepare(case, tmp_path, years=1, reflection={"enabled": True})
+    hook, agent = prepared.reflection_hook, prepared.runner.agents["agent_1"]
+    monkeypatch.setattr(hook, "_call", lambda *args, **kwargs: reply)
+    prepared.runner.run()
+    assert hook.counts == {"reflections_stored": int(stored), "replies_not_stored": int(not stored),
+                           "failed_calls": 0}
+    if stored:
+        assert "Reflection (year 1): I watch the site conditions." in hook.memory_engine.retrieve(agent, top_k=10)
+        assert json.loads(hook.log_path.read_text(encoding="utf-8"))["summary"] == "I watch the site conditions."
+    else:
+        assert not (output / "reflection_log.jsonl").exists()
+
+
+@pytest.mark.parametrize("scope", ["agent", "global_config", "shared"])
+@pytest.mark.parametrize("questions", [None, [], ["Old question?"]])
+def test_retired_questions_fail_before_any_model_call(case, tmp_path, monkeypatch, scope, questions):
+    config, data = case
+    data["global_config"]["reflection"] = {"enabled": True}
+    data.setdefault(scope, {}).setdefault("reflection", {})["questions"] = questions
+    _write_yaml(config, data)
+    from broker.utils import llm_utils
+    monkeypatch.setattr(llm_utils, "create_llm_invoke", lambda *a, **k: pytest.fail("model created"))
+    with pytest.raises(_entry.RunError, match="reflection.questions.*2026-11-27.*v0.7.0"):
+        _entry.prepare(_argv(config, tmp_path / "output"))
+
+
+@pytest.mark.parametrize("topic", [None, "", "two\nlines", "question?", "sentence.", 4])
+def test_invalid_topic_fails_before_any_model_call(case, tmp_path, monkeypatch, topic):
+    config, data = case
+    data["agent"]["reflection"] = {} if topic is None else {"topic": topic}
+    data["global_config"]["reflection"] = {"enabled": True}
+    _write_yaml(config, data)
+    from broker.utils import llm_utils
+    monkeypatch.setattr(llm_utils, "create_llm_invoke", lambda *a, **k: pytest.fail("model created"))
+    with pytest.raises(_entry.RunError, match="reflection.topic must be a short noun phrase"):
+        _entry.prepare(_argv(config, tmp_path / "output"))
+
+
+def test_disabled_reflection_needs_no_topic_and_allows_retired_questions(case, tmp_path):
+    case[1]["agent"].pop("reflection")
+    output = _run(case, tmp_path, years=1, reflection={"enabled": False, "questions": []})
+    assert _record(output)["reflection"] == {"enabled": False}
+
+
+def test_registered_domain_status_is_appended_to_identity(case, tmp_path, monkeypatch):
+    from broker.domains.registry import DomainPackRegistry
+    prepared, _ = _prepare(case, tmp_path, years=1, reflection={"enabled": True})
+    hook = prepared.reflection_hook
+    monkeypatch.setattr(DomainPackRegistry, "domains", lambda: ["empty", "site"])
+    monkeypatch.setattr(DomainPackRegistry, "get", lambda name: SimpleNamespace(
+        reflection_status_text=lambda ctx: "The site is open." if name == "site" else None))
+    prompts = []
+    monkeypatch.setattr(hook, "_call", lambda kind, prompt, *a, **k: prompts.append(prompt) or "I watch the site.")
+    prepared.runner.run()
+    assert prompts[0].startswith("You are agent_1, an agent of type agent. The site is open.\n")
+
+
+def test_factory_agent_type_without_topic_is_checked_before_models(case, tmp_path, monkeypatch):
+    config, data = case
+    (config.parents[1] / "agents.py").write_text(dedent('''
+        from broker.agents.base import AgentConfig, BaseAgent
+
+        def build(ctx):
+            return {"other_1": BaseAgent(AgentConfig(
+                name="other_1", agent_type="other", state_params=[],
+                objectives=[], constraints=[], skills=[]))}
+    '''), encoding="utf-8")
+    data["global_config"]["run"]["agents"] = "agents:build"
+    data["global_config"]["reflection"] = {"enabled": True}
+    _write_yaml(config, data)
+    from broker.utils import llm_utils
+    monkeypatch.setattr(llm_utils, "create_llm_invoke", lambda *a, **k: pytest.fail("model created"))
+    with pytest.raises(_entry.RunError, match="reflection.topic must be a short noun phrase"):
+        _entry.prepare(_argv(config, tmp_path / "output"))
+
+
+def test_every_configured_reflecting_type_needs_a_valid_topic(case, tmp_path, monkeypatch):
+    config, data = case
+    data["other"] = {**data["agent"], "reflection": {"topic": "invalid?"}}
+    data["global_config"]["reflection"] = {"enabled": True}
+    _write_yaml(config, data)
+    from broker.utils import llm_utils
+    monkeypatch.setattr(llm_utils, "create_llm_invoke", lambda *a, **k: pytest.fail("model created"))
+    with pytest.raises(_entry.RunError, match="reflection.topic must be a short noun phrase"):
+        _entry.prepare(_argv(config, tmp_path / "output"))

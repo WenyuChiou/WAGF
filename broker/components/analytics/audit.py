@@ -382,6 +382,72 @@ def _unmatched_expectation_keys(stems, *expectations) -> List[str]:
     return sorted(unmatched)
 
 
+#: Final statuses of a decision that was still rejected after its last retry.
+_RETRY_EXHAUSTED_STATUSES = ("REJECTED", "REJECTED_FALLBACK")
+
+
+def audit_resolution_counts(output_dir) -> Dict[str, Any]:
+    """How often decisions needed more than one call, from the finished audit CSV(s).
+
+    Read-only; never raises; ``{}`` when no audit CSV can be read. Counts, over all rows:
+
+    - ``parse_failure_rows``: rows where the first reply did not parse (``format_retries`` > 0),
+      the parser fell to its last-resort default layer, or no decision came out (status
+      ``ABORTED``). ``parse_failure_unrecovered_rows`` is the ``ABORTED`` ones: the format
+      retry did not help either.
+    - ``retry_exhausted_rows``: rows whose final status is ``REJECTED`` or ``REJECTED_FALLBACK``,
+      that is, still rejected by the rules after the last governance retry.
+    - the matching rates over ``rows`` (None when there are no rows).
+    """
+    import csv
+
+    try:
+        paths = sorted(Path(output_dir).glob("*_governance_audit.csv"))
+    except OSError:
+        return {}
+    rows = parse_failed = unrecovered = exhausted = recovered_by_retry = default_layer = 0
+    format_retries_total = 0
+    read_any = False
+    for path in paths:
+        try:
+            with path.open(newline="", encoding="utf-8", errors="replace") as fh:
+                for row in csv.DictReader(fh):
+                    read_any = True
+                    rows += 1
+                    status = str(row.get("status", "") or "").upper()
+                    try:
+                        fmt = int(float(row.get("format_retries", 0) or 0))
+                    except (TypeError, ValueError):
+                        fmt = 0
+                    is_default = "default" in str(row.get("parse_layer", "") or "").lower()
+                    is_aborted = status == "ABORTED"
+                    format_retries_total += max(fmt, 0)
+                    recovered_by_retry += 1 if fmt > 0 and not is_aborted else 0
+                    default_layer += 1 if is_default else 0
+                    unrecovered += 1 if is_aborted else 0
+                    parse_failed += 1 if (fmt > 0 or is_default or is_aborted) else 0
+                    exhausted += 1 if status in _RETRY_EXHAUSTED_STATUSES else 0
+        except (OSError, csv.Error):
+            continue
+    if not read_any:
+        return {}
+
+    def rate(n: int) -> Optional[float]:
+        return round(n / rows, 4) if rows else None
+
+    return {
+        "rows": rows,
+        "parse_failure_rows": parse_failed,
+        "parse_failure_rate": rate(parse_failed),
+        "parse_failure_recovered_by_format_retry_rows": recovered_by_retry,
+        "parse_failure_unrecovered_rows": unrecovered,
+        "parse_default_layer_rows": default_layer,
+        "format_retries_total": format_retries_total,
+        "retry_exhausted_rows": exhausted,
+        "retry_exhausted_rate": rate(exhausted),
+    }
+
+
 def audit_coverage(
     output_dir,
     expected_rows=None,

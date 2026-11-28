@@ -55,7 +55,6 @@ def _config(flag, advise=None, multi_skill=False):
     config.get_audit_advise_columns.return_value = False
     config.get_governance_advise.return_value = advise
     config.get_governance_advise_mode.return_value = "off"
-    config.get_governance_intervention_framing.return_value = "legacy"
     config.get_governance_on_retry_exhausted.return_value = "default"
     config.get_governance_retry_feedback_mode.return_value = "full"
     config.get_governance_summary_counts_python_checks.return_value = False

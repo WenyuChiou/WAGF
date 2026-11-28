@@ -15,10 +15,9 @@ exactly as passed on the command line.
 
 The test invoke:
   - Recognises a batch-reflection prompt (broker/components/cognitive/
-    reflection.py's ``generate_batch_reflection_prompt``: a
-    "### Task Data to Process" section followed by one
-    "<agent_id> Memories: ..." line per agent in the batch) and answers it
-    with a JSON object mapping every agent_id in the batch to a short,
+    reflection.py's ``generate_reflection_prompt_one_agent``: it opens with
+    "You are <agent_id>, ..." and ends with the {"answer": ...} answer line)
+    and answers it with {"answer": ...} holding a short,
     letters-only token unique to that agent -- distinct from the decision
     reply shape, so a real test run exercises and journals BOTH call
     kinds, and the token lets a test verify the SAME per-agent text
@@ -72,18 +71,12 @@ _random_instance = _random_mod.Random(int.from_bytes(os.urandom(8), "big"))
 
 _OPTION_RE = re.compile(r"(\d+)\.\s+([^\n]+)")
 
-# Matches broker/components/cognitive/reflection.py
-# (ReflectionEngine.generate_batch_reflection_prompt)'s "### Task Data to
-# Process" section header followed by its first "<agent_id> Memories: "
-# line -- used only to DETECT that a prompt is a batch-reflection prompt
-# (one match is enough for that); every agent_id in the batch is then
-# pulled separately via _REFLECTION_AGENT_LINE_RE, since one batch can
-# (and typically does) carry more than one agent line.
-# Irrigation spec item 45b: with reflection.year_lines the memories follow
-# "<agent_id> Memories:" on their own lines, so no space is required after
-# the colon (the paragraph form, "Memories: ...", still matches).
-_REFLECTION_MARKER_RE = re.compile(r"### Task Data to Process\n(.+?) Memories:", re.DOTALL)
-_REFLECTION_AGENT_LINE_RE = re.compile(r"^(\S+) Memories:", re.MULTILINE)
+# Matches the answer line of broker/components/cognitive/reflection.py
+# (ReflectionEngine.generate_reflection_prompt_one_agent): used only to
+# DETECT a reflection prompt; the agent_id is the one in its opening
+# identity sentence ("You are <agent_id>, an agricultural water user ...").
+_REFLECTION_MARKER_RE = re.compile(r'Answer with this JSON object only: \{"answer"')
+_REFLECTION_AGENT_LINE_RE = re.compile(r"^You are (\S+?),")
 
 _LETTERS = "abcdefghijklmnop"
 
@@ -104,16 +97,13 @@ def _random_letters_token(length: int = 8) -> str:
 
 
 def _reflection_reply(prompt: str) -> str:
-    agent_ids = _REFLECTION_AGENT_LINE_RE.findall(prompt)
-    reply = {}
-    for agent_id in agent_ids:
-        token = (
-            _random_letters_token()
-            if _MOCK_MODE == "random"
-            else _letters_token(prompt + agent_id)
-        )
-        reply[agent_id] = f"I realized the test reflection token is {token}"
-    return json.dumps(reply)
+    agent_id = _REFLECTION_AGENT_LINE_RE.match(prompt).group(1)
+    token = (
+        _random_letters_token()
+        if _MOCK_MODE == "random"
+        else _letters_token(prompt + agent_id)
+    )
+    return json.dumps({"answer": f"I realized the test reflection token is {token}"})
 
 
 def _deterministic_mock_factory(model, verbose=False, overrides=None):

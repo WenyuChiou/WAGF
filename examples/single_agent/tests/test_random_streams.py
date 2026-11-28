@@ -206,9 +206,8 @@ def _mock_run(monkeypatch, output, *, seed, relocate, arm="strict", years=10):
         return execute(sim, SimpleNamespace(agent_id=approved.agent_id, skill_name=skill))
 
     def mock_reply(prompt):
-        if "You are a Reflection Assistant" in prompt:
-            agent_id = re.search(r"Agent_\d+", prompt).group(0)
-            reply = {agent_id: "I learned to review flood protection each year."}
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            reply = {"answer": "I learned to review flood protection each year."}
         else:
             block = prompt.split("Now, choose one of the following actions:", 1)[1].split("\nNote:", 1)[0]
             capture["options"][last_context_key] = [line.strip() for line in block.strip().splitlines()]
@@ -349,9 +348,8 @@ def test_aborted_run_still_records_stream_scheme(tmp_path, monkeypatch):
         return pre_year(hook, year, env, agents)
 
     def mock_reply(prompt):
-        if "You are a Reflection Assistant" in prompt:
-            agent_id = re.search(r"Agent_\d+", prompt).group(0)
-            reply = {agent_id: "I learned to review flood protection each year."}
+        if 'Answer with this JSON object only: {"answer"' in prompt:
+            reply = {"answer": "I learned to review flood protection each year."}
         else:
             choice = re.search(r"(?m)^(\d+)\. Do nothing", prompt).group(1)
             reply = {"threat_appraisal": "M", "coping_appraisal": "M", "decision": choice}

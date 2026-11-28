@@ -152,7 +152,7 @@ def test_S1_physical_shortage_at_or_below_junior_ceiling_pins_retry_message(
     assert increase_expectation_text(ctx).endswith(sharing)
     result = validators.supply_gap_block_increase('increase_demand', [], ctx)
     assert result[0].errors == [
-        "Demand increase blocked under the shortage-sharing rule: if you request the "
+        "Under the shortage-sharing rule, an increase is not available this year: if you request the "
         f"{keep:,.0f} acre-ft you received last year, you can expect {expected:,.0f} "
         "acre-ft this year (80.0%), because Lake Mead cannot meet all Lower Basin "
         "withdrawals without falling below its minimum pool, so all Lower Basin "

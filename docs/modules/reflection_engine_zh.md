@@ -114,19 +114,19 @@ INSTITUTIONAL 觸發支援組織層級的**雙迴路學習**（Argyris & Schon 1
 
 ## 5. WRR 實驗配置
 
-在經過驗證的 WRR 實驗中，反思使用簡化的基於間隔的觸發器（每年），並在 `agent_types.yaml` 中定義領域特定的引導問題：
+單代理洪水與灌溉 runner 對每位代理人做一次有依據的反思呼叫（grounded reflection）。
+兩者都要求實際生效的反思設定中，下列四個鍵都為 true。
+通用引擎也支援其他領域的批次 prompt。
 
 ```yaml
 global_config:
   reflection:
-    interval: 1                       # 每年反思一次
-    batch_size: 10                    # 每批代理人數
-    importance_boost: 0.9             # 洞見為高重要性
-    method: hybrid
-    questions:                        # 領域特定引導
-      - "你的策略在當前條件下是否有效？"
-      - "你的行動與結果之間有什麼模式？"
-      - "你應該如何調整未來的做法？"
+    interval: 1
+    batch_size: 1
+    year_outcome: true
+    year_lines: true
+    program_facts: true
+    lesson_no_numbers: true
 ```
 
 ### 行動-結果回饋
@@ -135,11 +135,15 @@ global_config:
 
 > "第 5 年：你選擇了 decrease_demand 15%。結果：供水充足，利用率降至 65%。"
 
-此回饋通過 `pre_year` 生命週期掛鈎注入，並通過反思循環實現因果學習。引導問題 + 行動-結果回饋的結合讓代理人能夠跨年份關聯特定行動幅度與供應結果。
+此回饋通過 `pre_year` 生命週期掛鈎注入，並通過反思循環實現因果學習。反思問題 + 行動-結果回饋的結合讓代理人能夠跨年份關聯特定行動幅度與供應結果。
 
-### 可配置引導問題
+### 可配置反思主題
 
-反思問題不再硬編碼 — 它們在 `agent_types.yaml` 的 `global_config.reflection.questions` 中按領域定義。洪水領域使用與 PMT 對齊的風險、鄰居影響和成本-安全權衡問題。灌溉領域使用需求策略有效性和幅度校準問題。
+單代理洪水與灌溉 runner、`python -m broker.run` 以及新產生的 scaffold 領域，都使用框架的同一個問題："What do your recent years tell you about <topic>?"。領域在 `agent_types.yaml` 中設定 `reflection.topic`：兩個名詞，分別說出代理人面對什麼、決定什麼，不放動作動詞，也不放方向。例子是 "floods and your home" 與 "your water supply and your requests"。讀取順序為代理人類型、`global_config`、`shared`。
+
+`broker.run` 用 `global_config.reflection.enabled: true` 開啟反思。每位代理人收到自己的 prompt，可選的 `persona_instruction` 放在記憶之後，回覆格式為 `{"answer": "..."}`。這條路徑沒有程式寫入的紀錄行或規則行。呼叫模型之前，每個會反思的類型都必須有有效的主題；在它讀取的任何層級出現 `reflection.questions` 都會報錯，錯誤訊息寫明它於 2026-11-27 退役以及 tag v0.7.0。反思關閉時兩項檢查都不需要。上面四個依據鍵屬於論文 runner，`broker.run` 會拒絕它們。
+
+多代理洪水與 `governed_flood` 暫時保留現有的問題產生方式與 `reflection.questions`。已退役的單代理 run 請從 tag v0.7.0 重現。
 
 ### 參考文獻
 

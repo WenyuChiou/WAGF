@@ -111,12 +111,26 @@ def test_recipe_arm_names_follow_the_settled_wording():
 
 
 def _git_available_with(commit: str) -> bool:
-    try:
-        probe = subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", f"{commit}^{{commit}}"],
-                               capture_output=True, timeout=60)
-    except (OSError, subprocess.TimeoutExpired):
+    probe = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "--quiet", f"{commit}^{{commit}}"],
+                           capture_output=True, timeout=60)
+    if probe.returncode == 1:
         return False
-    return probe.returncode == 0
+    probe.check_returncode()
+    return True
+
+
+def test_irrigation_recipe_config_dirs_exist_at_run_commit():
+    recipe = _recipe("irrigation")
+    commit = recipe["commits"]["runs"]["new"]
+    if not _git_available_with(commit):
+        pytest.skip(f"Irrigation paper run commit {commit} is unavailable in this clone")
+    for arm in recipe["arms"]:
+        subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", f"{commit}:{arm['config_dir']}"],
+                       check=True, timeout=60)
+        config_path = f"{arm['config_dir']}/agent_types.yaml"
+        assert config_path in recipe["config_hashes"]
+        config = yaml.safe_load(cm.Git(ROOT).show(commit, config_path))
+        assert config["irrigation_farmer"]["beneficial_use_limit"]["enabled"] is arm["beneficial_use_limit_enabled"]
 
 
 def test_recipe_hashes_match_the_tracked_files_at_the_new_commits():
@@ -251,8 +265,7 @@ def _build_runs(tmp_path: Path, repo: Path, commit: str, *, bad_config=False, ba
     root = tmp_path / "results"
     rows = []
     flood_cfg = (repo / "examples/single_agent/agent_types.yaml").read_bytes()
-    irr_simple = (repo / "examples/irrigation_abm/config_variants/simple/agent_types.yaml").read_bytes()
-    irr_nolimit = (repo / "examples/irrigation_abm/config_variants/simple_nolimit/agent_types.yaml").read_bytes()
+    arm_dirs = {arm["set"]: arm["config_dir"] for arm in _recipe("irrigation")["arms"]}
     data = {f: (repo / rel).read_bytes() for f, rel in cm.DATA_FIELDS.items()}
     digest = "c" * 64
     runs = [
@@ -276,9 +289,9 @@ def _build_runs(tmp_path: Path, repo: Path, commit: str, *, bad_config=False, ba
             m["prompt_template_sha256"] = {"household": _sha((repo / "examples/single_agent/config/prompts/household.txt").read_bytes())}
             (folder / "config_snapshot.yaml").write_text("household:\n  prompt_template_file: config/prompts/household.txt\n", encoding="utf-8")
         else:
-            cfg = irr_nolimit if set_ == "disabled" else irr_simple
-            variant = "simple_nolimit" if set_ == "disabled" else "simple"
-            variant_path = base + "irrigation_abm" + BS + "config_variants" + BS + variant + BS + "agent_types.yaml"
+            config_file = Path(arm_dirs[set_]) / "agent_types.yaml"
+            cfg = (repo / config_file).read_bytes()
+            variant_path = FAKE_DRIVE + BS + config_file.as_posix().replace("/", BS)
             if set_ == "disabled":
                 resolved = cfg + b"# resolved copy\n"
                 (folder / "resolved_agent_types.yaml").write_bytes(resolved)

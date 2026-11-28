@@ -8,6 +8,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Renamed the irrigation configurations to `with_validator` and `without_validator` and removed their superseded copies. The irrigation paper recipe retains the paths at tag `paper-irrigation-runs`.
+- Retired ungrounded and partly grounded reflection in the single-agent flood and irrigation runners on 2026-11-27. Both require all four grounding settings to be true. Earlier runs can be reproduced from tag v0.7.0.
+
+- Retired `legacy` and `neutral` retry wording and `explicit` and `neutral` decision memory lines on
+  2026-11-27. All runners use `intervention_framing: plain` and `rejection_line_style: executed`.
+  Reproduce runs using the retired wording from tag v0.7.0. Retries after an answer that could not be
+  parsed now also use the plain wording; before, they always used the legacy text. The memory line
+  reads "Action carried out: X." in every runner, including the multi-agent flood case and
+  `examples/governed_flood`. The two values are read without regard to case or surrounding spaces.
+
+### Added
+
+- **Every run keeps a complete, checkable record, and no setting turns it off** (`docs/RUN_RECORDS.md`).
+  `ExperimentRunner` always writes `llm_calls.jsonl` (each model call's full prompt and reply, options,
+  token counts, `done_reason`, per-call seed), and the manifest gains UTC start and end times, the machine
+  and Ollama state at launch and at finalize (GPU, CPU, `sys.executable`, `/api/ps` size, GPU share and
+  context length, `cpu_offload`), truncation counts, `model_roles`, `execution_order`, `resolution_policy`
+  (retry limits, what happens when they run out, parse-failure and retry-exhaustion counts and rates),
+  repo-relative config and launch paths, and sha256 for every declared input file
+  (`runner.declare_input_files` or `global_config.provenance.input_files`). A non-mock run on a dirty WAGF
+  tree refuses to start unless `--allow-dirty-tree` is given (recorded). A record that cannot be written
+  stops the run. At finalize the single list in `broker/utils/provenance_requirements.py` is checked and
+  `provenance_complete` / `provenance_missing` and `submission_ready` / `submission_blockers` are written to
+  the manifest and `run_integrity.json`; the paper runners, the other example runners and `python -m
+  broker.run` exit 3 when the records are incomplete. Optional `global_config.llm.sampling_seed: per_call`
+  sends Ollama a stable per-call seed (same for the with-rules and without-rules arms; default off, on in
+  the flood and irrigation executed configs). Both irrigation executed variants set
+  `audit.retry_prompt_columns: true`. Decisions are unchanged (frozen guard: every arm unchanged).
+- **`global_config.governance.intervention_framing: plain` keeps log labels out of the retry text.** The agent
+  sees no governance header, no severity tag (`[ERROR]`), no "was BLOCKED", no "violations", no section title,
+  no Suggestion line and no `[!NOTE]` tag; each report is one line naming the agent's own choice and the rule's
+  reason, and an unreadable answer gets one line saying the response format was not followed. The labels stay in
+  the logs and the audit, which read the validation results.
+
+### Changed
+
+- Grounded one-agent reflections are stored as `<facts> Looking back: <answer>` instead of `<facts> Lesson: <answer>`, so later decision prompts no longer show the word "lesson"; `split_stored_reflection` reads both labels, so runs made before this change analyse the same. The flood and irrigation `persona_instruction` no longer repeats "first person" (the framework line already says it), and their shipped configs drop the unread `reflection.method` and the unread flood `reflection.triggers`.
+
+- `broker.run` and the domain scaffold now use the neutral one-agent question frame and `reflection.topic`; `reflection.questions` is retired on this path (reproduce old runs from tag v0.7.0). Multi-agent flood and `governed_flood` remain unchanged for now.
+
+- One-agent reflection now asks "What do your recent years tell you about <topic>?"; domains set
+  `reflection.topic`, the prompt asks for an answer rather than a lesson, and the reply key is `answer`.
+  `reflection.questions` is retired for this path (raises; reproduce old runs from tag v0.7.0).
+  Batch and `broker.run` reflection are unchanged for now.
+- The irrigation simple prompt (`with_validator`, `without_validator`) no longer shows the generic
+  "### RATING SCALE ... VL = Very Low | ... | VH = Very High" block. The prompt already explains each
+  five-level rating in plain words, and "Very Low" read backwards for water scarcity (VL = abundant).
+  The full-information prompt under `config/` keeps the block.
+- **Flood and the irrigation `simple_executed` / `simple_nolimit_executed` configs use the `plain` framing, and
+  their rule messages no longer say "blocked"** (for example "Under the rule on severe-threat response, doing
+  nothing is not available in this decision: ..."). The irrigation shortage-sharing message, written by
+  `supply_gap_block_increase` for every config, now starts "Under the shortage-sharing rule, an increase is not
+  available this year: ...". The frozen guard's flood mock recognises the plain retry header. Frozen fixtures
+  updated on purpose: flood strict (new retry text, so the prompt-hash mock answers retries differently from
+  year 2 on), flood silent (logged reason text only, decisions unchanged) and irrigation strict (logged reason
+  text and two retry labels in year 2, decisions unchanged).
+- **One year-end reflection prompt for single-agent flood and irrigation** (`ReflectionEngine.generate_reflection_prompt_one_agent`).
+  It opens with the first sentence of the household's or farmer's decision-prompt persona, then "It is the
+  end of <year>. Look back on your recent years and say what you learned.", the question, "Your recent
+  years:", the program-written lines ("What happened this year (kept with your lesson; do not repeat it):"),
+  the rules, the configured instruction, and asks for `{"lesson": "..."}`. The words "simulation", "agent"
+  and "Reflection Assistant" and the `###` headings are gone from it. The correction note after a failed lesson
+  check now reads "Your previous lesson cannot be used: <reasons>. Please answer again, taking the
+  instructions above into account." Runs made before this change are reproduced from tag v0.7.0.
+  `generate_batch_reflection_prompt` is unchanged and still serves the multi-agent flood batches, the
+  ungrounded paths and `examples/governed_flood`. Frozen fixtures for flood and irrigation change because the
+  reflection prompts do.
+
 ## [0.7.0] - 2026-11-26
 
 Minor-bump release: **`python -m broker.run` (new since v0.6.0), Invariant 7 (governance leaves no trace in

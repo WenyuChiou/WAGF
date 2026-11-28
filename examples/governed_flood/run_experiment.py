@@ -193,20 +193,7 @@ class LifecycleHooks:
                 if action_ctx and action_ctx.get("skill_name"):
                     skill = action_ctx["skill_name"].replace("_", " ")
                     act_year = action_ctx.get("year", year - 1)
-                    if action_ctx.get("was_fallback"):
-                        # Rejected proposal; the registry default ran instead.
-                        proposed = action_ctx.get("proposed_skill")
-                        if proposed:
-                            parts.append(
-                                f"Year {act_year}: Your proposal to "
-                                f"{proposed.replace('_', ' ')} was rejected; "
-                                f"{skill} was applied.")
-                        else:
-                            parts.append(
-                                f"Year {act_year}: No valid proposal was made; "
-                                f"{skill} was applied.")
-                    else:
-                        parts.append(f"Year {act_year}: You chose to {skill}.")
+                    parts.append(f"Year {act_year}: Action carried out: {skill}.")
 
             self.runner.memory_engine.add_memory(agent.id, " | ".join(parts))
 
@@ -312,7 +299,11 @@ class LifecycleHooks:
                 batch, year, reflection_questions=cfg.get("questions", [])
             )
             try:
-                raw = llm_call(prompt)
+                # Model-call log (llm_calls.jsonl): which agents and year this reflection covers.
+                from broker.utils.llm_call_log import call_context
+                with call_context(agent_ids=batch_ids, agent_type="household", year=year,
+                                  kind="reflection", attempt=1):
+                    raw = llm_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw
                 insights = self.reflection_engine.parse_batch_reflection_response(text, batch_ids, year)
                 for aid, insight in insights.items():
@@ -532,6 +523,9 @@ def main():
     # --- Run ---
     print(f"--- Governed Flood Experiment | {args.model} | {len(agents)} agents | {args.years} years | seed={seed} ---")
     runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
+    # Mandatory run records: exit non-zero when they are incomplete.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
 
     # Finalize audit
     if runner.broker.audit_writer:

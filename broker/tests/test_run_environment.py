@@ -167,6 +167,7 @@ def test_mock_and_cloud_skip_ollama(monkeypatch, model):
 
 def test_ollama_model_records_version_or_error(monkeypatch):
     monkeypatch.setattr(re_mod, "ollama_server_version", lambda url, timeout=2.0: {"version": "0.23.0", "error": None})
+    monkeypatch.setattr(re_mod, "ollama_loaded_model", lambda model, url, timeout=2.0: {"loaded": False, "error": None})
     env = re_mod.collect_run_environment("gemma3:4b", captured_at="launch")
     assert env["ollama_server_version"]["version"] == "0.23.0" and env["errors"] == {}
     monkeypatch.setattr(re_mod, "ollama_server_version",

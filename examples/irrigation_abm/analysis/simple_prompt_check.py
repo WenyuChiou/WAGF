@@ -16,7 +16,14 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
+import sys
 from typing import Any, Iterable, Iterator, Mapping, Pattern, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from broker.components.cognitive.reflection import split_stored_reflection  # noqa: E402
 
 
 def _rx(*patterns: str) -> tuple[Pattern[str], ...]:
@@ -75,7 +82,13 @@ REMOVED_SENTENCE_FAMILIES: dict[str, tuple[Pattern[str], ...]] = {
     "appraisal_guidance": _rx(
         r"First, assess your WATER SUPPLY situation by considering:",
         r"Next, assess your ADAPTIVE CAPACITY by considering:",
-        r"- (?:Water Supply Outlook|Demand-Supply Balance|Capacity to Adjust|Cost of Change|Benefit of Keeping):",
+        # The simple rating block (2026-11-27) uses the same bullet labels, so only the
+        # full-mode question wording of each bullet counts as removed text.
+        r"- Water Supply Outlook: Is your water supply",
+        r"- Demand-Supply Balance: Is your current water request",
+        r"- Capacity to Adjust: How much can you change",
+        r"- Cost of Change: What would you risk",
+        r"- Benefit of Keeping: What is the advantage",
     ),
     "keep_asks_received_note": _rx(
         r"If you received less than you requested last year, keeping your request asks only for the amount you received",
@@ -215,10 +228,8 @@ def _append_hits(
 
 
 def _split_stored_reflection(text: str) -> tuple[str, str | None]:
-    if " Lesson: " not in text:
-        return text, None
-    program, lesson = text.split(" Lesson: ", 1)
-    return program, lesson
+    program, lesson = split_stored_reflection(text)
+    return (program, lesson) if program else (text, None)
 
 
 def _scan_model_text(
@@ -338,7 +349,7 @@ def check_run(run_dir: str | Path) -> CheckResult:
                 for index, summary in enumerate(_flatten_text(row.get("summary"))):
                     readable_prompts += 1
                     source = f"{reflection_input_name}:{line_number}:summary[{index}]"
-                    if " Lesson: " in summary:
+                    if split_stored_reflection(summary)[0]:
                         _scan_model_text(
                             summary, identity, source, occurrences, lesson_occurrences
                         )

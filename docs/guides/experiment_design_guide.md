@@ -196,18 +196,19 @@ These keyword groups are only examples. Replace them with domain-appropriate voc
 
 #### Reflection Configuration
 
+For `broker.run`, set a topic consisting of two nouns: what the agent faces and what it decides about. Use no action verb or direction. The framework asks "What do your recent years tell you about <topic>?" and expects `{"answer": "..."}`.
+
 ```yaml
 global_config:
   reflection:
+    enabled: true                    # Enable reflection on broker.run
     interval: 1                       # Reflect every year
-    batch_size: 10                    # Agents per reflection batch
+    batch_size: 1                     # One agent per reflection call
     importance_boost: 0.9             # Importance score for generated insights
-    method: hybrid
-    questions:                        # Domain-specific guidance
-      - "Was your strategy effective given the conditions?"
-      - "What patterns do you notice between your actions and outcomes?"
-      - "How should you adjust your approach going forward?"
+    topic: "your water supply and your requests"
 ```
+
+`reflection.topic` resolves from agent type, `global_config`, then `shared`. With reflection enabled, `broker.run` requires a valid topic and rejects `questions` in all scopes it reads before any model call. With reflection disabled, neither check is required. Multi-agent flood and `governed_flood` retain their current question builders; use tag v0.7.0 to reproduce retired one-agent configurations.
 
 ### 2.2 `skill_registry.yaml` — Available Actions
 
@@ -509,10 +510,10 @@ Keywords in the memory text are matched against `emotion_keywords` and `source_p
 
 ### Reflection
 
-The `ReflectionEngine` runs at configurable intervals (default: every year). Each reflection batch:
+The `ReflectionEngine` runs at configurable intervals (default: every year). On `broker.run`, each reflecting agent:
 
-1. Retrieves recent episodic memories for a group of agents
-2. Sends them to the LLM with domain-specific guidance questions
+1. Retrieves recent episodic memories, excluding earlier reflections
+2. Sends them to the LLM with the framework question built from `reflection.topic`
 3. Generates semantic insights (high-importance memories)
 4. Consolidates insights into long-term memory
 

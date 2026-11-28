@@ -864,7 +864,6 @@ class _Engine:
 
     def __init__(self, mode, revised="take_action"):
         self._soft_advise_mode = mode
-        self._intervention_framing = "legacy"
         self.max_reports = 3
         self.model_adapter = _Adapter()
         self.prompts = []
@@ -926,7 +925,7 @@ def test_advise_mode_feedback_shows_the_advice_without_blocking():
     # (b) the advice text reached the next prompt
     assert len(e.prompts) == 1
     assert "consider adapting" in e.prompts[0]
-    assert e.prompts[0].startswith("ORIGINAL PROMPT")
+    assert e.prompts[0].endswith("ORIGINAL PROMPT")
     # (c) the audit columns say what happened
     assert info["advise_shown"] is True
     assert info["advise_reports_shown"] == 1
@@ -1013,7 +1012,7 @@ def test_advise_shown_follows_the_renderer_not_the_intention():
     stop."""
     class _DropsEverything(_Adapter):
         def format_intervention_prompt(self, prompt, reports, max_reports=None,
-                                       framing="legacy", include_reports=True):
+                                       framing="plain", include_reports=True):
             self.rendered.append(prompt)
             return prompt, 0
 

@@ -157,7 +157,8 @@ def multi_actor_trace_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 "strict_keys": True,
             },
             "memory": {"engine_type": "humancentric", "deterministic_consolidation": True},
-            "reflection": {"enabled": True, "interval": 1, "importance_boost": 0.9},
+            "reflection": {"enabled": True, "interval": 1, "importance_boost": 0.9,
+                           "topic": "your situation and your decisions"},
             "audit": {"context_snapshot": True},
         },
         "authority": {

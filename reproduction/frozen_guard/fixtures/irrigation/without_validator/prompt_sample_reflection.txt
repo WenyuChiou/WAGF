@@ -1,0 +1,14 @@
+You are MohaveValleyIDD, an agricultural water user (an irrigation district, a tribal water user, or a group of water users) in the Lower Basin of the Colorado River, holding a water right of 50,000 acre-ft/year.
+It is the end of 2019. Look back on your recent years.
+Question: What do your recent years tell you about your water supply and your requests?
+
+Your recent years:
+- Year 2019: Action carried out: decrease demand (by 3%). You requested 27,338 acre-ft and received 27,338 acre-ft. Demand fully met. On 1 January that year Lake Mead was lower than a year earlier.
+
+What happened this year (kept with your answer; do not repeat it):
+- 2019: you asked for 27,338 acre-ft and you received 27,338 acre-ft (fully met).
+
+Base your answer only on the years listed above. Precipitation is given only as higher or lower than the previous winter, and Lake Mead only as higher or lower than a year earlier; never call either of them above or below average or normal. State a general rule only if no listed year contradicts it.
+Answer in one or two sentences in the first person. Do not write any year, amount, percentage or other number; what happened this year is stored with your answer.
+
+Answer with this JSON object only: {"answer": "<your answer>"}

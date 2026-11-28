@@ -224,6 +224,9 @@ def main(argv=None) -> int:
     print(f"Archetype-C subprocess coupling run | model={args.model} years={args.years}")
     print("=" * 72)
     runner.run()
+    # Mandatory run records: exit non-zero when they are incomplete.
+    from broker.utils.provenance_requirements import enforce_complete
+    enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
 
     # Surface the connector's per-call audit trail (exit code / wall time /
     # stderr tail) so the smoke test can be verified without opening raw

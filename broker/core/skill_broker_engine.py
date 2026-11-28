@@ -270,12 +270,6 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             frozenset(self._advise_spec["rule_ids"])
             if (self._advise_spec and self._advise_mode != "off") else frozenset()
         )
-        # Coerced for the same reason as _on_retry_exhausted below: a MagicMock
-        # config returns a Mock from this getter, which would then reach
-        # format_intervention_prompt and raise mid-run rather than degrading.
-        _get_framing = getattr(self.config, "get_governance_intervention_framing", None)
-        _framing = _get_framing() if callable(_get_framing) else "legacy"
-        self._intervention_framing = _framing if _framing in ("legacy", "neutral") else "legacy"
         # `bool(MagicMock())` is True, so a bare-Mock config would silently switch
         # per-decision call counting on. Require a real bool.
         _get_acols = getattr(self.config, "get_audit_advise_columns", None)
@@ -1391,7 +1385,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             or (not bool(total_llm_stats.get("llm_success", True)))
         )
 
-        result = SkillBrokerResult(
+        return SkillBrokerResult(
             outcome=outcome,
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
@@ -1406,15 +1400,7 @@ class SkillBrokerEngine(RetryMixin, AdviseMixin, AuditMixin, SkillFilterMixin):
             executed_skill=executed_skill,
             executed_via_fallback=executed_via_fallback,
         )
-        # The rule ids that blocked the final attempt (empty when it passed).
-        # A plain attribute, NOT a dataclass field, so dataclasses.asdict and
-        # every serialised trace stay unchanged; read by
-        # ExperimentRunner._apply_state_changes for the neutral memory line.
-        result.blocking_rule_ids = (
-            [] if all_valid else sorted(self._extract_blocking_rule_ids(validation_results))
-        )
-        return result
-    
+
     def _projection_check(self):
         """The coupling adapter's projection check, or None. The coupling module
         is looked up in ``sys.modules`` rather than imported, so a run without

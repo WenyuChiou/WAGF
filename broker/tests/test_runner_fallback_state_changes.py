@@ -181,12 +181,12 @@ def test_rejected_row_action_context_names_executed_fallback(tmp_path):
 
     ctx = agent._last_action_context
     assert ctx["skill_name"] == DEFAULT_SKILL, "context must name what EXECUTED"
-    assert ctx["was_fallback"] is True
-    assert ctx["proposed_skill"] == PROPOSED
+    assert "was_fallback" not in ctx
+    assert "proposed_skill" not in ctx
     assert ctx["year"] == 1
     mems = _memories(runner, agent)
     assert any(
-        "Proposal to take action was rejected; default action applied: Default action"
+        "Action carried out: Default action."
         in m for m in mems
     ), mems
     assert not any("Decided to" in m for m in mems), mems
@@ -200,7 +200,7 @@ def test_keep_proposal_rejected_row_is_not_marked_fallback(tmp_path):
     _run_one_period(tmp_path, agent, result)
     assert agent.holds_policy is True
     assert agent._last_action_context["skill_name"] == PROPOSED
-    assert agent._last_action_context["was_fallback"] is False
+    assert "was_fallback" not in agent._last_action_context
 
 
 def test_rejected_row_without_execution_changes_nothing(tmp_path):
@@ -236,7 +236,7 @@ def test_approved_row_applied_exactly_once_with_unchanged_context(tmp_path):
     assert agent.holds_policy is True
     # Approved-row context keeps exactly its historical keys.
     assert agent._last_action_context == {"skill_name": PROPOSED, "year": 1}
-    assert any("Decided to: Take action" in m for m in _memories(runner, agent))
+    assert any("Action carried out: Take action." in m for m in _memories(runner, agent))
 
 
 # (d) ---------------------------------------------------------------------
@@ -285,9 +285,9 @@ def test_uncertain_row_applies_fallback_without_proposal(tmp_path):
     assert agent.holds_policy is False
     ctx = agent._last_action_context
     assert ctx["skill_name"] == DEFAULT_SKILL
-    assert ctx["was_fallback"] is True
-    assert ctx["proposed_skill"] is None
-    assert any("No valid proposal; default action applied: Default action" in m
+    assert "was_fallback" not in ctx
+    assert "proposed_skill" not in ctx
+    assert any("Action carried out: Default action." in m
                for m in _memories(runner, agent))
 
 

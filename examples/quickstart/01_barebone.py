@@ -102,4 +102,7 @@ runner.hooks = {"pre_year": on_pre_year, "post_step": on_post_step}
 print("WAGF Quickstart — Barebone Decision Loop")
 print("=" * 40)
 runner.run()
+# Mandatory run records: exit non-zero when they are incomplete.
+from broker.utils.provenance_requirements import enforce_complete
+enforce_complete(runner.config.output_dir, entry=__name__ == "__main__")
 print(f"\nDone! Check {output_dir} for audit CSV.")

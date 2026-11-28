@@ -1319,6 +1319,7 @@ class TestGovernanceLeavesNoTrace:
     def test_executed_default_rows_match_approved_row(self):
         approved, rejected, unreadable = self._rows()
         a_line, a_meta, a_ctx = self._apply(approved, "executed")
+        assert self._apply(approved, None) == (a_line, a_meta, a_ctx)
         assert a_line == "Year 3: Action carried out: Default action."
         assert set(a_ctx) == {"skill_name", "year"}
         for res in (rejected, unreadable):
@@ -1363,30 +1364,8 @@ class TestGovernanceLeavesNoTrace:
         assert self._apply(kept, "executed") == a
         assert a[0] == "Year 3: Action carried out: Take action (number 0.7)."
 
-    def test_unknown_style_still_raises(self):
+    @pytest.mark.parametrize("style", ["explicit", "neutral", "silent"])
+    def test_unsupported_memory_style_raises(self, style):
         approved, _, _ = self._rows()
-        with pytest.raises(ValueError, match="executed"):
-            self._apply(approved, "silent")
-
-    # -- (b) explicit and neutral unchanged --------------------------------
-
-    def test_explicit_and_neutral_unchanged(self):
-        approved, rejected, unreadable = self._rows()
-        for style in (None, "explicit"):
-            line, _, ctx = self._apply(approved, style)
-            assert line == "Year 3: Decided to: Default action"
-            assert ctx == {"skill_name": self.DEFAULT, "year": 3}
-            line, _, ctx = self._apply(rejected, style)
-            assert line == ("Year 3: Proposal to take action was rejected; "
-                            "default action applied: Default action")
-            assert ctx == {"skill_name": self.DEFAULT, "year": 3,
-                           "was_fallback": True, "proposed_skill": self.PROPOSED}
-            line, _, ctx = self._apply(unreadable, style)
-            assert line == ("Year 3: No valid proposal; "
-                            "default action applied: Default action")
-            assert ctx == {"skill_name": self.DEFAULT, "year": 3,
-                           "was_fallback": True, "proposed_skill": None}
-        line, _, ctx = self._apply(rejected, "neutral")
-        assert line == "Year 3: under rule r1, default action applied: Default action"
-        assert ctx == {"skill_name": self.DEFAULT, "year": 3, "was_fallback": True,
-                       "proposed_skill": self.PROPOSED, "blocking_rules": ["r1"]}
+        with pytest.raises(ValueError, match=r"retired on 2026-11-27.*tag v0\.7\.0"):
+            self._apply(approved, style)

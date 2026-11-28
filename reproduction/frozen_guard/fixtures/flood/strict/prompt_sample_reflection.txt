@@ -1,0 +1,14 @@
+You are a homeowner in a city, with a strong attachment to your community.
+It is the end of year 1. Look back on your recent years.
+Question: What do your recent years tell you about floods and your home?
+
+Your recent years:
+- Year 1: No flood occurred this year. At the end of Year 1 my house was elevated and I did not have flood insurance.
+
+What happened this year (kept with your answer; do not repeat it):
+- Year 1: no flood occurred; at the end of the year my house was elevated and I did not have flood insurance.
+
+Base your answer only on the years listed above. Do not say that something happened every year, or never happened, unless every listed year shows it. State a general rule only if no listed year contradicts it.
+Answer in one or two sentences in the first person. Do not write any year, amount, percentage or other number; what happened this year is stored with your answer.
+
+Answer with this JSON object only: {"answer": "<your answer>"}

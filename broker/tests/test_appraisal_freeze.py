@@ -109,7 +109,6 @@ def _config(**flags) -> MagicMock:
     config.get_audit_advise_columns.return_value = False
     config.get_governance_advise.return_value = None
     config.get_governance_advise_mode.return_value = flags.get("advise_mode", "off")
-    config.get_governance_intervention_framing.return_value = "legacy"
     config.get_governance_on_retry_exhausted.return_value = "default"
     config.get_governance_retry_feedback_mode.return_value = "full"
     config.get_governance_feasible_set_feedback.return_value = flags.get("feasible", False)
@@ -271,8 +270,8 @@ def test_shipped_flood_elevation_block_states_its_reason(monkeypatch):
 
     repo = Path(__file__).resolve().parents[2]
     path = str(repo / "examples" / "single_agent" / "agent_types.yaml")
-    expected = ("Elevation blocked under the rule on a house already elevated: your house "
-                "is already elevated, and elevating it again is not available under this rule.")
+    expected = ("Under the rule on a house already elevated, elevating your house again "
+                "is not available: your house is already elevated.")
     for profile in ("strict", "relaxed"):
         AgentTypeConfig.clear_cache()
         monkeypatch.setenv("GOVERNANCE_PROFILE", profile)
@@ -608,7 +607,7 @@ def test_feasible_line_in_the_retry_prompt_uses_frozen_labels():
     prompts: List[str] = []
     _run(eng, adapter, [("grow", "H"), ("grow", "M"), ("keep", "M")], prompts=prompts)
     # prompts[0] is the first attempt; prompts[2] answers the relabelled attempt
-    assert "Actions that pass every rule this step: 2 (keep), 3 (shrink)." in prompts[2]
+    assert "Actions that pass every rule in this decision: 2 (keep), 3 (shrink)." in prompts[2]
 
 
 def test_attempt_columns_off_adds_no_key():
@@ -734,7 +733,6 @@ def test_rule_id_prefix_and_suggestion(tmp_path, monkeypatch, prefix, expected_s
                              reasoning={"X_LABEL": "H"})
     reports = build_intervention_reports(thinking, proposal, source="errors")
     assert reports[0].suggested_correction == "Choose keep or shrink."
-    assert "  - Suggestion: Choose keep or shrink." in reports[0].to_prompt_string()
     AgentTypeConfig.clear_cache()
 
 

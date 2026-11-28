@@ -93,7 +93,8 @@ def test_fresh_folder_completes_mock_run(tmp_path, mock_run, existing_empty_fold
     assert integrity["reflection_engine_wired"] is True
     assert len((output / "reflection_log.jsonl").read_text().splitlines()) == 4
     checks = [json.loads(line) for line in (output / "reflection_checks.jsonl").read_text().splitlines()]
-    assert len(checks) == 5  # Four reflections, including one checked retry.
+    assert len(checks) == 4  # The P5 wording hashes to four first-attempt reflections.
+    assert all(check["attempt"] == 0 for check in checks)
     assert {(check["agent_id"], check["period"]) for check in checks} == {
         (agent, year) for agent in ("Agent_1", "Agent_2") for year in (1, 2)
     }

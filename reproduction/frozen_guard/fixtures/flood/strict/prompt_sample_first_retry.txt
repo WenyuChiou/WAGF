@@ -1,12 +1,8 @@
-Your previous response was flagged by the governance layer.
+Your previous answer cannot be used in this decision.
 
-**Issues Detected:**
-- [ERROR] Your proposed action 'do nothing' was BLOCKED.
-  - Reason: Inaction blocked under the rule on severe-threat response: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low, and doing nothing is not available under this rule in that case.
-  - Suggestion: Under this rule, doing nothing is not available in this decision.
+- You chose 'do nothing'. Under the rule on severe-threat response, doing nothing is not available in this decision: at the start of this decision you judged the flood threat to be high and your coping appraisal was not very low or low.
 
-
-Please reconsider your decision. Ensure your new response addresses the violations above.
+Please answer again, taking the information above into account.
 
 You are a homeowner in a city, with a strong attachment to your community.
 Your house is already elevated, which provides very good protection.

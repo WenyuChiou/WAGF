@@ -323,9 +323,14 @@ def gen_agent_types_yaml(
 
           reflection:
             # Off until enabled is true. When on, each agent writes a short
-            # lesson every interval years; it is stored as a memory with
+            # answer every interval years; it is stored as a memory with
             # importance importance_boost.
             enabled: false
+            # Replace with what your agents face and what they decide about, as
+            # two nouns with no action verb or direction (e.g. "floods and your
+            # home", "your water supply and your requests"). The framework asks
+            # "What do your recent years tell you about <topic>?".
+            topic: "your situation and your decisions"
             interval: 1
             importance_boost: 0.9
 
@@ -371,7 +376,6 @@ def gen_agent_types_yaml(
             # Rules correct only the current decision (Invariant 7): every
             # year's memory line reads "Year N: Action carried out: X.", the
             # same whether the agent's answer ran or a default replaced it.
-            # explicit writes "Proposal to X was rejected; ..." instead.
             rejection_line_style: executed
 
           actions:

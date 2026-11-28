@@ -385,7 +385,9 @@ def test_coupled_factory_sources_and_other_slots_reach_builder(case, monkeypatch
         observed.append(runner)
         assert list(runner.agents) == ["agent", "other"]
         assert [validator.__name__ for validator in runner.broker.custom_validators] == ["validate"]
-        assert runner.get_llm_invoke("agent") is runner.get_llm_invoke("other")
+        # One run.mock callable serves both types; each type gets its own call-log wrapper.
+        assert (runner.get_llm_invoke("agent").__wrapped__
+                is runner.get_llm_invoke("other").__wrapped__)
         assert runner.get_llm_invoke("agent")("prompt")[0] == "{}"
 
     monkeypatch.setattr(_entry.ExperimentBuilder, "with_coupling", capture_coupling)
@@ -740,6 +742,25 @@ def _magnitude_case(case, field_skills, number=0.4):
 
 def _seen(config):
     return sys.modules[f"{config.parents[1].name}.recording"].SEEN
+
+
+def test_run_mock_calls_are_in_the_call_log(case):
+    """Codex P2 on #158: run.mock invokes went straight into the runner's invoke cache and
+    skipped the call log, so llm_calls.jsonl had no lines and model_roles was empty while
+    the run still reported its records complete."""
+    config = _magnitude_case(case, None)
+    assert main([str(config), "--model", "mock"]) == 0
+    output = config.parents[1] / "results" / "agent_types"
+    calls = [json.loads(line) for line in
+             (output / "llm_calls.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert [(c["agent_type"], c["year"], c["kind"]) for c in calls] == [
+        ("agent", 1, "decision"), ("agent", 2, "decision")]
+    assert all(c["options"]["model"] == "mock" and c["reply"] for c in calls)
+    manifest = json.loads((output / "reproducibility_manifest.json").read_text(encoding="utf-8"))
+    decision = manifest["model_roles"]["decision"]
+    assert decision["calls"] == 2
+    assert [(e["agent_type"], e["model"], e["endpoint"], e["calls"])
+            for e in decision["entries"]] == [("agent", "mock", "mock", 2)]
 
 
 def test_number_is_dropped_for_a_skill_the_field_does_not_list(case):

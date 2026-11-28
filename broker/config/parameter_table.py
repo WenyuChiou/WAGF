@@ -635,7 +635,7 @@ _NONNUMERIC: Dict[str, Dict[str, str]] = {
         "engine": "broker/config/agent_types/base.py (MemoryConfigSpec.from_dict)",
         "engine_type": "broker/config/agent_types/base.py (MemoryConfigSpec.from_dict)",
         "surprise_strategy": "broker/config/agent_types/base.py (MemoryConfigSpec.from_dict)",
-        "rejection_line_style": "broker/core/experiment_runner.py (ExperimentRunner)",
+        "rejection_line_style": "broker/config/decision_wording.py (memory_line_style)",
         "runner_decision_line": "broker/core/experiment_runner.py (ExperimentRunner)",
         "retrieval_weights": "examples/single_agent/run_flood.py (memory engine setup)",
         "source_patterns": "broker/components/memory/engines/humancentric.py (HumanCentricMemoryEngine)",
@@ -646,6 +646,7 @@ _NONNUMERIC: Dict[str, Dict[str, str]] = {
     "reflection": {
         "enabled": "examples/single_agent/run_flood.py (_reflection_enabled)",
         "questions": "broker/utils/agent_config.py (get_reflection_questions)",
+        "topic": "broker/utils/agent_config.py (get_reflection_topic)",
         "persona_instruction": "examples/single_agent/run_flood.py (_grounded_reflection)",
         "method": "broker/components/cognitive/reflection.py (load_trigger_config)",
         "triggers": "broker/components/cognitive/reflection.py (load_trigger_config)",

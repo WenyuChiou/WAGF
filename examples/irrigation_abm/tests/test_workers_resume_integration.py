@@ -60,6 +60,9 @@ _CRASH_AFTER_CALLS = 20
 _VOLATILE_KEYS = {
     "timestamp", "git_commit", "git_dirty",
     "git_commit_at_finalize", "git_dirty_at_finalize", "finalized_at",
+    # The call log counts the calls this process made: a resumed run replays the journal
+    # and makes fewer, and its file hash follows the call order.
+    "llm_call_log",
 }
 
 
